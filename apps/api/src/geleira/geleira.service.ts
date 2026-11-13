@@ -7,6 +7,7 @@ import { uuidv7 } from '../common/uuid7';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView } from '../social/visibility';
 import { badge } from '../common/badge';
+import { itemCheers, levelOf, readSnapshot } from './geleira-post';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -134,7 +135,9 @@ export class GeleiraService {
         ORDER BY ui.favorite DESC, ui.rating DESC NULLS LAST, ui.updated_at DESC`,
       [userId, adult],
     );
-    return rows.map((r) => ({ ...itemOut(r, userId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
+    // Os brindes a cada item (no perfil e nos posts da geleira): o dono vê quantos.
+    const c = await itemCheers(this.pool, userId, [{ ownerId: userId, itemIds: rows.map((r) => r.id as string) }]);
+    return rows.map((r) => ({ ...itemOut(r, userId), rating: r.rating as number | null, favorite: r.favorite as boolean, cheers: c.get(`${userId}:${r.id as string}`)?.cheers ?? 0 }));
   }
 
   /** Guardar ou alterar um item da minha geleira (nota, favorito). Repetir o pedido dá o mesmo resultado. */
@@ -214,7 +217,12 @@ export class GeleiraService {
         ORDER BY ui.favorite DESC, ui.rating DESC NULLS LAST, ui.updated_at DESC`,
       [o.id, adult],
     );
-    return rows.map((r) => ({ ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
+    // Os brindes a cada item (feitos no perfil ou no cartão de um post da geleira) e se eu já brindei.
+    const c = await itemCheers(this.pool, viewerId, [{ ownerId: o.id, itemIds: rows.map((r) => r.id as string) }]);
+    return rows.map((r) => {
+      const k = c.get(`${o.id}:${r.id as string}`);
+      return { ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean, cheers: k?.cheers ?? 0, cheered: k?.cheered ?? false };
+    });
   }
 
   /**
@@ -235,13 +243,8 @@ export class GeleiraService {
         WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind IN ('bebida', 'comida')`,
       [o.id],
     );
-    const { n, fav, rated, cats } = rows[0] as { n: number; fav: number; rated: number; cats: number };
-    const points = n + fav + Math.floor(rated / 2) + cats;
-    const steps = [1, 12, 30, 60];
-    const byPoints = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
-    // Os dois níveis de cima pedem substância: variedade (grupos diferentes) e gostos avaliados.
-    const gate = cats >= 6 && rated >= 10 ? 4 : cats >= 4 && rated >= 5 ? 3 : 2;
-    const level = Math.min(byPoints, gate);
+    // Os dois níveis de cima pedem substância: variedade (grupos diferentes) e gostos avaliados (a mesma conta do retrato dos posts).
+    const { points, byPoints, level, steps } = levelOf(rows[0] as { n: number; fav: number; rated: number; cats: number });
     const held = level < byPoints;
     const age = o.birth_date ? Math.floor((Date.now() - new Date(o.birth_date).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
@@ -268,7 +271,8 @@ export class GeleiraService {
     const o = await this.visibleOwner(viewerId, username);
     if (o.id === viewerId) throw new BadRequestException('Não podes brindar a tua própria geleira');
     if (on) {
-      await this.pool.query('INSERT INTO taste.geleira_cheers (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [o.id, viewerId]);
+      // Já tinha brindado pelo post da geleira (0143): o brinde passa a ser do perfil, e tirar o brinde ao post já não o tira.
+      await this.pool.query('INSERT INTO taste.geleira_cheers (owner_id, user_id) VALUES ($1, $2) ON CONFLICT (owner_id, user_id) DO UPDATE SET source_post_id = NULL', [o.id, viewerId]);
       const first = await this.pool.query('INSERT INTO taste.geleira_cheer_notices (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [o.id, viewerId]);
       if (first.rowCount) await this.notifications.notify({ userId: o.id, actorId: viewerId, kind: 'geleira_cheer' });
     } else {
@@ -287,15 +291,77 @@ export class GeleiraService {
     const isOwner = o?.id === viewerId;
     if (!o || (!isOwner && (!o.can || !o.shown))) throw new NotFoundException('Sem geleira para mostrar');
     if (!isOwner && !o.cheers_public) throw new ForbiddenException('Só o dono vê quem brindou a geleira');
+    // `post`: o brinde veio do post da geleira (o código para o abrir). Só o dono o vê; post apagado, sem ligação.
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at,
+              CASE WHEN c.owner_id = $2 THEN (SELECT sp.short_code FROM content.posts sp WHERE sp.id = c.source_post_id AND sp.removed_at IS NULL) END AS post_code
          FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id
         WHERE c.owner_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', 'c.owner_id')}
           AND (c.owner_id = $2 OR NOT ${blockedBetween('u.id', '$2')})
         ORDER BY c.created_at DESC LIMIT 200`,
       [o.id, viewerId],
     );
-    return { items: rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier), hasAvatar: !!r.has_avatar, at: r.created_at as Date })) };
+    return {
+      items: rows.map((r) => ({
+        username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier), hasAvatar: !!r.has_avatar, at: r.created_at as Date,
+        ...(r.post_code ? { post: { code: r.post_code as string } } : {}),
+      })),
+    };
+  }
+
+  /**
+   * Brindar um item da geleira de alguém (on) ou tirar o brinde, no perfil (`username`) ou no cartão de um post da geleira
+   * (`postId`). É a mesma linha nos dois sítios (uma por pessoa e item: nunca conta duas vezes); `source_post_id` diz de onde
+   * veio. No perfil: só quem pode ver a geleira e só itens que lá estão. No post: só quem pode ver o post (privacidade e
+   * bloqueios) e só itens do retrato. Bebidas alcoólicas: só para maiores de 18 (senão 404, como se não existissem). A própria
+   * geleira não. O dono é avisado como nos brindes à geleira: só da PRIMEIRA vez que cada pessoa brinda (taste.geleira_cheer_notices).
+   */
+  async cheerItem(viewerId: string, from: { username: string } | { postId: string }, itemId: string, on: boolean) {
+    const adult = await this.isAdult(viewerId);
+    const missing = () => new NotFoundException('Esse gosto não está nesta geleira');
+    let ownerId: string;
+    let postId: string | null = null;
+    let itemName: string;
+    if ('postId' in from) {
+      const { rows } = await this.pool.query(
+        `SELECT p.author_id, p.geleira FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+          WHERE p.id = $2 AND p.geleira IS NOT NULL AND ${canView()}`,
+        [viewerId, from.postId],
+      );
+      if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
+      const it = readSnapshot(rows[0].geleira)?.items.find((i) => i.id === itemId);
+      if (!it || (it.alcoholic && !adult)) throw missing();
+      // O item tem de existir ainda no catálogo (um item rejeitado sai de todo o lado).
+      if (!(await this.pool.query(`SELECT 1 FROM taste.items WHERE id = $1 AND status = 'curated'`, [itemId])).rowCount) throw missing();
+      ownerId = rows[0].author_id as string;
+      postId = from.postId;
+      itemName = it.name;
+    } else {
+      const o = await this.visibleOwner(viewerId, from.username);
+      const { rows } = await this.pool.query(
+        `SELECT i.name, i.alcoholic FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
+          WHERE ui.user_id = $1 AND ui.item_id = $2 AND i.status = 'curated' AND i.kind IN ('bebida', 'comida')`,
+        [o.id, itemId],
+      );
+      if (!rows[0] || (rows[0].alcoholic && !adult)) throw missing();
+      ownerId = o.id;
+      itemName = rows[0].name as string;
+    }
+    if (ownerId === viewerId) throw new BadRequestException('Não podes brindar a tua própria geleira');
+    if (on) {
+      const ins = await this.pool.query(
+        'INSERT INTO taste.geleira_item_cheers (owner_id, item_id, user_id, source_post_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+        [ownerId, itemId, viewerId, postId],
+      );
+      if (ins.rowCount) {
+        const first = await this.pool.query('INSERT INTO taste.geleira_cheer_notices (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ownerId, viewerId]);
+        if (first.rowCount) await this.notifications.notify({ userId: ownerId, actorId: viewerId, kind: 'geleira_cheer', data: { itemId, itemName, ...(postId ? { postId } : {}) } });
+      }
+    } else {
+      await this.pool.query('DELETE FROM taste.geleira_item_cheers WHERE owner_id = $1 AND item_id = $2 AND user_id = $3', [ownerId, itemId, viewerId]);
+    }
+    const c = (await itemCheers(this.pool, viewerId, [{ ownerId, itemIds: [itemId] }])).get(`${ownerId}:${itemId}`);
+    return { itemId, cheered: c?.cheered ?? false, cheers: c?.cheers ?? 0 };
   }
 
   async settings(userId: string) {

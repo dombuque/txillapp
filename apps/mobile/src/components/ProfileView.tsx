@@ -1,7 +1,7 @@
 import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Animated, FlatList, Linking, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -22,6 +22,7 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
 import { FollowButton } from './FollowButton';
 import { GeleiraShelf, GeleiraToggle } from './GeleiraShelf';
+import { GeleiraGridTile } from './GeleiraPostCard';
 import { ProfileQrSheet } from './ProfileQrSheet';
 import { ProfileStoryAvatar } from './ProfileStoryAvatar';
 import { GiftSheet } from './PostSheets';
@@ -79,7 +80,7 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
         return (
-          <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || 'foto'}`}>
+          <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
                 <View style={{ width: 46, height: 28 }}>
@@ -89,6 +90,9 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
                 <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString('pt-PT')}</Text>
                 <Text style={styles.giftLabel}>TXILLS</Text>
               </LinearGradient>
+            ) : shown.geleira ? (
+              // A geleira partilhada: o frigorífico aberto e quantos gostos.
+              <GeleiraGridTile geleira={shown.geleira} size={size} />
             ) : m ? (
               <Image source={{ uri: m.kind === 'video' ? sized(m.posterUrl ?? m.url, 480) : sized(m.url, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
             ) : (
@@ -123,7 +127,10 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
-  const [geleiraOpen, setGeleiraOpen] = useState(false);
+  // `?geleira=1` (o «Ver a geleira de @x» de um post da geleira): o perfil abre já com a geleira aberta.
+  const { geleira: geleiraParam } = useLocalSearchParams<{ geleira?: string }>();
+  const [geleiraOpen, setGeleiraOpen] = useState(geleiraParam === '1');
+  useEffect(() => { if (geleiraParam === '1') setGeleiraOpen(true); }, [geleiraParam]);
   /** Computador: o menu «⋯» abre junto ao botão. */
   const [menuAt, setMenuAt] = useState<Anchor | null>(null);
   /** A bloquear ou desbloquear: um toque só (e o botão diz que está a tratar). */

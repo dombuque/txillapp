@@ -103,10 +103,24 @@ export class ExportService {
       ),
       // Brindes à geleira: os que dei (a quem) e os que recebi (de quem).
       geleiraCheersGiven: await q(
-        `SELECT o.username AS "to", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users o ON o.id = c.owner_id WHERE c.user_id = $1 ORDER BY c.created_at`,
+        `SELECT o.username AS "to", c.source_post_id AS "fromPostId", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users o ON o.id = c.owner_id WHERE c.user_id = $1 ORDER BY c.created_at`,
       ).catch(() => []),
       geleiraCheersReceived: await q(
-        `SELECT u.username AS "from", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id WHERE c.owner_id = $1 ORDER BY c.created_at`,
+        `SELECT u.username AS "from", c.source_post_id AS "fromPostId", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id WHERE c.owner_id = $1 ORDER BY c.created_at`,
+      ).catch(() => []),
+      // As partilhas da geleira (0143): cada post com o retrato dos gostos tal como foi publicado (e se já foi apagado).
+      geleiraShares: await q(
+        `SELECT p.id AS "postId", p.body, p.geleira->'items' AS items, (p.geleira->>'total')::int AS total, p.created_at AS "createdAt", p.removed_at AS "removedAt"
+           FROM content.posts p WHERE p.author_id = $1 AND p.geleira IS NOT NULL ORDER BY p.id`,
+      ).catch(() => []),
+      // Brindes aos itens da geleira (no perfil ou no cartão de um post da geleira): os que dei e os que recebi.
+      geleiraItemCheersGiven: await q(
+        `SELECT o.username AS "to", i.name AS item, c.source_post_id AS "fromPostId", c.created_at AS "createdAt"
+           FROM taste.geleira_item_cheers c JOIN identity.users o ON o.id = c.owner_id JOIN taste.items i ON i.id = c.item_id WHERE c.user_id = $1 ORDER BY c.created_at`,
+      ).catch(() => []),
+      geleiraItemCheersReceived: await q(
+        `SELECT u.username AS "from", i.name AS item, c.source_post_id AS "fromPostId", c.created_at AS "createdAt"
+           FROM taste.geleira_item_cheers c JOIN identity.users u ON u.id = c.user_id JOIN taste.items i ON i.id = c.item_id WHERE c.owner_id = $1 ORDER BY c.created_at`,
       ).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(

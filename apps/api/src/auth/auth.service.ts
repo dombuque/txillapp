@@ -560,6 +560,8 @@ export class AuthService {
       // Brindes à geleira, dados e recebidos (a conta só fica anonimizada, por isso o CASCADE não chega).
       await client.query('DELETE FROM taste.geleira_cheers WHERE owner_id = $1 OR user_id = $1', [userId]);
       await client.query('DELETE FROM taste.geleira_cheer_notices WHERE owner_id = $1 OR user_id = $1', [userId]);
+      // Brindes aos itens da geleira (no perfil ou nos posts da geleira, 0143), dados e recebidos.
+      await client.query('DELETE FROM taste.geleira_item_cheers WHERE owner_id = $1 OR user_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);
@@ -696,7 +698,7 @@ export class AuthService {
       // A linha da publicação fica (presentes e reposts de outros apontam para ela), mas sem nada do que lá estava:
       // texto, sítio, música, temas, país, as fotos e as hashtags.
       await client.query(
-        `UPDATE content.posts SET body = '', location_label = NULL, location_lat = NULL, location_lng = NULL, music = NULL, topics = NULL, country = NULL
+        `UPDATE content.posts SET body = '', location_label = NULL, location_lat = NULL, location_lng = NULL, music = NULL, topics = NULL, country = NULL, geleira = NULL
           WHERE author_id = $1`,
         [userId],
       );

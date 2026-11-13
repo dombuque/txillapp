@@ -32,6 +32,8 @@ const createSchema = z.object({
   soundId: z.string().trim().min(3).max(90).nullable().optional(),
   /** Dueto com uma tcheka, ou resposta com tcheka a um comentário (ver posts/remix.ts). */
   remixOf: remixSchema.nullable().optional(),
+  /** Partilhar a minha geleira (0143): o servidor tira o retrato dos gostos agora; a legenda é opcional. */
+  geleira: z.literal(true).optional(),
 });
 const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional() });
 const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
@@ -191,7 +193,7 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined, b.geleira === true);
   }
 
   /** «Duetos e respostas» desta publicação (?kind=duet|reply para só uns). */

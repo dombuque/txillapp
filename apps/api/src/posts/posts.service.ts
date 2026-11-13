@@ -17,6 +17,7 @@ import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { WalletService } from '../wallet/wallet.service';
 import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
 import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
+import { buildSnapshot, geleiraDto, itemCheers, readSnapshot, type GeleiraPostDto } from '../geleira/geleira-post';
 
 export const MAX_PHOTOS = 10;
 
@@ -67,6 +68,8 @@ const FEED_SQL = `
          -- Quem está a ver é o autor do original deste dueto (e não o dono do dueto): pode retirá-lo (0140).
          (rx.kind = 'duet' AND p.author_id <> $1 AND EXISTS (SELECT 1 FROM content.posts ro WHERE ro.id = rx.original_id AND ro.author_id = $1)) AS rx_takedown,
          (p.kind = 'post' AND p.venue_id IS NULL AND ${remixAllowed()}) AS remix_ok,
+         -- A geleira partilhada (0143): o retrato e se quem vê tem 18 anos (sem isso, as bebidas alcoólicas não saem).
+         p.geleira, CASE WHEN p.geleira IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM identity.users va WHERE va.id = $1 AND va.birth_date <= (current_date - interval '18 years')) END AS viewer_adult,
          (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
@@ -109,7 +112,10 @@ export class PostsService implements OnModuleInit {
    * `remixIn`: dueto ou resposta com tcheka (posts/remix.ts). Num dueto sem música escolhida (`musicGiven` falso) fica o som do
    * original: o `sound` dele, se o tiver e se se puder usar; senão a música dele.
    */
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true, geleiraShare = false) {
+    // Partilhar a geleira (0143): uma publicação só com o retrato da geleira e uma legenda opcional (e, se quiser, o sítio).
+    if (geleiraShare && (mediaIds.length || remixIn || venueId || soundId || musicIn)) throw new BadRequestException('A geleira partilha-se sozinha: sem fotos, vídeos, música nem página');
+    const geleira = geleiraShare ? await buildSnapshot(this.pool, userId) : null;
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     // Dueto ou resposta com tcheka: valida antes de tudo (o original, o comentário e quem deixa). Um remix não se publica como um local.
     let remix: CheckedRemix | null = null;
@@ -156,7 +162,7 @@ export class PostsService implements OnModuleInit {
     }
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');
-    if (!body.trim() && mediaIds.length === 0) throw new BadRequestException('Escreve algo ou mete uma foto');
+    if (!body.trim() && mediaIds.length === 0 && !geleira) throw new BadRequestException('Escreve algo ou mete uma foto');
 
     const client = await this.pool.connect();
     try {
@@ -179,8 +185,8 @@ export class PostsService implements OnModuleInit {
       const adult = !!geo && !!(await client.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [userId])).rowCount;
       if (!adult) geo = null;
       const q = (n: number) => (fromVenue ? n : coarse(n));
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id, sound_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)', [
-        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId, linkedSound,
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id, sound_id, geleira) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId, linkedSound, geleira ? JSON.stringify(geleira) : null,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -332,12 +338,12 @@ export class PostsService implements OnModuleInit {
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
   /** O autor edita o texto e/ou liga/desliga os comentários. Só as publicações dele; o texto passa pelo mesmo filtro. */
   async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }) {
-    const cur = (await this.pool.query('SELECT body, kind, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
+    const cur = (await this.pool.query('SELECT body, kind, (geleira IS NOT NULL) AS geleira, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
     if (!cur) throw new NotFoundException('Publicação não encontrada');
     if (b.body !== undefined) {
       const body = b.body.trim();
       if (cur.kind === 'repost' && cur.body === '') throw new BadRequestException('Um repost simples não se edita');
-      if (!body && cur.media === 0) throw new BadRequestException('Escreve algo');
+      if (!body && cur.media === 0 && !cur.geleira) throw new BadRequestException('Escreve algo');
       this.filter.assertClean(body);
       if (body !== cur.body) {
         await this.pool.query('UPDATE content.posts SET body = $2, edited_at = now(), topics = $3 WHERE id = $1', [postId, body, classify(body, extractHashtags(body))]);
@@ -358,6 +364,9 @@ export class PostsService implements OnModuleInit {
       [postId, userId],
     );
     if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
+    // Post da geleira (0143): os brindes que vieram dele continuam a contar no perfil; só a ligação ao post desaparece.
+    await this.pool.query('UPDATE taste.geleira_cheers SET source_post_id = NULL WHERE source_post_id = $1', [postId]);
+    await this.pool.query('UPDATE taste.geleira_item_cheers SET source_post_id = NULL WHERE source_post_id = $1', [postId]);
     this.indexer.postRemoved(postId);
   }
 
@@ -463,7 +472,8 @@ export class PostsService implements OnModuleInit {
     const second = await load([...first.values()].map((r) => r.repost_of));
     // Duetos e respostas: o original e o comentário (só o que este espectador vê), numa vez para a página toda.
     const links = await remixLinks(this.pool, viewerId, [...rows, ...first.values(), ...second.values()]);
-    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null });
+    const geleiras = await this.geleiraOf(viewerId, [...rows, ...first.values(), ...second.values()]);
+    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null, geleira: geleiras.get(r.id as string) ?? null });
     return rows
       .filter((r) => {
         if (!r.repost_of) return true;
@@ -475,6 +485,19 @@ export class PostsService implements OnModuleInit {
         const inner = l1?.repost_of ? { ...dto(second.get(l1.repost_of)!), repostOf: null } : null;
         return { ...dto(r), repostOf: l1 ? { ...dto(l1), repostOf: inner } : null };
       });
+  }
+
+  /**
+   * As geleiras partilhadas (0143) de uma página de publicações: o retrato como quem vê o pode ver (as bebidas alcoólicas só
+   * para quem tem 18 anos) e os brindes de cada item (os do perfil e os do post são os mesmos), numa vez para a página toda.
+   */
+  private async geleiraOf(viewerId: string, rows: Record<string, any>[]) {
+    const out = new Map<string, GeleiraPostDto>();
+    const withSnap = rows.map((r) => ({ r, snap: readSnapshot(r.geleira) })).filter((x) => x.snap);
+    if (!withSnap.length) return out;
+    const cheers = await itemCheers(this.pool, viewerId, withSnap.map((x) => ({ ownerId: x.r.author_id as string, itemIds: x.snap!.items.map((i) => i.id) })));
+    for (const { r, snap } of withSnap) out.set(r.id as string, geleiraDto(snap!, r.author_id as string, r.viewer_adult === true, cheers));
+    return out;
   }
 
   /**
@@ -866,9 +889,19 @@ export class PostsService implements OnModuleInit {
       const ins = await this.pool.query('INSERT INTO content.cheers (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, userId]);
       // Avisa quem publicou (agrupado por publicação; tirar o brinde não apaga o aviso). Ver NotificationsService.notifyCheer.
       if (ins.rowCount) {
-        const p = (await this.pool.query(`SELECT p.author_id, ${tchekaPost()} AS tcheka FROM content.posts p WHERE p.id = $1`, [postId])).rows[0];
+        const p = (await this.pool.query(`SELECT p.author_id, ${tchekaPost()} AS tcheka, (p.geleira IS NOT NULL) AS geleira FROM content.posts p WHERE p.id = $1`, [postId])).rows[0];
+        // Post da geleira (0143): o brinde ao post todo conta também como brinde à geleira do perfil (a mesma linha de
+        // geleira_cheers, uma por pessoa: quem já brindou no perfil não conta outra vez). O aviso é o do brinde ao post; fica
+        // marcado em geleira_cheer_notices para não vir outro aviso se brindar depois no perfil.
+        if (p?.geleira && p.author_id !== userId) {
+          await this.pool.query('INSERT INTO taste.geleira_cheers (owner_id, user_id, source_post_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [p.author_id, userId, postId]);
+          await this.pool.query('INSERT INTO taste.geleira_cheer_notices (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [p.author_id, userId]);
+        }
         if (p) await this.notifications.notifyCheer(p.author_id as string, userId, { kind: 'post', postId, tcheka: !!p.tcheka });
       }
+    } else {
+      // Tirar o brinde ao post tira o brinde à geleira que veio dele (não o que já tinha sido dado no perfil).
+      await this.pool.query('DELETE FROM taste.geleira_cheers WHERE user_id = $1 AND source_post_id = $2', [userId, postId]);
     }
     const c = await this.pool.query('SELECT count(*)::int AS n FROM content.cheers WHERE post_id = $1', [postId]);
     return { cheered: !del.rowCount, cheers: c.rows[0].n };

@@ -12,6 +12,7 @@ import { Icon } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
+import { GeleiraMini } from './GeleiraPostCard';
 
 /** Tamanho do avatar no fio (a original em cima e quem citou por baixo) e o espaço até ao texto. */
 export const THREAD_AVATAR = 36;
@@ -160,6 +161,8 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
           {side ? media : null}
         </View>
         {!side ? media : null}
+        {/* Citação de um post da geleira: o frigorífico em ponto pequeno (os brindes aos gostos fazem-se no original). */}
+        {original.geleira && !m ? <View style={{ marginTop: 8, borderRadius: 14, overflow: 'hidden' }}><GeleiraMini geleira={original.geleira} name={a.displayName} /></View> : null}
         {original.cheers > 0 || original.comments > 0 ? (
           <View style={styles.counts}>
             {original.cheers > 0 ? (

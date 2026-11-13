@@ -10,6 +10,7 @@ import { Sheet } from '@/components/Sheet';
 import { TasteBubble } from '@/components/TasteBubble';
 import { geleiraApi, type CatalogItem, type TasteKind } from '@/lib/api.geleira';
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
+import { shareBlockReason } from '@/lib/geleiraPost';
 import { colors } from '@/lib/theme';
 
 const SKY50 = '#f0f9ff';
@@ -150,6 +151,13 @@ export default function GeleiraEditor() {
 
   const list = items ?? [];
   const mine = list.filter((i) => i.mine);
+  /** «Partilhar a minha geleira»: com mudanças por guardar, pede para guardar primeiro (o post leva a geleira guardada). */
+  function share() {
+    if (changes.length > 0) return say('Guarda primeiro as mudanças e depois partilha.');
+    const why = shareBlockReason((saved ?? []).filter((i) => i.mine));
+    if (why) return say(why);
+    router.push('/partilhar-geleira' as never);
+  }
   const count = useMemo(() => {
     const c: Record<TasteKind, number> = { vibe: 0, bebida: 0, comida: 0, sitio: 0 };
     for (const i of list) if (i.mine) c[i.kind] += 1;
@@ -182,6 +190,9 @@ export default function GeleiraEditor() {
         <View style={st.top}>
           <BackButton onPress={back} />
           <Text style={st.title} numberOfLines={1}>A minha geleira</Text>
+          <Pressable onPress={share} style={({ pressed }) => [st.shareBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Partilhar a minha geleira">
+            <Icon name="share" size={20} color={colors.brand} />
+          </Pressable>
           <View style={st.count} accessibilityLiveRegion="polite">
             <Icon name="snowflake" size={16} color={SKY700} />
             <Text style={{ fontSize: 14, fontWeight: '800', color: SKY700 }}>{fmt(mine.length)}</Text>
@@ -393,6 +404,8 @@ const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
   title: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   count: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: SKY50, paddingHorizontal: 12, paddingVertical: 6 },
+  // Só o ícone: o título «A minha geleira» cabe inteiro num ecrã de 360 pt.
+  shareBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.rose50, marginRight: 4 },
   tabs: { flexDirection: 'row', gap: 4, paddingHorizontal: 12, paddingBottom: 8 },
   tab: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 16 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },

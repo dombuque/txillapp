@@ -34,6 +34,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
+import { GeleiraPostCard } from './GeleiraPostCard';
 import { RemixesLink, RemixTag, ReplyStickerOverlay } from './remix/RemixParts';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { navTap } from '@/lib/tapGuard';
@@ -327,7 +328,13 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {post.remixOf ? <View style={{ paddingBottom: 8 }}><RemixTag remix={post.remixOf} dark={false} /></View> : null}
       {/* A música: o cartão completo nas publicações só com texto; com fotos ou vídeo, o selo por cima da imagem. */}
       {post.music && musicPlacement(post) === 'card' ? <MusicCard track={post.music} visible={musicOn} soundTo={soundHref(post as { sound?: unknown })} /> : null}
-      {!quote && post.media.length ? (
+      {/* A geleira partilhada (0143): o frigorífico com os gostos; tocar num gosto brinda-o, o botão Brindar brinda o post todo. */}
+      {!quote && post.geleira ? (
+        <View>
+          <GeleiraPostCard post={post} me={me} detail={detail} onOpen={goPost} />
+          <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
+        </View>
+      ) : !quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
         <View>
           <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={(!!post.music && !post.remixOf) || !!post.soundRemoved} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />

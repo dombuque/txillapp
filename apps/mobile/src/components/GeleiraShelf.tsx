@@ -7,7 +7,8 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { ApiError } from '@/lib/api';
 import { geleiraApi, type GeleiraLevel, type MyTaste, type TasteItem, type TheirTaste } from '@/lib/api.geleira';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
-import { applyCheer, canCheer, canListCheers, cheerA11yLabel, cheerButtonText, cheerersTitle, cheersBadge, cheersCount, geleiraToggleLabel, ownerCheersA11yLabel, toggleCheer } from '@/lib/geleiraCheers';
+import { applyCheer, canCheer, canListCheers, cheerA11yLabel, cheerButtonText, cheerersTitle, cheersBadge, cheersCount, geleiraToggleLabel, ownerCheersA11yLabel, ownerCheersText, toggleCheer } from '@/lib/geleiraCheers';
+import { itemA11yLabel, shareBlockReason } from '@/lib/geleiraPost';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
@@ -19,7 +20,7 @@ import { ActivityIndicator } from './PontoLoader';
 import { Sheet } from './Sheet';
 import { TasteBubble } from './TasteBubble';
 
-type Shown = TasteItem & { rating: number | null; favorite: boolean };
+type Shown = TasteItem & { rating: number | null; favorite: boolean; cheers?: number; cheered?: boolean };
 
 /** Âmbar escuro para texto em fundo âmbar claro (contraste ≥ 4,5:1). */
 const AMBER_INK = '#92400e';
@@ -103,7 +104,10 @@ function CheerersSheet({ username, name, isMe, onClose }: { username: string; na
               <NameWithBadge name={p.displayName} who={p} style={st.name} />
               <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
             </View>
-            <Text style={st.handle}>{timeAgo(p.at)}</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={st.handle}>{timeAgo(p.at)}</Text>
+              {p.post ? <Text style={st.viaPost}>no post da geleira</Text> : null}
+            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -129,7 +133,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
   const countButton = (wide: boolean) => (
     <Pressable onPress={onOpenList} style={({ pressed }) => [st.cheerBtn, wide ? { flex: 1, justifyContent: 'flex-start' } : st.cheerCount, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={ownerCheersA11yLabel(n)}>
       {wide && <Icon name="cheers" size={22} color={colors.amber600} />}
-      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{cheersCount(n)}</Text>
+      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{wide && isMe ? ownerCheersText(n).replace(/^🥂 /, '') : cheersCount(n)}</Text>
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );
@@ -181,12 +185,23 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
 }
 
 /** Um gosto: bolinha de vidro com o ícone, o nome e a nota. O favorito leva um coração. */
-function Tile({ item }: { item: Shown }) {
+function Tile({ item, onPress }: { item: Shown; /** Visitante: tocar brinda este gosto (o mesmo brinde que no post da geleira). */ onPress?: () => void }) {
   const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
+  const n = item.cheers ?? 0;
+  const Box = onPress ? Pressable : View;
+  const a11y = onPress
+    ? { accessibilityRole: 'button' as const, accessibilityState: { selected: !!item.cheered }, accessibilityLabel: itemA11yLabel({ ...item, name: label }, false) }
+    : { accessible: true, accessibilityRole: 'image' as const, accessibilityLabel: n ? `${label}, ${cheersCount(n)}` : label };
   return (
-    <View style={st.tile} accessible accessibilityRole="image" accessibilityLabel={label}>
+    <Box style={st.tile} onPress={onPress} {...a11y}>
       <View>
-        <TasteBubble item={item} size={44} />
+        <View style={[st.tileRing, item.cheered && { borderColor: colors.amber300 }]}><TasteBubble item={item} size={44} /></View>
+        {n > 0 && (
+          <View style={[st.tileCheers, item.cheered && { backgroundColor: colors.amber300 }]}>
+            <Icon name="cheers" size={9} color={AMBER_INK} />
+            <Text style={st.tileCheersText}>{n > 99 ? '99+' : n}</Text>
+          </View>
+        )}
         {item.favorite && (
           <View style={st.heart}>
             <Icon name="heart" size={9} solid color="#fff" />
@@ -195,12 +210,12 @@ function Tile({ item }: { item: Shown }) {
       </View>
       <Text numberOfLines={2} style={st.tileName}>{item.name}</Text>
       {item.pending ? <Text style={{ marginTop: 4, fontSize: 10, fontWeight: '500', color: colors.zinc500 }}>à espera</Text> : <Frost rating={item.rating} />}
-    </View>
+    </Box>
   );
 }
 
 /** Prateleira: os gostos em fila e, por baixo, a tábua de vidro. */
-function Shelf({ title, icon, items }: { title: string; icon: IconName; items: Shown[] }) {
+function Shelf({ title, icon, items, onTap }: { title: string; icon: IconName; items: Shown[]; onTap?: (i: Shown) => void }) {
   return (
     <View style={{ marginTop: 12 }}>
       <View style={st.shelfHead}>
@@ -209,7 +224,7 @@ function Shelf({ title, icon, items }: { title: string; icon: IconName; items: S
         <Text style={[st.shelfTitle, { color: 'rgba(39,39,42,0.45)', fontWeight: '600' }]}>{items.length}</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 }} style={{ marginHorizontal: -4 }}>
-        {items.map((i) => <Tile key={i.id} item={i} />)}
+        {items.map((i) => <Tile key={i.id} item={i} onPress={onTap && !i.pending ? () => onTap(i) : undefined} />)}
       </ScrollView>
       <LinearGradient colors={['rgba(228,228,231,0.7)', '#fff', 'rgba(228,228,231,0.7)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.board} />
     </View>
@@ -284,7 +299,43 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   const q = useTastes(username, isMe);
   const items = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
   const lv = useLevel(username);
+  const router = useRouter();
+  const qc = useQueryClient();
+  const cheering = useRef(new Set<string>());
   const margin = flush ? 0 : 16;
+
+  /**
+   * Visitante: tocar num gosto brinda-o (ou tira o brinde). É o mesmo brinde que no cartão do post da geleira: uma vez por
+   * pessoa e gosto. Responde já, confirma depois.
+   */
+  async function cheerItem(i: Shown) {
+    if (isMe || cheering.current.has(i.id)) return;
+    cheering.current.add(i.id);
+    const key = ['geleira', username];
+    const flip = (on: boolean, n: number) => qc.setQueryData<Shown[]>(key, (old) => old?.map((x) => (x.id === i.id ? { ...x, cheered: on, cheers: Math.max(0, n) } : x)));
+    const was = !!i.cheered;
+    const n0 = i.cheers ?? 0;
+    flip(!was, n0 + (was ? -1 : 1));
+    if (!was) {
+      setBurst((k) => k + 1);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    }
+    try {
+      const r = await geleiraApi.cheerItem(username, i.id, !was);
+      flip(r.cheered, r.cheers);
+    } catch (e) {
+      flip(was, n0);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui brindar agora. Tenta outra vez.');
+    } finally {
+      cheering.current.delete(i.id);
+    }
+  }
+  /** Dono: «Partilhar a minha geleira» abre o ecrã de publicar com o cartão; geleira vazia explica porque não dá. */
+  function shareMine() {
+    const why = shareBlockReason(items);
+    if (why) return Alert.alert('Ainda não dá para partilhar', why);
+    router.push('/partilhar-geleira' as never);
+  }
   if (q.isLoading) return <View style={[st.skel, { marginHorizontal: margin, height: compact ? 60 : 192 }]} accessibilityLabel="A carregar a geleira" />;
   if (!isMe && (q.isError || items.length === 0)) return null;
 
@@ -358,9 +409,17 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
         items.length > 0 &&
         KINDS.map((k) => {
           const list = items.filter((i) => i.kind === k).sort((a, b) => Number(b.favorite) - Number(a.favorite)); // os favoritos primeiro
-          return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} /> : null;
+          return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={!isMe && typeof list[0].cheers === 'number' ? (i) => void cheerItem(i) : undefined} /> : null;
         })
       )}
+      {!folded && !isMe && items.length > 0 && typeof items[0].cheers === 'number' ? <Text style={st.tapHint}>Toca num gosto para lhe brindar.</Text> : null}
+      {/* Partilhar a minha geleira: abre o ecrã de publicar já com o cartão da geleira. */}
+      {isMe && !folded ? (
+        <Pressable onPress={shareMine} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityHint="Abre o ecrã de publicar com o cartão da geleira">
+          <Icon name="share" size={20} color={colors.white} />
+          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>Partilhar a minha geleira</Text>
+        </Pressable>
+      ) : null}
     </>
   );
 
@@ -402,6 +461,12 @@ const st = StyleSheet.create({
   howText: { fontSize: 14, lineHeight: 19, color: colors.zinc700 },
   lvDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' },
   tile: { width: 58, alignItems: 'center' },
+  tileRing: { borderRadius: 25, borderWidth: 2, borderColor: 'transparent' },
+  tileCheers: { position: 'absolute', left: -8, top: -6, height: 18, minWidth: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 9, borderWidth: 1.5, borderColor: '#fff', paddingHorizontal: 4, backgroundColor: '#fef3c7' },
+  tileCheersText: { fontSize: 10, lineHeight: 13, fontWeight: '800', color: AMBER_INK, includeFontPadding: false },
+  tapHint: { marginTop: 8, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
+  share: { marginTop: 12, width: '100%', backgroundColor: colors.brand, borderColor: colors.brand },
+  viaPost: { fontSize: 11, fontWeight: '600', color: '#0369a1' },
   tileName: { marginTop: 4, minHeight: 23, width: '100%', textAlign: 'center', fontSize: 11, fontWeight: '600', lineHeight: 11.5, color: colors.zinc800 },
   heart: { position: 'absolute', right: -6, top: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.brand, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   shelfHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2, marginBottom: 4 },

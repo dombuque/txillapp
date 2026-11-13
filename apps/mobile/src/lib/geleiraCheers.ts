@@ -75,3 +75,12 @@ export function toggleCheer<T extends CheerState>(level: T): T {
 export function applyCheer<T extends CheerState>(level: T, r: { cheered: boolean; cheers: number }): T {
   return { ...level, cheered: !!r.cheered, cheers: count(r.cheers) };
 }
+
+/**
+ * O que o dono vê na sua geleira: "🥂 12 brindes à tua geleira" (contam os do perfil e os do post da geleira, uma vez por
+ * pessoa). Sem brindes, vazio.
+ */
+export function ownerCheersText(n: unknown): string {
+  const k = count(n);
+  return k === 0 ? '' : `🥂 ${cheersCount(k)} à tua geleira`;
+}
