@@ -33,7 +33,7 @@ export class ShareController {
     const snap = readSnapshot(rows[0]?.geleira);
     if (!snap) throw new NotFoundException();
     const closed = !!rows[0].is_private;
-    const png = await geleiraCardPng({ name: rows[0].display_name as string, total: closed ? 0 : snap.totalSoft, level: snap.level, items: closed ? [] : publicItems(snap) });
+    const png = await geleiraCardPng({ name: rows[0].display_name as string, total: closed ? 0 : snap.totalSoft, level: snap.level, items: closed ? [] : publicItems(snap), closed });
     res.set('Cache-Control', 'public, max-age=600').type('png').send(png);
   }
 

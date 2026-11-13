@@ -21,7 +21,7 @@ const EDGE = ['#a9c9d9', '#8fd0ee', '#6fc4ea', '#f08aa0', '#e8a317'];
 const textW = (s: string, size: number) => [...s].length * size * 0.62;
 const clip = (s: string, max: number) => ([...s].length > max ? `${[...s].slice(0, max - 1).join('')}…` : s);
 
-export function geleiraCardSvg(o: { name: string; total: number; level: number; items: Pick<SnapshotItem, 'name' | 'slug'>[] }): string {
+export function geleiraCardSvg(o: { name: string; total: number; level: number; items: Pick<SnapshotItem, 'name' | 'slug'>[]; closed?: boolean }): string {
   const edge = EDGE[Math.max(0, Math.min(4, o.level))];
   // O frigorífico (viewBox da app 100×130, aqui ×3,9 à esquerda).
   const dots = o.items.slice(0, 9).map((it, i) => {
@@ -76,7 +76,7 @@ export function geleiraCardSvg(o: { name: string; total: number; level: number; 
     fridge +
     `<text x="${left}" y="150" font-size="30" font-weight="700" fill="#0369a1" letter-spacing="3">A GELEIRA DE</text>` +
     `<text x="${left}" y="222" font-size="62" font-weight="800" fill="#18181b">${xml(title)}</text>` +
-    `<text x="${left}" y="282" font-size="30" fill="#52525b">${o.total} ${o.total === 1 ? 'gosto' : 'gostos'} · brinda no Txillapp</text>` +
+    `<text x="${left}" y="282" font-size="30" fill="#52525b">${o.closed ? 'Conta privada · entra para ver e brindar' : `${o.total} ${o.total === 1 ? 'gosto' : 'gostos'} · brinda no Txillapp`}</text>` +
     pills.join('') +
     (more > 0 ? `<text x="${left}" y="${Math.min(y + 100, 600)}" font-size="26" font-weight="700" fill="#71717a">e mais ${more}</text>` : '') +
     `<text x="1140" y="600" font-size="34" font-weight="800" fill="#d6334f" text-anchor="end">txillapp</text>` +
