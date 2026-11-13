@@ -71,10 +71,10 @@ export default function Invites() {
             <h2 className="mb-2 mt-7 text-lg font-extrabold">{tr('Como funciona')}</h2>
             <ul className="space-y-2 text-[15px] leading-snug text-zinc-700">
               <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('A pessoa entra pela tua ligação ou com o teu código.')}</li>
-              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Fica ativa quando confirma o email e publica algo, ou segue 3 pessoas. Aí ela ganha logo {v0} Txills.', { v0: d.rules.reward })}</li>
+              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Ela ganha {v0} Txills quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.', { v0: d.rules.reward })}</li>
               <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Tu ganhas {v0} Txills passados {d} dias, se ela continuar por cá.', { v0: d.rules.reward, d: d.rules.holdDays })}</li>
               <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Até {a} convites por dia e {b} no total. Depois disso o convite continua a funcionar, mas sem Txills.', { a: d.rules.perDay, b: d.rules.maxPaid })}</li>
-              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Contas repetidas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}</li>
+              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}</li>
             </ul>
           </>
         )}

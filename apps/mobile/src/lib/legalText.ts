@@ -2,7 +2,7 @@
  * apps/web/src/pages/Legal.tsx, gera-se a partir daqui. Marcação mínima: **negrito** e __itálico__.
  * Manter TERMS_UPDATED igual a TERMS_VERSION (packages/shared): mudar a versão pede nova aceitação. */
 export type LegalBlock = { t: 'h2' | 'h3' | 'p'; x: string } | { t: 'ul'; x: string[] };
-export const TERMS_UPDATED = '2026-11-14';
+export const TERMS_UPDATED = '2026-11-15';
 /** O que mudou nesta versão, em poucas linhas (aparece no aviso "Atualizámos os termos"). Atualizar sempre que TERMS_UPDATED muda. */
 export const TERMS_CHANGES: string[] = [
   'Tolerância zero para conteúdo ofensivo e abuso. A nudez e o conteúdo sexual explícito são proibidos.',
@@ -24,6 +24,9 @@ export const TERMS_CHANGES: string[] = [
   'Estúdio das tchekas: a voz-off é conteúdo teu, conta como o som com 3 segundos ou mais e, sem música, faz parte do teu «Som original».',
   'Privacidade do estúdio: o microfone só é usado para gravar a voz-off, a «Montagem mágica» analisa no aparelho (na app, o som dos vídeos é ouvido no nosso servidor) e os rascunhos ficam só no aparelho. Na montagem nos nossos servidores, o que é enviado e quanto tempo fica.',
   'Privacidade: as fotos, os vídeos e os áudios que envias e não chegas a usar apagam-se sozinhos ao fim de 48 horas e, até lá, entram na exportação dos teus dados.',
+  'Contas automáticas, falsas ou em massa são proibidas; protegemos as contas com limites, bloqueios temporários, uma prova de humano da Cloudflare e uma pontuação de risco das contas novas.',
+  'Convites: os 50 Txills chegam quando a conta de quem entra fica ativa, não no registo.',
+  'Privacidade: o que guardamos para a segurança (impressões cifradas do IP, da rede e da instalação, tentativas, pontuação) e durante quanto tempo.',
 ];
 export const TERMS: LegalBlock[][] = [
  [

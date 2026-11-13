@@ -246,6 +246,15 @@ export class ExportService {
       topicPrefs: await q(`SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1 ORDER BY topic`).catch(() => []),
       peoplePrefs: await q(`SELECT u.username, e.pref FROM social.explore_people e JOIN identity.users u ON u.id = e.person_id WHERE e.user_id = $1 ORDER BY u.username`).catch(() => []),
       postFeedback: await q(`SELECT post_id AS "postId", value, created_at AS "createdAt" FROM content.post_feedback WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      // Segurança da conta (src/security): a pontuação de risco, os sinais e a decisão da equipa, e os eventos dos últimos
+      // 90 dias. As impressões cifradas (IP, rede, instalação, email) não vão: só servem para comparar dentro do servidor.
+      security: {
+        risk: (await q(
+          `SELECT score, signals, state, human, limited_until AS "limitedUntil", flagged_at AS "flaggedAt", reviewed_at AS "reviewedAt", created_at AS "createdAt"
+             FROM security.account_risk WHERE user_id = $1`,
+        ).catch(() => []))[0] ?? null,
+        events: await q(`SELECT kind, device, metadata, created_at AS "createdAt" FROM security.events WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5000`).catch(() => []),
+      },
       paymentOrders: await q(
         `SELECT id, package_id AS "packageId", txills, amount_minor AS "amountMinor", currency, provider, status, phone_tail AS "phoneTail", created_at AS "createdAt", paid_at AS "paidAt"
            FROM payments.orders WHERE user_id = $1 ORDER BY created_at`,
