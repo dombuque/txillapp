@@ -9,7 +9,7 @@ import { stickersSchema } from './stickers';
 import { StoriesService } from './stories.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional(), stickers: stickersSchema.default([]) });
+export const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional(), stickers: stickersSchema.default([]) });
 
 const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), stickers: stickersSchema.default([]), music: musicSchema.nullable().optional() });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });

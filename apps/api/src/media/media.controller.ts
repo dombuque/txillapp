@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { Needs, StaffGuard } from '../staff/staff.guard';
+import { HeldPublicationsService } from './held-publications.service';
 import { MediaService, parseIdParam } from './media.service';
 
 /** `signed`: o ficheiro já traz a assinatura do Txillapp (gravada pela câmara da app); ao guardar um mimo não se volta a pôr. */
@@ -12,7 +13,7 @@ const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int(
 
 @Controller('media')
 export class MediaController {
-  constructor(private readonly media: MediaService) {}
+  constructor(private readonly media: MediaService, private readonly held: HeldPublicationsService) {}
 
   @Post('uploads')
   @UseGuards(JwtAuthGuard)
@@ -43,13 +44,22 @@ export class MediaController {
   /**
    * «Pedir revisão» de uma foto recusada pela verificação automática: só o dono; uma vez por foto, até 7 dias depois, no
    * máximo 10 por dia (e 10 pedidos por minuto). A foto vai para a fila da moderação; aprovada, fica pronta a publicar.
+   * `{ draft: { kind: 'post' | 'story' | 'instant', payload } }` (opcional): a publicação que levava a foto, com o mesmo corpo
+   * do endpoint de publicar. Fica guardada no servidor e é publicada sozinha quando a foto for aprovada (a pessoa pode
+   * fechar a app); removida a foto, ou passados 7 dias, descarta-se (HeldPublicationsService).
    */
   @Post(':id/appeal')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(200)
-  appeal(@Req() req: Request & { userId?: string }, @Param('id') id: string) {
-    return this.media.appeal(req.userId!, parseIdParam(id));
+  async appeal(@Req() req: Request & { userId?: string }, @Param('id') id: string, @Body() body?: { draft?: unknown }) {
+    const me = req.userId!;
+    const asset = parseIdParam(id);
+    // O rascunho valida-se antes: se estiver mal, nem se pede a revisão.
+    const draft = body?.draft != null ? await this.held.check(me, asset, body.draft) : null;
+    const r = await this.media.appeal(me, asset);
+    if (draft) await this.held.hold(me, asset, draft);
+    return { ...r, held: !!draft };
   }
 
   /** Estado do ficheiro (vídeos demoram a converter). */

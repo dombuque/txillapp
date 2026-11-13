@@ -8,6 +8,9 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync } from 'fs';
 import { open, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { Pool } from 'pg';
+import { ModuleRef } from '@nestjs/core';
+import { HELD_PUBLICATIONS } from './held-token';
+import type { HeldPublicationsService } from './held-publications.service';
 import sharp from 'sharp';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -120,6 +123,7 @@ export class MediaService implements OnModuleInit {
     @Inject(CONFIG) config: AppConfig,
     private readonly imageModeration: ImageModerationService,
     private readonly video: VideoService,
+    private readonly moduleRef: ModuleRef,
   ) {
     this.dir = resolve(config.MEDIA_DIR);
     this.secret = config.JWT_ACCESS_SECRET;
@@ -155,6 +159,15 @@ export class MediaService implements OnModuleInit {
       );
     }
     return false;
+  }
+
+  /** As publicações guardadas (HeldPublicationsService), sem o importar (evita um ciclo entre módulos). */
+  private held(): HeldPublicationsService | null {
+    try {
+      return this.moduleRef.get<HeldPublicationsService>(HELD_PUBLICATIONS, { strict: false });
+    } catch {
+      return null;
+    }
   }
 
   /** A foto recusada fica guardada (ninguém a vê nem a pode usar) até 7 dias, ou até a moderação decidir o pedido de revisão. */
@@ -333,6 +346,8 @@ export class MediaService implements OnModuleInit {
           AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')`,
       [REJECTED_KEEP_DAYS],
     );
+    // Publicações guardadas há mais de 7 dias à espera da revisão: descartam-se (os outros ficheiros deixam de estar em uso).
+    await this.held()?.expire();
     // Fotos aprovadas num pedido de revisão que ainda não voltaram ao bucket público (a cópia falhou): tenta de novo.
     const stuck = await this.pool.query(`SELECT id FROM content.media_assets WHERE status = 'ready' AND rejected_at IS NOT NULL AND appeal_decided_at IS NOT NULL LIMIT 20`);
     for (const r of stuck.rows) await this.releaseApproved(r.id as string).catch((e) => this.log.warn(`foto aprovada ${r.id} ainda não voltou ao bucket público: ${(e as Error).message}`));
@@ -617,8 +632,12 @@ export class MediaService implements OnModuleInit {
     );
     const r = rows[0];
     if (!r) throw new NotFoundException();
-    if (r.status === 'rejected') return { status: 'rejected', error: REJECTED_PHOTO, appeal: r.appealed_at ? 'pending' : r.expired ? 'expired' : 'available' };
-    if (r.status === 'deleted' && r.appeal_decided_at) return { status: 'deleted', error: 'A moderação reviu esta foto e manteve a recusa.' };
+    // A publicação guardada com o pedido de revisão (se houver): 'held' (à espera), 'published' (com o id), 'failed' (com o motivo)…
+    const held = r.appealed_at ? await this.held()?.stateOf(id) : null;
+    const h = held ? { held: { status: held.status, kind: held.kind, ...(held.resultId ? { id: held.resultId } : {}), ...(held.error ? { error: held.error } : {}) } } : {};
+    if (r.status === 'rejected') return { status: 'rejected', error: REJECTED_PHOTO, appeal: r.appealed_at ? 'pending' : r.expired ? 'expired' : 'available', ...h };
+    if (r.status === 'deleted' && r.appeal_decided_at) return { status: 'deleted', error: 'A moderação reviu esta foto e manteve a recusa.', ...h };
+    if (held) return { status: r.status as string, ...h };
     return { status: r.status as string, error: (r.processing_error as string | null) ?? undefined, durationMs: (r.duration_ms as number | null) ?? undefined };
   }
 

@@ -27,19 +27,34 @@ test('estados do pedido: quando se pode tocar em «Pedir revisão» e o que a fa
   assert.equal(m.appealText('available'), null); // fica a mensagem do servidor, com «Pedir revisão»
   assert.match(m.appealText('pending'), /segue sozinha/);
   assert.match(m.appealText('refused'), /manteve a recusa/);
-  assert.equal(m.appealOutcome('ready'), 'approved');
-  assert.equal(m.appealOutcome('deleted'), 'refused');
-  assert.equal(m.appealOutcome('rejected'), 'waiting');
+  assert.equal(m.appealOutcome({ status: 'ready' }), 'approved');
+  assert.equal(m.appealOutcome({ status: 'deleted' }), 'refused');
+  assert.equal(m.appealOutcome({ status: 'rejected' }), 'waiting');
 });
 
-test('a faixa e a fila: «Pedir revisão» chama POST /media/:id/appeal, e a publicação segue quando a foto é aprovada', () => {
+test('com o rascunho guardado no servidor: a faixa diz que se pode fechar a app e mostra o resultado', () => {
+  assert.equal(m.appealText('held'), 'Pedido enviado. Publicamos sozinhos quando a equipa aprovar; podes fechar a app.');
+  assert.match(m.appealText('published'), /já está publicado/);
+  assert.equal(m.canAppeal('held'), false);
+  assert.equal(m.appealOutcome({ status: 'rejected', held: { status: 'held' } }), 'waiting');
+  assert.equal(m.appealOutcome({ status: 'ready', held: { status: 'held' } }), 'waiting'); // aprovada: o servidor está a publicar
+  assert.equal(m.appealOutcome({ status: 'ready', held: { status: 'published' } }), 'published');
+  assert.equal(m.appealOutcome({ status: 'ready', held: { status: 'failed', error: 'x' } }), 'held_failed');
+  assert.equal(m.appealOutcome({ status: 'ready', held: { status: 'expired' } }), 'held_failed');
+  assert.equal(m.appealOutcome({ status: 'deleted', held: { status: 'discarded' } }), 'refused');
+});
+
+test('a faixa e a fila: «Pedir revisão» manda o rascunho (publicação, mimo e Zás) para POST /media/:id/appeal', () => {
   const q = read('lib', 'publishQueue.ts');
-  assert.match(q, /\/media\/\$\{t\.appeal\.assetId\}\/appeal`, \{ method: 'POST' \}/);
-  assert.match(q, /if \(rid\) sent\[i\] = rid;/, 'a foto recusada fica guardada na tarefa (não se envia de novo)');
-  assert.match(q, /void run\(id, qc\);/);
+  assert.ok(q.includes("raw(`/media/${assetId}/appeal`, { method: 'POST', body: JSON.stringify(draft ? { draft } : {}) })"));
+  assert.ok(q.includes('sent[i] = rid;'), 'a foto recusada fica guardada na tarefa (não se envia de novo)');
+  assert.ok(q.includes('rejected ??= e;'), 'os outros ficheiros sobem na mesma (o rascunho leva-os todos)');
+  assert.ok(q.includes("return { kind: 'post', payload: { ...b, music: b.remixOf && b.music === null ? null : musicPayload(b.music), mediaIds: t.sent as string[] } };"));
+  assert.ok(read('app', 'stories', 'new.tsx').includes("kind: 'story', payload: { mediaId, caption: text, audience: who, music: musicPayload(track), stickers: placed }"));
+  assert.ok(read('components', 'Instants.tsx').includes("kind: 'instant', payload: { mediaId, caption: text, audience: who }"));
   const b = read('components', 'PublishBanner.tsx');
   assert.match(b, /Pedir revisão/);
-  assert.match(b, /Descartar/);
+  assert.ok(b.includes("? 'Fechar' : 'Descartar'"));
   // O ApiError leva o resto da resposta (assetId) no envio (XHR) e nos pedidos normais.
   const api = read('lib', 'api.ts');
   assert.match(api, /public extra\?: Record<string, unknown>/);

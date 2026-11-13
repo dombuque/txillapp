@@ -8,7 +8,7 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { InstantsService } from './instants.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default(''), audience: z.enum(['friends', 'close']).default('friends') });
+export const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default(''), audience: z.enum(['friends', 'close']).default('friends') });
 
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 

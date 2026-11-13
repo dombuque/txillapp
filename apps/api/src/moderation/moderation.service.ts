@@ -11,6 +11,8 @@ import { canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
 import { purgeRemovalCopies, removeContent } from './content-removal';
 import { MediaService } from '../media/media.service';
+import { HELD_PUBLICATIONS } from '../media/held-token';
+import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant'] as const;
@@ -234,11 +236,11 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     if (!open.rows[0]) throw new NotFoundException('Sem denúncias abertas para este conteúdo');
     const owner = open.rows[0].target_user_id as string | null;
     const client = await this.pool.connect();
-    let approved = false;
+    let outcome: AppealOutcome = null;
     try {
       await client.query('BEGIN');
       if (action === 'remove') await removeReported(client, type, id, admin, note);
-      approved = await settleRejectedMedia(client, type, id, action);
+      outcome = await settleRejectedMedia(client, type, id, action);
       if (action === 'suspend') {
         if (!owner) throw new BadRequestException('Conta desconhecida');
         const isAdminTarget = await client.query('SELECT is_admin FROM identity.users WHERE id = $1', [owner]);
@@ -257,7 +259,7 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
       await client.query('COMMIT');
       if (action === 'remove' && type === 'post') this.indexer.postRemoved(id);
       if (action === 'suspend' && owner) this.indexer.userRemoved(owner);
-      if (approved) void releaseAppealedPhoto(this.moduleRef, this.notifications, id, owner, admin, this.log);
+      if (outcome) void afterAppealDecision(this.moduleRef, this.notifications, id, owner, admin, outcome, this.log);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -278,33 +280,60 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
  * Uma foto recusada pela verificação automática com pedido de revisão (POST /media/:id/appeal), numa transação já aberta:
  * dispensar a queixa (ou só avisar) aprova a foto — volta a 'ready', pode ser publicada, e a mesma foto do mesmo dono já não
  * volta a ser recusada (appeal_approved_photos); remover apaga-a (removeReported); suspender a conta também a apaga.
- * Devolve true se a foto foi aprovada (quem chama, depois do COMMIT, chama releaseAppealedPhoto).
+ * Devolve 'approved' (aprovada), 'refused' (havia pedido de revisão e a foto não foi aprovada) ou null; quem chama, depois
+ * do COMMIT, chama afterAppealDecision.
  */
-export async function settleRejectedMedia(client: PoolClient, type: ReportType, id: string, action: string): Promise<boolean> {
-  if (type !== 'media') return false;
+export type AppealOutcome = 'approved' | 'refused' | null;
+export async function settleRejectedMedia(client: PoolClient, type: ReportType, id: string, action: string): Promise<AppealOutcome> {
+  if (type !== 'media') return null;
   if (action === 'dismiss' || action === 'warn') {
     const r = await client.query(
       `UPDATE content.media_assets SET status = 'ready', appeal_decided_at = now() WHERE id = $1 AND status = 'rejected' RETURNING owner_id, content_sha256`,
       [id],
     );
     const row = r.rows[0];
-    if (!row) return false;
+    if (!row) return null;
     if (row.content_sha256) await client.query('INSERT INTO content.appeal_approved_photos (owner_id, sha256) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row.owner_id, row.content_sha256]);
-    return true;
+    return 'approved';
   }
-  await client.query(`UPDATE content.media_assets SET appeal_decided_at = now() WHERE id = $1 AND appealed_at IS NOT NULL AND appeal_decided_at IS NULL`, [id]);
+  const r = await client.query(`UPDATE content.media_assets SET appeal_decided_at = now() WHERE id = $1 AND appealed_at IS NOT NULL AND appeal_decided_at IS NULL`, [id]);
   if (action === 'suspend') await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1 AND status = 'rejected'`, [id]);
-  return false;
+  return r.rowCount ? 'refused' : null;
 }
 
-/** Depois de aprovada no pedido de revisão: a foto volta ao sítio público (na nuvem) e o dono recebe o aviso. */
-export async function releaseAppealedPhoto(moduleRef: ModuleRef, notifications: NotificationsService, id: string, owner: string | null, actor: string, log: Logger) {
+/**
+ * Depois de decidido um pedido de revisão (e do COMMIT). Aprovada: a foto volta ao sítio público (na nuvem), a publicação
+ * guardada com o pedido (HeldPublicationsService) é publicada, e o dono é avisado (com a ligação para a publicação). Não
+ * aprovada: a publicação guardada descarta-se e o dono é avisado. Quem chama não manda outro aviso sobre esta foto.
+ */
+export async function afterAppealDecision(moduleRef: ModuleRef, notifications: NotificationsService, id: string, owner: string | null, actor: string, outcome: Exclude<AppealOutcome, null>, log: Logger) {
+  let held: HeldPublicationsService | null = null;
+  try {
+    held = moduleRef.get<HeldPublicationsService>(HELD_PUBLICATIONS, { strict: false });
+  } catch {
+    /* sem o módulo das publicações guardadas (não acontece na app) */
+  }
+  if (outcome === 'refused') {
+    const discarded = held ? await held.discardFor(id).catch(() => false) : false;
+    const reason = `A moderação reviu a tua foto e manteve a recusa: parece mostrar nudez.${discarded ? ' A publicação guardada foi descartada.' : ''}`;
+    if (owner) void notifications.notify({ userId: owner, actorId: actor, kind: 'content_removed', data: { type: 'media', reason } });
+    return;
+  }
   try {
     await moduleRef.get(MediaService, { strict: false }).releaseApproved(id);
   } catch (e) {
     log.error(`não consegui repor a foto aprovada ${id}: ${(e as Error).message}`);
   }
-  if (owner) void notifications.notify({ userId: owner, actorId: actor, kind: 'content_restored', data: { type: 'media', reason: 'Revimos a tua foto: não tem nudez. Já a podes publicar.' } });
+  const done = held ? await held.publishFor(id).catch((e) => ({ status: 'failed' as const, kind: 'post' as const, error: (e as Error).message })) : null;
+  if (!owner) return;
+  const data: Record<string, unknown> = { type: 'media', reason: 'Revimos a tua foto: não tem nudez. Já a podes publicar.' };
+  if (done?.status === 'published') {
+    data.reason = done.kind === 'post' ? 'Revimos a tua foto: não tem nudez. A tua publicação já está no ar.' : done.kind === 'story' ? 'Revimos a tua foto: não tem nudez. O teu mimo já está no ar.' : 'Revimos a tua foto: não tem nudez. O teu Zás já foi enviado.';
+    if (done.kind === 'post') data.postId = done.resultId;
+  } else if (done?.status === 'failed') {
+    data.reason = `Revimos a tua foto: não tem nudez, mas não consegui publicar o que tinhas guardado (${done.error}). Já a podes publicar à mão.`;
+  }
+  void notifications.notify({ userId: owner, actorId: actor, kind: 'content_restored', data });
 }
 
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {

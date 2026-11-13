@@ -38,6 +38,8 @@ export const MEDIA_COLUMN_REFS: MediaColumnRef[] = [
   { table: 'content.sound_silenced', column: 'media_id', why: 'vídeo a que se tirou o som (e a cópia privada)' },
   // O vídeo montado à espera de ir num POST /posts não conta: o pedido fica 7 dias, o vídeo sem publicar só 48 horas.
   { table: 'content.compose_jobs', column: 'media_id', where: `t.status IN ('queued', 'working')`, why: 'montagem ainda ativa' },
+  // A foto em revisão (0144); os outros ficheiros do rascunho contam por ACTIVE_HELD_PAYLOAD.
+  { table: 'content.held_publications', column: 'media_id', where: `t.status = 'held'`, why: 'publicação guardada à espera da revisão da foto' },
 ];
 
 /** Colunas jsonb que guardam ids de ficheiros em chaves de topo (`{ mediaId, audioMediaId, coverMediaId, … }`). */
@@ -77,11 +79,19 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'payments.iap_purchases.raw': 'resposta da loja',
   'payments.iap_events.data': 'notificação da loja',
   'content.compose_jobs.spec': 'tratada à parte: qualquer id numa montagem ativa conta',
+  'content.held_publications.payload': 'tratada à parte: qualquer id numa publicação guardada (à espera da revisão) conta',
 };
 
 /** O pedido de uma montagem ainda ativa: os ids que lá estiverem (em qualquer campo) contam como uso. */
 export const ACTIVE_COMPOSE_SPEC = `SELECT x.id FROM unnest($1::uuid[]) AS x(id)
    WHERE EXISTS (SELECT 1 FROM content.compose_jobs j WHERE j.status IN ('queued', 'working') AND strpos(j.spec::text, x.id::text) > 0)`;
+
+/**
+ * O rascunho de uma publicação guardada à espera da revisão de uma foto (0144, HeldPublicationsService): os ids que lá
+ * estiverem (as outras fotos e vídeos, o clipe da música) contam como uso enquanto estiver 'held' (até 7 dias).
+ */
+export const ACTIVE_HELD_PAYLOAD = `SELECT x.id FROM unnest($1::uuid[]) AS x(id)
+   WHERE EXISTS (SELECT 1 FROM content.held_publications h WHERE h.status = 'held' AND strpos(h.payload::text, x.id::text) > 0)`;
 
 /**
  * Uma foto assinalada pela verificação automática, ou uma foto recusada com pedido de revisão do dono, com a denúncia por
@@ -95,6 +105,7 @@ export function referencedSql(): string {
     ...MEDIA_COLUMN_REFS.map((r) => `SELECT t.${r.column} AS id FROM ${r.table} t WHERE t.${r.column} = ANY($1::uuid[])${r.where ? ` AND ${r.where}` : ''}`),
     ...MEDIA_JSON_REFS.flatMap((r) => r.keys.map((k) => `SELECT (t.${r.column}->>'${k}')::uuid AS id FROM ${r.table} t WHERE t.${r.column}->>'${k}' = ANY($1::uuid[]::text[])`)),
     ACTIVE_COMPOSE_SPEC,
+    ACTIVE_HELD_PAYLOAD,
     OPEN_MEDIA_REPORTS,
   ];
   return parts.map((p) => `(${p})`).join('\nUNION\n');

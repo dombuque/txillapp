@@ -29,7 +29,10 @@ export function moderationVerb(kind: ModerationKind, d: ModerationData): { text:
   return { text: `deixou-te um aviso sobre ${moderationNoun(d)}`, sub: why };
 }
 
-/** Para onde leva: só uma publicação reposta abre (o que foi removido já não existe; o aviso fica na lista). */
+/**
+ * Para onde leva: só uma publicação reposta abre (o que foi removido já não existe; o aviso fica na lista). Também a
+ * publicação guardada com um pedido de revisão, publicada quando a foto foi aprovada (type 'media' com postId).
+ */
 export function moderationTarget(kind: ModerationKind, d: ModerationData): string | null {
-  return kind === 'content_restored' && (d.type === 'post' || !d.type) && d.postId ? `/p/${d.postId}` : null;
+  return kind === 'content_restored' && (d.type === 'post' || d.type === 'media' || !d.type) && d.postId ? `/p/${d.postId}` : null;
 }

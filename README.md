@@ -97,6 +97,11 @@ Todas as fotos (e 3 imagens de cada vídeo) passam por dois modelos locais antes
   de ser recusada); remover apaga-a. Sem pedido, apaga-se ao fim dos 7 dias. A limpeza das 48 h ignora as `rejected` e,
   numa foto aprovada, conta a partir da aprovação. Na app, a faixa de publicação mostra «Pedir revisão» e continua a
   publicação sozinha quando a foto é aprovada (enquanto a app estiver aberta). Os vídeos recusados não têm revisão.
+- **Publicações guardadas** (0144, `HeldPublicationsService`): o pedido de revisão pode levar o rascunho da publicação
+  (`{ draft: { kind: 'post' | 'story' | 'instant', payload } }`, o mesmo corpo de `POST /posts`, `/stories` ou `/instants`,
+  validado com o mesmo esquema). Fica guardado no servidor: aprovada a foto, publica-se lá sozinho (o Zás e o mimo contam as
+  24 horas a partir daí) e o dono é avisado com a ligação; removida, ou passados 7 dias, descarta-se. Os outros ficheiros do
+  rascunho contam como em uso (`media-refs.ts`). A app manda-o com «Pedir revisão»: pode-se fechar a app.
 - No máximo 2 análises ao mesmo tempo. Tempos em `image_moderation_seconds` (Prometheus).
 - Teste de justiça com fotos reais vestidas (fora do git; nunca fotos com nudez):
   `cd apps/api && npx ts-node --transpile-only scripts/bench-nudez.ts pasta-com-subpastas 640m > resultados.tsv`.

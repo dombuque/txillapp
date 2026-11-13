@@ -17,7 +17,7 @@ import { remixSchema } from './remix';
 
 type AuthedReq = Request & { userId?: string };
 
-const createSchema = z.object({
+export const createSchema = z.object({
   body: z.string().trim().max(2000).default(''),
   music: musicSchema.nullable().optional(),
   locationLabel: z.string().trim().max(80).optional(),

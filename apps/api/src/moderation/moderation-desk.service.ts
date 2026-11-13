@@ -8,7 +8,7 @@ import { tchekaPost } from '../posts/feed';
 import { SearchIndexer } from '../search/search-index';
 import { StaffService } from '../staff/staff.service';
 import { REMOVABLE_TYPES, type RemovableType, removeContent, restoreContent } from './content-removal';
-import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, releaseAppealedPhoto, removeReported, settleRejectedMedia } from './moderation.service';
+import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, removeReported, settleRejectedMedia } from './moderation.service';
 import { ModuleRef } from '@nestjs/core';
 import { TEXT_FILTER_PATTERN, TEXT_RULES, textHits } from './text-filter';
 
@@ -300,7 +300,7 @@ export class ModerationDeskService {
           if (it.type === 'post') tcheka = !!(await c.query(`SELECT ${tchekaPost()} AS t FROM content.posts p WHERE p.id = $1`, [it.id])).rows[0]?.t;
           const postId = it.type === 'post' ? it.id : it.type === 'comment' ? ((await c.query('SELECT post_id FROM content.comments WHERE id = $1', [it.id])).rows[0]?.post_id ?? null) : null;
           if (action === 'remove') await removeReported(c, it.type, it.id, actor, reason);
-          const approved = await settleRejectedMedia(c, it.type, it.id, action);
+          const appeal = await settleRejectedMedia(c, it.type, it.id, action);
           if (action === 'warn' && !owner) throw new BadRequestException('Não se sabe de quem é este conteúdo');
           if (action === 'suspend') {
             if (!owner) throw new BadRequestException('Conta desconhecida');
@@ -321,10 +321,11 @@ export class ModerationDeskService {
             if (action === 'remove' && it.type === 'post') this.indexer.postRemoved(it.id);
             if (action === 'suspend' && owner && !suspended.has(owner)) this.indexer.userRemoved(owner);
             if (action === 'suspend' && owner) suspended.add(owner);
-            // Foto recusada aprovada no pedido de revisão: volta ao sítio e o dono é sempre avisado.
-            if (approved) void releaseAppealedPhoto(this.moduleRef, this.notifications, it.id, owner, actor, this.log);
+            // Pedido de revisão de uma foto recusada: a decisão publica (ou descarta) o que estava guardado e o dono é sempre
+            // avisado, com um aviso próprio (em vez do geral).
+            if (appeal) void afterAppealDecision(this.moduleRef, this.notifications, it.id, owner, actor, appeal, this.log);
             const kind: NotificationKind | null = action === 'remove' ? 'content_removed' : action === 'warn' ? 'moderation_warning' : null;
-            if (kind && notify && owner) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
+            if (kind && notify && owner && !appeal) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
           });
         });
         after.splice(0).forEach((f) => f());

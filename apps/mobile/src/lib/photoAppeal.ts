@@ -1,9 +1,17 @@
 // «Pedir revisão» de uma foto recusada pela verificação automática (o servidor só recusa com prova de nudez; se achas que
-// se enganou, a foto vai para a moderação e, aprovada, a publicação segue sozinha). Usado pela faixa de publicação
-// (PublishBanner / publishQueue). Sem dependências (os testes correm em Node: tests/photoAppeal.test.mjs).
+// se enganou, a foto vai para a moderação). Com o pedido vai o rascunho da publicação (publicação, mimo ou Zás): fica
+// guardado no servidor e é publicado lá quando a foto for aprovada, mesmo com a app fechada. Usado pela faixa de
+// publicação (PublishBanner / publishQueue). Sem dependências (os testes correm em Node: tests/photoAppeal.test.mjs).
 
-/** available: ainda se pode pedir · sending: a pedir · pending: à espera da moderação · refused: a moderação manteve a recusa · failed: o pedido falhou. */
-export type AppealState = 'available' | 'sending' | 'pending' | 'refused' | 'failed';
+/**
+ * available: ainda se pode pedir · sending: a pedir · held: pedido feito com o rascunho (o servidor publica sozinho) ·
+ * pending: pedido feito sem rascunho (a app continua a publicação quando a foto for aprovada, se estiver aberta) ·
+ * published: aprovada e publicada pelo servidor · refused: a moderação manteve a recusa · failed: o pedido falhou.
+ */
+export type AppealState = 'available' | 'sending' | 'held' | 'pending' | 'published' | 'refused' | 'failed';
+
+/** O rascunho que acompanha o pedido: o tipo e o mesmo corpo do endpoint de publicar (POST /posts, /stories, /instants). */
+export type HeldDraft = { kind: 'post' | 'story' | 'instant'; payload: Record<string, unknown> };
 
 /** O id da foto recusada (resposta 422 com `code: 'nudity_rejected'` e `assetId`), ou null se o erro for outro. */
 export function rejectedPhotoId(e: unknown): string | null {
@@ -17,7 +25,9 @@ export function rejectedPhotoId(e: unknown): string | null {
 export function appealText(state: AppealState): string | null {
   switch (state) {
     case 'sending': return 'A pedir a revisão…';
+    case 'held': return 'Pedido enviado. Publicamos sozinhos quando a equipa aprovar; podes fechar a app.';
     case 'pending': return 'Pedido de revisão enviado. Se a moderação aprovar a foto, a publicação segue sozinha.';
+    case 'published': return 'A equipa aprovou a foto: já está publicado.';
     case 'refused': return 'A moderação reviu a foto e manteve a recusa.';
     default: return null;
   }
@@ -26,9 +36,19 @@ export function appealText(state: AppealState): string | null {
 /** Pode tocar-se em «Pedir revisão»? */
 export const canAppeal = (state: AppealState) => state === 'available' || state === 'failed';
 
-/** O que fazer com a resposta ao estado da foto enquanto se espera pela moderação. */
-export function appealOutcome(status: string): 'approved' | 'refused' | 'waiting' {
-  if (status === 'ready') return 'approved';
-  if (status === 'deleted') return 'refused';
-  return 'waiting';
+/** A resposta de GET /media/:id/status enquanto se espera pela moderação. */
+export interface AppealStatus { status: string; error?: string; held?: { status: string; error?: string } }
+
+/**
+ * O que fazer com essa resposta. Com rascunho guardado: 'published' (o servidor publicou) ou 'held_failed' (aprovada,
+ * mas a publicação falhou ou o rascunho expirou: publica-se à mão). Sem rascunho: 'approved' (a app continua a
+ * publicação). E 'refused' ou 'waiting' nos dois casos.
+ */
+export function appealOutcome(st: AppealStatus): 'approved' | 'published' | 'held_failed' | 'refused' | 'waiting' {
+  if (st.status === 'deleted') return 'refused';
+  if (st.status !== 'ready') return 'waiting';
+  if (st.held?.status === 'published') return 'published';
+  if (st.held?.status === 'held') return 'waiting'; // aprovada há instantes: o servidor está a publicar
+  if (st.held?.status === 'failed' || st.held?.status === 'expired') return 'held_failed';
+  return 'approved';
 }

@@ -36,7 +36,8 @@ export function PublishBanner() {
                 ) : (
                   <Pressable onPress={() => retryPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Tentar outra vez</Text></Pressable>
                 )}
-                <Pressable onPress={() => dropPublish(t.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>Descartar</Text></Pressable>
+                {/* Com o rascunho guardado no servidor, fechar a faixa não cancela nada: o servidor publica quando a foto for aprovada. */}
+                <Pressable onPress={() => dropPublish(t.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>{t.appeal && (t.appeal.state === 'held' || t.appeal.state === 'published') ? 'Fechar' : 'Descartar'}</Text></Pressable>
               </View>
             )}
           </View>

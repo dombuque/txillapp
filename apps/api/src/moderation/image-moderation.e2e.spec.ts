@@ -142,7 +142,7 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
 
     await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ib)).expect(404); // não é dono
     await api().post(`/api/v1/media/${a.assetId}/appeal`).expect(401);
-    expect((await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(200)).body).toEqual({ status: 'rejected', appeal: 'pending' });
+    expect((await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(200)).body).toEqual({ status: 'rejected', appeal: 'pending', held: false });
     await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(409); // só uma vez
     expect((await api().get(`/api/v1/media/${a.assetId}/status`).set(auth(ia)).expect(200)).body).toMatchObject({ status: 'rejected', appeal: 'pending' });
 
