@@ -8,11 +8,11 @@ import { FridgeArt, geleiraLevel, geleiraPoints } from '@/components/FridgeArt';
 import { GeleiraPostCard } from '@/components/GeleiraPostCard';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
-import { ApiError } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { composeApi } from '@/lib/api.compose';
 import { geleiraApi, type PostGeleira } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
-import { shareBlockReason } from '@/lib/geleiraPost';
+import { shareBlockReason, visibilityNote } from '@/lib/geleiraPost';
 import { goBack } from '@/lib/nav';
 import { colors } from '@/lib/theme';
 
@@ -31,6 +31,8 @@ export default function PartilharGeleira() {
   const [err, setErr] = useState('');
   const mine = useQuery({ queryKey: ['geleira', 'me'], queryFn: geleiraApi.mine, retry: false });
   const level = useQuery({ queryKey: ['geleira-level', user?.username ?? ''], queryFn: () => geleiraApi.level(user!.username), enabled: !!user, retry: false, staleTime: 60_000 });
+  const settings = useQuery({ queryKey: ['geleira-settings'], queryFn: geleiraApi.settings, retry: false, staleTime: 60_000 });
+  const profile = useQuery({ queryKey: ['profile', user?.username], queryFn: () => api.profile(user!.username), enabled: !!user, retry: false, staleTime: 60_000 });
 
   // O retrato que vai sair (a mesma ordem do perfil e do servidor: favoritos, nota, os mais recentes).
   const items = (mine.data ?? []).filter((i) => !i.pending && (i.kind === 'bebida' || i.kind === 'comida'));
@@ -40,6 +42,8 @@ export default function PartilharGeleira() {
     total: items.length,
     items: items.map((i) => ({ id: i.id, slug: i.slug, name: i.name, kind: i.kind, category: i.category, alcoholic: i.alcoholic, favorite: i.favorite, rating: i.rating, cheers: i.cheers ?? 0, cheered: false })),
   };
+  const alcohol = items.some((i) => i.alcoholic);
+  const note = visibilityNote(settings.data?.visibility, !!profile.data?.isPrivate);
   const canPost = !busy && mine.isSuccess && !why && !!user;
   const left = 2000 - body.length;
 
@@ -106,8 +110,29 @@ export default function PartilharGeleira() {
               {left < 200 ? <Text style={[st.left, left < 50 && { color: colors.brand, fontWeight: '600' }]} accessibilityLiveRegion="polite">{left}</Text> : null}
             </View>
             <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-              {/* Sem explicações aqui (decisão do dono): o que a partilha mostra, os brindes e o álcool estão nos Termos e na Privacidade. */}
               {user ? <GeleiraPostCard post={{ id: 'preview', author: { id: user.id, username: user.username, displayName: user.displayName }, geleira: preview } as never} me={user.id} preview /> : null}
+              <View style={st.notes}>
+                <View style={st.noteRow}>
+                  <Icon name="snowflake" size={16} color="#0369a1" />
+                  <Text style={st.noteText}>O post leva a tua geleira tal como está agora. Se a mudares depois, o post fica igual, com a ligação para a geleira de agora.</Text>
+                </View>
+                <View style={st.noteRow}>
+                  <Icon name="cheers" size={16} color={colors.amber600} />
+                  <Text style={st.noteText}>Quem vir o post pode brindar a cada gosto: os brindes contam também na geleira do teu perfil.</Text>
+                </View>
+                {alcohol ? (
+                  <View style={st.noteRow}>
+                    <Icon name="lock" size={16} color={colors.zinc600} />
+                    <Text style={st.noteText}>As bebidas com álcool só aparecem a quem tem 18 anos ou mais.</Text>
+                  </View>
+                ) : null}
+                {note ? (
+                  <View style={st.noteRow}>
+                    <Icon name="eye" size={16} color={colors.zinc600} />
+                    <Text style={st.noteText}>{note}</Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
           </View>
         )}
