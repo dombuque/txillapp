@@ -18,7 +18,7 @@ import { api, uploadMedia } from '@/lib/api';
 import { enqueueTask } from '@/lib/publishQueue';
 import { shrinkPhoto } from '@/lib/cropToRatio';
 import { mimoFromParams } from '@/lib/signedMedia';
-import { musicApi, type Track } from '@/lib/api.music';
+import { musicApi, musicPayload, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from '@/components/FeatureIntro';
@@ -144,7 +144,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
         stage('post');
         await musicApi.createStory(id, text, who, track, placed);
         await qc.invalidateQueries({ queryKey: ['stories'] });
-      }, qc);
+      }, qc, (mediaId) => ({ kind: 'story', payload: { mediaId, caption: text, audience: who, music: musicPayload(track), stickers: placed } }));
     } catch (e) {
       setBusy(false);
       return setErr((e as Error).message || 'Não consegui enviar o mimo. Tenta outra vez.');

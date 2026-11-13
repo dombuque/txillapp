@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { uuidv7 } from '../common/uuid7';
@@ -8,7 +8,8 @@ import { tchekaPost } from '../posts/feed';
 import { SearchIndexer } from '../search/search-index';
 import { StaffService } from '../staff/staff.service';
 import { REMOVABLE_TYPES, type RemovableType, removeContent, restoreContent } from './content-removal';
-import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, removeReported } from './moderation.service';
+import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, removeReported, settleRejectedMedia } from './moderation.service';
+import { ModuleRef } from '@nestjs/core';
 import { TEXT_FILTER_PATTERN, TEXT_RULES, textHits } from './text-filter';
 
 /** O peso de cada motivo na gravidade de uma queixa (0 a 100). */
@@ -54,7 +55,9 @@ export class ModerationDeskService {
     private readonly staff: StaffService,
     private readonly notifications: NotificationsService,
     private readonly indexer: SearchIndexer,
+    private readonly moduleRef: ModuleRef,
   ) {}
+  private readonly log = new Logger('Moderação');
 
   private audit(db: Pick<Pool, 'query'>, actor: string, action: string, target: string, metadata: Record<string, unknown>) {
     return db.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), actor, action, target, metadata]);
@@ -151,6 +154,7 @@ export class ModerationDeskService {
               (SELECT ima.nsfw_score FROM content.media_assets ima WHERE ima.id = max(ins.media_id::text)::uuid) AS instant_nsfw,
               (SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = r.target_type AND mr.target_id = r.target_id AND mr.restored_at IS NULL) AS mod_removed_at,
               (SELECT ma.nsfw_score FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_nsfw,
+              (SELECT ma.appealed_at IS NOT NULL AND ma.status = 'rejected' FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_appeal,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -207,6 +211,8 @@ export class ModerationDeskService {
       reasons: r.reasons as ReportReason[],
       severity: r.severity as number,
       automatic: !!r.automatic,
+      /** Foto recusada pela verificação automática, com pedido de revisão do dono: dispensar aprova-a; remover apaga-a. */
+      appeal: !!r.media_appeal,
       firstAt: r.first_at as string,
       lastAt: r.last_at as string,
       resolvedAt: (r.resolved_at as string | null) ?? null,
@@ -294,6 +300,7 @@ export class ModerationDeskService {
           if (it.type === 'post') tcheka = !!(await c.query(`SELECT ${tchekaPost()} AS t FROM content.posts p WHERE p.id = $1`, [it.id])).rows[0]?.t;
           const postId = it.type === 'post' ? it.id : it.type === 'comment' ? ((await c.query('SELECT post_id FROM content.comments WHERE id = $1', [it.id])).rows[0]?.post_id ?? null) : null;
           if (action === 'remove') await removeReported(c, it.type, it.id, actor, reason);
+          const appeal = await settleRejectedMedia(c, it.type, it.id, action);
           if (action === 'warn' && !owner) throw new BadRequestException('Não se sabe de quem é este conteúdo');
           if (action === 'suspend') {
             if (!owner) throw new BadRequestException('Conta desconhecida');
@@ -314,8 +321,11 @@ export class ModerationDeskService {
             if (action === 'remove' && it.type === 'post') this.indexer.postRemoved(it.id);
             if (action === 'suspend' && owner && !suspended.has(owner)) this.indexer.userRemoved(owner);
             if (action === 'suspend' && owner) suspended.add(owner);
+            // Pedido de revisão de uma foto recusada: a decisão publica (ou descarta) o que estava guardado e o dono é sempre
+            // avisado, com um aviso próprio (em vez do geral).
+            if (appeal) void afterAppealDecision(this.moduleRef, this.notifications, it.id, owner, actor, appeal, this.log);
             const kind: NotificationKind | null = action === 'remove' ? 'content_removed' : action === 'warn' ? 'moderation_warning' : null;
-            if (kind && notify && owner) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
+            if (kind && notify && owner && !appeal) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
           });
         });
         after.splice(0).forEach((f) => f());

@@ -20,6 +20,8 @@ export interface ModQueueItem {
   reasons: ModReason[];
   severity: number;
   automatic: boolean;
+  /** Foto recusada pela verificação automática, com pedido de revisão do dono: dispensar aprova-a (fica publicável); remover apaga-a. */
+  appeal?: boolean;
   firstAt: string;
   lastAt: string;
   resolvedAt: string | null;

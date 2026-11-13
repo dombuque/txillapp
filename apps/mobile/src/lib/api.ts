@@ -345,7 +345,8 @@ export interface TrayUser extends Badged { username: string; displayName: string
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public code?: string) {
+  /** `extra`: o resto da resposta do servidor (ex.: `assetId` de uma foto recusada, ver lib/photoAppeal). */
+  constructor(public status: number, message: string, public code?: string, public extra?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -445,7 +446,7 @@ async function parse(res: Response) {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string | string[]; code?: string };
     if (res.status === 403 && body.code === 'email_not_verified') for (const f of needVerifyListeners) f();
-    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado', body.code);
+    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado', body.code, body as Record<string, unknown>);
   }
   if (res.status === 204) return undefined;
   const text = await res.text();
@@ -581,8 +582,12 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
     x.onload = () => {
       if (x.status >= 200 && x.status < 300) return resolve();
       let msg = 'Não consegui enviar o ficheiro';
-      try { msg = (JSON.parse(x.responseText) as { message?: string }).message ?? msg; } catch { /* resposta sem JSON */ }
-      reject(new ApiError(x.status, msg));
+      let body: Record<string, unknown> | undefined;
+      try {
+        body = JSON.parse(x.responseText) as Record<string, unknown>;
+        if (typeof body.message === 'string') msg = body.message;
+      } catch { /* resposta sem JSON */ }
+      reject(new ApiError(x.status, msg, typeof body?.code === 'string' ? body.code : undefined, body));
     };
     x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
     x.ontimeout = () => reject(new ApiError(0, 'O envio demorou demasiado. Tenta outra vez.'));

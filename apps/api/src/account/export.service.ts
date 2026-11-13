@@ -282,6 +282,11 @@ export class ExportService {
       ).catch(() => []),
       // Envios por publicar: fotos, vídeos e áudios que enviei e ainda não estão em uso; apagam-se sozinhos 48 horas depois.
       pendingUploads: await this.pendingUploads(userId),
+      // Publicações guardadas à espera da revisão de uma foto recusada (0144): o tipo, o rascunho e o estado.
+      heldPublications: await q(
+        `SELECT kind, media_id AS "mediaId", payload, status, created_at AS "createdAt", expires_at AS "expiresAt", decided_at AS "decidedAt", error
+           FROM content.held_publications WHERE owner_id = $1 ORDER BY created_at`,
+      ),
       reportsFiled: await q(`SELECT target_type AS "type", reason, status, created_at AS "createdAt" FROM social.reports WHERE reporter_id = $1 ORDER BY created_at`),
       // O que a moderação removeu do que publiquei (0121): o tipo, o texto, o motivo e se foi reposto. Nunca quem da equipa o fez.
       moderationRemovals: await q(

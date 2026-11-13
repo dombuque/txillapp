@@ -2,7 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { dropPublish, retryPublish, usePublishTasks } from '@/lib/publishQueue';
+import { appealText, canAppeal } from '@/lib/photoAppeal';
+import { appealPublish, dropPublish, retryPublish, usePublishTasks } from '@/lib/publishQueue';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 
@@ -19,8 +20,8 @@ export function PublishBanner() {
             {t.thumb ? <Image source={{ uri: t.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name={t.video ? 'video' : 'file-text'} size={20} color={colors.zinc600} />}
           </View>
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <Text style={st.text} numberOfLines={1}>
-              {t.status === 'done' ? (t.kind === 'mimo' ? 'Mimo publicado!' : t.kind === 'zas' ? 'Zás enviado!' : 'Publicado!') : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? (t.kind === 'mimo' ? 'A publicar o mimo…' : t.kind === 'zas' ? 'A enviar o Zás…' : 'A publicar…') : `${t.kind === 'mimo' ? 'A enviar o mimo' : t.kind === 'zas' ? 'A enviar o Zás' : 'A enviar'}… ${Math.round(t.progress * 100)}%`}
+            <Text style={st.text} numberOfLines={t.status === 'error' ? 4 : 1}>
+              {t.status === 'error' && t.appeal && appealText(t.appeal.state) ? appealText(t.appeal.state) : t.status === 'done' ? (t.kind === 'mimo' ? 'Mimo publicado!' : t.kind === 'zas' ? 'Zás enviado!' : 'Publicado!') : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? (t.kind === 'mimo' ? 'A publicar o mimo…' : t.kind === 'zas' ? 'A enviar o Zás…' : 'A publicar…') : `${t.kind === 'mimo' ? 'A enviar o mimo' : t.kind === 'zas' ? 'A enviar o Zás' : 'A enviar'}… ${Math.round(t.progress * 100)}%`}
             </Text>
             {t.status === 'uploading' && (
               t.stage === 'prepare'
@@ -28,9 +29,15 @@ export function PublishBanner() {
                 : <View style={st.track}><View style={[st.fill, { width: `${Math.max(4, Math.round(t.progress * 100))}%` }]} /></View>
             )}
             {t.status === 'error' && (
-              <View style={{ flexDirection: 'row', gap: 14 }}>
-                <Pressable onPress={() => retryPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Tentar outra vez</Text></Pressable>
-                <Pressable onPress={() => dropPublish(t.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>Descartar</Text></Pressable>
+              <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                {/* Foto recusada pela verificação automática: tentar outra vez dava o mesmo; pede-se a revisão. */}
+                {t.appeal ? (
+                  canAppeal(t.appeal.state) && <Pressable onPress={() => void appealPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Pedir revisão</Text></Pressable>
+                ) : (
+                  <Pressable onPress={() => retryPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Tentar outra vez</Text></Pressable>
+                )}
+                {/* Com o rascunho guardado no servidor, fechar a faixa não cancela nada: o servidor publica quando a foto for aprovada. */}
+                <Pressable onPress={() => dropPublish(t.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>{t.appeal && (t.appeal.state === 'held' || t.appeal.state === 'published') ? 'Fechar' : 'Descartar'}</Text></Pressable>
               </View>
             )}
           </View>

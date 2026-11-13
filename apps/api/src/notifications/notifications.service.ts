@@ -192,7 +192,7 @@ export class NotificationsService {
       invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
       // Moderação: o texto no telemóvel não leva o motivo (o ecrã de bloqueio é público); o motivo está na lista.
       content_removed: { body: `Removemos ${contentNoun(n.data?.type, n.data?.tcheka)}. Toca para ver o motivo.`, url: '/notifications' },
-      content_restored: { body: `Repusemos ${contentNoun(n.data?.type, n.data?.tcheka)}.`, url: n.data?.type === 'post' && n.data?.postId ? `/p/${String(n.data.postId)}` : '/notifications' },
+      content_restored: { body: `Repusemos ${contentNoun(n.data?.type, n.data?.tcheka)}.`, url: (n.data?.type === 'post' || n.data?.type === 'media') && n.data?.postId ? `/p/${String(n.data.postId)}` : '/notifications' },
       moderation_warning: { body: 'Tens um aviso da moderação. Toca para ver.', url: '/notifications' },
       music_review: {
         body: n.data?.what === 'artist'

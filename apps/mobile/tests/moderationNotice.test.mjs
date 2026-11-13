@@ -27,6 +27,9 @@ test('o motivo vai por baixo; sem motivo, uma frase genérica (só na remoção)
 
 test('destino: só a publicação reposta abre', () => {
   assert.equal(m.moderationTarget('content_restored', { type: 'post', postId: 'p1' }), '/p/p1');
+  // A publicação guardada com um pedido de revisão, publicada quando a foto foi aprovada.
+  assert.equal(m.moderationTarget('content_restored', { type: 'media', postId: 'p2' }), '/p/p2');
+  assert.equal(m.moderationTarget('content_restored', { type: 'media' }), null);
   assert.equal(m.moderationTarget('content_restored', { type: 'comment', postId: 'p1' }), null);
   assert.equal(m.moderationTarget('content_removed', { type: 'post', postId: 'p1' }), null);
   assert.equal(m.moderationTarget('moderation_warning', { type: 'post', postId: 'p1' }), null);

@@ -384,7 +384,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
       const mediaId = await uploadMedia(src, mime);
       await instantsApi.create(mediaId, text, who);
       refresh();
-    }, qc);
+    }, qc, (mediaId) => ({ kind: 'instant', payload: { mediaId, caption: text, audience: who } }));
   }
   /** Nativo: tira a foto na câmara do cartão e manda logo (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
   async function shoot() {

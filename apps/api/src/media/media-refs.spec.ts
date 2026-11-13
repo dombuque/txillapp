@@ -79,6 +79,7 @@ describe('lista das referências aos ficheiros (envios por publicar)', () => {
     for (const r of MEDIA_COLUMN_REFS) expect(sql).toContain(`FROM ${r.table} t WHERE t.${r.column} = ANY`);
     for (const r of MEDIA_JSON_REFS) expect(sql).toContain(`FROM ${r.table} t WHERE t.${r.column}->>'mediaId'`);
     expect(sql).toContain('content.compose_jobs j');
+    expect(sql).toContain('content.held_publications h');
     expect(sql).toContain(`r.target_type = 'media'`);
   });
 });

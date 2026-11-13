@@ -107,8 +107,14 @@ function Detail({ item, status, onAct, onBack }: { item: ModQueueItem; status: S
         {item.reasons.map((r) => <Badge key={r} tone={SEVERE.has(r) ? 'red' : 'amber'}>{REASON[r] ?? r}</Badge>)}
         <span className="font-bold text-brand">{item.reports} {item.reports === 1 ? 'denúncia' : 'denúncias'}</span>
         {item.automatic && <Badge>verificação automática</Badge>}
+        {item.appeal && <Badge tone="amber">pedido de revisão</Badge>}
         <span className="ml-auto text-xs text-zinc-500">a primeira {ago(item.firstAt)}</span>
       </div>
+      {item.appeal && status === 'open' && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          A verificação automática recusou esta foto e o dono pediu revisão. Ninguém a vê. <b>Dispensar</b> aprova-a: fica pronta a publicar e o dono é avisado. <b>Remover</b> apaga-a.
+        </p>
+      )}
       {item.removed && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">{REMOVED[item.removed]}</p>}
       {status !== 'open' && item.resolution && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -350,7 +356,7 @@ export default function BackofficeReports() {
         <DecideDialog
           title={`${ACTIONS[pending.action].verb}${pending.items.length > 1 ? ` (${pending.items.length} queixas)` : ''}`}
           help={
-            pending.action === 'dismiss' ? 'Fecha as denúncias sem ação. O autor não é avisado.'
+            pending.action === 'dismiss' ? (pending.items.some((i) => i.appeal) ? 'Fecha as denúncias sem ação. As fotos com pedido de revisão ficam aprovadas (prontas a publicar) e o dono é avisado.' : 'Fecha as denúncias sem ação. O autor não é avisado.')
             : pending.action === 'remove' ? 'O conteúdo deixa de se ver. Publicações, comentários e mimos podem ser repostos em «Conteúdo»; mensagens e fotos automáticas não.'
             : pending.action === 'warn' ? 'O autor recebe um aviso da equipa do Txillapp com o motivo. O conteúdo fica.'
             : <>{pending.items.length > 1 ? 'A conta de cada autor' : `A conta de @${pending.items[0].owner?.username}`} fica suspensa e perde as sessões.</>
