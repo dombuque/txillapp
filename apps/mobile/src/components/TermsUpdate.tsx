@@ -31,7 +31,8 @@ export function TermsUpdate() {
       {/* A lista do que mudou faz scroll; o botão fica sempre à vista por baixo (num ecrã pequeno ficava escondido). */}
       <ScrollView style={{ maxHeight: Math.max(200, height * 0.55) }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }} showsVerticalScrollIndicator>
         <Text style={st.lead}>O Txillapp cresceu. Isto é o que mudou nos Termos e na Política de Privacidade:</Text>
-        {TERMS_CHANGES.map((c) => (
+        {/* As mais recentes primeiro: quem já aceitou as anteriores vê logo, no topo, o que é novo. */}
+        {[...TERMS_CHANGES].reverse().map((c) => (
           <View key={c} style={st.item}>
             <View style={st.check}><Icon name="check" size={14} color={colors.brand} strokeWidth={2.6} /></View>
             <Text style={st.itemText}>{c}</Text>
