@@ -33,7 +33,8 @@ import { stickersSvg } from '../stories/stickers';
 import { encodeWav, renderSfxTrack, reverbImpulse, type SfxCue, type VoiceFxId } from './audio';
 import { composeSchema, firstProblem, PHOTO_DEFAULT_MS, type ComposeInput } from './compose.schema';
 import { cubeLut, fxSeconds, REVERSE_MAX_S, resolveFx, sanitizeFx, sanitizeOverlay, sanitizePano, transitionFor, type CapulanaSpec, type ClipFx, type Overlay, type TransitionId } from './effects';
-import { needsLut, photoOnCanvas, rampMaxSpeed, reverseChunks, reverseTooLong, serverFxChain } from './fx';
+import { autoFit, FIT_BLUR_BRIGHTNESS, FIT_BLUR_DOWNSCALE, FIT_BLUR_SIGMA, type Fit } from './fit';
+import { needsLut, rampMaxSpeed, reverseChunks, reverseTooLong, serverFxChain } from './fx';
 import { gifReader, renderLayers, renderPhotoFrames, renderTransitionHead, stillFramesOf, type StickerImages } from './studio-canvas';
 import { decodeMono, ffmpeg, FfmpegError, ffmpegSink, probe, SAFE_AUDIO, SAFE_VIDEO } from './ffmpeg';
 import { clipArgs, reverseChunkArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, RATE, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
@@ -57,6 +58,29 @@ export const MAX_JOBS_PER_HOUR = 20;
 const LOCAL_AUDIO = /^\/api\/v1\/music\/local\/audio\/([0-9a-f-]{36})(?:[?#]|$)/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** As fotos guardam-se no trabalho de pé e até este lado (chega para 1,5× o quadro a cobrir, mesmo numa foto deitada). */
+const PHOTO_MAX_SIDE = 3840;
+
+/**
+ * O fundo do encaixe `blur` de uma foto (fit.ts): a foto a cobrir o quadro, desfocada (a 1/8 do tamanho, como no ffmpeg) e
+ * com cada canal × 0,7. Uma imagem W×H parada.
+ */
+export async function blurBackground(file: string, W: number, H: number): Promise<Buffer> {
+  const k = FIT_BLUR_DOWNSCALE;
+  const small = await sharp(file).resize(Math.max(2, Math.round(W / k)), Math.max(2, Math.round(H / k)), { fit: 'cover' }).blur((FIT_BLUR_SIGMA * (W / 1080)) / k).toBuffer();
+  return sharp(small).resize(W, H, { kernel: 'cubic' }).linear(FIT_BLUR_BRIGHTNESS, 0).jpeg({ quality: 90 }).toBuffer();
+}
+
+/** Uma foto parada (um frame congelado) já encaixada no quadro W×H: a cobrir, ou inteira ao centro sobre o fundo desfocado. */
+export async function stillPhoto(file: string, W: number, H: number, fit: Fit): Promise<Buffer> {
+  if (fit === 'cover') return sharp(file).resize(W, H, { fit: 'cover' }).png().toBuffer();
+  const fg = await sharp(file).resize(W, H, { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
+  return sharp(await blurBackground(file, W, H))
+    .composite([{ input: fg.data, left: Math.round((W - fg.info.width) / 2), top: Math.round((H - fg.info.height) / 2) }])
+    .png()
+    .toBuffer();
+}
+
 /** Erro com uma frase para a pessoa (o trabalho falha com ela; os outros erros ficam com «Tenta outra vez»). */
 export class ComposeRejected extends Error {}
 
@@ -78,7 +102,11 @@ export interface ComposeSpec {
   v: 1;
   username: string;
   seal: SealTier | null;
-  clips: { mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number; fx?: ClipFx; /** o volume do som deste vídeo (0 = calado; sem o campo, 1) */ vol?: number }[];
+  clips: {
+    mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number; fx?: ClipFx;
+    /** o volume do som deste vídeo (0 = calado; sem o campo, 1) */ vol?: number;
+    /** o encaixe pedido (fit.ts); sem ele, o automático pela proporção do ficheiro */ fit?: Fit;
+  }[];
   audio: { kind: 'music' | 'sound'; src: AudioSrc } | null;
   rhythm: { auto: boolean; bpm: number | null } | null;
   duet: { postId: string; mediaId: string; seconds: number } | null;
@@ -268,7 +296,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       if (c.kind === 'photo' && (c.sound !== undefined || c.volume !== undefined)) throw new BadRequestException('O som e o volume são só para vídeos');
       // «Som do vídeo»: calado ou com o volume do clipe (como `soundOn` no estúdio).
       const vol = c.sound === false ? 0 : c.volume ?? 1;
-      const snd = vol < 1 ? { vol } : {};
+      const snd = { ...(vol < 1 ? { vol } : {}), ...(c.fit ? { fit: c.fit } : {}) };
       if (fx?.freeze && keys.size && !keys.has(fx.freeze.from)) throw new BadRequestException('O frame congelado tem de vir de um clipe desta tcheka');
       const video = String(a.mime).startsWith('video/');
       if (video !== (c.kind === 'video') || (!video && !String(a.mime).startsWith('image/'))) throw new BadRequestException(`O clipe ${i + 1} não é ${c.kind === 'video' ? 'um vídeo' : 'uma foto'}`);
@@ -281,7 +309,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         const seconds = fx?.ramp ? fxSeconds(trim.end - trim.start, speed, fx) : clipSeconds(trim, speed);
         return { mediaId: c.mediaId, kind: 'video' as const, trimStart: trim.start, trimEnd: trim.end, speed, seconds, beats: perPhoto, ...(fx ? { fx } : {}), ...snd };
       }
-      return { mediaId: c.mediaId, kind: 'photo' as const, trimStart: 0, trimEnd: 0, speed: 1, seconds: (c.durationMs ?? PHOTO_DEFAULT_MS) / 1000, beats: c.beats ?? perPhoto, ...(fx ? { fx } : {}) };
+      return { mediaId: c.mediaId, kind: 'photo' as const, trimStart: 0, trimEnd: 0, speed: 1, seconds: (c.durationMs ?? PHOTO_DEFAULT_MS) / 1000, beats: c.beats ?? perPhoto, ...(fx ? { fx } : {}), ...(c.fit ? { fit: c.fit } : {}) };
     });
 
     const audio = b.sound ? await this.resolveSound(userId, b.sound) : null;
@@ -685,7 +713,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
    * Inverter um vídeo (docs/estudio-efeitos.md, 4): o corte já no quadro, do fim para o início, aos bocados (o `reverse` guarda
    * o bocado em memória), junto num ficheiro só que depois se monta como um vídeo normal (desde 0, com a rampa e a velocidade).
    */
-  private async reversed(i: number, input: string, c: ComposeSpec['clips'][number], W: number, H: number, tmp: string, run: (args: string[]) => Promise<void>, threads?: number): Promise<string> {
+  private async reversed(i: number, input: string, c: ComposeSpec['clips'][number], W: number, H: number, tmp: string, run: (args: string[]) => Promise<void>, threads?: number, fit?: Fit): Promise<string> {
     const len = Math.max(0.1, c.trimEnd - c.trimStart);
     // Com velocidade ou rampa acima de 1×, tiram-se 60 frames por segundo da fonte (o vídeo final não fica aos saltos).
     const fps = c.speed * rampMaxSpeed(c.fx) > 1 ? 60 : FPS;
@@ -693,7 +721,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const files: string[] = [];
     for (let j = 0; j < parts.length; j++) {
       const out = `rev_${i}_${j}.mp4`;
-      await run(reverseChunkArgs({ input, from: c.trimStart + parts[j].from, len: parts[j].len, fps, w: W, h: H, out, threads }));
+      await run(reverseChunkArgs({ input, from: c.trimStart + parts[j].from, len: parts[j].len, fps, w: W, h: H, out, threads, fit }));
       files.push(out);
     }
     await writeFile(join(tmp, `rev_${i}.txt`), files.map((f) => `file '${f}'`).join('\n') + '\n');
@@ -730,11 +758,12 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     // `layers`, `transitions` e `reverse`: o tempo de cada parte do estúdio (as camadas correm ao mesmo tempo que os clipes).
     const timings = { prep: 0, clips: 0, final: 0, layers: 0, transitions: 0, reverse: 0 };
 
-    // 1. Os ficheiros: os clipes (as fotos já no tamanho do quadro, com folga para o zoom), o som e o original do dueto.
+    // 1. Os ficheiros: os clipes (as fotos já de pé e até 3840 px de lado), o som e o original do dueto.
     const font = FONT_CANDIDATES.find((f) => existsSync(f));
     if (!font && spec.texts.length) throw new Error('falta a letra DejaVuSans-Bold.ttf');
     if (font) await copyFile(font, join(tmp, 'font.ttf'));
-    const inputs = new Map<string, { file: string; hasAudio: boolean; seconds: number }>();
+    /** `w`×`h`: o tamanho de mostrar (já rodado): é por ele que se escolhe o encaixe automático (fit.ts). */
+    const inputs = new Map<string, { file: string; hasAudio: boolean; seconds: number; w: number; h: number }>();
     for (const c of spec.clips) {
       if (inputs.has(c.mediaId)) continue;
       let bytes: Buffer;
@@ -748,11 +777,11 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         await writeFile(join(tmp, file), bytes);
         const p = await probe(join(tmp, file), SAFE_VIDEO).catch(() => null);
         if (!p?.hasVideo) throw new ComposeRejected('Um dos vídeos não se consegue ler. Envia-o outra vez.');
-        inputs.set(c.mediaId, { file, hasAudio: p.hasAudio, seconds: p.seconds });
+        inputs.set(c.mediaId, { file, hasAudio: p.hasAudio, seconds: p.seconds, w: p.displayWidth, h: p.displayHeight });
       } else {
         const file = `in_${inputs.size}.jpg`;
-        await sharp(bytes, { limitInputPixels: 80_000_000 }).rotate().resize(Math.round(W * PHOTO_OVERSCAN), Math.round(H * PHOTO_OVERSCAN), { fit: 'cover' }).jpeg({ quality: 92 }).toFile(join(tmp, file));
-        inputs.set(c.mediaId, { file, hasAudio: false, seconds: 0 });
+        const info = await sharp(bytes, { limitInputPixels: 80_000_000 }).rotate().resize(PHOTO_MAX_SIDE, PHOTO_MAX_SIDE, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 92 }).toFile(join(tmp, file));
+        inputs.set(c.mediaId, { file, hasAudio: false, seconds: 0, w: info.width, h: info.height });
       }
     }
     onProgress(0.04);
@@ -856,9 +885,13 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       // Os efeitos do estúdio: ao contrário (um ficheiro invertido, sem som), a cor numa LUT 3D (gerada de effects.ts) e a
       // transição de entrada desenhada no canvas como no site (os primeiros frames saem em RGBA para isso).
       let input = src.file, trimStart = c.trimStart, hasAudio = src.hasAudio;
+      // O encaixe (fit.ts): o pedido ou o automático; no dueto, cada lado enche o seu quadro (como sempre). Uma foto com o
+      // enquadramento da Montagem mágica fica a cobrir, salvo com `blur` pedido.
+      let fit: Fit = duet ? 'cover' : c.fit ?? (c.kind === 'photo' && c.fx?.focus ? 'cover' : autoFit(src.w, src.h));
       if (studio && c.kind === 'video' && c.fx?.reverse) {
         const r0 = Date.now();
-        input = await this.reversed(i, src.file, c, W, H, tmp, (a) => run(a));
+        input = await this.reversed(i, src.file, c, W, H, tmp, (a) => run(a), undefined, fit);
+        fit = 'cover'; // o ficheiro invertido já vem encaixado no quadro
         timings.reverse += Date.now() - r0;
         trimStart = 0;
         hasAudio = false;
@@ -873,33 +906,45 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       const head = headFrames > 0 ? { frames: headFrames, file: `head_${i}.rgba` } : undefined;
       const job = {
         kind: c.kind, input, trimStart, trimLen: Math.max(0.1, c.trimEnd - c.trimStart), speed: c.speed, hasAudio, frames: N, w: W, h: H,
-        look: studio ? null : spec.filter, prevStill, transition: spec.transition, out, threads, volume: c.vol ?? 1,
+        look: studio ? null : spec.filter, prevStill, transition: spec.transition, out, threads, volume: c.vol ?? 1, fit,
         ...(studio ? { fx: c.fx ?? {}, lut, head } : {}),
       };
-      if (studio && c.kind === 'photo' && photoOnCanvas(c.fx)) {
-        // A moldura de capulana e o enquadramento: os frames desenham-se no canvas (como o drawBase do site) e o ffmpeg
-        // recebe-os pelo stdin. Na moldura, o filtro e os ajustes vão só na foto (até 1440 px de lado, como no site).
-        const fx = c.fx!;
-        const raw = await this.media.rawBytes(c.mediaId, 'public');
-        const base = sharp(raw, { limitInputPixels: 80_000_000 }).rotate();
-        let image: Buffer;
-        if (fx.moldura) {
-          image = await base.resize(1440, 1440, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
-          const chain = serverFxChain(fx, lut ?? 'clip.cube').split(',format=yuv420p,noise=')[0];
-          if (chain) {
-            await writeFile(join(tmp, `mold_${i}.png`), image);
-            await run(['-y', '-i', `mold_${i}.png`, '-vf', `${chain},format=rgb24`, '-frames:v', '1', '-update', '1', `moldfx_${i}.png`]);
-            image = await readFile(join(tmp, `moldfx_${i}.png`));
+      if (c.kind === 'photo') {
+        // As fotos desenham-se no canvas (como o drawBase do site), com o Ken Burns em vírgula flutuante (o `zoompan` do
+        // ffmpeg tremia), e o ffmpeg recebe os frames pelo stdin. Na moldura, o filtro e os ajustes vão só na foto (até 1440 px
+        // de lado, como no site). Um frame congelado é uma imagem parada (sem canvas).
+        const fx: ClipFx = (studio ? c.fx : undefined) ?? {};
+        const file = join(tmp, src.file);
+        const fill = (fit: 'cover' | 'inside' | 'outside') => sharp(file).resize(Math.round(W * PHOTO_OVERSCAN), Math.round(H * PHOTO_OVERSCAN), { fit, withoutEnlargement: fit === 'inside' }).jpeg({ quality: 92 }).toBuffer();
+        if (fx.freeze && !fx.moldura) {
+          const still = `still_${i}.png`;
+          await writeFile(join(tmp, still), await stillPhoto(file, W, H, fit));
+          await run(clipArgs({ ...job, input: still }));
+        } else {
+          let image: Buffer;
+          let background: Buffer | null = null;
+          if (fx.moldura) {
+            image = await sharp(file).resize(1440, 1440, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+            const chain = serverFxChain(fx, lut ?? 'clip.cube').split(',format=yuv420p,noise=')[0];
+            if (chain) {
+              await writeFile(join(tmp, `mold_${i}.png`), image);
+              await run(['-y', '-i', `mold_${i}.png`, '-vf', `${chain},format=rgb24`, '-frames:v', '1', '-update', '1', `moldfx_${i}.png`]);
+              image = await readFile(join(tmp, `moldfx_${i}.png`));
+            }
+          } else if (fit === 'blur') {
+            // A foto inteira (até 1,5× o quadro) e o fundo já desfocado e escurecido, feito uma vez.
+            image = await fill('inside');
+            background = await blurBackground(file, W, H);
+          } else image = await fill(fx.focus ? 'outside' : 'cover');
+          const sink = ffmpegSink(clipArgs({ ...job, kind: 'canvas', noColor: !!fx.moldura }), { cwd: tmp, signal });
+          try {
+            await renderPhotoFrames({ image, background, frames: N, W, H, fx, write: (f) => sink.write(f) });
+          } catch (e) {
+            await sink.end().catch(() => undefined);
+            throw e;
           }
-        } else image = await base.resize(Math.round(W * PHOTO_OVERSCAN), Math.round(H * PHOTO_OVERSCAN), { fit: 'outside' }).jpeg({ quality: 92 }).toBuffer();
-        const sink = ffmpegSink(clipArgs({ ...job, kind: 'canvas', noColor: !!fx.moldura }), { cwd: tmp, signal });
-        try {
-          await renderPhotoFrames({ image, frames: N, W, H, fx, write: (f) => sink.write(f) });
-        } catch (e) {
-          await sink.end().catch(() => undefined);
-          throw e;
+          await sink.end();
         }
-        await sink.end();
       } else await run(clipArgs(job), (sec) => { live.set(i, sec); tick(); });
       live.delete(i);
       doneFrames += N;

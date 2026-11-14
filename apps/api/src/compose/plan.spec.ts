@@ -1,5 +1,5 @@
 import { lookFilter, LOOKS } from './looks';
-import { alphaExpr, atempo, cleanText, clipArgs, DUCK_SC, DUET, finalArgs, frameSlots, SPF, textFilters, transitionSeconds, voiceFxGraph, wrapText } from './plan';
+import { alphaExpr, atempo, cleanText, clipArgs, DUCK_SC, DUET, finalArgs, frameSlots, reverseChunkArgs, SPF, textFilters, transitionSeconds, voiceFxGraph, wrapText } from './plan';
 
 describe('montagem: as contas sem ffmpeg', () => {
   it('a grelha de frames não escorrega com os arredondamentos e corta nos 60 s', () => {
@@ -51,10 +51,31 @@ describe('montagem: as contas sem ffmpeg', () => {
     const cut = clipArgs({ kind: 'photo', input: 'p.jpg', trimStart: 0, trimLen: 0, speed: 1, hasAudio: false, frames: 90, w: 540, h: 960, look: 'quente', prevStill: 'last_0.png', transition: 'cut', out: { video: 's.mp4', audio: 's.wav', last: 'l.png' } });
     const gc = cut[cut.indexOf('-filter_complex') + 1];
     expect(gc).not.toContain('xfade');
-    expect(gc).toContain("zoompan=z='1+0.07*on/90'");
-    expect(gc).toContain('s=540x960');
+    // Uma foto parada (um frame congelado): a imagem já encaixada, repetida; o Ken Burns já não é o `zoompan` (tremia).
+    expect(gc).not.toContain('zoompan');
+    expect(cut.slice(cut.indexOf('-loop'), cut.indexOf('-loop') + 2)).toEqual(['-loop', '1']);
+    expect(gc).toContain('[0:v]scale=540:960,setsar=1');
+    expect(gc).toContain('trim=end_frame=90');
     expect(cut).toContain('anullsrc=r=48000:cl=stereo');
     expect(transitionSeconds(10)).toBeCloseTo(0.3);
+  });
+
+  it('o encaixe de um vídeo: a cobrir (de sempre) ou inteiro sobre o fundo desfocado e escurecido', () => {
+    const base = { kind: 'video' as const, input: 'in.mp4', trimStart: 0, trimLen: 3, speed: 1, hasAudio: false, frames: 90, w: 1080, h: 1920, look: null, prevStill: null, transition: 'cut' as const, out: { video: 's.mp4', audio: 's.wav', last: 'l.png' } };
+    const graphOf = (a: string[]) => a[a.indexOf('-filter_complex') + 1];
+    const cover = graphOf(clipArgs(base));
+    expect(cover).toContain('fps=30,setsar=1[v0];[v0]scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920,setsar=1[v1]');
+    expect(cover).not.toContain('gblur');
+    const blur = graphOf(clipArgs({ ...base, fit: 'blur' }));
+    // O fundo a 1/8 (135×240 → 136×240, par), sigma 40/8 = 5, ampliado e × 0,7; a frente contida e ao centro.
+    expect(blur).toContain('[fit_b]scale=136:240:force_original_aspect_ratio=increase:flags=area,crop=136:240,gblur=sigma=5:steps=3,scale=1080:1920:flags=bicubic');
+    expect(blur).toContain("lutyuv=y='16+(val-16)*0.7':u='128+(val-128)*0.7':v='128+(val-128)*0.7'[fit_bg]");
+    expect(blur).toContain('[fit_a]scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2');
+    expect(blur).toContain('[fit_bg][fit_fg]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2');
+    expect(blur).toContain('[v1]setsar=1,format=yuv420p,tpad=stop_mode=clone');
+    // No inverter, o bocado ao contrário já sai encaixado.
+    const rev = reverseChunkArgs({ input: 'in.mp4', from: 0, len: 2, fps: 30, w: 1080, h: 1920, out: 'r.mp4', fit: 'blur' });
+    expect(rev[rev.indexOf('-filter_complex') + 1]).toMatch(/gblur=sigma=5.*\[r1\]format=yuv420p,reverse\[r\]$/);
   });
 
   it('o grafo final: dueto lado a lado (quadros 9:16 ao meio), assinatura por cima e a mistura do som', () => {
@@ -69,6 +90,10 @@ describe('montagem: as contas sem ffmpeg', () => {
     expect(f.graph).toContain('amix=inputs=3:duration=first:dropout_transition=0:normalize=0');
     expect(f.args).toEqual(expect.arrayContaining(['-stream_loop', '-1', '-movflags', '+faststart', '-filter_complex_script', 'graph.txt']));
     expect(f.args.slice(f.args.indexOf('-t'), f.args.indexOf('-t') + 2)).toEqual(['-t', '4']);
+    // O ficheiro para o feed: H.264 high 4.1, keyframe a cada 2 s, VBV de 1 s (sem picos), AAC 160k, moov à frente.
+    const at = (k: string) => f.args[f.args.indexOf(k) + 1];
+    expect([at('-profile:v'), at('-level'), at('-g'), at('-crf'), at('-maxrate'), at('-bufsize'), at('-r')]).toEqual(['high', '4.1', '60', '22', '5M', '5M', '30']);
+    expect([at('-c:a'), at('-b:a'), at('-ar')]).toEqual(['aac', '160k', '48000']);
   });
 
   it('o som do estúdio: o trecho, os fades, a voz-off com ducking, os efeitos sonoros e o Estádio', () => {

@@ -211,6 +211,24 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect(Math.abs(R - G) + Math.abs(G - B)).toBeLessThan(12); // a preto e branco
   }, 180_000);
 
+  it('encaixe: um vídeo deitado vai inteiro sobre o fundo desfocado e escurecido (automático); com fit cover enche o quadro', async () => {
+    const u = await register('fit'); // uma conta só para este teste: os envios e as montagens têm limites por hora
+    const land = await uploadVideo(u, make('deitado.mp4', ['-f', 'lavfi', '-i', 'color=c=0xd04030:size=640x360:rate=30:duration=4', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=4', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest']));
+    const auto = await waitJob(u, (await compose(u, { clips: [{ mediaId: land, kind: 'video' }] }).expect(202)).body.jobId);
+    expect(auto.error).toBeUndefined();
+    const file = out(auto.mediaId!);
+    expect(await probe(file)).toMatchObject({ width: 1080, height: 1920 });
+    // Ao meio, o vídeo inteiro (1080×608); por cima e por baixo, a mesma cor a 70 % (o fundo desfocado e escurecido).
+    const mid = rgbAt(file, 1, 520, 940, 40), top = rgbAt(file, 1, 520, 200, 40), bottom = rgbAt(file, 1, 120, 1700, 40);
+    expect(mid[0]).toBeGreaterThan(170);
+    for (const p of [top, bottom]) for (let c = 0; c < 3; c++) expect(Math.abs(p[c] - 0.7 * mid[c])).toBeLessThan(8);
+    // Com `fit: 'cover'` enche o quadro (corta os lados), como antes.
+    const cover = await waitJob(u, (await compose(u, { clips: [{ mediaId: land, kind: 'video', fit: 'cover' }] }).expect(202)).body.jobId);
+    const t2 = rgbAt(out(cover.mediaId!), 1, 520, 200, 40);
+    for (let c = 0; c < 3; c++) expect(Math.abs(t2[c] - mid[c])).toBeLessThan(8);
+    expect((await compose(u, { clips: [{ mediaId: land, kind: 'video', fit: 'contain' }] }).expect(400)).body.message).toBe('O encaixe é cover ou blur');
+  }, 180_000);
+
   it('texto com tempo de entrada e saída', async () => {
     const r = await compose(a, {
       clips: black.map((id) => ({ mediaId: id, kind: 'photo', durationMs: 1500 })),

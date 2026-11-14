@@ -6,8 +6,9 @@ import { drawCapulanaFrame, drawCapulanaTransition, setCapulanaCanvasFactory } f
 import { isCapulanaTransition } from './capulanaShapes';
 import { FONTS, FRAME, restingTime, type CapulanaSpec, type ClipFx, type Overlay, type StickerOverlay, type TransitionId } from './effects';
 import { ffmpegFrames, ffmpegSink } from './ffmpeg';
-import { coverRect, overlayBox, overlayRuns } from './fx';
-import { FPS } from './plan';
+import { containRect } from './fit';
+import { coverRect, focusZoom, overlayBox, overlayRuns } from './fx';
+import { FPS, KEN_BURNS } from './plan';
 import { drawOverlays, overlaySize, type OverlayEnv } from './renderOverlays';
 import { drawTransition, type Scratch } from './renderTransitions';
 
@@ -98,7 +99,8 @@ export async function renderTransitionHead(o: {
       // Os panos de capulana têm o desenho deles (capulanaRender.ts); as outras, o de renderTransitions.ts (como no site).
       if (isCapulanaTransition(o.type)) drawCapulanaTransition(asCtx(g), prev as unknown as CanvasImageSource, cur as unknown as CanvasImageSource, o.type, k / FPS / o.dur, W, H, o.pano);
       else drawTransition(asCtx(g), prev as unknown as CanvasImageSource, cur as unknown as CanvasImageSource, o.type, k / FPS / o.dur, W, H, scratch);
-      { const d = g.getImageData(0, 0, W, H).data; await sink.write(new Uint8Array(d.buffer, d.byteOffset, d.byteLength)); }
+      // O frame é opaco (começa a preto): `data()` dá o mesmo RGBA que `getImageData`, sem a conversão.
+      await sink.write(outC.data());
     }
   } catch (e) {
     await sink.end().catch(() => undefined);
@@ -112,32 +114,53 @@ export async function renderTransitionHead(o: {
 // ------------------------------------------------------------------ fotos no canvas
 
 /**
- * Os frames de uma foto com moldura de capulana (a foto inteira por cima do pano, com o zoom lento dentro da moldura) ou com
- * enquadramento (`focus`: o retângulo de `coverRect` a encher o quadro), como o `drawBase` do estúdio do site. `write`
- * recebe cada frame em RGBA (W×H).
+ * Os frames de uma foto, como o `drawBase` do estúdio do site, sempre com as coordenadas em vírgula flutuante (o Skia
+ * interpola: o movimento anda frações de píxel por frame sem saltos, ao contrário do `zoompan` do ffmpeg):
+ * - com moldura de capulana: a foto inteira por cima do pano, com o zoom lento dentro da moldura;
+ * - com `background` (o encaixe `blur`, fit.ts): o fundo já desfocado e escurecido (W×H, parado) e por cima a foto inteira,
+ *   contida e ao centro, com o Ken Burns (ou, com enquadramento, o zoom de `from` a `to` à volta do ponto de interesse);
+ * - com enquadramento (`focus`): o retângulo de `coverRect` a encher o quadro;
+ * - sem nada: o Ken Burns a cobrir o quadro (`image` já cortada à proporção do quadro), de 1 a 1,07 ao centro.
+ * Um frame congelado (`freeze`) fica parado. `write` recebe cada frame em RGBA (W×H).
  */
-export async function renderPhotoFrames(o: { image: Buffer; frames: number; W: number; H: number; fx: ClipFx; write: (frame: Uint8Array) => Promise<void> }): Promise<void> {
+export async function renderPhotoFrames(o: { image: Buffer; background?: Buffer | null; frames: number; W: number; H: number; fx: ClipFx; write: (frame: Uint8Array) => Promise<void> }): Promise<void> {
   ensureStudioFonts();
   const { W, H, fx } = o;
   const img = await loadImage(o.image);
+  const bg = o.background ? await loadImage(o.background) : null;
   const c = createCanvas(W, H), g = c.getContext('2d');
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = 'high';
   const dur = o.frames / FPS;
+  let still: Buffer | null = null;
   for (let k = 0; k < o.frames; k++) {
+    // Parado: o mesmo frame (desenha-se uma vez).
+    if (still) { await o.write(still); continue; }
     const u = Math.min(1, k / FPS / Math.max(0.1, dur));
+    const kb = fx.freeze ? 1 : 1 + KEN_BURNS * (k / o.frames);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     if (fx.moldura) {
       const zoom = fx.focus ? fx.focus.from + (fx.focus.to - fx.focus.from) * u : 1 + 0.04 * u;
       drawCapulanaFrame(asCtx(g), img as unknown as CanvasImageSource, img.width, img.height, W, H, fx.moldura, zoom, fx.focus);
+    } else if (bg) {
+      g.drawImage(bg, 0, 0, W, H);
+      const base = containRect(img.width, img.height, W, H);
+      const f = fx.focus && !fx.freeze ? fx.focus : null;
+      const zoom = f ? focusZoom(f, u) : kb;
+      const r = containRect(img.width, img.height, W, H, zoom, f ? base.x + f.x * base.w : W / 2, f ? base.y + f.y * base.h : H / 2);
+      g.drawImage(img, r.x, r.y, r.w, r.h);
     } else if (fx.focus) {
       const r = coverRect(img.width, img.height, fx.focus, u, W, H);
       g.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H);
-    } else g.drawImage(img, 0, 0, W, H);
-    const d = g.getImageData(0, 0, W, H).data;
-    await o.write(new Uint8Array(d.buffer, d.byteOffset, d.byteLength));
+    } else {
+      g.drawImage(img, (W - W * kb) / 2, (H - H * kb) / 2, W * kb, H * kb);
+    }
+    // `data()`: os píxeis numa cópia, sem a conversão de `getImageData` (o frame é opaco: é o mesmo RGBA).
+    const frame = c.data();
+    if (!fx.moldura && (fx.freeze || (fx.focus && fx.focus.from === fx.focus.to))) still = frame;
+    await o.write(frame);
   }
 }
 

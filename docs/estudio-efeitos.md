@@ -225,8 +225,10 @@ as batidas, ao ritmo). No ffmpeg: `trim` no frame, `loop` e `fps=30`, sem zoom.
 
 ### Fotos
 
-Uma foto normal tem um zoom suave de 1 a 1,07 ao longo da duração dela, centrado (é o que já existia). No ffmpeg:
-`zoompan=z='1+0.07*on/(D*30)':d=D*30:s=1080x1920:fps=30`, com a foto já em cover. Um frame congelado não tem zoom.
+Uma foto normal tem um zoom suave de 1 a 1,07 ao longo da duração dela, centrado (é o que já existia): o frame k de N tem o
+zoom 1 + 0,07·k/N. No servidor desenha-se no canvas com as coordenadas em vírgula flutuante (`renderPhotoFrames`; o `zoompan`
+do ffmpeg arredondava o corte a píxeis inteiros e a foto tremia: docs/montagem.md, 6-A). Um frame congelado não tem zoom.
+Uma foto deitada vai inteira sobre o fundo desfocado e o zoom é só da foto da frente (o encaixe `fit`, docs/montagem.md, 2).
 
 ## 5. Camadas (texto e stickers)
 

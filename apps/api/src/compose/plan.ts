@@ -1,6 +1,7 @@
 import { echoTaps, FX, type VoiceFxId } from './audio';
 import { type ClipFx } from './effects';
 import { mergedPieces, rampAudio, rampSetpts, serverFxChain } from './fx';
+import { fitGraph, type Fit } from './fit';
 import { lookFilter } from './looks';
 
 /**
@@ -8,7 +9,8 @@ import { lookFilter } from './looks';
  * (1.º passo) e o grafo final (2.º passo). Ver docs/montagem.md.
  *
  * 1.º passo, um clipe de cada vez (pouca memória): cada clipe sai já no tamanho final, a 30 fps, cortado, à velocidade dele,
- * com o filtro e, nas fotos, o zoom suave (Ken Burns). A transição faz-se aqui, como no estúdio do site: o último frame do
+ * encaixado no quadro (`fit`: a cobrir, ou inteiro sobre o fundo desfocado: fit.ts), com o filtro e, nas fotos, o zoom suave
+ * (Ken Burns, desenhado no canvas com precisão de subpíxel: studio-canvas.ts). A transição faz-se aqui, como no estúdio do site: o último frame do
  * clipe anterior (parado) funde-se ou desliza para dar lugar a este, durante 0,5 s, sem mudar a duração de nenhum.
  * 2.º passo: junta os bocados (sem voltar a descodificar nada de fora), o dueto ao lado, o texto, os stickers, a
  * assinatura e a mistura do som, e grava o MP4 final.
@@ -25,9 +27,13 @@ export const OUT_W = 1080;
 export const OUT_H = 1920;
 /** O dueto (como `duetLayout` em apps/mobile/src/lib/remix.ts): duas metades com um quadro 9:16 ao meio, faixas pretas. */
 export const DUET = { w: OUT_W / 2, h: Math.min(OUT_H, ((OUT_W / 2) * 16) / 9), y: (OUT_H - Math.min(OUT_H, ((OUT_W / 2) * 16) / 9)) / 2 };
-/** Quanto a foto aproxima no fim (Ken Burns, como no estúdio: 1 → 1,07). */
+/**
+ * Quanto a foto aproxima no fim (Ken Burns, como no estúdio: 1 → 1,07, a direito, ao centro): o frame k de N tem o zoom
+ * 1 + 0,07·k/N. Desenha-se no canvas (studio-canvas.ts, `renderPhotoFrames`) com as coordenadas em vírgula flutuante: o
+ * `zoompan` do ffmpeg arredondava o corte a píxeis inteiros e a foto tremia (docs/montagem.md, 6-A).
+ */
 export const KEN_BURNS = 0.07;
-/** As fotos vão para o ffmpeg já maiores do que o quadro (o zoom fica suave, sem saltos de um píxel). */
+/** As fotos vão para o canvas maiores do que o quadro (1,5×): o zoom nunca amplia a imagem. */
 export const PHOTO_OVERSCAN = 1.5;
 
 export type Transition = 'cut' | 'fade' | 'slide';
@@ -63,8 +69,13 @@ export function atempo(speed: number): string {
 const n = (x: number, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 
 export interface ClipJob {
-  /** `canvas`: os frames (RGBA, w×h, 30 fps) chegam pelo stdin, já desenhados (a foto com moldura ou enquadramento). */
+  /**
+   * `canvas`: os frames (RGBA, w×h, 30 fps) chegam pelo stdin, já desenhados (as fotos: o Ken Burns, o enquadramento, a
+   * moldura); `photo`: uma imagem parada já com w×h (um frame congelado), repetida.
+   */
   kind: 'video' | 'photo' | 'canvas';
+  /** Vídeos: o encaixe no quadro (fit.ts; por omissão `cover`). */
+  fit?: Fit;
   /** Vídeos: o volume do som deste clipe (por omissão 1; 0 = calado). */
   volume?: number;
   /** `canvas`: a cor já vai nos frames (a moldura leva o filtro só na foto). */
@@ -113,20 +124,20 @@ export function clipArgs(c: ClipJob): string[] {
   const graph: string[] = [];
   if (c.kind === 'video') {
     args.push('-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm', '-ss', n(c.trimStart), '-t', n(c.trimLen), '-i', c.input);
-    // Velocidade, 30 fps, a cobrir o quadro (corta o que sobra, ao centro), o filtro; se faltar um frame no fim, repete o último.
+    // Velocidade, 30 fps, encaixado no quadro (a cobrir, ou inteiro sobre o fundo desfocado), o filtro; se faltar um frame no
+    // fim, repete o último.
     graph.push(
-      `[0:v]${pieces ? 'setpts=PTS-STARTPTS,' : ''}${timing},fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1${lk},format=yuv420p,` +
-        `tpad=stop_mode=clone:stop_duration=2,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
+      `[0:v]${pieces ? 'setpts=PTS-STARTPTS,' : ''}${timing},fps=${FPS},setsar=1[v0]`,
+      ...fitGraph(c.fit ?? 'cover', W, H, '[v0]', '[v1]', 'fit'),
+      `[v1]setsar=1${lk},format=yuv420p,tpad=stop_mode=clone:stop_duration=2,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
     );
   } else if (c.kind === 'canvas') {
     args.push('-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-framerate', String(FPS), '-i', 'pipe:0');
     graph.push(`[0:v]setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`);
   } else {
-    args.push('-i', c.input);
-    // Ken Burns: de 1 a 1,07 ao longo da foto, sempre ao centro (um frame congelado fica parado).
-    graph.push(
-      `[0:v]zoompan=z='${c.fx?.freeze ? '1' : `1+${KEN_BURNS}*on/${N}`}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${N}:s=${W}x${H}:fps=${FPS},setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
-    );
+    // Uma imagem parada (um frame congelado), já encaixada no quadro: repete-se N frames.
+    args.push('-loop', '1', '-framerate', String(FPS), '-t', n(N / FPS + 0.2), '-i', c.input);
+    graph.push(`[0:v]scale=${W}:${H},setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`);
   }
   let v = '[c]';
   const td = !c.fx && c.prevStill && c.transition !== 'cut' ? transitionSeconds(N) : 0;
@@ -172,11 +183,11 @@ export function clipArgs(c: ClipJob): string[] {
  * Inverter (docs/estudio-efeitos.md, 4): um bocado do corte, já no quadro e a `fps`, ao contrário (o filtro `reverse` guarda
  * o bocado todo em memória: por isso vai aos bocados, do fim para o início, e junta-se com o concat). Sem som (fica calado).
  */
-export function reverseChunkArgs(o: { input: string; from: number; len: number; fps: number; w: number; h: number; out: string; threads?: number }): string[] {
+export function reverseChunkArgs(o: { input: string; from: number; len: number; fps: number; w: number; h: number; out: string; threads?: number; fit?: Fit }): string[] {
+  const g = [`[0:v]setpts=PTS-STARTPTS,fps=${o.fps},setsar=1[r0]`, ...fitGraph(o.fit ?? 'cover', o.w, o.h, '[r0]', '[r1]', 'fit'), '[r1]format=yuv420p,reverse[r]'];
   return [
     '-y', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm', '-ss', n(o.from), '-t', n(o.len), '-i', o.input,
-    '-vf', `setpts=PTS-STARTPTS,fps=${o.fps},scale=${o.w}:${o.h}:force_original_aspect_ratio=increase:flags=bicubic,crop=${o.w}:${o.h},setsar=1,format=yuv420p,reverse`,
-    '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '12', '-g', String(o.fps), '-pix_fmt', 'yuv420p', ...(o.threads ? ['-threads', String(o.threads)] : []), o.out,
+    '-filter_complex', g.join(';'), '-map', '[r]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '12', '-g', String(o.fps), '-pix_fmt', 'yuv420p', ...(o.threads ? ['-threads', String(o.threads)] : []), o.out,
   ];
 }
 
@@ -345,6 +356,10 @@ export interface FinalJob {
   threads?: number;
 }
 
+/** O vídeo final: CRF e teto do débito (também o tamanho do VBV). */
+export const FINAL_CRF = 22;
+export const FINAL_MAXRATE = '5M';
+
 /** Os argumentos do ffmpeg do 2.º passo (o grafo vai num ficheiro: `graphFile`). */
 export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; graph: string } {
   const T = n(j.seconds);
@@ -446,7 +461,9 @@ export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; gra
     '-y', ...inputs,
     '-filter_complex_script', graphFile,
     '-map', '[vout]', '-map', '[aout]', '-t', T,
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-maxrate', '6M', '-bufsize', '12M', '-profile:v', 'high', '-level', '4.1',
+    // O leitor do feed descarrega o MP4 enquanto toca: o VBV de 1 s (bufsize = maxrate) não deixa picos de 13 Mbit/s em meio
+    // segundo como o de 12M deixava (docs/montagem.md, 6-A); CRF 22 sobre clipes que já vêm a CRF 23 do envio.
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(FINAL_CRF), '-maxrate', FINAL_MAXRATE, '-bufsize', FINAL_MAXRATE, '-profile:v', 'high', '-level', '4.1',
     '-pix_fmt', 'yuv420p', '-r', String(FPS), '-g', String(FPS * 2), ...threads,
     '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', String(RATE),
     '-movflags', '+faststart', '-map_metadata', '-1', j.out,

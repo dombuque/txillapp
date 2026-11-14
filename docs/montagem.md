@@ -35,6 +35,7 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
     fx?: ClipFx,                  // os efeitos do estúdio: filtro, ajustes, transição, rampa, inverter, congelar, enquadramento, moldura (4-B)
     sound?: boolean,              // vídeos: «Som do vídeo» ligado (por omissão) ou calado
     volume?: 0..1,                // vídeos: o volume deste clipe, por cima do originalVolume (por omissão 1)
+    fit?: 'cover' | 'blur',       // o encaixe no quadro 9:16 (abaixo); sem ele, automático pela proporção do ficheiro
   }],
   sound?: { kind: 'music', music: Faixa }   // a faixa da interface comum (docs/musica.md): catálogo, `local` ou `clip`
         | { kind: 'sound', soundId: string }, // «Usar este som» (docs/sons.md): som original (uuid), 'cat:<faixa>' ou 'local:<uuid>'
@@ -79,6 +80,21 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
   as fotos ficam com `durationMs`. O «Ajustar ao ritmo» e os moldes do estúdio acertam o `musicStartMs` para uma batida cair
   no 0 e mexem nos `trimEndMs` dos vídeos para os cortes caírem nas batidas: o servidor só recebe o resultado.
 - Os vídeos ficam sempre com a duração que têm (cortados e com a velocidade); ao ritmo, só as fotos mudam.
+- **`fit`, o encaixe no quadro 9:16** (`compose/fit.ts`; a app copia estes números para a pré-visualização e a exportação do site):
+  - `cover`: o clipe enche o quadro e corta-se o que sobra, ao centro (o de sempre).
+  - `blur`: o clipe **inteiro**, contido e ao centro, por cima de uma cópia dele a encher o quadro (como no `cover`), desfocada
+    com uma gaussiana de **sigma 40 px num quadro de 1080 de largura** (escala com a largura: 20 px a 540) e escurecida a **70 %**
+    (cada canal R, G, B × 0,7, como o `filter: brightness(0.7)` do CSS). O fundo é o mesmo frame da frente (num vídeo, mexe-se com
+    ele). No servidor o desfoque faz-se a 1/8 do tamanho (sigma 5 a 136×240) e amplia-se: dá a mesma imagem por muito menos.
+  - Sem `fit` (automático, `autoFit(w, h)`): **`cover` quando largura/altura ≤ 0,8** e `blur` acima (0,8 já é `cover`; 3:4 e
+    9:16 enchem; quadrado, 4:3 e 16:9 deitados vão inteiros). `w`×`h` é o tamanho **de mostrar**: um vídeo gravado de pé tem
+    1920×1080 com 90° nos metadados (displaymatrix) e conta como 1080×1920; uma foto conta já com a orientação do EXIF.
+  - Uma foto com o enquadramento da Montagem mágica (`fx.focus`) fica como estava (a cobrir, com o retângulo de `coverRect`)
+    salvo com `fit: 'blur'`: aí vai inteira e o zoom de `from` a `to` (a mesma curva) faz-se à volta do ponto `x`, `y` da foto.
+  - O Ken Burns de uma foto em `blur` é só da foto da frente (de 1 a 1,07 à volta do centro do quadro); o fundo fica parado.
+  - Na moldura de capulana o `fit` não conta (a foto já vai inteira). **No dueto** também não: cada lado enche o seu quadro
+    9:16, como sempre.
+  - `fit` diferente de `cover`/`blur` → 400 «O encaixe é cover ou blur».
 
 **Respostas de erro** (`400`, `message` em português, igual às dicas do estúdio; `problem` nas regras):
 
@@ -147,7 +163,8 @@ testes em `voice-preview.e2e.spec.ts`. Se a cadeia dos efeitos mudar, sobe-se `C
 
 ## 4. O vídeo final
 
-- **1080×1920 (9:16), H.264 (high 4.1, CRF 21, até 6 Mbit/s) + AAC 160 kbit/s, 30 fps, `faststart`**, sem metadados.
+- **1080×1920 (9:16), H.264 (high 4.1, CRF 22, até 5 Mbit/s com um VBV de 1 s) + AAC-LC 160 kbit/s 48 kHz estéreo, 30 fps
+  certos, keyframe a cada 2 s, `faststart`** (o `moov` à frente), sem metadados nem rotação.
 - Fica em `content.media_assets` como `purpose: 'public'`, `status: 'ready'`, `mime: 'video/mp4'`, **`signed: true`**, com
   `duration_ms`, `width`, `height` e a capa (`<id>.poster.jpg`, servida em `/media/:id?poster=1`) tirada em `coverMs`.
 - **Assinatura**: o logótipo do Txillapp, o @ e o selo de verificado (se a conta o tiver), em todos os frames, com o mesmo desenho
@@ -156,13 +173,15 @@ testes em `voice-preview.e2e.spec.ts`. Se a cadeia dos efeitos mudar, sobe-se `C
 
 ### Como se monta (`compose/plan.ts`)
 
-1. **Ficheiros**: os clipes saem do armazenamento (disco ou S3); as fotos passam pelo sharp (rotação, a cobrir o quadro com 1,5×
-   de folga); a música descarrega-se **só de anfitriões permitidos** (`ALLOWED_HOSTS` do catálogo, `music/catalog/curation.ts`),
+1. **Ficheiros**: os clipes saem do armazenamento (disco ou S3); as fotos passam pelo sharp (rotação do EXIF, até 3840 px
+   de lado); a música descarrega-se **só de anfitriões permitidos** (`ALLOWED_HOSTS` do catálogo, `music/catalog/curation.ts`),
    **só por https** (também nos redireccionamentos, até 4), até 25 MB e 45 s; uma faixa dos artistas, um clipe de áudio próprio e
    um som original lêem-se do armazenamento privado. Todas as entradas do ffmpeg têm `-protocol_whitelist file` e a lista dos
    formatos permitidos.
-2. **Um clipe de cada vez** (pouca memória): cortado (`-ss`/`-t`), à velocidade (`setpts`, `atempo`), a 30 fps, a cobrir o quadro,
-   com o filtro e, nas fotos, o Ken Burns do estúdio (zoom de 1 a 1,07 ao centro, `zoompan`). As **transições** fazem-se aqui, como
+2. **Um clipe de cada vez** (pouca memória): cortado (`-ss`/`-t`), à velocidade (`setpts`, `atempo`), a 30 fps, encaixado no
+   quadro (`fit`, secção 2), com o filtro. As **fotos** desenham-se no canvas do Node (`renderPhotoFrames`, com 1,5× de folga)
+   com o Ken Burns do estúdio (zoom de 1 a 1,07 ao centro) em vírgula flutuante, e o ffmpeg recebe os frames pelo stdin; um frame
+   congelado é uma imagem parada. As **transições** fazem-se aqui, como
    no site: o último frame do clipe anterior, parado, funde-se (`xfade=fade`) ou sai a deslizar (`xfade=slideleft`) durante 0,5 s
    sobre o início deste. As durações não mudam, por isso os cortes ao ritmo continuam nas batidas. O som de cada clipe sai com o
    número exato de amostras dos seus frames (nada escorrega).
@@ -337,6 +356,36 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
 - Com `COMPOSE_CONCURRENCY=1`, um servidor dá umas 60 a 80 tchekas de 60 s por hora (12 núcleos); as de 15 s, 4 vezes mais.
   Para mais, um worker noutra máquina: a fila já é partilhada (docs/escala.md).
 
+### 6-A. O tremido e o ficheiro final (medidos)
+
+`apps/api/scripts/tcheka-motion.ts` gera entradas de teste (uma foto 3:4 e uma 4:3 com uma grelha de pontos, um vídeo 16:9 com
+um ponto a andar, um flash e um apito, um vertical a 60 fps com ±4 ms de ruído nos tempos, um a 30 fps para 2× e 3×, e um de pé
+gravado deitado com a displaymatrix), passa-os pela conversão do envio e monta-os com o `ComposeService` verdadeiro (sem base
+de dados). Segue os pontos frame a frame (centróide subpíxel) e mede `jerk` = RMS da 2.ª diferença da posição (px/frame²; um
+movimento liso dá ~0,2, o ruído da codificação), frames parados/para trás, frames repetidos e pretos, os tempos de cada frame
+(ffprobe), a duração de cada pista contra o plano, a sincronia (flash contra apito), o perfil, os keyframes, o pico de débito e
+a ordem dos átomos. `npx ts-node --transpile-only scripts/tcheka-motion.ts <etiqueta> legacy,studio,cover` (em `apps/api`;
+`TCHEKA_UPLOAD=old` usa a conversão do envio de antes).
+
+| Causa | Antes | Depois |
+|---|---|---|
+| Ken Burns no `zoompan` (arredonda o corte a píxeis inteiros: o zoom total era o certo, 1,0676 do frame 1 ao 88, mas aos saltos) | foto 3:4: jerk 1,26, 248 de 696 passos parados e 123 para trás | jerk 0,16 (média 0,08), 0 parados, 0 para trás |
+| idem, foto 4:3 deitada | jerk 1,09, 79 parados, 64 para trás | `cover`: 0,35 (média 0,21), 0 parados; `blur`: 0,11 |
+| Envio de um vídeo VFR (60 fps com ±4 ms): o `fps=30` dava ao frame k o último frame da fonte antes de (k+½)/30, e o frame ímpar ficava na fronteira | passos de 5, 15, 10 px (devia ser 10): jerk 4,47 | jerk 0,30 (`to30fps`, media/video.service.ts) |
+| Débito: VBV de 12M com teto de 6M | picos de 13 Mbit/s em meio segundo (média 6,3) num vídeo com ruído | 6,8 Mbit/s (média 5,1); SSIM 0,9953 → 0,9923 num `testsrc2` limpo com −26 % de bits |
+
+O que já estava certo e continua (as três montagens, de sempre, do estúdio e com `cover`): 0 frames com o tempo fora de 1/30 s,
+duração de vídeo e som igual ao plano (19 e 22 s), som e imagem a começar em 0, flash e apito no mesmo frame (o detetor tem 10
+ms de passo), 0 frames pretos, nenhum frame repetido nos cortes, `ftyp,moov,free,mdat`, H.264 High 4.1 com 2 B-frames,
+keyframes até 2 s, um vídeo com a displaymatrix fica de pé. Os vídeos com velocidade (2×, 3×) e o deslizar (`xfade` e canvas)
+já eram lisos (jerk 0,2 a 0,3; o deslizar fica a 0,05–0,3 px da reta). As transições do estúdio partem do último frame do
+clipe anterior parado (o desenho do site): no início de um «fundido» os 3 a 4 primeiros frames quase não mudam (a curva
+`easeInOutCubic` começa devagar); é do desenho, não um frame perdido.
+
+Tempos: as fotos no canvas custam ~20 ms por frame contra ~10 do `zoompan` (+1 s numa foto de 3 s nesta máquina); o fundo
+desfocado de um vídeo, quase nada (a 1/8 do tamanho). As três montagens de teste (19 a 22 s) levaram 17,6 a 19,6 s contra 18,1
+a 20,7 s antes (máquina com outra carga: a diferença está dentro do ruído).
+
 ## 7. O que não faz (ainda)
 
 - **Música licenciada** (`kind: 'licensed'`): recusada com uma mensagem.
@@ -346,6 +395,8 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
   largura média da letra (não mede), a caixa não tem cantos redondos, os emojis saem, os stickers ficam parados e o `slide`
   desliza a direito. Com os efeitos do estúdio (secção 4-B) tudo isto é o desenho do site.
 - O sticker «personagem» do estúdio (a saltitar no canto) não existe aqui.
+- A 0,5× um vídeo de 30 fps mostra cada frame duas vezes (15 imagens por segundo): não há interpolação de frames.
+- Os `texts` de antes (`drawtext`) sobem em píxeis inteiros (~4,6 px por frame, salta ±0,5 px); as camadas do estúdio não.
 - A verificação de nudez não volta a correr no vídeo final: as fotos e os vídeos já foram verificados no envio, e o resto (texto,
   stickers, assinatura) é nosso.
 - A exportação de dados da conta não inclui os jobs (são temporários e apagam-se aos 7 dias).
