@@ -41,6 +41,8 @@ import { DECK_MS, deckCount, deckHeadroom, deckSlots, prefetchTargets, swipeStep
 import { ZasDeckCard } from './zas/ZasDeckCard';
 import { zasPrefetcher } from './zas/zasPrefetch';
 import { saveZas, shareZas } from './zas/zasImage';
+import { allowCapture, blockCapture, captureNative, onScreenshot, sendScreenshotNotice, ZAS_CAPTURE_KEY } from '@/lib/screenCapture';
+import { screenshotKey } from '@/lib/screenshotNotice';
 
 type Audience = 'friends' | 'close';
 
@@ -802,16 +804,50 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   /** Onde está a pilha (Reanimated): o índice do de cima, contínuo no arrastar e na animação. */
   const pos = useSharedValue(i);
 
+  // Zás dos outros: sem capturas de ecrã (Android: FLAG_SECURE, a captura é recusada e a gravação sai preta; iPhone 13+:
+  // a captura sai em branco). Os meus, a grelha «Os meus Zás» e a câmara ficam livres; na web não há como (lib/screenCapture).
+  // No Android o Modal é um Dialog com janela própria, que só copia a FLAG_SECURE da atividade quando é criado: por isso
+  // o visor dos outros só aparece depois de o bloqueio estar posto (um instante).
+  const guard = !own && captureNative;
+  const [secured, setSecured] = useState(() => !(guard && Platform.OS === 'android'));
+  useEffect(() => {
+    if (!guard) return;
+    let live = true;
+    void blockCapture(ZAS_CAPTURE_KEY).then(() => { if (live) setSecured(true); });
+    return () => {
+      live = false;
+      void allowCapture(ZAS_CAPTURE_KEY);
+    };
+  }, [guard]);
+  /**
+   * Sair do visor dos outros para outro ecrã que abre logo (a câmara, a grelha dos meus): o bloqueio sai ANTES, senão a
+   * janela nova (que copia a FLAG_SECURE ao ser criada) ficava bloqueada enquanto estivesse aberta.
+   */
+  const leave = (fn: () => void) => {
+    if (!guard) return fn();
+    void allowCapture(ZAS_CAPTURE_KEY).then(fn);
+  };
+  const finish = () => (onFinish ? leave(onFinish) : onClose());
+  // Captura do Zás de outra pessoa que o sistema deixou saber (iPhone; Android 14+): o dono do Zás de cima fica a saber.
+  const topId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!guard) return;
+    return onScreenshot(() => {
+      const id = topId.current;
+      if (id) sendScreenshotNotice(screenshotKey.zas(id), () => instantsApi.screenshot(id));
+    });
+  }, [guard]);
+
   useEffect(() => {
     if (items) {
-      if (!items.length) (onFinish ?? onClose)();
+      if (!items.length) finish();
       return;
     }
     if (!load) return;
     load()
       .then((r) => {
         const list = own ? r : unseen(r);
-        if (!list.length) return (onFinish ?? onClose)();
+        if (!list.length) return finish();
         const at = startId ? Math.max(0, list.findIndex((x) => x.id === startId)) : 0;
         pos.value = at;
         setI(at);
@@ -826,6 +862,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
 
   const count = items?.length ?? 0;
   const cur = items?.[i];
+  topId.current = cur?.id;
   // A pilha anda: a de cima sai e a de trás sobe (curto, para o toque parecer imediato).
   useEffect(() => {
     pos.value = withTiming(i, { duration: DECK_MS, easing: Easing.out(Easing.cubic) });
@@ -877,7 +914,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   };
   function next() {
     if (!items) return;
-    if (i + 1 >= items.length) (onFinish ?? onClose)();
+    if (i + 1 >= items.length) finish();
     else setI(i + 1);
   }
   function prev() {
@@ -990,7 +1027,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   const slots = items ? deckSlots(count, i) : [];
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={secured} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View {...(mouse ? {} : pan.panHandlers)} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
         <View style={st.vTop}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
@@ -1002,8 +1039,8 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
             </View>
           ) : <View />}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 44, justifyContent: 'flex-end' }}>
-            {onGrid && <Pressable onPress={onGrid} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
-            {onCamera && <Pressable onPress={onCamera} accessibilityRole="button" accessibilityLabel="Mandar o meu Zás" style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
+            {onGrid && <Pressable onPress={() => leave(onGrid)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
+            {onCamera && <Pressable onPress={() => leave(onCamera)} accessibilityRole="button" accessibilityLabel="Mandar o meu Zás" style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
           </View>
         </View>
 

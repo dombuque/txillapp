@@ -3,6 +3,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
 import { useChatVisible } from '@/lib/chatVisible';
+import { useScreenshotNotice } from '@/lib/screenCapture';
+import { screenshotKey } from '@/lib/screenshotNotice';
 import { useAuth } from '@/lib/auth';
 import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -121,6 +123,9 @@ export default function GroupThreadScreen() {
     void qc.invalidateQueries({ queryKey: ['chat-unread'] });
     void qc.invalidateQueries({ queryKey: ['chat-groups'] });
   }, [first?.items[0]?.id, qc]);
+  // Captura de ecrã com o grupo à vista e a app à frente (só Android 14+ e iPhone; na web não há): o grupo fica com o
+  // aviso «Fulano fez uma captura de ecrã.». Só quem é membro (no máximo um pedido a cada 5 s; lib/screenCapture).
+  useScreenshotNotice(id && group?.myRole ? screenshotKey.group(id) : null, () => gruposApi.screenshot(id));
   // Chegou uma foto ou um vídeo novo: o álbum fica a saber.
   useEffect(() => {
     const k = first?.items[0]?.kind;

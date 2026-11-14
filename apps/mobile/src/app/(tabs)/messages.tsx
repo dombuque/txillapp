@@ -29,7 +29,8 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type Badged, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
-import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
+import { groupSenderPrefix, listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
+import { systemText } from '@/lib/screenshotNotice';
 import { emptyPreview } from '@/lib/chatTemporary';
 import { inboxFailed } from '@/lib/chatErrors';
 
@@ -58,8 +59,9 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'gif') return `${you}GIF`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
-  // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias."): o servidor já manda o texto para quem o vê.
-  if (m.kind === 'system') return m.body;
+  // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias.", "Ana fez uma captura de ecrã."): o servidor já
+  // manda o texto para quem o vê.
+  if (m.kind === 'system') return systemText(m);
   if (m.kind === 'location') return `${you}Localização`;
   // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
   if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma 🍻'}`;
@@ -304,7 +306,7 @@ export default function Messages() {
       key: `g:${g.id}`,
       to: `/messages/g/${g.id}`,
       name: g.name,
-      sub: emptyPreview(g.lastMessage, { members: g.members }) ?? `${g.lastMessage.fromMe ? '' : g.lastMessage.senderName ? `${g.lastMessage.senderName}: ` : ''}${what(g.lastMessage, true)}`,
+      sub: emptyPreview(g.lastMessage, { members: g.members }) ?? `${groupSenderPrefix(g.lastMessage)}${what(g.lastMessage, true)}`,
       at: g.lastMessage.at,
       unread: g.unread,
       names: g.preview.slice(0, 2).map((p) => ({ name: p.displayName, username: p.hasAvatar ? p.username : undefined })),

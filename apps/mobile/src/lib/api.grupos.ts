@@ -45,6 +45,8 @@ export const gruposApi = {
   remove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   /** Mensagens temporárias no grupo (só quem administra): segundos ou null para desligar. */
   setTtl: (id: string, ttl: number | null): Promise<{ ttl: number | null }> => raw(`/chat/groups/${id}/ttl`, { method: 'PUT', body: JSON.stringify({ ttl }) }),
+  /** Fiz uma captura de ecrã no grupo: o servidor deixa o aviso de sistema (type 'screenshot') para todos. */
+  screenshot: (id: string): Promise<unknown> => raw(`/chat/groups/${id}/screenshot`, post({})),
   /** Limpar a conversa do grupo só para mim. */
   clear: (id: string): Promise<{ ok: true }> => raw(`/chat/groups/${id}/clear`, post({})),
 };
