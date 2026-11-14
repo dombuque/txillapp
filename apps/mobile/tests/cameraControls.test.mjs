@@ -209,6 +209,15 @@ test('flash: ordem do botão, modo pedido, flash de ecrã e lanterna', () => {
   assert.equal(c.flashA11y('on', true), 'Flash de ecrã: ligado');
 });
 
+test('ícones próprios da câmara: o flash e o temporizador mostram o estado', () => {
+  assert.equal(c.flashIcon('off'), 'cam-flash-off');
+  assert.equal(c.flashIcon('auto'), 'cam-flash-auto');
+  assert.equal(c.flashIcon('on'), 'cam-flash');
+  assert.equal(c.timerIcon(0), 'cam-timer');
+  assert.equal(c.timerIcon(3), 'cam-timer-3');
+  assert.equal(c.timerIcon(10), 'cam-timer-10');
+});
+
 test('isLowLight: ISO alto ou exposição longa; sem dados (Android) nunca', () => {
   assert.equal(c.isLowLight({ iso: 0, exposureDuration: 0 }), false);
   assert.equal(c.isLowLight({}), false);

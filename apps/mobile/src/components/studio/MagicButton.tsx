@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, Sparkles } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
+import { Icon } from '../Icon';
 import { CORAL_GRADIENT, mg } from './MagicUi';
 
 /**
@@ -20,7 +21,7 @@ export function MagicButton({ onPress, disabled, hint }: { onPress: () => void; 
       style={({ pressed }) => [st.btn, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]}
     >
       <LinearGradient colors={CORAL_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <View style={st.icon}><Sparkles size={22} color={mg.coral} strokeWidth={2.6} /></View>
+      <View style={st.icon}><Icon name="cam-magic" size={24} color={mg.coral} strokeWidth={2.3} /></View>
       <View style={{ flex: 1 }}>
         <Text style={st.label} numberOfLines={1}>Montagem mágica</Text>
         <Text style={st.sub} numberOfLines={1}>{hint ?? 'Um toque e a tcheka fica feita'}</Text>

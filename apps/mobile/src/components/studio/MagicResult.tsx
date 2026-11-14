@@ -1,7 +1,8 @@
 import { createElement, useState, type ReactNode } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Film, Lock, LockOpen, Pause, Play, Shuffle, SlidersHorizontal, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Film, Lock, LockOpen, Pause, Play, Shuffle, SlidersHorizontal } from 'lucide-react-native';
+import { Icon } from '../Icon';
 import { waveById, type MagicClip, type MagicResult as Result } from '@/lib/studio/magic';
 import { MagicPreview } from './MagicPreview';
 import { MagicBackdrop, MagicCta, MagicRound, MagicTag, mg } from './MagicUi';
@@ -68,7 +69,7 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
             </View>
           </View>
           <View style={st.side}>
-            <MagicTag hot icon={<Sparkles size={16} color="#fff" />} label={`${fmt(result.total)} s`} />
+            <MagicTag hot icon={<Icon name="cam-magic" size={16} color="#fff" strokeWidth={2} />} label={`${fmt(result.total)} s`} />
             <MagicTag label={`${cuts} ${cuts === 1 ? 'corte' : 'cortes'}`} />
             {result.music ? <MagicTag label={`${Math.round(result.music.bpm)} BPM`} /> : null}
             <Text style={st.sideNote}>Cortes ao ritmo{result.left.length ? `. ${result.left.length} ${result.left.length === 1 ? 'ficheiro não coube' : 'ficheiros não couberam'} nos 60 s` : ''}.</Text>

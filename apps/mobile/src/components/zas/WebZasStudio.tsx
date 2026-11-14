@@ -59,12 +59,7 @@ function focusSupport(t: MediaStreamTrack | undefined): string | null {
 }
 
 function FlashIcon({ on, size }: { on: boolean; size: number }) {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <Icon name="bolt" size={size} solid={on} color={on ? colors.zinc900 : '#fff'} />
-      {!on && <View pointerEvents="none" style={{ position: 'absolute', height: 2, borderRadius: 1, width: size * 1.3, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] }} />}
-    </View>
-  );
+  return <Icon name={on ? 'cam-flash' : 'cam-flash-off'} size={size} solid={on} color={on ? colors.zinc900 : '#fff'} />;
 }
 
 export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, err, editing, onEditing, onCapture, sentBox }: StudioProps) {
@@ -418,7 +413,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
             </View>
             <View style={{ flex: 1, alignItems: 'center' }}>
             <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} accessibilityRole="button" accessibilityLabel="Virar câmara" style={({ pressed }) => [small, { backgroundColor: 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
-              <Icon name="flip-camera" size={25} color="#fff" />
+              <Icon name="cam-flip" size={26} color="#fff" />
             </Pressable>
             </View>
           </View>

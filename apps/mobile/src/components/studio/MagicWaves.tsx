@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Check, Music2, ShieldCheck, Sparkles, X } from 'lucide-react-native';
+import { Check, Music2, ShieldCheck, X } from 'lucide-react-native';
+import { Icon } from '../Icon';
 import { WAVES, waveById, type WaveId } from '@/lib/studio/magic';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { MagicBackdrop, MagicCta, MagicRound, MagicTag, mg } from './MagicUi';
@@ -31,7 +32,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
         <View style={st.head}>
           <View style={{ flex: 1 }}>
             <View style={st.titleRow}>
-              <Sparkles size={26} color={mg.coralHot} strokeWidth={2.4} />
+              <Icon name="cam-magic" size={26} color={mg.coralHot} strokeWidth={2.2} />
               <Text style={st.title} accessibilityRole="header">Montagem mágica</Text>
             </View>
             <Text style={st.sub}>Escolhe a onda. Nós cortamos, pomos por ordem e acertamos tudo no ritmo.</Text>
@@ -79,7 +80,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
 
       <View style={[st.bar, { paddingBottom: 16 + bottomInset }]}>
         <LinearGradient pointerEvents="none" colors={['rgba(8,8,12,0)', 'rgba(8,8,12,0.96)', mg.bg]} locations={[0, 0.2, 1]} style={StyleSheet.absoluteFill} />
-        <MagicCta label="Montar a tcheka" onPress={onStart} icon={<Sparkles size={22} color="#fff" strokeWidth={2.4} />} testID="montar" a11y={`Montar a tcheka na onda ${wave.name}`} />
+        <MagicCta label="Montar a tcheka" onPress={onStart} icon={<Icon name="cam-magic" size={22} color="#fff" strokeWidth={2.2} />} testID="montar" a11y={`Montar a tcheka na onda ${wave.name}`} />
         <View style={st.private}>
           <ShieldCheck size={16} color={mg.muted} />
           <Text style={st.privateText}>{privacy ?? 'Tudo acontece no teu telemóvel. Nada é enviado.'}</Text>

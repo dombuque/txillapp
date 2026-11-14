@@ -13,6 +13,7 @@ import {
   videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
   freshVideoFor, nextVideo, viewTransform, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
 } from '@/lib/webCamera';
+import { timerIcon } from '@/lib/cameraControls';
 import { useAuth } from '@/lib/auth';
 import { finalMs, musicRateWhileRecording, recordableMs, segmentBar, SPEEDS, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
@@ -473,7 +474,7 @@ function applyEdit(cv: HTMLCanvasElement, look: Look, e: Edit) {
 }
 
 /** Ícones que não existem na biblioteca Tx, desenhados no mesmo traço e grelha 24×24. */
-function Glyph({ name, color, size = 22 }: { name: 'contrast' | 'drop' | 'thermo' | 'highlights' | 'vignette' | 'crop' | 'thirds'; color: string; size?: number }) {
+function Glyph({ name, color, size = 22 }: { name: 'contrast' | 'drop' | 'thermo' | 'highlights' | 'vignette' | 'crop'; color: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       {name === 'contrast' && <><Circle cx={12} cy={12} r={8.5} /><Path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill={color} /></>}
@@ -482,14 +483,13 @@ function Glyph({ name, color, size = 22 }: { name: 'contrast' | 'drop' | 'thermo
       {name === 'highlights' && <><Path d="M3.5 17h17" /><Path d="M7 17a5 5 0 0 1 10 0" /><Path d="M12 6.5v2M5.8 9.6l1.4 1.4M18.2 9.6 16.8 11M8 20.5h8" /></>}
       {name === 'vignette' && <><Path d="M6.5 5h11a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z" /><Circle cx={12} cy={12} r={4} /></>}
       {name === 'crop' && <><Path d="M6 2.5V18h15.5" /><Path d="M2.5 6H18v15.5" /></>}
-      {name === 'thirds' && <Path d="M9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17" />}
     </Svg>
   );
 }
 function toolIcon(t: Tool, color: string) {
   switch (t) {
     case 'look': return <Icon name="sparkles" size={22} color={color} strokeWidth={2} />;
-    case 'b': return <Icon name="sun" size={22} color={color} strokeWidth={2} />;
+    case 'b': return <Icon name="cam-exposure" size={22} color={color} strokeWidth={2} />;
     case 'c': return <Glyph name="contrast" color={color} />;
     case 's': return <Glyph name="drop" color={color} />;
     case 't': return <Glyph name="thermo" color={color} />;
@@ -1605,24 +1605,20 @@ export function TxCamera({
           ) : null}
           {(recording ? canTorch : showFlash) ? (
             <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? 'Lanterna' : flashLabel}>
-              <View>
-                <Icon name="bolt" size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
-                {!light && <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: -3, height: 2, borderRadius: 1, width: 28, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] }} />}
-              </View>
+              <Icon name={light ? 'cam-flash' : 'cam-flash-off'} size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
             </Pressable>
           ) : null}
           {!recording ? (
             <>
               <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador'} onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))}>
-                <Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />
-                {delay > 0 ? <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View> : null}
+                <Icon name={timerIcon(delay)} size={22} color={delay ? colors.zinc900 : '#fff'} />
               </TopTool>
-              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} /></TopTool>
+              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Icon name="cam-grid" size={22} color={grid ? colors.zinc900 : '#fff'} /></TopTool>
               <TopTool on={layout !== null} label={layout !== null ? `Layout: ${LAYOUTS[layout].name}` : 'Layout'} onPress={() => setLayoutOpen((v) => !v)}>
-                <Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />
+                <Icon name="cam-layout" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
               </TopTool>
               {modes.includes('text') && onText && !(count > 0 && onDone) ? (
-                <TopTool label="Só texto" onPress={onText}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></TopTool>
+                <TopTool label="Só texto" onPress={onText}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
               ) : null}
             </>
           ) : null}
@@ -1669,7 +1665,7 @@ export function TxCamera({
       {/* A exposição (só quando a câmara a deixa mexer): aparece depois de tocar para focar. */}
       {expoOn && caps.exposure && ready && !review ? (
         <View style={[st.expo, { bottom: ctrlH + 4 }]}>
-          <Icon name="sun" size={18} color="#ffd60a" strokeWidth={2} />
+          <Icon name="cam-exposure" size={20} color="#ffd60a" strokeWidth={2} />
           {dom('input', {
             type: 'range', min: -100, max: 100, step: 1, value: Math.round(expo * 100), 'aria-label': 'Exposição',
             'aria-valuetext': exposureLabel(exposureValue(expo, caps.exposure)),
@@ -1763,7 +1759,7 @@ export function TxCamera({
           <View style={st.side}>
             {!recording && (
               <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
-                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
+                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : <Icon name="cam-gallery" size={24} color="#fff" strokeWidth={2} />}
               </GalleryPick>
             )}
           </View>
@@ -1790,7 +1786,7 @@ export function TxCamera({
               <Pressable onPress={segmented.onUndo} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Desfazer o último clipe"><Icon name="undo" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             ) : null}
             {canFlip && ready && !recording ? (
-              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
+              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="cam-flip" size={26} color="#fff" /></Pressable>
             ) : null}
           </View>
         </View>
@@ -1939,8 +1935,6 @@ const st = StyleSheet.create({
   top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
   okBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(214,51,79,0.45)' } as object,
-  delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
   recNote: { color: '#fff', fontSize: 12, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },

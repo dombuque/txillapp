@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Check, Sparkles, X } from 'lucide-react-native';
+import { Check, X } from 'lucide-react-native';
+import { Icon } from '../Icon';
 import { MAGIC_PHASES, waveById, type MagicPhase, type MagicPhaseInfo, type WaveId } from '@/lib/studio/magic';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { CORAL_GRADIENT, MagicBackdrop, MagicRound, MagicTag, mg } from './MagicUi';
@@ -30,7 +31,7 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0, phas
     <View style={st.root} accessibilityLiveRegion="polite">
       <MagicBackdrop />
       <View style={[st.top, { paddingTop: topInset + 12 }]}>
-        <MagicTag hot label={w.name} icon={<Sparkles size={16} color="#fff" />} />
+        <MagicTag hot label={w.name} icon={<Icon name="cam-magic" size={16} color="#fff" strokeWidth={2} />} />
         <MagicRound onPress={onCancel} a11y="Cancelar a montagem"><X size={22} color="#fff" /></MagicRound>
       </View>
 
@@ -43,7 +44,7 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0, phas
           </Animated.View>
           <View style={st.core}>
             <LinearGradient colors={CORAL_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-            <View><Sparkles size={34} color="#fff" strokeWidth={2.2} /></View>
+            <View><Icon name="cam-magic" size={34} color="#fff" strokeWidth={2} /></View>
           </View>
         </View>
 

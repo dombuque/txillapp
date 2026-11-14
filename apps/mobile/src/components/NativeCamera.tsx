@@ -16,9 +16,9 @@ import {
 } from 'react-native-vision-camera';
 import {
   activeStop, cameraProblem, createValueStore, crossedStop, crossedZero, displayMultiplier, exposureBarOrigin, exposureFromDrag,
-  exposureRange, exposureStep, flashA11y, focusBoxOrigin, formatStop, formatZoom, isLowLight, isMinorCameraError, maxDisplayZoom,
+  exposureRange, exposureStep, flashA11y, flashIcon, focusBoxOrigin, formatStop, formatZoom, isLowLight, isMinorCameraError, maxDisplayZoom,
   meteringModes, needsScreenFlash, nextFlash, permissionView, photoFlashMode, photoPriority, pickStabilization, pickVideoFps,
-  pinchZoom, previewPoint, quiet, recordingNotice, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
+  pinchZoom, previewPoint, quiet, recordingNotice, recTime, slideZoom, sunOffset, timerIcon, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
   type CamPlatform, type CamProblem, type ExposureRange, type FlashChoice, type LensInfo, type ValueStore,
 } from '@/lib/cameraControls';
 import { inAppGalleryFor } from '@/lib/mediaAccess';
@@ -984,20 +984,17 @@ export function NativeCamera({
                 <>
                   <Pressable onPress={() => { tap(); setFlash((f) => nextFlash(f)); }} style={[st.round, flash !== 'off' && st.roundOn]} accessibilityRole="button" accessibilityLabel={flashA11y(flash, screenFlash)} hitSlop={4}>
                     <Animated.View style={rot}>
-                      <Icon name="bolt" size={20} solid={flash !== 'off'} color={flash !== 'off' ? colors.zinc900 : '#fff'} />
-                      {flash === 'off' && <View pointerEvents="none" style={st.slash} />}
-                      {flash === 'auto' && <Text style={st.auto}>A</Text>}
+                      <Icon name={flashIcon(flash)} size={22} solid={flash !== 'off'} color={flash !== 'off' ? colors.zinc900 : '#fff'} />
                     </Animated.View>
                   </Pressable>
                   <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador desligado'} onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} rot={rot}>
-                    <Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />
-                    {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
+                    <Icon name={timerIcon(delay)} size={22} color={delay ? colors.zinc900 : '#fff'} />
                   </TopTool>
                   <TopTool on={grid} label="Grelha" onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} rot={rot}>
-                    <Icon name="grid" size={20} color={grid ? colors.zinc900 : '#fff'} />
+                    <Icon name="cam-grid" size={22} color={grid ? colors.zinc900 : '#fff'} />
                   </TopTool>
                   {onText ? (
-                    <TopTool label="Só texto" onPress={onText} rot={rot}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></TopTool>
+                    <TopTool label="Só texto" onPress={onText} rot={rot}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
                   ) : null}
                 </>
               )}
@@ -1010,7 +1007,7 @@ export function NativeCamera({
               {/* Exposição mexida e barra escondida: um sol pequeno lembra-o (toca para repor). */}
               {exposure !== 0 && !focus ? (
                 <Pressable onPress={() => { tap(); resetExpo(); }} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel="Repor exposição" hitSlop={8}>
-                  <Icon name="sun" size={16} color="#fcd34d" strokeWidth={2.2} />
+                  <Icon name="cam-exposure" size={18} color="#fcd34d" strokeWidth={2.2} />
                 </Pressable>
               ) : null}
               {device ? <ZoomPills stops={stops} store={zoomStore} onPick={zoomToStop} rot={rot} /> : null}
@@ -1047,7 +1044,7 @@ export function NativeCamera({
               {!recording && (
                 <Pressable onPress={() => { tap(); setGalleryOpen(true); }} style={st.galleryThumb} accessibilityRole="button" accessibilityLabel="Abrir a galeria" hitSlop={6}>
                   <Animated.View style={[StyleSheet.absoluteFill, st.center, rot]}>
-                    {lastThumb ? <Image source={{ uri: lastThumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} /> : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
+                    {lastThumb ? <Image source={{ uri: lastThumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} /> : <Icon name="cam-gallery" size={24} color="#fff" strokeWidth={2} />}
                   </Animated.View>
                 </Pressable>
               )}
@@ -1082,7 +1079,7 @@ export function NativeCamera({
               <Animated.View style={[st.shutterIn, recording && st.shutterRec, !recording && { transform: [{ scale: pressAnim }] }]} />
             </View>
             <View style={[st.side, { alignItems: 'flex-end' }]}>
-              {!recording && <Pressable onPress={flip} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={front ? 'Virar para a câmara de trás' : 'Virar para a câmara da frente'} hitSlop={6}><Animated.View style={rot}><Icon name="flip-camera" size={24} color="#fff" /></Animated.View></Pressable>}
+              {!recording && <Pressable onPress={flip} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={front ? 'Virar para a câmara de trás' : 'Virar para a câmara da frente'} hitSlop={6}><Animated.View style={rot}><Icon name="cam-flip" size={26} color="#fff" /></Animated.View></Pressable>}
             </View>
           </View>
         </>
@@ -1146,7 +1143,7 @@ function ExposureTrack({ store, range }: { store: ValueStore<number>; range: Exp
     <>
       {sunY > 6 ? <View pointerEvents="none" style={[st.expoLine, { top: 0, height: sunY - 4 }]} /> : null}
       {EXPO_H - SUN - sunY > 6 ? <View pointerEvents="none" style={[st.expoLine, { top: sunY + SUN + 4, bottom: 0 }]} /> : null}
-      <View pointerEvents="none" style={[st.sun, { top: sunY }]}><Icon name="sun" size={22} color="#fcd34d" strokeWidth={2.2} /></View>
+      <View pointerEvents="none" style={[st.sun, { top: sunY }]}><Icon name="cam-exposure" size={22} color="#fcd34d" strokeWidth={2.2} /></View>
     </>
   );
 }
@@ -1206,10 +1203,6 @@ const st = StyleSheet.create({
   controls: { position: 'absolute', zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 10 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
   roundOn: { backgroundColor: YELLOW },
-  slash: { position: 'absolute', top: 9, left: -3, height: 2, borderRadius: 1, width: 26, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] },
-  auto: { position: 'absolute', right: -8, bottom: -6, fontSize: 10, fontWeight: '900', color: colors.zinc900 },
-  delayBadge: { position: 'absolute', right: -6, bottom: -6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },

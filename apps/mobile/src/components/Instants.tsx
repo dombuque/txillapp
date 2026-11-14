@@ -502,7 +502,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
             {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
             <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: '#fcd34d' }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
-              <Icon name="bolt" size={22} solid={flashOn} color={flashOn ? colors.zinc900 : '#fff'} />
+              <Icon name={flashOn ? 'cam-flash' : 'cam-flash-off'} size={24} solid={flashOn} color={flashOn ? colors.zinc900 : '#fff'} />
             </Pressable>
             <Pressable onPress={() => void shoot()} disabled={busy || shooting} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, (busy || shooting || !cam.ready) && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -512,7 +512,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               </View>
             </Pressable>
             <Pressable onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))} disabled={!cam.granted || shooting} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar câmara">
-              <Icon name="flip-camera" size={22} color="#fff" />
+              <Icon name="cam-flip" size={24} color="#fff" />
             </Pressable>
           </View>
           {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
