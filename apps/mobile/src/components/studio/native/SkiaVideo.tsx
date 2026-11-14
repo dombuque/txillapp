@@ -11,15 +11,18 @@
  * Se o ficheiro não abrir (ou não der um frame em 5 s), `onFail` passa o clipe para o caminho antigo (expo-video com as
  * camadas aproximadas) e o erro fica registado.
  */
-import { Canvas, Fill, ImageShader, Shader, Skia, type SkImage, type SkRuntimeEffect, type Video } from '@shopify/react-native-skia';
+import { Blur, Canvas, ColorMatrix, Fill, Group, ImageShader, Paint, Shader, Skia, type SkImage, type SkRuntimeEffect, type Video } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useDerivedValue, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import { createWorkletRuntime, scheduleOnRN, scheduleOnRuntime, scheduleOnUI, type WorkletRuntime } from 'react-native-worklets';
 import { playbackRateAt, resolveFx, sourceOffset, type FxParams } from '@/lib/studio/effects';
-import { androidPace, applePace, coverTransform, FX_SKSL, fxUniforms, grainSeed, wantMs } from '@/lib/studio/nativeVideoFx';
+import { BLUR_DIM_MATRIX, blurSigma, clipFit, containRect, displaySize, type ClipFit } from '@/lib/studio/fit';
+import { androidPace, applePace, containTransform, coverTransform, FX_SKSL, fxUniforms, grainSeed, retarget, wantMs } from '@/lib/studio/nativeVideoFx';
+import { smoothNow } from '@/lib/studio/previewClock';
 import type { ClockStore } from './clockStore';
+import { rememberSize } from './mediaSize';
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const IS_ANDROID = Platform.OS === 'android';
@@ -131,7 +134,7 @@ function useSkiaVideoFile(uri: string, onFail: (why: string) => void): Meta | nu
 }
 
 /** O que o leitor da Skia precisa de saber de um clipe (os mesmos campos do `StageSeg`). */
-export interface SkiaSeg { uri: string; start: number; dur: number; from: number; len: number; speed: number; fx?: import('@/lib/studio/effects').ClipFx }
+export interface SkiaSeg { uri: string; start: number; dur: number; from: number; len: number; speed: number; fx?: import('@/lib/studio/effects').ClipFx; /** «Encher»/«Inteiro» da pessoa (sem ele, automático: lib/studio/fit.ts). */ fit?: ClipFit }
 type Role = 'cur' | 'prev' | 'next';
 
 /**
@@ -145,6 +148,8 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
   const frame = useSharedValue<SkImage | null>(null);
   const target = useSharedValue({ src: seg.from, rate: 1, playing: false, stamp: Date.now(), end: seg.from + seg.len });
   const pace = useSharedValue({ lastSeekAt: 0, lastSeekTo: -1e9, shown: -1, first: false });
+  /** O relógio de parede liso deste leitor (`smoothNow`: os intervalos certos do vsync). */
+  const smooth = useSharedValue(0);
   const seed = useSharedValue(0);
   const [hasFrame, setHasFrame] = useState(false);
 
@@ -167,7 +172,10 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
     }
     const now = Date.now();
     const L = last.current;
-    const changed = force || on !== L.playing || r !== L.role || Math.abs(rate - L.rate) > 0.02 || (!on && Math.abs(src - L.src) > 1e-3) || (on && now - L.at > 120);
+    // A tocar, o fio da interface anda sozinho a partir do último alvo: só se manda outro quando o relógio se afasta dele
+    // (um salto, uma rampa). Antes ia um alvo novo a cada 120 ms, com o Date.now() do JS (ms inteiros e atrasado): o
+    // vídeo dava pequenos saltos para a frente e para trás à volta da mudança de frame.
+    const changed = force || on !== L.playing || r !== L.role || Math.abs(rate - L.rate) > 0.02 || (!on && Math.abs(src - L.src) > 1e-3) || (on && retarget(L, src, now));
     if (!changed) return;
     last.current = { at: now, rate, playing: on, role: r, src };
     target.value = { src: Math.min(src, end), rate, playing: on, stamp: now, end };
@@ -186,10 +194,12 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
   const frameMs = 1000 / (meta?.fps ?? 30);
   const grain = p.grain > 0;
   const gotFirst = () => setHasFrame(true);
-  useFrameCallback(() => {
+  useFrameCallback((info) => {
     'worklet';
     if (!video) return;
-    const now = Date.now();
+    const wall = Date.now();
+    const now = smoothNow(smooth.value, info.timeSincePreviousFrame ?? 0, wall);
+    smooth.value = now;
     const tg = target.value;
     const want = wantMs(tg, now);
     const ps = pace.value;
@@ -208,7 +218,7 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
       for (let i = 0; i < n; i++) {
         const img = video.nextImage();
         if (img) { if (got && got !== img) got.dispose(); got = img; }
-        if (Date.now() - now > 8) break;
+        if (Date.now() - wall > 8) break;
       }
     } else {
       const d = applePace({ want, cur, frameMs, now, lastSeekAt: ps.lastSeekAt, lastSeekTo: ps.lastSeekTo, playing: tg.playing && Math.abs(tg.rate - 1) < 0.02, isPlaying: video.isPlaying() });
@@ -242,19 +252,40 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
 
   const base = useMemo(() => fxUniforms(p, w, h), [p, w, h]);
   const uniforms = useDerivedValue(() => ({ ...base, seed: seed.value }));
+  // «Encher» ou «Inteiro» (lib/studio/fit.ts): com as medidas do ficheiro (já rodadas) e a escolha da pessoa.
+  useEffect(() => { if (meta) { const d = displaySize(meta.iw, meta.ih, meta.rot); rememberSize(seg.uri, d.w, d.h); } }, [meta, seg.uri]);
+  const fit: ClipFit = meta ? clipFit({ fit: seg.fit, video: true }, meta.iw, meta.ih, meta.rot) : 'cover';
   const tf = useMemo(() => (meta ? coverTransform(meta.iw, meta.ih, meta.rot, w, h) : []), [meta, w, h]);
+  const inner = useMemo(() => {
+    if (!meta || fit !== 'blur') return null;
+    const d = displaySize(meta.iw, meta.ih, meta.rot);
+    const r = containRect(d.w, d.h, w, h);
+    return { tf: containTransform(meta.iw, meta.ih, meta.rot, w, h), clip: Skia.XYWHRect(r.x, r.y, r.w, r.h) };
+  }, [meta, fit, w, h]);
   const fx = fxEffect();
   return (
     <View style={StyleSheet.absoluteFill}>
-      {!hasFrame && poster ? <Image source={poster as never} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+      {!hasFrame && poster ? <Image source={poster as never} style={StyleSheet.absoluteFill} contentFit={inner ? 'contain' : 'cover'} /> : null}
       {/* Só com o primeiro frame: o ImageShader sem imagem deixava o shader sem filho. O último frame fica para o GC (como no useVideo). */}
       {meta && fx && hasFrame ? (
         <Canvas style={{ width: w, height: h }}>
-          <Fill>
-            <Shader source={fx} uniforms={uniforms}>
-              <ImageShader image={frame} transform={tf} />
-            </Shader>
-          </Fill>
+          {/* «Inteiro»: por trás, o mesmo frame a cobrir, desfocado (sigma 40 em 1080, à escala do palco) e a 70 % do brilho. */}
+          {inner ? (
+            <Group layer={<Paint><Blur blur={blurSigma(w)} mode="clamp" /><ColorMatrix matrix={[...BLUR_DIM_MATRIX]} /></Paint>}>
+              <Fill>
+                <Shader source={fx} uniforms={uniforms}>
+                  <ImageShader image={frame} transform={tf} />
+                </Shader>
+              </Fill>
+            </Group>
+          ) : null}
+          <Group clip={inner ? inner.clip : undefined}>
+            <Fill>
+              <Shader source={fx} uniforms={uniforms}>
+                <ImageShader image={frame} transform={inner ? inner.tf : tf} />
+              </Shader>
+            </Fill>
+          </Group>
         </Canvas>
       ) : null}
     </View>
