@@ -5,6 +5,7 @@ import { GestureDetector, usePinchGesture, useSimultaneousGestures, useTapGestur
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput, type CameraRef } from 'react-native-vision-camera';
 import { isMinorCameraError, quiet, zoomBounds } from '@/lib/cameraControls';
 import { Icon } from '../Icon';
+import { colors } from '@/lib/theme';
 import { ZAS_MAX_ZOOM, coverCrop, inCaptionZone, needsMirror, outSize, pinchZoom, roundCrop } from './zasFrame';
 
 /**
@@ -234,7 +235,7 @@ export function ZasNativeCamera({
 }
 
 const st = StyleSheet.create({
-  ring: { position: 'absolute', zIndex: 8, width: RING, height: RING, borderRadius: RING / 2, borderWidth: 2, borderColor: '#fcd34d' },
+  ring: { position: 'absolute', zIndex: 8, width: RING, height: RING, borderRadius: RING / 2, borderWidth: 2, borderColor: colors.brandWarm },
   zoom: { position: 'absolute', zIndex: 7, alignSelf: 'center', bottom: 44, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, paddingVertical: 4 },
   zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

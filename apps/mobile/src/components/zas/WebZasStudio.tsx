@@ -59,7 +59,7 @@ function focusSupport(t: MediaStreamTrack | undefined): string | null {
 }
 
 function FlashIcon({ on, size }: { on: boolean; size: number }) {
-  return <Icon name={on ? 'cam-flash' : 'cam-flash-off'} size={size} solid={on} color={on ? colors.zinc900 : '#fff'} />;
+  return <Icon name={on ? 'cam-flash' : 'cam-flash-off'} size={size} solid={on} color="#fff" />;
 }
 
 export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, err, editing, onEditing, onCapture, sentBox }: StudioProps) {
@@ -352,7 +352,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
                 </View>
               ),
               focusRing && (
-                <View key={`ring${focusRing.n}`} pointerEvents="none" style={web({ position: 'absolute', zIndex: 10, left: focusRing.x - 32, top: focusRing.y - 32, width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: '#fcd34d', animationKeyframes: [{ '0%': { opacity: 0, transform: [{ scale: 1.4 }] }, '25%': { opacity: 1, transform: [{ scale: 1 }] }, '100%': { opacity: 0, transform: [{ scale: 0.95 }] } }], animationDuration: '900ms', animationFillMode: 'forwards' })} />
+                <View key={`ring${focusRing.n}`} pointerEvents="none" style={web({ position: 'absolute', zIndex: 10, left: focusRing.x - 32, top: focusRing.y - 32, width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: colors.brandWarm, animationKeyframes: [{ '0%': { opacity: 0, transform: [{ scale: 1.4 }] }, '25%': { opacity: 1, transform: [{ scale: 1 }] }, '100%': { opacity: 0, transform: [{ scale: 0.95 }] } }], animationDuration: '900ms', animationFillMode: 'forwards' })} />
               ),
               count !== null && (
                 <View key="count" pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, zIndex: 10, alignItems: 'center', justifyContent: 'center' }}>
@@ -397,7 +397,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
           {sentBox}
           <View style={{ alignSelf: 'center', width: '100%', maxWidth: 250, flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1, alignItems: 'center' }}>
-            <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'} style={({ pressed }) => [small, { backgroundColor: light ? '#fcd34d' : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
+            <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'} style={({ pressed }) => [small, { backgroundColor: light ? colors.brand : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <FlashIcon on={light} size={25} />
             </Pressable>
             </View>

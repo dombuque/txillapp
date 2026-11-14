@@ -504,7 +504,7 @@ function toolIcon(t: Tool, color: string) {
 /** Um botão da barra de cima da câmara (temporizador, grelha, layout, texto): sempre à vista, branco quando ligado. */
 function TopTool({ on, label, onPress, children }: { on?: boolean; label: string; onPress: () => void; children: ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.round, st.tool, on && { backgroundColor: '#fff' }, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={label}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.round, st.tool, on && { backgroundColor: colors.brand }, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={label}>
       {children}
     </Pressable>
   );
@@ -1528,7 +1528,7 @@ export function TxCamera({
           }),
         ),
         // O quadrado do foco (amarelo, como na câmara do iPhone): encolhe até ao ponto e apaga-se.
-        focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 38, top: focusAt.y - 38, width: 76, height: 76, borderRadius: 4, border: '1.5px solid #ffd60a', boxShadow: '0 0 0 1px rgba(0,0,0,0.2)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 1200ms ease-out forwards' } }),
+        focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 38, top: focusAt.y - 38, width: 76, height: 76, borderRadius: 4, border: `1.5px solid ${colors.brandWarm}`, boxShadow: '0 0 0 1px rgba(0,0,0,0.2)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 1200ms ease-out forwards' } }),
         focusAt && dom('style', { key: 'fk' }, '@keyframes txfocus{0%{transform:scale(1.45);opacity:0}14%{transform:scale(1);opacity:1}24%{transform:scale(1.04)}34%{transform:scale(1)}75%{opacity:1}100%{opacity:0}}'),
         LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
         layout !== null && area.w > 0 && dom(
@@ -1604,18 +1604,18 @@ export function TxCamera({
             </Pressable>
           ) : null}
           {(recording ? canTorch : showFlash) ? (
-            <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? 'Lanterna' : flashLabel}>
-              <Icon name={light ? 'cam-flash' : 'cam-flash-off'} size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
+            <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? 'Lanterna' : flashLabel}>
+              <Icon name={light ? 'cam-flash' : 'cam-flash-off'} size={22} solid={light} color="#fff" />
             </Pressable>
           ) : null}
           {!recording ? (
             <>
               <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador'} onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))}>
-                <Icon name={timerIcon(delay)} size={22} color={delay ? colors.zinc900 : '#fff'} />
+                <Icon name={timerIcon(delay)} size={22} color="#fff" />
               </TopTool>
-              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Icon name="cam-grid" size={22} color={grid ? colors.zinc900 : '#fff'} /></TopTool>
+              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Icon name="cam-grid" size={22} color="#fff" /></TopTool>
               <TopTool on={layout !== null} label={layout !== null ? `Layout: ${LAYOUTS[layout].name}` : 'Layout'} onPress={() => setLayoutOpen((v) => !v)}>
-                <Icon name="cam-layout" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
+                <Icon name="cam-layout" size={22} color="#fff" />
               </TopTool>
               {modes.includes('text') && onText && !(count > 0 && onDone) ? (
                 <TopTool label="Só texto" onPress={onText}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
@@ -1665,16 +1665,16 @@ export function TxCamera({
       {/* A exposição (só quando a câmara a deixa mexer): aparece depois de tocar para focar. */}
       {expoOn && caps.exposure && ready && !review ? (
         <View style={[st.expo, { bottom: ctrlH + 4 }]}>
-          <Icon name="cam-exposure" size={20} color="#ffd60a" strokeWidth={2} />
+          <Icon name="cam-exposure" size={20} color={colors.brandWarm} strokeWidth={2} />
           {dom('input', {
             type: 'range', min: -100, max: 100, step: 1, value: Math.round(expo * 100), 'aria-label': 'Exposição',
             'aria-valuetext': exposureLabel(exposureValue(expo, caps.exposure)),
             onChange: (ev: { target: HTMLInputElement }) => changeExpo(Number(ev.target.value) / 100),
             onDoubleClick: () => changeExpo(0),
-            style: { flex: 1, minWidth: 0, accentColor: '#ffd60a', height: 44, margin: 0, cursor: 'pointer', touchAction: 'pan-x' },
+            style: { flex: 1, minWidth: 0, accentColor: colors.brandWarm, height: 44, margin: 0, cursor: 'pointer', touchAction: 'pan-x' },
           })}
           <Pressable onPress={() => changeExpo(0)} style={st.expoVal} accessibilityRole="button" accessibilityLabel={`Exposição ${exposureLabel(exposureValue(expo, caps.exposure))}. Toca para repor`}>
-            <Text style={{ color: '#ffd60a', fontWeight: '800', fontSize: 13, fontVariant: ['tabular-nums'] }}>{exposureLabel(exposureValue(expo, caps.exposure))}</Text>
+            <Text style={{ color: colors.brandWarm, fontWeight: '800', fontSize: 13, fontVariant: ['tabular-nums'] }}>{exposureLabel(exposureValue(expo, caps.exposure))}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -1965,7 +1965,7 @@ const st = StyleSheet.create({
   zoomBtn: { minWidth: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zoomPill: { minWidth: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   zoomPillOn: { minWidth: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)' },
-  zoomText: { color: '#fcd34d', fontSize: 12, fontWeight: '800' },
+  zoomText: { color: colors.brandWarm, fontSize: 12, fontWeight: '800' },
   row: { width: '100%', maxWidth: 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
   side: { width: 64, alignItems: 'flex-start' },
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },

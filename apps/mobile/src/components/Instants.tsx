@@ -501,8 +501,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
             {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
-            <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: '#fcd34d' }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
-              <Icon name={flashOn ? 'cam-flash' : 'cam-flash-off'} size={24} solid={flashOn} color={flashOn ? colors.zinc900 : '#fff'} />
+            <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: colors.brand }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
+              <Icon name={flashOn ? 'cam-flash' : 'cam-flash-off'} size={24} solid={flashOn} color="#fff" />
             </Pressable>
             <Pressable onPress={() => void shoot()} disabled={busy || shooting} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, (busy || shooting || !cam.ready) && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -1080,7 +1080,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
           <Avatar name={who?.displayName || who?.username || ''} username={who?.hasAvatar ? who.username : undefined} size={30} />
           <NameWithBadge name={own ? 'Os teus Zás' : `@${who?.username ?? ''}`} who={own ? null : who ?? null} style={{ fontSize: 14, fontWeight: '700', color: '#fff' }} containerStyle={{ maxWidth: '45%' }} />
           {cur && (
-            <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '#fcd34d' : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
+            <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? colors.brandWarm : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
               {own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}
             </Text>
           )}

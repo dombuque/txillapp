@@ -922,7 +922,7 @@ export function NativeCamera({
           {/* A câmara parou (ocupada, quente, erro): o aviso por cima do visor, fora dos gestos dele. */}
           {problemCard ? (
             <View style={[st.problem, { top: view.y + view.h * 0.3, left: view.x + 24, width: Math.max(0, view.w - 48) }]} accessibilityRole="alert">
-              <Icon name="alert" size={30} color="#fcd34d" />
+              <Icon name="alert" size={30} color={ACCENT} />
               <Text style={st.problemTitle}>{problemCard.title}</Text>
               <Text style={st.problemBody}>{problemCard.body}</Text>
               {problemCard.retry ? (
@@ -984,14 +984,14 @@ export function NativeCamera({
                 <>
                   <Pressable onPress={() => { tap(); setFlash((f) => nextFlash(f)); }} style={[st.round, flash !== 'off' && st.roundOn]} accessibilityRole="button" accessibilityLabel={flashA11y(flash, screenFlash)} hitSlop={4}>
                     <Animated.View style={rot}>
-                      <Icon name={flashIcon(flash)} size={22} solid={flash !== 'off'} color={flash !== 'off' ? colors.zinc900 : '#fff'} />
+                      <Icon name={flashIcon(flash)} size={22} solid={flash !== 'off'} color="#fff" />
                     </Animated.View>
                   </Pressable>
                   <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador desligado'} onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} rot={rot}>
-                    <Icon name={timerIcon(delay)} size={22} color={delay ? colors.zinc900 : '#fff'} />
+                    <Icon name={timerIcon(delay)} size={22} color="#fff" />
                   </TopTool>
                   <TopTool on={grid} label="Grelha" onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} rot={rot}>
-                    <Icon name="cam-grid" size={22} color={grid ? colors.zinc900 : '#fff'} />
+                    <Icon name="cam-grid" size={22} color="#fff" />
                   </TopTool>
                   {onText ? (
                     <TopTool label="Só texto" onPress={onText} rot={rot}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
@@ -1007,7 +1007,7 @@ export function NativeCamera({
               {/* Exposição mexida e barra escondida: um sol pequeno lembra-o (toca para repor). */}
               {exposure !== 0 && !focus ? (
                 <Pressable onPress={() => { tap(); resetExpo(); }} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel="Repor exposição" hitSlop={8}>
-                  <Icon name="cam-exposure" size={18} color="#fcd34d" strokeWidth={2.2} />
+                  <Icon name="cam-exposure" size={18} color={ACCENT} strokeWidth={2.2} />
                 </Pressable>
               ) : null}
               {device ? <ZoomPills stops={stops} store={zoomStore} onPick={zoomToStop} rot={rot} /> : null}
@@ -1143,12 +1143,12 @@ function ExposureTrack({ store, range }: { store: ValueStore<number>; range: Exp
     <>
       {sunY > 6 ? <View pointerEvents="none" style={[st.expoLine, { top: 0, height: sunY - 4 }]} /> : null}
       {EXPO_H - SUN - sunY > 6 ? <View pointerEvents="none" style={[st.expoLine, { top: sunY + SUN + 4, bottom: 0 }]} /> : null}
-      <View pointerEvents="none" style={[st.sun, { top: sunY }]}><Icon name="cam-exposure" size={22} color="#fcd34d" strokeWidth={2.2} /></View>
+      <View pointerEvents="none" style={[st.sun, { top: sunY }]}><Icon name="cam-exposure" size={22} color={ACCENT} strokeWidth={2.2} /></View>
     </>
   );
 }
 
-/** Um botão da barra de cima (temporizador, grelha, texto): sempre à vista, amarelo quando ligado. */
+/** Um botão da barra de cima (temporizador, grelha, texto): sempre à vista, na cor da marca quando ligado. */
 function TopTool({ on, label, onPress, rot, children }: { on?: boolean; label: string; onPress: () => void; rot?: RotStyle; children: React.ReactNode }) {
   return (
     <Pressable onPress={onPress} style={[st.round, on && st.roundOn]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={label} hitSlop={4}>
@@ -1176,7 +1176,8 @@ function ReviewVideo({ uri }: { uri: string }) {
   return <VideoView player={p} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
 }
 
-const YELLOW = '#fcd34d';
+/** O realce por cima da imagem (foco, zoom, exposição): o laranja do Txillapp. */
+const ACCENT = colors.brandWarm;
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   center: { alignItems: 'center', justifyContent: 'center' },
@@ -1186,8 +1187,8 @@ const st = StyleSheet.create({
   gridV: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
   gridH: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
   // Quadrado de foco amarelo com as marcas a meio de cada lado (como no iPhone).
-  focusBox: { position: 'absolute', width: BOX, height: BOX, borderWidth: 1.5, borderColor: YELLOW },
-  tick: { position: 'absolute', backgroundColor: YELLOW },
+  focusBox: { position: 'absolute', width: BOX, height: BOX, borderWidth: 1.5, borderColor: ACCENT },
+  tick: { position: 'absolute', backgroundColor: ACCENT },
   tickT: { top: 0, left: BOX / 2 - 2.25, width: 1.5, height: 7 },
   tickB: { bottom: 0, left: BOX / 2 - 2.25, width: 1.5, height: 7 },
   tickL: { left: 0, top: BOX / 2 - 2.25, height: 1.5, width: 7 },
@@ -1195,14 +1196,14 @@ const st = StyleSheet.create({
   lockWrap: { position: 'absolute', zIndex: 6, alignItems: 'center' },
   noticeWrap: { position: 'absolute', zIndex: 7, alignItems: 'center', paddingHorizontal: 24 },
   noticeText: { overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.72)', color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', paddingHorizontal: 16, paddingVertical: 9 },
-  lockText: { overflow: 'hidden', borderRadius: 4, backgroundColor: YELLOW, color: colors.zinc900, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 3 },
+  lockText: { overflow: 'hidden', borderRadius: 4, backgroundColor: colors.brand, color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 3 },
   // Área de toque larga (44 pt) à volta da linha fina; o fundo quase invisível faz dela alvo de toque no Android.
   expo: { position: 'absolute', zIndex: 6, width: EXPO_W, height: EXPO_H, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.001)' },
   expoLine: { position: 'absolute', width: 1.5, borderRadius: 1, backgroundColor: 'rgba(252,211,77,0.85)' },
   sun: { position: 'absolute', width: SUN, height: SUN, alignItems: 'center', justifyContent: 'center' },
   controls: { position: 'absolute', zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 10 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
-  roundOn: { backgroundColor: YELLOW },
+  roundOn: { backgroundColor: colors.brand },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
@@ -1210,13 +1211,13 @@ const st = StyleSheet.create({
   doneCount: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   viewFoot: { position: 'absolute', zIndex: 5, alignItems: 'center', gap: 10 },
   zoomBadge: { height: 34, minWidth: 44, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
-  zoomText: { color: YELLOW, fontSize: 13, fontWeight: '800' },
+  zoomText: { color: ACCENT, fontSize: 13, fontWeight: '800' },
   // As lentes: uma cápsula escura com bolinhas; a acesa é maior, com o número amarelo.
   pills: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 3, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.32)' },
   pill: { minWidth: 30, height: 30, borderRadius: 15, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.38)' },
   pillOn: { minWidth: 36, height: 36, borderRadius: 18, paddingHorizontal: 5 },
   pillText: { color: '#fff', fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  pillTextOn: { color: YELLOW, fontSize: 12.5 },
+  pillTextOn: { color: ACCENT, fontSize: 12.5 },
   countWrap: { position: 'absolute', zIndex: 5, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 120, fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 20 },
   hint: { height: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },

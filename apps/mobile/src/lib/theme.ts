@@ -2,6 +2,8 @@
 export const colors = {
   brand: '#d6334f',
   brandLight: '#e5506a',
+  /** O laranja do gradiente da marca (do selo e do Mixar): o realce por cima da imagem da câmara (zoom, foco, exposição). */
+  brandWarm: '#ff9a5b',
   canvas: '#ebebea',
   white: '#ffffff',
   zinc100: '#f4f4f5',
