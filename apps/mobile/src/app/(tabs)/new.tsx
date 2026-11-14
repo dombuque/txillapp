@@ -48,9 +48,8 @@ import { clampPostRatio } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { FontChips } from '@/components/FontChips';
-import { textFontStyle } from '@/lib/textFonts';
 import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, postFontSize, type TextFontId } from '@/lib/textLayers';
-import { useTextFonts } from '@/lib/useTextFonts';
+import { useTextFontStyle } from '@/lib/useTextFonts';
 
 const MAX_PHOTOS = 10;
 /** Numa tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
@@ -174,7 +173,7 @@ export default function Compose() {
   const [body, setBody] = useState('');
   /** A letra de uma publicação só com texto (sem fotos nem vídeo): a fila das letras por baixo do texto. */
   const [textFont, setTextFont] = useState<TextFontId>(DEFAULT_TEXT_FONT);
-  useTextFonts([textFont]);
+  const textFace = useTextFontStyle(textFont);
   const [place, setPlace] = useState('');
   const [placeGeo, setPlaceGeo] = useState<PlaceGeo | null>(null);
   /** Onde a primeira foto foi tirada (GPS dos metadados): só serve para sugerir o local. */
@@ -802,7 +801,7 @@ export default function Compose() {
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
             <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
-            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={[styles.input, textOnly && textFont !== DEFAULT_TEXT_FONT ? [postFontSize(textFont, 20), textFontStyle(textFont)] : null]} accessibilityLabel="Texto da publicação" />
+            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={[styles.input, textOnly && textFont !== DEFAULT_TEXT_FONT ? [postFontSize(textFont, 20), textFace] : null]} accessibilityLabel="Texto da publicação" />
             {textOnly ? <FontChips value={textFont} onChange={setTextFont} label="Letra da publicação" style={{ marginHorizontal: -20, marginBottom: 10 }} /> : null}
             {music ? (
               <View>

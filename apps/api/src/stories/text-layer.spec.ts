@@ -1,6 +1,6 @@
 import { TEXT_FONT_IDS, textFontOf } from '@txillapp/shared';
 import { FONTS } from '../compose/effects';
-import { stickersSchema } from './stickers';
+import { stickersOf, stickersSchema } from './stickers';
 import { layoutTextLayer, TEXT_BASE_PX } from './text-layer';
 
 /** Uma régua de faz-de-conta: cada carácter mede meia letra. */
@@ -109,5 +109,15 @@ describe('textos dos mimos: o que se aceita', () => {
     expect(ok([...Array(12).fill(st), ...Array.from({ length: 11 }, () => t())])).toBe(false);
     expect(ok([...Array(13).fill(st), t()])).toBe(false);
     expect(stickersSchema.parse([st])).toEqual([st]);
+  });
+
+  it('ao ler o que está guardado, uma letra que deixou de existir lê-se como a clássica (o texto não desaparece)', () => {
+    const st = { id: 'm-fogo', x: 0.5, y: 0.5, s: 0.3, r: 0 };
+    const gone = { kind: 'text', text: 'Olá', font: 'gotica', color: '#ffffff', bg: 'none', align: 'center', x: 0.5, y: 0.5, s: 0.5, r: 0 };
+    expect(stickersOf([st, gone])).toEqual([st, { ...gone, font: 'classica' }]);
+    expect(stickersOf([{ ...gone, font: undefined }])).toEqual([{ ...gone, font: 'classica' }]);
+    // O resto continua a ser validado: um texto vazio fica de fora; a lista guardada não muda.
+    expect(stickersOf([st, { ...gone, text: '  ' }])).toEqual([st]);
+    expect(gone.font).toBe('gotica');
   });
 });

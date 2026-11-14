@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
+import { getStorageToken } from '@nestjs/throttler';
 import request from 'supertest';
 import { Pool } from 'pg';
 import { loadConfig } from '../config';
@@ -126,6 +127,37 @@ describe('publicações guardadas com o pedido de revisão (publicadas sozinhas 
     expect(await lastNotice(me, 'content_restored', t2)).toMatchObject({ reason: 'Revimos a tua foto: não tem nudez. O teu Zás já foi enviado.' });
     const zas = (await pool.query(`SELECT caption, expires_at > now() + interval '23 hours' AS fresh FROM social.instants WHERE id = $1`, [(await held(z)).result_id])).rows[0];
     expect(zas).toEqual({ caption: 'zás', fresh: true });
+  });
+
+  it('fontes: o mimo guardado leva os textos (validados como no POST /stories) e o Zás guardado leva a letra da legenda', async () => {
+    const layer = { kind: 'text', text: 'à beira-mar', font: 'praia', color: '#ffffff', bg: 'soft', align: 'left', x: 0.4, y: 0.7, s: 0.5, r: 10 };
+    const emoji = { id: 'm-fogo', x: 0.2, y: 0.2, s: 0.25, r: 0 };
+    // Os pedidos de revisão têm limite por minuto: este teste faz seis e não pode roubar a vez aos seguintes.
+    const limits = app.get(getStorageToken()) as { storage: Map<string, unknown>; hitExpirations?: Map<string, unknown> };
+    const resetLimits = () => { limits.storage.clear(); limits.hitExpirations?.clear(); };
+    resetLimits();
+    const m = await send(me, true);
+    // Os mesmos 400 do POST /stories: letra desconhecida ou texto vazio.
+    await api().post(`/api/v1/media/${m}/appeal`).set(auth(me)).send({ draft: { kind: 'story', payload: { mediaId: m, stickers: [{ ...layer, font: 'gotica' }] } } }).expect(400);
+    await api().post(`/api/v1/media/${m}/appeal`).set(auth(me)).send({ draft: { kind: 'story', payload: { mediaId: m, stickers: [{ ...layer, text: '  ' }] } } }).expect(400);
+    await api().post(`/api/v1/media/${m}/appeal`).set(auth(me)).send({ draft: { kind: 'story', payload: { mediaId: m, caption: 'com textos', stickers: [emoji, layer] } } }).expect(200);
+    const z = await send(me, true, 'chat');
+    await api().post(`/api/v1/media/${z}/appeal`).set(auth(me)).send({ draft: { kind: 'instant', payload: { mediaId: z, caption: 'zás', captionFont: 'nada' } } }).expect(400);
+    await api().post(`/api/v1/media/${z}/appeal`).set(auth(me)).send({ draft: { kind: 'instant', payload: { mediaId: z, caption: 'zás', captionFont: 'marcador' } } }).expect(200);
+
+    // A publicação guardada sai depois da decisão (em segundo plano): espera-se pelo aviso ao dono.
+    const t = new Date();
+    await decide(m, 'dismiss');
+    expect(await lastNotice(me, 'content_restored', t)).toMatchObject({ reason: 'Revimos a tua foto: não tem nudez. O teu mimo já está no ar.' });
+    expect(await held(m)).toMatchObject({ status: 'published', error: null });
+    const story = (await pool.query('SELECT stickers FROM content.stories WHERE id = $1', [(await held(m)).result_id])).rows[0];
+    expect(story.stickers).toEqual([emoji, layer]);
+    const t2 = new Date();
+    await decide(z, 'dismiss');
+    expect(await lastNotice(me, 'content_restored', t2)).toMatchObject({ reason: 'Revimos a tua foto: não tem nudez. O teu Zás já foi enviado.' });
+    const zas = (await pool.query('SELECT caption, caption_font FROM social.instants WHERE id = $1', [(await held(z)).result_id])).rows[0];
+    expect(zas).toEqual({ caption: 'zás', caption_font: 'marcador' });
+    resetLimits();
   });
 
   it('remover a foto descarta a publicação guardada e o aviso diz que foi recusada', async () => {

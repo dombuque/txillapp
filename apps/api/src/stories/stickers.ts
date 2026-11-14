@@ -1,4 +1,4 @@
-import { TEXT_FONT_IDS } from '@txillapp/shared';
+import { TEXT_FONT_IDS, textFontOf } from '@txillapp/shared';
 import { z } from 'zod';
 import { STICKER_ART } from './sticker-art';
 import { textLayerSvg } from './text-layer-render';
@@ -70,9 +70,14 @@ export const stickersSchema = z
 /** Os textos dos textos por cima (para passarem pelo filtro, como as legendas). */
 export const layerTexts = (layers: StoryLayer[]): string[] => layers.filter(isTextLayer).map((l) => l.text);
 
+/** Ao ler o que está guardado: uma letra que deixou de existir lê-se como a clássica (o texto não desaparece). */
+const readable = (item: unknown): unknown =>
+  item && typeof item === 'object' && (item as { kind?: unknown }).kind === 'text' ? { ...item, font: textFontOf((item as { font?: unknown }).font) } : item;
+
 /** A lista guardada na base de dados, já validada (o que vier estranho fica de fora). */
-export function stickersOf(raw: unknown): StoryLayer[] {
-  if (!Array.isArray(raw)) return [];
+export function stickersOf(stored: unknown): StoryLayer[] {
+  if (!Array.isArray(stored)) return [];
+  const raw = stored.map(readable);
   const whole = stickersSchema.safeParse(raw);
   if (whole.success) return whole.data;
   const out: StoryLayer[] = [];

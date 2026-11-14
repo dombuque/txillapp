@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
-import { textFontStyle } from '@/lib/textFonts';
 import {
   ALIGN_LABEL, BG_LABEL, TEXT_BASE_PX, TEXT_LAYER_COLORS, TEXT_MAX_CHARS, TEXT_METRICS, clampLayerText, layerColors, newTextPx, nextAlign, nextBg,
   sForFontPx, textLayout, wrapLayerText, type TextAlign, type TextBg, type TextLayer,
 } from '@/lib/textLayers';
-import { useTextFonts } from '@/lib/useTextFonts';
+import { useTextFontStyle, useTextFonts } from '@/lib/useTextFonts';
 import { FontChips } from './FontChips';
 import { Modal } from './Modal';
 
 /** A letra de um texto: a fonte se já carregou; senão a do sistema, em negrito (só aí: no Android a fonte própria com peso sai com negrito inventado). */
-const fontOr = (font: string): TextStyle => textFontStyle(font) ?? { fontWeight: '800' };
+const SYSTEM_BOLD: TextStyle = { fontWeight: '800' };
+/** (Um hook: volta a desenhar quando a fonte chega; ver `useTextFontStyle`.) */
+const useFontOr = (font: string): TextStyle => useTextFontStyle(font) ?? SYSTEM_BOLD;
 
 /**
  * Mede, escondido, a linha mais comprida do texto à letra de referência (`TEXT_BASE_PX`): é daí que sai o tamanho da letra
@@ -20,10 +21,11 @@ const fontOr = (font: string): TextStyle => textFontStyle(font) ?? { fontWeight:
  * com `overflow: hidden`: não ocupa lugar nem faz a página rolar na web.
  */
 function Measure({ text, font, onWidth }: { text: string; font: string; onWidth: (w: number) => void }) {
+  const face = useFontOr(font);
   return (
     <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden aria-hidden style={st.measure}>
       <View style={{ width: 20000, alignItems: 'flex-start' }}>
-        <Text onLayout={(e) => onWidth(e.nativeEvent.layout.width)} style={[{ fontSize: TEXT_BASE_PX, lineHeight: TEXT_METRICS.lineHeight * TEXT_BASE_PX }, fontOr(font)]}>{text || ' '}</Text>
+        <Text onLayout={(e) => onWidth(e.nativeEvent.layout.width)} style={[{ fontSize: TEXT_BASE_PX, lineHeight: TEXT_METRICS.lineHeight * TEXT_BASE_PX }, face]}>{text || ' '}</Text>
       </View>
     </View>
   );
@@ -43,13 +45,14 @@ export type TextLayoutBox = ReturnType<typeof textLayout>;
  */
 export function TextBox({ layer, L }: { layer: TextLayer; L: TextLayoutBox }) {
   const { fg, box } = layerColors(layer);
+  const face = useFontOr(layer.font);
   const slack = L.contentW * 0.04 + 4;
   return (
     <View style={[{ width: L.w, height: L.h, borderRadius: L.radius, paddingHorizontal: L.padX, paddingVertical: L.padY }, box ? { backgroundColor: box } : null]}>
       <Text
         style={[
           { width: L.contentW + slack, marginLeft: layer.align === 'left' ? 0 : layer.align === 'right' ? -slack : -slack / 2, color: fg, fontSize: L.fontPx, lineHeight: L.lineH, textAlign: layer.align },
-          fontOr(layer.font),
+          face,
           !box && { textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: L.fontPx * 0.05 }, textShadowRadius: Math.max(1, L.fontPx * 0.15) },
         ]}
       >
@@ -112,6 +115,7 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
   const [l, setL] = useState(initial);
   const insets = useSafeAreaInsets();
   useTextFonts([l.font]);
+  const face = useFontOr(l.font);
   const editing = !!initial.text;
   const [tw0, setTw0] = useState(0);
   const [tw, setTw] = useState(0);
@@ -176,7 +180,7 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
                 outlineStyle: 'none',
               } as object,
               Platform.OS === 'web' && h ? { height: h } : null,
-              fontOr(l.font),
+              face,
             ]}
           />
         </View>

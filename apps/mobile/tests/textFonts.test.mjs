@@ -237,7 +237,7 @@ test('a fila das letras: cada uma no seu nome e na sua letra, botões de 44 px',
   const src = read('components', 'FontChips.tsx');
   assert.match(src, /height: 44/);
   assert.match(src, /accessibilityLabel=\{`Letra \$\{f\.name\}`\}/);
-  assert.match(src, /textFontStyle\(id\)/);
+  assert.match(src, /useTextFontStyle\(id\)/);
   assert.match(src, /accessibilityRole="tab"/);
 });
 
@@ -261,6 +261,6 @@ test('Zás: a letra da legenda escolhe-se no estúdio (app e site), vai `caption
   assert.match(inst, /<FontChips value=\{captionFont\} onChange=\{pickFont\} dark/);
   assert.match(read('components', 'zas', 'WebZasStudio.tsx'), /<FontChips value=\{captionFont\} onChange=\{onCaptionFont\} dark/);
   assert.match(read('components', 'zas', 'ZasDeckCard.tsx'), /font=\{captionFont\}/);
-  assert.match(read('components', 'zas', 'CurvedCaption.tsx'), /textFontStyle\(fid\)/);
+  assert.match(read('components', 'zas', 'CurvedCaption.tsx'), /useTextFontStyle\(fid === DEFAULT_TEXT_FONT \? null : fid\)/);
   assert.match(read('lib', 'api.geleira.ts'), /captionFont \? \{ captionFont \} : \{\}/);
 });

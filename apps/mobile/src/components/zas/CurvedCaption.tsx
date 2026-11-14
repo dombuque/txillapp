@@ -1,9 +1,8 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Defs, Path, Text as SvgText, TextPath, TSpan } from 'react-native-svg';
-import { textFontStyle } from '@/lib/textFonts';
 import { DEFAULT_TEXT_FONT, normTextFont } from '@/lib/textLayers';
-import { useTextFonts } from '@/lib/useTextFonts';
+import { useTextFontStyle } from '@/lib/useTextFonts';
 import { arcPoints } from './squircle';
 
 /**
@@ -13,7 +12,8 @@ import { arcPoints } from './squircle';
  */
 export function CurvedCaption({ w, h, text, hint = false, caret = false, caretFirst = false, arc = 'top', font = null }: { w: number; h: number; text: string; hint?: boolean; caret?: boolean; caretFirst?: boolean; arc?: 'top' | 'bottom'; font?: string | null }) {
   const fid = normTextFont(font);
-  useTextFonts([fid === DEFAULT_TEXT_FONT ? null : fid]);
+  // Letra própria: só a família (e, na web, o peso e o estilo do ficheiro); no Android um peso a mais inventava negrito.
+  const own = useTextFontStyle(fid === DEFAULT_TEXT_FONT ? null : fid);
   const pid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const [blink, setBlink] = useState(true);
   useEffect(() => {
@@ -33,8 +33,6 @@ export function CurvedCaption({ w, h, text, hint = false, caret = false, caretFi
   const chars = Math.max(1, label.length + (caret ? 1 : 0));
   // O mesmo tamanho e espaçamento em todas as letras (como a cópia gravada pelo servidor, instants/zas-caption.ts).
   const fs = Math.max(8, Math.min(Math.min(w, h) * 0.052, (len - 14) / (chars * 0.8)));
-  // Letra própria: só a família (e, na web, o peso e o estilo do ficheiro); no Android um peso a mais inventava negrito.
-  const own = fid === DEFAULT_TEXT_FONT ? null : textFontStyle(fid);
   const cursor = <TSpan fill="#3b82f6" fillOpacity={blink ? 1 : 0}>|</TSpan>;
   const body = (
     <TextPath href={`#${pid}`}>
