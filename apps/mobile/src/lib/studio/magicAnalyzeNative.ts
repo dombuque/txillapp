@@ -18,7 +18,7 @@ import {
   type Focus, type MagicItem, type MagicSource, type MusicInfo, type VideoFrame, type WaveId,
 } from './magic';
 import type { AnalyzeOptions } from './magicAnalyze';
-import { batchSize, GRID_RESERVE_MS, SOUND_WAIT_MS, THUMB_MAX, videoBudget, type SoundReply } from './magicFrames';
+import { batchSize, GRID_RESERVE_MS, SOUND_WAIT_MS, THUMB_MAX, VIDEOS_MAX_MS, videoBudget, type SoundReply } from './magicFrames';
 import { fetchVideoSound } from './magicSound';
 import { magicMediaId } from './magicUploads';
 import { analyzeMusicNative } from './nativeAudio';
@@ -129,7 +129,7 @@ async function analyzeSourcesWith(o: NativeMagicOptions, sources: MagicSource[],
   const t0 = now();
   const videos = o.grab ? sources.filter((s) => s.video && !videoCache.has(s.uri)) : [];
   for (let i = 0; i < videos.length; i++) {
-    if (opts.signal?.cancelled || !o.grab) break;
+    if (opts.signal?.cancelled || !o.grab || now() - t0 > VIDEOS_MAX_MS) break;
     const s = videos[i];
     const it = await analyzeVideo(s, videoBudget(budget, now() - t0, videos.length - i), o.grab, opts.signal);
     if (opts.signal?.cancelled) break;

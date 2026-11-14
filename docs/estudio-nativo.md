@@ -125,7 +125,10 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 - **Quantos frames**: ~2 por segundo, no máximo 40, numa grelha pela ordem do geral para o pormenor (`videoSampleTimes`).
   O tempo é o do site: ~5 s para os vídeos todos, um de cada vez, cada um com a parte dele (entre 0,7 e 3 s). O primeiro lote
   (8 frames) vai sempre; os outros só se couberem no tempo que sobra, por isso com pouco tempo as amostras ficam mais espaçadas.
-  O que se mediu fica em cache por ficheiro (mudar de onda e «Outra versão» não voltam a ver nada).
+  Os vídeos todos têm um teto de 20 s (`VIDEOS_MAX_MS`): com muitos vídeos, os que não couberem entram neutros (e voltam a ser
+  vistos na montagem seguinte). O que se mediu fica em cache por ficheiro (mudar de onda e «Outra versão» não voltam a ver nada).
+- **Pré-visualização do resultado**: `MagicPreview.native.tsx`, o palco do estúdio (`NativeStage` e `NativeOverlays`) a tocar
+  em ciclo com a música do trecho (`usePreviewAudio`). Antes via-se só a primeira foto (preto quando eram só vídeos).
 - **«Tem som?»**: o leitor do expo-video diz que pistas de áudio o vídeo tem. No Android é de confiança (o estúdio pergunta-o
   logo a cada vídeo, como o site); no iPhone só um «sim» conta. O servidor diz a última palavra (uma pista só com silêncio conta
   como sem som). Um vídeo sem som não conta para o som obrigatório e o «Som do vídeo» fica desligado.

@@ -175,7 +175,8 @@ export function composeProblem(status: number, message?: string | null): Compose
   if (status === 422) return { kind: 'corrigir', message: msg || 'Um texto ou um ficheiro desta tcheka não pode ser publicado.' };
   if (status === 403 || status === 404) return { kind: 'corrigir', message: msg || 'Um dos ficheiros já não está disponível.' };
   if (status === 409) return { kind: 'ocupado', message: msg || 'Já tens uma tcheka a montar. Espera que acabe.' };
-  if (status === 429) return { kind: 'limite', message: 'Fizeste muitas montagens na última hora. Tenta outra vez daqui a pouco.' };
+  // O servidor diz qual dos limites foi (as montagens por hora ou os vídeos enviados por hora): a frase dele, quando a há.
+  if (status === 429) return { kind: 'limite', message: msg && !/too many requests|throttl/i.test(msg) ? msg : 'Fizeste muitas montagens na última hora. Tenta outra vez daqui a pouco.' };
   if (status === 401) return { kind: 'sessao', message: 'A sessão acabou. Entra outra vez para montar a tcheka.' };
   if (status === 413) return { kind: 'corrigir', message: msg || 'Um dos ficheiros é pesado demais.' };
   if (status === 0) return { kind: 'rede', message: 'Sem ligação. Vê a rede e tenta outra vez: os clipes já enviados não voltam a ir.' };
