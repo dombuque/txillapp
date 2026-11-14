@@ -19,10 +19,12 @@ export default function MessagesSettings() {
       <SettingsSection title="Mensagens">
         <SettingRow anchor="dms" icon="mail" title="Quem pode enviar-me mensagens" value={p ? whoLabel(p.dmsAllowed) : '…'} onPress={() => setSheet('dms')} />
       </SettingsSection>
-      {/* Estas duas são de cada conversa (menu «⋯»), não da conta: a linha diz onde estão e leva às Mensagens. */}
+      {/* Estas são de cada conversa (menu «⋯»), não da conta: a linha diz onde estão e leva às Mensagens. A das capturas só explica. */}
       <SettingsSection title="Em cada conversa">
         <SettingRow anchor="temporaryMessages" icon="clock" title="Mensagens temporárias" description="No menu ⋯ da conversa. As mensagens novas desaparecem para todos ao fim de 24 horas, 7 dias ou 90 dias. A dois muda qualquer um; num TxillGroup, só quem administra." to="/messages" />
         <SettingRow anchor="clearChat" icon="trash" title="Limpar conversa" description="No menu ⋯ da conversa. As mensagens desaparecem só para ti: os outros continuam a vê-las." to="/messages" />
+        {/* Só informa: a API não tem opção para desligar os avisos de captura (POST .../screenshot). */}
+        <SettingRow anchor="screenshots" icon="camera" title="Capturas de ecrã" description="Na app, no iPhone e no Android 14 ou mais recente, uma captura numa conversa deixa o aviso «Fulano fez uma captura de ecrã.» e avisa os outros. Não se desliga. O Zás dos outros não se captura na app." />
       </SettingsSection>
       <SettingsSection title="Chamadas">
         <SettingRow anchor="calls" icon="phone" title="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />

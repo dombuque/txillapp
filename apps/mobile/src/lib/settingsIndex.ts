@@ -42,7 +42,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** Os tipos de aviso (as categorias que o servidor manda em /notifications/settings): título e explicação curta. */
 export const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador). Desligado, os pedidos para entrar continuam na lista, sem aviso'],
+  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã) e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -130,6 +130,8 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   // Estas duas mudam-se no menu «⋯» de cada conversa: a linha no ecrã explica onde e leva às Mensagens.
   { id: 'temporaryMessages', group: 'mensagens', title: 'Mensagens temporárias', keywords: ['desaparecer', 'temporárias', 'efémeras', 'apagar sozinhas', 'autodestruir', '24 horas', '7 dias', '90 dias', 'disappearing'] },
   { id: 'clearChat', group: 'mensagens', title: 'Limpar conversa', keywords: ['limpar', 'esvaziar', 'apagar mensagens', 'limpar chat', 'apagar histórico', 'clear chat'] },
+  // Só explica (não há opção na API): os avisos de captura nas conversas e o bloqueio no Zás dos outros.
+  { id: 'screenshots', group: 'mensagens', title: 'Capturas de ecrã', keywords: ['captura', 'capturas', 'captura de ecrã', 'print', 'printscreen', 'screenshot', 'aviso de captura', 'zás'] },
   { id: 'calls', group: 'mensagens', title: 'Quem me pode ligar', keywords: ['chamadas', 'ligar', 'videochamada', 'chamada de voz'] },
   { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
   { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },
