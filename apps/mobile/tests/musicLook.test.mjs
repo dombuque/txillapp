@@ -84,9 +84,10 @@ test('PostCard: o cartão só nas publicações de texto e o selo dentro da caix
   assert.doesNotMatch(pc, /<TrackCard /);
   assert.match(pc, /post\.music && musicPlacement\(post\) === 'card' \? <MusicCard track=\{post\.music\} visible=\{musicOn\} soundTo=\{soundHref\(/);
   // Num dueto ou resposta com tcheka o som já vem no vídeo: sem selo a tocar por cima (fica a etiqueta do remix).
-  // Uma tcheka cujo som foi tirado (docs/sons.md) também fica muda.
-  assert.match(pc, /mute=\{\(!!post\.music && !post\.remixOf\) \|\| !!post\.soundRemoved\}/);
-  assert.match(pc, /overlay=\{post\.music && !post\.remixOf \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} \/> : undefined\}/);
+  // Uma tcheka cujo som foi tirado (docs/sons.md) também fica muda; com a música gravada no vídeo (musicBaked) o vídeo toca
+  // com o som dele e o selo é só o crédito (musicPlayback, tests/tchekaFim.test.mjs).
+  assert.match(pc, /mute=\{musicPlayback\(post\)\.muteVideo\}/);
+  assert.match(pc, /overlay=\{post\.music && !post\.remixOf \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} play=\{musicPlayback\(post\)\.apart\} soundTo=\{soundHref\(post as \{ sound\?: unknown \}\)\} \/> : undefined\}/);
   // O selo vai por cima das fotos e por baixo dos controlos; as pessoas identificadas passam para a direita.
   assert.match(pc, /\{overlay\}\n\s+\{tags\.length > 0 && \(/);
   assert.match(pc, /overlay \? styles\.tagsRight : null/);
@@ -146,7 +147,7 @@ test('reduzir movimento: para o marquee, o equalizador, o disco e as ondas', () 
   assert.match(rm, /mq\.addEventListener\?\.\('change'/);
   // Todos os que mexem usam-no.
   const pm = read('components', 'PostMusic.tsx');
-  assert.equal((pm.match(/const reduce = useReduceMotion\(\);/g) ?? []).length, 3);
+  assert.equal((pm.match(/const reduce = useReduceMotion\(\);/g) ?? []).length, 4);
   assert.match(read('components', 'SoundWaves.tsx'), /const wants = active && !reduce;/);
 });
 

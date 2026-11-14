@@ -140,7 +140,8 @@ test('ecrãs: «Retirar o som» na página do som (só o autor) e em «Os meus s
   assert.match(mine, /soundsApi\s*\.retire\(x\.id\)/);
   assert.match(read('app', 'settings', 'conteudo.tsx'), /anchor="mySounds"[^\n]*to="\/settings\/sons"/);
   assert.match(read('lib', 'api.sounds.ts'), /\/retire`, post\(\{\}\)\)/);
-  assert.match(read('components', 'PostCard.tsx'), /\|\| !!post\.soundRemoved/);
+  assert.match(read('components', 'PostCard.tsx'), /mute=\{musicPlayback\(post\)\.muteVideo\}/);
+  assert.match(read('lib', 'musicLook.ts'), /muteVideo: apart \|\| !!p\.soundRemoved/);
   assert.match(read('app', '(tabs)', 'reels.tsx'), /const silent = soundOff \|\| !!post\.soundRemoved;/);
   const notes = read('app', 'notifications.tsx');
   assert.match(notes, /case 'sound_review': return soundReviewVerb/);

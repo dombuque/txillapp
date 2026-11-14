@@ -56,7 +56,7 @@ describe('papéis: web e worker (integração)', () => {
     expect(worker.get(ComposeService).runsQueue).toBe(true);
     expect(worker.get(VideoService).runsQueue).toBe(true);
     // As mesmas tarefas ficam registadas na web (só não correm): nenhuma escapa ao Scheduler. As das filas nem se registam.
-    const queues = new Set(['compose.poll', 'compose.stale', 'video.poll', 'video.stale']);
+    const queues = new Set(['compose.poll', 'compose.stale', 'video.poll', 'video.stale', 'music-bake.poll', 'music-bake.stale']);
     expect(web.get(Scheduler).list().map((t) => t.name).sort()).toEqual(worker.get(Scheduler).list().map((t) => t.name).filter((n) => !queues.has(n)).sort());
   });
 
