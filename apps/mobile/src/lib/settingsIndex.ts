@@ -42,7 +42,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** Os tipos de aviso (as categorias que o servidor manda em /notifications/settings): título e explicação curta. */
 export const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã) e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso'],
+  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), capturas dos teus Zás e o Mixar (convites, convites aceites e resultado do desafio). Desligado, os pedidos para entrar continuam na lista, sem aviso'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -61,7 +61,7 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
-  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos'],
+  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos', 'mixar', 'desafio'],
   follows: ['novos seguidores', 'pedidos para seguir'],
   comments: ['respostas', 'comentar'],
   mentions: ['@', 'identificar', 'marcar'],
@@ -132,6 +132,8 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'clearChat', group: 'mensagens', title: 'Limpar conversa', keywords: ['limpar', 'esvaziar', 'apagar mensagens', 'limpar chat', 'apagar histórico', 'clear chat'] },
   // Só explica (não há opção na API): os avisos de captura nas conversas e o bloqueio no Zás dos outros.
   { id: 'screenshots', group: 'mensagens', title: 'Capturas de ecrã', keywords: ['captura', 'capturas', 'captura de ecrã', 'print', 'printscreen', 'screenshot', 'aviso de captura', 'zás'] },
+  // Mixar (0150): sem opções na API; a linha explica e leva aos teus Mixar (sair, convites).
+  { id: 'mixar', group: 'mensagens', title: 'Os meus Mixar', to: '/mixar', keywords: ['mixar', 'feed a dois', 'blend', 'mixa challenge', 'desafio', 'sair do mixar', 'convite mixar', 'afinidade'] },
   { id: 'calls', group: 'mensagens', title: 'Quem me pode ligar', keywords: ['chamadas', 'ligar', 'videochamada', 'chamada de voz'] },
   { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
   { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },

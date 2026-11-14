@@ -6,7 +6,7 @@ import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { usePrivacy } from '@/components/settings/usePrivacy';
 
-/** Mensagens e chamadas: quem te escreve, onde estão as opções de cada conversa (temporárias e limpar), quem te liga, esconder o IP nas chamadas e o registo de chamadas. */
+/** Mensagens e chamadas: quem te escreve, onde estão as opções de cada conversa (temporárias e limpar), os teus Mixar, quem te liga, esconder o IP nas chamadas e o registo de chamadas. */
 export default function MessagesSettings() {
   const { p, save } = usePrivacy();
   const [sheet, setSheet] = useState<null | 'dms' | 'calls'>(null);
@@ -26,12 +26,16 @@ export default function MessagesSettings() {
         {/* Só informa: a API não tem opção para desligar os avisos de captura (POST .../screenshot). */}
         <SettingRow anchor="screenshots" icon="camera" title="Capturas de ecrã" description="Na app, no iPhone e no Android 14 ou mais recente, uma captura numa conversa deixa o aviso «Fulano fez uma captura de ecrã.» e avisa os outros. Não se desliga. O Zás dos outros não se captura na app." />
       </SettingsSection>
+      {/* Mixar (API: src/mixar, 0150): não tem opções próprias na API. Quem te convida segue «Quem pode enviar-me mensagens»; a linha explica e leva aos teus Mixar. */}
+      <SettingsSection title="Mixar">
+        <SettingRow anchor="mixar" icon="sparkles" title="Os meus Mixar" description="Os feeds a dois que tens e os convites. Só te convida quem te pode enviar mensagens. Para sair, abre o Mixar, toca no nome em cima e em «Sair do Mixar»." to="/mixar" />
+      </SettingsSection>
       <SettingsSection title="Chamadas">
         <SettingRow anchor="calls" icon="phone" title="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />
         {p && relayAvailable ? <SettingRow anchor="relay" icon="shield" title="Esconder o meu IP nas chamadas" description="A chamada passa sempre pelo servidor do Txillapp, e quem está do outro lado não vê o teu endereço. Pode ficar um pouco mais lenta." toggle={{ on: !!p.callsRelayOnly, onChange: (v) => void save({ callsRelayOnly: v }) }} /> : null}
         <SettingRow anchor="callLog" icon="clock" title="Registo de chamadas" to="/calls" />
       </SettingsSection>
-      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. Também decide quem te pode pôr num TxillGroup. As respostas aos teus mimos seguem a definição dos mimos." options={WHO} value={p.dmsAllowed} onPick={(v) => void save({ dmsAllowed: v })} onClose={close} />}
+      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. Também decide quem te pode pôr num TxillGroup e convidar para um Mixar. As respostas aos teus mimos seguem a definição dos mimos." options={WHO} value={p.dmsAllowed} onPick={(v) => void save({ dmsAllowed: v })} onClose={close} />}
       {sheet === 'calls' && p && <ChoiceSheet title="Quem me pode ligar" intro="Chamadas de voz e videochamadas. Quem bloqueaste nunca te liga. O Txillapp não grava chamadas: fica só o registo, que podes apagar em Chamadas." options={CALLS} value={p.callsAllowed ?? 'mutual'} onPick={(v) => void save({ callsAllowed: v })} onClose={close} />}
     </SettingsPage>
   );
