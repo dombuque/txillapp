@@ -570,7 +570,7 @@ export class ChatService {
         const q = m.reply_to ? quoted.get(m.reply_to as string) : null;
         if (!m.reply_to) return null;
         if (!q || q.deleted_at) return { id: m.reply_to as string, gone: true };
-        return { id: q.id as string, gone: false, fromMe: q.sender_id === me, name: (q.name as string) || '', kind: q.kind as MessageKind, body: q.view_once || q.kind !== 'text' ? '' : String(q.body).slice(0, 120) };
+        return { id: q.id as string, gone: false, fromMe: q.sender_id === me, name: (q.name as string) || '', kind: q.kind as MessageKind, body: q.view_once || !(q.kind === 'text' || q.kind === 'story_reply' || q.kind === 'zas_reply') ? '' : String(q.body).slice(0, 120) };
       })(),
       reactions: reactions.get(m.id as string) ?? [],
       /** Foi editada depois de enviada (a bolha mostra "editada" ao lado da hora). */

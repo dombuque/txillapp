@@ -133,6 +133,11 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect(reaction).toMatchObject({ kind: 'story_reaction', body: '🔥', fromMe: false });
     expect(reply).toMatchObject({ kind: 'story_reply', body: 'Que vista!' });
     expect(reply.storyUrl).toMatch(/^\/api\/v1\/media\//);
+
+    // Responder citando a resposta ao story: a citação traz o texto dela (antes chegava só «Tu:», vazia).
+    const back = (await api().post(`/api/v1/chat/with/${cb.username}`).set(auth(ca)).send({ body: 'Obrigada', replyTo: reply.id }).expect(201)).body;
+    const quoted = (await thread(cb, ca)).items.find((i: { id: string }) => i.id === back.id).replyTo;
+    expect(quoted).toMatchObject({ id: reply.id, gone: false, fromMe: true, kind: 'story_reply', body: 'Que vista!' });
   });
 
   it('comentários públicos nos stories: vê quem pode ver o story; bloqueios e definições mandam', async () => {
