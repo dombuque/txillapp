@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const load = (f) => import(pathToFileURL(path.join(ROOT, 'src', 'lib', f)).href);
-const src = (p) => readFileSync(path.join(ROOT, 'src', ...p.split('/')), 'utf8');
+const src = (p) => readFileSync(path.join(ROOT, 'src', ...p.split('/')), 'utf8').replace(/\r\n/g, '\n');
 const sn = await load('screenshotNotice.ts');
 const row = await load('inboxRow.ts');
 
