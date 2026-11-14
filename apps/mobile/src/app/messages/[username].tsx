@@ -280,6 +280,7 @@ export default function Thread() {
           <>
             {person && !first?.blocked ? (
               <>
+                {!request ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><Icon name="mixar" size={23} color={colors.zinc800} /></HeaderButton> : null}
                 <HeaderButton label={`Ligar a ${person.displayName}`} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
                 <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton>
               </>
@@ -363,7 +364,7 @@ export default function Thread() {
             { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
             ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
             // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).
-            ...(person && !first?.blocked && !request ? [{ icon: 'sparkles' as const, label: `Mixar com ${firstName}`, onPress: () => void mixar.run(person.username, person.displayName) }] : []),
+            ...(person && !first?.blocked && !request ? [{ icon: 'mixar' as const, label: `Mixar com ${firstName}`, onPress: () => void mixar.run(person.username, person.displayName) }] : []),
             // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
             ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
             ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: clearChat }] : []),

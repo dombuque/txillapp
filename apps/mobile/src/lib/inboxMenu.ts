@@ -33,7 +33,7 @@ export interface InboxMenuItem {
   id: InboxAction | 'cancel';
   label: string;
   /** Nome de um ícone de components/Icon. */
-  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off' | 'sparkles';
+  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off' | 'mixar';
   /** Vermelho: apaga ou sai (pergunta antes). */
   danger: boolean;
 }
@@ -41,7 +41,7 @@ export interface InboxMenuItem {
 /** A ação do leitor de ecrã que abre a folha. `longpress` é a ação padrão do Android (manter premido). */
 export const MORE_ACTION = 'longpress';
 
-const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off', mixar: 'sparkles' };
+const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off', mixar: 'mixar' };
 const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true, mixar: false };
 
 /** O texto curto do botão que aparece ao deslizar (cabe em 84 px). */

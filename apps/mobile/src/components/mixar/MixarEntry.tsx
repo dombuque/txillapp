@@ -27,7 +27,7 @@ export function MixarEntry() {
   if (!e.show) {
     return (
       <Pressable onPress={go} style={({ pressed }) => [st.hint, pressed && { opacity: 0.6 }]} accessibilityRole="link" accessibilityLabel={`Mixar. ${e.line}`}>
-        <Icon name="sparkles" size={14} color={colors.brand} strokeWidth={2.2} />
+        <Icon name="mixar" size={15} color={colors.brand} strokeWidth={2.2} />
         <Text style={st.hintText} numberOfLines={2}><Text style={{ fontWeight: '700', color: colors.zinc700 }}>Mixar · </Text>{e.line}</Text>
       </Pressable>
     );

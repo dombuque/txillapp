@@ -66,7 +66,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
   if (s.tone === 'off' || s.tone === 'gone') {
     return (
       <View style={[st.card, st.off]} accessibilityRole="text" accessibilityLabel={`${s.title}. ${s.line}`}>
-        <Icon name="sparkles" size={18} color={colors.zinc500} />
+        <Icon name="mixar" size={18} color={colors.zinc500} />
         <Text style={st.offText}>{s.title === 'Mixar' ? s.line : `${s.title} · ${s.line}`}</Text>
       </View>
     );
@@ -94,7 +94,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
         {s.actions.includes('accept') ? (
           <View style={{ gap: 8, marginTop: 12 }}>
             <Pressable disabled={!!busy} onPress={() => void accept()} style={({ pressed }) => [st.btn, st.primary, pressed && st.pressed, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Aceitar o Mixar com ${partner}`}>
-              <Icon name="sparkles" size={18} color="#fff" />
+              <Icon name="mixar" size={18} color="#fff" />
               <Text style={st.primaryText}>{busy === 'accept' ? 'A juntar…' : CARD_ACTION_LABEL.accept}</Text>
             </Pressable>
             <Pressable disabled={!!busy} onPress={() => void decline()} style={({ pressed }) => [st.btn, st.ghost, pressed && st.pressed, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Agora não: recusar o Mixar com ${partner}`}>

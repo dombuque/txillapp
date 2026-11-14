@@ -28,7 +28,7 @@ export default function MessagesSettings() {
       </SettingsSection>
       {/* Mixar (API: src/mixar, 0150): não tem opções próprias na API. Quem te convida segue «Quem pode enviar-me mensagens»; a linha explica e leva aos teus Mixar. */}
       <SettingsSection title="Mixar">
-        <SettingRow anchor="mixar" icon="sparkles" title="Os meus Mixar" description="Os feeds a dois que tens e os convites. Só te convida quem te pode enviar mensagens. Para sair, abre o Mixar, toca no nome em cima e em «Sair do Mixar»." to="/mixar" />
+        <SettingRow anchor="mixar" icon="mixar" title="Os meus Mixar" description="Os feeds a dois que tens e os convites. Só te convida quem te pode enviar mensagens. Para sair, abre o Mixar, toca no nome em cima e em «Sair do Mixar»." to="/mixar" />
       </SettingsSection>
       <SettingsSection title="Chamadas">
         <SettingRow anchor="calls" icon="phone" title="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />

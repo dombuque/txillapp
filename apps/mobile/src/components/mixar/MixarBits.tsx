@@ -124,7 +124,7 @@ export function TopicChips({ topics, tone = 'light', max, accent = false }: { to
 export function MixarBadge({ size = 44 }: { size?: number }) {
   return (
     <LinearGradient colors={MIXAR_GRADIENT} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}>
-      <Icon name="sparkles" size={Math.round(size * 0.5)} color="#fff" strokeWidth={2} />
+      <Icon name="mixar" size={Math.round(size * 0.52)} color="#fff" strokeWidth={2} />
     </LinearGradient>
   );
 }

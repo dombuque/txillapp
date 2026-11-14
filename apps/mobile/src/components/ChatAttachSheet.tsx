@@ -98,7 +98,7 @@ export function ChatAttachMenu({
               {item('map-pin', 'Localização', onPlace, 'Localização: escolher o que enviar')}
               {canGift ? item('gift', 'Presente', onGift, `Oferecer Txills${firstName ? ` a ${firstName}` : ''}`) : null}
               {onGelada ? item('cheers', 'Pede uma gelada', onGelada, `Pede uma gelada${firstName ? ` a ${firstName}` : ''}: «Paga-me uma»`) : null}
-              {onMixar ? item('sparkles', 'Mixar', onMixar, `Mixar${firstName ? ` com ${firstName}` : ''}: um feed a dois`) : null}
+              {onMixar ? item('mixar', 'Mixar', onMixar, `Mixar${firstName ? ` com ${firstName}` : ''}: um feed a dois`) : null}
               {item('once', 'Ver uma vez', onToggleOnce, undefined, once)}
             </ScrollView>
           </Animated.View>

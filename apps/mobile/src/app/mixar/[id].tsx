@@ -277,7 +277,7 @@ export default function MixarScreen() {
     const gone = (m.error as { status?: number } | null)?.status === 404 || (m.error as { status?: number } | null)?.status === 403;
     body = (
       <View style={st.center} accessibilityRole="alert">
-        <Icon name="sparkles" size={48} color="rgba(255,255,255,0.7)" />
+        <Icon name="mixar" size={48} color="rgba(255,255,255,0.7)" />
         <Text style={st.title}>{gone ? 'Este Mixar já não existe' : 'Ups, o Mixar não abriu'}</Text>
         <Text style={st.sub}>{gone ? 'Pode ter terminado, ou o convite foi recusado.' : 'Verifica a ligação e tenta outra vez.'}</Text>
         {gone ? null : <Pressable onPress={() => void m.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>}
