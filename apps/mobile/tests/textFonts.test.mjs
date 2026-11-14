@@ -108,6 +108,18 @@ test('ao pousar: linhas compridas partem-se pelos espaços, sem passar das 6 lin
   assert.ok(t.wrapLayerText('x'.repeat(40)).split('\n').every((l) => l.length <= t.TEXT_WRAP));
 });
 
+test('ao pousar: o que vai ao servidor passa sempre na validação (150 carateres com os \\n, sem carateres de controlo)', () => {
+  // 150 letras sem espaços: partir a meio junta \n, que o servidor também conta.
+  for (const raw of ['x'.repeat(150), `${'a'.repeat(149)} b`, Array.from({ length: 75 }, () => 'ab').join('')]) {
+    const out = t.wrapLayerText(raw);
+    assert.ok(Array.from(out).length <= t.TEXT_MAX_CHARS, `${Array.from(out).length}`);
+    assert.ok(out.split('\n').length <= t.TEXT_MAX_LINES);
+  }
+  const ctl = t.wrapLayerText('olá\u0007 malta\u2028\u0000fim');
+  assert.ok(!/[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u2029]/.test(ctl), JSON.stringify(ctl));
+  assert.equal(ctl, 'olá malta fim');
+});
+
 test('um texto novo e as medidas: a caixa toda com s × largura (como os stickers e o servidor)', () => {
   const n = t.newTextLayer({ text: 'oi' });
   assert.deepEqual(Object.keys(n).sort(), ['align', 'bg', 'color', 'font', 'kind', 'r', 's', 'text', 'x', 'y']);

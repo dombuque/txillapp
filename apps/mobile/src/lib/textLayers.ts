@@ -153,18 +153,22 @@ function wrapLine(line: string, max: number): string[] {
   return out;
 }
 
+/** Carateres de controlo (fora a mudança de linha): o servidor recusa-os com 400 (apps/api/src/stories/stickers.ts). */
+const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u2029]/g;
+
 /**
  * O texto pronto a pousar: sem espaços nas pontas, linhas compridas partidas (até `TEXT_WRAP` letras, ou mais se não couber
- * em 6 linhas) e dentro dos limites. Vazio: ''.
+ * em 6 linhas) e dentro dos limites, também depois de partir (cada `\n` novo conta como um carater no servidor). Vazio: ''.
  */
 export function wrapLayerText(raw: string): string {
-  const src = clampLayerText(raw).split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim());
+  const src = clampLayerText(raw).split('\n').map((l) => l.replace(CONTROL, ' ').replace(/[ \t]+/g, ' ').trim());
   while (src.length && !src[0]) src.shift();
   while (src.length && !src[src.length - 1]) src.pop();
   if (!src.length) return '';
   for (let max = TEXT_WRAP; max <= TEXT_MAX_CHARS; max += 2) {
     const lines = src.flatMap((l) => (l ? wrapLine(l, max) : ['']));
-    if (lines.length <= TEXT_MAX_LINES) return lines.join('\n');
+    const out = lines.join('\n');
+    if (lines.length <= TEXT_MAX_LINES && Array.from(out).length <= TEXT_MAX_CHARS) return out;
   }
   return clampLayerText(src.join(' '));
 }

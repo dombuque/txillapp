@@ -123,13 +123,14 @@ function Placed({ item, width, height, label, onSelect, onChange, onDragging, on
       if (m.n > 1 || Math.hypot(m.x - start.current.x, m.y - start.current.y) > 8) start.current.moved = true;
       // Mudou o número de dedos: recomeça a contar a partir daqui (sem salto).
       if (!l || l.n !== m.n) { last.current = m; return; }
-      let next: MimoLayer = { ...it, x: it.x + (m.x - l.x) / W, y: it.y + (m.y - l.y) / H };
+      // O centro fica dentro do que o servidor aceita (−0,5 a 1,5 do ecrã; fora disso o mimo dava 400).
+      let next: MimoLayer = { ...it, x: clamp(it.x + (m.x - l.x) / W, -0.5, 1.5), y: clamp(it.y + (m.y - l.y) / H, -0.5, 1.5) };
       if (m.n >= 2 && l.d > 0) {
         let da = m.a - l.a;
         if (da > 180) da -= 360;
         if (da < -180) da += 360;
         const [lo, hi] = layerRange(it);
-        next = { ...next, s: clamp(it.s * (m.d / l.d), lo, hi), r: it.r + da };
+        next = { ...next, s: clamp(it.s * (m.d / l.d), lo, hi), r: (it.r + da) % 360 };
       }
       last.current = m;
       ref.current.onChange(next);
@@ -237,7 +238,7 @@ export function StickerToolbar<T extends MimoLayer>({ item, onChange, onDelete, 
     <View style={st.toolbar}>
       {btn('Mais pequeno', () => onChange({ ...item, s: clamp(item.s / 1.15, lo, hi) }), undefined, '−')}
       {btn('Maior', () => onChange({ ...item, s: clamp(item.s * 1.15, lo, hi) }), undefined, '+')}
-      {btn('Rodar', () => onChange({ ...item, r: item.r + 15 }), 'repeat')}
+      {btn('Rodar', () => onChange({ ...item, r: (item.r + 15) % 360 }), 'repeat')}
       {btn('Apagar', onDelete, 'trash')}
       {btn('Pronto', onDone, 'check')}
     </View>
