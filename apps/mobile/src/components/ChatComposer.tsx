@@ -2,7 +2,7 @@ import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { api, uploadChatMedia } from '@/lib/api';
 import { colors } from '@/lib/theme';
@@ -291,7 +291,7 @@ export function ChatComposer({
           />
           {hasText ? (
             <Pop key="send">
-              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} />
+              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} keep={input} />
             </Pop>
           ) : (
             <Pop key="tools" style={st.tools}>
@@ -355,9 +355,26 @@ export function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { ic
   );
 }
 
-export function SendButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+/**
+ * `keep`: o campo de escrever. Enviar não fecha o teclado: no site (PWA) tocar num botão tira o foco ao campo e o
+ * teclado do telemóvel fecha a cada mensagem; o mousedown fica sem efeito e, se o foco sair na mesma, volta ao campo.
+ */
+export function SendButton({ label, onPress, disabled, keep }: { label: string; onPress: () => void; disabled?: boolean; keep?: RefObject<{ focus: () => void; isFocused?: () => boolean } | null> }) {
+  const had = useRef(false);
   return (
-    <Pressable onPress={onPress} disabled={disabled} hitSlop={SLOP} style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, disabled && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable
+      onPress={() => {
+        onPress();
+        if (keep && had.current && !keep.current?.isFocused?.()) keep.current?.focus();
+      }}
+      onPressIn={() => { had.current = !!keep?.current?.isFocused?.(); }}
+      {...(Platform.OS === 'web' && keep ? { onMouseDown: (e: { preventDefault: () => void }) => e.preventDefault() } : null)}
+      disabled={disabled}
+      hitSlop={SLOP}
+      style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, disabled && { opacity: 0.6 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
       <Icon name="arrow-up" size={22} color="#fff" strokeWidth={2.4} />
     </Pressable>
   );

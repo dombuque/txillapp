@@ -264,7 +264,7 @@ export function GroupComposer({
           <TextInput ref={paste.ref} value={text} onChangeText={setText} selection={mention.inputProps.selection} onSelectionChange={mention.inputProps.onSelectionChange} onFocus={() => { setPanel(null); mention.inputProps.onFocus(); }} onBlur={mention.inputProps.onBlur} onKeyPress={(e) => { mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e); }} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {hasText ? (
             <Pop key="send">
-              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} />
+              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} keep={input} />
             </Pop>
           ) : (
             <Pop key="tools" style={styles.tools}>
