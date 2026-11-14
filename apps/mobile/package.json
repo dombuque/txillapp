@@ -1,6 +1,6 @@
 {
   "name": "@txillapp/mobile",
-  "version": "1.47.3",
+  "version": "1.48.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@shopify/react-native-skia": "2.14.0",
