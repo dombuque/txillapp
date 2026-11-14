@@ -18,7 +18,9 @@ import { NameWithBadge } from './NameWithBadge';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
 import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
-import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
+import { MAX_STICKERS, newPlaced, type MimoLayer } from '@/lib/stickers';
+import { MAX_TEXT_LAYERS, countLayers, isTextLayer, newTextLayer, type TextLayer } from '@/lib/textLayers';
+import { TextLayerEditor } from './TextLayers';
 import { linkShare } from '@/lib/shareLink';
 import type { Track } from '@/lib/api.music';
 import { MusicPicker } from './MusicPicker';
@@ -64,7 +66,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<'all' | 'close_friends' | null>(null);
   const [caption, setCaption] = useState('');
-  const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  const [stickers, setStickers] = useState<MimoLayer[]>([]);
   /** A música do mimo partilhado (a mesma escolha do mimo normal). */
   const [music, setMusic] = useState<Track | null>(null);
   const url = linkOf(post);
@@ -277,13 +279,16 @@ function PreviewVideo({ url }: { url: string }) {
 /** Pré-visualização do mimo: o ecrã 9:16 com a publicação, os stickers por cima, a legenda e a escolha de quem vê. */
 function StoryPreview({ post, audience, setAudience, caption, setCaption, stickers, setStickers, music, setMusic, busy, onBack, onPublish }: {
   post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void;
-  stickers: PlacedSticker[]; setStickers: (s: PlacedSticker[]) => void; music: Track | null; setMusic: (t: Track | null) => void; busy: boolean; onBack: () => void; onPublish: () => void;
+  stickers: MimoLayer[]; setStickers: (s: MimoLayer[]) => void; music: Track | null; setMusic: (t: Track | null) => void; busy: boolean; onBack: () => void; onPublish: () => void;
 }) {
   const [pickMusic, setPickMusic] = useState(false);
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
   const [sel, setSel] = useState<number | null>(null);
   const [pick, setPick] = useState(false);
+  /** O texto a escrever por cima (`index` null: um novo). */
+  const [textEdit, setTextEdit] = useState<{ index: number | null; layer: TextLayer } | null>(null);
+  const counts = countLayers(stickers);
   // Moldura 9:16 com tamanho real (só `aspectRatio` colapsa a zero no Safari): cabe na largura e deixa espaço aos controlos.
   const ph = Math.max(240, Math.min(win.height - insets.top - insets.bottom - 260, 640));
   const pw = Math.min(360, win.width - 32, Math.round(ph * 9 / 16));
@@ -291,9 +296,23 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
   const still = m?.kind === 'video' ? abs(m.posterUrl) : sized(m?.url, 1080);
   function addSticker(id: string) {
     setPick(false);
-    if (stickers.length >= MAX_STICKERS) return;
+    if (counts.stickers >= MAX_STICKERS) return;
     setStickers([...stickers, newPlaced(id)]);
     setSel(stickers.length);
+  }
+  const editText = (i: number) => { const l = stickers[i]; if (l && isTextLayer(l)) setTextEdit({ index: i, layer: l }); };
+  /** «Feito»: pousa o texto novo, troca o reescrito, ou apaga-o se ficou vazio. */
+  function textDone(layer: TextLayer) {
+    const ed = textEdit;
+    setTextEdit(null);
+    if (!ed) return;
+    if (ed.index === null) {
+      if (layer.text) { setStickers([...stickers, layer]); setSel(stickers.length); }
+      return;
+    }
+    const at = ed.index;
+    setStickers(layer.text ? stickers.map((x, i) => (i === at ? layer : x)) : stickers.filter((_, i) => i !== at));
+    setSel(layer.text ? at : null);
   }
   return (
     <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 16) }}>
@@ -304,7 +323,8 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
           ? <StickerToolbar item={stickers[sel]} onChange={(p) => setStickers(stickers.map((x, i) => (i === sel ? p : x)))} onDelete={() => { setStickers(stickers.filter((_, i) => i !== sel)); setSel(null); }} onDone={() => setSel(null)} />
           : <>
             <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? 'Mudar a música' : 'Adicionar música'} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={22} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
-            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, stickers.length > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={stickers.length > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, counts.stickers > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={counts.stickers > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => { setSel(null); if (counts.texts < MAX_TEXT_LAYERS) setTextEdit({ index: null, layer: newTextLayer() }); }} disabled={counts.texts >= MAX_TEXT_LAYERS} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" style={[st.back, counts.texts > 0 && { backgroundColor: '#fff' }]}><Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>Aa</Text></Pressable>
           </>}
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
@@ -316,10 +336,11 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
             <NameWithBadge name={`@${post.author.username}`} who={post.author} style={{ fontSize: 13, fontWeight: '600', color: '#fff' }} containerStyle={{ flexShrink: 1 }} />
           </View>
           {caption.trim() ? <Text style={st.phoneCaption}>{caption}</Text> : null}
-          <StickerCanvas stickers={stickers} onChange={setStickers} width={pw} height={Math.round(pw * 16 / 9)} selected={sel} onSelect={setSel} />
+          <StickerCanvas stickers={stickers} onChange={setStickers} width={pw} height={Math.round(pw * 16 / 9)} selected={sel} onSelect={setSel} onEdit={editText} hidden={textEdit?.index ?? null} />
         </View>
       </View>
       {pick && <StickerPicker onClose={() => setPick(false)} onPick={addSticker} />}
+      {textEdit && <TextLayerEditor initial={textEdit.layer} boxW={pw} onDone={textDone} />}
       {pickMusic && <MusicPicker hint={caption || post.body} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
         {music ? (

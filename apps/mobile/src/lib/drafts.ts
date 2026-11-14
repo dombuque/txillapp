@@ -17,6 +17,8 @@ import { Platform } from 'react-native';
  */
 export interface Draft {
   body: string;
+  /** A letra de uma publicação só com texto (lib/textLayers). */
+  textFont?: string;
   place: string;
   /** Endereços das fotos/vídeo escolhidos (mesma ordem em `video`). */
   photos: { uri: string; video?: boolean; mime?: string; durationMs?: number; signed?: boolean }[];

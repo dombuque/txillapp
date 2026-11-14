@@ -45,7 +45,7 @@ export const extraApi = {
       if (msg.kind === 'post') track('share', { target: 'chat' });
       return { kind: msg.kind ?? 'text', group: true };
     }),
-  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = [], music?: Track | null): Promise<{ id: string }> =>
+  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: import('./stickers').MimoLayer[] = [], music?: Track | null): Promise<{ id: string }> =>
     trackOk(raw('/stories/share', post({ postId, audience, caption, stickers, music: musicPayload(music) })), 'share', () => {
       track('story_create', { source: 'share', closeFriends: audience === 'close_friends', music: !!music });
       return { target: 'story' };

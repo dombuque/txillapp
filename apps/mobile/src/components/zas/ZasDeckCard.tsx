@@ -19,6 +19,8 @@ type Props = {
   screenW: number;
   uri: string | undefined;
   caption: string;
+  /** A letra da legenda (lib/textLayers). */
+  captionFont?: string | null;
   /** Ordem de desenho (o que sai por cima de todos, o de cima a seguir, os de trás por baixo). */
   z: number;
   /** O de cima: a foto pede-se primeiro e diz-se ao leitor de ecrã. */
@@ -37,7 +39,7 @@ const shadow = (w: number) =>
  * rotação, a sombra dos de trás) vem toda de `deckPose(index - pos)`, no worklet do Reanimated no telemóvel e no JS na
  * web: avançar é só mudar `pos`, e o cartão de trás, já desenhado e com a foto em memória, sobe sem esperar pela rede.
  */
-export const ZasDeckCard = memo(function ZasDeckCard({ index, pos, w, h, screenW, uri, caption, z, top }: Props) {
+export const ZasDeckCard = memo(function ZasDeckCard({ index, pos, w, h, screenW, uri, caption, captionFont = null, z, top }: Props) {
   const move = useAnimatedStyle(() => {
     const p = deckPose(index - pos.value, screenW, h);
     return { opacity: p.opacity, transform: [{ translateX: p.translateX }, { translateY: p.translateY }, { rotate: `${p.rotate}deg` }, { scale: p.scale }] };
@@ -60,7 +62,7 @@ export const ZasDeckCard = memo(function ZasDeckCard({ index, pos, w, h, screenW
         ) : null}
         <LinearGradient colors={['rgba(0,0,0,0.35)', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 96 }} pointerEvents="none" />
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 140 }} pointerEvents="none" />
-        {caption ? <CurvedCaption w={w} h={h} text={caption} arc="top" /> : null}
+        {caption ? <CurvedCaption w={w} h={h} text={caption} arc="top" font={captionFont} /> : null}
         {/* Os de trás ficam um pouco mais escuros: lê-se logo qual é o de cima. */}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 6 }, shade]} />
       </View>

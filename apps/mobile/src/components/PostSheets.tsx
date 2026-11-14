@@ -17,6 +17,8 @@ import type { Rect } from '@/lib/desktopKeys';
 import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
 import { takedownText, takedownTitle } from '@/lib/remix';
+import { normTextFont, type TextFontId } from '@/lib/textLayers';
+import { FontChips } from './FontChips';
 
 const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
@@ -206,6 +208,9 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
   const qc = useQueryClient();
   const [view, setView] = useState<'menu' | 'edit' | 'report'>('menu');
   const [draft, setDraft] = useState(post.body);
+  /** Só com texto (sem fotos, vídeo, geleira nem gelada): ao editar também se muda a letra. */
+  const textOnly = post.kind === 'post' && post.media.length === 0 && !post.geleira && !post.gelada;
+  const [draftFont, setDraftFont] = useState<TextFontId>(normTextFont(post.textFont));
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
@@ -279,7 +284,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
     setSaving(true);
     setEditErr('');
     try {
-      await api.updatePost(post.id, { body: draft });
+      await api.updatePost(post.id, { body: draft, ...(textOnly ? { textFont: draftFont } : {}) });
       onClose();
       await refresh(['feed', 'profile-posts', 'post', 'reels']);
     } catch (e) {
@@ -294,6 +299,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
       <Sheet title="Editar a publicação" onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
           <TextInput value={draft} onChangeText={setDraft} maxLength={2000} multiline autoFocus style={[styles.field, { minHeight: 120, textAlignVertical: 'top' }]} accessibilityLabel="Texto" />
+          {textOnly ? <FontChips value={draftFont} onChange={setDraftFont} label="Letra da publicação" style={{ marginHorizontal: -24, marginTop: 10 }} /> : null}
           <Text style={styles.err}>{editErr}</Text>
           <Pressable onPress={() => void saveEdit()} disabled={saving} style={[styles.primary, saving && { opacity: 0.6 }]}><Text style={styles.primaryText}>Guardar</Text></Pressable>
           <Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
@@ -307,7 +313,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
         <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
         <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
         <MenuRow icon={<Icon name="link" size={22} />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
-        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setView('edit'); }} />}
+        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
         {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" size={22} />} title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}
         {mine && <MenuRow icon={<Icon name="comment" size={22} />} title={post.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} text={post.commentsOff ? 'Voltam a poder comentar.' : 'Ninguém pode comentar esta publicação.'} onPress={() => void toggleComments()} />}
         {mine ? (

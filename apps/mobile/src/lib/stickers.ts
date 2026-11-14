@@ -1,5 +1,6 @@
 import chat from '../assets/stickers.json';
 import mimo from '../assets/mimo-stickers.json';
+import type { TextLayer } from './textLayers';
 
 /** Como o sticker se mexe no mimo ('none' = parado). */
 export type StickerAnim = 'none' | 'pulse' | 'bounce' | 'wiggle' | 'spin' | 'swing' | 'float' | 'shake' | 'flicker' | 'twinkle' | 'pop';
@@ -18,6 +19,10 @@ export interface StickerDef {
 /** Um sticker pousado sobre o mimo: centro (fração do ecrã), largura (fração da largura) e rotação em graus. */
 export interface PlacedSticker { id: string; x: number; y: number; s: number; r: number }
 
+/** O que vai na lista `stickers` de um mimo: stickers (sem `kind`) e textos (`kind: 'text'`, lib/textLayers). */
+export type MimoLayer = PlacedSticker | TextLayer;
+
+/** Até 12 stickers (os textos contam à parte: até 10, lib/textLayers). */
 export const MAX_STICKERS = 12;
 
 const ratioOf = (svg: string) => {

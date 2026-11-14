@@ -47,6 +47,10 @@ import { editedPhoto, mimoParams } from '@/lib/signedMedia';
 import { clampPostRatio } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { FontChips } from '@/components/FontChips';
+import { textFontStyle } from '@/lib/textFonts';
+import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, postFontSize, type TextFontId } from '@/lib/textLayers';
+import { useTextFonts } from '@/lib/useTextFonts';
 
 const MAX_PHOTOS = 10;
 /** Numa tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
@@ -168,6 +172,9 @@ export default function Compose() {
   const web = Platform.OS === 'web';
   const [step, setStep] = useState<'choose' | 'write'>('choose');
   const [body, setBody] = useState('');
+  /** A letra de uma publicação só com texto (sem fotos nem vídeo): a fila das letras por baixo do texto. */
+  const [textFont, setTextFont] = useState<TextFontId>(DEFAULT_TEXT_FONT);
+  useTextFonts([textFont]);
   const [place, setPlace] = useState('');
   const [placeGeo, setPlaceGeo] = useState<PlaceGeo | null>(null);
   /** Onde a primeira foto foi tirada (GPS dos metadados): só serve para sugerir o local. */
@@ -251,6 +258,8 @@ export default function Compose() {
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
   const hasContent = body.trim().length > 0 || assets.length > 0;
+  /** Só com texto (sem fotos nem vídeo, nem a preparar): aí escolhe-se a letra. */
+  const textOnly = assets.length === 0 && preparing === 0;
   /** Uma tcheka feita sem o estúdio (no telemóvel): as mesmas regras mínimas antes de publicar. */
   const tchekaRules = kindSel === 'tcheka' && assets.length > 0 && !assets.some((a) => a.studio)
     ? checkTcheka({ clips: assets.map((a) => ({ video: a.video, seconds: a.video ? finalMs(a.durationMs ?? 3000, a.speed ?? 1) / 1000 : 3 })), music: !!music })
@@ -263,7 +272,7 @@ export default function Compose() {
   };
   useEffect(refreshDrafts, [user, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const snapshot = () => ({ body, place, photos: assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, signed: a.signed })), tags: assets.map((a) => a.tags) });
+  const snapshot = () => ({ body, textFont, place, photos: assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, signed: a.signed })), tags: assets.map((a) => a.tags) });
 
   // Vindo dos rascunhos: preenche o que estava guardado.
   useEffect(() => {
@@ -273,6 +282,7 @@ export default function Compose() {
   function applyDraft(d: DraftItem) {
     draftKey.current = d.key;
     setBody(d.body);
+    setTextFont(normTextFont(d.textFont));
     setPlace(d.place);
     setPlaceGeo(null);
     setAssets(d.photos.map((p, i) => ({ uri: p.uri, video: !!p.video, mime: p.mime ?? (p.video ? 'video/mp4' : 'image/jpeg'), durationMs: p.durationMs, signed: p.signed, tags: d.tags?.[i] ?? [] })));
@@ -290,6 +300,7 @@ export default function Compose() {
 
   function reset() {
     setBody('');
+    setTextFont(DEFAULT_TEXT_FONT);
     setStudioDraft(null);
     studioDraftId.current = newDraftId();
     setAssets([]);
@@ -481,6 +492,8 @@ export default function Compose() {
       assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed, ...(a.posterMs != null ? { posterMs: a.posterMs } : {}), ...(a.mediaId ? { mediaId: a.mediaId } : {}) })),
       post: {
         body,
+        // Só com texto: a letra escolhida (a clássica é a de sempre e não precisa de ir).
+        ...(assets.length === 0 && fontToSend(textFont) ? { textFont } : {}),
         music: sp.music,
         ...(sp.soundId ? { soundId: sp.soundId } : {}),
         locationLabel: place || undefined,
@@ -789,7 +802,8 @@ export default function Compose() {
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
             <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
-            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={styles.input} accessibilityLabel="Texto da publicação" />
+            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={[styles.input, textOnly && textFont !== DEFAULT_TEXT_FONT ? [postFontSize(textFont, 20), textFontStyle(textFont)] : null]} accessibilityLabel="Texto da publicação" />
+            {textOnly ? <FontChips value={textFont} onChange={setTextFont} label="Letra da publicação" style={{ marginHorizontal: -20, marginBottom: 10 }} /> : null}
             {music ? (
               <View>
                 <TrackCard track={music} />
