@@ -564,6 +564,8 @@ export function TxCamera({
   const shotId = useRef(0);
   const [light, setLight] = useState(false);
   const [lit, setLit] = useState(false);
+  // Rede de segurança: o ecrã aceso (flash da selfie) nunca fica preso, mesmo que a foto falhe a meio.
+  useEffect(() => { if (!lit) return; const t = setTimeout(() => setLit(false), 1500); return () => clearTimeout(t); }, [lit]);
   /** Conta as fotos tiradas: cada uma relança a animação do clarão. */
   const [shotK, setShotK] = useState(0);
   const [delay, setDelay] = useState<0 | 3 | 10>(0);

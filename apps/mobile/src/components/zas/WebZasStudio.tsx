@@ -94,6 +94,8 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
   const [light, setLight] = useState(false);
   const [canTorch, setCanTorch] = useState(false);
   const [lit, setLit] = useState(false);
+  // Rede de segurança: o ecrã aceso (flash da selfie) nunca fica preso, mesmo que a foto falhe a meio.
+  useEffect(() => { if (!lit) return; const t = setTimeout(() => setLit(false), 1500); return () => clearTimeout(t); }, [lit]);
   const [delay] = useState<0 | 3 | 10>(0);
   const [count, setCount] = useState<number | null>(null);
   const [fx, setFx] = useState(0);
