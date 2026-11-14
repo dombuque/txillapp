@@ -113,7 +113,7 @@ export class HeldPublicationsService {
     const get = <T>(t: new (...a: never[]) => T) => this.moduleRef.get(t, { strict: false });
     if (d.kind === 'post') {
       const b = d.payload;
-      const p = (await get(PostsService).create(owner, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined)) as { id: string };
+      const p = (await get(PostsService).create(owner, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined, false, b.textFont ?? null)) as { id: string };
       return p.id;
     }
     if (d.kind === 'story') {
@@ -122,6 +122,6 @@ export class HeldPublicationsService {
       return s.id;
     }
     const b = d.payload;
-    return (await get(InstantsService).create(owner, b.mediaId, b.caption, b.audience)).id;
+    return (await get(InstantsService).create(owner, b.mediaId, b.caption, b.audience, b.captionFont ?? null)).id;
   }
 }

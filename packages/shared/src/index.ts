@@ -83,3 +83,5 @@ export interface AuthResponse {
   accessToken: string;
   user: PublicUser;
 }
+
+export * from './fonts';

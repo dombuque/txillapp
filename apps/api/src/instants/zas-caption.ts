@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createCanvas } from '@napi-rs/canvas';
+import { ensureStudioFonts } from '../compose/studio-canvas';
+import { fontString } from '../stories/text-layer-render';
 
 /**
  * A legenda de um Zás gravada na cópia que se guarda, a correr pela curva como no ecrã. As mesmas contas de
@@ -84,14 +87,14 @@ function parseAdvance(f: Buffer): (cp: number) => number {
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+
+export interface ZasGlyph { ch: string; x: number; y: number; deg: number }
+
 /**
- * As letras da legenda (em maiúsculas), uma a uma ao longo da curva, rodadas com ela: contorno escuro suave e letra
- * branca por cima, como no ecrã. Sem legenda devolve ''.
+ * Onde fica cada letra da legenda (já em maiúsculas) ao longo da curva: o centro da letra na linha de base, a rotação e o
+ * tamanho da letra. `em(cp)`: a largura de uma letra em "em" na fonte com que se vai desenhar.
  */
-export function zasCaptionSvg(W: number, H: number, text: string): string {
-  const label = (text ?? '').trim().toUpperCase();
-  if (!label) return '';
-  const em = (advance ??= loadAdvance());
+export function zasCaptionGlyphs(W: number, H: number, label: string, em: (cp: number) => number): { fs: number; k: number; glyphs: ZasGlyph[] } {
   const pts = arcPoints(W, H);
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
@@ -99,12 +102,12 @@ export function zasCaptionSvg(W: number, H: number, text: string): string {
   const chars = [...label];
   const k = W / 300;
   let fs = Math.max(8 * k, Math.min(Math.min(W, H) * 0.052, (len - 14 * k) / (chars.length * 0.8)));
-  // A letra do servidor é mais larga do que a do telemóvel: se não couber na curva, encolhe (até ao mínimo do ecrã).
+  // A letra do servidor pode ser mais larga do que a do telemóvel: se não couber na curva, encolhe (até ao mínimo do ecrã).
   const total = (size: number) => chars.reduce((s, ch) => s + em(ch.codePointAt(0)!) * size, 0) + size * 0.16 * (chars.length - 1);
   const need = total(fs);
   if (need > len - 14 * k) fs = Math.max(8 * k, (fs * (len - 14 * k)) / need);
   const spacing = fs * 0.16;
-  const out: string[] = [];
+  const glyphs: ZasGlyph[] = [];
   let at = 0;
   for (const ch of chars) {
     const cw = em(ch.codePointAt(0)!) * fs;
@@ -116,12 +119,62 @@ export function zasCaptionSvg(W: number, H: number, text: string): string {
     const f = (mid - cum[j - 1]) / Math.max(1e-6, cum[j] - cum[j - 1]);
     const x = p0.x + (p1.x - p0.x) * f, y = p0.y + (p1.y - p0.y) * f;
     const deg = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI;
-    if (ch.trim()) out.push(`<text transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${deg.toFixed(2)})">${esc(ch)}</text>`);
+    if (ch.trim()) glyphs.push({ ch, x, y, deg });
     at += cw + spacing;
   }
-  if (!out.length) return '';
-  const body = out.join('');
-  const font = `font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="${fs.toFixed(2)}" text-anchor="middle"`;
-  return `<g ${font} fill="none" stroke="#000000" stroke-opacity="0.35" stroke-width="${(2.4 * k).toFixed(2)}" stroke-linejoin="round">${body}</g>
-<g ${font} fill="#ffffff">${body}</g>`;
+  return { fs, k, glyphs };
+}
+
+/**
+ * As letras da legenda (em maiúsculas), uma a uma ao longo da curva, rodadas com ela: contorno escuro suave e letra
+ * branca por cima, como no ecrã. Sem legenda devolve ''. Com `font` (uma das fontes do estúdio, docs/fontes-contrato.md)
+ * as letras desenham-se no canvas com essa fonte e entram no SVG como imagem; sem ela, a letra de sempre (DejaVu Sans Bold).
+ */
+export function zasCaptionSvg(W: number, H: number, text: string, font: string | null = null): string {
+  const label = (text ?? '').trim().toUpperCase();
+  if (!label) return '';
+  if (font) return zasCaptionCanvasSvg(W, H, label, font);
+  const { fs, k, glyphs } = zasCaptionGlyphs(W, H, label, (advance ??= loadAdvance()));
+  if (!glyphs.length) return '';
+  const body = glyphs.map((g) => `<text transform="translate(${g.x.toFixed(2)} ${g.y.toFixed(2)}) rotate(${g.deg.toFixed(2)})">${esc(g.ch)}</text>`).join('');
+  const attrs = `font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="${fs.toFixed(2)}" text-anchor="middle"`;
+  return `<g ${attrs} fill="none" stroke="#000000" stroke-opacity="0.35" stroke-width="${(2.4 * k).toFixed(2)}" stroke-linejoin="round">${body}</g>
+<g ${attrs} fill="#ffffff">${body}</g>`;
+}
+
+/** A legenda com a fonte escolhida: as mesmas posições, medidas e desenhadas no canvas (Skia) com as fontes do estúdio. */
+function zasCaptionCanvasSvg(W: number, H: number, label: string, font: string): string {
+  const ruler = createCanvas(4, 4).getContext('2d');
+  ensureStudioFonts();
+  const REF = 100;
+  ruler.font = fontString(font, REF);
+  const em = (cp: number) => ruler.measureText(String.fromCodePoint(cp)).width / REF;
+  const { fs, k, glyphs } = zasCaptionGlyphs(W, H, label, em);
+  if (!glyphs.length) return '';
+  // Só o retângulo onde há letras (com folga), em vez da foto inteira.
+  const pad = fs * 1.2;
+  const x0 = Math.max(0, Math.floor(Math.min(...glyphs.map((g) => g.x)) - pad)), y0 = Math.max(0, Math.floor(Math.min(...glyphs.map((g) => g.y)) - pad));
+  const x1 = Math.min(W, Math.ceil(Math.max(...glyphs.map((g) => g.x)) + pad)), y1 = Math.min(H, Math.ceil(Math.max(...glyphs.map((g) => g.y)) + pad));
+  if (x1 - x0 < 2 || y1 - y0 < 2) return '';
+  const c = createCanvas(x1 - x0, y1 - y0);
+  const g = c.getContext('2d');
+  g.translate(-x0, -y0);
+  g.font = fontString(font, fs);
+  g.textAlign = 'center';
+  g.textBaseline = 'alphabetic';
+  g.lineJoin = 'round';
+  g.lineWidth = 2.4 * k;
+  g.strokeStyle = 'rgba(0,0,0,0.35)';
+  g.fillStyle = '#ffffff';
+  for (const pass of ['stroke', 'fill'] as const) {
+    for (const gl of glyphs) {
+      g.save();
+      g.translate(gl.x, gl.y);
+      g.rotate((gl.deg * Math.PI) / 180);
+      if (pass === 'stroke') g.strokeText(gl.ch, 0, 0);
+      else g.fillText(gl.ch, 0, 0);
+      g.restore();
+    }
+  }
+  return `<image x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" href="data:image/png;base64,${c.toBuffer('image/png').toString('base64')}"/>`;
 }

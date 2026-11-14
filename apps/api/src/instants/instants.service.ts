@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnM
 import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import sharp from 'sharp';
+import { textFontOf, type TextFontId } from '@txillapp/shared';
 import { uuidv7 } from '../common/uuid7';
 import { ChatEvents } from '../chat/chat.events';
 import { PG_POOL } from '../db/db.module';
@@ -20,6 +21,9 @@ export const instantVisible = (i = 'i', v = '$1') =>
       OR (${i}.audience = 'friends'
           AND EXISTS (SELECT 1 FROM social.follows f1 WHERE f1.follower_id = ${v} AND f1.followee_id = ${i}.author_id)
           AND EXISTS (SELECT 1 FROM social.follows f2 WHERE f2.follower_id = ${i}.author_id AND f2.followee_id = ${v})))))`;
+
+/** A letra guardada: null (a de sempre) ou uma das fontes (um id desconhecido lê-se como 'classica'). */
+const fontOf = (v: unknown): TextFontId | null => (v == null ? null : textFontOf(v));
 
 @Injectable()
 export class InstantsService implements OnModuleInit {
@@ -85,7 +89,7 @@ export class InstantsService implements OnModuleInit {
     }, { inTests: true });
   }
 
-  async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {
+  async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends', captionFont: TextFontId | null = null) {
     this.filter.assertClean(caption);
     // Sem limite de Zás ativos (o ritmo é travado só pelo throttle da rota).
     const ok = await this.pool.query(
@@ -98,7 +102,9 @@ export class InstantsService implements OnModuleInit {
     // Pré-visualização: miniatura pequena (96×128) para o atalho dos Zás; a foto em tamanho real só chega a quem abre o Zás.
     const preview = await this.thumb(mediaId);
     const id = uuidv7();
-    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview) VALUES ($1, $2, $3, $4, $5, $6) RETURNING expires_at', [id, me, mediaId, caption, audience, preview]);
+    // A letra da legenda (docs/fontes-contrato.md): sem legenda não se guarda.
+    const font = caption ? captionFont : null;
+    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview, caption_font) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING expires_at', [id, me, mediaId, caption, audience, preview, font]);
     // Chega logo aos amigos (antes só o viam na volta seguinte da faixa, até 60 s depois) e já com a largura leve a fazer-se.
     try {
       this.announce(me, await this.audience(id), 'new');
@@ -106,7 +112,7 @@ export class InstantsService implements OnModuleInit {
       this.log.warn(`não consegui avisar do Zás ${id}: ${(e as Error).message}`);
     }
     void this.media.prepareChatVariants(mediaId).catch(() => undefined);
-    return { id, expiresAt: r.rows[0].expires_at as string };
+    return { id, expiresAt: r.rows[0].expires_at as string, captionFont: font };
   }
 
   /** A faixa: quem tem Zás por ver (os que já vi desaparecem) e os meus, com quantas pessoas os viram. */
@@ -140,7 +146,7 @@ export class InstantsService implements OnModuleInit {
    */
   async feed(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT i.id, i.media_id, i.caption, i.created_at, i.expires_at,
+      `SELECT i.id, i.media_id, i.caption, i.caption_font, i.created_at, i.expires_at,
               u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1) AS close,
               max(i.created_at) OVER (PARTITION BY i.author_id) AS latest
@@ -157,6 +163,7 @@ export class InstantsService implements OnModuleInit {
       id: r.id as string,
       url: this.media.chatUrl(r.media_id as string),
       caption: r.caption as string,
+      captionFont: fontOf(r.caption_font),
       at: r.created_at as string,
       expiresAt: r.expires_at as string,
       author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, verified: r.verified as boolean, verifiedTier: r.verified_tier as string | null },
@@ -169,7 +176,7 @@ export class InstantsService implements OnModuleInit {
     if (!a) throw new NotFoundException('Pessoa não encontrada');
     const own = a.id === me;
     const { rows } = await this.pool.query(
-      `SELECT i.id, i.media_id, i.caption, i.created_at, i.expires_at, (SELECT count(*)::int FROM social.instant_views v WHERE v.instant_id = i.id) AS views,
+      `SELECT i.id, i.media_id, i.caption, i.caption_font, i.created_at, i.expires_at, (SELECT count(*)::int FROM social.instant_views v WHERE v.instant_id = i.id) AS views,
               coalesce((SELECT json_agg(json_build_object('reaction', x.reaction, 'count', x.n) ORDER BY x.n DESC) FROM (SELECT reaction, count(*)::int AS n FROM social.instant_reactions r WHERE r.instant_id = i.id GROUP BY reaction) x), '[]'::json) AS reactions
          FROM social.instants i
         WHERE i.author_id = $2 AND i.expires_at > now() AND ${instantVisible('i')} AND ${notReportedBy('instant', 'i.id')}
@@ -178,7 +185,7 @@ export class InstantsService implements OnModuleInit {
         ORDER BY i.created_at`,
       [me, a.id],
     );
-    return rows.map((r) => ({ id: r.id as string, url: this.media.chatUrl(r.media_id as string), caption: r.caption as string, at: r.created_at as string, expiresAt: r.expires_at as string, ...(own ? { views: r.views as number, reactions: r.reactions as { reaction: string; count: number }[] } : {}) }));
+    return rows.map((r) => ({ id: r.id as string, url: this.media.chatUrl(r.media_id as string), caption: r.caption as string, captionFont: fontOf(r.caption_font), at: r.created_at as string, expiresAt: r.expires_at as string, ...(own ? { views: r.views as number, reactions: r.reactions as { reaction: string; count: number }[] } : {}) }));
   }
 
   /** Marca como visto (só uma vez; quem fez não conta). */

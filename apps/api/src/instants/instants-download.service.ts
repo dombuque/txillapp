@@ -20,7 +20,7 @@ export class InstantsDownloadService {
 
   async download(me: string, id: string): Promise<{ mime: string; bytes: Buffer; filename: string }> {
     const { rows } = await this.pool.query(
-      `SELECT i.author_id, i.media_id, i.caption, u.username, u.verified, u.verified_tier, m.signed
+      `SELECT i.author_id, i.media_id, i.caption, i.caption_font, u.username, u.verified, u.verified_tier, m.signed
          FROM social.instants i JOIN identity.users u ON u.id = i.author_id JOIN content.media_assets m ON m.id = i.media_id
         WHERE i.id = $1 AND i.expires_at > now() AND m.status = 'ready'`,
       [id],
@@ -34,7 +34,7 @@ export class InstantsDownloadService {
     const caption = String(r.caption ?? '');
     const seal: SealTier | null = tierOf(r.verified, r.verified_tier);
     // Foto que já vem assinada da câmara (`signed`): não se assina outra vez (o @ ficava a dobrar); a legenda vai na mesma.
-    const bytes = await signImage(raw, r.username as string, (W, H) => zasCaptionSvg(W, H, caption), !r.signed, seal);
+    const bytes = await signImage(raw, r.username as string, (W, H) => zasCaptionSvg(W, H, caption, (r.caption_font as string | null) ?? null), !r.signed, seal);
     return { mime: 'image/jpeg', bytes, filename: `txillapp-zas-${String(id).slice(0, 8)}.jpg` };
   }
 }
