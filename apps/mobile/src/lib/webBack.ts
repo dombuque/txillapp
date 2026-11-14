@@ -14,11 +14,20 @@
  *   e só depois se faz a navegação dele: no histórico nunca ficam entradas nossas pelo meio;
  * - se ele recuar (`router.back()`) com folhas abertas, o recuo salta também as nossas entradas.
  *
+ * Nunca sair da app por um recuo: cada entrada escrita por nós ou pelo expo-router leva a sua posição (`__txi`, a primeira
+ * entrada da app neste separador é a 0). Todos os `history.go` (os nossos e os do expo-router, que passam por aqui) contam a
+ * partir da entrada onde o browser ESTÁ (não da que achamos que está) e nunca vão para antes da 0. Antes, o recuo saltava
+ * sempre «n + folhas abertas» às cegas: se o browser já não estava na entrada de cima (o Safari mexeu-se sem nós darmos por
+ * isso, um `popstate` do utilizador engolido como se fosse nosso…), o salto passava a primeira entrada da app e o Safari
+ * ficava na página de antes — no iPhone, uma página em branco, sem «voltar» (tests/webBack.test.mjs, «nunca sai da app»).
+ *
  * Só depende de um «window» mínimo (ver WinLike), para se poder testar em node (tests/webBack.test.mjs).
  */
 
 export const MARK = '__txb';
 const DEPTH = '__txd';
+/** Posição da entrada no histórico, contada a partir da primeira entrada da app neste separador (0). */
+export const INDEX = '__txi';
 
 type State = Record<string, unknown> | null | undefined;
 interface PopEvent { stopImmediatePropagation(): void }
@@ -55,6 +64,7 @@ export function createWebBack(win: WinLike): WebBack {
   const orig = { push: h.pushState.bind(h), replace: h.replaceState.bind(h), go: h.go.bind(h) };
   let stack: Entry[] = [];
   let seq = 0;
+  /** Quantos recuos nossos ainda não tiveram o seu `popstate`. */
   let swallow = 0;
   let queue: (() => void)[] = [];
   let timer: unknown = null;
@@ -64,36 +74,61 @@ export function createWebBack(win: WinLike): WebBack {
     if (url == null) return true;
     try { return new URL(String(url), win.location.href).href === win.location.href; } catch { return false; }
   };
+  /** Posição da entrada atual (null numa entrada que não foi escrita por nós, ex.: uma âncora #). */
+  const here = (): number | null => {
+    const i = state()?.[INDEX];
+    return typeof i === 'number' && Number.isInteger(i) && i >= 0 ? i : null;
+  };
+  /** Profundidade da entrada atual: 0 no ecrã, 1 na primeira folha por cima dele, etc. */
+  const depthHere = () => Number(state()?.[DEPTH]) || 0;
+  /** O estado a escrever, com a posição (só em objetos: é o que o expo-router escreve). */
+  const at = (data: unknown, i: number | null): unknown => {
+    if (i == null) return data;
+    if (data == null) return { [INDEX]: i };
+    return typeof data === 'object' && !Array.isArray(data) ? { ...(data as Record<string, unknown>), [INDEX]: i } : data;
+  };
+  /** Um recuo de `n` que nunca passa a primeira entrada da app (lá antes fica a página de onde se veio, ou nada). */
+  const bounded = (n: number) => {
+    const i = here();
+    return i != null && i + n < 0 ? -i : n;
+  };
+
+  // A entrada onde a app arranca: se ainda não tem posição, é a primeira da app neste separador. Depois de recarregar a
+  // meio do histórico já tem a sua (as de trás também são da app) e fica.
+  if (here() == null) orig.replace(at(h.state, 0), '', win.location.href);
 
   function flush() {
     while (swallow === 0 && queue.length) queue.shift()!();
   }
-  /** Um recuo nosso: o `popstate` que provoca não chega a mais ninguém. */
+  /** Um recuo nosso: o `popstate` que provoca não chega a mais ninguém. Sem para onde recuar, segue logo com a fila. */
   function ownGo(n: number) {
+    const d = bounded(n);
+    if (d === 0) return flush();
     swallow++;
     if (timer != null) win.clearTimeout(timer);
     timer = win.setTimeout(() => { timer = null; swallow = 0; flush(); }, WAIT_MS);
-    orig.go(n);
+    orig.go(d);
   }
   /** Tira do topo as camadas já fechadas (as entradas delas saem do histórico). */
   function prune() {
-    let k = 0;
-    while (stack.length && stack[stack.length - 1].done) { stack.pop(); k++; }
-    if (k) ownGo(-k);
+    while (stack.length && stack[stack.length - 1].done) stack.pop();
+    // Recua até à entrada da camada que fica por cima (ou à do ecrã), contada a partir de onde o browser está.
+    const extra = depthHere() - stack.length;
+    if (extra > 0) ownGo(-extra);
   }
   /** Antes de uma navegação do expo-router: tira todas as nossas entradas (as camadas ficam sem «voltar»). */
   function rewind(then: () => void) {
-    const k = stack.length;
     for (const e of stack) e.done = true;
     stack = [];
     queue.push(then);
-    ownGo(-k);
+    ownGo(-depthHere());
   }
 
   function push(data: unknown, unused: string, url?: string | URL | null) {
     if (swallow > 0) return void queue.push(() => push(data, unused, url));
     if (stack.length) return rewind(() => push(data, unused, url));
-    orig.push(data, unused, url);
+    const i = here();
+    orig.push(at(data, i == null ? null : i + 1), unused, url);
   }
   function replace(data: unknown, unused: string, url?: string | URL | null) {
     if (swallow > 0) return void queue.push(() => replace(data, unused, url));
@@ -101,21 +136,32 @@ export function createWebBack(win: WinLike): WebBack {
       const cur = state();
       const d = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
       // A mesma entrada e o mesmo endereço (o expo-router a reescrever o que já lá está): fica na nossa, com a marca.
-      if (sameHref(url) && d && d.id === stack[0].baseId) return orig.replace({ ...d, [MARK]: cur?.[MARK], [DEPTH]: cur?.[DEPTH] }, unused, url);
+      if (sameHref(url) && d && d.id === stack[0].baseId) return orig.replace({ ...d, [MARK]: cur?.[MARK], [DEPTH]: cur?.[DEPTH], [INDEX]: cur?.[INDEX] }, unused, url);
       return rewind(() => replace(data, unused, url));
     }
-    orig.replace(data, unused, url);
+    orig.replace(at(data, here()), unused, url);
   }
   function go(n = 0) {
     if (swallow > 0) return void queue.push(() => go(n));
-    // `router.back()` com uma folha aberta: o expo-router acha que está no ecrã, por isso salta também as nossas entradas.
+    let d = n;
+    // `router.back()` com uma folha aberta: o expo-router acha que está no ecrã, por isso salta também as nossas entradas
+    // (as que estão de facto por cima do ecrã, onde o browser estiver).
     if (stack.length && n < 0) {
-      const k = stack.length;
-      for (const e of stack) e.done = true;
+      const depth = depthHere();
+      const gone = stack;
+      for (const e of gone) e.done = true;
       stack = [];
-      return orig.go(n - k);
+      d = bounded(n - depth);
+      // Não havia ecrã para onde recuar (já se está na primeira entrada da app): só saem as entradas das folhas. É um recuo
+      // nosso (o que vier a seguir espera por ele) e as folhas fecham-se como num «voltar» (senão ficavam abertas, sem entrada).
+      if (d + depth >= 0) {
+        ownGo(d);
+        for (let i = gone.length - 1; i >= 0; i--) { try { gone[i].onBack(); } catch { /* uma camada com erro não estraga o resto */ } }
+        return;
+      }
     }
-    orig.go(n);
+    d = d < 0 ? bounded(d) : d;
+    if (d !== 0 || n === 0) orig.go(d);
   }
   h.pushState = push;
   h.replaceState = replace;
@@ -125,6 +171,8 @@ export function createWebBack(win: WinLike): WebBack {
 
   win.addEventListener('popstate', (ev) => {
     if (swallow > 0) {
+      // Um recuo nosso a chegar: não é de mais ninguém. (Se o «voltar» do utilizador chegou primeiro, é esse que se engole e o
+      // nosso, que vem a seguir, é tratado como dele: o que conta é a entrada onde o browser fica no fim, e essa é tratada.)
       swallow--;
       ev.stopImmediatePropagation();
       if (swallow === 0) {
@@ -164,7 +212,8 @@ export function createWebBack(win: WinLike): WebBack {
         if (e.done) return;
         const base = state();
         if (!stack.length) { e.baseId = base?.id; e.baseHref = win.location.href; } else { e.baseId = stack[0].baseId; e.baseHref = stack[0].baseHref; }
-        orig.push({ ...(base ?? {}), [MARK]: e.tok, [DEPTH]: stack.length + 1 }, '', win.location.href);
+        const i = here();
+        orig.push(at({ ...(base ?? {}), [MARK]: e.tok, [DEPTH]: stack.length + 1 }, i == null ? null : i + 1), '', win.location.href);
         stack.push(e);
       };
       if (swallow > 0) queue.push(doPush);

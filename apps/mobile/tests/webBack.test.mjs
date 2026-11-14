@@ -13,10 +13,14 @@ const wb = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'webBack.ts'
 const ORIGIN = 'https://txillapp.com';
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
-/** Browser de mentira: entradas { state, href }, um índice e popstate entregue de forma assíncrona (como no Safari). */
-function fakeBrowser(startPath = '/') {
-  const entries = [{ state: { id: 'e0' }, href: ORIGIN + startPath }];
-  let index = 0;
+/**
+ * Browser de mentira: entradas { state, href }, um índice e popstate entregue de forma assíncrona (como no Safari).
+ * `before`: entradas que já estavam no separador antes da app (a página de onde se veio; no WebKit, um separador aberto
+ * assim pode começar numa página em branco, sem endereço).
+ */
+function fakeBrowser(startPath = '/', { before = [] } = {}) {
+  const entries = [...before.map((href) => ({ state: null, href })), { state: { id: 'e0' }, href: ORIGIN + startPath }];
+  let index = before.length;
   const listeners = [];
   const history = {
     get state() { return entries[index].state; },
@@ -56,7 +60,9 @@ function fakeBrowser(startPath = '/') {
   };
   // O botão / gesto do browser não passa pelo window.history (que o webBack embrulha): usa o go original.
   const nativeGo = history.go.bind(history);
-  return { win, entries, get index() { return index; }, user: { back: () => nativeGo(-1), forward: () => nativeGo(1) } };
+  // O browser a mudar de entrada sem `popstate` nenhum chegar à app (o que a app não vê não pode corrigir).
+  const silentGo = (n) => { index += n; };
+  return { win, entries, get index() { return index; }, user: { back: () => nativeGo(-1), forward: () => nativeGo(1) }, silentGo };
 }
 
 /**
@@ -329,4 +335,89 @@ test('expo-router a sério: router.back() com uma folha aberta volta ao ecrã an
   await tick();
   assert.equal(path_(b), '/search');
   delete globalThis.window;
+});
+
+// A página em branco do PWA no iPhone (arrastar para a direita → página toda branca, «voltar» cinzento, partilhar cinzento):
+// um recuo da app passava a primeira entrada dela e o browser ficava na página de antes (no WebKit, about:blank).
+const BLANK = 'about:blank';
+
+test('nunca sai da app: um recuo com uma folha aberta no primeiro ecrã fica no primeiro ecrã', async () => {
+  const b = fakeBrowser('/', { before: [BLANK] });
+  const back = wb.createWebBack(b.win);
+  const { a } = realAdapter(b);
+  let closed = 0;
+  back.open(() => closed++);
+  assert.equal(b.index, 2);
+  // Um recuo pelo window.history (como os do expo-router): antes saltava 1 + a folha = 2 e caía na página em branco.
+  a.apply({ op: 'go', delta: -1 });
+  await tick();
+  await tick();
+  assert.equal(b.win.location.href, ORIGIN + '/', 'continua na app');
+  assert.equal(b.index, 1, 'na primeira entrada da app, não antes');
+  assert.equal(back.depth(), 0);
+  assert.equal(closed, 1, 'a folha fecha-se como num «voltar» (não fica aberta sem entrada)');
+  b.win.history.back(); // e mais um, já sem folhas: não há para onde, fica
+  await tick();
+  assert.equal(b.index, 1);
+  assert.equal(b.win.location.href, ORIGIN + '/');
+  await new Promise((r) => setTimeout(r, 150)); // o go do expo-router desiste ao fim de 100 ms (não houve ecrã para onde ir)
+  delete globalThis.window;
+});
+
+test('nunca sai da app: o browser saiu da folha sem nós vermos e o router.back() conta a partir de onde ele está', async () => {
+  const b = fakeBrowser('/', { before: [BLANK] });
+  const back = wb.createWebBack(b.win);
+  const r = fakeRouter(b);
+  r.push('/reels');
+  back.open(() => {});
+  assert.equal(b.index, 3);
+  // O Safari voltou da entrada da folha para a do ecrã sem o popstate nos chegar (gesto, bfcache…): a folha continua na pilha.
+  b.silentGo(-1);
+  assert.equal(back.depth(), 1);
+  // Arrastar para a direita nas Tchekas: o router volta ao Início (go(-1)). Antes: go(-1 - 1 folha) = -2 → página em branco.
+  r.back();
+  await tick();
+  await tick();
+  assert.equal(b.win.location.href, ORIGIN + '/');
+  assert.equal(b.index, 1);
+  assert.equal(r.top(), '/');
+});
+
+test('um «voltar» do utilizador a meio de um recuo nosso: fica na app e o router fica onde o browser ficou', async () => {
+  const b = fakeBrowser('/', { before: [BLANK] });
+  const back = wb.createWebBack(b.win);
+  const r = fakeRouter(b);
+  r.push('/p/1');
+  const c1 = back.open(() => {});
+  const c2 = back.open(() => {});
+  // O «voltar» do utilizador chega à frente do nosso recuo (fechar as duas folhas à mão no mesmo instante).
+  b.user.back();
+  c1();
+  c2();
+  await tick();
+  await tick();
+  await tick();
+  assert.ok(b.index >= 1, 'nunca antes da primeira entrada da app');
+  assert.equal(new URL(b.win.location.href).pathname, r.top(), 'o router mostra o ecrã da entrada onde o browser está');
+});
+
+test('cada entrada sabe a sua posição: a primeira da app é a 0, folhas e ecrãs novos a seguir; recarregar a meio não recomeça', () => {
+  const b = fakeBrowser('/', { before: [BLANK] });
+  const back = wb.createWebBack(b.win);
+  const r = fakeRouter(b);
+  assert.equal(b.entries[1].state[wb.INDEX], 0);
+  assert.equal(b.entries[1].state.id, 'e0', 'o id do expo-router fica');
+  back.open(() => {});
+  assert.equal(b.entries[2].state[wb.INDEX], 1);
+  b.win.history.replaceState({ id: 'e0' }, '', '/');
+  assert.equal(b.entries[2].state[wb.INDEX], 1, 'reescrever a entrada mantém a posição');
+  r.push('/u/ana');
+  return tick().then(() => tick()).then(() => {
+    assert.equal(b.win.history.state.id, 'r1');
+    assert.equal(b.win.history.state[wb.INDEX], 1, 'o ecrã novo fica no lugar da folha');
+    // Recarregar a página nesta entrada: a app arranca de novo, mas a posição não volta a 0.
+    const again = wb.createWebBack(b.win);
+    assert.ok(again);
+    assert.equal(b.win.history.state[wb.INDEX], 1);
+  });
 });
