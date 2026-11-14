@@ -34,8 +34,8 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const msgs = path === '/messages' || path.startsWith('/messages/');
   const msgsHome = path === '/messages';
   const home = path === '/';
-  // À tua volta: o mapa ocupa a área toda (com a lista numa coluna à direita).
-  const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/') || path === '/perto';
+  // À tua volta: o mapa ocupa a área toda (com a lista numa coluna à direita). O Mixar aberto é um feed como as tchekas.
+  const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/mixar/') || path.startsWith('/stories/') || path === '/perto';
   // O estúdio das tchekas aberto (em /new): usa a janela toda, sem a barra lateral (lib/studio/immersive).
   const studio = useStudioFull() && path === '/new';
   const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights|evento|settings)/.test(path); // Definições: duas colunas

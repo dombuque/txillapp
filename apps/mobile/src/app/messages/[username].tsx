@@ -38,6 +38,7 @@ import { screenshotKey } from '@/lib/screenshotNotice';
 import { blockingError, threadErrorText } from '@/lib/chatErrors';
 import { clearPending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
+import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
 export default function Thread() {
@@ -64,6 +65,7 @@ export default function Thread() {
   const [more, setMore] = useState(false);
   const [ttlOpen, setTtlOpen] = useState(false);
   const [raised, setRaised] = useState(false);
+  const mixar = useOpenMixar();
   const typing = useTyping(username);
   const typingSent = useRef(0);
   // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
@@ -336,7 +338,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
+        <ChatComposer onMixar={() => person && void mixar.run(person.username, person.displayName)} closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
@@ -360,6 +362,8 @@ export default function Thread() {
           items={[
             { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
             ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
+            // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).
+            ...(person && !first?.blocked && !request ? [{ icon: 'sparkles' as const, label: `Mixar com ${firstName}`, onPress: () => void mixar.run(person.username, person.displayName) }] : []),
             // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
             ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
             ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: clearChat }] : []),

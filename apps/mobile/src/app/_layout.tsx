@@ -194,6 +194,9 @@ function Gate() {
       <Stack.Screen name="saved" />
       <Stack.Screen name="verification" />
       <Stack.Screen name="r/[id]" />
+      {/* Mixar: a lista dos meus Mixar e o feed a dois (como as tchekas). */}
+      <Stack.Screen name="mixar/index" />
+      <Stack.Screen name="mixar/[id]" />
       <Stack.Screen name="reels/filtros" />
       <Stack.Screen name="wallet" />
       <Stack.Screen name="invites" />

@@ -279,7 +279,7 @@ function AuthorBubble({ post, mine, onChange }: { post: ReelPost; mine: boolean;
  * Gestos: um toque pausa ou retoma; dois brindam; segurar abre o menu (Não me interessa, Denunciar, Guardar, Velocidade,
  * Legendas); arrastar na barra de baixo avança ou recua. No computador: espaço, ←/→ (5 s) e ↑/↓ ou a roda (lista).
  */
-export function Reel({ post: rawPost, active, onScreen = true, height, onChange, me, onMore, bottomInset = 0, pauseSignal = 0, seekSignal, extraActions }: {
+export function Reel({ post: rawPost, active, onScreen = true, height, onChange, me, onMore, bottomInset = 0, pauseSignal = 0, seekSignal, extraActions, infoExtra, onWatch }: {
   /** Computador: muda a cada espaço (a tcheka em cena pausa ou continua). */ pauseSignal?: number;
   /** Computador: muda a cada ←/→ (recua ou avança `by` segundos). */ seekSignal?: { n: number; by: number };
   post: Post;
@@ -291,6 +291,12 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   onMore?: () => void;
   bottomInset?: number;
   /** Botões a mais nas ações do lado (ex.: «Remix»). */ extraActions?: ReactNode;
+  /** Por cima do @ e da legenda (ex.: a razão e as reações do Mixar). */ infoExtra?: ReactNode;
+  /**
+   * Quanto se viu: `done` quando o vídeo chega ao fim (a cada volta) e, ao sair de cena, com o que se viu nessa visita
+   * (`ms`: tempo a tocar, sem pausas). Quem usa decide se manda (ex.: o Mixar manda um /seen por visita).
+   */
+  onWatch?: (w: { ms: number; done: boolean }) => void;
 }) {
   const post = rawPost as ReelPost;
   const router = useRouter();
@@ -314,6 +320,10 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const loops = useRef(0);
+  // O que se viu nesta visita (onWatch): tempo a tocar, somado pelos timeUpdate (sem pausas nem saltos).
+  const watch = useRef({ ms: 0, last: -1, was: false });
+  const onWatchRef = useRef(onWatch);
+  onWatchRef.current = onWatch;
   const { chosen, silent: soundOff } = useSound();
   // O som que a tcheka usava foi tirado («Som retirado pelo autor»): o vídeo não toca com som, mesmo com o som ligado.
   const silent = soundOff || !!post.soundRemoved;
@@ -334,8 +344,16 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   }, [player, onMore]);
   useEffect(() => {
     // Sem pretos: a capa fica por cima até o vídeo ter a primeira imagem desenhada (onFirstFrameRender) ou já ter andado.
-    const t = player.addListener('timeUpdate', ({ currentTime }) => { if (currentTime > 0.2) setShown(true); });
+    const t = player.addListener('timeUpdate', ({ currentTime }) => {
+      if (currentTime > 0.2) setShown(true);
+      const w = watch.current;
+      const d = currentTime - w.last;
+      if (w.was && w.last >= 0 && d > 0 && d < 1.5) w.ms += d * 1000;
+      w.last = currentTime;
+    });
     const b = player.addListener('playToEnd', () => {
+      if (watch.current.was) onWatchRef.current?.({ ms: watch.current.ms, done: true });
+      watch.current.last = -1;
       if (!onMore) return;
       if (loops.current < REEL_REPEATS) {
         loops.current += 1;
@@ -349,6 +367,16 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
     return () => { t.remove(); b.remove(); c.remove(); d.remove(); };
   }, [player, onMore]);
 
+  // A visita (onWatch): começa ao entrar em cena; ao sair, diz quanto se viu.
+  useEffect(() => {
+    if (active) {
+      watch.current = { ms: 0, last: -1, was: true };
+      return;
+    }
+    if (watch.current.was) onWatchRef.current?.({ ms: watch.current.ms, done: false });
+    watch.current = { ms: 0, last: -1, was: false };
+  }, [active]);
+  useEffect(() => () => { if (watch.current.was) onWatchRef.current?.({ ms: watch.current.ms, done: false }); }, []);
   // Fora de cena (deslizaste para outra): volta ao início, sem a pausa nem o fim anteriores. Com o ecrã por trás (outro
   // separador, o perfil do autor por cima) só pára: ao voltar continua de onde estava.
   useEffect(() => {
@@ -598,6 +626,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
 
       {/* Em baixo: o @ com o selo, a legenda (expande ao tocar), as hashtags, o local e o letreiro do som. */}
       <Animated.View style={[st.info, { bottom: infoBottom, opacity: chrome }]} pointerEvents={scrubbing || comments ? 'none' : 'box-none'} onLayout={(e) => setInfoW(Math.round(e.nativeEvent.layout.width))}>
+        {infoExtra}
         {/* «Dueto com @x» / «Resposta a @y»: leva ao original. */}
         {post.remixOf ? <View style={{ marginBottom: 8 }}><RemixTag remix={post.remixOf} /></View> : null}
         <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={{ alignSelf: 'flex-start', maxWidth: '100%' }} accessibilityRole="button">

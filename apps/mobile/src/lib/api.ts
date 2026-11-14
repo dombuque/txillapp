@@ -240,7 +240,7 @@ export interface SearchResults {
   venues?: import('./api.locais').Venue[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
-export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif' | 'system' | 'gelada' | 'rodada';
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif' | 'system' | 'gelada' | 'rodada' | 'mixar';
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
@@ -276,6 +276,8 @@ export interface ChatMessage {
   gelada?: import('./api.gelada').GeladaRequest | null;
   /** Rodada no TxillGroup (kind 'rodada'); null = já não existe. */
   rodada?: import('./api.gelada').GeladaRound | null;
+  /** Mixar (kind 'mixar'): o convite como está agora (pendente, ativo, recusado ou terminado); null = já não existe. */
+  mixar?: import('./api.mixar').ChatMixar | null;
   at: string;
 }
 export interface Presence { online: boolean; lastSeen: string | null }

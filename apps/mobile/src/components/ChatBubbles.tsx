@@ -36,6 +36,7 @@ import { anchorOf, useDeskChat } from '@/lib/deskChat';
 import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
+import { MixarCard } from './mixar/MixarCard';
 
 /** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
 export type MenuAt = { x: number; y: number };
@@ -70,7 +71,7 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma 🍻', rodada: 'Rodada 🙌' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma 🍻', rodada: 'Rodada 🙌', mixar: 'Mixar ✨' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -594,6 +595,9 @@ export function Bubble({
   } else if (m.kind === 'rodada') {
     // Rodada no TxillGroup (0145): quem paga, quem bebe, «Eu entro» e «Esta pago eu».
     content = <RoundCard r={m.rodada} />;
+  } else if (m.kind === 'mixar') {
+    // Mixar (docs/mixar-contrato.md): o convite com o estado de agora (Aceitar / À espera / Abrir o Mixar / discreto).
+    content = <MixarCard mixar={m.mixar} peer={peerName} peerHandle={peerHandle} />;
   } else if ((m.kind as string) === 'poll') {
     content = <PollBubble pollId={m.body} initial={(m as { poll?: import('@/lib/api.groups').Poll | null }).poll} />;
   } else if (m.kind === 'call') {
