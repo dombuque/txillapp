@@ -443,7 +443,7 @@ describe('Mixar: o feed a dois (integração)', () => {
     await api().post(`/api/v1/mixar/${id}/accept`).set(auth(full)).expect(429);
   }, 60_000);
 
-  it('bloqueio entre os dois: o Mixar sai da lista, a API dá 403 (e 404 em /with); ao desbloquear volta', async () => {
+  it('bloqueio entre os dois: o Mixar acaba e sai da lista, a API dá 403 (e 404 em /with); desbloquear não o traz de volta', async () => {
     const { dom, ana } = u;
     await api().put(`/api/v1/blocks/${dom.username}`).set(auth(ana)).expect(200);
     expect((await api().get('/api/v1/mixar').set(auth(dom)).expect(200)).body.items.find((m: { id: string }) => m.id === mx)).toBeUndefined();
@@ -457,14 +457,16 @@ describe('Mixar: o feed a dois (integração)', () => {
     const later = new Date(Date.now() + 2 * 86_400_000);
     await svc.runDaily({ now: later });
     expect((await pool.query('SELECT count(*)::int AS n FROM social.mixar_days WHERE mixar_id = $1 AND day = $2::date', [mx, mixarDay(later)])).rows[0].n).toBe(0);
+    expect((await pool.query('SELECT status, ended_by FROM social.mixars WHERE id = $1', [mx])).rows[0]).toMatchObject({ status: 'ended', ended_by: ana.id });
     await api().delete(`/api/v1/blocks/${dom.username}`).set(auth(ana)).expect(200);
-    expect((await api().get(`/api/v1/mixar/${mx}`).set(auth(dom)).expect(200)).body.status).toBe('active');
+    await api().get(`/api/v1/mixar/with/${ana.username}`).set(auth(dom)).expect(404);
+    expect((await api().get('/api/v1/mixar').set(auth(dom)).expect(200)).body.items.find((m: { id: string }) => m.id === mx)).toBeUndefined();
   });
 
   it('a exportação traz os meus Mixar, as minhas reações, vistos e escolhas; eliminar a conta leva o Mixar', async () => {
     const { dom, ana } = u;
     const r = (await api().get('/api/v1/me/export').set(auth(dom)).expect(200)).body;
-    expect(r.mixar).toEqual(expect.arrayContaining([expect.objectContaining({ id: mx, with: ana.username, invitedByMe: true, status: 'active' })]));
+    expect(r.mixar).toEqual(expect.arrayContaining([expect.objectContaining({ id: mx, with: ana.username, invitedByMe: true, status: 'ended' })]));
     expect(r.mixarReactions).toEqual(expect.arrayContaining([expect.objectContaining({ mixarId: mx, postId: P.agri4, reaction: 'amor' })]));
     expect(r.mixarViews).toEqual(expect.arrayContaining([expect.objectContaining({ mixarId: mx, postId: P.casa6, done: true })]));
     expect(r.mixarPicks.length).toBeGreaterThanOrEqual(1);
@@ -478,5 +480,24 @@ describe('Mixar: o feed a dois (integração)', () => {
     }
     expect((await api().get('/api/v1/mixar').set(auth(dom)).expect(200)).body.items.find((m: { id: string }) => m.id === mx)).toBeUndefined();
     await api().get(`/api/v1/mixar/${mx}`).set(auth(dom)).expect(404);
+  });
+
+  it('limpeza: os terminados ou recusados há mais de 30 dias apagam-se (com tudo o que tinham); pendentes antigos terminam', async () => {
+    const x = await signup('lpx'), y = await signup('lpy');
+    await mutual(x, y);
+    const gone = (await api().post('/api/v1/mixar/invite').set(auth(x)).send({ username: y.username }).expect(201)).body.id as string;
+    await api().post(`/api/v1/mixar/${gone}/decline`).set(auth(y)).expect(200);
+    await pool.query("UPDATE social.mixars SET ended_at = now() - interval '31 days' WHERE id = $1", [gone]);
+    const pend = (await api().post('/api/v1/mixar/invite').set(auth(x)).send({ username: y.username }).expect(201)).body.id as string;
+    // Ainda dentro dos 30 dias: o pendente fica como está.
+    await svc.purge();
+    const st = async (id: string) => (await pool.query('SELECT status FROM social.mixars WHERE id = $1', [id])).rows[0]?.status ?? null;
+    expect(await st(gone)).toBeNull();
+    expect(await st(pend)).toBe('pending');
+    // Pendente há mais de 30 dias: termina; 30 dias depois apaga-se.
+    await svc.purge(new Date(Date.now() + 31 * 86_400_000));
+    expect(await st(pend)).toBe('ended');
+    await svc.purge(new Date(Date.now() + 62 * 86_400_000));
+    expect(await st(pend)).toBeNull();
   });
 });

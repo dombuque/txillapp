@@ -142,6 +142,25 @@ export class MixarService implements OnModuleInit {
 
   onModuleInit() {
     this.scheduler.every('mixar.daily', DAILY_EVERY_MS, () => this.runDaily(), { firstAfterMs: 60_000 });
+    this.scheduler.every('mixar.purge', 6 * 3_600_000, () => this.purge().then(() => undefined), { firstAfterMs: 5 * 60_000 });
+  }
+
+  /**
+   * Os Mixar recusados ou terminados há mais de 30 dias apagam-se de vez (com os itens, as reações, os vistos, os
+   * desafios e as escolhas, pelo CASCADE). Os convites pendentes há mais de 30 dias passam a terminados (e 30 dias depois
+   * apagam-se também). Devolve quantos apagou.
+   */
+  async purge(now = new Date()): Promise<number> {
+    await this.pool.query(
+      `UPDATE social.mixars SET status = 'ended', ended_at = $1, updated_at = $1
+        WHERE status = 'pending' AND created_at < $1::timestamptz - interval '30 days'`,
+      [now],
+    );
+    const r = await this.pool.query(
+      `DELETE FROM social.mixars WHERE status IN ('declined', 'ended') AND COALESCE(ended_at, updated_at) < $1::timestamptz - interval '30 days'`,
+      [now],
+    );
+    return r.rowCount ?? 0;
   }
 
   /* ───────────── convites ───────────── */

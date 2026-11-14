@@ -50,7 +50,7 @@ describe('papéis: web e worker (integração)', () => {
         'analytics.user_days', 'search.purge', 'chat.expiry', 'gelada.friday', 'geleira.level', 'invites.sweep', 'media.unused',
         'moderation.evidence', 'music.catalog', 'music.catalog.stale', 'nearby.presence', 'reminders.comeback', 'reminders.verify',
         'sounds.backfill', 'sounds.silence', 'calls.sweep', 'calls.purge', 'media.deleted', 'instants.thumbs', 'posts.topics',
-        'compose.sweep', 'compose.poll', 'compose.stale', 'video.poll', 'video.stale', 'security.purge', 'mixar.daily',
+        'compose.sweep', 'compose.poll', 'compose.stale', 'video.poll', 'video.stale', 'security.purge', 'mixar.daily', 'mixar.purge',
       ]),
     );
     expect(worker.get(ComposeService).runsQueue).toBe(true);

@@ -288,6 +288,12 @@ export class SocialService {
       await client.query('INSERT INTO social.blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, t.id]);
       await client.query('DELETE FROM social.follows WHERE (follower_id = $1 AND followee_id = $2) OR (follower_id = $2 AND followee_id = $1)', [userId, t.id]);
       await client.query('DELETE FROM social.follow_requests WHERE (requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1)', [userId, t.id]);
+      // O Mixar entre os dois acaba (desbloquear não o traz de volta: é preciso um convite novo).
+      await client.query(
+        `UPDATE social.mixars SET status = 'ended', ended_at = now(), ended_by = $1, updated_at = now()
+          WHERE user_a = LEAST($1::uuid, $2::uuid) AND user_b = GREATEST($1::uuid, $2::uuid) AND status IN ('pending', 'active')`,
+        [userId, t.id],
+      );
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
