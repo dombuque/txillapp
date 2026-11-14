@@ -133,7 +133,16 @@ test('Zás: bloqueia só nos dos outros, e o visor só aparece com o bloqueio po
   assert.match(v, /void allowCapture\(ZAS_CAPTURE_KEY\);/);
   // No Android o Modal (Dialog) só copia a FLAG_SECURE ao ser criado: espera pelo bloqueio.
   assert.match(v, /useState\(\(\) => !\(guard && Platform\.OS === 'android'\)\)/);
-  assert.match(v, /<Modal visible=\{secured\} animationType="fade"/);
+  assert.match(v, /<Modal visible=\{secured && focused\} animationType="fade"/);
+  // Só com o ecrã focado: com outro ecrã por cima (uma notificação, um link) o visor fica montado por baixo, e a
+  // FLAG_SECURE ficava na atividade toda (a conversa aberta por cima deixava de aceitar capturas, visto no emulador).
+  // Fora de foco: o bloqueio sai e o visor esconde-se; ao voltar, o bloqueio entra antes de o Dialog ser criado.
+  assert.match(s, /import \{ useIsFocused \} from 'expo-router';/);
+  assert.match(v, /const focused = useIsFocused\(\);/);
+  assert.match(v, /if \(!guard \|\| !focused\) return;\n\s+let live = true;\n\s+void blockCapture\(ZAS_CAPTURE_KEY\)/);
+  assert.match(v, /live = false;\n\s+if \(Platform\.OS === 'android'\) setSecured\(false\);\n\s+void allowCapture\(ZAS_CAPTURE_KEY\);/);
+  assert.match(v, /if \(!guard \|\| !focused\) return;\n\s+return onScreenshot\(/);
+  assert.doesNotMatch(v, /\}, \[guard\]\);/);
   // Ir para a câmara ou para a grelha dos meus (ou acabar e ir para a câmara) tira o bloqueio antes.
   assert.match(v, /onPress=\{\(\) => leave\(onGrid\)\}/);
   assert.match(v, /onPress=\{\(\) => leave\(onCamera\)\}/);
