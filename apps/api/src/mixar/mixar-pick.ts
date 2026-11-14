@@ -110,12 +110,16 @@ export function matchScore(a: Weights, b: Weights): number {
   return Math.max(0, Math.min(100, Math.round(100 * Math.sqrt(Math.max(0, cosine(a, b))))));
 }
 
-/** Temas em comum, do mais forte para o mais fraco: `score` 0–100 relativo ao mais forte (média geométrica dos pesos). */
+/**
+ * Temas em comum, do mais forte para o mais fraco: `score` 0–100 relativo ao mais forte (média geométrica dos pesos).
+ * Só os equilibrados: se um dos dois tem menos de metade do peso do outro, o tema é «só teu» / «só dele» (onlyOf) e não
+ * aparece também aqui (a Descoberta mostrava o mesmo tema em «Em comum» e em «Só de Ana»).
+ */
 export function commonTopics(a: Weights, b: Weights, n = 8): { topic: string; score: number }[] {
   const na = normalize(a);
   const nb = normalize(b);
   const both = Object.keys(na)
-    .filter((t) => na[t] > 0 && (nb[t] ?? 0) > 0)
+    .filter((t) => na[t] > 0 && (nb[t] ?? 0) > 0 && nb[t] >= na[t] / 2 && na[t] >= nb[t] / 2)
     .map((t) => ({ topic: t, s: Math.sqrt(na[t] * nb[t]) }))
     .sort((x, y) => y.s - x.s || x.topic.localeCompare(y.topic))
     .slice(0, n);

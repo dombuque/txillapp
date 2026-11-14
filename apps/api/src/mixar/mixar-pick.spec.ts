@@ -33,6 +33,17 @@ describe('Mixar: o algoritmo (mixar-pick)', () => {
     expect(commonTopics({ a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1 }, { a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1 })).toHaveLength(8);
   });
 
+  it('um tema não está ao mesmo tempo «em comum» e «só de um» (o que se viu no emulador: Desporto nos dois sítios)', () => {
+    // Os dois seguem as mesmas contas (0,4 em todos os temas delas), mas o Dom brinda humor e a Ana desporto.
+    const d = { musica: 6, humor: 5, comedia: 3, desporto: 0.8 };
+    const a = { musica: 6, desporto: 5, fitness: 1, humor: 0.8 };
+    const common = commonTopics(d, a).map((x) => x.topic);
+    expect(common).toEqual(['musica']);
+    expect(onlyOf(d, a)).toEqual(expect.arrayContaining(['humor', 'comedia']));
+    expect(onlyOf(a, d)).toEqual(expect.arrayContaining(['desporto']));
+    for (const t of [...onlyOf(d, a), ...onlyOf(a, d)]) expect(common).not.toContain(t);
+  });
+
   it('classifica cada publicação: dos dois, só de um, só do outro; um «menos» tira-a', () => {
     const s = scoreCandidates({
       a: { ...dom, festa: -10 },

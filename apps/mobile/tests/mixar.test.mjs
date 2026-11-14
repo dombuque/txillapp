@@ -313,3 +313,15 @@ test('o leitor das tchekas diz quanto se viu (onWatch) sem mudar nada para quem 
   assert.match(hooks, /prev: \(\) => setSeekSignal\(\(s\) => \(\{ n: s\.n \+ 1, by: -5 \}\)\),/);
   assert.match(hooks, /\.\.\.\(step \? \{ prev: \(\) => fns\.current\.goTo\(fns\.current\.active\(\) - 1\)/);
 });
+
+// Visto no emulador (Chrome, web): o feed do Mixar ficava preto. A coluna do feed está dentro de uma linha
+// (flexDirection 'row', por causa das setas do computador); com alignSelf 'center' ficava com 0 de altura, o onLayout
+// dava 0 e a lista nunca aparecia. Na linha, a coluna tem de esticar (alignSelf 'stretch').
+test('ecrã do Mixar: a coluna do feed estica na altura dentro da linha (não fica com 0 de altura)', () => {
+  const src = read('app', 'mixar', '[id].tsx');
+  assert.match(src, /style=\{\{ flex: 1, flexDirection: 'row', justifyContent: 'center' \}\}/, 'a coluna está dentro de uma linha');
+  const column = src.match(/^\s*column: \{[^}]*\}/m)?.[0] ?? '';
+  assert.ok(column, 'há o estilo column');
+  assert.doesNotMatch(column, /alignSelf: 'center'/);
+  assert.match(column, /alignSelf: 'stretch'/);
+});

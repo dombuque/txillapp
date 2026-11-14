@@ -459,7 +459,9 @@ function DeskNavButton({ icon, label, disabled, onPress }: { icon: 'up' | 'down'
 }
 
 const st = StyleSheet.create({
-  column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center', backgroundColor: '#000' },
+  // Dentro de uma linha (flexDirection 'row', para as setas do computador): 'stretch' dá a altura toda. Com 'center' a
+  // coluna ficava com 0 de altura (o onLayout dava 0 e o feed nunca aparecia). O centro na horizontal vem do justifyContent.
+  column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'stretch', backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   title: { marginTop: 16, fontSize: 22, lineHeight: 28, fontWeight: '800', color: '#fff', textAlign: 'center' },
   sub: { marginTop: 6, fontSize: 15, lineHeight: 21, color: 'rgba(255,255,255,0.75)', textAlign: 'center', maxWidth: 340 },
