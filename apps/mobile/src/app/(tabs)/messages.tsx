@@ -45,7 +45,6 @@ import { innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClai
 import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 import { usePagerPan } from '@/components/SwipePager';
 import { useTabPress } from '@/lib/tabPress';
-import { MixarEntry } from '@/components/mixar/MixarEntry';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { mixarPreview } from '@/lib/mixar';
 
@@ -423,7 +422,6 @@ export default function Messages() {
       </View>
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
       {/* Mixar: uma linha discreta com os teus Mixar e convites (ou só uma dica pequena), por cima dos separadores. */}
-      {!term && view === 'chats' && <MixarEntry />}
       <View style={styles.tabs} accessibilityRole="tablist">
         {searching ? (
           <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>

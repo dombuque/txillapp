@@ -294,7 +294,8 @@ test('as entradas nos ecrãs: cartão no chat, menu da conversa, menu «+», ace
   const attach = read('components', 'ChatAttachSheet.tsx');
   assert.match(attach, /item\('mixar', 'Mixar', onMixar/);
   const inbox = read('app', '(tabs)', 'messages.tsx');
-  assert.match(inbox, /<MixarEntry \/>/);
+  // A linha «Mixar» saiu das Mensagens (o Mixar abre-se pelo cabeçalho da conversa, pelo cartão e pelos menus).
+  assert.doesNotMatch(inbox, /<MixarEntry/);
   assert.match(inbox, /m\.kind === 'mixar'\) return mixarPreview\(m\)/);
   const screen = read('app', 'mixar', '[id].tsx');
   // Reutiliza o leitor e o cartão das tchekas (não reinventa o leitor).
