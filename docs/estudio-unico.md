@@ -161,13 +161,16 @@ E, com `capulana={true}`, a montagem usa também `fx.transition = { type: 'capul
 
 A análise precisa de `<img>`, `<video>`, canvas e WebAudio. Sem `document` (no nativo), `analyzeSources` devolve valores
 neutros e `analyzeMusic` devolve `null`: a montagem faz-se na mesma (ordem dos ficheiros, vídeos do início, 120 BPM), mas sem
-«olhar» para nada, e o `MagicPreview` mostra só a primeira foto. O estúdio de canvas é da web; ver «Por fazer».
+«olhar» para nada. Na app, a análise a sério está em `magicAnalyzeNative.ts` (ver docs/estudio-nativo.md, 3.1) e a
+pré-visualização do resultado é o `MagicPreview.native.tsx`: o palco do estúdio nativo (`NativeStage`) a tocar em ciclo, com o
+texto de abertura, a música do trecho e os efeitos sonoros.
 
 ### 2.6 Tempo
 
 Num portátil, 3 fotos + 2 vídeos + música ficam prontos em 2,3 a 2,7 s, dos quais 2,1 s são as pausas mínimas das 5 fases
 (420 ms cada, para se lerem). Limites: 5 s para ver os ficheiros (cada vídeo fica com `10 s / n.º de vídeos`, entre 0,7 e
-2,5 s, dois de cada vez; amostra-se do geral para o pormenor, por isso quando o tempo acaba já há uma ideia do vídeo todo),
+2,5 s, um de cada vez; amostra-se do geral para o pormenor, por isso quando o tempo acaba já há uma ideia do vídeo todo; um
+salto que não acaba a tempo não é cancelado por outro: o vídeo fica com os frames que já tem),
 sons de vídeos acima de 24 MB não se descodificam (fica só a imagem) e a música descodifica-se para mono a 11 kHz (chega para a energia e as batidas). O que se mediu
 fica em cache por ficheiro: «Outra versão» e mudar de onda são imediatos. `clearMagicCache()` ao fechar o estúdio.
 

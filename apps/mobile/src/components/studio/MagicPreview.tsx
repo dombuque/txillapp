@@ -55,7 +55,7 @@ function drawPlain(g: G, prev: CanvasImageSource, cur: CanvasImageSource, type: 
 /**
  * A pré-visualização da montagem mágica (web: um canvas pequeno a tocar em ciclo, com a música). Mostra os cortes ao ritmo,
  * o zoom das fotos apontado ao ponto de interesse, as molduras, as transições (também as de capulana) e o texto de abertura.
- * No nativo mostra a primeira foto (a pré-visualização a tocar é a do estúdio, depois de «Afinar»).
+ * No telemóvel é o MagicPreview.native.tsx (o palco do estúdio a tocar).
  */
 export function MagicPreview({ result, playing, musicUrl, onClip, style }: { result: MagicResult; playing: boolean; musicUrl?: string | null; onClip?: (index: number) => void; style?: StyleProp<ViewStyle> }) {
   const ref = useRef<HTMLCanvasElement | null>(null);

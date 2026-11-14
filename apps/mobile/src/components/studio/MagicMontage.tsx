@@ -92,7 +92,14 @@ export function MagicMontage({ sources, music, capulana, initialWave, onApply, o
       const items = [...iv, ...ip];
       // Uma primeira conta sem música só para saber quanto tempo a tcheka vai ter (é o tamanho do trecho a escolher).
       const rough = buildMontage({ sources, items, music: null, wave, seed: seed.current, capulana }).total;
-      const info = await stage('ritmo', () => look.music(music?.url, wave, rough + 4, { signal }));
+      const info = await stage('ritmo', async () => {
+        const first = await look.music(music?.url, wave, rough + 4, { signal });
+        if (!first || signal.cancelled) return first;
+        // O andamento só se sabe agora: ao ritmo da música a tcheka pode ficar mais comprida do que o trecho escolhido, e o
+        // trecho escolhe-se outra vez com o tamanho certo (a música já está lida: é só a conta).
+        const real = buildMontage({ sources, items, music: first, wave, seed: seed.current, capulana }).total;
+        return real > rough + 3.5 ? (await look.music(music?.url, wave, real + 2, { signal })) ?? first : first;
+      });
       data.current = { items, music: info };
       const res = await stage('historia', () => buildMontage({ sources, items, music: info, wave, seed: seed.current, capulana }));
       await stage('onda', () => sleep(120));
