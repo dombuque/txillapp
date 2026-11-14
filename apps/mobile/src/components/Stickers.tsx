@@ -2,10 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
-import { STICKERS, STICKER_CATS, stickerById, type PlacedSticker, type StickerAnim, type StickerDef } from '@/lib/stickers';
+import { STICKERS, STICKER_CATS, stickerById, type MimoLayer, type StickerAnim, type StickerDef } from '@/lib/stickers';
+import { TEXT_S, isTextLayer, layerFonts, normTextLayer } from '@/lib/textLayers';
+import { useTextFonts } from '@/lib/useTextFonts';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Sheet } from './Sheet';
+import { TextBox, TextLayerView, useTextLayer } from './TextLayers';
+import type { TextLayer } from '@/lib/textLayers';
 
 /** Duração de um ciclo de cada animação (ms). */
 const DUR: Record<StickerAnim, number> = { none: 0, pulse: 700, bounce: 520, wiggle: 600, spin: 6000, swing: 1400, float: 1600, shake: 160, flicker: 260, twinkle: 900, pop: 800 };
@@ -49,12 +53,17 @@ export function StickerArt({ def, size, animate = true }: { def: StickerDef; siz
   );
 }
 
-/** Os stickers de um mimo pousados sobre a foto ou o vídeo (só para ver). `width`/`height` é o ecrã do mimo. */
-export function StickerLayer({ stickers, width, height, animate = true }: { stickers?: PlacedSticker[] | null; width: number; height: number; animate?: boolean }) {
+/** Os stickers e os textos de um mimo pousados sobre a foto ou o vídeo (só para ver). `width`/`height` é o ecrã do mimo. */
+export function StickerLayer({ stickers, width, height, animate = true }: { stickers?: readonly MimoLayer[] | null; width: number; height: number; animate?: boolean }) {
+  useTextFonts(layerFonts(stickers));
   if (!width || !height || !stickers?.length) return null;
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       {stickers.map((p, i) => {
+        if (isTextLayer(p)) {
+          const t = normTextLayer(p);
+          return t ? <TextLayerView key={`t-${i}`} layer={t} width={width} height={height} /> : null;
+        }
         const def = stickerById(p.id);
         if (!def) return null;
         const w = p.s * width, h = w * def.ratio;
@@ -78,14 +87,25 @@ function metrics(e: GestureResponderEvent) {
   return { n: 2, x: (a.pageX + b.pageX) / 2, y: (a.pageY + b.pageY) / 2, d: Math.hypot(dx, dy), a: (Math.atan2(dy, dx) * 180) / Math.PI };
 }
 
-/** Um sticker no editor: arrasta-se com um dedo; com dois, cresce e roda. */
-function Placed({ item, def, width, height, selected, onSelect, onChange, onDragging, onDrop }: {
-  item: PlacedSticker; def: StickerDef; width: number; height: number; selected: boolean;
-  onSelect: () => void; onChange: (p: PlacedSticker) => void; onDragging: (on: boolean) => void; onDrop: (p: PlacedSticker) => void;
+/** Até onde se pode encolher e esticar: stickers (largura) e textos (tamanho da letra), em fração da largura do ecrã. */
+const STICKER_RANGE: readonly [number, number] = [0.06, 1.5];
+const TEXT_RANGE: readonly [number, number] = [TEXT_S.min, TEXT_S.max];
+export const layerRange = (l: MimoLayer) => (isTextLayer(l) ? TEXT_RANGE : STICKER_RANGE);
+
+/**
+ * Um sticker ou um texto no editor: arrasta-se com um dedo; com dois, cresce e roda. Um toque sem arrastar (num texto)
+ * chama `onTap` (reescrever). `box`: o tamanho do sticker; sem ele (texto), a vista toma o tamanho do que leva dentro.
+ */
+function Placed({ item, width, height, label, onSelect, onChange, onDragging, onDrop, onTap, style, children }: {
+  item: MimoLayer; width: number; height: number; label: string;
+  onSelect: () => void; onChange: (p: MimoLayer) => void; onDragging: (on: boolean) => void; onDrop: (p: MimoLayer) => void; onTap?: () => void;
+  style: object; children: React.ReactNode;
 }) {
-  const ref = useRef({ item, width, height, onSelect, onChange, onDragging, onDrop });
-  ref.current = { item, width, height, onSelect, onChange, onDragging, onDrop };
+  const ref = useRef({ item, width, height, onSelect, onChange, onDragging, onDrop, onTap });
+  ref.current = { item, width, height, onSelect, onChange, onDragging, onDrop, onTap };
   const last = useRef<ReturnType<typeof metrics> | null>(null);
+  // Para saber se foi um toque: onde e quando começou, e se chegou a andar ou a usar dois dedos.
+  const start = useRef({ x: 0, y: 0, t: 0, moved: false });
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -93,67 +113,105 @@ function Placed({ item, def, width, height, selected, onSelect, onChange, onDrag
     onPanResponderGrant: (e) => {
       ref.current.onSelect();
       last.current = metrics(e);
+      start.current = { x: last.current.x, y: last.current.y, t: Date.now(), moved: false };
       ref.current.onDragging(true);
     },
     onPanResponderMove: (e) => {
       const m = metrics(e);
       const l = last.current;
       const { item: it, width: W, height: H } = ref.current;
+      if (m.n > 1 || Math.hypot(m.x - start.current.x, m.y - start.current.y) > 8) start.current.moved = true;
       // Mudou o número de dedos: recomeça a contar a partir daqui (sem salto).
       if (!l || l.n !== m.n) { last.current = m; return; }
-      let next: PlacedSticker = { ...it, x: it.x + (m.x - l.x) / W, y: it.y + (m.y - l.y) / H };
+      // O centro fica dentro do que o servidor aceita (−0,5 a 1,5 do ecrã; fora disso o mimo dava 400).
+      let next: MimoLayer = { ...it, x: clamp(it.x + (m.x - l.x) / W, -0.5, 1.5), y: clamp(it.y + (m.y - l.y) / H, -0.5, 1.5) };
       if (m.n >= 2 && l.d > 0) {
         let da = m.a - l.a;
         if (da > 180) da -= 360;
         if (da < -180) da += 360;
-        next = { ...next, s: clamp(it.s * (m.d / l.d), 0.06, 1.5), r: it.r + da };
+        const [lo, hi] = layerRange(it);
+        next = { ...next, s: clamp(it.s * (m.d / l.d), lo, hi), r: (it.r + da) % 360 };
       }
       last.current = m;
       ref.current.onChange(next);
     },
-    onPanResponderRelease: () => { ref.current.onDragging(false); ref.current.onDrop(ref.current.item); last.current = null; },
+    onPanResponderRelease: () => {
+      const tap = !start.current.moved && Date.now() - start.current.t < 400;
+      ref.current.onDragging(false);
+      if (tap && ref.current.onTap) ref.current.onTap();
+      else ref.current.onDrop(ref.current.item);
+      last.current = null;
+    },
     onPanResponderTerminate: () => { ref.current.onDragging(false); last.current = null; },
   }), []);
-  const w = item.s * width, h = w * def.ratio;
   return (
     <View
       {...pan.panHandlers}
       accessibilityRole="button"
-      accessibilityLabel={`Sticker ${def.text}: arrasta para mover, pinça para mudar o tamanho`}
-      style={[{ position: 'absolute', left: item.x * width - w / 2, top: item.y * height - h / 2, width: w, height: h, transform: [{ rotate: `${item.r}deg` }] }, { touchAction: 'none', userSelect: 'none', cursor: 'grab' } as object]}
+      accessibilityLabel={label}
+      style={[style, { touchAction: 'none', userSelect: 'none', cursor: 'grab' } as object]}
     >
-      <StickerArt def={def} size={w} />
-      {selected && <View pointerEvents="none" style={st.selBox} />}
+      {children}
     </View>
   );
 }
 
-/** O editor de stickers por cima do mimo: mover, pinçar, rodar; largar em baixo, no caixote, apaga. */
-export function StickerCanvas({ stickers, onChange, width, height, selected, onSelect }: {
-  stickers: PlacedSticker[]; onChange: (s: PlacedSticker[]) => void; width: number; height: number; selected: number | null; onSelect: (i: number | null) => void;
+/** Um texto no editor: medido (lib/textLayers, `textLayout`) e pousado como um sticker, com a caixa a `s × largura`. */
+function PlacedText({ item, width, height, selected, ...rest }: Omit<Parameters<typeof Placed>[0], 'item' | 'style' | 'children'> & { item: TextLayer; selected: boolean }) {
+  const { L, ready, measure } = useTextLayer(item, width);
+  return (
+    <>
+      {measure}
+      <Placed item={item} width={width} height={height} {...rest} style={{ position: 'absolute', left: item.x * width - L.w / 2, top: item.y * height - L.h / 2, width: L.w, height: L.h, opacity: ready ? 1 : 0, transform: [{ rotate: `${item.r}deg` }] }}>
+        <TextBox layer={item} L={L} />
+        {selected && <View pointerEvents="none" style={st.selBox} />}
+      </Placed>
+    </>
+  );
+}
+
+/**
+ * O editor de stickers e textos por cima do mimo: mover, pinçar, rodar; largar em baixo, no caixote, apaga. Tocar num texto
+ * chama `onEdit` (reescrever). `hidden`: o que se está a reescrever não aparece por baixo do editor de texto.
+ */
+export function StickerCanvas({ stickers, onChange, width, height, selected, onSelect, onEdit, hidden = null }: {
+  stickers: MimoLayer[]; onChange: (s: MimoLayer[]) => void; width: number; height: number; selected: number | null; onSelect: (i: number | null) => void;
+  onEdit?: (i: number) => void; hidden?: number | null;
 }) {
   const [dragging, setDragging] = useState(false);
   const [overTrash, setOverTrash] = useState(false);
+  useTextFonts(layerFonts(stickers));
   if (!width || !height) return null;
-  const inTrash = (p: PlacedSticker) => p.y > 0.86 && Math.abs(p.x - 0.5) < 0.2;
+  const inTrash = (p: MimoLayer) => p.y > 0.86 && Math.abs(p.x - 0.5) < 0.2;
+  const common = (i: number) => ({
+    width,
+    height,
+    onSelect: () => onSelect(i),
+    onChange: (np: MimoLayer) => { const next = stickers.slice(); next[i] = np; onChange(next); setOverTrash(inTrash(np)); },
+    onDragging: (on: boolean) => { setDragging(on); if (!on) setOverTrash(false); },
+    onDrop: (np: MimoLayer) => { if (inTrash(np)) { onChange(stickers.filter((_, k) => k !== i)); onSelect(null); } },
+  });
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       {stickers.map((p, i) => {
+        if (i === hidden) return null;
+        if (isTextLayer(p)) {
+          return <PlacedText key={`t-${i}`} item={p} {...common(i)} selected={selected === i} onTap={onEdit ? () => onEdit(i) : undefined} label={`Texto «${p.text}»: toca para reescrever, arrasta para mover, pinça para mudar o tamanho`} />;
+        }
         const def = stickerById(p.id);
         if (!def) return null;
+        const w = p.s * width, h = w * def.ratio;
         return (
           <Placed
             key={`${p.id}-${i}`}
             item={p}
-            def={def}
-            width={width}
-            height={height}
-            selected={selected === i}
-            onSelect={() => onSelect(i)}
-            onChange={(np) => { const next = stickers.slice(); next[i] = np; onChange(next); setOverTrash(inTrash(np)); }}
-            onDragging={(on) => { setDragging(on); if (!on) setOverTrash(false); }}
-            onDrop={(np) => { if (inTrash(np)) { onChange(stickers.filter((_, k) => k !== i)); onSelect(null); } }}
-          />
+            {...common(i)}
+            label={`Sticker ${def.text}: arrasta para mover, pinça para mudar o tamanho`}
+            style={{ position: 'absolute', left: p.x * width - w / 2, top: p.y * height - h / 2, width: w, height: h, transform: [{ rotate: `${p.r}deg` }] }}
+          >
+            <StickerArt def={def} size={w} />
+            {selected === i && <View pointerEvents="none" style={st.selBox} />}
+          </Placed>
         );
       })}
       {dragging && (
@@ -165,18 +223,22 @@ export function StickerCanvas({ stickers, onChange, width, height, selected, onS
   );
 }
 
-/** Botões do sticker escolhido (para quem não pinça, e no computador): menor, maior, rodar, apagar, pronto. */
-export function StickerToolbar({ item, onChange, onDelete, onDone }: { item: PlacedSticker; onChange: (p: PlacedSticker) => void; onDelete: () => void; onDone: () => void }) {
+/**
+ * Botões do sticker ou do texto escolhido (para quem não pinça, e no computador): menor, maior, rodar, apagar e pronto (um
+ * texto reescreve-se tocando nele).
+ */
+export function StickerToolbar<T extends MimoLayer>({ item, onChange, onDelete, onDone }: { item: T; onChange: (p: T) => void; onDelete: () => void; onDone: () => void }) {
+  const [lo, hi] = layerRange(item);
   const btn = (label: string, run: () => void, icon?: IconName, glyph?: string) => (
-    <Pressable key={label} onPress={run} style={st.tb} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable key={label} onPress={run} style={st.tb} hitSlop={3} accessibilityRole="button" accessibilityLabel={label}>
       {icon ? <Icon name={icon} size={20} color="#fff" strokeWidth={2.2} /> : <Text style={st.tbGlyph}>{glyph}</Text>}
     </Pressable>
   );
   return (
     <View style={st.toolbar}>
-      {btn('Mais pequeno', () => onChange({ ...item, s: clamp(item.s / 1.15, 0.06, 1.5) }), undefined, '−')}
-      {btn('Maior', () => onChange({ ...item, s: clamp(item.s * 1.15, 0.06, 1.5) }), undefined, '+')}
-      {btn('Rodar', () => onChange({ ...item, r: item.r + 15 }), 'repeat')}
+      {btn('Mais pequeno', () => onChange({ ...item, s: clamp(item.s / 1.15, lo, hi) }), undefined, '−')}
+      {btn('Maior', () => onChange({ ...item, s: clamp(item.s * 1.15, lo, hi) }), undefined, '+')}
+      {btn('Rodar', () => onChange({ ...item, r: (item.r + 15) % 360 }), 'repeat')}
       {btn('Apagar', onDelete, 'trash')}
       {btn('Pronto', onDone, 'check')}
     </View>

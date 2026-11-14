@@ -41,6 +41,19 @@ import { KIND_LABEL } from '@/lib/api.locais';
 import { navTap } from '@/lib/tapGuard';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, finePointer, isTypingTarget, overlayOpen, type Rect } from '@/lib/desktopKeys';
+import { DEFAULT_TEXT_FONT, normTextFont, postFontSize } from '@/lib/textLayers';
+import { useTextFontStyle } from '@/lib/useTextFonts';
+
+/**
+ * A letra de uma publicação só com texto (`textFont`, lib/textLayers): o tamanho acertado à fonte (as de cartaz são
+ * estreitas, a «À mão» pequena); a família vem de `useTextFontStyle(id)`, quando carregar. Clássica, desconhecida ou com
+ * fotos: a letra de sempre (null).
+ */
+export function postBodyFont(post: Pick<Post, 'textFont' | 'media' | 'kind'> & { gelada?: unknown; geleira?: unknown }) {
+  const f = normTextFont(post.textFont);
+  if (f === DEFAULT_TEXT_FONT || post.kind !== 'post' || post.media.length > 0 || post.gelada || post.geleira) return null;
+  return { id: f, size: postFontSize(f, 19) };
+}
 
 /** Abre um ecrã, mas só uma vez: dois toques rápidos no cartão já não empilham dois ecrãs iguais. */
 const pushOnce = (router: ReturnType<typeof useRouter>, to: string) => { if (navTap(to)) router.push(to as never); };
@@ -195,6 +208,8 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const patch = usePatch(post.id);
   const { burst, brindar, celebrate } = useBrindar(post, patch);
   const tapText = useTap(() => void brindar());
+  const bodyFont = postBodyFont(post);
+  const bodyFace = useTextFontStyle(bodyFont?.id);
   // Tocar na publicação (fora de botões, ligações e fotos) abre a página dela; num repost com comentário abre o repost (com a original por baixo).
   const goPost = () => { if (!detail) { sponsored?.onOpen?.(); openPost(post); } };
   const mine = post.author.id === me;
@@ -339,7 +354,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           </View>
           {post.body ? (
             <Pressable onPress={() => tapText(goPost)} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
-              <RichText text={post.body} style={styles.body} />
+              <RichText text={post.body} style={bodyFont ? [styles.body, bodyFont.size, bodyFace] : styles.body} customFont={!!bodyFont} />
             </Pressable>
           ) : null}
         </>

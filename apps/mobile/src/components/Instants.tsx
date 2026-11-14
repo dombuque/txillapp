@@ -44,6 +44,8 @@ import { zasPrefetcher } from './zas/zasPrefetch';
 import { saveZas, shareZas } from './zas/zasImage';
 import { allowCapture, blockCapture, captureNative, onScreenshot, sendScreenshotNotice, ZAS_CAPTURE_KEY } from '@/lib/screenCapture';
 import { screenshotKey } from '@/lib/screenshotNotice';
+import { FontChips } from './FontChips';
+import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, type TextFontId } from '@/lib/textLayers';
 
 type Audience = 'friends' | 'close';
 
@@ -71,6 +73,8 @@ const countShadow = (Platform.OS === 'web' ? { filter: 'drop-shadow(0 1px 3px rg
 const INTRO_KEY = 'tx_instants_intro';
 const AUDIENCE_KEY = 'tx_zas_audience';
 const SNOOZE_KEY = 'tx_zas_snooze';
+/** A última letra escolhida para a legenda (fica no aparelho). */
+const FONT_KEY = 'tx_zas_font';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const hoursLeft = (iso: string) => `${Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000))}h`;
@@ -316,6 +320,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [caption, setCaption] = useState('');
+  /** A letra da legenda (`captionFont`): a fila das letras aparece quando já há legenda. */
+  const [captionFont, setCaptionFont] = useState<TextFontId>(DEFAULT_TEXT_FONT);
+  const pickFont = (f: TextFontId) => { setCaptionFont(f); void remember(FONT_KEY, f); };
   const [audience, setAudience] = useState<Audience>('friends');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -356,6 +363,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void remember(INTRO_KEY).then((v) => setIntro(v !== '1'));
     void remember(AUDIENCE_KEY).then((v) => setAudience(v === 'close' ? 'close' : 'friends'));
+    void remember(FONT_KEY).then((v) => setCaptionFont(normTextFont(v)));
   }, []);
 
   function pickAudience(a: Audience) {
@@ -377,7 +385,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   // plano, com a faixa no Início.
   async function send(uri: string, mime: string) {
     setErr('');
-    const text = caption.trim(), who = audience;
+    const text = caption.trim(), who = audience, font = text ? fontToSend(captionFont) : undefined;
     setCaption('');
     // O clarão e o toque do obturador já se deram ao tirar; este é o "foi".
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
@@ -385,9 +393,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     enqueueTask('zas', { uri, mime, video: false }, async () => {
       const src = await applyZasFx(uri, chosenFx);
       const mediaId = await uploadMedia(src, mime);
-      await instantsApi.create(mediaId, text, who);
+      await instantsApi.create(mediaId, text, who, font);
       refresh();
-    }, qc, (mediaId) => ({ kind: 'instant', payload: { mediaId, caption: text, audience: who } }));
+    }, qc, (mediaId) => ({ kind: 'instant', payload: { mediaId, caption: text, audience: who, ...(font ? { captionFont: font } : {}) } }));
   }
   /** Nativo: tira a foto na câmara do cartão e manda logo (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
   async function shoot() {
@@ -460,7 +468,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         )}
 
         {isWeb ? (
-          <WebZasStudio caption={caption} onCaption={setCaption} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={null} />
+          <WebZasStudio caption={caption} onCaption={setCaption} captionFont={captionFont} onCaptionFont={pickFont} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={null} />
         ) : (
           <>
         <View onLayout={onCamArea} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -479,7 +487,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             onTap={() => capInput.current?.focus()}
           >
             {/* "Adicionar legenda…" só aparece depois de tocar dentro da foto (ou quando já há legenda). */}
-            {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} /> : null}
+            {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} font={caption ? captionFont : null} /> : null}
             <TextInput
               ref={capInput}
               value={caption}
@@ -499,6 +507,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         </View>
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
+          {/* A letra da legenda: depois de escrever alguma coisa (com o teclado fechado, para o cartão não saltar). */}
+          {caption.trim() && !capEdit ? <FontChips value={captionFont} onChange={pickFont} dark label="Letra da legenda" style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
             {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
             <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: colors.brand }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
@@ -1055,7 +1065,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
             {slots.length ? (
               slots.map((s) => {
                 const it = items![s.index];
-                return <ZasDeckCard key={it.id} index={s.index} pos={pos} w={cardW} h={cardH} screenW={width} uri={urls[s.index]} caption={it.caption} top={s.depth === 0} z={s.depth < 0 ? 20 : 10 - s.depth} />;
+                return <ZasDeckCard key={it.id} index={s.index} pos={pos} w={cardW} h={cardH} screenW={width} uri={urls[s.index]} caption={it.caption} captionFont={it.captionFont} top={s.depth === 0} z={s.depth < 0 ? 20 : 10 - s.depth} />;
               })
             ) : (
               <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' }, squircle(cardW)]}>

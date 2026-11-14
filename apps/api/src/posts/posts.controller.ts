@@ -15,6 +15,10 @@ import { EventsService } from '../nearby/events.service';
 import { coarse } from '../nearby/geo-sql';
 import { decodeCursor } from './feed';
 import { remixSchema } from './remix';
+import { TEXT_FONT_IDS } from '@txillapp/shared';
+
+/** A letra de uma publicação só com texto (docs/fontes-contrato.md); com fotos ou vídeos ignora-se. */
+const textFontSchema = z.enum(TEXT_FONT_IDS).nullable().optional();
 
 type AuthedReq = Request & { userId?: string };
 
@@ -35,9 +39,10 @@ export const createSchema = z.object({
   remixOf: remixSchema.nullable().optional(),
   /** Partilhar a minha geleira (0143): o servidor tira o retrato dos gostos agora; a legenda é opcional. */
   geleira: z.literal(true).optional(),
+  textFont: textFontSchema,
 });
-const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional() });
-const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
+const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional(), textFont: textFontSchema });
+const repostSchema = z.object({ body: z.string().trim().max(500).default(''), textFont: textFontSchema });
 const giftSchema = z.object({
   amount: z.number().int().positive(),
   note: z.string().trim().max(280).default(''),
@@ -194,7 +199,7 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined, b.geleira === true);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined, b.geleira === true, b.textFont ?? null);
   }
 
   /** «Duetos e respostas» desta publicação (?kind=duet|reply para só uns). */
@@ -269,7 +274,7 @@ export class PostsController {
   @Post(':id/repost')
   @HttpCode(201)
   repost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(repostSchema)) b: z.infer<typeof repostSchema>) {
-    return this.posts.repost(req.userId!, id, b.body);
+    return this.posts.repost(req.userId!, id, b.body, b.textFont ?? null);
   }
 
   @Delete(':id/repost')

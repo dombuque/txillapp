@@ -1,4 +1,5 @@
 import { OnModuleInit, BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { textFontOf, type TextFontId } from '@txillapp/shared';
 import { Scheduler } from '../realtime/scheduler';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
@@ -43,7 +44,7 @@ const CALM_TOPICS = ['festa', 'bebidas'];
 const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
 
 const FEED_SQL = `
-  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, ${postGeo('lat', 'p', 'pv', '$1')} AS location_lat, ${postGeo('lng', 'p', 'pv', '$1')} AS location_lng, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.text_font, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, ${postGeo('lat', 'p', 'pv', '$1')} AS location_lat, ${postGeo('lng', 'p', 'pv', '$1')} AS location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          (p.author_id = $1) AS by_viewer,
          pv.slug AS venue_slug, pv.name AS venue_name, pv.kind AS venue_kind, pv.verified AS venue_verified, pv.avatar_media_id AS venue_avatar,
@@ -118,7 +119,7 @@ export class PostsService implements OnModuleInit {
    * `remixIn`: dueto ou resposta com tcheka (posts/remix.ts). Num dueto sem música escolhida (`musicGiven` falso) fica o som do
    * original: o `sound` dele, se o tiver e se se puder usar; senão a música dele.
    */
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true, geleiraShare = false) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true, geleiraShare = false, textFont: TextFontId | null = null) {
     // Partilhar a geleira (0143): uma publicação só com o retrato da geleira e uma legenda opcional (e, se quiser, o sítio).
     if (geleiraShare && (mediaIds.length || remixIn || venueId || soundId || musicIn)) throw new BadRequestException('A geleira partilha-se sozinha: sem fotos, vídeos, música nem página');
     const geleira = geleiraShare ? await buildSnapshot(this.pool, userId) : null;
@@ -191,8 +192,10 @@ export class PostsService implements OnModuleInit {
       const adult = !!geo && !!(await client.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [userId])).rowCount;
       if (!adult) geo = null;
       const q = (n: number) => (fromVenue ? n : coarse(n));
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id, sound_id, geleira) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id, sound_id, geleira, text_font) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)', [
         id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId, linkedSound, geleira ? JSON.stringify(geleira) : null,
+        // A letra (docs/fontes-contrato.md) só numa publicação sem ficheiros.
+        mediaIds.length ? null : textFont,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -343,7 +346,7 @@ export class PostsService implements OnModuleInit {
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
   /** O autor edita o texto e/ou liga/desliga os comentários. Só as publicações dele; o texto passa pelo mesmo filtro. */
-  async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }) {
+  async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean; textFont?: TextFontId | null }) {
     const cur = (await this.pool.query('SELECT body, kind, (geleira IS NOT NULL OR gelada IS NOT NULL) AS geleira, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
     if (!cur) throw new NotFoundException('Publicação não encontrada');
     if (b.body !== undefined) {
@@ -359,6 +362,8 @@ export class PostsService implements OnModuleInit {
       }
     }
     if (b.commentsOff !== undefined) await this.pool.query('UPDATE content.posts SET comments_off = $2 WHERE id = $1', [postId, b.commentsOff]);
+    // A letra (docs/fontes-contrato.md): só nas publicações sem ficheiros (nas outras ignora-se). null volta à de sempre.
+    if (b.textFont !== undefined && cur.media === 0 && !(cur.kind === 'repost' && cur.body === '')) await this.pool.query('UPDATE content.posts SET text_font = $2 WHERE id = $1', [postId, b.textFont]);
     // O autor pode tirar o local a qualquer momento (nome e posição).
     if (b.clearLocation) await this.pool.query('UPDATE content.posts SET location_label = NULL, location_lat = NULL, location_lng = NULL WHERE id = $1', [postId]);
     return this.getOne(userId, postId);
@@ -518,7 +523,7 @@ export class PostsService implements OnModuleInit {
    * Repostar: partilha a publicação de outra pessoa no teu perfil, sozinha ou com um comentário (citação).
    * Só publicações normais de contas públicas; nunca as tuas, de bloqueados, nem reposts de reposts.
    */
-  async repost(userId: string, postId: string, body = '') {
+  async repost(userId: string, postId: string, body = '', textFont: TextFontId | null = null) {
     this.filter.assertClean(body);
     const { rows } = await this.pool.query(
       `SELECT p.author_id, p.kind, p.body, u.is_private FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
@@ -541,7 +546,8 @@ export class PostsService implements OnModuleInit {
       if (existing.rows[0]) return this.getOne(userId, existing.rows[0].id);
     }
     const id = uuidv7();
-    await this.pool.query(`INSERT INTO content.posts (id, author_id, body, kind, repost_of) VALUES ($1, $2, $3, 'repost', $4)`, [id, userId, text, postId]);
+    // Uma citação (com texto) pode levar a letra; o repost simples não.
+    await this.pool.query(`INSERT INTO content.posts (id, author_id, body, kind, repost_of, text_font) VALUES ($1, $2, $3, 'repost', $4, $5)`, [id, userId, text, postId, text ? textFont : null]);
     await this.notifications.notify({ userId: o.author_id, actorId: userId, kind: 'repost', data: { postId, repostId: id, ...(text ? { snippet: text.slice(0, 80) } : {}) } });
     for (const tag of extractHashtags(text)) await this.pool.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
     if (text) this.indexer.postChanged(id);
@@ -1111,6 +1117,8 @@ export class PostsService implements OnModuleInit {
     /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
     code: r.short_code as string,
     body: r.body,
+    /** A letra de uma publicação só com texto (docs/fontes-contrato.md); null: a de sempre ('classica'). */
+    textFont: (r.text_font == null ? null : textFontOf(r.text_font)) as TextFontId | null,
     locationLabel: r.location_label,
     /** Faixa de licença aberta com o crédito do autor, se o post leva música. */
     // Um som original tirado pela equipa (ou de uma conta eliminada) deixa de tocar também nas tchekas que o usavam.

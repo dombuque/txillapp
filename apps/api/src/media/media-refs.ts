@@ -79,7 +79,7 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'social.messages.gif': 'GIF do GIPHY (endereço externo)',
   'social.messages.system': 'avisos de sistema na conversa',
   'content.comments.gif': 'GIF do GIPHY (endereço externo)',
-  'content.stories.stickers': 'stickers do catálogo (ids de stickers)',
+  'content.stories.stickers': 'stickers do catálogo (ids de stickers) e textos por cima (texto, fonte, cor; sem ficheiros)',
   'content.moderation_removals.snapshot': 'cópia de comentários removidos (sem ficheiros)',
   'content.music_catalog.signals': 'sinais da curadoria',
   'content.music_catalog.cover_tint': 'cores da capa',

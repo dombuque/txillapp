@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
+import { TEXT_FONT_IDS } from '@txillapp/shared';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
@@ -8,7 +9,13 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { InstantsService } from './instants.service';
 
 type AuthedReq = Request & { userId?: string };
-export const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default(''), audience: z.enum(['friends', 'close']).default('friends') });
+export const createSchema = z.object({
+  mediaId: z.string().uuid(),
+  caption: z.string().trim().max(80).default(''),
+  audience: z.enum(['friends', 'close']).default('friends'),
+  /** A letra da legenda (docs/fontes-contrato.md); sem legenda ignora-se. */
+  captionFont: z.enum(TEXT_FONT_IDS).nullable().optional(),
+});
 
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 
@@ -21,7 +28,7 @@ export class InstantsController {
   @Post()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.instants.create(req.userId!, b.mediaId, b.caption, b.audience);
+    return this.instants.create(req.userId!, b.mediaId, b.caption, b.audience, b.captionFont ?? null);
   }
 
   @Get()

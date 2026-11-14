@@ -5,6 +5,8 @@ import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
 import { acquireCamera, releaseCamera } from './cameraSession';
 import { CurvedCaption } from './CurvedCaption';
+import { FontChips } from '../FontChips';
+import type { TextFontId } from '@/lib/textLayers';
 import { FUN_FX, createFunRenderer, type FunRenderer } from './funFilters';
 import { squircle } from './squircle';
 import { ZAS_ASPECT, coverBox, coverCrop, inCaptionZone, isTap, outSize, pinchZoom, roundCrop, tapToSource, zasCardSize } from './zasFrame';
@@ -23,6 +25,9 @@ import { ZAS_ASPECT, coverBox, coverCrop, inCaptionZone, isTap, outSize, pinchZo
 export type StudioProps = {
   caption: string;
   onCaption: (s: string) => void;
+  /** A letra da legenda (lib/textLayers) e a escolha dela (a fila aparece quando já há legenda). */
+  captionFont: TextFontId;
+  onCaptionFont: (f: TextFontId) => void;
   audience: 'friends' | 'close';
   onAudience: (a: 'friends' | 'close') => void;
   busy: boolean;
@@ -62,7 +67,7 @@ function FlashIcon({ on, size }: { on: boolean; size: number }) {
   return <Icon name={on ? 'cam-flash' : 'cam-flash-off'} size={size} solid={on} color="#fff" />;
 }
 
-export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, err, editing, onEditing, onCapture, sentBox }: StudioProps) {
+export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, audience, onAudience, busy, err, editing, onEditing, onCapture, sentBox }: StudioProps) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -366,7 +371,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
               ),
               flash && <View key="flash" pointerEvents="none" style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, zIndex: 11, backgroundColor: '#fff', animationKeyframes: [{ '0%': { opacity: 0.95 }, '100%': { opacity: 0 } }], animationDuration: '160ms', animationFillMode: 'forwards' })} />,
               <View key="shade" pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 112, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' })} />,
-              (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} />,
+              (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} font={caption ? captionFont : null} />,
               <TextInput
                 key="inp"
                 ref={capInput}
@@ -395,6 +400,8 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
       {!editing && (
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {sentBox}
+          {/* A letra da legenda: só depois de escrever alguma coisa. */}
+          {caption.trim() ? <FontChips value={captionFont} onChange={onCaptionFont} dark label="Letra da legenda" style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
           <View style={{ alignSelf: 'center', width: '100%', maxWidth: 250, flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1, alignItems: 'center' }}>
             <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'} style={({ pressed }) => [small, { backgroundColor: light ? colors.brand : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
