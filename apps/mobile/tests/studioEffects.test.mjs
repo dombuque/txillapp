@@ -377,7 +377,7 @@ test('ligação: o estúdio desenha com os efeitos e grava o que se vê', () => 
   assert.match(studio, /hasAudio: it\.fx\?\.reverse \|\| !soundOn\(it\) \? false : it\.hasAudio/, 'ao contrário (ou com o som do vídeo desligado), o som original não conta');
   assert.match(studio, /await prepareFx\(\);\n\s+const out = await run\(0, \{ record: true/, 'a montagem espera pelas fontes, frames e imagens');
   assert.match(studio, /fullSig = studioSignature\(\{ t: timelineSig, fx: items\.map\(\(it\) => it\.fx \?\? null\), ov: overlays/, 'a volta gravada só vale com os mesmos efeitos');
-  assert.match(studio, /if \(nowMs - lastDraw >= 30\)/, 'desenha a 30 fps');
+  assert.match(studio, /const tick = paceTick\(pacer, performance\.now\(\)\);/, 'desenha a 30 fps certos (a grelha de lib/studio/recordPace.ts)');
   const gl = read('lib', 'studio', 'renderGL.ts');
   assert.match(gl, /c = clamp\(\(u_m \* vec4\(c, 1\.0\)\)\.rgb \+ u_o\.rgb, 0\.0, 1\.0\);/, 'o shader aplica a matriz como o applyFxPixel');
   assert.match(gl, /k = cos\(u_vig \* d\);/);

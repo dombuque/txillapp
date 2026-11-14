@@ -150,8 +150,11 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio', 'denunciar', 'denúncia', 'reportar', 'abuso',
     // O estúdio das tchekas não tem opções nas Definições: quem o procura aqui vai dar às perguntas dele na Ajuda.
     'estúdio', 'estúdio das tchekas', 'editar tcheka', 'voz-off', 'narração', 'microfone', 'montagem mágica', 'rascunhos', 'linha do tempo', 'cortar clipe', 'capulana',
+    'encher', 'inteiro', 'enquadrar', 'foto cortada', 'vídeo cortado', 'vídeo deitado', 'fundo desfocado',
     // As letras ao publicar (textos nos mimos, publicações só com texto, legenda do Zás) também não têm opção: só a Ajuda.
-    'letra', 'letras', 'fonte', 'fontes', 'tipo de letra', 'texto no mimo', 'texto nos mimos'] },
+    'letra', 'letras', 'fonte', 'fontes', 'tipo de letra', 'texto no mimo', 'texto nos mimos',
+    // Guardar uma tcheka (GET /posts/:id/download) não tem opção para desligar, e a música gravada no vídeo também não: só a Ajuda.
+    'guardar tcheka', 'guardar vídeo', 'descarregar tcheka', 'descarregar vídeo', 'impedir que guardem', 'marca de água', 'assinatura', 'música gravada'] },
   { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições', 'tolerância zero', 'regras da malta'] },
   { id: 'privacyPolicy', group: 'ajuda', title: 'Política de privacidade', to: '/privacy', keywords: ['rgpd', 'dados pessoais', 'privacidade'] },
   { id: 'about', group: 'ajuda', title: 'Sobre', to: '/about', keywords: ['sobre o txillapp', 'informações'] },

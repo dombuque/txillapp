@@ -52,6 +52,29 @@ export function posterSeek(seconds: number, posterMs?: number | null): number {
   return Math.min(0.5, len / 2);
 }
 
+/** Os frames por segundo da fonte (ffprobe: a média e, sem ela, a nominal); fora de 5 a 240 (ou sem nada), 30. */
+export function sourceFps(avg?: string, nominal?: string): number {
+  for (const r of [avg, nominal]) {
+    const [a, b] = String(r ?? '').split('/').map(Number);
+    const fps = b ? a / b : a;
+    if (Number.isFinite(fps) && fps >= 5 && fps <= 240) return fps;
+  }
+  return 30;
+}
+
+/**
+ * Os filtros que levam um vídeo a 30 fps certos, com o frame da fonte mais perto de cada instante k/30. O `fps` do ffmpeg dá
+ * ao frame k o último frame da fonte que arredonda para k, isto é, o último antes de (k + ½)/30: com uma fonte a 60 fps o
+ * frame ímpar fica mesmo nessa fronteira, e com os tempos irregulares dos telemóveis (VFR, ±4 ms) ora entra ora não — o
+ * movimento saltava 5, 15, 10 px em vez de 10, 10, 10. Adiantar os tempos meia diferença entre os dois intervalos
+ * (½·(1/30 − 1/fps)) põe a fronteira a meio caminho entre dois frames da fonte: escolhe-se sempre o mais perto. A saída
+ * continua a começar em 0 (o som não mexe).
+ */
+export function to30fps(fps: number): string {
+  const shift = (1 / 30 - 1 / fps) / 2;
+  return Math.abs(shift) < 1e-4 ? 'fps=30' : `setpts=PTS${shift > 0 ? '+' : '-'}${Math.abs(shift).toFixed(6)}/TB,fps=30`;
+}
+
 export type VideoSniff = 'video/mp4' | 'video/webm' | null;
 /** MP4/MOV ("ftyp" nos bytes 4 a 8) e WebM (cabeçalho EBML). O conteúdo real é que conta, não o Content-Type. */
 export function sniffVideo(head: Buffer): VideoSniff {
@@ -224,11 +247,11 @@ export class VideoService implements OnModuleInit, OnModuleDestroy {
 
   private async probe(file: string) {
     const { stdout } = await run(ffprobe.path, ['-v', 'error', ...VideoService.SAFE_INPUT, '-print_format', 'json', '-show_format', '-show_streams', file], { timeout: 30_000 });
-    const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string }[] };
+    const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string; avg_frame_rate?: string; r_frame_rate?: string }[] };
     const v = info.streams?.find((s) => s.codec_type === 'video');
     const seconds = Number(info.format?.duration ?? v?.duration ?? 0);
     if (!v || !v.width || !v.height || !Number.isFinite(seconds) || seconds <= 0) throw new VideoRejected('Este ficheiro não parece ser um vídeo válido.');
-    return { seconds, width: v.width, height: v.height };
+    return { seconds, width: v.width, height: v.height, fps: sourceFps(v.avg_frame_rate, v.r_frame_rate) };
   }
 
   private async process(id: string, owner: string, hooks?: VideoStorageHooks, posterMs?: number) {
@@ -243,8 +266,9 @@ export class VideoService implements OnModuleInit, OnModuleDestroy {
         FFMPEG,
         [
           '-y', ...VideoService.SAFE_INPUT, '-i', f.src, '-t', String(MAX_VIDEO_SECONDS),
-          // Lado menor até 1080 (vertical 1080×1920, horizontal 1920×1080), nunca amplia; 30 fps no máximo.
-          '-vf', "scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)':flags=lanczos,fps=30,format=yuv420p",
+          // Lado menor até 1080 (vertical 1080×1920, horizontal 1920×1080), nunca amplia; 30 fps certos, cada um com o frame
+          // da fonte mais perto dele (to30fps: num telemóvel a 60 fps com tempos irregulares, o `fps` sozinho saltava).
+          '-vf', `scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)':flags=lanczos,${to30fps(meta.fps)},format=yuv420p`,
           '-c:v', 'libx264', '-preset', 'faster', '-crf', '23', '-maxrate', '6M', '-bufsize', '12M', '-profile:v', 'high', '-level', '4.1',
           '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-movflags', '+faststart', '-map_metadata', '-1', // sem metadados (GPS, etc.)
           tmp,

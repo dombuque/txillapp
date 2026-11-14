@@ -225,8 +225,39 @@ as batidas, ao ritmo). No ffmpeg: `trim` no frame, `loop` e `fps=30`, sem zoom.
 
 ### Fotos
 
-Uma foto normal tem um zoom suave de 1 a 1,07 ao longo da duração dela, centrado (é o que já existia). No ffmpeg:
-`zoompan=z='1+0.07*on/(D*30)':d=D*30:s=1080x1920:fps=30`, com a foto já em cover. Um frame congelado não tem zoom.
+Uma foto normal tem um zoom suave de 1 a 1,07 ao longo da duração dela, centrado (é o que já existia): o frame k de N tem o
+zoom 1 + 0,07·k/N. No servidor desenha-se no canvas com as coordenadas em vírgula flutuante (`renderPhotoFrames`; o `zoompan`
+do ffmpeg arredondava o corte a píxeis inteiros e a foto tremia: docs/montagem.md, 6-A). Um frame congelado não tem zoom.
+Uma foto deitada vai inteira sobre o fundo desfocado e o zoom é só da foto da frente (o encaixe `fit`, docs/montagem.md, 2).
+
+### Encher ou Inteiro (`clips[i].fit`)
+
+Antes todos os clipes cobriam o quadro 9:16 e cortavam-se ao centro: um vídeo deitado perdia dois terços. Agora cada clipe
+tem um campo opcional `fit` (no `ProjectClip`, nos rascunhos e no pedido de montagem; as contas em `lib/studio/fit.ts`):
+
+| `fit` | No painel do clipe | Desenho |
+|---|---|---|
+| `'cover'` | «Encher» | cobre o quadro e corta-se ao centro (o de sempre) |
+| `'blur'` | «Inteiro» | o clipe inteiro, contido e ao centro; por trás, o mesmo clipe a cobrir o quadro, com desfoque gaussiano (sigma 40 num quadro de 1080 de largura, à escala do tamanho em que se desenha: `blurSigma`) e a 70 % do brilho (`BLUR_BRIGHTNESS`, a matriz `BLUR_DIM_MATRIX`) |
+| sem o campo | «Auto» | `autoFit`: `'cover'` quando largura/altura de exibição (já com a rotação do ficheiro) ≤ 0,8 (`FIT_AUTO_MAX_ASPECT`, 4:5); `'blur'` nos mais largos (quadrado, 4:3, 16:9) |
+
+- A escolha da pessoa ganha sempre. No automático, uma foto com o enquadramento da Montagem mágica (`fx.focus`) enche, como
+  antes (um frame congelado não: segue o automático); a moldura de capulana já mostra a foto inteira e não muda. No dueto o
+  `fit` também não conta (cada lado enche o seu quadro, como no servidor): o palco ignora-o e o painel do clipe não mostra a
+  escolha, nem numa foto com moldura.
+- O pedido de montagem só leva `fit` quando a pessoa escolheu; sem ele o servidor faz o mesmo automático. O `compatRequest`
+  tira-o para um servidor que ainda não o conheça.
+- O zoom lento de uma foto «Inteiro» é só na imagem da frente: a caixa contida fica do mesmo tamanho e a foto cresce lá dentro,
+  de 1 a 1,07, ao centro (`zoomSource`); o fundo desfocado fica parado.
+- Os efeitos de cor (filtro, ajustes, nitidez, vinheta e grão) vêm depois, no quadro inteiro (fundo e frente juntos), como num
+  clipe a encher. As transições usam o quadro já composto.
+- No site (`TchekaStudio.tsx`, `drawFitted`): o fundo desenha-se a ¼ do tamanho com sigma ¼ (o mesmo desfoque, 16 vezes menos
+  trabalho), com 3 sigmas de margem para as pontas não escurecerem, e o das fotos fica guardado; sem `ctx.filter` (Safari) é
+  um desfoque aproximado (reduzir e voltar a aumentar) com o escurecer por cima. Na app (`NativeStage.tsx`, `SkiaVideo.tsx`):
+  as fotos levam o fundo já desfocado pela Skia (`ImageFilter.MakeBlur`, `TileMode.Clamp`) e a frente à parte; os vídeos da
+  Skia desenham o frame duas vezes no mesmo Canvas (o fundo num `Group` com `Blur` e `ColorMatrix`, a frente com
+  `containTransform`), com o shader dos efeitos nos dois; no caminho antigo (expo-video), o vídeo contido sobre a miniatura
+  desfocada (aproximado).
 
 ## 5. Camadas (texto e stickers)
 
@@ -342,3 +373,24 @@ de `effects.ts`, `renderOverlays.ts`, `renderTransitions.ts` e dos panos de capu
 | Enquadramento das fotos (`focus`) | o `coverRect` da Montagem mágica, frame a frame no canvas | **Igual** |
 | Som por clipe (ligado/calado e volume) | `sound` e `volume` em cada clipe do pedido; um vídeo calado não conta como som | **Igual** |
 | Dueto | os efeitos e as transições no quadro da pessoa (540×960, o `duetLayout` do servidor) | **Aproximado**: o site faz a transição no quadro inteiro e volta a pôr o original por cima |
+| Encher / Inteiro (`fit`) | `clips[i].fit` (secção 4, «Encher ou Inteiro»); sem o campo, o mesmo automático | **Igual** na regra; o desfoque do site é feito a ¼ do tamanho (o mesmo sigma em proporção) |
+
+## 8. A gravação no site (canvas + MediaRecorder)
+
+O site grava o próprio canvas da pré-visualização (`TchekaStudio.tsx`, `run`). Para o vídeo não sair «aos solavancos»
+(lib/studio/recordPace.ts, tests/studioRecordPace.test.mjs):
+
+- **Grelha de 30 fps**: o frame `n` desenha o instante `from + n/30` da tcheka (não o instante do tique) e desenha-se no
+  primeiro tique do ecrã que chegue a meio tique dele (`paceTick`); se a página se atrasou, salta para o frame certo; uma espera
+  por um vídeo desloca a grelha (`shiftPacer`). Antes desenhava-se «se já passaram 30 ms», com o relógio de cada tique: num ecrã
+  de 60 Hz um tique 1 ms adiantado deixava o frame para o tique seguinte (50 ms) e o vídeo misturava frames de 33 e 50 ms.
+- **Um frame do vídeo por desenho**: `captureStream(0)` e `requestFrame()` logo a seguir a cada desenho (o browser sem
+  `requestFrame` fica com `captureStream(30)`). O `captureStream(30)` deitava fora os frames que chegavam uns ms antes do
+  tempo dele.
+- **Formato**: H.264 em MP4 pedido pelo nome primeiro (codificador do aparelho), depois H.264 em WebM, VP8, o MP4 do browser,
+  VP9. Antes ia `video/mp4` sem codec à frente, que num Chromium sem H.264 é VP9 em MP4: o VP9 a 1080×1920 em tempo real não
+  chega aos 30 fps. 8 Mbit/s (o servidor volta a converter: CRF 23, até 6 Mbit/s, 30 fps certos).
+- O servidor converte sempre o vídeo enviado para 30 fps certos (`media/video.service.ts`, `fps=30`): frames irregulares na
+  gravação passavam a frames repetidos e saltados no vídeo final. Com a grelha, cada frame da gravação cai no seu frame.
+- Fica como estava: a gravação é em tempo real (o que a página não conseguir desenhar a tempo perde-se); a montagem no servidor
+  (`POST /tchekas/compose`, a da app) não se usa no site.

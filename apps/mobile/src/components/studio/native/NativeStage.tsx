@@ -1,17 +1,20 @@
-import { ColorMatrix, Canvas, Image as SkImageNode, Skia, type SkImage } from '@shopify/react-native-skia';
+import { ColorMatrix, Canvas, Image as SkImageNode, Skia, TileMode, type SkImage } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PixelRatio, Platform, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useFrameCallback, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { CapulanaSpec } from '@/lib/studio/capulana';
-import { easeInOutCubic, isIdentity, playbackRateAt, resolveFx, sourceOffset, transitionFor, VIGNETTE_ANGLE, type ClipFx } from '@/lib/studio/effects';
+import { isIdentity, playbackRateAt, resolveFx, sourceOffset, transitionFor, VIGNETTE_ANGLE, type ClipFx } from '@/lib/studio/effects';
+import { BLUR_DIM_MATRIX, blurSigma, clipFit, containRect, coverSource, type ClipFit, type FitRect } from '@/lib/studio/fit';
 import { videoLook, type VideoLook } from '@/lib/studio/nativeLook';
 import { skiaVideoOk } from '@/lib/studio/nativeVideoFx';
-import { drift, photoZoom, reverseStep, segAt, transitionAt } from '@/lib/studio/previewClock';
+import { clockAt, drift, photoZoom, reverseStep, segAt, smoothNow, transitionAt, transitionLook, transitionProgress, type ClockAnchor } from '@/lib/studio/previewClock';
 import { limitBuffer } from '@/lib/videoMemory';
 import { CapulanaSwatch } from '../CapulanaSwatch';
 import type { ClockStore } from './clockStore';
+import { mediaSize, rememberSize, useMediaSizes } from './mediaSize';
 import { cachedVideoThumb } from './NativeTimeline';
 import { canOpenSkia, fxEffect, onSkiaFail, resetSkiaVideos, skiaFailed, SkiaPhoto, SkiaVideoLayer } from './SkiaVideo';
 
@@ -25,6 +28,31 @@ export interface StageSeg {
   soundUri?: string | null;
   /** A duração do ficheiro do vídeo (s), para a miniatura enquanto o primeiro frame não chega. */
   length?: number;
+  /** «Encher» (`cover`) ou «Inteiro» (`blur`) escolhido pela pessoa; sem ele, o automático (lib/studio/fit.ts). */
+  fit?: ClipFit;
+}
+
+/**
+ * O tempo do projeto no fio da interface, frame a frame: a âncora do relógio (`clock.onAnchor`, que só muda ao tocar,
+ * pausar ou saltar) e o relógio de parede liso do vsync (`smoothNow`). O zoom das fotos e as transições leem daqui, sem
+ * passar pelo JS a cada tique.
+ */
+function useStageTime(clock: ClockStore): SharedValue<number> {
+  const anchor = useSharedValue<ClockAnchor>(clock.anchor());
+  const t = useSharedValue(clockAt(clock.anchor(), Date.now()));
+  const smooth = useSharedValue(0);
+  const cb = useFrameCallback((info) => {
+    'worklet';
+    const now = smoothNow(smooth.value, info.timeSincePreviousFrame ?? 0, Date.now());
+    smooth.value = now;
+    t.value = clockAt(anchor.value, now);
+  }, false);
+  useEffect(() => clock.onAnchor((a) => {
+    anchor.value = a;
+    if (!a.playing) t.value = a.base;
+    cb.setActive(a.playing);
+  }), [clock]); // eslint-disable-line react-hooks/exhaustive-deps
+  return t;
 }
 type Role = 'cur' | 'prev' | 'next';
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -57,12 +85,22 @@ export function Vignette({ strength }: { strength: number }) {
   );
 }
 
-/** A foto já reduzida ao tamanho do palco (a Skia não guarda a foto original de 12 MP na memória). */
-const photoCache = new Map<string, SkImage>();
-function useStagePhoto(uri: string, w: number, h: number): SkImage | null | 'erro' {
-  const pw = Math.min(1080, Math.round(w * PixelRatio.get())), ph = Math.min(1920, Math.round(h * PixelRatio.get()));
-  const id = `${uri}@${pw}x${ph}`;
-  const [img, setImg] = useState<SkImage | null | 'erro'>(() => photoCache.get(id) ?? null);
+/**
+ * A foto já reduzida ao tamanho do palco (a Skia não guarda a foto original de 12 MP na memória), preparada: `img` a cobrir o palco (no «Inteiro», o fundo já desfocado e escurecido) e, no «Inteiro»,
+ * `fg` com a foto inteira e o retângulo onde fica (em pontos do palco).
+ */
+interface StagePhoto { img: SkImage; fit: ClipFit; fg: { img: SkImage; rect: FitRect } | null }
+const photoCache = new Map<string, StagePhoto>();
+function snapshot(surface: ReturnType<typeof Skia.Surface.MakeOffscreen>): SkImage {
+  surface!.flush();
+  const snap = surface!.makeImageSnapshot();
+  return snap.makeNonTextureImage() ?? snap;
+}
+function useStagePhoto(uri: string, w: number, h: number, want: ClipFit | undefined, focus: boolean): StagePhoto | null | 'erro' {
+  const pd = PixelRatio.get();
+  const pw = Math.min(1080, Math.round(w * pd)), ph = Math.min(1920, Math.round(h * pd));
+  const id = `${uri}@${pw}x${ph}|${want ?? 'auto'}|${focus ? 'f' : ''}`;
+  const [img, setImg] = useState<StagePhoto | null | 'erro'>(() => photoCache.get(id) ?? null);
   useEffect(() => {
     if (!(pw > 0 && ph > 0)) return;
     const have = photoCache.get(id);
@@ -72,16 +110,32 @@ function useStagePhoto(uri: string, w: number, h: number): SkImage | null | 'err
       try {
         const src = Skia.Image.MakeImageFromEncoded(await Skia.Data.fromURI(uri));
         if (!src) throw new Error('foto');
+        const sw = src.width(), sh = src.height();
+        rememberSize(uri, sw, sh);
+        const fit = clipFit({ fit: want, video: false, fx: focus ? { focus: true } : null }, sw, sh);
         const surface = Skia.Surface.MakeOffscreen(pw, ph) ?? Skia.Surface.Make(pw, ph);
         if (!surface) throw new Error('superfície');
-        // Cobre o palco, ao centro (com 7 % de folga para o zoom lento não mostrar as pontas).
-        const sw = src.width(), sh = src.height();
-        const r = Math.max(pw / sw, ph / sh);
-        const cw = pw / r, ch = ph / r;
-        surface.getCanvas().drawImageRect(src, Skia.XYWHRect((sw - cw) / 2, (sh - ch) / 2, cw, ch), Skia.XYWHRect(0, 0, pw, ph), Skia.Paint());
-        surface.flush();
-        const snap = surface.makeImageSnapshot();
-        const out = snap.makeNonTextureImage() ?? snap;
+        // Cobre o palco, ao centro. No «Inteiro» este é o fundo: desfocado (sigma 40 em 1080, à escala) e a 70 % do brilho.
+        const c = coverSource(sw, sh, pw, ph);
+        const paint = Skia.Paint();
+        if (fit === 'blur') {
+          const s = blurSigma(pw);
+          paint.setImageFilter(Skia.ImageFilter.MakeBlur(s, s, TileMode.Clamp, null));
+          paint.setColorFilter(Skia.ColorFilter.MakeMatrix([...BLUR_DIM_MATRIX]));
+        }
+        surface.getCanvas().drawImageRect(src, Skia.XYWHRect(c.x, c.y, c.w, c.h), Skia.XYWHRect(0, 0, pw, ph), paint);
+        const bg = snapshot(surface);
+        let fg: StagePhoto['fg'] = null;
+        if (fit === 'blur') {
+          // A foto inteira, do tamanho em que fica no palco (contida, ao centro).
+          const r = containRect(sw, sh, pw, ph);
+          const fw = Math.max(1, Math.round(r.w)), fh = Math.max(1, Math.round(r.h));
+          const fs = Skia.Surface.MakeOffscreen(fw, fh) ?? Skia.Surface.Make(fw, fh);
+          if (!fs) throw new Error('superfície');
+          fs.getCanvas().drawImageRect(src, Skia.XYWHRect(0, 0, sw, sh), Skia.XYWHRect(0, 0, fw, fh), Skia.Paint());
+          fg = { img: snapshot(fs), rect: { x: r.x / pd, y: r.y / pd, w: r.w / pd, h: r.h / pd } };
+        }
+        const out: StagePhoto = { img: bg, fit, fg };
         if (photoCache.size >= 8) photoCache.delete(photoCache.keys().next().value as string);
         photoCache.set(id, out);
         if (!off) setImg(out);
@@ -92,37 +146,66 @@ function useStagePhoto(uri: string, w: number, h: number): SkImage | null | 'err
   return img;
 }
 
-/** Uma foto: a matriz de cor verdadeira (Skia) e o zoom lento (o mesmo do site: 1 a 1,07, ou o enquadramento da Montagem mágica). */
-function PhotoLayer({ seg, clock, w, h, pano }: { seg: StageSeg; clock: ClockStore; w: number; h: number; pano: CapulanaSpec }) {
-  const img = useStagePhoto(seg.uri, w, h);
-  const p = useMemo(() => resolveFx(seg.fx), [seg.fx]);
-  const [z, setZ] = useState(() => photoZoom(0, seg.dur, seg.fx));
-  useEffect(() => clock.subscribe((t) => {
-    const n = photoZoom(clamp(t - seg.start, 0, seg.dur), seg.dur, seg.fx);
-    setZ((o) => (Math.abs(o.scale - n.scale) < 0.0015 && o.x === n.x ? o : n));
-  }), [clock, seg.start, seg.dur, seg.fx]);
-  const look = useMemo(() => videoLook(p.matrix, p.vignette), [p]);
+/** O zoom lento (Ken Burns) num retângulo `bw`×`bh`, no fio da interface: a escala à volta do ponto (x, y) de `photoZoom`. */
+function useZoomStyle(t: SharedValue<number>, start: number, dur: number, fx: { freeze?: unknown; focus?: { x: number; y: number; from: number; to: number } } | null, bw: number, bh: number) {
+  return useAnimatedStyle(() => {
+    const z = photoZoom(Math.min(dur, Math.max(0, t.value - start)), dur, fx);
+    const s = z.scale;
+    // Sem `transformOrigin` (arredondado a %): a mesma conta com translações em pontos, sem degraus.
+    return { transform: [{ translateX: (1 - s) * (z.x * bw - bw / 2) }, { translateY: (1 - s) * (z.y * bh - bh / 2) }, { scale: s }] };
+  }, [start, dur, fx, bw, bh]);
+}
+
+/**
+ * Uma foto: a matriz de cor verdadeira (Skia) e o zoom lento (o mesmo do site: 1 a 1,07, ou o enquadramento da Montagem
+ * mágica), frame a frame no fio da interface. No «Inteiro» o fundo desfocado fica parado e o zoom é só na foto da frente.
+ */
+function PhotoLayer({ seg, t, w, h, pano }: { seg: StageSeg; t: SharedValue<number>; w: number; h: number; pano: CapulanaSpec }) {
   const frame = !!seg.fx?.moldura;
+  const ph = useStagePhoto(seg.uri, w, h, seg.fit, !!seg.fx?.focus && !seg.fx?.freeze);
+  const ready = ph && ph !== 'erro' ? ph : null;
+  const p = useMemo(() => resolveFx(seg.fx), [seg.fx]);
+  const fg = ready && !frame ? ready.fg : null;
+  // No «Inteiro» o zoom é ao centro da foto da frente (sem o enquadramento); um frame congelado fica parado.
+  const zfx = useMemo(() => (fg ? (seg.fx?.freeze ? { freeze: true } : null) : seg.fx ? { freeze: seg.fx.freeze, focus: seg.fx.focus } : null), [fg, seg.fx]);
+  const bw = fg ? fg.rect.w : w, bh = fg ? fg.rect.h : h;
+  const zoom = useZoomStyle(t, seg.start, seg.dur, zfx, bw, bh);
+  const look = useMemo(() => videoLook(p.matrix, p.vignette), [p]);
+  // No «Inteiro» a vinheta é do quadro inteiro (por cima), não de cada imagem.
+  const pFg = useMemo(() => (fg && p.vignette > 0 ? { ...p, vignette: 0 } : p), [fg, p]);
   const shader = !!fxEffect();
-  const content = img && img !== 'erro' && !frame && shader ? (
-    <SkiaPhoto image={img} p={p} w={w} h={h} />
-  ) : img && img !== 'erro' && !frame ? (
-    <Canvas style={{ width: w, height: h }}>
-      <SkImageNode image={img} x={0} y={0} width={w} height={h} fit="cover">
-        {isIdentity(p.matrix) ? null : <ColorMatrix matrix={p.matrix} />}
+  const skImage = (image: SkImage, iw: number, ih: number, q: typeof p) => (shader ? (
+    <SkiaPhoto image={image} p={q} w={iw} h={ih} />
+  ) : (
+    <Canvas style={{ width: iw, height: ih }}>
+      <SkImageNode image={image} x={0} y={0} width={iw} height={ih} fit="cover">
+        {isIdentity(q.matrix) ? null : <ColorMatrix matrix={q.matrix} />}
       </SkImageNode>
     </Canvas>
-  ) : (
+  ));
+  const vignette = p.vignette > 0.01 ? <Vignette strength={1 - Math.pow(Math.cos(p.vignette * VIGNETTE_ANGLE), 4)} /> : null;
+  if (ready && !frame && fg) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+        {skImage(ready.img, w, h, pFg)}
+        <View style={{ position: 'absolute', left: fg.rect.x, top: fg.rect.y, width: fg.rect.w, height: fg.rect.h, overflow: 'hidden' }}>
+          <Animated.View style={[{ width: fg.rect.w, height: fg.rect.h }, zoom]}>{skImage(fg.img, fg.rect.w, fg.rect.h, pFg)}</Animated.View>
+        </View>
+        {vignette}
+      </View>
+    );
+  }
+  const content = ready && !frame ? skImage(ready.img, w, h, p) : (
     <Image source={{ uri: seg.uri }} style={{ width: w, height: h }} contentFit={frame ? 'contain' : 'cover'} />
   );
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       {frame ? <CapulanaSwatch spec={seg.fx!.moldura ?? pano} tile={56} style={StyleSheet.absoluteFill} /> : null}
-      <View style={{ width: w, height: h, transform: [{ scale: z.scale }], transformOrigin: `${Math.round(z.x * 100)}% ${Math.round(z.y * 100)}%` } as object}>
+      <Animated.View style={[{ width: w, height: h }, zoom]}>
         {content}
-      </View>
+      </Animated.View>
       {/* Na Skia já vai a cor (e, com o shader, a vinheta, a nitidez e o grão); sem o shader, a vinheta vai por cima. Sem Skia (ou na moldura), a aproximação toda. */}
-      {img && img !== 'erro' && !frame ? (!shader && p.vignette > 0.01 ? <Vignette strength={1 - Math.pow(Math.cos(p.vignette * VIGNETTE_ANGLE), 4)} /> : null) : <LookLayer look={look} />}
+      {ready && !frame ? (!shader ? vignette : null) : <LookLayer look={look} />}
     </View>
   );
 }
@@ -190,13 +273,24 @@ const setupPlayer = (p: VideoPlayer) => {
 };
 
 /** O vídeo pelo caminho antigo (expo-video), com as camadas que aproximam o filtro. `volume` 0 quando o som vai à parte. */
-function LegacyVideoLayer({ seg, role, clock, volume }: { seg: StageSeg; role: Role; clock: ClockStore; volume: number }) {
+function LegacyVideoLayer({ seg, role, clock, volume, poster, w }: { seg: StageSeg; role: Role; clock: ClockStore; volume: number; poster: { uri?: string; width?: number; height?: number } | null; w: number }) {
   const player = useVideoPlayer({ uri: seg.uri }, (p) => { setupPlayer(p); limitBuffer(p, 'full'); });
   useClockPlayer(player, seg, role, clock, volume);
   const look = useMemo(() => { const p = resolveFx(seg.fx); return videoLook(p.matrix, p.vignette); }, [seg.fx]);
+  // «Inteiro» pelo caminho antigo: o vídeo contido e, por trás, a miniatura desfocada e escurecida (uma aproximação parada).
+  useMediaSizes();
+  const size = mediaSize(seg.uri) ?? (poster?.width && poster?.height ? { w: poster.width, h: poster.height } : null);
+  const fit = size ? clipFit({ fit: seg.fit, video: true }, size.w, size.h) : seg.fit ?? 'cover';
+  useEffect(() => { if (poster?.width && poster?.height && !mediaSize(seg.uri)) rememberSize(seg.uri, poster.width, poster.height); }, [poster, seg.uri]);
   return (
     <View style={StyleSheet.absoluteFill}>
-      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} surfaceType={Platform.OS === 'android' ? 'textureView' : undefined} allowsPictureInPicture={false} />
+      {fit === 'blur' && poster?.uri ? (
+        <>
+          <Image source={poster as never} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={Math.max(4, Math.round(blurSigma(w) / 2))} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: 1 - BLUR_DIM_MATRIX[0] }]} />
+        </>
+      ) : null}
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit={fit === 'blur' ? 'contain' : 'cover'} nativeControls={false} surfaceType={Platform.OS === 'android' ? 'textureView' : undefined} allowsPictureInPicture={false} />
       <LookLayer look={look} />
     </View>
   );
@@ -237,7 +331,7 @@ function VideoLayer({ seg, role, clock, origVol, w, h }: { seg: StageSeg; role: 
   if (legacy) {
     return (
       <>
-        <LegacyVideoLayer seg={seg} role={role} clock={clock} volume={sound ? 0 : volume} />
+        <LegacyVideoLayer seg={seg} role={role} clock={clock} volume={sound ? 0 : volume} poster={poster as { uri?: string; width?: number; height?: number } | null} w={w} />
         {sound && role !== 'prev' ? <ClipAudio key={sound} seg={seg} uri={sound} role={role} clock={clock} volume={volume} /> : null}
       </>
     );
@@ -269,20 +363,44 @@ function ReferenceLayer({ uri, clock, volume }: { uri: string; clock: ClockStore
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} surfaceType={Platform.OS === 'android' ? 'textureView' : undefined} />;
 }
 
-/** Os estilos de um clipe durante uma transição (o anterior e o que entra), a partir do progresso `p`. */
-function transitionStyles(type: string, p: number, W: number, H: number): { prev: object; cur: object; flash: number; pano: boolean } {
-  const e = easeInOutCubic(p);
-  switch (type) {
-    case 'deslizar-esquerda': return { prev: { transform: [{ translateX: -e * W }] }, cur: { transform: [{ translateX: (1 - e) * W }] }, flash: 0, pano: false };
-    case 'deslizar-direita': return { prev: { transform: [{ translateX: e * W }] }, cur: { transform: [{ translateX: -(1 - e) * W }] }, flash: 0, pano: false };
-    case 'deslizar-cima': return { prev: { transform: [{ translateY: -e * H }] }, cur: { transform: [{ translateY: (1 - e) * H }] }, flash: 0, pano: false };
-    case 'deslizar-baixo': return { prev: { transform: [{ translateY: e * H }] }, cur: { transform: [{ translateY: -(1 - e) * H }] }, flash: 0, pano: false };
-    case 'zoom': return { prev: { opacity: 1 - e, transform: [{ scale: 1 + 1.2 * e }] }, cur: { transform: [{ scale: 1.4 - 0.4 * e }] }, flash: 0, pano: false };
-    case 'girar': return { prev: { opacity: e < 0.5 ? 1 : 0, transform: [{ rotate: `${180 * e}deg` }, { scale: 1.8 }] }, cur: { transform: [{ rotate: `${-90 * (1 - e)}deg` }, { scale: 1 + 0.8 * (1 - e) }] }, flash: 0, pano: false };
-    case 'flash': return { prev: { opacity: e < 0.5 ? 1 : 0 }, cur: {}, flash: Math.pow(Math.sin(Math.PI * p), 1.6), pano: false };
-    default:
-      return { prev: { opacity: 1 - e }, cur: {}, flash: type === 'brilho' ? 0.25 * Math.sin(Math.PI * p) : 0, pano: type.startsWith('capulana-') };
-  }
+/** A transição que está a decorrer (o tipo, quando começa o clipe que entra e quanto dura): o progresso faz-se no fio da interface. */
+interface StageTransition { type: string; start: number; dur: number }
+
+/**
+ * A caixa de um clipe no palco, com o estilo da transição frame a frame no fio da interface (`transitionLook`). Antes o
+ * progresso ia pelo estado do React a cada tique: o palco inteiro voltava a desenhar-se 60 vezes por segundo durante a
+ * transição e qualquer atraso do JS via-se como um soluço.
+ */
+function StageLayer({ role, tr, t, W, H, children }: { role: Role; tr: StageTransition | null; t: SharedValue<number>; W: number; H: number; children: React.ReactNode }) {
+  const style = useAnimatedStyle(() => {
+    if (role === 'next') return { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { rotate: '0deg' }, { scale: 1 }] };
+    if (!tr) return { opacity: 1, transform: [{ translateX: 0 }, { translateY: 0 }, { rotate: '0deg' }, { scale: 1 }] };
+    const look = transitionLook(tr.type, transitionProgress(t.value, tr.start, tr.dur), W, H);
+    const l = role === 'prev' ? look.prev : look.cur;
+    return { opacity: l.opacity, transform: [{ translateX: l.translateX }, { translateY: l.translateY }, { rotate: `${l.rotate}deg` }, { scale: l.scale }] };
+  }, [role, tr, W, H]);
+  return <Animated.View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, style]} pointerEvents="none">{children}</Animated.View>;
+}
+
+/** O branco do flash e do brilho e a faixa de pano das transições de capulana, frame a frame. */
+function TransitionExtras({ tr, t, W, H, spec }: { tr: StageTransition; t: SharedValue<number>; W: number; H: number; spec: CapulanaSpec }) {
+  const flash = useAnimatedStyle(() => ({ opacity: transitionLook(tr.type, transitionProgress(t.value, tr.start, tr.dur), W, H).flash }), [tr, W, H]);
+  const band = useAnimatedStyle(() => {
+    const p = transitionLook(tr.type, transitionProgress(t.value, tr.start, tr.dur), W, H).pano;
+    return { transform: [{ translateX: (p ?? -1) * W }] };
+  }, [tr, W, H]);
+  const pano = tr.type.startsWith('capulana-');
+  const flashes = tr.type === 'flash' || tr.type === 'brilho';
+  return (
+    <>
+      {pano ? (
+        <Animated.View pointerEvents="none" style={[{ position: 'absolute', top: 0, bottom: 0, left: 0, width: W * 0.7 }, band]}>
+          <CapulanaSwatch spec={spec} tile={48} style={StyleSheet.absoluteFill} />
+        </Animated.View>
+      ) : null}
+      {flashes ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }, flash]} /> : null}
+    </>
+  );
 }
 
 /**
@@ -300,50 +418,49 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
   reference?: { uri: string } | null;
   refVolume: number;
 }) {
-  const [state, setState] = useState<{ i: number; tr: { type: string; p: number } | null }>({ i: 0, tr: null });
+  // O JS só diz qual é o clipe de agora e se há uma transição a decorrer (muda poucas vezes); o progresso é do fio da interface.
+  const [state, setState] = useState<{ i: number; tr: StageTransition | null }>({ i: 0, tr: null });
   const segsRef = useRef(segs);
   segsRef.current = segs;
+  const t = useStageTime(clock);
+  // No dueto o «Encher»/«Inteiro» não conta: cada lado enche o seu quadro, como no servidor.
+  const shown = useMemo(() => (reference ? segs.map((s) => (s.fit === 'cover' ? s : { ...s, fit: 'cover' as const })) : segs), [segs, reference]);
   // Ao fechar o estúdio, os vídeos da Skia parados largam-se.
   useEffect(() => () => resetSkiaVideos(), []);
   useEffect(() => {
-    const look = (t: number) => {
+    const look = (now: number) => {
       const list = segsRef.current;
-      const { index, local } = segAt(list, t);
+      const { index, local } = segAt(list, now);
       const s = list[index];
-      const tr = s ? transitionAt(local, transitionFor(s.fx, index, s.dur), index) : null;
-      setState((o) => (o.i === index && !o.tr && !tr ? o : { i: index, tr: tr ? { type: tr.type, p: Math.round(tr.p * 60) / 60 } : null }));
+      const def = s ? transitionFor(s.fx, index, s.dur) : null;
+      const tr = s && def && transitionAt(local, def, index) ? { type: def.type, start: s.start, dur: def.dur } : null;
+      setState((o) => (o.i === index && o.tr?.type === tr?.type && o.tr?.start === tr?.start && o.tr?.dur === tr?.dur ? o : { i: index, tr }));
     };
     look(clock.time());
     return clock.subscribe(look);
   }, [clock, segs]);
   if (!segs.length || !(W > 0 && H > 0)) return <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />;
   const i = Math.min(state.i, segs.length - 1);
-  const tr = state.tr && i > 0 ? transitionStyles(state.tr.type, state.tr.p, W, H) : null;
+  const tr = state.tr && i > 0 ? state.tr : null;
   // Num dueto a tcheka fica na metade esquerda (num quadro 9:16 ao meio) e o original na direita, como no vídeo final.
   const duet = !!reference;
   const bw = duet ? W / 2 : W, bh = duet ? Math.min(H, (W / 2) * (16 / 9)) : H;
-  const layer = (k: number, role: Role, style: object | null) => {
-    const s = segs[k];
+  const layer = (k: number, role: Role) => {
+    const s = shown[k];
     if (!s) return null;
     return (
-      <View key={`${s.key}|${s.uri}`} style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, role === 'next' && { opacity: 0 }, style]} pointerEvents="none">
-        {s.video ? <VideoLayer seg={s} role={role} clock={clock} origVol={origVol} w={bw} h={bh} /> : <PhotoLayer seg={s} clock={clock} w={bw} h={bh} pano={pano} />}
-      </View>
+      <StageLayer key={`${s.key}|${s.uri}`} role={role} tr={role === 'next' ? null : tr} t={t} W={bw} H={bh}>
+        {s.video ? <VideoLayer seg={s} role={role} clock={clock} origVol={origVol} w={bw} h={bh} /> : <PhotoLayer seg={s} t={t} w={bw} h={bh} pano={pano} />}
+      </StageLayer>
     );
   };
-  const panoBand = tr?.pano && state.tr ? (
-    <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, width: bw * 0.7, left: -bw * 0.7 + easeInOutCubic(state.tr.p) * bw * 1.7 }}>
-      <CapulanaSwatch spec={segs[i]?.fx?.transition?.pano ?? pano} tile={48} style={StyleSheet.absoluteFill} />
-    </View>
-  ) : null;
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none">
       <View style={duet ? { position: 'absolute', left: 0, top: (H - bh) / 2, width: bw, height: bh, overflow: 'hidden' } : [StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-        {layer(i + 1, 'next', null)}
-        {layer(i, 'cur', tr?.cur ?? null)}
-        {tr ? layer(i - 1, 'prev', tr.prev) : null}
-        {panoBand}
-        {tr && tr.flash > 0.01 ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: tr.flash }]} /> : null}
+        {layer(i + 1, 'next')}
+        {layer(i, 'cur')}
+        {tr ? layer(i - 1, 'prev') : null}
+        {tr ? <TransitionExtras tr={tr} t={t} W={bw} H={bh} spec={segs[i]?.fx?.transition?.pano ?? pano} /> : null}
       </View>
       {duet && reference ? (
         <View style={{ position: 'absolute', left: W / 2, top: (H - bh) / 2, width: bw, height: bh, overflow: 'hidden' }}>

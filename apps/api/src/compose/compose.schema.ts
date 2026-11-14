@@ -6,6 +6,7 @@ import {
   ADJUSTS, ANIMS, CAPULANA_PALETTE_IDS, CAPULANA_PATTERN_IDS, CAPULANA_SHAPE_IDS, DEFAULT_ANIM, FILTERS, FONTS, LOOPS, MAX_OVERLAYS, RAMPS,
   TRANSITION_MAX_S, TRANSITION_MIN_S, TRANSITIONS,
 } from './effects';
+import { FITS, type Fit } from './fit';
 import { LOOK_IDS } from './looks';
 
 /** No máximo 30 clipes numa tcheka (o estúdio nativo e o servidor). */
@@ -134,6 +135,11 @@ export const composeClipSchema = z.object({
   /** Vídeos: «Som do vídeo» ligado (por omissão) ou calado, e o volume deste clipe (por cima do `originalVolume`). */
   sound: z.boolean().optional(),
   volume: z.number().min(0, 'O volume vai de 0 a 1').max(1, 'O volume vai de 0 a 1').optional(),
+  /**
+   * O encaixe no quadro 9:16 (fit.ts): `cover` enche (corta ao centro), `blur` mostra o clipe inteiro sobre uma cópia dele
+   * desfocada e escurecida. Sem ele: `cover` nos clipes de pé (largura/altura ≤ 0,8) e `blur` nos outros.
+   */
+  fit: z.enum(FITS as unknown as [Fit, ...Fit[]], { message: 'O encaixe é cover ou blur' }).optional(),
   mediaId: z.string().uuid('Clipe inválido'),
   kind: z.enum(['video', 'photo'], { message: 'Cada clipe é um vídeo ou uma foto' }),
   /** Vídeos: o bocado que entra (ms no ficheiro). */

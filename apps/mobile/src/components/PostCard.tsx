@@ -28,7 +28,7 @@ import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { MusicBadge, MusicCard } from './PostMusic';
-import { musicPlacement, soundHref, wavesOverMedia } from '@/lib/musicLook';
+import { musicPlacement, musicPlayback, soundHref, wavesOverMedia } from '@/lib/musicLook';
 import { soundRemovedText } from '@/lib/sounds';
 import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
@@ -377,9 +377,10 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
         </DoubleTapArea>
       ) : !quote && post.media.length ? (
-        // O brinde aparece no meio da foto ou do vídeo.
+        // O brinde aparece no meio da foto ou do vídeo. Com a música já gravada no vídeo (`musicBaked`), o vídeo toca com o som
+        // dele e o selo fica só com o crédito (sem a tocar outra vez por cima).
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={(!!post.music && !post.remixOf) || !!post.soundRemoved} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} play={musicPlayback(post).apart} soundTo={soundHref(post as { sound?: unknown })} /> : undefined} />
           <ReplyStickerOverlay remix={post.remixOf} />
           {/* O som que a tcheka usava foi tirado: o vídeo fica sem som e diz porquê. */}
           {soundRemovedText(post.soundRemoved) ? <View style={{ position: 'absolute', left: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5 }} pointerEvents="none"><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>♪ {soundRemovedText(post.soundRemoved)}</Text></View> : null}

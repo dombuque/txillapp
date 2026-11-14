@@ -495,6 +495,8 @@ export default function Compose() {
         ...(assets.length === 0 && fontToSend(textFont) ? { textFont } : {}),
         music: sp.music,
         ...(sp.soundId ? { soundId: sp.soundId } : {}),
+        // Do estúdio: a música já vai misturada no vídeo (a API não a volta a gravar; sem isto ficava a dobrar).
+        ...((sp.music || sp.soundId) && assets.some((a) => a.studio) ? { musicInFile: true } : {}),
         locationLabel: place || undefined,
         ...(place && placeGeo ? { locationLat: placeGeo.lat, locationLng: placeGeo.lng, locationCoarse: placeGeo.coarse } : {}),
         ...(pageSel ? { venueId: pageSel.id } : {}),

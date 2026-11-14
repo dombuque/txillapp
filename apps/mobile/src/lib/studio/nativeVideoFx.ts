@@ -154,7 +154,26 @@ export function androidPace(p: PaceIn): Pace {
   if (behind < -Math.max(120, p.frameMs * 2) && (Math.abs(p.want - p.lastSeekTo) > p.frameMs || p.now - p.lastSeekAt > 1500)) return { seek: p.want, advance: 0 };
   if (behind > FORWARD_SEEK_MS && Math.abs(p.want - p.lastSeekTo) > FORWARD_SEEK_MS) return { seek: p.want, advance: 0 };
   if (behind <= half) return { seek: null, advance: 0 };
-  return { seek: null, advance: Math.min(4, Math.ceil(behind / p.frameMs)) };
+  // O frame mais perto do alvo (arredondar): com `ceil`, um atraso de 1,1 frames pedia 2 e saltava um frame à frente.
+  return { seek: null, advance: Math.min(4, Math.max(1, Math.round(behind / p.frameMs))) };
+}
+
+/**
+ * A tocar, o alvo do vídeo só se renova quando o relógio do estúdio se afasta do que o fio da interface calcula sozinho
+ * (mais de 30 ms: um salto ou uma rampa). `last`: o último alvo mandado (s do ficheiro, velocidade e quando, em ms).
+ */
+export function retarget(last: { src: number; rate: number; at: number }, src: number, now: number): boolean {
+  const predicted = last.src + ((now - last.at) / 1000) * last.rate;
+  return !Number.isFinite(predicted) || Math.abs(predicted - src) > 0.03;
+}
+
+/** Como `coverTransform`, mas o frame inteiro contido em `w`×`h`, ao centro (o «Inteiro» de lib/studio/fit.ts). */
+export function containTransform(iw: number, ih: number, rot: number, w: number, h: number): Transform {
+  const r = ((Math.round(rot / 90) * 90) % 360 + 360) % 360;
+  const turned = r === 90 || r === 270;
+  const dw = turned ? ih : iw, dh = turned ? iw : ih;
+  const s = dw > 0 && dh > 0 ? Math.min(w / dw, h / dh) : 1;
+  return [{ translateX: w / 2 }, { translateY: h / 2 }, { rotate: (r * Math.PI) / 180 }, { scale: s }, { translateX: -iw / 2 }, { translateY: -ih / 2 }];
 }
 
 export interface ApplePaceIn extends PaceIn { playing: boolean; isPlaying: boolean }

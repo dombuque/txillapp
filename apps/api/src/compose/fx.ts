@@ -94,13 +94,15 @@ export const needsLut = (fx: ClipFx | undefined) => !isIdentity(resolveFx(fx).ma
 const clampN = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 const easeIO = (x: number) => { const t = clampN(x, 0, 1); return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; };
+/** O zoom do enquadramento no instante `u` (0 a 1): de `from` a `to`, com a curva de `coverRect`. */
+export const focusZoom = (fr: Pick<ClipFocus, 'from' | 'to'>, u: number) => Math.max(1, fr.from + (fr.to - fr.from) * easeIO(u));
 /**
  * O retângulo da foto (px da fonte sw×sh) que enche o quadro W×H no instante `u` (0 a 1) com o enquadramento `focus`: a
  * mesma conta de `coverRect` em apps/mobile/src/lib/studio/magic.ts (o zoom lento de `from` a `to`, apontado ao ponto de
  * interesse, sem cortar a caixa `keep` quando ela cabe).
  */
 export function coverRect(sw: number, sh: number, fr: Pick<ClipFocus, 'x' | 'y' | 'from' | 'to' | 'keep'>, u: number, W: number = FRAME.w, H: number = FRAME.h): { sx: number; sy: number; sw: number; sh: number } {
-  const z = Math.max(1, fr.from + (fr.to - fr.from) * easeIO(u));
+  const z = focusZoom(fr, u);
   const fa = W / H, ar = sw / sh;
   const w = (ar > fa ? sh * fa : sw) / z, h = (ar > fa ? sh : sw / fa) / z;
   const place = (c: number, size: number, full: number, k0?: number, k1?: number) => {
@@ -110,8 +112,6 @@ export function coverRect(sw: number, sh: number, fr: Pick<ClipFocus, 'x' | 'y' 
   };
   return { sx: r3(place(fr.x, w, sw, fr.keep?.x0, fr.keep?.x1)), sy: r3(place(fr.y, h, sh, fr.keep?.y0, fr.keep?.y1)), sw: r3(w), sh: r3(h) };
 }
-/** A foto desenha-se no canvas (frame a frame)? Com moldura de capulana ou com enquadramento (um frame congelado fica parado). */
-export const photoOnCanvas = (fx: ClipFx | undefined) => !!fx && (!!fx.moldura || (!!fx.focus && !fx.freeze));
 
 // ------------------------------------------------------------------ camadas
 

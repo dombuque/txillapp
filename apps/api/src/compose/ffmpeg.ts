@@ -61,16 +61,34 @@ export function ffmpeg(args: string[], opts: { cwd: string; signal?: AbortSignal
   });
 }
 
-export interface Probe { seconds: number; width: number; height: number; hasVideo: boolean; hasAudio: boolean }
+/**
+ * `width`×`height`: o tamanho guardado; `displayWidth`×`displayHeight`: o de mostrar, já com a rotação dos metadados (um
+ * telemóvel de pé grava 1920×1080 com 90° na displaymatrix; o ffmpeg roda os frames sozinho ao descodificar).
+ */
+export interface Probe { seconds: number; width: number; height: number; displayWidth: number; displayHeight: number; rotation: number; hasVideo: boolean; hasAudio: boolean }
+
+type ProbeStream = { codec_type: string; width?: number; height?: number; duration?: string; tags?: { rotate?: string }; side_data_list?: { rotation?: number | string }[] };
+
+/** A rotação (graus, 0/90/180/270) de uma pista de vídeo: a displaymatrix (ffprobe ≥ 5) ou a etiqueta `rotate` antiga. */
+export function streamRotation(s: Pick<ProbeStream, 'tags' | 'side_data_list'> | undefined): number {
+  const raw = s?.side_data_list?.find((d) => d.rotation !== undefined)?.rotation ?? s?.tags?.rotate ?? 0;
+  const r = Math.round(Number(raw) / 90) * 90;
+  return Number.isFinite(r) ? ((r % 360) + 360) % 360 : 0;
+}
 
 /** Duração, tamanho e que pistas tem um ficheiro (`safe`: as opções de entrada segura). */
 export async function probe(file: string, safe: string[] = []): Promise<Probe> {
   const { stdout } = await exec(FFPROBE, ['-v', 'error', ...safe, '-print_format', 'json', '-show_format', '-show_streams', file], { timeout: 30_000, windowsHide: true });
-  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string }[] };
+  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: ProbeStream[] };
   const v = info.streams?.find((s) => s.codec_type === 'video');
   const a = info.streams?.find((s) => s.codec_type === 'audio');
   const seconds = Number(info.format?.duration ?? v?.duration ?? a?.duration ?? 0);
-  return { seconds: Number.isFinite(seconds) ? seconds : 0, width: v?.width ?? 0, height: v?.height ?? 0, hasVideo: !!v, hasAudio: !!a };
+  const width = v?.width ?? 0, height = v?.height ?? 0;
+  const rotation = streamRotation(v);
+  const side = rotation === 90 || rotation === 270;
+  return {
+    seconds: Number.isFinite(seconds) ? seconds : 0, width, height, displayWidth: side ? height : width, displayHeight: side ? width : height, rotation, hasVideo: !!v, hasAudio: !!a,
+  };
 }
 
 /** As amostras (mono, `rate` Hz, até `seconds` s) de um ficheiro de áudio, para detetar as batidas. */

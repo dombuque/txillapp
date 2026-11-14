@@ -789,7 +789,13 @@ export interface MagicInput {
 
 export const MAGIC_MAX_S = 58;
 export const MAGIC_MIN_S = 6;
-const MIN_VIDEO_OUT = 1;
+/**
+ * O mínimo de uma foto (o `MIN_PHOTO_S` do project.ts; um teste confirma). Uma foto mais curta era esticada pelo estúdio
+ * ao aplicar e, a partir dela, os cortes todos saíam da batida (a 128 BPM uma batida são 0,47 s).
+ */
+export const MAGIC_MIN_PHOTO_S = 0.5;
+/** O máximo de uma foto (o `PHOTO_MAX_MS` do composeRequest.ts e do servidor; acima disto o «Seguinte» recusa). */
+export const MAGIC_MAX_PHOTO_S = 10;
 const FALLBACK_BPM = 120;
 
 /** A batida que conta para os cortes: a da música, dobrada enquanto for mais curta do que 0,42 s (músicas muito rápidas). */
@@ -838,9 +844,27 @@ export function buildMontage(input: MagicInput): MagicResult {
 
   let order = orderStory(items, rnd, fixed);
 
+  // As fotos ficam entre 0,5 s e 10 s, sempre em batidas inteiras.
+  const photoMin = Math.max(1, Math.ceil(MAGIC_MIN_PHOTO_S / unit - 1e-6));
+  const photoMax = Math.max(photoMin, Math.floor(MAGIC_MAX_PHOTO_S / unit + 1e-6));
+  const photoBeats = (b: number) => clamp(Math.round(b), photoMin, photoMax);
+  // Sem música não há partes fortes para dar ritmo às fotos: o tempo de cada uma vem do que ela tem (as caras e as fotos
+  // fortes ficam mais, as mais pobres menos) e nunca três seguidas com o mesmo tempo.
+  const calmBeats = (it: MagicItem, prevBeats: number[]): number => {
+    const base = wave.photoBeats;
+    // Sem batida que o justifique, nenhuma foto do meio fica menos de 1 s.
+    const long = base + Math.max(1, Math.round(base / 2)), short = Math.max(Math.ceil(1 / unit - 1e-6), base - Math.max(1, Math.round(base / 4)));
+    const weight = it.strength + (it.focus?.face ? 0.2 : 0);
+    let b = weight >= 0.72 ? long : weight < 0.48 ? short : base;
+    const [a, c] = prevBeats.slice(-2);
+    if (prevBeats.length >= 2 && a === b && c === b) b = b === base ? (rnd() < 0.5 ? long : short) : base;
+    return b;
+  };
+
   interface Slot { key: string; beats: number; ramp?: RampId; out: number }
   const plan = (keys: string[]): Slot[] => {
     let t = 0, ramps = 0;
+    const midPhotos: number[] = [];
     return keys.map((key, i) => {
       const it = by.get(key) as MagicItem;
       const lk = locked.get(key);
@@ -855,7 +879,10 @@ export function buildMontage(input: MagicInput): MagicResult {
       if (!it.video) {
         const strong = energyAt(energy, t, t + unit * wave.photoBeats) >= strongAt;
         beats = first ? wave.openBeats : last ? wave.closeBeats : strong ? wave.photoBeatsStrong : wave.photoBeats;
-        if (!first && !last && wave.id === 'marrabenta') beats = i % 2 ? 1 : 2;
+        // O passo da marrabenta (um tempo, dois tempos); sem música, sem batida que o marque, dois e três.
+        if (!first && !last && wave.id === 'marrabenta') beats = energy.length ? (i % 2 ? 1 : 2) : i % 2 ? 2 : 3;
+        else if (!first && !last && !energy.length) { beats = calmBeats(it, midPhotos); midPhotos.push(beats); }
+        beats = photoBeats(beats);
       } else {
         const speed = src.get(key)?.speed && (src.get(key)?.speed as number) > 0 ? (src.get(key)?.speed as number) : 1;
         const want = wave.videoS * (first ? 1.25 : last ? 1.2 : 1);
@@ -892,15 +919,19 @@ export function buildMontage(input: MagicInput): MagicResult {
     }
   }
 
-  // Cabe em 58 s (encurta os mais longos; se mesmo assim não couber, ficam de fora os do meio) e tem pelo menos 6 s.
+  // Cabe em 58 s (encurta os mais longos; se mesmo assim não couber, ficam de fora os do meio) e tem pelo menos 6 s. Com
+  // música, também não passa do que resta da faixa a partir do trecho (senão o fim da tcheka ficava sem som).
   const totalOf = (s: Slot[]) => s.reduce((n, x) => n + x.out, 0);
+  const musicLeft = input.music && energy.length ? energy.length / 10 : Infinity;
+  const maxTotal = Math.max(MAGIC_MIN_S, Math.min(MAGIC_MAX_S, musicLeft));
+  const minBeatsOf = (s: Slot) => ((by.get(s.key) as MagicItem).video ? 1 : photoMin);
   const left: string[] = [];
-  for (let guard = 0; guard < 400 && totalOf(slots) > MAGIC_MAX_S; guard++) {
+  const shrink = () => { for (let guard = 0; guard < 400 && totalOf(slots) > maxTotal + 1e-6; guard++) {
     let big = -1;
-    slots.forEach((s, i) => { if (!locked.has(s.key) && s.beats > 1 && (big < 0 || s.out > slots[big].out)) big = i; });
+    slots.forEach((s, i) => { if (!locked.has(s.key) && s.beats > minBeatsOf(s) && (big < 0 || s.out > slots[big].out)) big = i; });
     if (big >= 0) {
       const s = slots[big];
-      const nb = Math.max(1, Math.floor(s.beats / 2));
+      const nb = Math.max(minBeatsOf(s), Math.floor(s.beats / 2));
       const ramp = s.ramp && nb * unit >= 2 ? s.ramp : undefined;
       slots[big] = { ...s, beats: nb, ramp, out: nb * unit };
       continue;
@@ -910,13 +941,18 @@ export function buildMontage(input: MagicInput): MagicResult {
     if (drop < 0) break;
     left.push(slots[drop].key);
     slots.splice(drop, 1);
-  }
-  for (let guard = 0; guard < 6 && slots.length && totalOf(slots) < MAGIC_MIN_S; guard++) {
+  } };
+  shrink();
+  for (let guard = 0; guard < 6 && slots.length && totalOf(slots) < Math.min(MAGIC_MIN_S, maxTotal); guard++) {
     let grew = false;
     slots = slots.map((s) => {
       const it = by.get(s.key) as MagicItem;
       if (locked.has(s.key)) return s;
-      if (!it.video) { grew = true; return { ...s, beats: s.beats * 2, out: s.beats * 2 * unit }; }
+      if (!it.video) {
+        const nb = Math.min(s.beats * 2, photoMax);
+        if (nb > s.beats) { grew = true; return { ...s, beats: nb, out: nb * unit }; }
+        return s;
+      }
       const speed = src.get(s.key)?.speed && (src.get(s.key)?.speed as number) > 0 ? (src.get(s.key)?.speed as number) : 1;
       const nb = Math.min(s.beats * 2, Math.floor(it.duration / (speed * rampAvg(s.ramp)) / unit + 1e-6));
       if (nb > s.beats) { grew = true; return { ...s, beats: nb, out: nb * unit }; }
@@ -924,6 +960,8 @@ export function buildMontage(input: MagicInput): MagicResult {
     });
     if (!grew) break;
   }
+  // Crescer para os 6 s pode ter passado do fim da música (faixas curtas).
+  shrink();
 
   // Os clipes.
   const clips: MagicClip[] = [];
@@ -931,9 +969,19 @@ export function buildMontage(input: MagicInput): MagicResult {
   const story: MagicResult['story'] = [];
   const sfx: MagicResult['sfx'] = [];
   let t = 0, cutSfx = 0, sincePano = 2;
-  slots.forEach((s, i) => {
-    const it = by.get(s.key) as MagicItem;
-    const so = src.get(s.key) as MagicSource;
+  slots.forEach((slot, i) => {
+    const it = by.get(slot.key) as MagicItem;
+    const so = src.get(slot.key) as MagicSource;
+    // Um vídeo mais curto do que uma batida (ou um clipe trancado) tira os cortes da grelha: a foto seguinte acaba na batida.
+    let out = slot.out;
+    if (!it.video && !locked.has(slot.key)) {
+      out = Math.round((t + slot.out) / unit) * unit - t;
+      while (out < MAGIC_MIN_PHOTO_S - 1e-6) out += unit;
+      while (out > MAGIC_MAX_PHOTO_S + 1e-6 && out - unit >= MAGIC_MIN_PHOTO_S) out -= unit;
+    }
+    const s = { ...slot, out };
+    // As fotos arredondam-se ao milésimo pelas pontas (não pela duração): somadas, acabam onde a montagem diz.
+    const shown = r3(r3(t + out) - r3(t));
     const first = i === 0, last = i === slots.length - 1 && slots.length > 1;
     const strong = energy.length > 0 && energyAt(energy, t, t + Math.min(s.out, unit * 2)) >= strongAt;
     const lk = locked.get(s.key);
@@ -990,11 +1038,11 @@ export function buildMontage(input: MagicInput): MagicResult {
         const fr = framingFor(it.focus, it.aspect, { zoom: wave.zoom, out: rnd() < 0.3, frames: !!input.capulana });
         fx.focus = { x: fr.x, y: fr.y, from: fr.from, to: fr.to, ...(fr.keep ? { keep: fr.keep } : {}) };
         if (fr.mode === 'frame' && input.capulana) fx.moldura = pano;
-        clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: false, mime: so.mime, durationMs: so.durationMs, seconds: r3(s.out), beats: s.beats, speed: 1, length: 0, trim: { start: 0, end: 0 }, fx };
+        clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: false, mime: so.mime, durationMs: so.durationMs, seconds: shown, beats: s.beats, speed: 1, length: 0, trim: { start: 0, end: 0 }, fx };
       }
     }
     clips.push(clip);
-    durations.push(r3(s.out));
+    durations.push(it.video || lk ? r3(s.out) : shown);
     starts.push(r3(t));
     const role: StoryRole = first ? 'abertura' : last ? 'fecho' : strong ? 'forte' : 'meio';
     const why = lk ? 'Trancado: ficou como estava' : first ? 'Abre com o plano mais forte' : last ? 'Fecha num plano calmo' : s.ramp ? 'Câmara no momento mais vivo' : strong ? 'Na parte forte da música' : it.video ? 'O melhor momento do vídeo' : 'Cor e luz a condizer';

@@ -298,8 +298,37 @@ export function MusicCard({ track, visible, soundTo }: { track: Track; /** O pos
  * (nada por baixo dela), com o mini disco a rodar enquanto toca, «♪ Título · Artista» a correr e o som. Um toque liga ou
  * desliga o som da app. Com `waves`, as ondas de som atravessam o meio da foto enquanto a música toca com som.
  * Vai dentro da caixa da imagem (o Carousel põe-no por cima das fotos e por baixo dos controlos).
+ * Com `play` a falso (a música já vai gravada no vídeo, `musicBaked`), o selo é só o crédito: não toca a música outra vez,
+ * não tem o botão do som (o do vídeo é que manda) e o toque abre a página do som (`soundTo`), se houver.
  */
-export function MusicBadge({ track, visible, waves = false }: { track: Track; visible: boolean; waves?: boolean }) {
+export function MusicBadge({ track, visible, waves = false, play = true, soundTo = null }: { track: Track; visible: boolean; waves?: boolean; play?: boolean; soundTo?: string | null }) {
+  if (!play) return <MusicCredit track={track} visible={visible} soundTo={soundTo} />;
+  return <MusicBadgePlaying track={track} visible={visible} waves={waves} />;
+}
+
+/** O selo quando a música vem no próprio vídeo: o disco, «♪ Título · Artista» e a ligação ao som. */
+function MusicCredit({ track, visible, soundTo }: { track: Track; visible: boolean; soundTo: string | null }) {
+  const router = useRouter();
+  const reduce = useReduceMotion();
+  const on = motionOn({ reduce, playing: visible, visible, needsSound: false });
+  return (
+    <Pressable
+      onPress={soundTo ? () => router.push(soundTo as never) : undefined}
+      disabled={!soundTo}
+      hitSlop={4}
+      style={(st) => [s.badge, onWeb({ backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', transition: 'background-color 140ms ease, transform 140ms ease' }), (st as Hover).hovered && !!soundTo && s.badgeHover, st.pressed && s.pressed]}
+      accessibilityRole={soundTo ? 'link' : 'text'}
+      accessibilityLabel={`Som: ${badgeLine(track)}`}
+    >
+      <MiniDisc track={track} size={24} spin={on} />
+      <View style={[s.badgeText, { marginRight: 4 }]}>
+        <Marquee text={badgeLine(track)} style={s.badgeLine} run={on} />
+      </View>
+    </Pressable>
+  );
+}
+
+function MusicBadgePlaying({ track, visible, waves }: { track: Track; visible: boolean; waves: boolean }) {
   const { me } = useAutoTrack(track, { autoplay: true, visible });
   const live = useTrackLive(me);
   const [muted, toggleMute] = useMusicMuted();

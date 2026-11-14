@@ -94,6 +94,22 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
   a câmara podem apagar os delas). «Continuar o rascunho?» aparece ao entrar em Tcheka, como no site.
 - **Câmara**: em Tcheka, a câmara nativa junta os clipes (as fotos saem do editor **sem** a assinatura: o vídeo montado leva-a) e
   «Montar» abre o estúdio; a galeria (várias) vai direto ao estúdio. Com 2 ou mais, aparece a «Montagem mágica».
+- **Pré-visualização lisa** (o que fazia «estremecer»): o que tem de andar frame a frame não passa pelo JS.
+  - O zoom lento das fotos e as transições correm no fio da interface (Reanimated): o relógio dá uma âncora
+    (`clock.onAnchor`, que só muda ao tocar, pausar, saltar ou mudar a duração) e o `useStageTime` calcula o tempo em cada
+    frame do ecrã (`clockAt` com o relógio liso `smoothNow`); o zoom (`photoZoom`) e o desenho das transições
+    (`transitionLook`) são worklets em `previewClock.ts`. Antes o zoom ia pelo estado do React em degraus de 0,15 % (uns 15 por
+    segundo, com a origem arredondada a %) e, durante uma transição, o palco inteiro voltava a desenhar-se a cada tique.
+  - Os vídeos da Skia andam pelo relógio liso do vsync (`smoothNow`) e o alvo só se renova quando o relógio se afasta mais de
+    30 ms (`retarget`), e o `androidPace` arredonda para o frame mais perto. Antes ia um alvo novo do JS a cada 120 ms com o
+    `Date.now()` (ms inteiros, atrasado) e o `ceil`: num ecrã de 60 Hz o vídeo de 30 fps mudava de frame ora ao 1.º, ora ao
+    2.º ou 3.º tique e saltava frames (na simulação de `tests/studioPreviewSmooth.test.mjs`: ~30 % dos intervalos fora do
+    ritmo e frames saltados; agora nenhum).
+  - O tempo escrito («0:07 / 0:20», o cursor da linha do tempo, a barra e o painel do som) vai em componentes pequenos
+    (`ClockText.tsx`): o estúdio inteiro já não se volta a desenhar 4 vezes por segundo, nem a linha do tempo 20 vezes, e as
+    camadas sem textos nem stickers não se redesenham a 30 por segundo.
+- **Encher / Inteiro**: no painel do clipe («Auto», «Encher», «Inteiro»); ver docs/estudio-efeitos.md, «Encher ou Inteiro».
+  As medidas de cada ficheiro (para o automático) aprendem-se ao abri-lo no palco (`mediaSize.ts`).
 
 ## 3. O que fica aproximado na pré-visualização (o vídeo montado sai completo)
 
@@ -125,7 +141,10 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 - **Quantos frames**: ~2 por segundo, no máximo 40, numa grelha pela ordem do geral para o pormenor (`videoSampleTimes`).
   O tempo é o do site: ~5 s para os vídeos todos, um de cada vez, cada um com a parte dele (entre 0,7 e 3 s). O primeiro lote
   (8 frames) vai sempre; os outros só se couberem no tempo que sobra, por isso com pouco tempo as amostras ficam mais espaçadas.
-  O que se mediu fica em cache por ficheiro (mudar de onda e «Outra versão» não voltam a ver nada).
+  Os vídeos todos têm um teto de 20 s (`VIDEOS_MAX_MS`): com muitos vídeos, os que não couberem entram neutros (e voltam a ser
+  vistos na montagem seguinte). O que se mediu fica em cache por ficheiro (mudar de onda e «Outra versão» não voltam a ver nada).
+- **Pré-visualização do resultado**: `MagicPreview.native.tsx`, o palco do estúdio (`NativeStage` e `NativeOverlays`) a tocar
+  em ciclo com a música do trecho (`usePreviewAudio`). Antes via-se só a primeira foto (preto quando eram só vídeos).
 - **«Tem som?»**: o leitor do expo-video diz que pistas de áudio o vídeo tem. No Android é de confiança (o estúdio pergunta-o
   logo a cada vídeo, como o site); no iPhone só um «sim» conta. O servidor diz a última palavra (uma pista só com silêncio conta
   como sem som). Um vídeo sem som não conta para o som obrigatório e o «Som do vídeo» fica desligado.

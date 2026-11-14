@@ -802,6 +802,9 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM content.post_tags t USING content.posts p WHERE t.post_id = p.id AND p.author_id = $1', [userId]);
       // Remix (0134): as ligações dos meus duetos e respostas (de que eram remix e onde ficava o autocolante).
       await client.query('DELETE FROM content.post_remixes rx USING content.posts p WHERE rx.post_id = p.id AND p.author_id = $1', [userId]);
+      // Fim de tcheka (0152): o vídeo com a música gravada e as cópias guardadas com o cartão do fim (os ficheiros saem abaixo).
+      await client.query('DELETE FROM content.post_music_bakes b USING content.posts p WHERE b.post_id = p.id AND p.author_id = $1', [userId]);
+      await client.query('DELETE FROM content.post_downloads d USING content.posts p WHERE d.post_id = p.id AND p.author_id = $1', [userId]);
       // A impressão da rede de quem entrou com um convite (antifraude) já não é precisa.
       await client.query('UPDATE social.referrals SET ip_hash = NULL WHERE invitee_id = $1', [userId]);
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);

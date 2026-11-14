@@ -26,7 +26,9 @@ import { studioKey } from '@/lib/studio/keys';
 import { duplicateClip, makeClip, moveClip, normalizeClips, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
 import type { TransitionId } from '@/lib/studio/effects';
 import { loadStudioFonts } from '@/lib/studio/renderFonts';
+import { BLUR_BRIGHTNESS, blurSigma, clipFit, containRect, coverSource, withFit, zoomSource, type ClipFit } from '@/lib/studio/fit';
 import { drawClip, FxGL } from '@/lib/studio/renderGL';
+import { frameTime, makePacer, paceTick, pickRecorderType, REC_BITRATE, REC_FPS, shiftPacer } from '@/lib/studio/recordPace';
 import { drawOverlays, type OverlayBox } from '@/lib/studio/renderOverlays';
 import { ReverseFrames } from '@/lib/studio/renderReverse';
 import { drawTransition, type Scratch } from '@/lib/studio/renderTransitions';
@@ -93,11 +95,14 @@ export interface StudioSettings {
 /** Um rascunho aberto: os clipes (já com URLs), o resto e os URLs dos outros ficheiros (a voz-off), pela chave. */
 export interface StudioDraftIn { id: string; clips: ProjectClip[]; settings: Partial<StudioSettings>; media?: Record<string, string> }
 /** Um bocado da sequência já montada: onde começa, quanto dura e de onde vem. */
-interface Seg { key: string; uri: string; video: boolean; start: number; dur: number; from: number; speed: number; /** segundos do corte (nos vídeos) */ len: number; fx?: ClipFx }
+interface Seg { key: string; uri: string; video: boolean; start: number; dur: number; from: number; speed: number; /** segundos do corte (nos vídeos) */ len: number; fx?: ClipFx; /** «Encher»/«Inteiro» escolhido (sem ele, automático: lib/studio/fit.ts) */ fit?: ClipFit }
+/** A faixa de vídeo do canvas, que deixa pedir cada frame (captureStream(0) e requestFrame). */
+type CaptureTrack = MediaStreamTrack & { requestFrame?: () => void };
 /** Como acabou uma volta da sequência: até ao fim ou interrompida; e o vídeo, se se gravou e ainda vale. */
 interface RunOut { finished: boolean; blob: Blob | null }
 
-const recorderType = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) ?? '';
+// O formato do gravador (H.264 primeiro; VP8 antes do VP9, mais leve a codificar em tempo real): lib/studio/recordPace.ts.
+const recorderType = () => (typeof MediaRecorder === 'undefined' ? '' : pickRecorderType((t) => MediaRecorder.isTypeSupported(t)));
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -312,6 +317,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     if (v.volume !== undefined) { const vol = Math.round(Math.max(0, Math.min(1, v.volume)) * 100) / 100; if (vol === 1) delete n.volume; else n.volume = vol; }
     return n;
   }), { coalesce: `snd:${key}` });
+  /** «Encher» / «Inteiro» do clipe (null: volta ao automático de lib/studio/fit.ts). */
+  const setClipFit = (key: string, fit: ClipFit | null) => setItems((l) => l.map((c) => (c.key === key ? withFit(c, fit) : c)));
   const [coverAt, setCoverAt] = useState(num(init.coverAt, 0.5));
   const [playing, setPlayingState] = useState(true);
   const [playT, setPlayT] = useState(0);
@@ -354,7 +361,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const segs: Seg[] = useMemo(() => {
     let t = 0;
     return items.map((it, i) => {
-      const s = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, speed: it.video ? it.speed : 1, len: it.video ? Math.max(0, it.trim.end - it.trim.start) : durations[i], fx: it.fx };
+      const s = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, speed: it.video ? it.speed : 1, len: it.video ? Math.max(0, it.trim.end - it.trim.start) : durations[i], fx: it.fx, ...(it.fit ? { fit: it.fit } : {}) };
       t += durations[i];
       return s;
     });
@@ -376,12 +383,14 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   /** O que muda o tempo da sequência (obriga a recomeçar a pré-visualização). */
   const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed, s.fx?.ramp ?? 0, s.fx?.reverse ? 1 : 0]), m: music?.url ?? null, r: reference?.uri ?? null, a: mixTimingParts(mix) });
   /** Tudo o que muda o vídeo final (para saber se a volta gravada ainda vale). */
-  const fullSig = studioSignature({ t: timelineSig, fx: items.map((it) => it.fx ?? null), ov: overlays, a: assetTick, origVol, musicVol, mix: mixParts(mix), pano, snd: items.map((it) => (it.video ? [it.sound !== false, it.volume ?? 1] : 0)) });
+  const fullSig = studioSignature({ t: timelineSig, fx: items.map((it) => it.fx ?? null), ov: overlays, a: assetTick, origVol, musicVol, mix: mixParts(mix), pano, snd: items.map((it) => (it.video ? [it.sound !== false, it.volume ?? 1] : 0)), fit: items.map((it) => it.fit ?? null) });
   const fxs: Record<string, ClipFx | undefined> = {};
   /** O volume do som de cada vídeo (0 se estiver calado), lido a cada frame. */
   const snd: Record<string, number> = {};
-  for (const it of items) { fxs[it.key] = it.fx; snd[it.key] = it.sound === false ? 0 : it.volume ?? 1; }
-  const live = { overlays, fxs, snd, origVol, musicVol, segs, total: playTotal, fullSig, mix, pano };
+  /** O «Encher»/«Inteiro» escolhido em cada clipe (lido a cada frame: muda sem recomeçar). */
+  const fits: Record<string, ClipFit | undefined> = {};
+  for (const it of items) { fxs[it.key] = it.fx; snd[it.key] = it.sound === false ? 0 : it.volume ?? 1; fits[it.key] = it.fit; }
+  const live = { overlays, fxs, snd, fits, origVol, musicVol, segs, total: playTotal, fullSig, mix, pano };
   const cfg = useRef(live);
   cfg.current = live;
 
@@ -689,6 +698,65 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const r = engine.current.ref;
     if (reference && r && r.readyState >= 2) drawClip(g, null, r, r.videoWidth || W, r.videoHeight || H, { x: 0, y: 0, w: W / 2, h: H }, 1, resolveFx(undefined));
   }
+  /** O «Encher»/«Inteiro» escolhido agora num clipe (lido a cada frame). */
+  const fitOf = (s: Seg): ClipFit | undefined => (s.key in cfg.current.fits ? cfg.current.fits[s.key] : s.fit);
+  /**
+   * O fundo do «Inteiro» (lib/studio/fit.ts): a fonte a cobrir `w`×`h`, desfocada (sigma 40 em 1080) e a 70 % do brilho.
+   * Faz-se num canvas a ¼ do tamanho (com sigma ¼: o mesmo desfoque, 16 vezes menos trabalho) com uma margem de 3 sigmas
+   * para as pontas não escurecerem; as fotos ficam guardadas (o fundo delas não mexe). Sem `ctx.filter` (Safari), um
+   * desfoque aproximado (reduzir muito e voltar a aumentar) e o escurecer por cima.
+   */
+  function drawBlurBg(g: CanvasRenderingContext2D, src: CanvasImageSource, sw: number, sh: number, w: number, h: number, key: string | null) {
+    const bw = Math.max(8, Math.round(w / 4)), bh = Math.max(8, Math.round(h / 4));
+    const sc = scratch(key ? `bg:${key}` : 'bg', bw, bh);
+    if (!sc) return;
+    const ready = key ? sc.c.dataset.done === `${key}@${bw}x${bh}` : false;
+    if (!ready) {
+      const sg = sc.g as CanvasRenderingContext2D & { filter?: string };
+      const sig = blurSigma(w) / 4;
+      const m = sig * 3;
+      const c = coverSource(sw, sh, bw + 2 * m, bh + 2 * m);
+      sg.clearRect(0, 0, bw, bh);
+      if (typeof sg.filter === 'string') {
+        sg.filter = `blur(${sig.toFixed(2)}px) brightness(${BLUR_BRIGHTNESS})`;
+        sg.drawImage(src, c.x, c.y, c.w, c.h, -m, -m, bw + 2 * m, bh + 2 * m);
+        sg.filter = 'none';
+      } else {
+        const tiny = scratch('bg-tiny', Math.max(2, Math.round(bw / 6)), Math.max(2, Math.round(bh / 6)));
+        if (tiny) {
+          tiny.g.imageSmoothingQuality = 'high';
+          tiny.g.drawImage(src, c.x, c.y, c.w, c.h, 0, 0, tiny.c.width, tiny.c.height);
+          sg.imageSmoothingQuality = 'high';
+          sg.drawImage(tiny.c, 0, 0, bw, bh);
+        }
+        sg.fillStyle = `rgba(0,0,0,${1 - BLUR_BRIGHTNESS})`;
+        sg.fillRect(0, 0, bw, bh);
+      }
+      if (key) sc.c.dataset.done = `${key}@${bw}x${bh}`;
+    }
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(sc.c, 0, 0, w, h);
+  }
+  /**
+   * «Inteiro»: o fundo desfocado e a fonte inteira por cima, contida e ao centro (com o zoom lento só nela), num canvas de
+   * trabalho do tamanho de `to`; os efeitos (filtro, ajustes, vinheta, grão) vêm depois, no quadro inteiro, como num clipe
+   * a encher.
+   */
+  function drawFitted(g: CanvasRenderingContext2D, src: TexImageSource & CanvasImageSource, sw: number, sh: number, to: { x: number; y: number; w: number; h: number }, p: ReturnType<typeof resolveFx>, seed: number, zoom: number, key: string | null) {
+    const w = Math.round(to.w), h = Math.round(to.h);
+    const sc = scratch('fit', w, h);
+    if (!sc || !sw || !sh) return;
+    sc.g.fillStyle = '#000';
+    sc.g.fillRect(0, 0, w, h);
+    try {
+      drawBlurBg(sc.g, src, sw, sh, w, h, key);
+      const r = containRect(sw, sh, w, h);
+      const z = zoomSource(sw, sh, zoom);
+      sc.g.imageSmoothingQuality = 'high';
+      sc.g.drawImage(src, z.x, z.y, z.w, z.h, r.x, r.y, r.w, r.h);
+    } catch { /* fonte indisponível neste frame */ }
+    drawClip(g, glFx(), sc.c, w, h, to, 1, p, seed);
+  }
   /** O fundo de um bocado no instante `tl` (segundos dentro dele), com os efeitos dele: a foto com zoom suave ou o frame do vídeo. */
   function drawBase(g: CanvasRenderingContext2D, s: Seg, tl: number) {
     const e = engine.current;
@@ -697,12 +765,20 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const half = !!(reference && e.ref);
     const to = { x: half ? W / 2 : 0, y: 0, w: half ? W / 2 : W, h: H };
     const seed = Math.floor((s.start + tl) * 30);
+    // No dueto o «Encher»/«Inteiro» não conta: cada lado enche o seu quadro, como no servidor.
+    const want: ClipFit | undefined = reference ? 'cover' : fitOf(s);
     if (s.video) {
       const rf = fx?.reverse ? reverseFor(s) : null;
       const fr = rf ? rf.frame(reverseFrameIndex(srcAt(s, tl) - s.from, rf.count)) : null;
       const v = e.videos.get(s.key);
-      if (rf && fr) drawClip(g, glFx(), fr, rf.w, rf.h, to, 1, p, seed);
-      else if (v && v.readyState >= 2) drawClip(g, glFx(), v, v.videoWidth || W, v.videoHeight || H, to, 1, p, seed);
+      if (rf && fr) {
+        if (clipFit({ fit: want, video: true }, rf.w, rf.h) === 'blur') drawFitted(g, fr, rf.w, rf.h, to, p, seed, 1, null);
+        else drawClip(g, glFx(), fr, rf.w, rf.h, to, 1, p, seed);
+      } else if (v && v.readyState >= 2) {
+        const vw = v.videoWidth || W, vh = v.videoHeight || H;
+        if (clipFit({ fit: want, video: true }, vw, vh) === 'blur') drawFitted(g, v, vw, vh, to, p, seed, 1, null);
+        else drawClip(g, glFx(), v, vw, vh, to, 1, p, seed);
+      }
     } else {
       const img = e.images.get(s.uri);
       const u = Math.min(1, tl / Math.max(0.1, s.dur));
@@ -717,6 +793,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         g.translate(to.x, 0);
         drawCapulanaFrame(g, sc ? sc.c : img, sc ? sc.c.width : iw, sc ? sc.c.height : ih, to.w, to.h, fx.moldura, zoom, fx.focus);
         g.restore();
+      } else if (img?.naturalWidth && clipFit({ fit: want, video: false, fx }, img.naturalWidth, img.naturalHeight) === 'blur') {
+        // «Inteiro»: a foto toda sobre ela própria desfocada; o zoom lento só na frente (o fundo, guardado, não mexe).
+        drawFitted(g, img, img.naturalWidth, img.naturalHeight, to, p, seed, fx?.freeze ? 1 : 1 + 0.07 * u, s.uri);
       } else if (img?.naturalWidth) {
         // O enquadramento da Montagem mágica (o ponto de interesse, sem cortar a cara) ou o zoom suave ao centro (Ken Burns);
         // um frame congelado fica parado.
@@ -786,11 +865,17 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const type = recorderType();
     if (opt.record && from === 0 && typeof MediaRecorder !== 'undefined' && (!e.ac || e.ac.state === 'running')) {
       if (!e.stream) {
-        e.stream = (canvas as HTMLCanvasElement & { captureStream?: (fps: number) => MediaStream }).captureStream?.(30) ?? null;
+        // Cada frame desenhado é pedido ao gravador (`captureStream(0)` + `requestFrame`), com o tempo dele: sem isto o
+        // `captureStream(30)` deitava fora os frames que chegavam uns ms antes do tempo dele e o vídeo saía aos solavancos.
+        // O browser sem `requestFrame` fica com o de antes.
+        const cv = canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream };
+        let st = cv.captureStream?.(0) ?? null;
+        if (st && !(st.getVideoTracks()[0] as CaptureTrack | undefined)?.requestFrame) { st.getTracks().forEach((t) => t.stop()); st = cv.captureStream?.(REC_FPS) ?? null; }
+        e.stream = st;
         if (e.stream && e.dest) e.dest.stream.getAudioTracks().forEach((t) => e.stream!.addTrack(t));
       }
       if (e.stream) {
-        try { rec = new MediaRecorder(e.stream, type ? { mimeType: type, videoBitsPerSecond: 6_000_000 } : undefined); } catch { rec = null; }
+        try { rec = new MediaRecorder(e.stream, type ? { mimeType: type, videoBitsPerSecond: REC_BITRATE } : undefined); } catch { rec = null; }
         if (rec) {
           const r = rec;
           const chunks: Blob[] = [];
@@ -823,7 +908,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     e.sched = sched;
     e.started = { perf: performance.now(), from };
     let lastUi = 0;
-    let lastDraw = 0;
+    // Os frames numa grelha de 30 por segundo (lib/studio/recordPace.ts): o frame n desenha o instante from + n/30.
+    let pacer = makePacer(performance.now());
+    const vTrack = rec ? (e.stream?.getVideoTracks()[0] as CaptureTrack | undefined) : undefined;
+    const requestFrame = vTrack?.requestFrame ? () => { try { vTrack.requestFrame!(); } catch { /* a faixa já parou */ } } : null;
     let t = from;
     /** Para medir no laboratório (só se a página o definir): o instante, o bocado, o ponto do ficheiro e o frame desenhado. */
     const probe = (window as unknown as { __tchekaProbe?: (t: number, i: number, src: number, g: CanvasRenderingContext2D) => void }).__tchekaProbe;
@@ -890,8 +978,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           continue;
         }
         if (hold !== null) {
-          // Pronto: o tempo continua de onde ficou.
+          // Pronto: o tempo (e a grelha dos frames) continua de onde ficou.
           t0 += performance.now() - hold;
+          pacer = shiftPacer(pacer, performance.now() - hold);
           hold = null;
           t = (performance.now() - t0) / 1000;
           if (e.ac && e.ac.state !== 'running') void e.ac.resume().catch(() => undefined);
@@ -911,9 +1000,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
             if (Math.abs(active.playbackRate - want) > 0.01) active.playbackRate = want;
           }
         }
-        // Desenha a 30 fps (o que a gravação apanha): metade do trabalho do GPU num ecrã de 60 Hz.
-        const nowMs = performance.now();
-        if (nowMs - lastDraw >= 30) { lastDraw = nowMs; drawFrame(g, list, i, t); probe?.(t, i, s.video ? srcAt(s, tl) : -1, g); }
+        // Desenha a 30 fps certos (o que a gravação apanha; metade do trabalho do GPU num ecrã de 60 Hz): cada frame com o
+        // instante dele na grelha, não o do relógio deste tique, e pedido ao gravador logo a seguir.
+        const tick = paceTick(pacer, performance.now());
+        pacer = tick.pacer;
+        if (tick.frame !== null) {
+          const tf = Math.min(end, frameTime(pacer, from, tick.frame));
+          const fi = segAt(list, tf);
+          drawFrame(g, list, fi, tf);
+          requestFrame?.();
+          const fs = list[fi];
+          probe?.(tf, fi, fs.video ? srcAt(fs, tf - fs.start) : -1, g);
+        }
         // O som deste vídeo (ligado ou calado e o volume dele) muda logo, a tocar.
         const cg = active ? e.clipGain.get(active) : undefined;
         if (cg) { const want = cfg.current.snd[s.key] ?? 1; if (cg.gain.value !== want) cg.gain.value = want; }
@@ -1835,6 +1933,23 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               onReplace={(f) => { if (cur) void replace(cur.key, f); }}
               onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
             />
+            {cur && !reference && !(!cur.video && cur.fx?.moldura) ? (() => {
+              // «Encher» / «Inteiro» (lib/studio/fit.ts): a escolha da pessoa ou o automático, com as medidas que o estúdio já leu.
+              // No dueto e numa foto com moldura não conta (como no servidor): não aparece.
+              const v = cur.video ? engine.current.videos.get(cur.key) : null;
+              const im = cur.video ? null : engine.current.images.get(cur.uri);
+              const dims = v?.videoWidth ? { w: v.videoWidth, h: v.videoHeight } : im?.naturalWidth ? { w: im.naturalWidth, h: im.naturalHeight } : null;
+              // O que o automático daria (sem a escolha da pessoa): é o que diz o botão «Auto».
+              const eff: ClipFit = dims ? clipFit({ ...cur, fit: undefined }, dims.w, dims.h) : 'cover';
+              return (
+                <View style={st.rowWrap}>
+                  <Text style={st.label}>Enquadrar</Text>
+                  {chip(!cur.fit, `Auto · ${eff === 'blur' ? 'Inteiro' : 'Encher'}`, () => setClipFit(cur.key, null))}
+                  {chip(cur.fit === 'cover', 'Encher', () => setClipFit(cur.key, 'cover'))}
+                  {chip(cur.fit === 'blur', 'Inteiro', () => setClipFit(cur.key, 'blur'))}
+                </View>
+              );
+            })() : null}
             <Text style={st.meta}>{items.length} {items.length === 1 ? 'clipe' : 'clipes'} · {fmtS(total)} s de {TCHEKA_MAX_S} s · arrasta as pontas para cortar, toque longo para mudar a ordem</Text>
 
             {music && items.some((i) => !i.video) ? (

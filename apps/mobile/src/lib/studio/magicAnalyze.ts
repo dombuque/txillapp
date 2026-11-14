@@ -23,6 +23,9 @@ export interface AnalyzeOptions {
 }
 
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+/** Quanto pode demorar um salto num vídeo (ms) e quanto além do tempo do vídeo se espera pelos primeiros frames. */
+const SEEK_MAX_MS = 2500;
+const SEEK_GRACE_MS = 2500;
 const itemCache = new Map<string, MagicItem>();
 const musicCache = new Map<string, { rate: number; mono: Float32Array; energy: number[] }>();
 /** Esquece o que se mediu (ao fechar o estúdio, ou quando os ficheiros mudam todos). */
@@ -119,10 +122,14 @@ async function analyzeVideo(s: MagicSource, budgetMs: number, signal?: { cancell
   const audioP = videoAudio(s.uri, deadline);
   const want = Math.max(6, Math.min(28, Math.round(dur * 2.5)));
   const got: VideoFrame[] = [];
+  // Os primeiros 5 frames podem passar um pouco do tempo, mas nunca mais do que `SEEK_GRACE_MS`.
+  const hard = deadline + SEEK_GRACE_MS;
   for (const f of coarseToFine(want)) {
-    if (signal?.cancelled || (got.length >= 5 && now() > deadline)) break;
+    if (signal?.cancelled || now() > hard || (got.length >= 5 && now() > deadline)) break;
     const t = Math.min(dur - 0.05, Math.max(0, f * dur));
-    if (!(await seek(v, t, 700))) continue;
+    // Um salto que não acaba a tempo pára aqui: pedir outro cancelava este, e com o descodificador ocupado (a linha do tempo
+    // e o palco do estúdio também estão a ler os vídeos) nenhum chegava ao fim e o vídeo ficava sem um frame.
+    if (!(await seek(v, t, Math.max(250, Math.min(SEEK_MAX_MS, hard - now()))))) break;
     const px = pixels(v, v.videoWidth, v.videoHeight, true);
     if (!px) continue;
     got.push(videoFrame(t, px));
@@ -147,12 +154,13 @@ export async function analyzeSources(sources: MagicSource[], opts: AnalyzeOption
   const videos = sources.filter((s) => s.video && !itemCache.has(s.uri));
   const photos = sources.filter((s) => !s.video && !itemCache.has(s.uri));
   opts.onPhase?.('ver', 'start');
-  const per = videos.length ? Math.max(700, Math.min(2500, (budget * 2) / videos.length)) : 0;
-  for (let i = 0; i < videos.length; i += 2) {
+  // Um vídeo de cada vez: com o estúdio aberto por trás (o palco e as miniaturas da linha do tempo também leem os vídeos),
+  // dois ao mesmo tempo disputavam o descodificador e os saltos demoravam segundos.
+  const t0 = now();
+  for (let i = 0; i < videos.length; i++) {
     if (opts.signal?.cancelled) break;
-    const pair = videos.slice(i, i + 2);
-    const done = await Promise.all(pair.map((s) => analyzeVideo(s, per, opts.signal)));
-    done.forEach((it, k) => itemCache.set(pair[k].uri, it));
+    const per = Math.round(Math.max(900, Math.min(2500, (budget * 1.5 - (now() - t0)) / (videos.length - i))));
+    itemCache.set(videos[i].uri, await analyzeVideo(videos[i], per, opts.signal));
   }
   opts.onPhase?.('ver', 'done');
   opts.onPhase?.('fotos', 'start');

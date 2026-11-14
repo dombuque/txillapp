@@ -24,6 +24,12 @@ export const MAX_BATCH = 12;
 export const VIDEO_BUDGET = { min: 700, max: 3000 } as const;
 /** O que se guarda do tempo de cada vídeo para desenhar a grelha e ler os píxeis (ms). */
 export const GRID_RESERVE_MS = 250;
+/**
+ * O tempo máximo para os vídeos todos (ms). Cada vídeo tem a parte dele, mas abrir o leitor, tirar o primeiro lote e ler a
+ * grelha têm mínimos próprios: com muitos vídeos (o estúdio junta até 30) a soma passava de um minuto em «a montar». Os que
+ * ficarem de fora entram com valores neutros (e voltam a ser vistos na montagem seguinte).
+ */
+export const VIDEOS_MAX_MS = 20_000;
 /** Quanto tempo, no máximo, a fase do som espera pelos envios e pelo servidor (ms). */
 export const SOUND_WAIT_MS = 6000;
 

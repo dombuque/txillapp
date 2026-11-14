@@ -10,6 +10,7 @@ import type { ProjectClip, TrimEdge } from '@/lib/studio/project';
 import { previewClock } from '@/lib/tchekaRules';
 import { clampPps, PPS_DEFAULT, preciseClock, reorderIndex, rulerTicks, snapTime, cutPoints } from '@/lib/studio/timeline';
 import type { TimelineLayer } from '../Timeline';
+import { ClockText } from './ClockText';
 import type { ClockStore } from './clockStore';
 
 const CORAL = '#d6334f';
@@ -229,11 +230,9 @@ export function NativeTimeline(p: Props) {
   const pad = Math.max(0, width / 2);
   const starts = useMemo(() => { let t = 0; return durations.map((d) => { const s = t; t += d; return s; }); }, [durations]);
   const cuts = useMemo(() => cutPoints(durations), [durations]);
-  const [now, setNow] = useState(() => clock.time());
-
-  // A tocar (ou quando o relógio salta), a faixa segue o cursor.
+  // A tocar (ou quando o relógio salta), a faixa segue o cursor. O tempo escrito vai em `ClockText` (só ele se volta a
+  // desenhar): antes a linha do tempo inteira, com as miniaturas, redesenhava-se 20 vezes por segundo a tocar.
   useEffect(() => clock.subscribe((t) => {
-    setNow((o) => (Math.abs(o - t) < 0.05 ? o : t));
     if (user.current) return;
     const x = t * ppsRef.current;
     if (Math.abs(x - lastX.current) < 0.5) return;
@@ -310,7 +309,7 @@ export function NativeTimeline(p: Props) {
           <Pressable onPress={p.onTogglePlay} style={st.leadBtn} accessibilityRole="button" accessibilityLabel={p.playing ? 'Pausar' : 'Tocar'}>
             {p.playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
           </Pressable>
-          <Text style={st.leadTime} numberOfLines={1}>{previewClock(now, total).split(' / ')[0]}</Text>
+          <ClockText clock={clock} style={st.leadTime} format={(t) => previewClock(t, total).split(' / ')[0]} />
         </View>
       ) : null}
       <View style={{ flex: 1 }}>
@@ -366,7 +365,7 @@ export function NativeTimeline(p: Props) {
       </GestureDetector>
       {/* O cursor, parado ao meio, e o tempo dele. */}
       <View pointerEvents="none" style={[st.playhead, { left: pad - 1 }]} />
-      {p.dense ? null : <View pointerEvents="none" style={[st.nowTag, { left: pad - 34 }]}><Text style={st.nowText}>{preciseClock(now)}</Text></View>}
+      {p.dense ? null : <View pointerEvents="none" style={[st.nowTag, { left: pad - 34 }]}><ClockText clock={clock} style={st.nowText} format={preciseClock} /></View>}
       {p.dense ? null : <View style={st.zoom} pointerEvents="box-none">
         <Pressable onPress={() => zoom(1 / 1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Afastar a linha do tempo"><Minus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
         <Pressable onPress={() => zoom(1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Aproximar a linha do tempo"><Plus size={16} color="#fff" strokeWidth={2.6} /></Pressable>

@@ -20,6 +20,7 @@ import {
   type ComposeProblem, type JobRecord, type RunState,
 } from '@/lib/studio/composeJob';
 import { buildComposeRequest, compatRequest, composeBlocker, requestSignature } from '@/lib/studio/composeRequest';
+import { clipFit, withFit, type ClipFit } from '@/lib/studio/fit';
 import { Cancelled, pollJob, requestCompose, uploadAll, type Signal } from '@/lib/studio/composeRunner';
 import { debounce, DRAFT_DEBOUNCE_MS, newDraftId } from '@/lib/studio/drafts';
 import {
@@ -54,6 +55,8 @@ import { NativeFxPanel } from './studio/native/NativeFxPanel';
 import { NativeMagic } from './studio/native/NativeMagic';
 import { NativeOverlays } from './studio/native/NativeOverlays';
 import { NativeSoundPanel, type ClipSound } from './studio/native/NativeSoundPanel';
+import { ClockFill, ClockText, WithClockTime } from './studio/native/ClockText';
+import { mediaSize, useMediaSizes } from './studio/native/mediaSize';
 import { LookNote, NativeStage, skiaClip, useSkiaFailures, type StageSeg } from './studio/native/NativeStage';
 import { cachedVideoThumb, NativeTimeline } from './studio/native/NativeTimeline';
 import { useFrameGrab } from './studio/native/useFrameGrab';
@@ -167,6 +170,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const [selKey, setSelKey] = useState<string | null>(() => hist.present.clips[0]?.key ?? null);
   const sel = items.findIndex((it) => it.key === selKey);
   const cur = sel >= 0 ? items[sel] : undefined;
+  // O «Encher»/«Inteiro» do clipe escolhido: a escolha da pessoa ou o automático, com as medidas que o palco já leu.
+  useMediaSizes();
+  const curSize = cur ? mediaSize(cur.uri) : null;
+  const curFit: ClipFit = cur ? (curSize ? clipFit(cur, curSize.w, curSize.h) : cur.fit ?? 'cover') : 'cover';
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = (s: string) => { setNote(s); if (noteTimer.current) clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setNote(null), 2400); };
@@ -194,6 +201,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     if (v.volume !== undefined) { const vol = Math.round(Math.max(0, Math.min(1, v.volume)) * 100) / 100; if (vol === 1) delete n.volume; else n.volume = vol; }
     return n;
   }), { coalesce: `snd:${key}` });
+  /** «Encher» / «Inteiro» do clipe (null: volta ao automático de lib/studio/fit.ts). */
+  const setClipFit = (key: string, fit: ClipFit | null) => setItems((l) => l.map((c) => (c.key === key ? withFit(c, fit) : c)));
 
   // ---------------------------------------------------------------- a montagem («Seguinte»)
   const [run, setRun] = useState<RunState | null>(null);
@@ -236,7 +245,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const segs: StageSeg[] = useMemo(() => {
     let t = 0;
     return items.map((it, i) => {
-      const s: StageSeg = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, len: it.video ? Math.max(0, it.trim.end - it.trim.start) : durations[i], speed: it.video ? it.speed : 1, fx: it.fx, volume: it.video && soundOn(it) ? it.volume ?? 1 : 0 };
+      const s: StageSeg = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, len: it.video ? Math.max(0, it.trim.end - it.trim.start) : durations[i], speed: it.video ? it.speed : 1, fx: it.fx, volume: it.video && soundOn(it) ? it.volume ?? 1 : 0, ...(it.fit ? { fit: it.fit } : {}) };
       t += durations[i];
       return s;
     });
@@ -257,17 +266,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   useEffect(() => () => clock.dispose(), [clock]);
   useEffect(() => { clock.resize(playTotal); }, [clock, playTotal]);
   const [playing, setPlaying] = useState(false);
-  const [playT, setPlayT] = useState(0);
-  useEffect(() => {
-    let last = 0;
-    return clock.subscribe((t, on) => {
-      setPlaying((o) => (o === on ? o : on));
-      const ms = Date.now();
-      if (on && ms - last < 250) return;
-      last = ms;
-      setPlayT(t);
-    });
-  }, [clock]);
+  // Só o tocar/pausar passa pelo estado do estúdio; o tempo vai para os componentes pequenos (ClockText.tsx), sem voltar a
+  // desenhar o estúdio inteiro 4 vezes por segundo a tocar.
+  useEffect(() => clock.subscribe((_t, on) => { setPlaying((o) => (o === on ? o : on)); }), [clock]);
   const nowT = () => clock.time();
   const [voiceRec, setVoiceRec] = useState(false);
   useEffect(() => { void loadNativeStudioFonts(); return () => clearNativeMagicCache(); }, []);
@@ -863,9 +864,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           <Pressable onPress={() => !busy && clock.toggle()} style={st.ctrlBtn} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Tocar'}>
             {playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
           </Pressable>
-          <Text style={st.clock} numberOfLines={1}>{previewClock(playT, playTotal)}</Text>
+          <ClockText clock={clock} style={st.clock} format={(t) => previewClock(t, playTotal)} />
           <View style={st.timeBar}>
-            <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
+            <ClockFill clock={clock} total={playTotal} style={st.timeFill} />
             <AudioMarks mix={mix} total={playTotal} />
           </View>
         </View>
@@ -914,6 +915,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
                   clip={cur ?? null} duration={sel >= 0 ? durations[sel] ?? 0 : 0} rhythm={useRhythm} locked={locked}
                   onSplit={splitHere} onDuplicate={() => { if (cur) duplicate(cur.key); }} onSpeed={(sp) => { if (cur) changeSpeed(cur.key, sp); }}
                   onPhoto={(v) => { if (cur) changePhoto(cur.key, v); }} onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
+                  fit={curFit} fitChosen={!!cur?.fit} onFit={(f) => { if (cur) setClipFit(cur.key, f); }} fitOff={!!reference || (!!cur && !cur.video && !!cur.fx?.moldura)}
                   onReplace={() => { if (cur) void replace(cur.key); }} onDelete={() => { if (cur) remove(cur.key); }}
                 />
                 <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
@@ -941,7 +943,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               </>
             ) : null}
             {tab === 'som' ? (
-              <NativeSoundPanel
+              <WithClockTime clock={clock} step={0.1}>{(playT) => <NativeSoundPanel
                 music={music} duet={!!reference} photosOnly={photosOnly} analysis={analysis} analyzing={analyzing} suggestion={suggestion} mix={mix} setMix={setMix}
                 onStartMove={(ms) => fixPresent((p) => ({ ...p, mix: { ...p.mix, musicStartMs: ms, musicStartAuto: false } }))}
                 onStartCommit={(ms) => { setMix((m) => ({ ...m, musicStartMs: ms, musicStartAuto: false })); clock.play(0); }}
@@ -950,7 +952,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
                 onRemoveMusic={() => { setMusic(null); if (origVol === 0) setOrigVol(1); }}
                 canFit={!!music && items.length > 0} fitNote={fitNote} onFit={() => rhythmFit()} onTemplate={(t) => rhythmFit(t)} applied={applied}
                 voiceCtl={voiceCtl} onVoice={onVoice} locked={locked} fxState={fxState} onFxRetry={vfx.retry}
-              />
+              />}</WithClockTime>
             ) : null}
             {tab === 'texto' ? <TextPanel texts={texts} selId={selOv} onSelect={selectOverlay} onAdd={addText} onChange={changeOverlay} onDelete={deleteOverlay} total={playTotal} locked={locked} focusKey={editTick} /> : null}
             {tab === 'stickers' ? <StickerTray locked={locked} stickers={stickerOvs} selId={selOv} onSelect={(id) => selectOverlay(id || null)} onAdd={addSticker} onChange={changeOverlay} onDelete={deleteOverlay} total={playTotal} /> : null}

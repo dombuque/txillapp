@@ -40,6 +40,11 @@ export interface ComposeClip {
   sound?: false;
   /** O volume do som do vídeo, de 0 a 1 (sem o campo, 1). Multiplica pelo `originalVolume`. */
   volume?: number;
+  /**
+   * «Encher» (`cover`) ou «Inteiro» (`blur`, o clipe inteiro sobre ele próprio desfocado), só quando a pessoa escolheu; sem o
+   * campo o servidor faz o automático de lib/studio/fit.ts (enche até 0,8 de largura/altura; as fotos com `focus` enchem).
+   */
+  fit?: 'cover' | 'blur';
 }
 export interface ComposeRequest {
   clips: ComposeClip[];
@@ -135,12 +140,14 @@ export function buildComposeRequest(i: ComposeInput): ComposeRequest {
       if (c.speed && c.speed !== 1) out.speed = c.speed;
       if (c.sound === false) out.sound = false;
       if (c.volume != null && c.volume < 1) out.volume = unit(c.volume);
+      if (c.fit === 'cover' || c.fit === 'blur') out.fit = c.fit;
       if (fx) out.fx = fx;
       return out;
     }
     const out: ComposeClip = { ...base, kind: 'photo', durationMs: Math.max(PHOTO_MIN_MS, Math.min(PHOTO_MAX_MS, ms(c.seconds))) };
     if (i.rhythm && withSound) out.beats = beatsOf(c.beats);
     if (fx) out.fx = fx;
+    if (c.fit === 'cover' || c.fit === 'blur') out.fit = c.fit;
     return out;
   });
 
@@ -199,8 +206,9 @@ export function compatRequest(r: ComposeRequest): { request: ComposeRequest; cha
   const videos = r.clips.filter((c) => c.kind === 'video');
   const allMuted = videos.length > 0 && videos.every((c) => c.sound === false || c.volume === 0);
   const clips = r.clips.map((c) => {
-    const { sound, volume, ...rest } = c;
+    const { sound, volume, fit, ...rest } = c;
     if (sound === false || volume != null) changed.add('o som de cada vídeo');
+    if (fit) changed.add('o «Encher»/«Inteiro» de cada clipe');
     if (!rest.fx) return rest;
     const fx: ClipFx = { ...rest.fx };
     if (fx.focus) { delete fx.focus; changed.add('o enquadramento das fotos'); }

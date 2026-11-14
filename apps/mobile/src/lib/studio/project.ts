@@ -49,6 +49,8 @@ export interface ProjectClip {
   volume?: number;
   /** Filtro, ajustes, transição de entrada, rampa, inverter e congelar (lib/studio/effects.ts). Trata-se como imutável. */
   fx?: ClipFx;
+  /** «Encher» (`cover`) ou «Inteiro» (`blur`), escolhido no painel do clipe; sem o campo, automático (lib/studio/fit.ts). */
+  fit?: 'cover' | 'blur';
 }
 
 /** O que chega da câmara ou da galeria. */
@@ -220,7 +222,7 @@ export function replaceMedia(clips: ProjectClip[], key: string, m: ClipInput & {
   const c = clips[i];
   const dur = (opts.durations ?? baseDurations(clips))[i] ?? clipDuration(c);
   const media = m.media ?? (opts.ids ?? newId)();
-  const base = { key: c.key, media, uri: m.uri, video: m.video, mime: m.mime, durationMs: m.durationMs, fx: c.fx, beats: c.beats, hasAudio: undefined as boolean | undefined };
+  const base = { key: c.key, media, uri: m.uri, video: m.video, mime: m.mime, durationMs: m.durationMs, fx: c.fx, beats: c.beats, hasAudio: undefined as boolean | undefined, ...(c.fit ? { fit: c.fit } : {}) };
   if (m.video) {
     const length = Math.max(0.5, (m.durationMs ?? 5000) / 1000);
     const speed = c.video ? c.speed : m.speed && m.speed > 0 ? m.speed : 1;
@@ -263,6 +265,10 @@ export function normalizeClips(raw: unknown, ids: IdGen = newId): ProjectClip[] 
       speed, length, trim: { start: r3(start), end: r3(end) },
       ...(typeof x.hasAudio === 'boolean' ? { hasAudio: x.hasAudio } : {}),
       ...('fx' in x ? { fx: x.fx } : {}),
+      // O som de cada vídeo e o «Encher»/«Inteiro» também voltam dos rascunhos (antes perdiam-se aqui).
+      ...(video && typeof x.sound === 'boolean' ? { sound: x.sound } : {}),
+      ...(video && typeof x.volume === 'number' && Number.isFinite(x.volume) ? { volume: Math.max(0, Math.min(1, x.volume)) } : {}),
+      ...(x.fit === 'cover' || x.fit === 'blur' ? { fit: x.fit } : {}),
     };
     out.push(c);
   }

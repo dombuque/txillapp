@@ -38,6 +38,9 @@ export const MEDIA_COLUMN_REFS: MediaColumnRef[] = [
   { table: 'content.sounds', column: 'cover_media_id', why: 'capa de um som (o vídeo da tcheka)' },
   { table: 'content.sound_silenced', column: 'media_id', why: 'vídeo a que se tirou o som (e a cópia privada)' },
   { table: 'content.video_jobs', column: 'media_id', why: 'vídeo na fila de conversão (a linha sai quando a conversão acaba)' },
+  { table: 'content.post_music_bakes', column: 'media_id', why: 'tcheka com a música gravada no vídeo (posts/music-bake.ts)' },
+  { table: 'content.post_music_bakes', column: 'source_media_id', why: 'o vídeo da tcheka de onde se grava a música (também em post_media)' },
+  { table: 'content.post_downloads', column: 'media_id', why: 'cópia guardada de uma tcheka, com o cartão do fim (expira sozinha)' },
   // O vídeo montado à espera de ir num POST /posts não conta: o pedido fica 7 dias, o vídeo sem publicar só 48 horas.
   { table: 'content.compose_jobs', column: 'media_id', where: `t.status IN ('queued', 'working')`, why: 'montagem ainda ativa' },
   // A foto em revisão (0144); os outros ficheiros do rascunho contam por ACTIVE_HELD_PAYLOAD.

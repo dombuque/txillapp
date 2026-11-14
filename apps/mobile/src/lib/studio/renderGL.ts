@@ -140,7 +140,8 @@ export class FxGL {
     const k = t.sw / sw;
     try {
       // As fotos não mudam: a textura só se volta a carregar quando a fonte é outra (os vídeos, sempre).
-      const still = !(typeof HTMLVideoElement !== 'undefined' && src instanceof HTMLVideoElement);
+      // Um canvas de trabalho (o «Inteiro» de lib/studio/fit.ts) muda a cada frame com o mesmo objeto: também se volta a carregar.
+      const still = !(typeof HTMLVideoElement !== 'undefined' && src instanceof HTMLVideoElement) && !(typeof HTMLCanvasElement !== 'undefined' && src instanceof HTMLCanvasElement);
       if (upload && !(still && this.last === t.src)) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, t.src); this.last = t.src; }
     } catch {
       return null; // fonte doutro sítio sem CORS, ou vídeo ainda sem frame
