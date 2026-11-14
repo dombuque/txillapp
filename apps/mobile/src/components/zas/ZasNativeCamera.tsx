@@ -130,7 +130,7 @@ export function ZasNativeCamera({
     onBegin: () => { z0.current = zoom; },
     onUpdate: (e) => setZoom(pinchZoom(z0.current, e.scale, minZoom, maxZoom)),
   });
-  const tap = useTapGesture({ numberOfTaps: 1, runOnJS: true, enabled: ready, onActivate: (e) => { focusAt(e.x, e.y); onTap?.(); } });
+  const tap = useTapGesture({ numberOfTaps: 1, maxDistance: 10, runOnJS: true, enabled: ready, onActivate: (e) => { focusAt(e.x, e.y); onTap?.(); } });
   const gestures = useSimultaneousGestures(pinch, tap, swipe);
 
   shootRef.current = async () => {

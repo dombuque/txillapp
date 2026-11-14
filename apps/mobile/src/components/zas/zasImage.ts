@@ -1,4 +1,5 @@
 import { Platform, Share } from 'react-native';
+import { saveUrlToGallery } from '@/lib/saveToGallery';
 import { arcPoints, sup } from './squircle';
 
 /**
@@ -87,8 +88,20 @@ const photoOf = async (it: Z) => new File([await renderZasImage(it.url, it.capti
  * Guardar o Zás como está desenhado. 'gallery': no telemóvel abre a folha do sistema («Guardar imagem»); 'file': descarrega o PNG.
  * No nativo abre a folha de partilha do sistema com a foto.
  */
-export async function saveZas(it: Z, mode: 'gallery' | 'file' = 'gallery') {
-  if (Platform.OS !== 'web') return void (await Share.share({ url: it.url, message: it.caption || undefined }).catch(() => undefined));
+/**
+ * Guardar o Zás. No telemóvel vai direto para a galeria (o Share com `url` só funcionava no iPhone: no Android partilhava
+ * só a legenda). Devolve 'saved' quando ficou na galeria, 'denied' sem licença (aí abre a partilha), nada na web.
+ */
+export async function saveZas(it: Z, mode: 'gallery' | 'file' = 'gallery'): Promise<'saved' | 'denied' | 'failed' | void> {
+  if (Platform.OS !== 'web') {
+    try {
+      const r = await saveUrlToGallery(it.url, `zas-${it.id.slice(0, 8)}.jpg`);
+      if (r === 'denied') await Share.share({ url: it.url, message: it.caption || undefined }).catch(() => undefined);
+      return r;
+    } catch {
+      return 'failed';
+    }
+  }
   try {
     const f = await photoOf(it);
     if (mode === 'gallery' && navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));

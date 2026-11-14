@@ -23,7 +23,7 @@ import { Icon } from './Icon';
 import { abs } from '@/lib/config';
 import { enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
-import { usePanGesture } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import { FUN_FX } from './zas/funFilters';
 import { markSeen } from '@/lib/whatsNew';
 import { ReportSheet } from './ReportSheet';
@@ -431,7 +431,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       {/* Uma só explicação na primeira vez (a janela "Zás! Tirou, mandou, já foi.", em baixo): a folha do FeatureIntro
           do Zás já não se mostra aqui, e "Percebi" marca as duas como vistas. */}
-      <View style={rootStyle}>
+      <GestureHandlerRootView style={rootStyle}>
         {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
         {!(isWeb && editing) && (
           <View style={st.hubTop}>
@@ -559,7 +559,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             </View>
           </View>
         )}
-      </View>
+      </GestureHandlerRootView>
       {setupClose && (
         <CloseFriendsSheet
           onClose={async () => {
@@ -677,6 +677,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                     ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
                   ] as const)
                 : ([
+                    ['image', 'Guardar na galeria', 'A foto fica nas fotos do telemóvel.', () => void saveZas(menu), false],
                     ['share', 'Partilhar', 'Manda a foto a quem quiseres (ou guarda-a).', () => void shareZas(menu), false],
                     ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
                   ] as const)
@@ -819,6 +820,9 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
       .catch((e) => setErr((e as Error).message));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(noteTimer.current), []);
+  // Ao fechar o visor, as fotos grandes saem da memória (num Android com pouca RAM o sistema chegava a matar a app
+  // depois de ver muitos Zás); a cache em disco fica, por isso voltar a abrir continua rápido.
+  useEffect(() => () => { if (Platform.OS === 'android') void Image.clearMemoryCache(); }, []);
 
   const count = items?.length ?? 0;
   const cur = items?.[i];
@@ -1062,7 +1066,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
                 <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>{cur?.views ?? 0} viram</Text>
               </Pressable>
               {cur && (
-                <Pressable onPress={() => void saveZas(cur)} accessibilityRole="button" accessibilityLabel="Guardar na galeria" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
+                <Pressable onPress={() => void saveZas(cur).then((r) => { if (r === 'saved') flash('Guardado na galeria'); else if (r === 'failed') setErr('Não consegui guardar o Zás'); })} accessibilityRole="button" accessibilityLabel="Guardar na galeria" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
                   <Icon name="download" size={20} color="#fff" />
                 </Pressable>
               )}
