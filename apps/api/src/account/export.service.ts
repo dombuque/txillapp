@@ -148,6 +148,21 @@ export class ExportService {
       // O nível da geleira (0146): o último cálculo, com o detalhe de onde vêm os pontos (geladas, brindes, sítios, rodadas, gostos).
       geleiraLevel: (await q(`SELECT points, level, breakdown, computed_at AS "computedAt" FROM taste.geleira_levels WHERE user_id = $1`).catch(() => []))[0] ?? null,
       geladaFridays: await q(`SELECT friday, kind, sent_at AS "sentAt" FROM taste.gelada_fridays WHERE user_id = $1 ORDER BY friday`).catch(() => []),
+      // Mixar (0150): os meus Mixar (com quem, quem convidou, o estado e as datas) e o que eu fiz lá dentro: as reações, o que vi
+      // e mandei para o chat e as escolhas nos desafios. As reações e as escolhas do outro são dados dele: não entram.
+      mixar: await q(
+        `SELECT x.id, o.username AS "with", (x.invited_by = $1) AS "invitedByMe", x.status, x.created_at AS "createdAt", x.accepted_at AS "acceptedAt", x.ended_at AS "endedAt", (x.ended_by = $1) AS "endedByMe"
+           FROM social.mixars x JOIN identity.users o ON o.id = CASE WHEN x.user_a = $1 THEN x.user_b ELSE x.user_a END
+          WHERE x.user_a = $1 OR x.user_b = $1 ORDER BY x.created_at`,
+      ).catch(() => []),
+      mixarReactions: await q(`SELECT mixar_id AS "mixarId", post_id AS "postId", reaction, created_at AS "createdAt" FROM social.mixar_reactions WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      mixarViews: await q(
+        `SELECT mixar_id AS "mixarId", post_id AS "postId", watched_ms AS "watchedMs", done, shared_at AS "sharedAt", seen_at AS "seenAt" FROM social.mixar_views WHERE user_id = $1 ORDER BY seen_at`,
+      ).catch(() => []),
+      mixarPicks: await q(
+        `SELECT ch.mixar_id AS "mixarId", ch.day::text AS day, ch.kind, k.post_id AS "postId", k.created_at AS "createdAt"
+           FROM social.mixar_picks k JOIN social.mixar_challenges ch ON ch.id = k.challenge_id WHERE k.user_id = $1 ORDER BY k.created_at`,
+      ).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(
         `SELECT c.id, (c.caller_id = $1) AS outgoing, o.username AS "with", c.video, c.status, c.created_at AS "createdAt", c.started_at AS "startedAt", c.ended_at AS "endedAt"

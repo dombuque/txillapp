@@ -15,6 +15,7 @@ import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
+import { interestSql } from './interest';
 import { WalletService } from '../wallet/wallet.service';
 import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
 import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
@@ -620,6 +621,19 @@ export class PostsService implements OnModuleInit {
     return (await this.hydrate(viewerId, rows.slice(0, limit)));
   }
 
+  /**
+   * Publicações por id, na mesma ordem, exatamente com a forma de cada item do feed e dos Reels (FeedPost), só as que quem
+   * pede pode ver agora (canView: conta ativa, sem bloqueio, pública ou seguida; as removidas nunca). Sem o filtro da rede
+   * (país): quem chama já escolheu as publicações (o Mixar, ver mixar.service.ts).
+   */
+  async feedPosts(viewerId: string, ids: string[]) {
+    if (!ids.length) return [];
+    const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = ANY($2::uuid[]) AND ${canView()}`, [viewerId, ids]);
+    const order = new Map(ids.map((id, i) => [id, i]));
+    rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+    return this.hydrate(viewerId, rows);
+  }
+
   /** Publicações com uma hashtag, para quem as pode ver. `top` = as que mais reações tiveram nos últimos 7 dias. */
   async byTag(viewerId: string, tag: string, sort: 'recent' | 'top', cursor: string | undefined, limit: number) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
@@ -725,15 +739,7 @@ export class PostsService implements OnModuleInit {
     const s = await this.feedSettings(viewerId);
     const k = settingsToWeights(s);
     const { rows } = await this.pool.query(
-      `WITH w AS (
-         SELECT topic, sum(wt) AS wt FROM (
-           SELECT unnest(p.topics) AS topic, 1.0 AS wt FROM content.cheers c JOIN content.posts p ON p.id = c.post_id WHERE c.user_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
-           UNION ALL SELECT unnest(p.topics), 2.0 FROM content.comments c JOIN content.posts p ON p.id = c.post_id WHERE c.author_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
-           UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
-           UNION ALL SELECT unnest(p.topics), 0.4 FROM social.follows f JOIN content.posts p ON p.author_id = f.followee_id AND p.created_at > now() - interval '30 days' WHERE f.follower_id = $1 AND p.topics IS NOT NULL
-           UNION ALL SELECT unnest(p.topics), 2.5 * fb.value FROM content.post_feedback fb JOIN content.posts p ON p.id = fb.post_id WHERE fb.user_id = $1 AND p.topics IS NOT NULL
-           UNION ALL SELECT topic, 8.0 * pref FROM social.explore_prefs WHERE user_id = $1
-         ) x GROUP BY topic),
+      `WITH w AS (${interestSql('$1')}),
        tot AS (SELECT GREATEST(COALESCE(sum(wt), 0), 1) AS s FROM w),
        cand AS (
          SELECT p.id, p.author_id, p.topics, p.created_at,
@@ -784,13 +790,7 @@ export class PostsService implements OnModuleInit {
   /** O que o algoritmo aprendeu contigo (só atividade: brindes, comentários, guardados, seguidos e "interessado"): os temas por ordem. */
   async activityTopics(userId: string) {
     const { rows } = await this.pool.query(
-      `SELECT topic, sum(wt) AS wt FROM (
-         SELECT unnest(p.topics) AS topic, 1.0 AS wt FROM content.cheers c JOIN content.posts p ON p.id = c.post_id WHERE c.user_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
-         UNION ALL SELECT unnest(p.topics), 2.0 FROM content.comments c JOIN content.posts p ON p.id = c.post_id WHERE c.author_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
-         UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
-         UNION ALL SELECT unnest(p.topics), 0.4 FROM social.follows f JOIN content.posts p ON p.author_id = f.followee_id AND p.created_at > now() - interval '30 days' WHERE f.follower_id = $1 AND p.topics IS NOT NULL
-         UNION ALL SELECT unnest(p.topics), 2.5 * fb.value FROM content.post_feedback fb JOIN content.posts p ON p.id = fb.post_id WHERE fb.user_id = $1 AND p.topics IS NOT NULL
-       ) x GROUP BY topic HAVING sum(wt) > 0 ORDER BY sum(wt) DESC LIMIT 8`,
+      `${interestSql('$1', false)} HAVING sum(wt) > 0 ORDER BY sum(wt) DESC LIMIT 8`,
       [userId],
     );
     return rows.map((r) => ({ id: r.topic as string, label: topicLabel(r.topic as string) }));
