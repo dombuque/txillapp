@@ -430,7 +430,7 @@ export class MediaService implements OnModuleInit {
     // Converter vídeo é pesado: no máximo 40 por hora e por pessoa (evita encher a fila de conversão). Uma tcheka leva até 30
     // clipes e a Montagem mágica envia todos os vídeos; as tchekas montadas também contam.
     if (video) {
-      const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE owner_id = $1 AND mime LIKE 'video/%' AND created_at > now() - interval '1 hour'`, [userId])).rows[0].n as number;
+      const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets m WHERE m.owner_id = $1 AND m.mime LIKE 'video/%' AND m.created_at > now() - interval '1 hour' AND NOT EXISTS (SELECT 1 FROM content.post_music_bakes b WHERE b.media_id = m.id) AND NOT EXISTS (SELECT 1 FROM content.post_downloads d WHERE d.media_id = m.id)`, [userId])).rows[0].n as number;
       if (n >= 40) throw new HttpException('Já enviaste muitos vídeos. Tenta daqui a um bocado.', HttpStatus.TOO_MANY_REQUESTS);
     }
     const id = uuidv7();

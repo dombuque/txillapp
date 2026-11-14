@@ -46,3 +46,7 @@ CREATE TABLE content.post_downloads (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (post_id, version)
 );
+
+-- Procurar pelo ficheiro (a quota de vídeos por hora não conta estas cópias; apagar um ficheiro não varre a tabela toda).
+CREATE INDEX post_music_bakes_media_idx ON content.post_music_bakes (media_id) WHERE media_id IS NOT NULL;
+CREATE INDEX post_downloads_media_idx ON content.post_downloads (media_id);
