@@ -1,73 +1,24 @@
-import { Platform, Share } from 'react-native';
-import { saveUrlToGallery } from '@/lib/saveToGallery';
-import { arcPoints, sup } from './squircle';
+import { Alert, Platform, Share } from 'react-native';
+import { fetchAuthed } from '@/lib/api';
+import { saveToGallery } from '@/lib/saveToGallery';
 
 /**
- * A imagem de um Zás "como está desenhado" (só na web): a foto dentro da moldura (squircle, cantos transparentes) e a legenda a correr pela curva.
- * Usa as mesmas contas do desenho no ecrã, por isso o resultado guardado é igual ao que se vê.
+ * Guardar e partilhar os MEUS Zás (só aparecem no visor dos meus e no menu de «Os meus Zás»). A imagem vem sempre do
+ * servidor, `GET /instants/:id/download`: a foto com a legenda a correr pela curva (como no ecrã) e a assinatura do
+ * Txillapp (o logótipo e o meu @, com o selo se a conta for verificada), a mesma dos mimos. No telemóvel e na web sai o
+ * mesmo ficheiro: o @ e o selo vêm da conta (não do aparelho), a assinatura tem um só desenho (media/signature.ts) e a
+ * moldura squircle com os cantos transparentes não servia, porque cortava a assinatura, que fica no canto.
  */
-function drawCaption(g: CanvasRenderingContext2D, text: string, w: number, h: number) {
-  const label = text.toUpperCase();
-  if (!label) return;
-  const pts = arcPoints(w, h, 'top', 160);
-  const cum = [0];
-  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
-  const len = cum[cum.length - 1];
-  const fs = Math.max(8 * (w / 300), Math.min(Math.min(w, h) * 0.052, (len - 14 * (w / 300)) / (label.length * 0.8)));
-  g.font = `700 ${fs}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  g.textBaseline = 'alphabetic';
-  g.lineJoin = 'round';
-  const spacing = fs * 0.16;
-  let at = 0;
-  for (const ch of label) {
-    const cw = g.measureText(ch).width;
-    const mid = at + cw / 2;
-    if (mid > len) break;
-    let k = 1;
-    while (k < cum.length - 1 && cum[k] < mid) k++;
-    const p0 = pts[k - 1];
-    const p1 = pts[k];
-    const f = (mid - cum[k - 1]) / Math.max(1e-6, cum[k] - cum[k - 1]);
-    g.save();
-    g.translate(p0.x + (p1.x - p0.x) * f, p0.y + (p1.y - p0.y) * f);
-    g.rotate(Math.atan2(p1.y - p0.y, p1.x - p0.x));
-    g.lineWidth = 2.4 * (w / 300);
-    g.strokeStyle = 'rgba(0,0,0,0.35)';
-    g.strokeText(ch, -cw / 2, 0);
-    g.fillStyle = '#fff';
-    g.fillText(ch, -cw / 2, 0);
-    g.restore();
-    at += cw + spacing;
-  }
-}
+type Z = { id: string; url: string; caption?: string };
+const downloadPath = (it: Z) => `/instants/${it.id}/download`;
+const fileName = (it: Z) => `txillapp-zas-${it.id.slice(0, 8)}.jpg`;
 
-/** PNG da foto dentro da moldura, com a legenda (se existir). */
-export async function renderZasImage(url: string, caption: string, width = 1080): Promise<Blob> {
-  const blob = await (await fetch(url)).blob();
-  const bmp = await createImageBitmap(blob);
-  const height = Math.round((width * 4) / 3);
-  const c = document.createElement('canvas');
-  c.width = width;
-  c.height = height;
-  const g = c.getContext('2d')!;
-  g.beginPath();
-  const steps = 180;
-  for (let i = 0; i < steps; i++) {
-    const t = (i / steps) * 2 * Math.PI;
-    const x = width / 2 + (width / 2) * sup(Math.cos(t));
-    const y = height / 2 + (height / 2) * sup(Math.sin(t));
-    if (i === 0) g.moveTo(x, y);
-    else g.lineTo(x, y);
-  }
-  g.closePath();
-  g.clip();
-  const k = Math.max(width / bmp.width, height / bmp.height);
-  const dw = bmp.width * k;
-  const dh = bmp.height * k;
-  g.drawImage(bmp, (width - dw) / 2, (height - dh) / 2, dw, dh);
-  if (caption) drawCaption(g, caption, width, height);
-  bmp.close?.();
-  return await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Não consegui criar a imagem'))), 'image/png'));
+/** Na web: o JPEG assinado como ficheiro (com a sessão, como os outros pedidos da app). */
+async function signedFile(it: Z): Promise<File> {
+  const res = await fetchAuthed(downloadPath(it));
+  if (!res.ok) throw new Error('Não consegui preparar o Zás');
+  const blob = await res.blob();
+  return new File([blob], fileName(it), { type: blob.type || 'image/jpeg' });
 }
 
 /** Descarrega um ficheiro (sem folha de partilha). */
@@ -81,44 +32,44 @@ function downloadFile(f: File) {
   setTimeout(() => URL.revokeObjectURL(a.href), 8000);
 }
 
-type Z = { id: string; url: string; caption?: string };
-const photoOf = async (it: Z) => new File([await renderZasImage(it.url, it.caption ?? '')], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
-
 /**
- * Guardar o Zás como está desenhado. 'gallery': no telemóvel abre a folha do sistema («Guardar imagem»); 'file': descarrega o PNG.
- * No nativo abre a folha de partilha do sistema com a foto.
- */
-/**
- * Guardar o Zás. No telemóvel vai direto para a galeria (o Share com `url` só funcionava no iPhone: no Android partilhava
- * só a legenda). Devolve 'saved' quando ficou na galeria, 'denied' sem licença (aí abre a partilha), nada na web.
+ * Guardar o Zás, assinado. No telemóvel vai direto para a galeria; devolve 'saved' quando lá ficou, 'denied' sem licença
+ * (avisa), 'failed' se não deu. Na web, 'gallery' abre a folha do sistema no telemóvel («Guardar imagem») e 'file'
+ * descarrega o JPG; devolve 'failed' se não deu, nada quando correu bem.
  */
 export async function saveZas(it: Z, mode: 'gallery' | 'file' = 'gallery'): Promise<'saved' | 'denied' | 'failed' | void> {
   if (Platform.OS !== 'web') {
     try {
-      const r = await saveUrlToGallery(it.url, `zas-${it.id.slice(0, 8)}.jpg`);
-      if (r === 'denied') await Share.share({ url: it.url, message: it.caption || undefined }).catch(() => undefined);
+      const r = await saveToGallery(downloadPath(it), fileName(it));
+      if (r === 'denied') Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar o Zás.');
       return r;
     } catch {
       return 'failed';
     }
   }
   try {
-    const f = await photoOf(it);
-    if (mode === 'gallery' && navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
+    const f = await signedFile(it);
+    if (mode === 'gallery' && navigator.canShare?.({ files: [f] })) {
+      try {
+        return void (await navigator.share({ files: [f] }));
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
     downloadFile(f);
-  } catch (e) {
-    if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
+  } catch {
+    return 'failed';
   }
 }
 
-/** Partilhar a foto (Web Share API; sem ela copia a legenda). */
+/** Partilhar a foto: na web o ficheiro assinado (Web Share API; sem ela copia a legenda). */
 export async function shareZas(it: Z) {
   if (Platform.OS !== 'web') return void (await Share.share({ url: it.url, message: it.caption || undefined }).catch(() => undefined));
   try {
-    const f = await photoOf(it);
+    const f = await signedFile(it);
     if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], text: it.caption || undefined });
     else await navigator.clipboard?.writeText(it.caption || '');
   } catch {
-    /* cancelado: nada a fazer */
+    /* cancelado ou sem rede: nada a fazer */
   }
 }

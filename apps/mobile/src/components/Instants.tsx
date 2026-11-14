@@ -672,7 +672,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
               {(Platform.OS === 'web'
                 ? ([
                     ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
-                    ['download', 'Descarregar', 'Ficheiro PNG com a moldura e a legenda.', () => void saveZas(menu, 'file'), false],
+                    ['download', 'Descarregar', 'Ficheiro JPG com a legenda e a assinatura.', () => void saveZas(menu, 'file'), false],
                     ['share', 'Partilhar', 'Manda a foto a quem quiseres.', () => void shareZas(menu), false],
                     ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
                   ] as const)
