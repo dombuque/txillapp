@@ -19,31 +19,33 @@ export interface Clock {
   total: number;
 }
 
-const fin = (n: number, d = 0) => (Number.isFinite(n) ? n : d);
-const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+// «Worklets»: também correm no fio da interface (NativeStage, com o relógio partilhado). Sem valores por omissão que usem
+// variáveis de fora (tests/worklets.test.mjs).
+function fin(n: number, d: number): number { 'worklet'; return Number.isFinite(n) ? n : d; }
+function clamp(x: number, a: number, b: number): number { 'worklet'; return Math.min(b, Math.max(a, x)); }
 
-export const makeClock = (total: number, now = 0): Clock => ({ playing: false, base: 0, anchor: now, total: Math.max(0, fin(total)) });
+export const makeClock = (total: number, now = 0): Clock => ({ playing: false, base: 0, anchor: now, total: Math.max(0, fin(total, 0)) });
 
 /** O tempo do projeto agora (nunca passa do fim). */
 export function clockTime(c: Clock, now: number): number {
   const t = c.playing ? c.base + (now - c.anchor) / 1000 : c.base;
-  return clamp(fin(t), 0, c.total);
+  return clamp(fin(t, 0), 0, c.total);
 }
 /** Chegou ao fim a tocar (a pré-visualização pára no último frame, como no site). */
 export const clockEnded = (c: Clock, now: number) => c.playing && c.total > 0 && c.base + (now - c.anchor) / 1000 >= c.total - 1e-3;
 
 /** Tocar a partir de `from` (sem ele, de onde está; no fim, recomeça do princípio). */
 export function clockPlay(c: Clock, now: number, from?: number): Clock {
-  let at = from != null ? clamp(fin(from), 0, c.total) : clockTime(c, now);
+  let at = from != null ? clamp(fin(from, 0), 0, c.total) : clockTime(c, now);
   if (at >= c.total - 0.05) at = 0;
   return { ...c, playing: c.total > 0, base: at, anchor: now };
 }
 export const clockPause = (c: Clock, now: number): Clock => ({ ...c, playing: false, base: clockTime(c, now), anchor: now });
 /** Saltar para `t` (continua a tocar se estava a tocar). */
-export const clockSeek = (c: Clock, now: number, t: number): Clock => ({ ...c, base: clamp(fin(t), 0, c.total), anchor: now });
+export const clockSeek = (c: Clock, now: number, t: number): Clock => ({ ...c, base: clamp(fin(t, 0), 0, c.total), anchor: now });
 /** A sequência mudou de duração: o relógio fica no mesmo instante (ou no fim novo, se encolheu). */
 export function clockResize(c: Clock, now: number, total: number): Clock {
-  const T = Math.max(0, fin(total));
+  const T = Math.max(0, fin(total, 0));
   const at = Math.min(clockTime(c, now), T);
   return { ...c, total: T, base: at, anchor: now, playing: c.playing && T > 0 && at < T - 1e-3 };
 }
@@ -74,6 +76,7 @@ export function transitionAt(local: number, tr: { type: string; dur: number } | 
  * fica parado; com `focus` (Montagem mágica), de `from` a `to`, a puxar para o ponto de interesse.
  */
 export function photoZoom(local: number, dur: number, fx?: { freeze?: unknown; focus?: { x: number; y: number; from: number; to: number } } | null): { scale: number; x: number; y: number } {
+  'worklet';
   const u = clamp(dur > 0 ? local / dur : 0, 0, 1);
   if (fx?.freeze) return { scale: 1, x: 0.5, y: 0.5 };
   if (fx?.focus) {
@@ -90,7 +93,7 @@ export function photoZoom(local: number, dur: number, fx?: { freeze?: unknown; f
  * princípio dela (em ciclo, como o `-stream_loop -1` + `atrim` do servidor).
  */
 export function musicPosition(t: number, startMs: number, trackSeconds: number | null | undefined): number {
-  const pos = Math.max(0, fin(startMs) / 1000 + Math.max(0, fin(t)));
+  const pos = Math.max(0, fin(startMs, 0) / 1000 + Math.max(0, fin(t, 0)));
   const D = trackSeconds && trackSeconds > 0.2 ? trackSeconds : 0;
   return D ? pos % D : pos;
 }
@@ -130,8 +133,95 @@ export const channelVolume = (volume: number, fade = 1, duck = 1) => Math.round(
  */
 export function reverseStep(src: number, fps = 8): number {
   const step = 1 / Math.max(1, fps);
-  return Math.max(0, Math.round(fin(src) / step) * step);
+  return Math.max(0, Math.round(fin(src, 0) / step) * step);
 }
 
 /** «0:07 / 0:20» só muda uma vez por segundo: a chave para saber se o texto do relógio tem de ser redesenhado. */
-export const clockKey = (t: number, total: number) => `${Math.floor(Math.max(0, fin(t)))}/${Math.floor(Math.max(0, fin(total)))}`;
+export const clockKey = (t: number, total: number) => `${Math.floor(Math.max(0, fin(t, 0)))}/${Math.floor(Math.max(0, fin(total, 0)))}`;
+
+// ---------------------------------------------------------------- o relógio no fio da interface (worklets)
+
+/**
+ * O relógio como o fio da interface o lê: muda só quando se toca, pausa, salta ou a duração muda (não a cada frame). Com
+ * ele, o zoom das fotos e as transições andam no fio da interface, frame a frame, sem esperar pelo JS (que a cada tique
+ * redesenhava a foto em degraus de 0,15 % e o palco inteiro durante as transições).
+ */
+export interface ClockAnchor {
+  playing: boolean;
+  /** O tempo do projeto (s) no instante `wall`. */
+  base: number;
+  /** O relógio de parede (`Date.now()`, ms) em que `base` valia. */
+  wall: number;
+  total: number;
+}
+
+/** O tempo do projeto no instante `now` (ms de `Date.now()`), no fio da interface. */
+export function clockAt(a: ClockAnchor, now: number): number {
+  'worklet';
+  const t = a.playing ? a.base + (now - a.wall) / 1000 : a.base;
+  return clamp(fin(t, 0), 0, Math.max(0, a.total));
+}
+
+/**
+ * Um relógio de parede liso para cada frame do ecrã: soma os intervalos certos entre frames (`dt`, do vsync) e só se
+ * aproxima devagar do `Date.now()` (que vem em ms inteiros e com o atraso do fio). Sem isto, um vídeo de 30 fps num ecrã
+ * de 60 Hz fica sempre à beira de mudar de frame e muda ora ao 1.º, ora ao 2.º ou 3.º tique: «estremece». Um salto grande
+ * (o fio parou, a app voltou) volta logo ao relógio de parede.
+ */
+export function smoothNow(prev: number, dt: number, wall: number): number {
+  'worklet';
+  if (!(prev > 0) || !(dt > 0) || dt > 250) return wall;
+  const next = prev + dt;
+  const err = wall - next;
+  if (Math.abs(err) > 25) return wall;
+  return next + err * 0.04;
+}
+
+/** A mesma curva de `easeInOutCubic` (lib/studio/effects.ts, que é copiado para o servidor e não leva worklets; o teste confirma). */
+export function easeInOut(x: number): number {
+  'worklet';
+  const t = clamp(x, 0, 1);
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/** O progresso (0 a 1) da transição que entra num clipe que começa em `start`, no instante `t`. */
+export function transitionProgress(t: number, start: number, dur: number): number {
+  'worklet';
+  return dur > 0 ? clamp((t - start) / dur, 0, 1) : 1;
+}
+
+export interface TransitionLook {
+  prev: { opacity: number; translateX: number; translateY: number; scale: number; rotate: number };
+  cur: { opacity: number; translateX: number; translateY: number; scale: number; rotate: number };
+  /** O branco por cima (flash e brilho). */
+  flash: number;
+  /** A faixa de pano das transições de capulana (a ponta esquerda, em fração da largura; null sem pano). */
+  pano: number | null;
+}
+
+/**
+ * Como ficam o clipe que sai e o que entra numa transição, com o progresso `p` (aproxima o desenho do site,
+ * lib/studio/renderTransitions.ts). Rotações em graus.
+ */
+export function transitionLook(type: string, p: number, W: number, H: number): TransitionLook {
+  'worklet';
+  const e = easeInOut(p);
+  const id = { opacity: 1, translateX: 0, translateY: 0, scale: 1, rotate: 0 };
+  const prev = { ...id };
+  const cur = { ...id };
+  let flash = 0;
+  let pano: number | null = null;
+  if (type === 'deslizar-esquerda') { prev.translateX = -e * W; cur.translateX = (1 - e) * W; }
+  else if (type === 'deslizar-direita') { prev.translateX = e * W; cur.translateX = -(1 - e) * W; }
+  else if (type === 'deslizar-cima') { prev.translateY = -e * H; cur.translateY = (1 - e) * H; }
+  else if (type === 'deslizar-baixo') { prev.translateY = e * H; cur.translateY = -(1 - e) * H; }
+  else if (type === 'zoom') { prev.opacity = 1 - e; prev.scale = 1 + 1.2 * e; cur.scale = 1.4 - 0.4 * e; }
+  else if (type === 'girar') { prev.opacity = e < 0.5 ? 1 : 0; prev.rotate = 180 * e; prev.scale = 1.8; cur.rotate = -90 * (1 - e); cur.scale = 1 + 0.8 * (1 - e); }
+  else if (type === 'flash') { prev.opacity = e < 0.5 ? 1 : 0; flash = Math.pow(Math.sin(Math.PI * p), 1.6); }
+  else {
+    prev.opacity = 1 - e;
+    if (type === 'brilho') flash = 0.25 * Math.sin(Math.PI * p);
+    if (type.startsWith('capulana-')) pano = -0.7 + e * 1.7;
+  }
+  return { prev, cur, flash, pano };
+}

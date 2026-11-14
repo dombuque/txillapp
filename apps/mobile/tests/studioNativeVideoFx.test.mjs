@@ -96,7 +96,9 @@ test('onde o vídeo deve estar: o alvo andado à velocidade, sem passar do fim',
 test('Android: avança só os frames que faltam, salta para trás e não salta outra vez enquanto apanha', () => {
   const base = { frameMs: 33.3, now: 10_000, lastSeekAt: 0, lastSeekTo: -1e9 };
   assert.deepEqual(V.androidPace({ ...base, want: 1000, cur: 1000 }), { seek: null, advance: 0 });
-  assert.deepEqual(V.androidPace({ ...base, want: 1040, cur: 1000 }), { seek: null, advance: 2 });
+  // 1,2 frames atrás: o frame mais perto (1), não 2 (com `ceil` saltava um frame à frente).
+  assert.deepEqual(V.androidPace({ ...base, want: 1040, cur: 1000 }), { seek: null, advance: 1 });
+  assert.deepEqual(V.androidPace({ ...base, want: 1060, cur: 1000 }), { seek: null, advance: 2 });
   assert.equal(V.androidPace({ ...base, want: 2000, cur: 1000 }).advance, 4);
   // Para trás: salta.
   assert.deepEqual(V.androidPace({ ...base, want: 500, cur: 1000 }), { seek: 500, advance: 0 });

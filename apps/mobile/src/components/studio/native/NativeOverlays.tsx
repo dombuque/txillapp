@@ -188,11 +188,14 @@ export function NativeOverlays({ overlays, clock, W, H, selId, locked, showSafe,
 }) {
   const [t, setT] = useState(() => clock.time());
   const [guides, setGuides] = useState<{ vx: number | null; hy: number | null } | null>(null);
+  const any = useRef(overlays.length > 0);
+  any.current = overlays.length > 0;
   useEffect(() => {
     let last = 0;
     return clock.subscribe((now, playing) => {
       const ms = Date.now();
-      if (playing && ms - last < 33) return;
+      // Sem textos nem stickers não há nada para mexer: não se volta a desenhar a 30 por segundo.
+      if (playing && (ms - last < 33 || !any.current)) return;
       last = ms;
       setT(now);
     });
