@@ -915,7 +915,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
                   clip={cur ?? null} duration={sel >= 0 ? durations[sel] ?? 0 : 0} rhythm={useRhythm} locked={locked}
                   onSplit={splitHere} onDuplicate={() => { if (cur) duplicate(cur.key); }} onSpeed={(sp) => { if (cur) changeSpeed(cur.key, sp); }}
                   onPhoto={(v) => { if (cur) changePhoto(cur.key, v); }} onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
-                  fit={curFit} fitChosen={!!cur?.fit} onFit={(f) => { if (cur) setClipFit(cur.key, f); }}
+                  fit={curFit} fitChosen={!!cur?.fit} onFit={(f) => { if (cur) setClipFit(cur.key, f); }} fitOff={!!reference || (!!cur && !cur.video && !!cur.fx?.moldura)}
                   onReplace={() => { if (cur) void replace(cur.key); }} onDelete={() => { if (cur) remove(cur.key); }}
                 />
                 <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>

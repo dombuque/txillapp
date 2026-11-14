@@ -32,7 +32,7 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
  * vídeos, as quatro que a montagem aceita: 0,5×, 1×, 2× e 3×) ou Duração (nas fotos, ou as batidas ao ritmo), o som do vídeo,
  * «Encher»/«Inteiro» (lib/studio/fit.ts: por omissão automático), Substituir e Apagar.
  */
-export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onDuplicate, onSpeed, onPhoto, onSound, onReplace, onDelete, fit, fitChosen, onFit }: {
+export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onDuplicate, onSpeed, onPhoto, onSound, onReplace, onDelete, fit, fitChosen, onFit, fitOff }: {
   clip: ProjectClip | null;
   duration: number;
   rhythm: boolean;
@@ -48,6 +48,8 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
   fit: ClipFit;
   fitChosen: boolean;
   onFit: (f: ClipFit | null) => void;
+  /** O «Encher»/«Inteiro» não conta aqui (dueto, foto com moldura, como no servidor): o botão não aparece. */
+  fitOff?: boolean;
 }) {
   const [open, setOpen] = useState<'tempo' | 'som' | 'enquadrar' | null>(null);
   const off = locked || !clip;
@@ -68,7 +70,7 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
         {clip.video ? (
           <Btn label={mute ? 'Sem som' : soundOn ? 'Som do vídeo' : 'Calado'} icon={soundOn && !mute ? <Volume2 size={20} color="#fff" /> : <VolumeX size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'som' ? null : 'som'))} on={open === 'som' && !mute} disabled={off || mute} />
         ) : null}
-        <Btn label={fitLabel(fit)} icon={fit === 'blur' ? <Minimize2 size={20} color="#fff" /> : <Maximize2 size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'enquadrar' ? null : 'enquadrar'))} on={open === 'enquadrar'} disabled={off} />
+        {fitOff ? null : <Btn label={fitLabel(fit)} icon={fit === 'blur' ? <Minimize2 size={20} color="#fff" /> : <Maximize2 size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'enquadrar' ? null : 'enquadrar'))} on={open === 'enquadrar'} disabled={off} />}
         <Btn label="Substituir" icon={<Replace size={20} color="#fff" />} onPress={onReplace} disabled={off} />
         <Btn label="Apagar" icon={<Trash2 size={20} color="#fecaca" />} onPress={onDelete} disabled={off} danger />
       </ScrollView>
@@ -86,7 +88,7 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
           )}
         </View>
       ) : null}
-      {open === 'enquadrar' ? (
+      {open === 'enquadrar' && !fitOff ? (
         <View style={[st.panel, { flexDirection: 'column', alignItems: 'stretch' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip label="Auto" on={!fitChosen} onPress={() => onFit(null)} />

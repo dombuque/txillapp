@@ -242,7 +242,9 @@ tem um campo opcional `fit` (no `ProjectClip`, nos rascunhos e no pedido de mont
 | sem o campo | «Auto» | `autoFit`: `'cover'` quando largura/altura de exibição (já com a rotação do ficheiro) ≤ 0,8 (`FIT_AUTO_MAX_ASPECT`, 4:5); `'blur'` nos mais largos (quadrado, 4:3, 16:9) |
 
 - A escolha da pessoa ganha sempre. No automático, uma foto com o enquadramento da Montagem mágica (`fx.focus`) enche, como
-  antes; a moldura de capulana já mostra a foto inteira e não muda.
+  antes (um frame congelado não: segue o automático); a moldura de capulana já mostra a foto inteira e não muda. No dueto o
+  `fit` também não conta (cada lado enche o seu quadro, como no servidor): o palco ignora-o e o painel do clipe não mostra a
+  escolha, nem numa foto com moldura.
 - O pedido de montagem só leva `fit` quando a pessoa escolheu; sem ele o servidor faz o mesmo automático. O `compatRequest`
   tira-o para um servidor que ainda não o conheça.
 - O zoom lento de uma foto «Inteiro» é só na imagem da frente: a caixa contida fica do mesmo tamanho e a foto cresce lá dentro,

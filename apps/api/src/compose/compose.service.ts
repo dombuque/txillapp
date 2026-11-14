@@ -886,8 +886,9 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       // transição de entrada desenhada no canvas como no site (os primeiros frames saem em RGBA para isso).
       let input = src.file, trimStart = c.trimStart, hasAudio = src.hasAudio;
       // O encaixe (fit.ts): o pedido ou o automático; no dueto, cada lado enche o seu quadro (como sempre). Uma foto com o
-      // enquadramento da Montagem mágica fica a cobrir, salvo com `blur` pedido.
-      let fit: Fit = duet ? 'cover' : c.fit ?? (c.kind === 'photo' && c.fx?.focus ? 'cover' : autoFit(src.w, src.h));
+      // enquadramento da Montagem mágica (sem ser um frame congelado: aí o enquadramento não conta) fica a cobrir, salvo com
+      // `blur` pedido; a mesma regra do `clipFit` da app.
+      let fit: Fit = duet ? 'cover' : c.fit ?? (c.kind === 'photo' && c.fx?.focus && !c.fx.freeze ? 'cover' : autoFit(src.w, src.h));
       if (studio && c.kind === 'video' && c.fx?.reverse) {
         const r0 = Date.now();
         input = await this.reversed(i, src.file, c, W, H, tmp, (a) => run(a), undefined, fit);

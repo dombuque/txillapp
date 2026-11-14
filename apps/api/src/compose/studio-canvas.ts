@@ -7,7 +7,7 @@ import { isCapulanaTransition } from './capulanaShapes';
 import { FONTS, FRAME, restingTime, type CapulanaSpec, type ClipFx, type Overlay, type StickerOverlay, type TransitionId } from './effects';
 import { ffmpegFrames, ffmpegSink } from './ffmpeg';
 import { containRect } from './fit';
-import { coverRect, focusZoom, overlayBox, overlayRuns } from './fx';
+import { coverRect, overlayBox, overlayRuns } from './fx';
 import { FPS, KEN_BURNS } from './plan';
 import { drawOverlays, overlaySize, type OverlayEnv } from './renderOverlays';
 import { drawTransition, type Scratch } from './renderTransitions';
@@ -118,7 +118,8 @@ export async function renderTransitionHead(o: {
  * interpola: o movimento anda frações de píxel por frame sem saltos, ao contrário do `zoompan` do ffmpeg):
  * - com moldura de capulana: a foto inteira por cima do pano, com o zoom lento dentro da moldura;
  * - com `background` (o encaixe `blur`, fit.ts): o fundo já desfocado e escurecido (W×H, parado) e por cima a foto inteira,
- *   contida e ao centro, com o Ken Burns (ou, com enquadramento, o zoom de `from` a `to` à volta do ponto de interesse);
+ *   contida e ao centro; o Ken Burns é só dentro dessa caixa (fica do mesmo tamanho e a foto cresce lá dentro, de 1 a 1,07 ao
+ *   centro, sem o enquadramento), como o `zoomSource` da app (apps/mobile/src/lib/studio/fit.ts);
  * - com enquadramento (`focus`): o retângulo de `coverRect` a encher o quadro;
  * - sem nada: o Ken Burns a cobrir o quadro (`image` já cortada à proporção do quadro), de 1 a 1,07 ao centro.
  * Um frame congelado (`freeze`) fica parado. `write` recebe cada frame em RGBA (W×H).
@@ -146,11 +147,9 @@ export async function renderPhotoFrames(o: { image: Buffer; background?: Buffer 
       drawCapulanaFrame(asCtx(g), img as unknown as CanvasImageSource, img.width, img.height, W, H, fx.moldura, zoom, fx.focus);
     } else if (bg) {
       g.drawImage(bg, 0, 0, W, H);
-      const base = containRect(img.width, img.height, W, H);
-      const f = fx.focus && !fx.freeze ? fx.focus : null;
-      const zoom = f ? focusZoom(f, u) : kb;
-      const r = containRect(img.width, img.height, W, H, zoom, f ? base.x + f.x * base.w : W / 2, f ? base.y + f.y * base.h : H / 2);
-      g.drawImage(img, r.x, r.y, r.w, r.h);
+      const r = containRect(img.width, img.height, W, H);
+      const sw = img.width / kb, sh = img.height / kb;
+      g.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, r.x, r.y, r.w, r.h);
     } else if (fx.focus) {
       const r = coverRect(img.width, img.height, fx.focus, u, W, H);
       g.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H);
@@ -159,7 +158,7 @@ export async function renderPhotoFrames(o: { image: Buffer; background?: Buffer 
     }
     // `data()`: os píxeis numa cópia, sem a conversão de `getImageData` (o frame é opaco: é o mesmo RGBA).
     const frame = c.data();
-    if (!fx.moldura && (fx.freeze || (fx.focus && fx.focus.from === fx.focus.to))) still = frame;
+    if (!fx.moldura && (fx.freeze || (!bg && fx.focus && fx.focus.from === fx.focus.to))) still = frame;
     await o.write(frame);
   }
 }

@@ -89,9 +89,10 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
   - Sem `fit` (automático, `autoFit(w, h)`): **`cover` quando largura/altura ≤ 0,8** e `blur` acima (0,8 já é `cover`; 3:4 e
     9:16 enchem; quadrado, 4:3 e 16:9 deitados vão inteiros). `w`×`h` é o tamanho **de mostrar**: um vídeo gravado de pé tem
     1920×1080 com 90° nos metadados (displaymatrix) e conta como 1080×1920; uma foto conta já com a orientação do EXIF.
-  - Uma foto com o enquadramento da Montagem mágica (`fx.focus`) fica como estava (a cobrir, com o retângulo de `coverRect`)
-    salvo com `fit: 'blur'`: aí vai inteira e o zoom de `from` a `to` (a mesma curva) faz-se à volta do ponto `x`, `y` da foto.
-  - O Ken Burns de uma foto em `blur` é só da foto da frente (de 1 a 1,07 à volta do centro do quadro); o fundo fica parado.
+  - Uma foto com o enquadramento da Montagem mágica (`fx.focus`, sem ser um frame congelado) fica como estava (a cobrir, com o
+    retângulo de `coverRect`) salvo com `fit: 'blur'`: aí vai inteira e o enquadramento não conta (o zoom é o de baixo).
+  - O Ken Burns de uma foto em `blur` é só da foto da frente e dentro da caixa dela: a caixa contida fica do mesmo tamanho e a
+    foto cresce lá dentro, de 1 a 1,07 ao centro (o frame k de N: 1 + 0,07·k/N), como o `zoomSource` da app; o fundo fica parado.
   - Na moldura de capulana o `fit` não conta (a foto já vai inteira). **No dueto** também não: cada lado enche o seu quadro
     9:16, como sempre.
   - `fit` diferente de `cover`/`blur` → 400 «O encaixe é cover ou blur».

@@ -423,6 +423,8 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
   const segsRef = useRef(segs);
   segsRef.current = segs;
   const t = useStageTime(clock);
+  // No dueto o «Encher»/«Inteiro» não conta: cada lado enche o seu quadro, como no servidor.
+  const shown = useMemo(() => (reference ? segs.map((s) => (s.fit === 'cover' ? s : { ...s, fit: 'cover' as const })) : segs), [segs, reference]);
   // Ao fechar o estúdio, os vídeos da Skia parados largam-se.
   useEffect(() => () => resetSkiaVideos(), []);
   useEffect(() => {
@@ -444,7 +446,7 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
   const duet = !!reference;
   const bw = duet ? W / 2 : W, bh = duet ? Math.min(H, (W / 2) * (16 / 9)) : H;
   const layer = (k: number, role: Role) => {
-    const s = segs[k];
+    const s = shown[k];
     if (!s) return null;
     return (
       <StageLayer key={`${s.key}|${s.uri}`} role={role} tr={role === 'next' ? null : tr} t={t} W={bw} H={bh}>

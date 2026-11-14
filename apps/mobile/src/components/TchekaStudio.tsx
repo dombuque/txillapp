@@ -765,7 +765,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const half = !!(reference && e.ref);
     const to = { x: half ? W / 2 : 0, y: 0, w: half ? W / 2 : W, h: H };
     const seed = Math.floor((s.start + tl) * 30);
-    const want = fitOf(s);
+    // No dueto o «Encher»/«Inteiro» não conta: cada lado enche o seu quadro, como no servidor.
+    const want: ClipFit | undefined = reference ? 'cover' : fitOf(s);
     if (s.video) {
       const rf = fx?.reverse ? reverseFor(s) : null;
       const fr = rf ? rf.frame(reverseFrameIndex(srcAt(s, tl) - s.from, rf.count)) : null;
@@ -1932,8 +1933,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               onReplace={(f) => { if (cur) void replace(cur.key, f); }}
               onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
             />
-            {cur ? (() => {
+            {cur && !reference && !(!cur.video && cur.fx?.moldura) ? (() => {
               // «Encher» / «Inteiro» (lib/studio/fit.ts): a escolha da pessoa ou o automático, com as medidas que o estúdio já leu.
+              // No dueto e numa foto com moldura não conta (como no servidor): não aparece.
               const v = cur.video ? engine.current.videos.get(cur.key) : null;
               const im = cur.video ? null : engine.current.images.get(cur.uri);
               const dims = v?.videoWidth ? { w: v.videoWidth, h: v.videoHeight } : im?.naturalWidth ? { w: im.naturalWidth, h: im.naturalHeight } : null;
