@@ -45,6 +45,9 @@ import { innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClai
 import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 import { usePagerPan } from '@/components/SwipePager';
 import { useTabPress } from '@/lib/tabPress';
+import { MixarEntry } from '@/components/mixar/MixarEntry';
+import { useOpenMixar } from '@/components/mixar/useOpenMixar';
+import { mixarPreview } from '@/lib/mixar';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
@@ -66,6 +69,8 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
   if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma 🍻'}`;
   if (m.kind === 'rodada') return `${you}${m.body || 'Abriu uma rodada'}`;
+  // Mixar: «Convidou-te para um Mixar» / «Convidaste para um Mixar» (sempre para quem vê, lib/mixar).
+  if (m.kind === 'mixar') return mixarPreview(m);
   if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;
@@ -230,7 +235,8 @@ export default function Messages() {
     void qc.invalidateQueries({ queryKey: ['chat-thread', u] });
     void qc.invalidateQueries({ queryKey: ['chat-list'] });
   }
-  const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request });
+  const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request, mixar: !r.g, name: r.name });
+  const mixar = useOpenMixar();
   /** Correr uma ação numa linha (do deslizar, da folha ou do leitor de ecrã). */
   function runAction(a: InboxAction, r: Row) {
     const me = user?.username;
@@ -247,9 +253,10 @@ export default function Messages() {
     else if (a === 'profile') router.push(`/u/${u}` as never);
     else if (a === 'delete') deleteChat(u, r.name);
     else if (a === 'clear') clearChat(u);
+    else if (a === 'mixar') void mixar.run(u, r.name);
     else if (a === 'ttl') setTtlFor({ username: u, ttl: direct.data?.find((c) => c.username === u)?.ttl ?? null });
   }
-  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600 };
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600, mixar: colors.brand };
   const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
     acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */
@@ -415,6 +422,8 @@ export default function Messages() {
         <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
+      {/* Mixar: uma linha discreta com os teus Mixar e convites (ou só uma dica pequena), por cima dos separadores. */}
+      {!term && view === 'chats' && <MixarEntry />}
       <View style={styles.tabs} accessibilityRole="tablist">
         {searching ? (
           <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>

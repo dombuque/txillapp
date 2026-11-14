@@ -31,8 +31,10 @@ export function useViewerKeys(on: boolean, handlers: Partial<Record<ViewerKey, (
  * o espaço muda `pauseSignal` (a tcheka em cena pausa ou continua) e ←/→ mudam `seekSignal` (recua ou avança 5 s).
  * Devolve a ref a pôr na View à volta da lista.
  * No telemóvel não liga nada (só com rato: `(hover: hover) and (pointer: fine)`).
+ * `arrowsStep`: ←/→ também passam de item (o Mixar), em vez de recuar ou avançar 5 s.
  */
-export function useDeskReels(on: boolean, active: () => number, goTo: (index: number) => void) {
+export function useDeskReels(on: boolean, active: () => number, goTo: (index: number) => void, opts: { arrowsStep?: boolean } = {}) {
+  const step = !!opts.arrowsStep;
   const fns = useRef({ active, goTo });
   fns.current = { active, goTo };
   const [pauseSignal, setPauseSignal] = useState(0);
@@ -47,6 +49,8 @@ export function useDeskReels(on: boolean, active: () => number, goTo: (index: nu
     pause: () => setPauseSignal((n) => n + 1),
     prev: () => setSeekSignal((s) => ({ n: s.n + 1, by: -5 })),
     next: () => setSeekSignal((s) => ({ n: s.n + 1, by: 5 })),
+    // O Mixar (`arrowsStep`): ←/→ passam de item, como ↑/↓.
+    ...(step ? { prev: () => fns.current.goTo(fns.current.active() - 1), next: () => fns.current.goTo(fns.current.active() + 1) } : null),
   }, overlayOpen);
   useEffect(() => {
     if (!mouse || !el) return;

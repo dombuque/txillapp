@@ -9,7 +9,7 @@
  * Silenciar e afixar conversas ainda não existem na API (apps/api/src/chat): quando existirem, entram aqui.
  */
 
-export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear';
+export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear' | 'mixar';
 
 /** O que a linha precisa de saber para escolher as ações. */
 export interface InboxMenuRow {
@@ -23,13 +23,17 @@ export interface InboxMenuRow {
   me?: string | null;
   /** Conversa a dois que ainda é um pedido de mensagem (aí não se mudam as mensagens temporárias). */
   request?: boolean;
+  /** Conversa a dois: mostrar «Mixar com Fulano» (abre o Mixar que já existe ou convida; não num pedido). */
+  mixar?: boolean;
+  /** O nome do outro lado («Mixar com Ana»: só o primeiro nome). */
+  name?: string;
 }
 
 export interface InboxMenuItem {
   id: InboxAction | 'cancel';
   label: string;
   /** Nome de um ícone de components/Icon. */
-  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off';
+  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off' | 'sparkles';
   /** Vermelho: apaga ou sai (pergunta antes). */
   danger: boolean;
 }
@@ -37,14 +41,14 @@ export interface InboxMenuItem {
 /** A ação do leitor de ecrã que abre a folha. `longpress` é a ação padrão do Android (manter premido). */
 export const MORE_ACTION = 'longpress';
 
-const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off' };
-const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true };
+const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off', mixar: 'sparkles' };
+const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true, mixar: false };
 
 /** O texto curto do botão que aparece ao deslizar (cabe em 84 px). */
-const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar' };
+const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar', mixar: 'Mixar' };
 
-/** O texto inteiro (folha e leitor de ecrã). "Lida" de uma conversa, "lido" de um grupo. */
-export function actionLabel(a: InboxAction, group: boolean): string {
+/** O texto inteiro (folha e leitor de ecrã). "Lida" de uma conversa, "lido" de um grupo. `name`: «Mixar com Ana». */
+export function actionLabel(a: InboxAction, group: boolean, name?: string): string {
   switch (a) {
     case 'read': return group ? 'Marcar como lido' : 'Marcar como lida';
     case 'unread': return 'Marcar como por ler';
@@ -54,6 +58,10 @@ export function actionLabel(a: InboxAction, group: boolean): string {
     case 'leave': return 'Sair do grupo';
     case 'ttl': return 'Mensagens temporárias';
     case 'clear': return 'Limpar conversa';
+    case 'mixar': {
+      const first = (name ?? '').trim().split(/\s+/)[0];
+      return first ? `Mixar com ${first}` : 'Mixar';
+    }
   }
 }
 
@@ -85,7 +93,7 @@ export function inboxMenu(r: InboxMenuRow): InboxAction[] {
  */
 export function inboxMenuItems(r: InboxMenuRow): InboxMenuItem[] {
   return [
-    ...inboxDeskMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] })),
+    ...inboxDeskMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group, r.name), icon: ICON[a], danger: DANGER[a] })),
     { id: 'cancel', label: 'Cancelar', icon: 'x', danger: false },
   ];
 }
@@ -99,12 +107,14 @@ export function inboxDeskMenu(r: InboxMenuRow): InboxAction[] {
   const base = inboxMenu(r);
   if (r.group || !base.length) return base;
   const s = inboxSwipe(r);
-  return [...s.left, 'profile', ...(r.request ? [] : (['ttl'] as const)), 'clear', ...s.right];
+  // «Mixar com Fulano» logo a seguir ao perfil (só quando o ecrã o pede e não num pedido de mensagem).
+  const mixar = r.mixar && !r.request ? (['mixar'] as const) : [];
+  return [...s.left, 'profile', ...mixar, ...(r.request ? [] : (['ttl'] as const)), 'clear', ...s.right];
 }
 
 /** O menu de contexto com os textos (sem "Cancelar": clicar fora ou Esc fecham). */
 export function inboxDeskMenuItems(r: InboxMenuRow): InboxMenuItem[] {
-  return inboxDeskMenu(r).map((a) => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] }));
+  return inboxDeskMenu(r).map((a) => ({ id: a, label: actionLabel(a, r.group, r.name), icon: ICON[a], danger: DANGER[a] }));
 }
 
 /** O leitor de ecrã: as mesmas ações da folha e "Mais opções", que a abre. Nomes livres, não são `accessibilityRole`. */

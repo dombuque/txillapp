@@ -10,7 +10,8 @@
  *   caiu em silêncio: proxy, rede móvel, iOS em segundo plano breve), avisa para abortar e voltar a ligar.
  */
 
-export interface StreamChatEvent { type: string; from?: string; group?: string; self?: boolean }
+/** `id` e `what`: só nos eventos 'mixar' ({ type: 'mixar', id, what }). */
+export interface StreamChatEvent { type: string; from?: string; group?: string; self?: boolean; id?: string; what?: string }
 export type QueryKey = readonly unknown[];
 
 export interface EventPlan {
@@ -40,12 +41,36 @@ export function refreshKeys(e?: StreamChatEvent): QueryKey[] {
 /** A faixa dos Zás e a lista do visor em pilha (components/Instants.tsx). */
 export const ZAS_KEYS: QueryKey[] = [['instants'], ['instants-feed']];
 
+/**
+ * Mixar (docs/mixar-contrato.md): `{ type: 'mixar', id, what }` para o outro e o eco (self) para os meus outros aparelhos.
+ * Só põe em dia o que mudou nesse Mixar (as chaves de lib/api.mixar, mixarKeys), sem som nem aviso (o push trata disso):
+ * - 'reaction': o feed (a reação do outro);
+ * - 'pick' / 'result': o desafio, e o resumo (o «desafio à espera» da lista);
+ * - 'daily': a seleção nova (feed, desafio e lista);
+ * - 'invite' / 'accepted': o Mixar, a lista, o «com esta pessoa» e as conversas (o cartão do chat muda de estado).
+ */
+export function mixarEventKeys(e: StreamChatEvent): QueryKey[] {
+  if (!e.id) return [['mixar-list']];
+  const one = ['mixar', e.id];
+  switch (e.what) {
+    case 'reaction': return [[...one, 'feed']];
+    case 'pick':
+    case 'result': return [[...one, 'challenge'], ['mixar-list']];
+    case 'daily': return [[...one, 'feed'], [...one, 'challenge'], ['mixar-list']];
+    case 'invite':
+    case 'accepted': return [one, ['mixar-list'], ['mixar-with'], ['chat-list'], ['chat-thread']];
+    default: return [one, ['mixar-list']];
+  }
+}
+
 /** O que fazer com um evento de chat (não 'call' nem 'group': esses têm o seu caminho em realtime.ts). */
 export function planChatEvent(e: StreamChatEvent): EventPlan {
   if (e.type === 'ping') return { notify: false, keys: [] };
   // Zás novo (ou apagado) de alguém que posso ver, ou o eco de um meu noutro aparelho: só a faixa dos Zás se põe em dia
   // (sem som, sem aviso, sem mexer nas conversas).
   if (e.type === 'zas') return { notify: false, keys: ZAS_KEYS };
+  // Mixar: só os dados desse Mixar (sem som, aviso nem "a escrever…"), venha do outro ou seja o meu eco.
+  if (e.type === 'mixar') return { notify: false, keys: mixarEventKeys(e) };
   if (e.self) {
     // O meu próprio "a escrever" nunca devia chegar; se chegar, ignora-se.
     if (e.type === 'typing') return { notify: false, keys: [] };

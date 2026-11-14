@@ -31,8 +31,10 @@ const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
  * Ao escrever, esses dão lugar a Enviar.
  */
 export function ChatComposer({
-  username, person, onSent, bottom, replyTo, onClearReply, onTyping, closeTick, onOpenChange, onEditLast,
+  username, person, onSent, bottom, replyTo, onClearReply, onTyping, closeTick, onOpenChange, onEditLast, onMixar,
 }: {
+  /** «Mixar com Fulano» no menu «+» (abre o Mixar que já existe ou convida). */
+  onMixar?: () => void;
   /** Computador: ↑ com a caixa vazia edita a minha última mensagem (sem isto, ↑ faz o costume). */
   onEditLast?: () => void;
   /** Avisa se os stickers ou o menu "+" estão abertos (para a conversa só pedir para fechar quando há algo aberto). */
@@ -327,6 +329,7 @@ export function ChatComposer({
           onGift={() => setGift(true)}
           onToggleOnce={toggleOnce}
           onGelada={() => setGelada(true)}
+          onMixar={onMixar}
         />
       )}
       {gelada && <AskSheet to={[username]} lockTo defaultChannel="chat" onClose={() => { setGelada(false); onSent(); }} />}
