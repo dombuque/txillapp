@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { limitBuffer } from '@/lib/videoMemory';
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,8 @@ import { MAX_STICKERS, newPlaced, type MimoLayer } from '@/lib/stickers';
 import { MAX_TEXT_LAYERS, countLayers, isTextLayer, newTextLayer, type TextLayer } from '@/lib/textLayers';
 import { TextLayerEditor } from './TextLayers';
 import { linkShare } from '@/lib/shareLink';
+import { saveTcheka } from '@/lib/saveTcheka';
+import { canDownload } from '@/lib/tchekaDownload';
 import type { Track } from '@/lib/api.music';
 import { MusicPicker } from './MusicPicker';
 
@@ -156,6 +158,14 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     }
     setBusy(false);
   }
+  /** O vídeo com a assinatura e o cartão do fim: na galeria (telemóvel) ou na folha de partilha / descarregado (site). */
+  async function download() {
+    setBusy(true);
+    setNote('A preparar o vídeo…');
+    await saveTcheka(post);
+    setBusy(false);
+    setNote('');
+  }
   async function copy() {
     try {
       await Clipboard.setStringAsync(url);
@@ -250,6 +260,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
             {letter('Telegram', 'T', '#0ea5e9', () => open(`https://t.me/share/url?url=${enc(url)}`))}
             {letter('Facebook', 'f', '#2563eb', () => open(`https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`))}
             {letter('X', 'X', colors.zinc900, () => open(`https://twitter.com/intent/tweet?url=${enc(url)}`))}
+            {canDownload(post) ? action('download', Platform.OS === 'web' ? 'Descarregar' : 'Guardar vídeo', () => void download()) : null}
             {action('link', 'Copiar link', () => void copy())}
             {action('share', 'Partilhar…', () => void system())}
           </ScrollView>

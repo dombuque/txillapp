@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useRef, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { track } from '@/lib/analytics';
@@ -16,6 +16,8 @@ import { Sheet, useSheetMode } from './Sheet';
 import type { Rect } from '@/lib/desktopKeys';
 import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
+import { saveTcheka } from '@/lib/saveTcheka';
+import { canDownload } from '@/lib/tchekaDownload';
 import { takedownText, takedownTitle } from '@/lib/remix';
 import { normTextFont, type TextFontId } from '@/lib/textLayers';
 import { FontChips } from './FontChips';
@@ -244,6 +246,15 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
     onClose();
     await refresh(['feed', 'profile-posts', 'post', 'reels', 'place', 'saved']);
   }
+  // Guardar o vídeo no telemóvel (ou descarregá-lo no site), com a assinatura e o cartão do fim (lib/saveTcheka).
+  const [downloading, setDownloading] = useState(false);
+  async function download() {
+    if (downloading) return;
+    setDownloading(true);
+    const ok = await saveTcheka(post);
+    setDownloading(false);
+    if (ok) onClose();
+  }
   async function hide() {
     await api.hideFromFeed(post.id).catch(() => undefined);
     onClose();
@@ -312,6 +323,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
       <ScrollView style={{ paddingHorizontal: anchor && deskMenu ? 6 : 24 }}>
         <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
         <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
+        {canDownload(post) ? <MenuRow icon={<Icon name="download" size={22} />} title={Platform.OS === 'web' ? 'Descarregar o vídeo' : 'Guardar o vídeo'} text={downloading ? 'A preparar o vídeo…' : 'Com a assinatura do Txillapp no fim.'} onPress={() => void download()} disabled={downloading} /> : null}
         <MenuRow icon={<Icon name="link" size={22} />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
         {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
         {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" size={22} />} title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}

@@ -92,6 +92,17 @@ export function musicPlacement(p: PostMusicLike): 'none' | 'card' | 'badge' {
   return p.media && p.media.length > 0 && !isQuote(p) ? 'badge' : 'card';
 }
 
+/**
+ * Como soa uma publicação com música e fotos ou vídeo. `apart`: a música toca à parte (o leitor de música da app) e o vídeo
+ * fica calado, como sempre foi. Com a música já gravada no vídeo (`musicBaked`, a API grava-a ao publicar; a montagem do
+ * estúdio já a trazia), o vídeo toca com o som dele e a música não toca outra vez: fica só o crédito. Nos duetos e respostas
+ * o som vem sempre no vídeo. Um som retirado cala o vídeo.
+ */
+export function musicPlayback(p: { music?: unknown; musicBaked?: boolean | null; remixOf?: unknown; soundRemoved?: unknown }): { apart: boolean; muteVideo: boolean } {
+  const apart = !!p.music && !p.remixOf && !p.musicBaked;
+  return { apart, muteVideo: apart || !!p.soundRemoved };
+}
+
 /** As ondas de som passam por cima de fotos (num vídeo já há movimento que chegue). */
 export const wavesOverMedia = (media: readonly { kind?: string }[] | null | undefined) => !!media?.some((m) => m.kind !== 'video');
 

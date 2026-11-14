@@ -22,6 +22,8 @@ import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, 
 import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
 import { buildSnapshot, geleiraDto, itemCheers, readSnapshot, type GeleiraPostDto } from '../geleira/geleira-post';
 import { postGeladas } from '../gelada/gelada-cards';
+import { BAKE_COLS, BAKE_JOIN, bakedMediaId, musicBakedOf } from './music-bake';
+import { MusicBakeService } from './music-bake.service';
 
 export const MAX_PHOTOS = 10;
 
@@ -76,11 +78,14 @@ const FEED_SQL = `
          p.geleira, CASE WHEN p.geleira IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM identity.users va WHERE va.id = $1 AND va.birth_date <= (current_date - interval '18 years')) END AS viewer_adult,
          -- «Paga-me uma» publicado (0145): a bebida e quantas pessoas foram identificadas (cada uma em taste.gelada_requests).
          p.gelada,
-         (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes
+         (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes,
+         -- A música gravada no vídeo (0152, posts/music-bake.ts): o vídeo com ela, enquanto se puder ouvir.
+         ${BAKE_COLS('p')}
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
     LEFT JOIN content.venues pv ON pv.id = p.venue_id
-    LEFT JOIN content.post_remixes rx ON rx.post_id = p.id`;
+    LEFT JOIN content.post_remixes rx ON rx.post_id = p.id
+    ${BAKE_JOIN('p')}`;
 
 export interface PhotoTag {
   username: string;
@@ -105,6 +110,7 @@ export class PostsService implements OnModuleInit {
     private readonly musicSvc: MusicService,
     private readonly sounds: SoundsService,
     private readonly scheduler: Scheduler,
+    private readonly bakes: MusicBakeService,
   ) {}
 
   onModuleInit() {
@@ -118,8 +124,10 @@ export class PostsService implements OnModuleInit {
    * próprio vídeo) ganha um som original, tirado em segundo plano.
    * `remixIn`: dueto ou resposta com tcheka (posts/remix.ts). Num dueto sem música escolhida (`musicGiven` falso) fica o som do
    * original: o `sound` dele, se o tiver e se se puder usar; senão a música dele.
+   * Uma tcheka com música (sem ser remix) ganha o vídeo com a música gravada, em segundo plano (posts/music-bake.ts);
+   * `musicInFile`: o vídeo já a traz (o estúdio do site), não se grava outra vez.
    */
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true, geleiraShare = false, textFont: TextFontId | null = null) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true, geleiraShare = false, textFont: TextFontId | null = null, musicInFile = false) {
     // Partilhar a geleira (0143): uma publicação só com o retrato da geleira e uma legenda opcional (e, se quiser, o sítio).
     if (geleiraShare && (mediaIds.length || remixIn || venueId || soundId || musicIn)) throw new BadRequestException('A geleira partilha-se sozinha: sem fotos, vídeos, música nem página');
     const geleira = geleiraShare ? await buildSnapshot(this.pool, userId) : null;
@@ -227,6 +235,8 @@ export class PostsService implements OnModuleInit {
       // montagem leva o áudio do original, que não pode passar a «Som original» de quem fez o dueto.
       if (tcheka && !music && !venueId && remix?.input.kind !== 'duet') void this.sounds.queueOriginal(id);
       if (remix) await this.notifyRemix(userId, id, remix);
+      // A música gravada no vídeo (posts/music-bake.ts): não atrasa nem faz falhar a publicação.
+      if (tcheka && music && !remix) await this.bakes.afterPublish(id, mediaIds[0], { musicInFile, viaSound: !!soundId }).catch(() => undefined);
       for (const tid of tagged) void this.notifications.notify({ userId: tid, actorId: userId, kind: 'tag', data: { postId: id } });
       void this.notifications.notifyMentions(userId, body, { postId: id, snippet: body.trim().slice(0, 80) });
       return this.getOne(userId, id);
@@ -1130,8 +1140,14 @@ export class PostsService implements OnModuleInit {
      * de autor»). O vídeo fica sem som (o servidor tira-lhe a pista de áudio; a app não o toca com som entretanto).
      */
     soundRemoved: (r.sound_removed as 'author' | 'rights' | null) ?? null,
+    /**
+     * A música já vai no vídeo (gravada no servidor, posts/music-bake.ts, ou feita no estúdio): a app não toca a `music` por
+     * cima. A `music` fica para o crédito e o «Usar este som».
+     */
+    musicBaked: musicBakedOf(r),
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
-      url: `/api/v1/media/${m.id}`,
+      // O vídeo com a música gravada, quando está pronto (a capa continua a do original).
+      url: `/api/v1/media/${m.video ? bakedMediaId(m.id, r) : m.id}`,
       tags: m.tags,
       kind: (m.video ? 'video' : 'image') as 'video' | 'image',
       // Vídeos: capa, duração e proporção (para reservar o espaço antes de carregar).

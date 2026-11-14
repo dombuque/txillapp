@@ -61,6 +61,11 @@ export interface Post {
   remixOf?: import('./remix').RemixOf | null;
   /** A tcheka usava um som que foi tirado: 'author' («Som retirado pelo autor») ou 'rights' (por direitos de autor). O vídeo fica sem som. */
   soundRemoved?: 'author' | 'rights' | null;
+  /**
+   * A música já vai gravada no vídeo (a API grava-a ao publicar; a montagem do estúdio já a trazia): não se toca a `music`
+   * por cima (lib/musicLook, musicPlayback). Servidores antigos não mandam: a música toca à parte, como antes.
+   */
+  musicBaked?: boolean;
   /** O dono deixa fazer dueto (tchekas) e responder com tcheka aos comentários. */
   canRemix?: boolean;
   /** Quantos duetos e respostas com tcheka tem. */
