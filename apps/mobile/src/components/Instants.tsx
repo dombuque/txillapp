@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { useIsFocused } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -808,17 +809,22 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   // a captura sai em branco). Os meus, a grelha «Os meus Zás» e a câmara ficam livres; na web não há como (lib/screenCapture).
   // No Android o Modal é um Dialog com janela própria, que só copia a FLAG_SECURE da atividade quando é criado: por isso
   // o visor dos outros só aparece depois de o bloqueio estar posto (um instante).
+  // O bloqueio vale só com o ecrã do visor focado: se outro ecrã abrir por cima (tocar numa notificação, um link), o
+  // visor fica montado por baixo e a FLAG_SECURE ficava na atividade toda, e a conversa aberta deixava de aceitar
+  // capturas. Fora de foco o bloqueio sai e o visor esconde-se; ao voltar, o bloqueio entra primeiro e o visor depois.
   const guard = !own && captureNative;
+  const focused = useIsFocused();
   const [secured, setSecured] = useState(() => !(guard && Platform.OS === 'android'));
   useEffect(() => {
-    if (!guard) return;
+    if (!guard || !focused) return;
     let live = true;
     void blockCapture(ZAS_CAPTURE_KEY).then(() => { if (live) setSecured(true); });
     return () => {
       live = false;
+      if (Platform.OS === 'android') setSecured(false);
       void allowCapture(ZAS_CAPTURE_KEY);
     };
-  }, [guard]);
+  }, [guard, focused]);
   /**
    * Sair do visor dos outros para outro ecrã que abre logo (a câmara, a grelha dos meus): o bloqueio sai ANTES, senão a
    * janela nova (que copia a FLAG_SECURE ao ser criada) ficava bloqueada enquanto estivesse aberta.
@@ -831,12 +837,12 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   // Captura do Zás de outra pessoa que o sistema deixou saber (iPhone; Android 14+): o dono do Zás de cima fica a saber.
   const topId = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!guard) return;
+    if (!guard || !focused) return;
     return onScreenshot(() => {
       const id = topId.current;
       if (id) sendScreenshotNotice(screenshotKey.zas(id), () => instantsApi.screenshot(id));
     });
-  }, [guard]);
+  }, [guard, focused]);
 
   useEffect(() => {
     if (items) {
@@ -1027,7 +1033,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   const slots = items ? deckSlots(count, i) : [];
 
   return (
-    <Modal visible={secured} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={secured && focused} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View {...(mouse ? {} : pan.panHandlers)} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
         <View style={st.vTop}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
