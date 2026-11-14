@@ -11,6 +11,8 @@ import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
 import { badge } from '../common/badge';
 import { requestCards, roundCards } from '../gelada/gelada-cards';
+import { RATE_STORE, type RateStore } from '../security/rate-store';
+import { screenshotAllowed } from './screenshot';
 
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada';
 
@@ -53,15 +55,21 @@ export const TTL_LABEL: Record<number, string> = { 86400: '24 horas', 604800: '7
 export const expiresFor = (table: 'conversations' | 'groups', idParam: string) =>
   `(SELECT CASE WHEN t.ttl_seconds IS NULL THEN NULL ELSE now() + t.ttl_seconds * interval '1 second' END FROM social.${table} t WHERE t.id = ${idParam})`;
 
-/** O que um aviso de sistema (kind 'system') guarda em `system`: quem mudou (o 1.º nome, na altura) e para quanto. */
-export interface SystemInfo { type: 'ttl'; ttl: number | null; name: string }
+/**
+ * O que um aviso de sistema (kind 'system') guarda em `system`:
+ *  - `ttl`: quem mudou as mensagens temporárias (o 1.º nome, na altura) e para quanto;
+ *  - `screenshot`: quem fez uma captura de ecrã da conversa (o 1.º nome, na altura).
+ */
+export type SystemInfo = { type: 'ttl'; ttl: number | null; name: string } | { type: 'screenshot'; name: string };
 
 /**
  * O texto do aviso de sistema para quem o vê: "Dom ligou as mensagens temporárias: 7 dias." ou, para quem mudou,
- * "Desligaste as mensagens temporárias." (`mine`).
+ * "Desligaste as mensagens temporárias." (`mine`); "Dom fez uma captura de ecrã." ou "Fizeste uma captura de ecrã.".
  */
 export function systemText(s: SystemInfo | null | undefined, mine: boolean): string {
-  if (!s || s.type !== 'ttl') return '';
+  if (!s) return '';
+  if (s.type === 'screenshot') return mine ? 'Fizeste uma captura de ecrã.' : `${s.name || 'Alguém'} fez uma captura de ecrã.`;
+  if (s.type !== 'ttl') return '';
   const label = s.ttl ? (TTL_LABEL[s.ttl] ?? `${Math.round(s.ttl / 86_400)} dias`) : null;
   if (mine) return label ? `Ligaste as mensagens temporárias: ${label}.` : 'Desligaste as mensagens temporárias.';
   const who = s.name || 'Alguém';
@@ -154,6 +162,7 @@ export class ChatService {
     private readonly push: PushService,
     private readonly posts: PostsService,
     private readonly filter: TextFilter,
+    @Inject(RATE_STORE) private readonly rates: RateStore,
   ) {}
 
   private async userByName(username: string) {
@@ -320,6 +329,52 @@ export class ChatService {
     // Quem recusou a conversa não recebe avisos dela.
     if (!(await this.relationOf(other.id, me, conv)).hidden) this.events.emit(other.id, { type: 'message', from: await this.usernameOf(me) });
     return { ttl };
+  }
+
+  /**
+   * Captura de ecrã numa conversa a dois (POST /chat/with/:username/screenshot): deixa o aviso de sistema
+   * ({ type: 'screenshot', name }: "Dom fez uma captura de ecrã." / "Fizeste uma captura de ecrã."), que segue as mensagens
+   * temporárias da conversa, chega aos dois em tempo real ('message') e ao outro no telemóvel com as regras do push das
+   * mensagens (categoria 'messages', conversa recusada, conversa à vista). Devolve sempre { ok: true }.
+   *  - 404 se a pessoa ou a conversa não existem; 400 comigo próprio; 403 com bloqueio entre os dois;
+   *  - não grava nada (mas responde { ok: true }) num pedido de mensagem por aceitar, com quem ainda não respondeu, se a
+   *    outra pessoa recusou a conversa ou eliminou a conta, ou se é repetido (um a cada 30 s por conversa, 30 por hora).
+   */
+  async screenshot(me: string, username: string) {
+    const other = (await this.pool.query('SELECT id, username, status FROM identity.users WHERE lower(username) = lower($1)', [username])).rows[0] as
+      | { id: string; username: string; status: string }
+      | undefined;
+    if (!other) throw new NotFoundException('Pessoa não encontrada');
+    if (other.id === me) throw new BadRequestException('Conversa inválida');
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    const blocked = (await this.pool.query(`SELECT ${blockedBetween('$2::uuid', '$1::uuid')} AS b`, [me, other.id])).rows[0].b as boolean;
+    if (blocked) throw new ForbiddenException('Não podes avisar esta pessoa');
+    const done = { ok: true as const };
+    if (other.status !== 'active') return done;
+    const rel = await this.relationOf(me, other.id, conv);
+    if (rel.request || rel.left !== null) return done;
+    if ((await this.relationOf(other.id, me, conv)).hidden) return done;
+    if (!(await screenshotAllowed(this.rates, me, `c:${conv}`))) return done;
+    const sys: SystemInfo = { type: 'screenshot', name: await this.firstNameOf(me) };
+    const id = uuidv7();
+    await this.pool.query(
+      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, system, expires_at) VALUES ($1, $2, $3, $4, 'system', $5::jsonb, ${expiresFor('conversations', '$2')})`,
+      [id, conv, me, systemText(sys, false), JSON.stringify(sys)],
+    );
+    await this.pool.query(
+      `UPDATE social.conversations SET last_message_at = now(),
+              read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
+      [conv, me, id],
+    );
+    this.events.echo(me, { type: 'message', from: other.username });
+    const from = await this.usernameOf(me);
+    this.events.emit(other.id, { type: 'message', from });
+    if (!(await this.events.isActive(other.id, `u:${from}`))) {
+      const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
+      void this.push.send(other.id, { title: sender, body: 'fez uma captura de ecrã da conversa', url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+    }
+    return done;
   }
 
   /** O primeiro nome de quem está a usar (para os avisos de sistema). */
@@ -520,7 +575,8 @@ export class ChatService {
 
   /**
    * Aviso de sistema (kind 'system', ex.: "Dom ligou as mensagens temporárias: 7 dias."): só o texto, para quem o vê, e o
-   * que mudou em `system` ({ type: 'ttl', ttl }). Não tem reações, citação nem ficheiro, e nunca expira.
+   * que mudou em `system` ({ type: 'ttl', ttl } ou { type: 'screenshot', name }). Não tem reações, citação nem ficheiro.
+   * Os das temporárias nunca expiram; os das capturas de ecrã seguem as temporárias da conversa (`expiresAt`).
    */
   private systemItem(me: string, m: Record<string, any>) {
     const fromMe = m.sender_id === me;
@@ -530,7 +586,7 @@ export class ChatService {
       deleted: undefined,
       body: systemText(sys, fromMe) || (m.body as string),
       kind: 'system' as MessageKind,
-      system: sys ? { type: sys.type, ttl: sys.ttl ?? null } : null,
+      system: !sys ? null : sys.type === 'screenshot' ? { type: sys.type, name: sys.name } : { type: sys.type, ttl: sys.ttl ?? null },
     };
   }
 

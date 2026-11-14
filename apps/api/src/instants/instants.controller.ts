@@ -54,6 +54,14 @@ export class InstantsController {
     await this.instants.react(req.userId!, id, b.reaction);
   }
 
+  /** Captura de ecrã ao Zás de outra pessoa: sem corpo -> 204. O dono recebe um push (um a cada 30 s por Zás). */
+  @Post(':id/screenshot')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async screenshot(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    await this.instants.screenshot(req.userId!, id);
+  }
+
   @Get(':id/viewers')
   viewers(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.instants.viewers(req.userId!, id);

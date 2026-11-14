@@ -13,6 +13,8 @@ import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
 import { PotService } from '../groups/pot.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RATE_STORE, type RateStore } from '../security/rate-store';
+import { screenshotAllowed } from './screenshot';
 
 const PAGE = 30;
 export const MAX_MEMBERS = 50;
@@ -84,6 +86,7 @@ export class GroupsService {
     private readonly plan: PlanService,
     private readonly pot: PotService,
     private readonly notifications: NotificationsService,
+    @Inject(RATE_STORE) private readonly rates: RateStore,
   ) {}
 
   /** Uma foto própria, já carregada e livre (o mesmo que o logótipo dos locais). */
@@ -290,6 +293,40 @@ export class GroupsService {
       else this.events.emit(r.user_id as string, { type: 'message', group: groupId });
     }
     return { ttl };
+  }
+
+  /**
+   * Captura de ecrã no grupo (POST /chat/groups/:id/screenshot, só membros; 404 para quem não é, como no resto do grupo):
+   * deixa o aviso de sistema ({ type: 'screenshot', name }: "Dom fez uma captura de ecrã." / "Fizeste uma captura de ecrã."),
+   * que segue as mensagens temporárias do grupo, chega a todos em tempo real ('message') e aos outros membros no telemóvel
+   * ("Dom fez uma captura de ecrã da conversa"; não a quem tem o grupo à vista nem a quem desligou as mensagens).
+   * Repetido (um a cada 30 s por grupo, 30 por hora no total) responde { ok: true } e não faz nada.
+   */
+  async screenshot(me: string, groupId: string) {
+    await this.needMember(groupId, me);
+    const done = { ok: true as const };
+    if (!(await screenshotAllowed(this.rates, me, `g:${groupId}`))) return done;
+    const name = await this.chat.firstNameOf(me);
+    const sys: SystemInfo = { type: 'screenshot', name };
+    const id = uuidv7();
+    await this.pool.query(
+      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, system, expires_at) VALUES ($1, $2, $3, $4, 'system', $5::jsonb, ${expiresFor('groups', '$2')})`,
+      [id, groupId, me, systemText(sys, false), JSON.stringify(sys)],
+    );
+    await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
+    await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
+    const title = (await this.pool.query('SELECT name FROM social.groups WHERE id = $1', [groupId])).rows[0]?.name as string;
+    const rows = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [groupId])).rows;
+    for (const r of rows) {
+      const u = r.user_id as string;
+      if (u === me) {
+        this.events.echo(me, { type: 'message', group: groupId });
+        continue;
+      }
+      this.events.emit(u, { type: 'message', group: groupId });
+      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, { title, body: `${name || 'Alguém'} fez uma captura de ecrã da conversa`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
+    }
+    return done;
   }
 
   /**

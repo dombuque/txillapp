@@ -9,6 +9,8 @@ import { MediaService } from '../media/media.service';
 import { PushService } from '../push/push.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween, notReportedBy } from '../social/visibility';
+import { RATE_STORE, type RateStore } from '../security/rate-store';
+import { screenshotAllowed } from '../chat/screenshot';
 
 
 /** Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue mutuamente. Nunca com bloqueios. */
@@ -29,6 +31,7 @@ export class InstantsService implements OnModuleInit {
     private readonly push: PushService,
     private readonly events: ChatEvents,
     private readonly scheduler: Scheduler,
+    @Inject(RATE_STORE) private readonly rates: RateStore,
   ) {}
 
   /**
@@ -206,6 +209,26 @@ export class InstantsService implements OnModuleInit {
         if (row) void this.push.send(row.author_id as string, { title: row.name as string, body: 'reagiu ao teu Zás', url: '/messages', tag: `zas-react:${id}`, category: 'reactions' });
       }
     }
+  }
+
+  /**
+   * Captura de ecrã ao Zás de outra pessoa (POST /instants/:id/screenshot -> 204; no iPhone e no Android 14+, onde o
+   * sistema avisa a app): o dono recebe um push "fez uma captura do teu Zás" (categoria 'messages', abre /messages). Não fica
+   * nada no chat. 404 se o Zás não existe, expirou ou não o posso ver; o meu próprio Zás é ignorado em silêncio, e os
+   * repetidos também (um a cada 30 s por Zás, 30 por hora no total).
+   */
+  async screenshot(me: string, id: string) {
+    const row = (
+      await this.pool.query(
+        `SELECT i.author_id, (SELECT display_name FROM identity.users WHERE id = $2) AS name FROM social.instants i
+          WHERE i.id = $1 AND i.expires_at > now() AND ${instantVisible('i', '$2')}`,
+        [id, me],
+      )
+    ).rows[0] as { author_id: string; name: string } | undefined;
+    if (!row) throw new NotFoundException('Zás não encontrado');
+    if (row.author_id === me) return;
+    if (!(await screenshotAllowed(this.rates, me, `z:${id}`))) return;
+    void this.push.send(row.author_id, { title: row.name, body: 'fez uma captura do teu Zás', url: '/messages', tag: `zas-shot:${id}`, category: 'messages' });
   }
 
   /** Quem viu o meu Zás. */

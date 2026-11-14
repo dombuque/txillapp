@@ -190,6 +190,15 @@ export class ChatController {
     return this.groups.setTtl(req.userId!, id, b.ttl);
   }
 
+  /** Captura de ecrã no grupo (só membros): sem corpo -> 200 { ok: true }. Deixa o aviso na conversa (um a cada 30 s). */
+  @Post('groups/:id/screenshot')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  groupScreenshot(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.groups.screenshot(req.userId!, id);
+  }
+
   /** Limpar a conversa do grupo só para mim: 200 { ok }. */
   @Post('groups/:id/clear')
   @UseGuards(JwtAuthGuard)
@@ -273,6 +282,15 @@ export class ChatController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   setTtl(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(ttlSchema)) b: z.infer<typeof ttlSchema>) {
     return this.chat.setTtl(req.userId!, username, b.ttl);
+  }
+
+  /** Captura de ecrã na conversa a dois: sem corpo -> 200 { ok: true }. Deixa o aviso na conversa (um a cada 30 s). */
+  @Post('with/:username/screenshot')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  screenshot(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.screenshot(req.userId!, username);
   }
 
   @Post('with/:username/typing')
