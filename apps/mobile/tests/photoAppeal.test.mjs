@@ -51,7 +51,7 @@ test('a faixa e a fila: «Pedir revisão» manda o rascunho (publicação, mimo 
   assert.ok(q.includes('rejected ??= e;'), 'os outros ficheiros sobem na mesma (o rascunho leva-os todos)');
   assert.ok(q.includes("return { kind: 'post', payload: { ...b, music: b.remixOf && b.music === null ? null : musicPayload(b.music), mediaIds: t.sent as string[] } };"));
   assert.ok(read('app', 'stories', 'new.tsx').includes("kind: 'story', payload: { mediaId, caption: text, audience: who, music: musicPayload(track), stickers: placed }"));
-  assert.ok(read('components', 'Instants.tsx').includes("kind: 'instant', payload: { mediaId, caption: text, audience: who }"));
+  assert.ok(read('components', 'Instants.tsx').includes("kind: 'instant', payload: { mediaId, caption: text, audience: who"), 'o Zás leva a legenda (e a letra dela) no rascunho');
   const b = read('components', 'PublishBanner.tsx');
   assert.match(b, /Pedir revisão/);
   assert.ok(b.includes("? 'Fechar' : 'Descartar'"));

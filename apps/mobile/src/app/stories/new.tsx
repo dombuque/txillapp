@@ -23,7 +23,9 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from '@/components/FeatureIntro';
 import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
-import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
+import { MAX_STICKERS, newPlaced, type MimoLayer } from '@/lib/stickers';
+import { TextLayerEditor } from '@/components/TextLayers';
+import { MAX_TEXT_LAYERS, countLayers, isTextLayer, newTextLayer, type TextLayer } from '@/lib/textLayers';
 import { discardCopy, mimoEdited } from '@/lib/discardGuard';
 import { goBack } from '@/lib/nav';
 import { overlayOpen as anyOverlay } from '@/lib/desktopKeys';
@@ -112,21 +114,51 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   // @ na legenda: as pessoas mais próximas, logo por cima do campo.
   const captionRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const mention = useMentionSuggest({ text: caption, setText: (v) => setCaption(v.slice(0, 200)), inputRef: captionRef });
-  // Stickers por cima: a lista, qual está escolhido, o selector aberto e o tamanho do ecrã (medido sem o teclado).
-  const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  // Stickers e textos por cima (a mesma lista, que vai em `stickers`): qual está escolhido, o selector aberto e o tamanho
+  // do ecrã (medido sem o teclado).
+  const [stickers, setStickers] = useState<MimoLayer[]>([]);
   const [sel, setSel] = useState<number | null>(null);
   const [pickSticker, setPickSticker] = useState(false);
   const [box, setBox] = useState({ w: 0, h: 0 });
+  /** O texto a escrever (`index` null: um texto novo; senão, o que se está a reescrever). */
+  const [textEdit, setTextEdit] = useState<{ index: number | null; layer: TextLayer } | null>(null);
+  const counts = countLayers(stickers);
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const close = audience === 'close_friends';
 
   function addSticker(id: string) {
     setPickSticker(false);
-    if (stickers.length >= MAX_STICKERS) return setErr(`Até ${MAX_STICKERS} stickers por mimo`);
+    if (counts.stickers >= MAX_STICKERS) return setErr(`Até ${MAX_STICKERS} stickers por mimo`);
     setStickers((l) => [...l, newPlaced(id)]);
     setSel(stickers.length);
   }
-  const updateSel = (p: PlacedSticker) => setStickers((l) => l.map((x, i) => (i === sel ? p : x)));
+  /** «Aa»: escrever um texto novo por cima. */
+  function addText() {
+    setSel(null);
+    if (counts.texts >= MAX_TEXT_LAYERS) return setErr(`Até ${MAX_TEXT_LAYERS} textos por mimo`);
+    setErr('');
+    setTextEdit({ index: null, layer: newTextLayer() });
+  }
+  function editText(i: number) {
+    const l = stickers[i];
+    if (l && isTextLayer(l)) setTextEdit({ index: i, layer: l });
+  }
+  /** «Feito»: pousa o texto novo (e escolhe-o), troca o que se reescreveu, ou apaga-o se ficou vazio. */
+  function textDone(layer: TextLayer) {
+    const ed = textEdit;
+    setTextEdit(null);
+    if (!ed) return;
+    if (ed.index === null) {
+      if (!layer.text) return;
+      setStickers((l) => [...l, layer]);
+      setSel(stickers.length);
+      return;
+    }
+    const at = ed.index;
+    setStickers((l) => (layer.text ? l.map((x, i) => (i === at ? layer : x)) : l.filter((_, i) => i !== at)));
+    setSel(layer.text ? at : null);
+  }
+  const updateSel = (p: MimoLayer) => setStickers((l) => l.map((x, i) => (i === sel ? p : x)));
   const deleteSel = () => { setStickers((l) => l.filter((_, i) => i !== sel)); setSel(null); };
 
   // Publicar em segundo plano (como a publicação): o ecrã fecha logo e o envio segue na faixa do Início.
@@ -161,13 +193,13 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: onClose }]);
   }
   function confirmRetake(go: () => void) {
-    if (!mimoEdited({ caption, stickers: stickers.length, music: !!music })) return go();
+    if (!mimoEdited({ caption, stickers: counts.stickers, texts: counts.texts, music: !!music })) return go();
     const t = discardCopy('retake');
     Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: go }]);
   }
   const closeRef = useRef(confirmClose);
   closeRef.current = confirmClose;
-  const overlayOpen = pickMusic || pickSticker || listOpen;
+  const overlayOpen = pickMusic || pickSticker || listOpen || !!textEdit;
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (overlayOpen) return false; // a folha por cima trata
@@ -205,7 +237,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' })} />
 
       {/* Os stickers pousados sobre a cena: arrastar, pinçar, rodar; largar no caixote apaga. */}
-      <StickerCanvas stickers={stickers} onChange={setStickers} width={box.w} height={box.h} selected={sel} onSelect={setSel} />
+      <StickerCanvas stickers={stickers} onChange={setStickers} width={box.w} height={box.h} selected={sel} onSelect={setSel} onEdit={editText} hidden={textEdit?.index ?? null} />
 
       {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. */}
       <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -216,7 +248,10 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
           {onCamera ? tool('images', 'Galeria', () => confirmRetake(onRetake)) : null}
           {!asset.video ? tool('expand', fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã', () => setFill((f) => !f), fill) : null}
           {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
-          {tool('sticker', 'Stickers', () => setPickSticker(true), stickers.length > 0)}
+          {tool('sticker', 'Stickers', () => setPickSticker(true), counts.stickers > 0)}
+          <Pressable onPress={addText} style={[st.tool, counts.texts > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" accessibilityState={{ selected: counts.texts > 0 }}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>Aa</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -269,6 +304,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
       {pickMusic && <MusicPicker hint={caption} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
       {pickSticker && <StickerPicker onClose={() => setPickSticker(false)} onPick={addSticker} />}
+      {textEdit && <TextLayerEditor initial={textEdit.layer} boxW={box.w} onDone={textDone} />}
     </KeyboardAvoidingView>
   );
 }

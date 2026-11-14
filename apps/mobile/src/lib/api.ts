@@ -34,6 +34,8 @@ export interface Post {
   code: string;
   body: string;
   locationLabel: string | null;
+  /** A letra de uma publicação só com texto (lib/textLayers; null ou desconhecida: a clássica). Servidores antigos não mandam. */
+  textFont?: string | null;
   media: PostMedia[];
   createdAt: string;
   author: Author;
@@ -350,8 +352,8 @@ export interface Story {
   /** O espectador pode responder? */
   canReply: boolean;
   music?: { id: string; title: string; artist: string; url: string; kind?: 'clip'; source?: string; artistUsername?: string | null } | null;
-  /** Stickers por cima do mimo (centro e largura em fração do ecrã, rotação em graus). */
-  stickers?: { id: string; x: number; y: number; s: number; r: number }[];
+  /** Stickers e textos por cima do mimo (centro e tamanho em fração do ecrã, rotação em graus; os textos com `kind: 'text'`, lib/textLayers). */
+  stickers?: import('./stickers').MimoLayer[];
 }
 export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
 export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
@@ -872,7 +874,7 @@ export const api = {
   /** O autor da tcheka original retira um dueto feito com ela (fica escondido para todos; o dono é avisado). */
   takeDownDuet: (id: string): Promise<void> => raw(`/posts/${id}/duet-takedown`, post({})),
   hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),
-  updatePost: (id: string, b: { body?: string; clearLocation?: boolean; commentsOff?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  updatePost: (id: string, b: { body?: string; clearLocation?: boolean; commentsOff?: boolean; /** A letra (só nas publicações só com texto). */ textFont?: string }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   unreadCount: (): Promise<{ count: number }> => raw('/notifications/unread-count'),
   chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
   savePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'PUT' }),

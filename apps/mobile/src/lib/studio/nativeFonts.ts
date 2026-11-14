@@ -27,7 +27,13 @@ let loading: Promise<boolean> | null = null;
 export function loadNativeStudioFonts(): Promise<boolean> {
   return (loading ??= Font.loadAsync(Object.fromEntries(FONTS.map((f) => [f.family, FILES[f.id]]))).then(() => true, () => { loading = null; return false; }));
 }
-export const nativeFontsLoaded = () => FONTS.every((f) => Font.isLoaded(f.family));
+/** Carrega só uma (os textos ao publicar pedem só as que usam, lib/textFonts). */
+export function loadNativeFont(id: FontId): Promise<boolean> {
+  const f = fontById(id);
+  if (Font.isLoaded(f.family)) return Promise.resolve(true);
+  return Font.loadAsync({ [f.family]: FILES[f.id] }).then(() => true, () => false);
+}
+export const nativeFontsLoaded =() => FONTS.every((f) => Font.isLoaded(f.family));
 
 /** O estilo de letra de uma fonte do estúdio no telemóvel (só a família: o peso e o itálico estão no próprio ficheiro). */
 export function nativeFontStyle(id: string): { fontFamily: string } {

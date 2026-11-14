@@ -1,5 +1,6 @@
 import { raw, post } from '@/lib/api';
-import type { PlacedSticker } from '@/lib/stickers';
+import type { MimoLayer } from '@/lib/stickers';
+import { countLayers } from '@/lib/textLayers';
 import { trackOk } from '@/lib/analytics';
 
 /**
@@ -78,7 +79,8 @@ export const musicApi = {
   removeFavorite: (id: string): Promise<{ favorite: false }> => raw(`/music/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** Como `api.createPost`, mas com música (o `createPost` da app ainda não leva o campo). */
   createPost: (b: { body: string; music?: Track | null; locationLabel?: string; mediaIds: string[] }) => trackOk(raw('/posts', post({ ...b, music: musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music }),
-  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null, stickers: PlacedSticker[] = []) =>
-    trackOk(raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music), stickers })), 'story_create', { source: 'camera', closeFriends: audience === 'close_friends', music: !!music, stickers: stickers.length }),
+  /** `stickers`: os stickers e os textos por cima (lib/textLayers). */
+  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null, stickers: MimoLayer[] = []) =>
+    trackOk(raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music), stickers })), 'story_create', { source: 'camera', closeFriends: audience === 'close_friends', music: !!music, stickers: countLayers(stickers).stickers, texts: countLayers(stickers).texts }),
   setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: musicPayload(music) }) }),
 };

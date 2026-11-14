@@ -28,7 +28,8 @@ export interface PostGeleira { level: number; total: number; items: PostGeleiraI
 export interface ItemCheer { itemId: string; cheered: boolean; cheers: number }
 export interface GeleiraSettings { matching: boolean; visibility: TasteVisibility; cheersPublic: boolean }
 
-export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
+/** `captionFont`: a letra da legenda (lib/textLayers; null ou desconhecida: a clássica). Servidores antigos não mandam. */
+export interface InstantItem { id: string; url: string; caption: string; captionFont?: string | null; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
   others: ({ username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null } & Badged)[];
@@ -75,7 +76,9 @@ export const instantsApi = {
       return lists.flat();
     }
   },
-  create: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends'): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption, audience })),
+  /** `captionFont`: a letra da legenda (a clássica não precisa de ir). */
+  create: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends', captionFont?: string): Promise<{ id: string; expiresAt: string }> =>
+    raw('/instants', post({ mediaId, caption, audience, ...(captionFont ? { captionFont } : {}) })),
   view: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
   react: (id: string, reaction: string): Promise<void> => raw(`/instants/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   viewers: (id: string): Promise<InstantViewer[]> => raw(`/instants/${id}/viewers`),
