@@ -108,6 +108,27 @@ test('a galeria: o expo-media-library não declara leituras (só guardar) e o ex
   assert.ok(appJson.ios.infoPlist.UIBackgroundModes.includes('audio'));
 });
 
+test('o expo-screen-capture não alarga as permissões de fotos e deixa o DETECT_SCREEN_CAPTURE', () => {
+  // O manifesto do módulo: READ_EXTERNAL_STORAGE (até ao SDK 32), READ_MEDIA_IMAGES (SDK 33) e DETECT_SCREEN_CAPTURE (34+).
+  const lib = readFileSync(path.join(path.dirname(require.resolve('expo-screen-capture/package.json')), 'android', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+  const perms = [...lib.matchAll(/<uses-permission\b[^>]*>/g)].map((m) => m[0]);
+  const named = (p) => perms.find((x) => x.includes(`android:name="android.permission.${p}"`));
+  // READ_EXTERNAL_STORAGE: o mesmo teto que a app já tem (expo-media-library + tools:replace no manifesto). Se uma versão
+  // nova do módulo o subir ou tirar, este teste avisa antes de chegar à loja.
+  assert.match(named('READ_EXTERNAL_STORAGE') ?? '', /android:maxSdkVersion="32"/);
+  assert.ok(!android.permissions.some((p) => /READ_EXTERNAL_STORAGE/.test(p)), 'a app não pede READ_EXTERNAL_STORAGE à parte');
+  // READ_MEDIA_IMAGES sai do manifesto final (bloqueada).
+  assert.ok(named('READ_MEDIA_IMAGES'), 'o módulo declara READ_MEDIA_IMAGES');
+  assert.ok(android.blockedPermissions.includes('android.permission.READ_MEDIA_IMAGES'));
+  // DETECT_SCREEN_CAPTURE fica: é uma permissão normal (sem pedido ao utilizador) e é o que dá o aviso no Android 14+.
+  assert.match(named('DETECT_SCREEN_CAPTURE') ?? '', /android:minSdkVersion="34"/);
+  assert.ok(!android.blockedPermissions.some((p) => /DETECT_SCREEN_CAPTURE/.test(p)), 'DETECT_SCREEN_CAPTURE não está bloqueada');
+  // Nenhuma outra permissão vem do módulo.
+  assert.equal(perms.length, 3);
+  // E a app nunca pede ao utilizador as licenças de fotos que o módulo usaria antes do Android 14.
+  assert.doesNotMatch(src('lib/screenCapture.ts'), /requestPermissionsAsync|usePermissions/);
+});
+
 test('no Android escolhe-se pelo seletor do sistema; no iPhone fica a galeria da app', () => {
   assert.equal(media.inAppGalleryFor('android'), false);
   assert.equal(media.inAppGalleryFor('ios'), true);

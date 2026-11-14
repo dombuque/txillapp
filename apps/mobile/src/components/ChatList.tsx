@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { ticksFor } from '@/lib/chatLayout';
 import { dropPending, listKey, mergePending, pendingOf, prunePending, retryPending, subscribePending, type PendingMsg } from '@/lib/chatPending';
 import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
+import { systemIcon, systemText } from '@/lib/screenshotNotice';
 import { colors } from '@/lib/theme';
 import { Bubble, TypingBubble, type MenuAt, type MenuMode, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
@@ -154,8 +155,8 @@ export function ChatList({
               <View>
                 {row?.newMark ? <NewMark /> : null}
                 {row?.divider ? <TimeDivider label={row.divider} /> : null}
-                {/* Aviso de sistema (mensagens temporárias): ao centro, sem bolha nem menu. */}
-                {item.kind === 'system' ? <SystemNotice text={item.body} /> : <Bubble
+                {/* Aviso de sistema (mensagens temporárias, capturas de ecrã): ao centro, sem bolha nem menu. */}
+                {item.kind === 'system' ? <SystemNotice text={systemText(item)} icon={systemIcon(item)} /> : <Bubble
                   m={item}
                   group={group}
                   flash={flashId === item.id}

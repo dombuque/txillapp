@@ -270,7 +270,8 @@ export interface ChatMessage {
   /** Mensagens temporárias: quando deixa de existir (null ou ausente = fica). Passada esta hora, sai da conversa. */
   expiresAt?: string | null;
   /** Aviso de sistema (kind 'system'): o que mudou. O texto, já para quem o vê, vem em `body`. */
-  system?: { type: 'ttl'; ttl: number | null } | null;
+  /** `ttl`: mudaram as mensagens temporárias; `screenshot`: `name` fez uma captura de ecrã da conversa. */
+  system?: { type: 'ttl'; ttl: number | null } | { type: 'screenshot'; name: string } | null;
   /** «Paga-me uma» (kind 'gelada'): o pedido como eu o vejo; null = a conta de uma das partes foi eliminada. */
   gelada?: import('./api.gelada').GeladaRequest | null;
   /** Rodada no TxillGroup (kind 'rodada'); null = já não existe. */
@@ -776,6 +777,8 @@ export const api = {
   chatClearKeep: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/clear`, post({})),
   /** Mensagens temporárias (qualquer um dos dois): segundos (86400, 604800, 7776000) ou null para desligar. */
   chatSetTtl: (username: string, ttl: number | null): Promise<{ ttl: number | null }> => raw(`/chat/with/${encodeURIComponent(username)}/ttl`, { method: 'PUT', body: JSON.stringify({ ttl }) }),
+  /** Fiz uma captura de ecrã nesta conversa: o servidor deixa o aviso de sistema (type 'screenshot') para os dois. */
+  chatScreenshot: (username: string): Promise<unknown> => raw(`/chat/with/${encodeURIComponent(username)}/screenshot`, post({})),
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),

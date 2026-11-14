@@ -75,11 +75,14 @@ export function TtlBadge({ size = 36 }: { size?: number }) {
   );
 }
 
-/** Aviso de sistema ao centro da conversa ("Dom ligou as mensagens temporárias: 7 dias."), sem bolha nem menu. */
-export function SystemNotice({ text }: { text: string }) {
+/**
+ * Aviso de sistema ao centro da conversa, sem bolha nem menu: "Dom ligou as mensagens temporárias: 7 dias." (relógio)
+ * ou "Dom fez uma captura de ecrã." (câmara). `icon` vem de systemIcon (src/lib/screenshotNotice.ts).
+ */
+export function SystemNotice({ text, icon = 'clock' }: { text: string; icon?: 'clock' | 'camera' }) {
   return (
     <View style={st.notice} accessibilityRole="text">
-      <Icon name="clock" size={13} color={colors.zinc500} strokeWidth={2} />
+      <Icon name={icon} size={13} color={colors.zinc500} strokeWidth={2} />
       <Text style={st.noticeText}>{text}</Text>
     </View>
   );

@@ -80,4 +80,6 @@ export const instantsApi = {
   react: (id: string, reaction: string): Promise<void> => raw(`/instants/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   viewers: (id: string): Promise<InstantViewer[]> => raw(`/instants/${id}/viewers`),
   remove: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
+  /** Fiz uma captura do Zás de outra pessoa (iPhone, ou Android 14+ quando o sistema avisa): o dono fica a saber. */
+  screenshot: (id: string): Promise<unknown> => raw(`/instants/${id}/screenshot`, post({})),
 };

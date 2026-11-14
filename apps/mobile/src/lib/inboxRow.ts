@@ -36,6 +36,15 @@ export function unreadBadge(unread: number, marked = false): string {
   return unread > 99 ? '99+' : String(Math.floor(unread));
 }
 
+/**
+ * Num TxillGroup, o nome de quem mandou antes da pré-visualização ("Ana: "). As minhas não levam, e os avisos de
+ * sistema também não: o texto já diz quem foi ("Ana fez uma captura de ecrã.").
+ */
+export function groupSenderPrefix(last: { fromMe: boolean; kind: string; senderName?: string | null }): string {
+  if (last.fromMe || last.kind === 'system' || !last.senderName) return '';
+  return `${last.senderName}: `;
+}
+
 /** O que o leitor de ecrã diz da linha: nome, pré-visualização, hora e por ler. */
 export function rowLabel(name: string, preview: string, time: string, unread: number, marked = false): string {
   const tail = !(unread > 0) ? '' : marked ? ', marcada como por ler' : `, ${unread === 1 ? '1 mensagem por ler' : `${unread} mensagens por ler`}`;

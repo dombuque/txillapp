@@ -33,6 +33,8 @@ import { activeLabel } from '@/lib/chatTimeline';
 import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
 import { useTyping } from '@/lib/realtime';
 import { useChatVisible } from '@/lib/chatVisible';
+import { useScreenshotNotice } from '@/lib/screenCapture';
+import { screenshotKey } from '@/lib/screenshotNotice';
 import { blockingError, threadErrorText } from '@/lib/chatErrors';
 import { clearPending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
@@ -140,6 +142,10 @@ export default function Thread() {
       void put(null);
     };
   }, [username]);
+
+  // Captura de ecrã com a conversa à vista e a app à frente (só Android 14+ e iPhone; na web não há): a conversa fica
+  // com o aviso «Fulano fez uma captura de ecrã.» (no máximo um pedido a cada 5 s; lib/screenCapture).
+  useScreenshotNotice(username && first && !first.blocked ? screenshotKey.direct(username) : null, () => api.chatScreenshot(username));
 
   // A minha última já enviada (a lista vem do mais recente para o mais antigo); as que estão a enviar ou falharam não contam.
   const lastMine = items.find((m) => m.fromMe && m.kind !== 'system' && !m.state && !m.id.startsWith('tmp-'));
