@@ -211,6 +211,24 @@ export function optionBadge(c: Pick<MixarChallenge, 'myPick' | 'theirPick' | 'ma
 /** Escolher só quando ainda não escolhi (a escolha não se muda). */
 export const canPick = (c: Pick<MixarChallenge, 'myPick'> | null | undefined) => !!c && !c.myPick;
 
+/** As colunas da grelha do desafio: 3 opções numa linha; 2 ou 4 em duas colunas. */
+export const challengeCols = (n: number): 2 | 3 => (n === 3 ? 3 : 2);
+/** Espaço entre as miniaturas da grelha do desafio (px). */
+export const CHALLENGE_GAP = 10;
+
+/**
+ * O tamanho de cada miniatura do desafio (9:14, ao alto) numa grelha com `gridW` px de largura e `cols` colunas, já sem
+ * os espaços entre elas. Em px e não com `width: '33%'` + `aspectRatio`: no telemóvel (Yoga), numa linha com
+ * `flexWrap`, essa combinação dava altura 0 e as opções apareciam como riscos finos (visto na APK 1.48.1).
+ * Sem largura medida ainda (0), `null`.
+ */
+export function challengeTile(gridW: number, cols: number, gap: number = CHALLENGE_GAP): { width: number; height: number } | null {
+  if (!(gridW > 0) || !(cols > 0)) return null;
+  const width = Math.floor((gridW - gap * (cols - 1)) / cols);
+  if (width <= 0) return null;
+  return { width, height: Math.round((width * 14) / 9) };
+}
+
 /* ---------- As páginas do feed ---------- */
 
 export type MixarPage = { kind: 'challenge'; key: string } | { kind: 'item'; key: string; item: MixarItem } | { kind: 'end'; key: string };

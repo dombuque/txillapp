@@ -325,3 +325,32 @@ test('ecrã do Mixar: a coluna do feed estica na altura dentro da linha (não fi
   assert.doesNotMatch(column, /alignSelf: 'center'/);
   assert.match(column, /alignSelf: 'stretch'/);
 });
+
+test('desafio: as miniaturas têm largura e altura em px (no telemóvel, «33%» + aspectRatio numa linha com flexWrap dava altura 0)', () => {
+  assert.equal(x.challengeCols(3), 3);
+  assert.equal(x.challengeCols(4), 2);
+  assert.equal(x.challengeCols(2), 2);
+  // 3 colunas numa grelha de 371 px (ecrã de 411 dp menos 2 × 20): (371 − 2 × 10) / 3 = 117, ao alto 9:14 → 182.
+  assert.deepEqual(x.challengeTile(371, 3), { width: 117, height: 182 });
+  // 2 colunas (4 opções) a 360 px: 175 × 272.
+  assert.deepEqual(x.challengeTile(360, 2), { width: 175, height: 272 });
+  // A linha cabe sempre: as larguras e os espaços nunca passam da grelha.
+  for (const w of [200, 300, 371, 420]) for (const c of [2, 3]) {
+    const t = x.challengeTile(w, c);
+    assert.ok(t.width * c + x.CHALLENGE_GAP * (c - 1) <= w, `${w}/${c}`);
+    assert.ok(t.height > t.width, 'ao alto');
+  }
+  // Sem largura medida: nada (ainda não se desenham as miniaturas).
+  assert.equal(x.challengeTile(0, 3), null);
+  assert.equal(x.challengeTile(-5, 3), null);
+  assert.equal(x.challengeTile(15, 3), null);
+  // No ecrã: a grelha mede-se e cada miniatura leva o tamanho em px; nada de aspectRatio com largura em %.
+  const pages = read('components', 'mixar', 'MixarPages.tsx');
+  const ch = pages.slice(pages.indexOf('export function ChallengePage('), pages.indexOf('const cs = StyleSheet.create'));
+  assert.match(ch, /const tile = challengeTile\(gridW, cols\);/);
+  assert.match(ch, /onLayout=\{\(e\) => \{ const w = Math\.round\(e\.nativeEvent\.layout\.width\); setGridW/);
+  assert.match(ch, /\{ width: tile\.width, height: tile\.height \}/);
+  assert.doesNotMatch(ch, /width: `\$\{100 \/ cols/);
+  const cs = pages.slice(pages.indexOf('const cs = StyleSheet.create'));
+  assert.doesNotMatch(cs.slice(0, cs.indexOf('optMine')), /aspectRatio/);
+});

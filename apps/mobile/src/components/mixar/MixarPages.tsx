@@ -5,7 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import type { Post } from '@/lib/api';
 import type { Mixar, MixarChallenge } from '@/lib/api.mixar';
 import { abs, sized } from '@/lib/config';
-import { canPick, challengeQuestion, challengeView, daysLabel, endOfDay, matchLine, matchPercent, optionBadge, timesLabel } from '@/lib/mixar';
+import { CHALLENGE_GAP, canPick, challengeCols, challengeQuestion, challengeTile, challengeView, daysLabel, endOfDay, matchLine, matchPercent, optionBadge, timesLabel } from '@/lib/mixar';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
@@ -120,7 +120,10 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
   const [chosen, setChosen] = useState<string | null>(null);
   const v = challengeView(c, them.name);
   const picking = canPick(c);
-  const cols = c.options.length === 3 ? 3 : 2;
+  const cols = challengeCols(c.options.length);
+  // A grelha mede-se (onLayout) e as miniaturas levam largura e altura em px (lib/mixar: challengeTile).
+  const [gridW, setGridW] = useState(0);
+  const tile = challengeTile(gridW, cols);
   return (
     <View style={[{ height, width: '100%', overflow: 'hidden' }, snap]}>
       <LinearGradient colors={['#2a0b12', '#4a1020', '#120608']} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -132,8 +135,8 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
         <Text style={cs.question} accessibilityRole="header">{challengeQuestion(c)}</Text>
         <Text style={[cs.line, v.phase === 'result' && v.match && { color: '#fde68a', fontWeight: '800' }]} accessibilityLiveRegion="polite">{v.line}</Text>
 
-        <View style={[cs.grid, { maxWidth: cols === 3 ? 420 : 360 }]}>
-          {c.options.map((p) => {
+        <View style={[cs.grid, { maxWidth: cols === 3 ? 420 : 360 }]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setGridW((o) => (o === w ? o : w)); }}>
+          {tile && c.options.map((p) => {
             const badge = optionBadge(c, p.id);
             const sel = picking && chosen === p.id;
             const lost = v.phase === 'result' && !badge;
@@ -142,7 +145,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
                 key={p.id}
                 onPress={() => (picking ? setChosen(p.id) : onOpen(p))}
                 disabled={busy}
-                style={({ pressed }) => [cs.opt, { width: `${100 / cols - 3}%` }, (sel || badge === 'mine' || badge === 'both') && cs.optMine, badge === 'theirs' && cs.optTheirs, lost && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]}
+                style={({ pressed }) => [cs.opt, { width: tile.width, height: tile.height }, (sel || badge === 'mine' || badge === 'both') && cs.optMine, badge === 'theirs' && cs.optTheirs, lost && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]}
                 accessibilityRole={picking ? 'radio' : 'button'}
                 accessibilityState={picking ? { selected: sel } : undefined}
                 accessibilityLabel={`${p.author.displayName}${p.body ? `: ${p.body.slice(0, 60)}` : ''}${badge === 'both' ? '. Os dois escolheram esta' : badge === 'mine' ? '. A tua escolha' : badge === 'theirs' ? `. ${them.name} escolheu esta` : ''}`}
@@ -185,8 +188,8 @@ const cs = StyleSheet.create({
   kicker: { fontSize: 13, fontWeight: '900', letterSpacing: 2, color: '#ffb4a2' },
   question: { marginTop: 10, fontSize: 28, lineHeight: 34, fontWeight: '900', color: '#fff', textAlign: 'center' },
   line: { marginTop: 8, fontSize: 15, lineHeight: 20, color: 'rgba(255,255,255,0.8)', textAlign: 'center', maxWidth: 320 },
-  grid: { marginTop: 22, width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
-  opt: { aspectRatio: 9 / 14, borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: 'transparent', backgroundColor: '#222' },
+  grid: { marginTop: 22, width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: CHALLENGE_GAP },
+  opt: { borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: 'transparent', backgroundColor: '#222' },
   optMine: { borderColor: colors.brand },
   optTheirs: { borderColor: '#fbbf24' },
   play: { position: 'absolute', left: 6, top: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
