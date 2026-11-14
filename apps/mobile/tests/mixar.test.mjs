@@ -287,7 +287,8 @@ test('as entradas nos ecrãs: cartão no chat, menu da conversa, menu «+», ace
   const bubbles = read('components', 'ChatBubbles.tsx');
   assert.match(bubbles, /m\.kind === 'mixar'[\s\S]*<MixarCard mixar=\{m\.mixar\}/);
   const thread = read('app', 'messages', '[username].tsx');
-  assert.match(thread, /label: `Mixar com \$\{firstName\}`/);
+  // No menu «⋯» da conversa já não há «Mixar com…»: está no cabeçalho (sem repetir).
+  assert.doesNotMatch(thread, /label: `Mixar com \$\{firstName\}`/);
   assert.match(thread, /onMixar=\{/);
   // O ícone do Mixar no cabeçalho da conversa, logo antes do «Ligar» (fora dos pedidos de mensagem).
   assert.match(thread, /\{!request \? <HeaderButton label=\{`Mixar com[\s\S]{0,200}?<Icon name="mixar"[\s\S]{0,120}?<\/HeaderButton> : null\}\s*<HeaderButton label=\{`Ligar a/);
