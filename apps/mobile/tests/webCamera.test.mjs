@@ -253,3 +253,18 @@ test('TxCamera: controlos com área de toque ≥ 44 e sem papéis que fecham a a
     assert.ok(Number(m[1]) >= 44, `${k}: ${m[1]}`);
   }
 });
+
+test('visor em píxeis (coverBox): cobre o cartão e corta ao centro; sem medidas, null', () => {
+  // Cartão 400×700 e stream 9:16 (1080×1920): mais alto do que o cartão em proporção → largura certa, corta em cima e em baixo.
+  const b = C.coverBox(400, 700, 1080, 1920);
+  assert.ok(b.width >= 400 - 1e-9 && b.height >= 700 - 1e-9);
+  assert.ok(Math.abs(b.left + b.width / 2 - 200) < 1e-9 && Math.abs(b.top + b.height / 2 - 350) < 1e-9);
+  assert.ok(Math.abs(b.width / b.height - 1080 / 1920) < 1e-9);
+  // Stream deitado (o iPhone antes de rodar): cobre na mesma, sem preto à volta.
+  const d = C.coverBox(400, 700, 1920, 1080);
+  assert.ok(d.height >= 700 - 1e-9 && d.width >= 400);
+  assert.equal(C.coverBox(0, 700, 1080, 1920), null);
+  assert.equal(C.coverBox(400, 700, 0, 0), null);
+  // O <video> do visor usa-o (o object-fit sozinho falhava no Safari do iPhone).
+  assert.match(SRC, /coverBox\(card\.w, card\.h, vdim\.w, vdim\.h\)/);
+});

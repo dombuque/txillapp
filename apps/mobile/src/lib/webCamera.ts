@@ -261,6 +261,18 @@ export function viewTransform(front: boolean, digital: number): { transform: str
   const z = Number.isFinite(digital) && digital > 0 ? digital : 1;
   return { transform: `${front ? 'scaleX(-1) ' : ''}scale(${z})` };
 }
+/**
+ * O <video> do visor com tamanho em píxeis, a cobrir a caixa `w`×`h` (cortado ao centro): as contas do «cover» feitas por
+ * nós, sem depender do object-fit. No iPhone o Safari às vezes deixa de o aplicar a um stream da câmara (depois de mudar de
+ * lente, de rodar o stream ou de mexer no zoom) e a imagem ficava num retângulo pequeno ao meio, com preto à volta.
+ * Sem medidas ainda, devolve null (fica a caixa inteira com o object-fit, como antes).
+ */
+export function coverBox(w: number, h: number, vw: number, vh: number): { left: number; top: number; width: number; height: number } | null {
+  if (!(w > 0 && h > 0 && vw > 0 && vh > 0)) return null;
+  const s = Math.max(w / vw, h / vh);
+  const width = vw * s, height = vh * s;
+  return { left: (w - width) / 2, top: (h - height) / 2, width, height };
+}
 /** Trocou-se de câmara (outro stream num <video> que já tinha um)? Então usa-se um <video> novo. */
 export function freshVideoFor(prev: unknown, next: unknown): boolean {
   return prev != null && next != null && prev !== next;

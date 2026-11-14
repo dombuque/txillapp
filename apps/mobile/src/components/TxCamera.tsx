@@ -11,7 +11,7 @@ import {
   activePill, bestMatch, browserKind, classifyCameraError, clock, coverCrop, exposureLabel, exposureValue, fallbackConstraints, ncc,
   permissionSteps, photoUpgrade, pickRecorderType, readCaps, recorderFile, retryWithFallback, sensorRatioFor, tapToPoint, videoBitrate,
   videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
-  freshVideoFor, nextVideo, viewTransform, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
+  freshVideoFor, nextVideo, viewTransform, coverBox, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
 } from '@/lib/webCamera';
 import { timerIcon } from '@/lib/cameraControls';
 import { useAuth } from '@/lib/auth';
@@ -1327,12 +1327,15 @@ export function TxCamera({
 
   const [vkey, setVkey] = useState(0);
   const lastDims = useRef('');
+  /** As medidas do stream no <video> (para o visor em píxeis, ver coverBox). */
+  const [vdim, setVdim] = useState({ w: 0, h: 0 });
   const onVideoResize = () => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
     const d = `${v.videoWidth}x${v.videoHeight}`;
     if (lastDims.current && lastDims.current !== d) setVkey((n) => n + 1);
     lastDims.current = d;
+    setVdim((o) => (o.w === v.videoWidth && o.h === v.videoHeight ? o : { w: v.videoWidth, h: v.videoHeight }));
   };
   useEffect(() => {
     const v = video.current;
@@ -1523,8 +1526,9 @@ export function TxCamera({
           'div',
           { key: 'vbox', style: { ...VIEW_BOX, ...viewTransform(facing === 'user', digital), filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } },
           dom('video', {
-            key: `v${vkey}`, ref: videoRef, playsInline: true, muted: true, autoPlay: true, disablePictureInPicture: true, onResize: onVideoResize, 'aria-hidden': true,
-            style: fill,
+            key: `v${vkey}`, ref: videoRef, playsInline: true, muted: true, autoPlay: true, disablePictureInPicture: true, onResize: onVideoResize, onLoadedMetadata: onVideoResize, 'aria-hidden': true,
+            // Em píxeis, a cobrir o cartão (as contas são nossas): o Safari do iPhone às vezes esquece o object-fit num stream.
+            style: { ...fill, ...(coverBox(card.w, card.h, vdim.w, vdim.h) ?? {}) },
           }),
         ),
         // O quadrado do foco (amarelo, como na câmara do iPhone): encolhe até ao ponto e apaga-se.

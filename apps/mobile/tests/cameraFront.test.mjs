@@ -40,7 +40,7 @@ test('no visor o <video> não leva transform nem filtro: vão na caixa à volta'
   const m = cam.match(/dom\('video', \{\s*key: `v\$\{vkey\}`[\s\S]*?\}\)/);
   assert.ok(m, 'encontrei o <video> do visor');
   assert.doesNotMatch(m[0], /transform|filter/);
-  assert.match(m[0], /style: fill/);
+  assert.match(m[0], /style: \{ \.\.\.fill, \.\.\.\(coverBox\(/);
   assert.match(cam, /\{ key: 'vbox', style: \{ \.\.\.VIEW_BOX, \.\.\.viewTransform\(facing === 'user', digital\), filter: lookCss\(LOOKS\[look\]\)/);
 });
 
