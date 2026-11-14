@@ -1939,7 +1939,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               const v = cur.video ? engine.current.videos.get(cur.key) : null;
               const im = cur.video ? null : engine.current.images.get(cur.uri);
               const dims = v?.videoWidth ? { w: v.videoWidth, h: v.videoHeight } : im?.naturalWidth ? { w: im.naturalWidth, h: im.naturalHeight } : null;
-              const eff: ClipFit = dims ? clipFit(cur, dims.w, dims.h) : cur.fit ?? 'cover';
+              // O que o automático daria (sem a escolha da pessoa): é o que diz o botão «Auto».
+              const eff: ClipFit = dims ? clipFit({ ...cur, fit: undefined }, dims.w, dims.h) : 'cover';
               return (
                 <View style={st.rowWrap}>
                   <Text style={st.label}>Enquadrar</Text>

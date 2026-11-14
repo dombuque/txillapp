@@ -901,6 +901,44 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect([spec.originalVolume, spec.musicVolume]).toEqual([1, 0.7]);
   }, 300_000);
 
+  // Os testes do encaixe que criam as próprias contas ficam no fim: não atrasam os que usam as contas do beforeAll (o token dura 10 min).
+  it('encaixe: uma foto com o enquadramento da Montagem mágica enche no automático (mesmo deitada); com fit blur vai inteira', async () => {
+    const u = await register('fitf');
+    const pic = await upload(u, photo('deitada', 'color=c=0x30a0d0:size=1280x720'), 'image/png');
+    const focus = { focus: { x: 0.5, y: 0.5, from: 1, to: 1.07 } };
+    // Três fotos (o mínimo sem vídeo), a mesma, com música (as fotos sozinhas precisam dela).
+    const three = (extra: object) => ({ clips: [0, 1, 2].map(() => ({ mediaId: pic, kind: 'photo', durationMs: 1000, fx: focus, ...extra })), sound: { kind: 'music', music } });
+    const auto = await waitJob(u, (await compose(u, three({})).expect(202)).body.jobId);
+    expect(auto.error).toBeUndefined();
+    const f1 = out(auto.mediaId!);
+    const mid = rgbAt(f1, 0.5, 520, 940, 40), top = rgbAt(f1, 0.5, 520, 150, 40);
+    for (let c = 0; c < 3; c++) expect(Math.abs(top[c] - mid[c])).toBeLessThan(8); // enche: a mesma cor em cima e ao meio
+    const blur = await waitJob(u, (await compose(u, three({ fit: 'blur' })).expect(202)).body.jobId);
+    const f2 = out(blur.mediaId!);
+    const m2 = rgbAt(f2, 0.5, 520, 940, 40), t2 = rgbAt(f2, 0.5, 520, 150, 40);
+    for (let c = 0; c < 3; c++) expect(Math.abs(t2[c] - 0.7 * m2[c])).toBeLessThan(8); // inteira: o fundo a 70 %
+  }, 180_000);
+
+  it('encaixe: no dueto cada lado enche o seu quadro 9:16, mesmo com vídeos deitados e com fit blur pedido', async () => {
+    const u = await register('fitd'), o = await register('fito');
+    const wide = (name: string, color: string) => make(`${name}.mp4`, ['-f', 'lavfi', '-i', `color=c=${color}:size=640x360:rate=30:duration=3`, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest']);
+    const orig = await uploadVideo(o, wide('duo-azul', '0x2040d0'));
+    const post = (await api().post('/api/v1/posts').set(as(o)).send({ body: 'dueto deitado', mediaIds: [orig] }).expect(201)).body;
+    const mine = await uploadVideo(u, wide('duo-verm', '0xd04030'));
+    for (const fit of [undefined, 'blur'] as const) {
+      const job = await waitJob(u, (await compose(u, { clips: [{ mediaId: mine, kind: 'video', ...(fit ? { fit } : {}) }], duet: { postId: post.id } }).expect(202)).body.jobId);
+      expect(job.error).toBeUndefined();
+      const f = out(job.mediaId!);
+      // Os quadros do dueto: 540×960 a partir de y = 480. Em cima (y 520) e ao meio (y 940) de cada lado, a mesma cor.
+      for (const x of [200, 740]) {
+        const top = rgbAt(f, 1, x, 520, 32), mid = rgbAt(f, 1, x, 940, 32);
+        for (let c = 0; c < 3; c++) expect(Math.abs(top[c] - mid[c])).toBeLessThan(8);
+      }
+      expect(rgbAt(f, 1, 200, 940)[0]).toBeGreaterThan(170); // o meu (vermelho) à esquerda
+      expect(rgbAt(f, 1, 740, 940)[2]).toBeGreaterThan(170); // o original (azul) à direita
+    }
+  }, 240_000);
+
   it('os temporários e os ficheiros: nada fica para trás', () => {
     expect(readdirSync(tmpdir()).filter((f) => f.startsWith('txcompose-'))).toEqual([]);
     expect(existsSync(MEDIA)).toBe(true);
