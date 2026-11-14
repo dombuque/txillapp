@@ -427,10 +427,11 @@ export class MediaService implements OnModuleInit {
     if (!Number.isInteger(size) || size < 1 || size > max) {
       throw new PayloadTooLargeException(`Ficheiro até ${max / 1024 / 1024} MB`);
     }
-    // Converter vídeo é pesado: no máximo 10 por hora e por pessoa (evita encher a fila de conversão).
+    // Converter vídeo é pesado: no máximo 40 por hora e por pessoa (evita encher a fila de conversão). Uma tcheka leva até 30
+    // clipes e a Montagem mágica envia todos os vídeos; as tchekas montadas também contam.
     if (video) {
       const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE owner_id = $1 AND mime LIKE 'video/%' AND created_at > now() - interval '1 hour'`, [userId])).rows[0].n as number;
-      if (n >= 10) throw new HttpException('Já enviaste muitos vídeos. Tenta daqui a um bocado.', HttpStatus.TOO_MANY_REQUESTS);
+      if (n >= 40) throw new HttpException('Já enviaste muitos vídeos. Tenta daqui a um bocado.', HttpStatus.TOO_MANY_REQUESTS);
     }
     const id = uuidv7();
     await this.pool.query(

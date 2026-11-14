@@ -525,7 +525,7 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect(rms(stadium, 3.7, 4.3)).toBeGreaterThan(0.01); // a cauda do reverb depois da voz (acaba aos 3,5 s)
     const echo = pcm(await done(a, { clips: three(), voiceOver: { mediaId: voiceId, effect: 'eco' } }));
     expect(tone(echo, 1000, 3.62, 3.75)).toBeGreaterThan(0.1); // a primeira repetição (280 ms) depois do fim
-    // No som original de um vídeo (440 Hz): Grave = × 0,72 ≈ 317 Hz. (Com a conta c: a «a» já passou dos 10 vídeos por hora,
+    // No som original de um vídeo (440 Hz): Grave = × 0,72 ≈ 317 Hz. (Com a conta c: a «a» já leva muitos dos 40 vídeos por hora,
     // que contam também as tchekas montadas.)
     const v = await calmVideo(c, video('quatro', 4));
     const low = pcm(await done(c, { clips: [{ mediaId: v, kind: 'video' }], originalEffect: 'grave' }));
