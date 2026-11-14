@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
-import Svg, { G, Path } from 'react-native-svg';
+import { useId } from 'react';
+import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 import { TX, type TxDef } from '@/icons/tx';
 import { colors } from '@/lib/theme';
 
 export type IconName = keyof typeof TX | 'cheers';
 
 /** Os ícones "Tx" do Txillapp (os mesmos do site, na mesma grelha 24×24 e no mesmo traço). `solid` pinta a versão cheia. */
-export function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, color = colors.zinc900 }: { name: IconName; size?: number; strokeWidth?: number; solid?: boolean; color?: string }) {
+export function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, color = colors.zinc900, mono = false }: { name: IconName; size?: number; strokeWidth?: number; solid?: boolean; color?: string; mono?: boolean }) {
   if (name === 'cheers') return <Cheers size={size} strokeWidth={strokeWidth} color={color} />;
+  // O Mixar leva sempre as cores do Txillapp (o gradiente do selo do Mixar), menos em branco (por cima de cor) ou com `mono`.
+  if (name === 'mixar' && !mono && !isLight(color)) return <MixarIcon size={size} strokeWidth={strokeWidth} />;
   // "Voltar": o chevron que as apps usam no iPhone e no site; no Android a seta do sistema (igual ao BackButton).
   const d = TX[name === 'back' && Platform.OS !== 'android' ? 'chevron-left' : name] as TxDef;
   const filled = solid && !!d.s;
@@ -17,6 +20,26 @@ export function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, color 
       {paths.map((p, i) => (
         <Path key={i} d={p} fill={d.f || filled ? color : 'none'} />
       ))}
+    </Svg>
+  );
+}
+
+/** Branco ou quase (por cima de um fundo de cor): aí o ícone fica de uma cor só. */
+const isLight = (c: string) => /^(#fff(fff)?|white|rgba\(255, ?255, ?255)/i.test(c.trim());
+
+/** O ícone do Mixar com o gradiente do Txillapp: do vermelho da marca (em baixo, à esquerda) ao laranja (em cima, à direita). */
+function MixarIcon({ size, strokeWidth }: { size: number; strokeWidth: number }) {
+  const id = `mx${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const d = TX.mixar as TxDef;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Defs>
+        <LinearGradient id={id} x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={colors.brand} />
+          <Stop offset="1" stopColor="#ff9a5b" />
+        </LinearGradient>
+      </Defs>
+      {d.p.map((p, i) => <Path key={i} d={p} stroke={`url(#${id})`} />)}
     </Svg>
   );
 }
