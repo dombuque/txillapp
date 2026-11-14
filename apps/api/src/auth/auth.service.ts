@@ -655,6 +655,9 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM taste.gelada_rounds WHERE opened_by = $1', [userId]);
       await client.query('UPDATE taste.gelada_rounds SET payer_id = NULL WHERE payer_id = $1', [userId]);
       await client.query('DELETE FROM taste.gelada_fridays WHERE user_id = $1', [userId]);
+      // Mixar (0150): os Mixar da pessoa (ativos, pendentes e antigos) e, com eles (CASCADE), os itens, as reações, os vistos,
+      // os desafios e as escolhas dos dois. O cartão do convite do outro lado fica «Conta eliminada» (mixar: null).
+      await client.query('DELETE FROM social.mixars WHERE user_a = $1 OR user_b = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);

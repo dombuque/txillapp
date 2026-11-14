@@ -205,7 +205,7 @@ describe('limpeza das mensagens temporárias e migração 0123 (integração)', 
     expect(await cols()).toEqual(before);
     const kinds = (await pool.query("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'messages_kind_check' AND conrelid = 'social.messages'::regclass")).rows;
     expect(kinds).toHaveLength(1);
-    for (const k of ['text', 'story_reply', 'story_reaction', 'image', 'voice', 'sticker', 'location', 'post', 'gift', 'video', 'zas_reply', 'call', 'poll', 'gif', 'system']) {
+    for (const k of ['text', 'story_reply', 'story_reaction', 'image', 'voice', 'sticker', 'location', 'post', 'gift', 'video', 'zas_reply', 'call', 'poll', 'gif', 'system', 'gelada', 'rodada', 'mixar']) {
       expect(kinds[0].d).toContain(`'${k}'::text`);
     }
     // E as durações fora da lista não entram na base, mesmo sem passar pela API.

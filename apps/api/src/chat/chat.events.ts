@@ -51,7 +51,19 @@ export interface ZasEvent {
   self?: boolean;
 }
 
-export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent;
+/**
+ * Mixar (0150, docs/mixar-contrato.md): algo mudou no Mixar `id`. Vai para o outro do par e, como eco (`self`), para os meus
+ * outros aparelhos. `what`: 'invite' (convidaram-me), 'accepted', 'reaction' (o outro reagiu), 'pick' (o outro escolheu no
+ * desafio, sem dizer qual), 'result' (os dois escolheram: o resultado abriu-se) e 'daily' (a seleção do dia está pronta).
+ */
+export interface MixarEvent {
+  type: 'mixar';
+  id: string;
+  what: 'invite' | 'accepted' | 'reaction' | 'pick' | 'result' | 'daily';
+  self?: boolean;
+}
+
+export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent | MixarEvent;
 
 /** O sinal «estou a ver esta conversa» vale 45 s (a app repete-o enquanto a conversa está à vista). */
 const ACTIVE_MS = 45_000;

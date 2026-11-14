@@ -11,10 +11,11 @@ import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
 import { badge } from '../common/badge';
 import { requestCards, roundCards } from '../gelada/gelada-cards';
+import { mixarCards, mixarCardText } from '../mixar/mixar-cards';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from './screenshot';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada' | 'mixar';
 
 /**
  * O texto de uma mensagem GIF (kind 'gif'): o GIF vai na coluna `gif`; o body leva só "GIF", que é o que as versões
@@ -450,7 +451,7 @@ export class ChatService {
       ttl: (r.ttl_seconds as number | null) ?? null,
       lastMessage: r.last_at
         ? {
-            body: r.last_once ? '' : r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : (r.last_body as string),
+            body: r.last_once ? '' : r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : r.last_kind === 'mixar' ? mixarCardText(r.last_sender === me) : (r.last_body as string),
             once: !!r.last_once,
             kind: r.last_kind as MessageKind,
             fromMe: r.last_sender === me,
@@ -556,7 +557,9 @@ export class ChatService {
     const live = page.filter((m) => !m.deleted_at);
     const geladaMsgs = live.filter((m) => m.kind === 'gelada').map((m) => m.id as string);
     const rodadaMsgs = live.filter((m) => m.kind === 'rodada').map((m) => m.id as string);
-    const [gq, rq] = await Promise.all([
+    // Mixar (0150): o cartão do convite (kind 'mixar') com o estado atual; o texto de recurso do ponto de vista de quem lê.
+    const mixarMsgs = live.filter((m) => m.kind === 'mixar').map((m) => m.id as string);
+    const [gq, rq, mq] = await Promise.all([
       geladaMsgs.length ? this.pool.query('SELECT id, message_id FROM taste.gelada_requests WHERE message_id = ANY($1::uuid[])', [geladaMsgs]).then(async (r) => {
         const cards = new Map((await requestCards(this.pool, me, { ids: r.rows.map((x) => x.id as string) })).map((c) => [c.id, c]));
         return new Map(r.rows.map((x) => [x.message_id as string, cards.get(x.id as string) ?? null]));
@@ -565,9 +568,13 @@ export class ChatService {
         const cards = new Map((await roundCards(this.pool, me, { ids: r.rows.map((x) => x.id as string) })).map((c) => [c.id, c]));
         return new Map(r.rows.map((x) => [x.message_id as string, cards.get(x.id as string) ?? null]));
       }) : new Map(),
+      mixarCards(this.pool, me, mixarMsgs),
     ]);
     const cards = (m: Record<string, any>) =>
-      m.kind === 'gelada' ? { gelada: gq.get(m.id as string) ?? null } : m.kind === 'rodada' ? { rodada: rq.get(m.id as string) ?? null } : {};
+      m.kind === 'gelada' ? { gelada: gq.get(m.id as string) ?? null }
+      : m.kind === 'rodada' ? { rodada: rq.get(m.id as string) ?? null }
+      : m.kind === 'mixar' ? { body: mixarCardText(m.sender_id === me), mixar: mq.get(m.id as string) ?? null }
+      : {};
     return Promise.all(
       page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : { ...(await this.item(me, m, reactions, quoted)), ...cards(m) }),
     );
@@ -804,14 +811,15 @@ export class ChatService {
   }
 
   /**
-   * Um cartão feito pelo servidor numa conversa a dois («Paga-me uma», kind 'gelada', 0145). Quem chama já confirmou
-   * `cannotMessage`. O texto (`body`) é o que a lista de conversas e as versões antigas da app mostram; `pushText` vai no
-   * telemóvel (sem álcool para menores). Devolve { id }.
+   * Um cartão feito pelo servidor numa conversa a dois («Paga-me uma», kind 'gelada', 0145; o convite do Mixar, kind 'mixar',
+   * 0150). Quem chama já confirmou `cannotMessage`. O texto (`body`) é o que a lista de conversas e as versões antigas da app
+   * mostram; `pushText` vai no telemóvel (sem álcool para menores). `pushText` null: sem aviso do chat no telemóvel (quem chama
+   * manda o seu, com o seu endereço, como o Mixar). Devolve { id }.
    */
-  async sendCard(me: string, otherId: string, kind: 'gelada', body: string, pushText: string, id?: string) {
+  async sendCard(me: string, otherId: string, kind: 'gelada' | 'mixar', body: string, pushText: string | null, id?: string) {
     const why = await this.cannotMessage(me, otherId);
     if (why) throw new ForbiddenException(why);
-    return this.insert(me, otherId, body, kind, null, null, null, null, null, { pushText, id });
+    return this.insert(me, otherId, body, kind, null, null, null, null, null, pushText === null ? { silent: true, id } : { pushText, id });
   }
 
   /** O cartão mudou (alguém respondeu): as duas partes voltam a pedir a conversa, sem som nem aviso (evento 'edited'). */
@@ -1096,7 +1104,7 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput; pushText?: string; id?: string } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput; pushText?: string; id?: string; silent?: boolean } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = extra.id ?? uuidv7();
     const ins = await this.pool.query(
@@ -1128,7 +1136,7 @@ export class ChatService {
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
-    if (!(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+    if (!extra.silent && !(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
     return { id, kind, expiresAt };
   }
 }
