@@ -277,6 +277,16 @@ export function flashA11y(f: FlashChoice, screen: boolean): string {
   return `${screen ? 'Flash de ecrã' : 'Flash'}: ${s}`;
 }
 
+/** O ícone próprio do flash (Tx): riscado quando desligado, com o «A» no automático. */
+export function flashIcon(f: FlashChoice): 'cam-flash' | 'cam-flash-off' | 'cam-flash-auto' {
+  return f === 'off' ? 'cam-flash-off' : f === 'auto' ? 'cam-flash-auto' : 'cam-flash';
+}
+
+/** O ícone do temporizador mostra a espera: o cronómetro vazio, com 3 ou com 10 lá dentro. */
+export function timerIcon(delay: number): 'cam-timer' | 'cam-timer-3' | 'cam-timer-10' {
+  return delay <= 0 ? 'cam-timer' : delay <= 3 ? 'cam-timer-3' : 'cam-timer-10';
+}
+
 // ———————————————————————————————————————— Formato e qualidade ————————————————————————————————————————
 
 export type StabMode = 'standard' | 'cinematic' | 'cinematic-extended' | 'preview-optimized' | 'cinematic-extended-enhanced' | 'low-latency' | 'off' | 'auto';
