@@ -19,7 +19,8 @@ export function useOpenMixar() {
 
   const open = (id: string) => router.push(`/mixar/${id}` as never);
 
-  async function invite(username: string, name: string) {
+  /** Sem aviso de «Convite enviado»: o cartão do convite aparece logo na conversa. */
+  async function invite(username: string) {
     try {
       const m = await mixarApi.invite(username);
       qc.setQueryData(mixarKeys.one(m.id), m);
@@ -27,7 +28,6 @@ export function useOpenMixar() {
       void qc.invalidateQueries({ queryKey: mixarKeys.with(username) });
       void qc.invalidateQueries({ queryKey: ['chat-thread', username] });
       void qc.invalidateQueries({ queryKey: ['chat-list'] });
-      Alert.alert('Convite enviado', `Quando ${name} aceitar, o vosso Mixar abre com a primeira seleção.`);
     } catch (e) {
       const id = existingMixarId(e);
       if (id) return open(id);
@@ -48,7 +48,7 @@ export function useOpenMixar() {
       if (m) return open(m.id);
       Alert.alert(`Mixar com ${name}?`, `Juntam os gostos dos dois num feed só vosso, com uma seleção nova todos os dias. ${name} recebe o convite nesta conversa.`, [
         { text: 'Agora não', style: 'cancel' },
-        { text: 'Convidar', onPress: () => void invite(username, name) },
+        { text: 'Convidar', onPress: () => void invite(username) },
       ]);
     } catch (e) {
       Alert.alert('Não deu', mixarErrorText(e, 'Não consegui ver o Mixar agora. Tenta outra vez.'));
