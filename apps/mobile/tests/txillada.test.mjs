@@ -254,11 +254,37 @@ test('roda AO VIVO: só com live.id; na fila e no perfil, tocar abre /txillada/<
   assert.equal(t.liveId({ live: { id: 't1' } }), 't1');
   for (const u of [{}, { live: null }, { live: {} }, { live: { id: '' } }, null]) assert.equal(t.liveId(u), null);
   const tray = read('src/components/StoriesTray.tsx');
-  assert.match(tray, /const live = txilladaOn \? liveId\(u\) : null;/);
+  assert.match(tray, /const others = trayOthers\(users, txilladaOn\);/);
+  assert.match(tray, /onPress=\{\(\) => \(live \? watch\(live\) : view\(u\.username\)\)\}/);
   assert.match(tray, /router\.push\(`\/txillada\/\$\{id\}`/);
   const prof = read('src/components/ProfileStoryAvatar.tsx');
   assert.match(prof, /const live = txilladaOn && !isMe \? liveId \?\? null : null;/);
   assert.match(prof, /router\.push\(`\/txillada\/\$\{live\}`/);
+});
+
+test('fila dos mimos: os amigos ao vivo primeiro, também sem mimos; ao acabar saem; o visor salta as entradas só ao vivo', () => {
+  const me = { username: 'eu', isMe: true, count: 1, live: null };
+  const a = { username: 'a', isMe: false, count: 2, live: null };
+  const b = { username: 'b', isMe: false, count: 0, live: { id: 'tb' } };
+  const c = { username: 'c', isMe: false, count: 1, live: { id: 'tc' } };
+  const d = { username: 'd', isMe: false, count: 3 };
+  const users = [me, a, b, c, d];
+  assert.deepEqual(t.trayOthers(users, true).map((r) => [r.u.username, r.live]), [['b', 'tb'], ['c', 'tc'], ['a', null], ['d', null]]);
+  // Txillada desligada: a entrada só ao vivo sai (não há nada para abrir), as outras ficam pela ordem do servidor.
+  assert.deepEqual(t.trayOthers(users, false).map((r) => [r.u.username, r.live]), [['a', null], ['c', null], ['d', null]]);
+  // Acabou: a de b sai, a de c fica sem a roda; uma que não está na fila não mexe em nada.
+  assert.deepEqual(t.trayWithoutLive(users, 'tb').map((u) => u.username), ['eu', 'a', 'c', 'd']);
+  assert.deepEqual(t.trayWithoutLive(users, 'tc').find((u) => u.username === 'c'), { username: 'c', isMe: false, count: 1, live: null });
+  assert.deepEqual(t.trayWithoutLive(users, 'zz'), users);
+  assert.equal(t.trayWithoutLive(undefined, 'tb'), undefined);
+  assert.deepEqual(t.withStories(users).map((u) => u.username), ['eu', 'a', 'c', 'd']);
+  // O pedido manda ?live=1 (a app 1.51 não manda e o servidor não lhe dá entradas sem mimos).
+  assert.match(read('src/lib/api.ts'), /stories: \(\): Promise<TrayUser\[\]> => raw\('\/stories\?live=1'\),/);
+  const tray = read('src/components/StoriesTray.tsx');
+  assert.match(tray, /onTxilladaEvent\(/);
+  assert.match(tray, /trayWithoutLive\(old, id\)/);
+  assert.match(tray, /useFocusEffect\(/);
+  assert.match(read('src/app/stories/[username].tsx'), /const order = withStories\(/);
 });
 
 // ── os balões a flutuar ──────────────────────────────────────────────────────────────────────────────────────────────

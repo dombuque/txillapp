@@ -1,5 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -51,9 +51,10 @@ export class StoriesController {
     return this.stories.removeCloseFriend(req.userId!, username);
   }
 
+  /** `?live=1` (a app nova): entram também os amigos ao vivo sem mimos (ver StoriesService.tray). */
   @Get()
-  tray(@Req() req: AuthedReq) {
-    return this.stories.tray(req.userId!);
+  tray(@Req() req: AuthedReq, @Query('live') live?: string) {
+    return this.stories.tray(req.userId!, live === '1' || live === 'true');
   }
 
   /** Definições dos meus stories: quem pode responder e a quem estão escondidos. */

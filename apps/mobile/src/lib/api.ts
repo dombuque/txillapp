@@ -378,7 +378,7 @@ export interface Story {
   stickers?: import('./stickers').MimoLayer[];
 }
 export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
-export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string } | null }
+export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
@@ -760,7 +760,8 @@ export const api = {
   repost: (id: string, body = ''): Promise<Post> => trackOk(raw(`/posts/${id}/repost`, post({ body })), 'repost', { quote: !!body.trim() }),
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
-  stories: (): Promise<TrayUser[]> => raw('/stories'),
+  /** `?live=1`: entram também os amigos ao vivo sem mimos (`count: 0`); a app 1.51 não o manda e não os recebe. */
+  stories: (): Promise<TrayUser[]> => raw('/stories?live=1'),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
   createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => trackOk(raw('/stories', post({ mediaId, caption, audience })), 'story_create', { source: 'camera', closeFriends: audience === 'close_friends' }),
   viewStory: (id: string): Promise<void> => trackOk(raw(`/stories/${id}/view`, post({})), 'story_view'),
