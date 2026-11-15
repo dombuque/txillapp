@@ -17,7 +17,7 @@ const loadImage = (src: string) =>
   });
 
 /** Pinta uma linha; com selo, devolve onde o pôr (o selo é uma imagem, carrega-se fora daqui). */
-function drawText(g: CanvasRenderingContext2D, t: CardText): ReturnType<typeof badgePlace> | null {
+export function drawText(g: CanvasRenderingContext2D, t: CardText): ReturnType<typeof badgePlace> | null {
   let size = t.size;
   const set = () => (g.font = `${t.weight} ${size}px ${FONT}`);
   set();
