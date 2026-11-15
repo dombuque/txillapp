@@ -79,8 +79,29 @@ export function Panel({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-/** Responder ao story ou reagir com a mascote; brindar alterna e conta ao autor. */
-export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered }: { story: Story; username: string; onFocusChange: (v: boolean) => void; inputRef: React.RefObject<React.ComponentRef<typeof TextInput> | null>; /** Brindou (não quando tira o brinde): o ecrã mostra os copos, como nas publicações. */ onCheered?: () => void }) {
+/** Partilhar a publicação que foi posta no mimo (o mimo em si partilha-se pela barra). */
+export async function shareSharedPost(story: Story) {
+  if (!story.sharedFrom) return;
+  const url = `${SITE_URL || 'https://txillapp.com'}/p/${story.sharedFrom.postId}`;
+  try { await Share.share(linkShare('', url)); } catch { /* cancelado */ }
+}
+
+/** Um botão redondo da barra do visor (fora do mimo, sobre o fundo escuro), com a conta opcional num selo da marca. */
+export function BarButton({ icon, label, onPress, n, on, color = '#fff', size = 25 }: { icon: 'comment' | 'cheers' | 'share' | 'eye'; label: string; onPress: () => void; n?: number | null; on?: boolean; color?: string; size?: number }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={4} style={({ pressed }) => [st.barBtn, on && st.barBtnOn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={on !== undefined ? { selected: on } : undefined}>
+      <Icon name={icon} size={size} color={color} strokeWidth={icon === 'eye' ? 2 : undefined} />
+      {n ? <View style={st.count} pointerEvents="none"><Text style={st.countText}>{n > 99 ? '99+' : n}</Text></View> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * A barra do visor para quem vê (por baixo do mimo, fora da imagem: nunca tapa a assinatura do canto): responder numa
+ * pílula escura, comentar, brindar (o ícone da marca, aceso na cor quente) e partilhar. A escrever, aparecem as reações
+ * por cima e o campo ocupa a barra toda. As confirmações («Mensagem enviada») aparecem dentro do próprio campo.
+ */
+export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, onComments, onShare, compact = false }: { story: Story; username: string; onFocusChange: (v: boolean) => void; inputRef: React.RefObject<React.ComponentRef<typeof TextInput> | null>; /** Brindou (não quando tira o brinde): o ecrã mostra os copos, como nas publicações. */ onCheered?: () => void; onComments?: () => void; onShare?: () => void; /** Barra estreita (ecrã pequeno): o convite fica curto. */ compact?: boolean }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,34 +127,43 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered }
       flash(REACTIONS.some((r) => r.id === body) ? `${reactionLabel(body)} enviado!` : 'Mensagem enviada');
     } catch (e) { flash((e as Error).message); } finally { setBusy(false); }
   }
-  async function share() {
-    if (!story.sharedFrom) return;
-    const url = `${SITE_URL || 'https://txillapp.com'}/p/${story.sharedFrom.postId}`;
-    try { await Share.share(linkShare('', url)); } catch { /* cancelado */ }
-  }
   const focus = (v: boolean) => { setOpen(v); onFocusChange(v); };
+  const typed = !!text.trim();
 
   return (
     <View style={{ width: '100%' }}>
       {open && (
         <View style={st.reactions}>
           {REACTIONS.map((r) => (
-            <Pressable key={r.id} onPress={() => void send(r.id)} accessibilityRole="button" accessibilityLabel={`Reagir: ${r.label}`} hitSlop={4}><ReactionArt body={r.id} size={40} /></Pressable>
+            <Pressable key={r.id} onPress={() => void send(r.id)} style={({ pressed }) => pressed && { transform: [{ scale: 0.88 }] }} accessibilityRole="button" accessibilityLabel={`Reagir: ${r.label}`} hitSlop={4}><ReactionArt body={r.id} size={38} /></Pressable>
           ))}
         </View>
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={`Enviar mensagem a ${username}…`} placeholderTextColor="rgba(255,255,255,0.7)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={`Responder ao mimo de ${username}`} />
-        {text.trim() ? (
-          <Pressable onPress={() => void send(text)} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Enviar</Text></Pressable>
-        ) : (
+      <View style={st.barRow}>
+        <View style={[st.replyPill, open && st.replyPillOn]}>
+          <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={msg && !text ? '' : compact && !open ? 'Responder…' : `Responder a ${username}…`} placeholderTextColor="rgba(255,255,255,0.62)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={`Responder ao mimo de ${username}`} />
+          {msg && !text ? (
+            <View style={st.flashIn} pointerEvents="none">
+              <Icon name="check-circle" size={16} color={colors.brandWarm} />
+              <Text style={st.flash} numberOfLines={1} accessibilityRole="alert">{msg}</Text>
+            </View>
+          ) : null}
+          {typed ? (
+            <Pressable onPress={() => void send(text)} disabled={busy} style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Enviar">
+              <Icon name="send" size={17} color="#fff" strokeWidth={2.2} />
+            </Pressable>
+          ) : null}
+        </View>
+        {!open && (
           <>
-            <Pressable onPress={() => void cheer()} style={st.round} accessibilityRole="button" accessibilityLabel="Brindar" accessibilityState={{ selected: cheered }}><Icon name="cheers" size={28} color={cheered ? colors.amber300 : '#fff'} /></Pressable>
-            {story.sharedFrom && <Pressable onPress={() => void share()} style={st.round} accessibilityRole="button" accessibilityLabel="Partilhar"><Icon name="share" size={26} color="#fff" /></Pressable>}
+            {onComments ? <BarButton icon="comment" label={story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={onComments} n={story.commentCount} /> : null}
+            <Pressable onPress={() => void cheer()} hitSlop={4} style={({ pressed }) => [st.barBtn, cheered && st.barBtnOn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Brindar" accessibilityState={{ selected: cheered }}>
+              <Icon name="cheers" size={26} color={cheered ? colors.brandWarm : '#fff'} strokeWidth={cheered ? 2.1 : 1.8} />
+            </Pressable>
+            {onShare ? <BarButton icon="share" label="Partilhar o mimo" onPress={onShare} size={24} /> : null}
           </>
         )}
       </View>
-      {msg ? <Text style={st.flash} accessibilityRole="alert">{msg}</Text> : null}
     </View>
   );
 }
@@ -310,10 +340,19 @@ const st = StyleSheet.create({
   panel: { maxHeight: '72%', borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: '#fff', paddingHorizontal: 20, paddingBottom: 24, paddingTop: 12 },
   grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.zinc300, marginBottom: 12 },
   panelTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.zinc900, marginBottom: 12 },
-  reactions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
-  reply: { flex: 1, minWidth: 0, height: 48, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 20, color: '#fff', fontSize: 16, outlineStyle: 'none' as never },
-  round: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  flash: { marginTop: 8, textAlign: 'center', fontSize: 14, fontWeight: '500', color: '#fff' },
+  // A barra do visor: vidro escuro sobre o fundo preto, por baixo do mimo.
+  reactions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 26, backgroundColor: 'rgba(24,24,27,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', ...({ backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)' } as object) },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  replyPill: { flex: 1, minWidth: 0, height: 44, flexDirection: 'row', alignItems: 'center', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.07)', paddingRight: 4 },
+  replyPillOn: { borderColor: 'rgba(255,154,91,0.6)', backgroundColor: 'rgba(24,24,27,0.92)' },
+  reply: { flex: 1, minWidth: 0, height: 42, paddingLeft: 18, paddingRight: 8, color: '#fff', fontSize: 15, outlineStyle: 'none' as never },
+  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(214,51,79,0.45)' } as object,
+  flashIn: { position: 'absolute', left: 16, right: 12, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flash: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: '#fff' },
+  barBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  barBtnOn: { backgroundColor: 'rgba(255,154,91,0.16)' },
+  count: { position: 'absolute', top: 3, right: 1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, borderWidth: 1.5, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  countText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   none: { paddingVertical: 24, textAlign: 'center', color: colors.zinc500, fontSize: 16 },
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
   who: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
