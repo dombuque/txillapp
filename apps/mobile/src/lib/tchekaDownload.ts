@@ -4,7 +4,8 @@
  * folha de partilha do sistema (no telemóvel) ou descarrega o ficheiro (no computador). O feed continua sem o cartão.
  *
  * Quem publicou pode não deixar («Deixar guardar as minhas tchekas»; numa conta privada ou de um menor nunca se deixa): a
- * API manda `canDownload: false` e a opção não aparece. Publicações antigas em cache, sem o campo, continuam a mostrá-la (a
+ * API manda `canDownload: false` e a opção não aparece. Num dueto também o autor do original tem de deixar (DUET_SOURCE_OK);
+ * desligar, ou passar a conta a privada, apaga logo as cópias no servidor, também as dos duetos de outros. Publicações antigas em cache, sem o campo, continuam a mostrá-la (a
  * API responde 403 com a mensagem, que se mostra).
  */
 
@@ -62,13 +63,13 @@ export interface DownloadSettings { allow: boolean; effective: boolean; private:
 /** A linha «Deixar guardar as minhas tchekas» nas Definições, como «Deixar usar o meu som» (lib/sounds, reuseSetting). */
 export function downloadSetting(s: DownloadSettings | null | undefined): { on: boolean; disabled: boolean; description: string } {
   if (!s) return { on: false, disabled: true, description: 'Outras pessoas podem guardar as tuas tchekas e partilhá-las fora do Txillapp.' };
-  if (s.private) return { on: false, disabled: true, description: 'A tua conta é privada: ninguém além de ti guarda as tuas tchekas, nem quem te segue.' };
+  if (s.private) return { on: false, disabled: true, description: 'A tua conta é privada: ninguém além de ti guarda as tuas tchekas, nem quem te segue, nem os duetos feitos com elas.' };
   if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar guardar as suas tchekas. Tu podes sempre guardar as tuas.' };
   return {
     on: s.allow,
     disabled: false,
     description: s.allow
-      ? 'Quem vê as tuas tchekas pode guardá-las e partilhá-las fora do Txillapp, com a assinatura do Txillapp e o teu @ no fim.'
-      : 'Desligado: só tu podes guardar as tuas tchekas. As que alguém já guardou ficam com essa pessoa.',
+      ? 'Quem vê as tuas tchekas pode guardá-las e partilhá-las fora do Txillapp, com a assinatura do Txillapp e o teu @ no fim. Vale também para os duetos feitos com elas. Se desligares, as cópias no Txillapp apagam-se logo.'
+      : 'Desligado: só tu podes guardar as tuas tchekas, e ninguém guarda os duetos feitos com elas. As que alguém já guardou no telemóvel ficam com essa pessoa.',
   };
 }
