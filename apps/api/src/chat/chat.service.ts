@@ -14,6 +14,7 @@ import { requestCards, roundCards } from '../gelada/gelada-cards';
 import { mixarCards, mixarCardText } from '../mixar/mixar-cards';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from './screenshot';
+import { pushFor } from './hidden-push';
 
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada' | 'mixar';
 
@@ -193,12 +194,13 @@ export class ChatService {
     let acceptedMe = false;
     let acceptedThem = false;
     let hidden = false;
+    let stashed = false;
     if (conv) {
       const r = (
         await this.pool.query(
           `SELECT (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $2 AND deleted_at IS NULL AND kind <> 'system')::int AS mine,
                   (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $3 AND deleted_at IS NULL AND kind <> 'system')::int AS theirs,
-                  c.user_a, c.accepted_a, c.accepted_b, c.hidden_a, c.hidden_b
+                  c.user_a, c.accepted_a, c.accepted_b, c.hidden_a, c.hidden_b, c.hidden_at_a, c.hidden_at_b
              FROM social.conversations c WHERE c.id = $1`,
           [conv, me, otherId],
         )
@@ -210,6 +212,7 @@ export class ChatService {
         acceptedMe = iAmA ? r.accepted_a : r.accepted_b;
         acceptedThem = iAmA ? r.accepted_b : r.accepted_a;
         hidden = iAmA ? r.hidden_a : r.hidden_b;
+        stashed = (iAmA ? r.hidden_at_a : r.hidden_at_b) != null;
       }
     }
     const iFollow = f.i_follow as boolean;
@@ -218,6 +221,8 @@ export class ChatService {
       iFollow,
       theyFollow,
       hidden,
+      /** Escondi esta conversa (0160): fora da lista e do número de por ler; os avisos dela vão sem pré-visualização. */
+      stashed,
       request: !iFollow && sentByMe === 0 && !acceptedMe && sentByThem > 0,
       left: !theyFollow && sentByThem === 0 && !acceptedThem ? Math.max(0, STRANGER_LIMIT - sentByMe) : null,
     };
@@ -258,6 +263,35 @@ export class ChatService {
     // Só muda a lista (o ponto de "por ler"): 'read' com self.
     this.events.echo(me, { type: 'read', from: other.username });
     return { ok: true };
+  }
+
+  /**
+   * Esconder a conversa (`hidden` = true) ou mostrá-la outra vez (false), só para mim (0160). Escondida, sai da lista de
+   * Mensagens e do número de por ler e fica em «Conversas escondidas» (GET /chat/hidden); mensagens novas não a trazem de
+   * volta e o aviso no telemóvel vai sem pré-visualização (chat/hidden-push.ts). A outra pessoa não sabe (não lhe chega
+   * nada); os meus outros aparelhos põem a lista em dia (eco 'read', como o "por ler"). Repetir não muda a hora.
+   * Sem conversa (nunca trocámos mensagens): 404.
+   */
+  async setHidden(me: string, username: string, hidden: boolean) {
+    const other = await this.userByName(username);
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    await this.pool.query(
+      `UPDATE social.conversations SET
+              hidden_at_a = CASE WHEN user_a = $2 THEN (CASE WHEN $3 THEN COALESCE(hidden_at_a, now()) ELSE NULL END) ELSE hidden_at_a END,
+              hidden_at_b = CASE WHEN user_b = $2 THEN (CASE WHEN $3 THEN COALESCE(hidden_at_b, now()) ELSE NULL END) ELSE hidden_at_b END
+        WHERE id = $1`,
+      [conv, me, hidden],
+    );
+    this.events.echo(me, { type: 'read', from: other.username });
+    return { hidden };
+  }
+
+  /** A conversa a dois entre `userId` e `otherId` está escondida por `userId`? (Para os avisos de outros módulos, ex.: o Mixar.) */
+  async hiddenBy(userId: string, otherId: string) {
+    const [x, y] = pair(userId, otherId);
+    const r = (await this.pool.query('SELECT (CASE WHEN user_a = $3 THEN hidden_at_a ELSE hidden_at_b END) IS NOT NULL AS h FROM social.conversations WHERE user_a = $1 AND user_b = $2', [x, y, userId])).rows[0];
+    return !!r?.h;
   }
 
   /**
@@ -355,7 +389,8 @@ export class ChatService {
     if (other.status !== 'active') return done;
     const rel = await this.relationOf(me, other.id, conv);
     if (rel.request || rel.left !== null) return done;
-    if ((await this.relationOf(other.id, me, conv)).hidden) return done;
+    const theirs = await this.relationOf(other.id, me, conv);
+    if (theirs.hidden) return done;
     if (!(await screenshotAllowed(this.rates, me, `c:${conv}`))) return done;
     const sys: SystemInfo = { type: 'screenshot', name: await this.firstNameOf(me) };
     const id = uuidv7();
@@ -373,7 +408,7 @@ export class ChatService {
     this.events.emit(other.id, { type: 'message', from });
     if (!(await this.events.isActive(other.id, `u:${from}`))) {
       const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-      void this.push.send(other.id, { title: sender, body: 'fez uma captura de ecrã da conversa', url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+      void this.push.send(other.id, pushFor({ title: sender, body: 'fez uma captura de ecrã da conversa', url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' }, theirs.stashed));
     }
     return done;
   }
@@ -414,10 +449,13 @@ export class ChatService {
     return (await this.conversation(a, b, false))!;
   }
 
-  /** Conversas, da mais recente para a mais antiga, com a última mensagem e quantas por ler. */
-  async list(me: string) {
+  /**
+   * Conversas, da mais recente para a mais antiga, com a última mensagem e quantas por ler. Sem as que escondi (0160);
+   * `hidden` = só as escondidas («Conversas escondidas»), com `hiddenAt`.
+   */
+  async list(me: string, opts: { hidden?: boolean } = {}) {
     const { rows } = await this.pool.query(
-      `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.verified, o.verified_tier, o.show_presence AS o_show, o.last_seen_at,
+      `SELECT c.id, o.id AS other_id, (CASE WHEN c.user_a = $1 THEN c.hidden_at_a ELSE c.hidden_at_b END) AS hidden_at, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.verified, o.verified_tier, o.show_presence AS o_show, o.last_seen_at,
               lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system,
               c.last_message_at, c.ttl_seconds,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = o.id) AS i_follow,
@@ -434,6 +472,7 @@ export class ChatService {
          LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
+          AND (CASE WHEN c.user_a = $1 THEN c.hidden_at_a ELSE c.hidden_at_b END) IS ${opts.hidden ? 'NOT NULL' : 'NULL'}
           -- Sem nada para mostrar, a conversa só fica na lista se a limpei ("Limpar conversa": fica vazia até chegar outra).
           AND (lm.created_at IS NOT NULL OR (CASE WHEN c.user_a = $1 THEN c.cleared_keep_a ELSE c.cleared_keep_b END))
         ORDER BY COALESCE(lm.created_at, c.last_message_at) DESC LIMIT 100`,
@@ -466,6 +505,8 @@ export class ChatService {
       unread: Math.max(r.unread as number, r.unread_mark ? 1 : 0),
       /** Só está por ler porque a marquei à mão (sem mensagens novas): a lista mostra um ponto em vez de um número. */
       marked: !!r.unread_mark && (r.unread as number) === 0,
+      /** Escondida por mim (só vem em «Conversas escondidas»): desde quando. */
+      ...(opts.hidden ? { hidden: true as const, hiddenAt: r.hidden_at as string } : {}),
     }));
   }
 
@@ -494,7 +535,7 @@ export class ChatService {
     const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };
     // "1 publicação nova" por baixo do nome (como no Instagram): o que publicou e eu ainda não vi. Só na 1.ª página.
     const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
-    if (!conv) return { person, blocked, relation, newPosts, ttl: null, otherRead: null, items: [], nextCursor: null };
+    if (!conv) return { person, blocked, relation, newPosts, ttl: null, hidden: false, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
       `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at, m.gif, m.expires_at, m.system FROM social.messages m
         WHERE m.conversation_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ${notExpired('m')} AND ($2::uuid IS NULL OR m.id < $2)
@@ -531,6 +572,8 @@ export class ChatService {
       newPosts,
       /** Mensagens temporárias: quanto dura cada mensagem nova (segundos: 86400, 604800 ou 7776000), ou null (desligadas). */
       ttl: (reads.ttl_seconds as number | null) ?? null,
+      /** Escondi esta conversa (0160): o menu "⋯" mostra «Mostrar outra vez» em vez de «Esconder conversa». */
+      hidden: rel.stashed,
       /** Último id que a outra pessoa já leu ("Visto" nas minhas mensagens até aqui). */
       otherRead,
       items: await this.mapItems(me, page),
@@ -1136,7 +1179,8 @@ export class ChatService {
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
-    if (!extra.silent && !(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+    // Conversa que a outra pessoa escondeu (0160): o aviso vai sem pré-visualização (chat/hidden-push.ts).
+    if (!extra.silent && !(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, pushFor({ title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' }, theirs.stashed));
     return { id, kind, expiresAt };
   }
 }

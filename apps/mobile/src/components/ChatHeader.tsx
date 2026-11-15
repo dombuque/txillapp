@@ -140,9 +140,9 @@ export function OnlineDot({ size }: { size: number }) {
 export interface MenuItem { icon: IconName; label: string; onPress: () => void }
 
 /** O menu "⋯" do cabeçalho: uma folha com as opções da conversa. */
-export function ChatMenuSheet({ items, onClose }: { items: MenuItem[]; onClose: () => void }) {
+export function ChatMenuSheet({ items, onClose, title = 'Conversa' }: { items: MenuItem[]; onClose: () => void; title?: string }) {
   return (
-    <Sheet title="Conversa" onClose={onClose}>
+    <Sheet title={title} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
         {items.map((it) => (
           <Pressable

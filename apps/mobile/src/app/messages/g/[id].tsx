@@ -21,7 +21,7 @@ import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
 import { OnceViewer } from '@/components/OnceViewer';
 import type { OnceContent } from '@/lib/onceView';
-import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
+import { MessageMenu, saveEdit, stopLiveShare, loveMessage } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
 import { GroupInfoSheet } from '@/components/GroupSheets';
 import { Icon, type IconName } from '@/components/Icon';
@@ -37,6 +37,8 @@ import { gruposApi, type GroupThread } from '@/lib/api.grupos';
 import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo, type TxillGroupSummary } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
+import { useChatHiding } from '@/components/ChatHide';
+import { hideLabel } from '@/lib/chatHidden';
 
 type Tab = 'chat' | 'plan' | 'album' | 'pot';
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
@@ -80,6 +82,7 @@ export default function GroupThreadScreen() {
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
   const [more, setMore] = useState(false);
+  const hiding = useChatHiding();
   const [ttlOpen, setTtlOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [raised, setRaised] = useState(false);
@@ -135,11 +138,10 @@ export default function GroupThreadScreen() {
   function startReply(m: Msg) {
     setReplying({ id: m.id, text: quoteText(m.kind, m.body), who: m.fromMe ? 'ti' : m.sender?.displayName.split(' ')[0] ?? '' });
   }
-  async function cheer(m: Msg) {
-    if (m.reactions?.some((x) => x.mine && x.reaction === ':brinde:')) return;
+  /** Duplo toque numa bolha: o coração (lib/chatLove; já posto não se tira). */
+  async function love(m: Msg) {
     try {
-      await api.chatReact(m.id, ':brinde:');
-      await q.refetch();
+      await loveMessage(qc, ['chat-group', id], m);
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -213,7 +215,7 @@ export default function GroupThreadScreen() {
           meHandle={user?.username}
           onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
           onDelete={(m) => setMenuFor({ m, start: 'delete' })}
-          onCheer={(m) => void cheer(m)}
+          onLove={(m) => void love(m)}
           onOpenOnce={(m) => void openOnce(m)}
           onStopLive={(m) => void stopLiveShare(m.id).then(() => q.refetch()).catch(() => undefined)}
           onRetry={() => undefined}
@@ -308,6 +310,10 @@ export default function GroupThreadScreen() {
               { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
               // Todos veem como está; só quem administra muda (a folha diz porquê).
               { icon: 'clock', label: TTL_TITLE, onPress: () => setTtlOpen(true) },
+              // Esconder (só para mim; fica em «Conversas escondidas») ou mostrar outra vez. Servidores antigos não mandam `hidden`.
+              ...(first?.group.hidden !== undefined
+                ? [{ icon: first.group.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.group.hidden), onPress: () => (first.group.hidden ? hiding.unhide({ groupId: id }) : hiding.hide({ groupId: id }, group.name)) }]
+                : []),
               ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: () => { setTab('chat'); clearChat(); } }] : []),
             ]}
           />

@@ -302,8 +302,12 @@ export class NotificationsService {
     }
   }
 
-  /** Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. */
-  async notifyMentions(authorId: string, text: string, data: Record<string, unknown>): Promise<void> {
+  /**
+   * Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. `skip`: quem já recebeu
+   * outro aviso pela mesma coisa (respondeu ao teu comentário, comentou na tua publicação ou no teu mimo) não leva também o
+   * «mencionou-te», que seria repetido.
+   */
+  async notifyMentions(authorId: string, text: string, data: Record<string, unknown>, skip: readonly (string | null | undefined)[] = []): Promise<void> {
     const names = extractMentions(text);
     if (!names.length) return;
     try {
@@ -312,7 +316,8 @@ export class NotificationsService {
           WHERE au.id = $1 AND lower(u.username) = ANY($2) AND ${mentionableBy('u', '$1')} AND ${canView('au', 'u.id')}`,
         [authorId, names],
       );
-      for (const r of rows) await this.notify({ userId: r.id, actorId: authorId, kind: 'mention', data });
+      const skipped = new Set(skip.filter(Boolean));
+      for (const r of rows) if (!skipped.has(r.id)) await this.notify({ userId: r.id, actorId: authorId, kind: 'mention', data });
     } catch (e) {
       this.log.warn(`falha a notificar menções: ${(e as Error).message}`);
     }

@@ -10,6 +10,7 @@ import { api, raw } from '@/lib/api';
 import { applyDeletionToPages, applyEditToPages, copyText, deleteChoices, messageOptions, type DeleteMode } from '@/lib/messageMenu';
 import { colors } from '@/lib/theme';
 import { useDeskChat } from '@/lib/deskChat';
+import { LOVE_REACTION, applyLoveToPages, lovedByMe } from '@/lib/chatLove';
 import { DeskMenu, type DeskMenuItem } from './DeskMenu';
 import type { MenuAt, MenuMode, Msg } from './ChatBubbles';
 
@@ -49,6 +50,25 @@ export async function saveEdit(qc: ReturnType<typeof useQueryClient>, cacheKey: 
     void qc.invalidateQueries({ queryKey: cacheKey });
     void qc.invalidateQueries({ queryKey: ['chat-list'] });
     void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+  }
+}
+
+/**
+ * O coração do duplo toque (lib/chatLove): põe-no logo na bolha (otimista) e grava no servidor. Se a minha reação já é o
+ * coração, não faz nada (não o tira). Se falhar, volta ao que estava e lança o erro do servidor.
+ */
+export async function loveMessage(qc: ReturnType<typeof useQueryClient>, cacheKey: ChatCacheKey, m: Msg) {
+  if (lovedByMe(m)) return;
+  const before = qc.getQueryData(cacheKey);
+  void qc.cancelQueries({ queryKey: cacheKey });
+  qc.setQueryData(cacheKey, (d: unknown) => applyLoveToPages(d, m.id));
+  try {
+    await api.chatReact(m.id, LOVE_REACTION);
+  } catch (e) {
+    if (before !== undefined) qc.setQueryData(cacheKey, before);
+    throw e;
+  } finally {
+    void qc.invalidateQueries({ queryKey: cacheKey });
   }
 }
 

@@ -1,4 +1,5 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -33,6 +34,7 @@ import { colors } from '@/lib/theme';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
+import { LOVE_BURST_MS, LOVE_TAP_MS, canLove, isDoubleClick, loveFrames } from '@/lib/chatLove';
 import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
@@ -465,9 +467,39 @@ function GifBubble({ gif, radius, dim }: { gif: ChatGif; radius: object; dim: ob
   );
 }
 
+/**
+ * O coração do duplo toque: salta por cima da bolha (cresce, assenta, sobe e desaparece; lib/chatLove, loveFrames) e sai
+ * sozinho. Por cima de tudo, sem apanhar toques. Com "reduzir movimento" só aparece e desaparece.
+ */
+function LoveBurst({ onDone }: { onDone: () => void }) {
+  const reduced = useReducedMotion();
+  const t = useRef(new Animated.Value(0)).current;
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    const a = Animated.timing(t, { toValue: 1, duration: LOVE_BURST_MS, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' });
+    a.start(({ finished }) => { if (finished) done.current(); });
+    return () => a.stop();
+  }, [t]);
+  const f = loveFrames(!!reduced);
+  const scale = t.interpolate({ inputRange: f.input, outputRange: f.scale });
+  const opacity = t.interpolate({ inputRange: f.input, outputRange: f.opacity });
+  const translateY = t.interpolate({ inputRange: f.input, outputRange: f.lift });
+  return (
+    <View pointerEvents="none" style={st.loveWrap} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Animated.View style={[st.loveBox, { opacity, transform: [{ translateY }, { scale }] }]}>
+        {/* O branco por baixo faz de contorno (vê-se também por cima das minhas bolhas, que são da cor da marca). Os dois
+            corações em Views absolutas: na web um <svg> solto ficava por baixo do branco. */}
+        <View style={st.loveBack}><Icon name="heart" solid size={54} color="#fff" /></View>
+        <View style={st.loveFront}><Icon name="heart" solid size={46} color={colors.brand} /></View>
+      </Animated.View>
+    </View>
+  );
+}
+
 export function Bubble({
   m, group = false, prevSame, nextSame, first, last, seen = false, ticks, flash = false, peerName, peerHandle, peerHasAvatar = true, meHandle, showAvatars = true,
-  onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply, onDelete,
+  onMenu, onRetry, onOpenOnce, onJump, onLove, onStopLive, onReply, onDelete,
 }: {
   m: Msg; group?: boolean;
   /** A mensagem antes/depois (no tempo) é da mesma pessoa e junta-se a esta. */
@@ -490,7 +522,8 @@ export function Bubble({
   showAvatars?: boolean;
   /** O menu da mensagem. No computador vem com `at` (botão direito ou "⋯"): abre ali, como menu de contexto. */
   onMenu: (m: Msg, at?: MenuAt, mode?: MenuMode) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void;
-  onJump?: (id: string) => void; onCheer?: (m: Msg) => void; onStopLive?: (m: Msg) => void; onReply?: (m: Msg) => void;
+  /** Duplo toque (no computador, duplo clique) na bolha: o coração (lib/chatLove). A bolha já anima e vibra. */
+  onJump?: (id: string) => void; onLove?: (m: Msg) => void; onStopLive?: (m: Msg) => void; onReply?: (m: Msg) => void;
   /** Leitor de ecrã, ação "Apagar": abre logo a folha "Apagar mensagem?". */
   onDelete?: (m: Msg) => void;
 }) {
@@ -646,26 +679,38 @@ export function Bubble({
     );
   }
 
-  // Um toque mostra/esconde a hora; dois toques seguidos brindam (só nas mensagens já enviadas e que não são de ver uma vez).
-  const canCheer = real && !gone && !m.viewOnce && !!onCheer;
+  // Um toque mostra/esconde a hora; dois toques seguidos põem o coração (lib/chatLove: só nas já enviadas, não apagadas e
+  // que não são de ver uma vez). O coração salta por cima da bolha e o telemóvel vibra um pouco.
+  const lovable = real && !gone && canLove(m) && !!onLove;
+  const [burst, setBurst] = useState(0);
+  const love = () => {
+    setBurst((b) => b + 1);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    onLove!(m);
+  };
   const onPress = () => {
     // Computador: acabou de selecionar texto com o rato (arrastar ou dois cliques numa palavra): não é um clique.
     if (desk && typeof window !== 'undefined' && (window.getSelection?.()?.toString() ?? '').length > 0) return;
     if (tapTimer.current) {
       clearTimeout(tapTimer.current);
       tapTimer.current = null;
-      if (canCheer) onCheer!(m);
+      // No computador o coração vem do duplo clique (onMouseDown, em baixo): aqui o segundo clique só cancela a hora.
+      if (lovable && !desk) love();
       return;
     }
-    if (!canCheer) {
+    if (!lovable) {
       setShowTime((v) => !v);
       return;
     }
     tapTimer.current = setTimeout(() => {
       tapTimer.current = null;
       setShowTime((v) => !v);
-    }, 280);
+    }, LOVE_TAP_MS);
   };
+  // Computador: o duplo clique na bolha (o segundo mousedown). Não deixa o browser selecionar a palavra.
+  const deskLove = desk && lovable
+    ? { onMouseDown: (e: { nativeEvent: { detail?: number }; preventDefault?: () => void }) => { if (isDoubleClick(e.nativeEvent.detail)) { e.preventDefault?.(); love(); } } }
+    : null;
   const storyLabel = m.kind === 'zas_reply' ? (mine ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás') : m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
 
   // O avatar: nos grupos quem enviou; nas conversas diretas o outro lado.
@@ -737,9 +782,10 @@ export function Bubble({
         <Pressable
           {...hold}
           onPress={onPress}
+          {...deskLove}
           onLayout={swipe && mine ? (e) => place({ x: e.nativeEvent.layout.x }) : undefined}
           style={{ maxWidth: wide ? '78%' : '100%' }}
-          accessibilityHint={gone ? 'Mantém para apagar para ti' : canCheer ? 'Toca para ver a hora, duas vezes para brindar, mantém para mais opções' : 'Toca para ver a hora'}
+          accessibilityHint={gone ? 'Mantém para apagar para ti' : lovable ? (desk ? 'Clica para ver a hora, duas vezes para pôr um coração' : 'Toca para ver a hora, duas vezes para pôr um coração, mantém para mais opções') : 'Toca para ver a hora'}
           // O mesmo que deslizar para a direita e que segurar, para quem usa o leitor de ecrã.
           accessibilityActions={a11y.length ? a11y : undefined}
           onAccessibilityAction={a11y.length ? (e) => {
@@ -750,6 +796,7 @@ export function Bubble({
           } : undefined}
         >
           <BubbleHoldCtx.Provider value={hold}>{content}</BubbleHoldCtx.Provider>
+          {burst ? <LoveBurst key={burst} onDone={() => setBurst(0)} /> : null}
         </Pressable>
         {desk && real && !mine ? <BubbleTools show={hover || toolsFocus} onFocus={setToolsFocus} reply={swipe && !gone ? () => onReply?.(m) : undefined} react={gone ? undefined : (at) => onMenu(m, at, 'react')} more={(at) => openMenu(at)} /> : null}
       </View>
@@ -863,6 +910,10 @@ const st = StyleSheet.create({
   quote: { maxWidth: '78%', marginBottom: 3, flexDirection: 'row', alignItems: 'stretch', gap: 6, paddingHorizontal: 4 },
   quoteBar: { width: 3, borderRadius: 2 },
   quoteText: { flexShrink: 1, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
+  loveWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', overflow: 'visible', zIndex: 5 },
+  loveBox: { width: 54, height: 54 },
+  loveBack: { position: 'absolute', left: 0, top: 0 },
+  loveFront: { position: 'absolute', left: 4, top: 4 },
   reactions: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 1px 4px rgba(0,0,0,0.14)' },
   react: { flexDirection: 'row', alignItems: 'center', borderRadius: 999 },
   media: { width: 240, overflow: 'hidden' },

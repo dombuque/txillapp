@@ -274,7 +274,7 @@ export class StoriesService {
     const id = uuidv7();
     await this.pool.query('INSERT INTO content.story_comments (id, story_id, author_id, body) VALUES ($1, $2, $3, $4)', [id, storyId, userId, body]);
     await this.notifications.notify({ userId: s.author_id, actorId: userId, kind: 'story_reply', data: { storyId, replyKind: 'comment', snippet: body.slice(0, 80) } });
-    void this.notifications.notifyMentions(userId, body, { storyId, snippet: body.slice(0, 80) });
+    void this.notifications.notifyMentions(userId, body, { storyId, snippet: body.slice(0, 80) }, [s.author_id]);
     return { id };
   }
 

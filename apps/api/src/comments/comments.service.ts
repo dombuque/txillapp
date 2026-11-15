@@ -82,7 +82,7 @@ export class CommentsService {
     // Avisa quem foi respondido e, se for outra pessoa, o dono da publicação.
     if (parentAuthorId) await this.notifications.notify({ userId: parentAuthorId, actorId: userId, kind: 'reply', data });
     if (postAuthorId !== parentAuthorId) await this.notifications.notify({ userId: postAuthorId, actorId: userId, kind: 'comment', data });
-    if (body) void this.notifications.notifyMentions(userId, body, data);
+    if (body) void this.notifications.notifyMentions(userId, body, data, [parentAuthorId, postAuthorId]);
     return this.getOne(userId, id);
   }
 

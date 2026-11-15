@@ -19,7 +19,7 @@ import { OnceViewer } from '@/components/OnceViewer';
 import type { OnceContent } from '@/lib/onceView';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
-import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
+import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare, loveMessage } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { abs } from '@/lib/config';
@@ -39,6 +39,8 @@ import { blockingError, threadErrorText } from '@/lib/chatErrors';
 import { clearPending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
+import { useChatHiding } from '@/components/ChatHide';
+import { hideLabel } from '@/lib/chatHidden';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
 export default function Thread() {
@@ -66,6 +68,7 @@ export default function Thread() {
   const [ttlOpen, setTtlOpen] = useState(false);
   const [raised, setRaised] = useState(false);
   const mixar = useOpenMixar();
+  const hiding = useChatHiding();
   const typing = useTyping(username);
   const typingSent = useRef(0);
   // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
@@ -165,11 +168,10 @@ export default function Thread() {
   function startReply(m: Msg) {
     setReplying({ id: m.id, text: quoteText(m.kind, m.body), who: m.fromMe ? 'ti' : firstName });
   }
-  async function cheer(m: Msg) {
-    if (m.reactions?.some((x) => x.mine && x.reaction === ':brinde:')) return;
+  /** Duplo toque numa bolha: o coração (lib/chatLove; já posto não se tira). */
+  async function love(m: Msg) {
     try {
-      await api.chatReact(m.id, ':brinde:');
-      await q.refetch();
+      await loveMessage(qc, ['chat-thread', username], m);
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -314,7 +316,7 @@ export default function Thread() {
         top={!request && rel && !rel.theyFollow && person ? <NotFollowingNote name={firstName} left={rel.left} /> : null}
         onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
         onDelete={(m) => setMenuFor({ m, start: 'delete' })}
-        onCheer={(m) => void cheer(m)}
+        onLove={(m) => void love(m)}
         onOpenOnce={(m) => void openOnce(m)}
         onStopLive={(m) => void stopSharing(m)}
         onRetry={() => undefined}
@@ -366,6 +368,10 @@ export default function Thread() {
             // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).
             // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
             ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
+            // Esconder (sai da lista e do contador; fica em «Conversas escondidas») ou, se já está, mostrar outra vez.
+            ...(first?.hidden !== undefined && (items.length || first.hidden)
+              ? [{ icon: first.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.hidden), onPress: () => (first.hidden ? hiding.unhide({ username }) : hiding.hide({ username }, person?.displayName ?? username)) }]
+              : []),
             ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: clearChat }] : []),
           ]}
         />
