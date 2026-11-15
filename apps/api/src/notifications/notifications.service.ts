@@ -5,6 +5,7 @@ import { PG_POOL } from '../db/db.module';
 import { PushService, type NotifyCategory } from '../push/push.service';
 import { allowedBy, blockedBetween, canView } from '../social/visibility';
 import { badge, type Badge } from '../common/badge';
+import { txilladaVisible } from '../txillada/txillada-visibility';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
 export const MENTION_RE = /(?<![\w.])@([a-zA-Z0-9_.]{3,30})/g;
@@ -49,7 +50,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // gelada_tag: pediram-me uma gelada numa publicação (fico identificado). data: { requestId, postId, soft }.
   // gelada_answer: a quem pedi numa publicação respondeu. data: { requestId, postId, answer: 'accept' | 'decline' | 'owe', soft }.
   // gelada_paid: disseram que me pagaram (para eu confirmar) ou confirmaram o que paguei. data: { debtId, step: 'claimed' | 'confirmed', soft }.
-  | 'gelada_tag' | 'gelada_answer' | 'gelada_paid';
+  | 'gelada_tag' | 'gelada_answer' | 'gelada_paid'
+  // Txillada (0158): alguém que sigo abriu uma Txillada (no máximo um aviso por anfitrião por hora). Ator = o anfitrião.
+  // data: { txilladaId, title }. A lista junta `txillada: { status }` (para dizer logo se já acabou).
+  | 'txillada_live';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
@@ -58,7 +62,7 @@ const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
   type === 'comment' ? 'o teu comentário' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
-  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : tcheka ? 'a tua tcheka' : 'a tua publicação';
+  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : tcheka ? 'a tua tcheka' : 'a tua publicação';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -72,6 +76,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   remix: 'remixes',
   // O pedido publicado é uma identificação: desliga-se com as menções. «Já paguei» vai com as mensagens (é entre os dois).
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
+  txillada_live: 'txilladas',
 };
 
 /** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
@@ -249,6 +254,54 @@ export class NotificationsService {
     if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}`, category: CATEGORY_OF[n.kind] });
   }
 
+  /**
+   * Txillada (0158): o anfitrião abriu uma Txillada. Avisa (lista e telemóvel) os seguidores que a podem ver (o público
+   * escolhido, bloqueios, conta privada) e não desligaram «Txilladas». O limite de um aviso por anfitrião por hora fica no
+   * serviço da Txillada. Nunca falha: um erro aqui só fica registado. Devolve quantos foram avisados.
+   */
+  async notifyTxilladaLive(hostId: string, txilladaId: string, title: string): Promise<number> {
+    try {
+      const { rows } = await this.pool.query(
+        `SELECT f.follower_id AS id FROM social.follows f
+           JOIN identity.users v ON v.id = f.follower_id AND v.status = 'active'
+           JOIN content.txilladas t ON t.id = $2
+           JOIN identity.users h ON h.id = t.host_id
+          WHERE f.followee_id = $1 AND t.status = 'live' AND ${txilladaVisible('t', 'h', 'f.follower_id')}
+            AND NOT EXISTS (SELECT 1 FROM social.notification_prefs np WHERE np.user_id = f.follower_id AND 'txilladas' = ANY(np.off))`,
+        [hostId, txilladaId],
+      );
+      const ids = rows.map((r) => r.id as string);
+      const data = { txilladaId, title };
+      for (let i = 0; i < ids.length; i += 1000) {
+        const chunk = ids.slice(i, i + 1000);
+        await this.pool.query(
+          `INSERT INTO social.notifications (id, user_id, actor_id, kind, data)
+           SELECT n, u, $3, 'txillada_live', $4 FROM unnest($1::uuid[], $2::uuid[]) AS x(n, u)`,
+          [chunk.map(() => uuidv7()), chunk, hostId, data],
+        );
+      }
+      if (this.push.enabled && ids.length) {
+        const h = (await this.pool.query('SELECT username, display_name FROM identity.users WHERE id = $1', [hostId])).rows[0];
+        for (const uid of ids) {
+          await this.push
+            .send(uid, {
+              title: (h?.display_name as string | undefined) ?? 'Txillada',
+              body: `@${h?.username as string} abriu uma Txillada: ${title}`,
+              url: `/txillada/${txilladaId}`,
+              tag: `txillada:${txilladaId}`,
+              category: 'txilladas',
+              data: { kind: 'txillada_live', txilladaId },
+            })
+            .catch(() => undefined);
+        }
+      }
+      return ids.length;
+    } catch (e) {
+      this.log.warn(`falha a avisar da Txillada ${txilladaId}: ${(e as Error).message}`);
+      return 0;
+    }
+  }
+
   /** Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. */
   async notifyMentions(authorId: string, text: string, data: Record<string, unknown>): Promise<void> {
     const names = extractMentions(text);
@@ -386,7 +439,9 @@ export class NotificationsService {
               (SELECT json_build_object('id', pm.media_id, 'video', ma.mime LIKE 'video/%')
                  FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                 WHERE n.data ? 'postId' AND (n.data->>'postId') ~ '^[0-9a-f-]{36}$' AND pm.post_id = (n.data->>'postId')::uuid AND ma.status = 'ready'
-                ORDER BY pm.position LIMIT 1) AS thumb
+                ORDER BY pm.position LIMIT 1) AS thumb,
+              (SELECT tx.status FROM content.txilladas tx
+                WHERE n.kind = 'txillada_live' AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status
          FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
         WHERE n.user_id = $1 AND ($2::uuid IS NULL OR n.id < $2)
           AND (n.kind = ANY($4::text[]) OR NOT ${blockedBetween('a.id', '$1')})
@@ -410,6 +465,8 @@ export class NotificationsService {
         thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
         ...(r.kind === 'cheer' ? { cheer: cheers.get(r.id as string) ?? { count: 0, actors: [] } } : {}),
+        // Txillada: ainda está a decorrer? ('live' entra; 'ended'/'cut', ou null se já não existe, diz que acabou).
+        ...(r.kind === 'txillada_live' ? { txillada: { status: (r.tx_status as string | null) ?? null } } : {}),
       })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };

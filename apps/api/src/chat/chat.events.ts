@@ -63,7 +63,18 @@ export interface MixarEvent {
   self?: boolean;
 }
 
-export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent | MixarEvent;
+/**
+ * Txillada (os lives, 0158, docs/txillada-contrato.md): vai para quem está a ver (fez `join` e não saiu) e para o anfitrião.
+ * Publicado pelo txillada.service.ts com RealtimeBus.publish (o mesmo canal).
+ */
+export type TxilladaEvent =
+  | { type: 'txillada.comment'; txilladaId: string; comment: unknown }
+  | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string } }
+  | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
+  | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut' }
+  | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string };
+
+export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent | MixarEvent | TxilladaEvent;
 
 /** O sinal «estou a ver esta conversa» vale 45 s (a app repete-o enquanto a conversa está à vista). */
 const ACTIVE_MS = 45_000;

@@ -4,7 +4,7 @@
  * Play Console (com vídeo) a explicar para que serve; um serviço que a app nunca arranca só dá trabalho e motivo de
  * recusa. Ficam com tools:node="remove", que o Gradle aplica ao juntar os manifestos dos módulos.
  *
- * - react-native-webrtc: MediaProjectionService (partilhar o ecrã numa chamada; o Txillapp não tem isso).
+ * - @livekit/react-native-webrtc (o fork do react-native-webrtc, a mesma classe): MediaProjectionService (partilhar o ecrã numa chamada; o Txillapp não tem isso).
  * - expo-location: LocationTaskService e LocationForegroundService (localização em segundo plano; o Txillapp só usa
  *   a localização com a app aberta: watchPositionAsync / getCurrentPositionAsync).
  * O AudioControlsService do expo-audio (controlos no ecrã bloqueado) sai com "enableBackgroundPlayback": false no app.json.

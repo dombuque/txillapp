@@ -210,6 +210,8 @@ function Gate() {
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="calls" />
       <Stack.Screen name="call/[id]" options={{ animation: 'fade' }} />
+      {/* A Txillada (o live): o anfitrião não sai com o gesto por engano (termina com «Terminar»). */}
+      <Stack.Screen name="txillada/[id]" options={{ animation: 'fade', gestureEnabled: false }} />
     </Stack>
   );
   return (

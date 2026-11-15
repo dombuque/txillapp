@@ -58,6 +58,8 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   remixes: ['Duetos e respostas', 'Quando fazem um dueto com a tua tcheka ou respondem com uma tcheka a um comentário teu (ou na tua publicação)'],
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
+  // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
+  txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
@@ -74,6 +76,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
   remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
+  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir'],
 };
 
 /** Notificações: a âncora de cada categoria. */

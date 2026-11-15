@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, type ReportReason, type ReportType } from '@/lib/api';
+import { txilladaApi } from '@/lib/api.txillada';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
@@ -18,15 +19,16 @@ const REASONS: { value: ReportReason; label: string; text: string }[] = [
 ];
 
 /** O que se está a denunciar, para o título da folha. */
-const WHAT: Record<ReportType, string> = {
-  post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
+const WHAT: Record<ReportType | 'txillada', string> = {
+  txillada: 'esta Txillada', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
 };
 
 /**
  * Denunciar uma publicação, comentário, mimo, Zás, mensagem, conta ou local. Fica para a moderação analisar; a outra pessoa
  * não é avisada, e o que denunciaste deixa de te aparecer (o servidor esconde-o; `onReported` deixa o ecrã escondê-lo já).
+ * Uma Txillada (o live) vai por POST /txilladas/:id/report, só com o motivo (docs/txillada-contrato.md).
  */
-export function ReportSheet({ type, id, onClose, onReported }: { type: ReportType; id: string; onClose: () => void; onReported?: () => void }) {
+export function ReportSheet({ type, id, onClose, onReported }: { type: ReportType | 'txillada'; id: string; onClose: () => void; onReported?: () => void }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,7 +40,8 @@ export function ReportSheet({ type, id, onClose, onReported }: { type: ReportTyp
     setBusy(true);
     setErr('');
     try {
-      await api.report(type, id, reason, note.trim() || undefined);
+      if (type === 'txillada') await txilladaApi.report(id, reason);
+      else await api.report(type, id, reason, note.trim() || undefined);
       setDone(true);
       onReported?.();
     } catch (x) {
@@ -54,7 +57,7 @@ export function ReportSheet({ type, id, onClose, onReported }: { type: ReportTyp
         <View style={{ paddingHorizontal: 24, alignItems: 'center' }}>
           <Icon name="check-circle" size={44} color={colors.zinc300} />
           <Text style={styles.thanks}>Obrigado por avisares</Text>
-          <Text style={styles.sub}>Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu{type === 'user' || type === 'venue' ? '' : ', e deixas de ver o que denunciaste'}. Se quiseres, podes também bloqueá-la no perfil.</Text>
+          <Text style={styles.sub}>Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu{type === 'user' || type === 'venue' || type === 'txillada' ? '' : ', e deixas de ver o que denunciaste'}. Se quiseres, podes também bloqueá-la no perfil.</Text>
           <Pressable onPress={onClose} style={styles.cta}><Text style={styles.ctaText}>Fechar</Text></Pressable>
         </View>
       </Sheet>
@@ -78,7 +81,7 @@ export function ReportSheet({ type, id, onClose, onReported }: { type: ReportTyp
             );
           })}
         </View>
-        {reason && <TextInput value={note} onChangeText={setNote} maxLength={500} multiline placeholder="Queres acrescentar algo? (opcional)" placeholderTextColor={colors.zinc500} style={styles.note} accessibilityLabel="Nota" />}
+        {reason && type !== 'txillada' && <TextInput value={note} onChangeText={setNote} maxLength={500} multiline placeholder="Queres acrescentar algo? (opcional)" placeholderTextColor={colors.zinc500} style={styles.note} accessibilityLabel="Nota" />}
         {err ? <Text style={styles.err}>{err}</Text> : null}
         <Pressable disabled={!reason || busy} onPress={() => void send()} style={[styles.cta, (!reason || busy) && { opacity: 0.4 }]}>
           <Text style={styles.ctaText}>{busy ? 'A enviar…' : 'Enviar denúncia'}</Text>

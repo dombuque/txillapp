@@ -1,6 +1,8 @@
 /**
- * WebRTC no telemóvel (Android e iPhone) com o react-native-webrtc. O site usa o webrtc.web.ts (o bundle da web nunca importa
- * o react-native-webrtc).
+ * WebRTC no telemóvel (Android e iPhone) com o @livekit/react-native-webrtc: o fork da LiveKit do react-native-webrtc (a
+ * mesma API e o mesmo módulo nativo, com.oney.WebRTCModule), que a Txillada também usa. O react-native-webrtc saiu do
+ * package.json (os dois juntos davam classes repetidas no build). O site usa o webrtc.web.ts
+ * (o bundle da web nunca importa o módulo nativo).
  *
  * O módulo nativo é carregado só quando é preciso e dentro de try: uma app instalada antes de o módulo existir (APK antigo)
  * não rebenta ao arrancar; simplesmente diz que as chamadas ainda não estão disponíveis nesta versão.
@@ -13,15 +15,15 @@ import type { IceServer } from './types';
 import type { AudioOutput, PeerLike, VideoViewProps } from './peer';
 import { createCallAudio, parseReport, speakerUi, type AudioReport, type SpeakerNative, type SpeakerUi } from './speaker';
 
-type RTC = typeof import('react-native-webrtc');
-type NStream = import('react-native-webrtc').MediaStream;
+type RTC = typeof import('@livekit/react-native-webrtc');
+type NStream = import('@livekit/react-native-webrtc').MediaStream;
 
 let mod: RTC | null | undefined;
 function rtc(): RTC | null {
   if (mod === undefined) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      mod = require('react-native-webrtc') as RTC;
+      mod = require('@livekit/react-native-webrtc') as RTC;
     } catch {
       mod = null;
     }

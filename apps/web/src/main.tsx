@@ -71,6 +71,7 @@ const BoContent = lazy(() => import('./pages/backoffice/Content'));
 const BoCatalog = lazy(() => import('./pages/backoffice/Catalog'));
 const BoMusic = lazy(() => import('./pages/backoffice/Music'));
 const BoAnalyses = lazy(() => import('./pages/backoffice/Analyses'));
+const BoTxilladas = lazy(() => import('./pages/backoffice/Txilladas'));
 const SupportAbout = lazy(() => import('./pages/Support').then((m) => ({ default: m.About })));
 const SupportHelp = lazy(() => import('./pages/Support').then((m) => ({ default: m.Help })));
 const SupportOrders = lazy(() => import('./pages/Support').then((m) => ({ default: m.Orders })));
@@ -224,6 +225,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="bombar" element={<Suspense fallback={null}><BoBombar /></Suspense>} />
                   <Route path="growth" element={<Suspense fallback={null}><BoGrowth /></Suspense>} />
                   <Route path="content" element={<Suspense fallback={null}><BoContent /></Suspense>} />
+                  <Route path="txilladas" element={<Suspense fallback={null}><BoTxilladas /></Suspense>} />
                   <Route path="catalog" element={<Suspense fallback={null}><BoCatalog /></Suspense>} />
                   <Route path="music" element={<Suspense fallback={null}><BoMusic /></Suspense>} />
                   <Route path="analises/*" element={<Suspense fallback={null}><BoAnalyses /></Suspense>} />

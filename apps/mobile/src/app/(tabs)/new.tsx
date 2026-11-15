@@ -26,6 +26,9 @@ import { Sheet } from '@/components/Sheet';
 import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
+import { TxilladaPrep } from '@/components/txillada/TxilladaPrep';
+import { useTxilladaEnabled } from '@/lib/api.txillada';
+import { withTxilladaKind } from '@/lib/txillada';
 import { TchekaStudio, type StudioDraftIn } from '@/components/TchekaStudio';
 import { StudioDrafts } from '@/components/studio/StudioDrafts';
 import { MagicButton } from '@/components/studio/MagicButton';
@@ -200,9 +203,13 @@ export default function Compose() {
   const KINDS_BASE = [{ id: 'post', label: 'Publicação' }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
   const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
   // O Zás fica sempre em último (nunca é a primeira coisa da câmara); os outros seguem o uso.
-  const kinds = [...KINDS_BASE.filter((k) => k.id !== 'zas').sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0)), KINDS_BASE.find((k) => k.id === 'zas')!];
+  // A TXILLADA (o live) vem no fim, depois do Zás, e só quando o servidor a liga (GET /txilladas/config).
+  const txilladaOn = useTxilladaEnabled();
+  const kinds = withTxilladaKind([...KINDS_BASE.filter((k) => k.id !== 'zas').sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0)), KINDS_BASE.find((k) => k.id === 'zas')!], txilladaOn);
   // A câmara abre sempre em Mimo (como as stories no Instagram).
   const [kindSel, setKindSel] = useState('mimo');
+  // A Txillada foi desligada enquanto estava escolhida: volta ao Mimo.
+  useEffect(() => { if (!txilladaOn && kindSel === 'txillada') setKindSel('mimo'); }, [txilladaOn, kindSel]);
   /** No telemóvel, Publicação abre a galeria; a câmara só a partir do primeiro quadrado. */
   const [postCam, setPostCam] = useState(false);
   const [editUri, setEditUri] = useState<string | null>(null);
@@ -603,6 +610,8 @@ export default function Compose() {
   if (step === 'choose' && web && liveCameraSupported()) {
     // Zás: o ecrã do Zás entra no lugar da câmara (fechar volta à câmara em Publicação).
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
+    // Txillada: o ecrã de preparar o live (câmara, título, público) entra no lugar da câmara.
+    if (kindSel === 'txillada') return <TxilladaPrep active={focused} onClose={() => setKindSel('mimo')} kinds={kinds} kind={kindSel} onKind={setKindSel} />;
     if (studio) return studioView;
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -656,6 +665,7 @@ export default function Compose() {
   if (step === 'choose' && !web) {
     const changeKind = (k: string) => { setKindSel(k); setPostCam(false); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } };
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('mimo')} /></View>;
+    if (kindSel === 'txillada') return <TxilladaPrep active={focused} onClose={() => setKindSel('mimo')} kinds={kinds} kind={kindSel} onKind={changeKind} />;
     if (studio) return studioView;
     // Publicação: a galeria com a primeira foto em grande (como "Nova publicação" no Instagram); uma foto vai ao editor.
     // No Android não há galeria dentro da app (Photo Picker do sistema, ver lib/mediaAccess): começa na câmara, que tem o botão da galeria.

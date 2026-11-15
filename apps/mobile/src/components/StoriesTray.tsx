@@ -10,6 +10,9 @@ import { Avatar } from './Avatar';
 import { Ring } from './StoryRing';
 import { NameWithBadge } from './NameWithBadge';
 import { navTap } from '@/lib/tapGuard';
+import { useTxilladaEnabled } from '@/lib/api.txillada';
+import { liveId } from '@/lib/txillada';
+import { LiveRing } from './txillada/TxilladaParts';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
 export function StoriesTray() {
@@ -25,6 +28,9 @@ export function StoriesTray() {
   // Dois toques rápidos no anel abriam o visor duas vezes (fechar um mostrava o outro por baixo).
   const create = () => { if (navTap('/stories/new')) router.push('/stories/new' as never); };
   const view = (u: string) => { if (navTap(`/stories/${u}`)) router.push(`/stories/${u}` as never); };
+  // Quem está ao vivo (Txillada): a roda coral «AO VIVO» e tocar entra no live, em vez dos mimos.
+  const txilladaOn = useTxilladaEnabled();
+  const watch = (id: string) => { if (navTap(`/txillada/${id}`)) router.push(`/txillada/${id}` as never); };
 
   return (
     <View style={{ marginBottom: 16 }} accessibilityLabel="Mimos">
@@ -41,16 +47,24 @@ export function StoriesTray() {
           <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>O teu mimo</Text>
         </Pressable>
 
-        {others.map((u) => (
-          <Pressable key={u.username} onPress={() => view(u.username)} style={styles.bubble} accessibilityRole="button" accessibilityLabel={`Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+        {/* Quem está ao vivo vem primeiro (a ordem do resto não muda). */}
+        {others.slice().sort((a, b) => Number(!!(txilladaOn && liveId(b))) - Number(!!(txilladaOn && liveId(a)))).map((u) => {
+          const live = txilladaOn ? liveId(u) : null;
+          return (
+          <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? `${u.displayName} está ao vivo: ver a Txillada` : `Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+            {live ? (
+              <LiveRing><Avatar name={u.displayName} username={u.username} size={56} /></LiveRing>
+            ) : (
             <View style={{ opacity: u.seen ? 0.6 : 1 }}>
               <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}>
                 <Avatar name={u.displayName} username={u.username} size={56} />
               </Ring>
             </View>
-            <NameWithBadge name={u.username} who={u} center gap={2} style={[styles.label, styles.name, u.seen ? { color: colors.zinc500, fontWeight: '400' } : { color: colors.zinc900, fontWeight: '700' }]} size={11} />
+            )}
+            <NameWithBadge name={u.username} who={u} center gap={2} style={[styles.label, styles.name, u.seen && !live ? { color: colors.zinc500, fontWeight: '400' } : { color: colors.zinc900, fontWeight: '700' }]} size={11} />
           </Pressable>
-        ))}
+          );
+        })}
         {others.length === 0 && <Text style={styles.empty}>Segue pessoas para ver os mimos delas</Text>}
       </ScrollView>
     </View>

@@ -134,6 +134,18 @@ const schema = z.object({
    */
   TURN_URLS: z.string().optional(),
   TURN_SECRET: z.string().min(8).optional(),
+  /**
+   * Txillada (os lives, docs/txillada-contrato.md): o servidor LiveKit à parte. LIVEKIT_URL é o endereço que a app usa
+   * (ex.: wss://live.txillapp.com); LIVEKIT_API_KEY e LIVEKIT_API_SECRET são as chaves do LiveKit (as mesmas que assinam o
+   * webhook POST /api/v1/txilladas/livekit-webhook). Sem os três, a Txillada fica desligada: GET /txilladas/config diz
+   * `enabled: false` e criar/entrar responde 503. LIVEKIT_API_URL (opcional): onde a API fala com o LiveKit para tirar
+   * pessoas e fechar salas, se for outro (ex.: http://livekit:7880 na rede interna); sem ele, usa LIVEKIT_URL.
+   * Desenvolvimento: `livekit-server --dev` (chave devkey, segredo secret, ws://localhost:7880).
+   */
+  LIVEKIT_URL: z.preprocess(blankToUndefined, z.string().trim().regex(/^(wss?|https?):\/\//, 'LIVEKIT_URL tem de começar por ws://, wss://, http:// ou https://').optional()),
+  LIVEKIT_API_URL: z.preprocess(blankToUndefined, z.string().trim().regex(/^(wss?|https?):\/\//, 'LIVEKIT_API_URL tem de começar por ws://, wss://, http:// ou https://').optional()),
+  LIVEKIT_API_KEY: z.preprocess(blankToUndefined, z.string().trim().min(3).optional()),
+  LIVEKIT_API_SECRET: z.preprocess(blankToUndefined, z.string().trim().min(6).optional()),
   /** Quantos segundos uma chamada toca antes de ficar perdida. */
   CALL_RING_SECONDS: z.coerce.number().int().min(1).max(300).default(45),
   /** Só para testes: guarda os e-mails em memória em vez de os enviar. */

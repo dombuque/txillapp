@@ -163,6 +163,16 @@ export class ExportService {
         `SELECT ch.mixar_id AS "mixarId", ch.day::text AS day, ch.kind, k.post_id AS "postId", k.created_at AS "createdAt"
            FROM social.mixar_picks k JOIN social.mixar_challenges ch ON ch.id = k.challenge_id WHERE k.user_id = $1 ORDER BY k.created_at`,
       ).catch(() => []),
+      // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
+      // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
+      txilladas: await q(
+        `SELECT id, title, audience, status, started_at AS "startedAt", ended_at AS "endedAt", peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason"
+           FROM content.txilladas WHERE host_id = $1 ORDER BY started_at`,
+      ).catch(() => []),
+      txilladaComments: await q(
+        `SELECT c.id, c.txillada_id AS "txilladaId", c.body, c.created_at AS "createdAt", c.removed_at AS "removedAt"
+           FROM content.txillada_comments c WHERE c.author_id = $1 ORDER BY c.id`,
+      ).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(
         `SELECT c.id, (c.caller_id = $1) AS outgoing, o.username AS "with", c.video, c.status, c.created_at AS "createdAt", c.started_at AS "startedAt", c.ended_at AS "endedAt"

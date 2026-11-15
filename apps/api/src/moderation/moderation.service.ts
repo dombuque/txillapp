@@ -8,6 +8,8 @@ import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
 import { audienceOk } from '../stories/stories.service';
 import { instantVisible } from '../instants/instants.service';
+import { txilladaVisible } from '../txillada/txillada-visibility';
+import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens';
 import { canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
 import { purgeRemovalCopies, removeContent } from './content-removal';
@@ -16,12 +18,12 @@ import { HELD_PUBLICATIONS } from '../media/held-token';
 import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada'] as const;
 /**
  * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
- * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125).
+ * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158).
  */
-export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant'] as const;
+export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada'] as const;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -129,6 +131,10 @@ export class ModerationService implements OnModuleInit {
         // Um Zás que ainda dura e que quem denuncia pode ver (amigos ou próximos de quem o fez).
         sql = `SELECT i.author_id AS owner FROM social.instants i WHERE i.id = $2 AND i.expires_at > now() AND ${instantVisible('i', '$1')}`;
         break;
+      case 'txillada':
+        // Uma Txillada que quem denuncia pode ver (a decorrer ou já acabada: os comentários ficam até à decisão).
+        sql = `SELECT t.host_id AS owner FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $2 AND ${txilladaVisible('t', 'h', '$1')}`;
+        break;
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
       case 'user':
@@ -187,7 +193,7 @@ export class ModerationService implements OnModuleInit {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -197,6 +203,7 @@ export class ModerationService implements OnModuleInit {
          LEFT JOIN social.messages m ON r.target_type = 'message' AND m.id = r.target_id
          LEFT JOIN content.story_comments sc ON r.target_type = 'story_comment' AND sc.id = r.target_id
          LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
+         LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
         WHERE r.status = $1
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
@@ -253,6 +260,7 @@ export class ModerationService implements OnModuleInit {
       if (action === 'remove' && type === 'post') this.indexer.postRemoved(id);
       if (action === 'suspend' && owner) this.indexer.userRemoved(owner);
       if (outcome) void afterAppealDecision(this.moduleRef, this.notifications, id, owner, admin, outcome, this.log);
+      if (action === 'remove' && type === 'txillada') void afterTxilladaCut(this.moduleRef, id, this.log);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -329,6 +337,15 @@ export async function afterAppealDecision(moduleRef: ModuleRef, notifications: N
   void notifications.notify({ userId: owner, actorId: actor, kind: 'content_restored', data });
 }
 
+/** Depois do COMMIT de uma Txillada cortada pela fila de queixas: fecha a sala no LiveKit e avisa quem estava a ver. */
+export async function afterTxilladaCut(moduleRef: ModuleRef, id: string, log: Logger) {
+  try {
+    await moduleRef.get<TxilladaHooks>(TXILLADA_HOOKS, { strict: false }).afterCut(id);
+  } catch (e) {
+    log.warn(`não consegui fechar a Txillada ${id}: ${(e as Error).message}`);
+  }
+}
+
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
   if (type === 'message') {
     const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
@@ -347,6 +364,15 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
   }
   if (type === 'instant') {
     await client.query('UPDATE social.instants SET expires_at = now() WHERE id = $1 AND expires_at > now()', [id]);
+    return;
+  }
+  // Txillada a decorrer: é cortada (fica 'cut', com o motivo). Depois do COMMIT, afterTxilladaCut fecha a sala e avisa quem via.
+  if (type === 'txillada') {
+    const reason = note?.trim() ? note.trim().slice(0, 300) : 'Decisão na fila de queixas';
+    await client.query(
+      `UPDATE content.txilladas SET status = 'cut', ended_at = now(), viewers = 0, video_on = false, cut_reason = $2, cut_by = $3 WHERE id = $1 AND status = 'live'`,
+      [id, reason, actor],
+    );
     return;
   }
   if (type === 'post' || type === 'comment' || type === 'story') {
