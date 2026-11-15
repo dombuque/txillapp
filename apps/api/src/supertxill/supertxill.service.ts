@@ -7,19 +7,48 @@ import { PG_POOL } from '../db/db.module';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween, sameCountry } from '../social/visibility';
 import { badge } from '../common/badge';
-import { MSG, SYSTEM_PROMPT } from './constants';
+import { MSG, SYSTEM_PROMPT, systemPrompt } from './constants';
+import { OllamaChat, OllamaError, OllamaMessage, noEmoji, ollamaClient, stripThinking, toolArgs } from './ollama';
+import { SuperTxillTools, TOOLS, guessTools } from './supertxill.tools';
 
-type Turn = { role: 'user' | 'assistant'; content: string };
+export type Turn = { role: 'user' | 'assistant'; content: string };
+export type Provider = 'ollama' | 'anthropic' | 'off';
+export interface LlmCtx {
+  userId: string;
+  signal: AbortSignal;
+}
 
-/** Uma resposta presa há mais do que isto conta como falhada (o servidor reiniciou a meio, por exemplo). */
-const STALE_MS = 2 * 60_000;
+/** Uma resposta presa há mais do que isto conta como falhada (o servidor reiniciou a meio, por exemplo). Tem de passar a fila e o tempo máximo. */
+const STALE_MS = 6 * 60_000;
 /** Quantas mensagens guarda cada pessoa. */
 const KEEP = 60;
+/** Quantas mensagens anteriores o modelo lê. */
+const HISTORY = 20;
+/** O tamanho máximo de uma resposta. */
+export const MAX_REPLY = 1500;
+/** Chamadas de ferramentas por resposta. */
+export const MAX_TOOL_CALLS = 4;
+/** Perguntas à espera na fila: acima disto a resposta é logo «está muita malta». */
+const QUEUE_MAX = 40;
+/** O resultado de uma ferramenta que o modelo lê (os modelos pequenos têm pouco contexto). */
+const TOOL_OUT = 2500;
+const TIMED_OUT = Symbol('timeout');
+
+/** Corta no fim da última frase antes de `max` (ou na última palavra). */
+export function clip(text: string, max = MAX_REPLY): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.lastIndexOf('\n'));
+  return (end > max * 0.6 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(' ')) + '…').trim();
+}
 
 /**
  * O SuperTxill: a IA do Txillapp, na barra de pesquisa (como a Meta IA no Instagram). Não é uma conta nem uma conversa com alguém.
  * A pergunta é guardada logo e a resposta é preparada em segundo plano: a pessoa pode fechar o ecrã e vê-la quando voltar.
- * Só vê o que a própria pessoa lhe perguntou: nunca mensagens, contas ou Txills de ninguém. Grátis, com limite por dia e um teto mensal.
+ * Com o Ollama (um modelo aberto no nosso servidor, nada sai para fora) pode consultar a app através das ferramentas
+ * (supertxill.tools.ts), sempre como a pessoa que pergunta e só com o que ela já pode ver. Nunca lê mensagens de ninguém.
+ * Grátis, com limite por dia e um teto mensal.
  */
 @Injectable()
 export class SuperTxillService {
@@ -27,17 +56,34 @@ export class SuperTxillService {
   private client?: Anthropic;
   private running = 0;
   private readonly queue: Array<() => Promise<void>> = [];
+  /** Raciocínio à parte (`think`, OLLAMA_THINK=on). Desliga-se sozinho se o modelo não o tiver. */
+  private think: boolean;
   /** Substituível (nos testes): recebe o histórico e devolve a resposta. */
-  llm: (history: Turn[]) => Promise<string> = (h) => this.callClaude(h);
+  llm: (history: Turn[], ctx: LlmCtx) => Promise<string> = (h, ctx) => (this.provider === 'anthropic' ? this.callClaude(h, ctx.signal) : this.callOllama(h, ctx));
+  /** Substituível (nos testes): o pedido ao Ollama (POST /api/chat). */
+  chat: OllamaChat;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly filter: TextFilter,
-  ) {}
+    private readonly tools: SuperTxillTools,
+  ) {
+    this.think = config.OLLAMA_THINK === 'on';
+    this.chat = config.OLLAMA_URL ? ollamaClient(config.OLLAMA_URL, config.OLLAMA_TOKEN) : async () => { throw new Error('OLLAMA_URL em falta'); };
+  }
+
+  /** Quem responde: o que está em SUPERTXILL_PROVIDER, ou ollama se houver OLLAMA_URL, senão anthropic se houver chave, senão ninguém. */
+  get provider(): Provider {
+    const c = this.config;
+    if (c.SUPERTXILL_PROVIDER === 'off') return 'off';
+    if (c.SUPERTXILL_PROVIDER === 'ollama') return c.OLLAMA_URL ? 'ollama' : 'off';
+    if (c.SUPERTXILL_PROVIDER === 'anthropic') return c.ANTHROPIC_API_KEY ? 'anthropic' : 'off';
+    return c.OLLAMA_URL ? 'ollama' : c.ANTHROPIC_API_KEY ? 'anthropic' : 'off';
+  }
 
   get enabled() {
-    return !!this.config.ANTHROPIC_API_KEY;
+    return this.provider !== 'off';
   }
 
   /**
@@ -117,14 +163,21 @@ export class SuperTxillService {
   async ask(userId: string, text: string) {
     this.filter.assertClean(text);
     const id = await this.save(userId, 'user', text);
+    if (this.queue.length >= QUEUE_MAX) {
+      await this.save(userId, 'assistant', MSG.busy);
+      return { id };
+    }
     this.queue.push(() => this.answer(userId));
     this.pump();
     return { id };
   }
 
-  /** Fila em segundo plano: poucas respostas ao mesmo tempo, para não rebentar o limite de pedidos nem o custo. */
+  /**
+   * Fila em segundo plano: poucas respostas ao mesmo tempo (SUPERTXILL_CONCURRENCY, por omissão 1). O modelo corre em CPU
+   * na máquina da Txillada e os lives têm prioridade; o resto espera a sua vez.
+   */
   private pump() {
-    while (this.running < 3 && this.queue.length) {
+    while (this.running < this.config.SUPERTXILL_CONCURRENCY && this.queue.length) {
       const job = this.queue.shift()!;
       this.running++;
       void job()
@@ -155,31 +208,135 @@ export class SuperTxillService {
 
   /** O que foi dito (só entre a pessoa e o SuperTxill), a começar por uma mensagem dela. */
   private async history(userId: string): Promise<Turn[]> {
-    const { rows } = await this.pool.query('SELECT role, body FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT 12', [userId]);
+    const { rows } = await this.pool.query('SELECT role, body FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT $2', [userId, HISTORY]);
     const turns: Turn[] = rows.reverse().map((r) => ({ role: r.role as 'user' | 'assistant', content: String(r.body).slice(0, 1500) }));
     while (turns.length && turns[0].role !== 'user') turns.shift();
     return turns;
   }
 
-  private async callClaude(history: Turn[]): Promise<string> {
+  /** O dia, a hora (Maputo) e o primeiro nome da pessoa: só dados dela, para os planos fazerem sentido. */
+  private async context(userId: string): Promise<string> {
+    const r = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [userId])).rows[0];
+    const now = new Date().toLocaleString('pt-PT', { timeZone: 'Africa/Maputo', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    const name = String(r?.display_name ?? '').split(/\s+/)[0].replace(/[^\p{L}\p{N}' -]/gu, '').slice(0, 30);
+    return `AGORA: em Maputo é ${now}.${name ? ` A pessoa chama-se ${name}.` : ''}`;
+  }
+
+  /**
+   * Ollama (/api/chat) com ferramentas: o modelo pede dados da app (no máximo MAX_TOOL_CALLS chamadas), a API corre-as como
+   * a pessoa e devolve os resultados; no fim responde em texto. O raciocínio (`think`) fica à parte e nunca se guarda.
+   */
+  private async callOllama(history: Turn[], ctx: LlmCtx): Promise<string> {
+    // As instruções e as ferramentas vão sempre iguais, no início: o Ollama guarda-as já processadas e não as volta a ler
+    // (em CPU poupa muito tempo). O que muda (o dia, a hora e o nome) vai numa nota logo antes da última pergunta.
+    const turns: OllamaMessage[] = [...history];
+    turns.splice(Math.max(0, turns.length - 1), 0, { role: 'system', content: await this.context(ctx.userId) });
+    const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt({ tools: true }) }, ...turns];
+    let calls = 0;
+    let nudged = false;
+    // O que a pergunta pede de certeza (por palavras) corre já, e o modelo recebe os resultados como se os tivesse pedido.
+    const last = history[history.length - 1];
+    const guessed = last?.role === 'user' ? guessTools(last.content) : [];
+    if (guessed.length) {
+      messages.push({ role: 'assistant', content: '', tool_calls: guessed.map((g) => ({ function: { name: g.name, arguments: g.args } })) });
+      for (const g of guessed) {
+        calls++;
+        const out = await this.tools.run(ctx.userId, g.name, g.args, { forYou: (u) => this.forYou(u, 8) });
+        messages.push({ role: 'tool', tool_name: g.name, content: JSON.stringify(out).slice(0, TOOL_OUT) });
+      }
+    }
+    for (let round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
+      const res = await this.ollama(messages, true, ctx.signal);
+      const m = res.message;
+      const wanted = calls < MAX_TOOL_CALLS ? (m.tool_calls ?? []) : [];
+      if (!wanted.length) {
+        const text = stripThinking(m.content ?? '');
+        if (text) return noEmoji(text);
+        if (nudged) break;
+        // Já não pode (ou não quis) chamar mais ferramentas e não respondeu: pede-se a resposta com o que já tem.
+        nudged = true;
+        messages.push({ role: 'system', content: 'Já não podes chamar ferramentas. Responde agora à pessoa, só com o que já sabes.' });
+        continue;
+      }
+      messages.push({ role: 'assistant', content: m.content ?? '', tool_calls: wanted });
+      for (const c of wanted) {
+        if (calls >= MAX_TOOL_CALLS) break;
+        calls++;
+        const out = await this.tools.run(ctx.userId, c.function.name, toolArgs(c), { forYou: (u) => this.forYou(u, 8) });
+        messages.push({ role: 'tool', tool_name: c.function.name, content: JSON.stringify(out).slice(0, TOOL_OUT) });
+      }
+    }
+    // Último recurso: sem ferramentas nenhumas (o modelo já não as pode pedir).
+    return noEmoji(stripThinking((await this.ollama(messages, false, ctx.signal)).message.content ?? ''));
+  }
+
+  private async ollama(messages: OllamaMessage[], withTools: boolean, signal: AbortSignal) {
+    const req = {
+      model: this.config.OLLAMA_MODEL,
+      messages,
+      ...(withTools ? { tools: TOOLS } : {}),
+      think: this.think,
+      keep_alive: '24h',
+      options: {
+        temperature: 0.4,
+        top_p: 0.9,
+        num_ctx: 8192,
+        num_predict: this.think ? 1400 : 500,
+        ...(this.config.OLLAMA_NUM_THREAD ? { num_thread: this.config.OLLAMA_NUM_THREAD } : {}),
+      },
+    };
+    try {
+      return await this.chat(req, signal);
+    } catch (e) {
+      // Modelo sem raciocínio à parte: desliga e repete.
+      if (this.think && e instanceof OllamaError && e.status === 400 && /think/i.test(e.message)) {
+        this.think = false;
+        this.log.log(`${this.config.OLLAMA_MODEL} não suporta think: sigo sem`);
+        return this.chat({ ...req, think: false, options: { ...req.options, num_predict: 500 } }, signal);
+      }
+      throw e;
+    }
+  }
+
+  private async callClaude(history: Turn[], signal: AbortSignal): Promise<string> {
     this.client ??= new Anthropic({ apiKey: this.config.ANTHROPIC_API_KEY, timeout: 45_000, maxRetries: 1 });
     const model = this.config.SUPERTXILL_MODEL;
     // Nos modelos com salvaguardas, se o pedido for recusado o servidor tenta outro modelo (ver a documentação da API).
     const withFallback = /^claude-(opus|fable|mythos|sonnet-5-5)/.test(model);
-    const res = await this.client.beta.messages.create({
-      model,
-      max_tokens: 700,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-      messages: history,
-      output_config: { effort: 'low' },
-      ...(withFallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
-    });
+    const res = await this.client.beta.messages.create(
+      {
+        model,
+        max_tokens: 700,
+        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        messages: history,
+        output_config: { effort: 'low' },
+        ...(withFallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+      },
+      { signal },
+    );
     if (res.stop_reason === 'refusal') return MSG.refused;
     return res.content
       .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('\n')
       .trim();
+  }
+
+  /** O pedido ao modelo com tempo máximo (SUPERTXILL_TIMEOUT_MS): passado esse tempo, cancela e responde que demorou. */
+  private async withTimeout(history: Turn[], userId: string): Promise<string | typeof TIMED_OUT> {
+    const ac = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<typeof TIMED_OUT>((resolve) => {
+      timer = setTimeout(() => {
+        ac.abort();
+        resolve(TIMED_OUT);
+      }, this.config.SUPERTXILL_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([this.llm(history, { userId, signal: ac.signal }), late]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** Prepara e guarda a resposta. Nunca deixa a pessoa sem resposta: em caso de falha, diz que falhou. */
@@ -190,15 +347,23 @@ export class SuperTxillService {
     if (!(await this.underDailyLimit(userId))) return void (await this.save(userId, 'assistant', MSG.daily));
     if (!(await this.underMonthlyCap())) return void (await this.save(userId, 'assistant', MSG.monthly));
     let text: string;
+    const t0 = Date.now();
     try {
-      text = (await this.llm(await this.history(userId))).slice(0, 1800).trim();
-      if (!text) text = MSG.error;
-      // Nunca devolve conteúdo que as regras da app não deixariam enviar.
-      if (this.filter.check(text)) text = MSG.refused;
+      const out = await this.withTimeout(await this.history(userId), userId);
+      if (out === TIMED_OUT) {
+        this.log.warn(`a IA passou do tempo (${this.config.SUPERTXILL_TIMEOUT_MS} ms)`);
+        text = MSG.timeout;
+      } else {
+        text = clip(out);
+        if (!text) text = MSG.error;
+        // Nunca devolve conteúdo que as regras da app não deixariam enviar.
+        if (this.filter.check(text)) text = MSG.refused;
+      }
     } catch (e) {
       this.log.warn(`a IA falhou: ${(e as Error).message}`);
       text = MSG.error;
     }
+    this.log.debug(`resposta em ${Date.now() - t0} ms`);
     await this.save(userId, 'assistant', text);
   }
 }

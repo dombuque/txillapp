@@ -11,6 +11,6 @@ import { SchemaProbe } from './schema-probe';
   imports: [AuthModule, BoostsModule],
   controllers: [NearbyController, EventsController, VenueEventsController],
   providers: [NearbyService, EventsService, SchemaProbe],
-  exports: [EventsService],
+  exports: [EventsService, NearbyService],
 })
 export class NearbyModule {}

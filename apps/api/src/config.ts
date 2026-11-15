@@ -73,8 +73,25 @@ const schema = z.object({
   ELASTICSEARCH_INDEX_PREFIX: z.string().regex(/^[a-z0-9_-]{1,40}$/).default('txillapp'),
   /** Se definido, /api/v1/metrics (Prometheus) fica disponível com este token. */
   METRICS_TOKEN: z.string().min(16).optional(),
-  /** SuperTxill (a IA do chat). Sem ANTHROPIC_API_KEY responde só que ainda está a acordar. O modelo e os limites mudam-se aqui, sem mexer no código. */
+  /**
+   * SuperTxill (a IA do chat). Quem responde: 'ollama' (um modelo aberto no nosso servidor, a máquina da Txillada, sem custo
+   * por mensagem), 'anthropic' ou 'off' (responde só que ainda está a acordar). Por omissão: ollama se houver OLLAMA_URL,
+   * senão anthropic se houver ANTHROPIC_API_KEY, senão off. O modelo e os limites mudam-se aqui, sem mexer no código.
+   */
+  SUPERTXILL_PROVIDER: z.preprocess(blankToUndefined, z.enum(['ollama', 'anthropic', 'off']).optional()),
+  /** O Ollama (ex.: https://llm.txillapp.com). O OLLAMA_TOKEN vai como `Authorization: Bearer` (o Caddy à frente só deixa passar com ele). */
+  OLLAMA_URL: z.preprocess(blankToUndefined, z.string().trim().url().optional()),
+  OLLAMA_TOKEN: z.preprocess(blankToUndefined, z.string().trim().min(16).optional()),
+  OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().default('qwen3:4b-instruct')),
+  /** Fios de CPU do modelo (o mesmo número de CPUs dado ao contentor do Ollama; na máquina da Txillada, 3). Sem ele, o Ollama escolhe. */
+  OLLAMA_NUM_THREAD: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(64).optional()),
+  /** Raciocínio à parte (`think`) nos modelos que o têm: mais certeiro, mas gera muito mais texto (em CPU, minutos). Por omissão desligado. */
+  OLLAMA_THINK: z.preprocess(blankToUndefined, z.enum(['on', 'off']).default('off')),
+  /** Tempo máximo de uma resposta (com as chamadas de ferramentas) e quantas se preparam ao mesmo tempo (o resto espera na fila). */
+  SUPERTXILL_TIMEOUT_MS: z.preprocess(blankToUndefined, z.coerce.number().int().min(1000).max(300_000).default(90_000)),
+  SUPERTXILL_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(4).default(1)),
   ANTHROPIC_API_KEY: z.string().min(20).optional(),
+  /** O modelo da Anthropic (só com SUPERTXILL_PROVIDER=anthropic). */
   SUPERTXILL_MODEL: z.string().default('claude-opus-5-5'),
   /** Respostas por pessoa e por dia (UTC). */
   SUPERTXILL_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),

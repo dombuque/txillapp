@@ -357,7 +357,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               <>
                 <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
                 <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar o perfil (com o teu convite)"><QrGlyph /></Pressable>
-                <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Malta para ti: sugestões de amigos"><Icon name="user-plus" size={20} /></Pressable>
+                <Pressable onPress={() => router.push('/supertxill?tab=malta' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Malta para ti: sugestões de amigos"><Icon name="user-plus" size={20} /></Pressable>
                 <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
                 <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>

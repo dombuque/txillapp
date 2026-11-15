@@ -92,6 +92,17 @@ export class NearbyService implements OnModuleInit {
   }
 
   /**
+   * O mesmo "À tua volta", com as mesmas regras e consultas, para o SuperTxill responder à pessoa: sem campanhas do Bombar
+   * (não conta como vista do mapa). O centro tem de vir já arredondado.
+   */
+  async forAssistant(viewerId: string, c: Center, radiusKm: number, kind: 'venues' | 'events' | 'people', when: NearbyWhen = 'today') {
+    const p = [viewerId, c.lat, c.lng, radiusKm];
+    if (kind === 'venues') return { venues: await this.venues(p), events: [], people: [] };
+    if (kind === 'events') return { venues: [], events: await this.events(p, when), people: [] };
+    return { venues: [], events: [], people: await this.people(p) };
+  }
+
+  /**
    * Marca `boosted` (com a etiqueta "Patrocinado") no pino do evento de uma campanha de evento, ou no do local numa
    * campanha de publicação, e põe-nos à frente (pela distância entre eles). `shown`: as campanhas que ficaram à vista.
    */
