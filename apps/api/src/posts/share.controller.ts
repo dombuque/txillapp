@@ -137,6 +137,10 @@ export class PublicPostController {
       if (o) {
         repostedBy = r.display_name as string;
         r = o;
+      } else if (!r.body) {
+        // Um repost simples de uma conta privada («Deixar repostar as minhas publicações», 0156) ou de uma publicação que
+        // já não se vê: sem o original não há nada para mostrar (e não se diz de quem era).
+        throw new NotFoundException();
       }
     }
     const media = (r.media as { id: string; video: boolean; width: number | null; height: number | null }[]).map((m) => ({

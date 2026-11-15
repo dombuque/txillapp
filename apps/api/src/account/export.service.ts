@@ -203,6 +203,8 @@ export class ExportService {
       soundReuse: ((await q(`SELECT sound_reuse FROM identity.users WHERE id = $1`).catch(() => []))[0]?.sound_reuse as boolean | undefined) ?? null,
       // «Deixar guardar as minhas tchekas» (0153): se os outros podem guardar as minhas tchekas (privada ou menor: nunca).
       allowDownloads: ((await q(`SELECT allow_downloads FROM identity.users WHERE id = $1`).catch(() => []))[0]?.allow_downloads as boolean | undefined) ?? null,
+      // «Deixar repostar as minhas publicações» (0156): se os outros podem repostar (e citar) as minhas publicações.
+      allowReposts: ((await q(`SELECT allow_reposts FROM identity.users WHERE id = $1`).catch(() => []))[0]?.allow_reposts as boolean | undefined) ?? null,
       sounds: await q(
         `SELECT s.id, s.title, s.duration_ms AS "durationMs", s.source_post_id AS "sourcePostId", s.created_at AS "createdAt", s.hold_at AS "heldAt",
                 s.removed_at AS "removedAt", s.removed_reason AS "removedReason",

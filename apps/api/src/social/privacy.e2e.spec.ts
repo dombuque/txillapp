@@ -212,7 +212,8 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     expect(kinds.length).toBeGreaterThanOrEqual(2);
     expect(kinds[0].actor.username).toBe(sharer.username);
 
-    // Contas privadas não se repostam, e os reposts existentes deixam de ser visíveis a quem não é seguidor.
+    // Uma conta privada só a reposta quem a pode ver (quem a segue, e se ela deixar: posts/deixar-repostar.e2e.spec.ts), e os
+    // reposts existentes deixam de ser visíveis a quem não é seguidor.
     const q = await post(author, 'outro post');
     await api().patch('/api/v1/users/me').set(auth(author)).send({ isPrivate: true }).expect(200);
     await rp(viewer, q.id).expect(404); // nem a vê
