@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
-    # O token que o Caddy exige em llm.txillapp.com (o mesmo OLLAMA_TOKEN do .env da API). Sem ele, llm.txillapp.com dá sempre 401.
+    # O token que o Caddy exige em live.txillapp.com/llm (o mesmo OLLAMA_TOKEN do .env da API). Sem ele, /llm dá sempre 401.
     environment:
       OLLAMA_TOKEN: ${OLLAMA_TOKEN:-}
     logging: *logging

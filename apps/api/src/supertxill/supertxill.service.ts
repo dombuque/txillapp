@@ -79,7 +79,8 @@ export class SuperTxillService {
     if (c.SUPERTXILL_PROVIDER === 'off') return 'off';
     if (c.SUPERTXILL_PROVIDER === 'ollama') return c.OLLAMA_URL ? 'ollama' : 'off';
     if (c.SUPERTXILL_PROVIDER === 'anthropic') return c.ANTHROPIC_API_KEY ? 'anthropic' : 'off';
-    return c.OLLAMA_URL ? 'ollama' : c.ANTHROPIC_API_KEY ? 'anthropic' : 'off';
+    // Por omissão só o nosso modelo (Ollama); a Anthropic só se for pedida de propósito (SUPERTXILL_PROVIDER=anthropic).
+    return c.OLLAMA_URL ? 'ollama' : 'off';
   }
 
   get enabled() {
@@ -155,7 +156,7 @@ export class SuperTxillService {
     const id = uuidv7();
     await this.pool.query('INSERT INTO social.ai_messages (id, user_id, role, body) VALUES ($1, $2, $3, $4)', [id, userId, role, body.slice(0, 4000)]);
     // Guarda só as últimas mensagens.
-    await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1 AND id < (SELECT id FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC OFFSET $2 LIMIT 1)', [userId, KEEP]);
+    await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1 AND id < (SELECT id FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC OFFSET $2 LIMIT 1)', [userId, KEEP - 1]);
     return id;
   }
 

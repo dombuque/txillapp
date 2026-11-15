@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Alert, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -63,7 +63,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
               <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
             </View>
             {tab === 'conversa' && chat.messages.length > 0 && (
-              <Pressable onPress={chat.clear} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
+              <Pressable onPress={() => Alert.alert('Apagar a conversa?', 'As mensagens com o SuperTxill saem da tua conta e não voltam.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: chat.clear }])} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
             )}
           </View>
 
@@ -152,7 +152,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
             </View>
             </>
             )}
-            <Text style={s.box}>Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas. Podes desligar o uso da geleira nas Definições.</Text>
+            <Text style={s.box}>Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas.</Text>
           </ScrollView>
           </>
           )}
@@ -233,7 +233,7 @@ export function Thinking() {
 
 function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
   const [text, setText] = useState('');
-  const list = useRef<ScrollView>(null);
+  const list = useRef<ComponentRef<typeof ScrollView>>(null);
   const send = async (t: string) => {
     if (await chat.ask(t)) setText('');
   };

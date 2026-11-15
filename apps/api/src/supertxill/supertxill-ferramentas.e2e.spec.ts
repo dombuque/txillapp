@@ -124,11 +124,11 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     await pool.end();
   });
 
-  it('quem responde: ollama com OLLAMA_URL; senão anthropic com a chave; senão desligado; SUPERTXILL_PROVIDER manda', () => {
+  it('quem responde: ollama com OLLAMA_URL; a Anthropic só com SUPERTXILL_PROVIDER=anthropic; senão desligado; SUPERTXILL_PROVIDER manda', () => {
     const make = (env: Record<string, string>) => new SuperTxillService(pool, loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40), ...env }), app.get(TextFilter), tools).provider;
     expect(bot.provider).toBe('ollama');
     expect(make({})).toBe('off');
-    expect(make({ ANTHROPIC_API_KEY: 'x'.repeat(30) })).toBe('anthropic');
+    expect(make({ ANTHROPIC_API_KEY: 'x'.repeat(30) })).toBe('off'); // a Anthropic só de propósito
     expect(make({ ANTHROPIC_API_KEY: 'x'.repeat(30), OLLAMA_URL: 'http://o:11434' })).toBe('ollama');
     expect(make({ ANTHROPIC_API_KEY: 'x'.repeat(30), OLLAMA_URL: 'http://o:11434', SUPERTXILL_PROVIDER: 'anthropic' })).toBe('anthropic');
     expect(make({ OLLAMA_URL: 'http://o:11434', SUPERTXILL_PROVIDER: 'off' })).toBe('off');

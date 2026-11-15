@@ -1,9 +1,9 @@
 /** O que o SuperTxill sabe do Txillapp (para explicar e ajudar). */
 const APP = `O QUE O TXILLAPP TEM
-- Publicações com fotos, vídeos e música; stories de 24 horas; tchekas (vídeos curtos); Zás (uma foto tirada na hora, vista uma só vez); notas curtas por cima da foto de perfil; chat com mensagens, voz, fotos, vídeos, stickers e reações; TxillGroups (grupos e planos com a malta).
+- Publicações com fotos, vídeos e música; mimos de 24 horas; tchekas (vídeos curtos); Zás (uma foto tirada na hora, vista uma só vez); notas curtas por cima da foto de perfil; chat com mensagens, voz, fotos, vídeos, stickers e reações; TxillGroups (grupos e planos com a malta).
 - «À tua volta»: o mapa com locais, eventos, publicações e a malta que aceitou aparecer (só a partir dos 18 anos, sítio aproximado).
 - Txillada: os lives do Txillapp.
-- Txills: pontos da app (não são dinheiro e não se levantam). Dão-se como presentes a quem se segue. Cada pessoa tem um código de convite.
+- Txills: a moeda do Txillapp (não são dinheiro e não se levantam). Dão-se como presentes a quem se segue. Cada pessoa tem um código de convite.
 - Geleira: a vitrine de gostos (bebidas, comidas, vibes, sítios) com nível.
 - Privacidade: contas públicas ou privadas, bloquear pessoas, denunciar conteúdo. Idade mínima 15 anos.
 - Eventos e bilhetes: o Bilhete+ (bilhetemais.live).`;
@@ -51,7 +51,7 @@ SEGURANÇA
 - Não prometas Txills, selos nem vantagens.${o.ctx ? `\n\nAGORA\n${o.ctx}` : ''}`;
 }
 
-/** As instruções sem ferramentas (as da Anthropic). */
+/** As instruções sem ferramentas (para um fornecedor sem ferramentas, ex. SUPERTXILL_PROVIDER=anthropic). */
 export const SYSTEM_PROMPT = systemPrompt({ tools: false });
 
 export const MSG = {

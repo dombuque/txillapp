@@ -76,7 +76,7 @@ const schema = z.object({
   /**
    * SuperTxill (a IA do chat). Quem responde: 'ollama' (um modelo aberto no nosso servidor, a máquina da Txillada, sem custo
    * por mensagem), 'anthropic' ou 'off' (responde só que ainda está a acordar). Por omissão: ollama se houver OLLAMA_URL,
-   * senão anthropic se houver ANTHROPIC_API_KEY, senão off. O modelo e os limites mudam-se aqui, sem mexer no código.
+   * senão off (a Anthropic só com SUPERTXILL_PROVIDER=anthropic, de propósito). O modelo e os limites mudam-se aqui, sem mexer no código.
    */
   SUPERTXILL_PROVIDER: z.preprocess(blankToUndefined, z.enum(['ollama', 'anthropic', 'off']).optional()),
   /** O Ollama (ex.: https://llm.txillapp.com). O OLLAMA_TOKEN vai como `Authorization: Bearer` (o Caddy à frente só deixa passar com ele). */
