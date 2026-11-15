@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { InlineBadge } from '@/components/NameWithBadge';
+import { RequestsSheet } from '@/components/ProfileSheets';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -338,12 +339,19 @@ export default function Notifications() {
     return () => clearTimeout(t);
   }, [q.isSuccess, qc]);
 
-  const pull = usePullToRefresh(() => q.refetch());
+  // Pedidos para seguir (conta privada): uma linha no topo, como no Instagram, que abre a folha de aceitar ou recusar.
+  const requests = useQuery({ queryKey: ['requests'], queryFn: api.followRequests, staleTime: 10_000 });
+  const reqList = requests.data ?? [];
+  const [reqOpen, setReqOpen] = useState(false);
+  const showReq = reqList.length > 0 && (filter === 'all' || filter === 'follows');
+
+  const pull = usePullToRefresh(() => Promise.all([q.refetch(), requests.refetch()]));
   const groups = groupAll(items.filter((n) => inFilter(n, filter)), freshIds.current);
   const fresh = groups.filter((g) => g.fresh);
   const older = groups.filter((g) => !g.fresh);
-  type Entry = { kind: 'h'; id: string; label: string } | { kind: 'g'; g: Group };
+  type Entry = { kind: 'h'; id: string; label: string } | { kind: 'g'; g: Group } | { kind: 'req'; id: string };
   const data: Entry[] = [
+    ...(showReq ? [{ kind: 'req' as const, id: 'req' }] : []),
     ...(fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-new', label: 'Novas' }] : []),
     ...fresh.map((g) => ({ kind: 'g' as const, g })),
     ...(older.length > 0 && fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-old', label: 'Anteriores' }] : []),
@@ -358,7 +366,7 @@ export default function Notifications() {
         scrollEventThrottle={16}
         refreshControl={pull.control}
         data={data}
-        keyExtractor={(e) => (e.kind === 'h' ? e.id : e.g.id)}
+        keyExtractor={(e) => (e.kind === 'g' ? e.g.id : e.id)}
         stickyHeaderIndices={[0]}
         ListHeaderComponent={
           <View style={styles.filters}>
@@ -371,7 +379,17 @@ export default function Notifications() {
             </ScrollView>
           </View>
         }
-        renderItem={({ item }) => (item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row g={item.g} me={user?.username} />)}
+        renderItem={({ item }) => (item.kind === 'req' ? (
+          <Pressable onPress={() => setReqOpen(true)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`Pedidos para seguir: ${reqList.length}`}>
+            <View style={styles.reqIcon}><Icon name="user-plus" size={22} color={colors.zinc800} /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.reqTitle}>Pedidos para seguir</Text>
+              <Text style={styles.reqSub} numberOfLines={1}>{requestsLine(reqList.map((r) => r.username))}</Text>
+            </View>
+            <View style={styles.reqN}><Text style={styles.reqNText}>{reqList.length > 99 ? '99+' : reqList.length}</Text></View>
+            <Icon name="chevron-right" size={18} color={colors.zinc300} />
+          </Pressable>
+        ) : item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row g={item.g} me={user?.username} />)}
         ListEmptyComponent={
           q.isPending ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
@@ -397,8 +415,16 @@ export default function Notifications() {
         }
       />
       </PullView>
+      {reqOpen && user ? <RequestsSheet username={user.username} onClose={() => setReqOpen(false)} /> : null}
     </StackPage>
   );
+}
+
+/** «Aprovar ou recusar · @ana e mais 2». */
+export function requestsLine(names: string[]): string {
+  if (!names.length) return 'Aprovar ou recusar pedidos';
+  const who = names.length === 1 ? `@${names[0]}` : `@${names[0]} e mais ${names.length - 1}`;
+  return `Aprovar ou recusar · ${who}`;
 }
 
 const styles = StyleSheet.create({
@@ -408,6 +434,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   h: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, fontSize: 14, fontWeight: '700', color: colors.zinc600 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  reqIcon: { width: 46, height: 46, borderRadius: 23, borderWidth: 1, borderColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' },
+  reqTitle: { fontSize: 16, fontWeight: '700', color: colors.zinc900 },
+  reqSub: { marginTop: 2, fontSize: 14, color: colors.zinc600 },
+  reqN: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  reqNText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   line: { fontSize: 15, lineHeight: 20.6, color: colors.zinc900 },
   sub: { marginTop: 2, fontSize: 14, color: colors.zinc600 },
   reply: { fontSize: 14, fontWeight: '600', color: colors.zinc500 },
