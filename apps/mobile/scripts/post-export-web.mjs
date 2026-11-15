@@ -118,8 +118,8 @@ writeFileSync(join(dir, 'robots.txt'), [
   'Allow: /api/v1/media/',
   'Allow: /api/v1/avatars/',
   'Disallow: /app/',
-  // As Txilladas (os lives): só se veem ao vivo e nunca aparecem nos resultados (também X-Robots-Tag no nginx).
-  'Disallow: /txillada/',
+  // As Txilladas (os lives) não levam Disallow de propósito: os motores têm de ler a página para verem o «noindex» (na
+  // própria página e no X-Robots-Tag do nginx). Com Disallow, um link muito partilhado podia aparecer só com o endereço.
   '',
   `Sitemap: ${SITE}/sitemap.xml`,
   '',
