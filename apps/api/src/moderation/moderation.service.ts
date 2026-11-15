@@ -376,14 +376,15 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
     await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
     return;
   }
-  // Comentário num mimo: apaga-se (como quando o autor do mimo o apaga). Zás: deixa já de se ver (expira agora; a limpeza
-  // dos Zás expirados apaga-o depois, com a foto). Nenhum dos dois se repõe.
+  // Comentário num mimo: apaga-se (como quando o autor do mimo o apaga). Zás: deixa já de se ver (expira agora, também
+  // para o autor, que deixa de o ter guardado para o resumo; a limpeza dos Zás apaga-o depois, com a foto, quando a
+  // denúncia estiver decidida). Nenhum dos dois se repõe.
   if (type === 'story_comment') {
     await client.query('DELETE FROM content.story_comments WHERE id = $1', [id]);
     return;
   }
   if (type === 'instant') {
-    await client.query('UPDATE social.instants SET expires_at = now() WHERE id = $1 AND expires_at > now()', [id]);
+    await client.query('UPDATE social.instants SET expires_at = least(expires_at, now()), keep_until = NULL WHERE id = $1 AND (expires_at > now() OR keep_until IS NOT NULL)', [id]);
     return;
   }
   // Comentário de uma Txillada (0162): deixa de se ver (como quando o anfitrião o apaga; não se repõe) e, se estava

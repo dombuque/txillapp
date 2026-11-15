@@ -104,7 +104,13 @@ export class InstantsService implements OnModuleInit {
     const id = uuidv7();
     // A letra da legenda (docs/fontes-contrato.md): sem legenda não se guarda.
     const font = caption ? captionFont : null;
-    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview, caption_font) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING expires_at', [id, me, mediaId, caption, audience, preview, font]);
+    // Com «Guardar os meus Zás para o resumo semanal» ligada (0163), a foto fica 7 dias só para mim (keep_until).
+    const r = await this.pool.query(
+      `INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview, caption_font, keep_until)
+       SELECT $1, $2, $3, $4, $5, $6, $7, CASE WHEN u.zas_keep THEN now() + interval '7 days' END FROM identity.users u WHERE u.id = $2
+       RETURNING expires_at`,
+      [id, me, mediaId, caption, audience, preview, font],
+    );
     // Chega logo aos amigos (antes só o viam na volta seguinte da faixa, até 60 s depois) e já com a largura leve a fazer-se.
     try {
       this.announce(me, await this.audience(id), 'new');
