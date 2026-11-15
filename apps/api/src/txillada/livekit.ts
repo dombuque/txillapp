@@ -46,6 +46,9 @@ export async function roomToken(c: AppConfig, o: { room: string; identity: strin
     // Os comentários e os brindes passam pela API (com o filtro e os limites), não pelos dados do LiveKit.
     canPublishData: false,
     canUpdateOwnMetadata: false,
+    // Os espectadores entram escondidos: ninguém na sala recebe o id, o nome ou o @ dos outros que estão a ver (só o
+    // anfitrião aparece). O webhook continua a avisar quem entra e sai (é assim que se contam os espectadores).
+    ...(o.host ? {} : { hidden: true }),
   });
   return at.toJwt();
 }

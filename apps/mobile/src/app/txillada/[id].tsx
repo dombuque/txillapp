@@ -39,7 +39,7 @@ export default function TxilladaScreen() {
   const wide = useDesktop();
   const kb = useKeyboardHeight();
   const tx = useTxillada(String(id));
-  // As ligações das Txilladas nunca aparecem nos motores de busca (também no nginx e no robots.txt).
+  // As ligações das Txilladas nunca aparecem nos motores de busca (também no nginx, pelo X-Robots-Tag).
   useNoIndex();
   const { dto, live, kind, ui, host } = tx;
   const now = useNow(kind === 'live');

@@ -396,7 +396,8 @@ test('a Txillada não se grava: nada de gravar, replay ou «guardar como tcheka�
 
 test('as ligações das Txilladas não entram nos motores de busca (página, robots.txt e nginx)', () => {
   const exp = read('scripts/post-export-web.mjs');
-  assert.match(exp, /'Disallow: \/txillada\/'/);
+  // Sem Disallow de propósito (5d2fa9c): os motores têm de ler a página para verem o «noindex».
+  assert.doesNotMatch(exp, /'Disallow: \/txillada/);
   assert.match(exp, /rel\.startsWith\('txillada\/'\)\) page\.robots = 'noindex, nofollow, noarchive'/);
   assert.match(read('src/lib/noIndex.ts'), /noindex, nofollow, noarchive/);
   assert.match(read('src/app/txillada/[id].tsx'), /useNoIndex\(\)/);

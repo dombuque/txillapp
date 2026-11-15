@@ -10,6 +10,8 @@ import { mentionableBy } from '../notifications/notifications.service';
 import { blockedBetween, canView, sameCountry } from './visibility';
 import { badge, type Badge } from '../common/badge';
 import { liveOf } from '../txillada/txillada-visibility';
+import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens';
+import { ModuleRef } from '@nestjs/core';
 import { dropDownloadCopies } from '../posts/download-copies';
 import { PostDownloadService } from '../posts/post-download.service';
 
@@ -42,6 +44,7 @@ export class SocialService {
     private readonly filter: TextFilter,
     private readonly insights: InsightsService,
     private readonly downloads: PostDownloadService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /* ───────────── perfil ───────────── */
@@ -313,6 +316,10 @@ export class SocialService {
     } finally {
       client.release();
     }
+    // Txillada a decorrer de um dos dois: o outro sai da sala e deixa de receber os eventos.
+    try {
+      await this.moduleRef.get<TxilladaHooks>(TXILLADA_HOOKS, { strict: false }).afterBlock(userId, t.id);
+    } catch { /* sem a Txillada (ou o LiveKit não responde): o bloqueio já está feito */ }
     // A pessoa bloqueada é avisada: "@x bloqueou-te".
     await this.notifications.notify({ userId: t.id, actorId: userId, kind: 'blocked' });
     return this.blocked(userId);

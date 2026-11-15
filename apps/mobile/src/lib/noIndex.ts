@@ -6,7 +6,7 @@ export const NO_INDEX = 'noindex, nofollow, noarchive';
 
 /**
  * No site: enquanto o ecrã está aberto, a página diz aos motores de busca que não a indexem, não sigam as ligações nem
- * guardem cópia (`<meta name="robots">`). O nginx manda o mesmo no cabeçalho X-Robots-Tag e o robots.txt fecha /txillada/;
+ * guardem cópia (`<meta name="robots">`). O nginx manda o mesmo no cabeçalho X-Robots-Tag (o robots.txt não fecha /txillada/: os motores têm de ler o «noindex»);
  * isto cobre quem chega pela navegação dentro da app (a página servida é a de entrada, com «index»). Ao sair, volta ao
  * que estava. No telemóvel não faz nada.
  */

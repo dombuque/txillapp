@@ -1,4 +1,4 @@
-import { canView } from '../social/visibility';
+import { canView, notReportedBy } from '../social/visibility';
 
 /**
  * Quem pode ver uma Txillada (`t` = content.txilladas, `h` = identity.users do anfitrião, `v` = o espectador): o próprio
@@ -17,8 +17,10 @@ export const txilladaBanned = (t = 't', v = '$1') => `EXISTS (SELECT 1 FROM cont
 
 /**
  * `live: { id } | null` de uma pessoa (`u` = identity.users) para o espectador `v`: a Txillada que ela tem a decorrer, se o
- * espectador a pode ver e não foi expulso. Barato: usa o índice único das 'live' por anfitrião (no máximo uma linha).
+ * espectador a pode ver, não foi expulso e não a denunciou (como em GET /txilladas/live). Barato: usa o índice único das
+ * 'live' por anfitrião (no máximo uma linha).
  */
 export const liveOf = (u = 'u', v = '$1') =>
   `(SELECT json_build_object('id', ltx.id) FROM content.txilladas ltx
-     WHERE ltx.host_id = ${u}.id AND ltx.status = 'live' AND ${txilladaVisible('ltx', u, v)} AND NOT ${txilladaBanned('ltx', v)} LIMIT 1)`;
+     WHERE ltx.host_id = ${u}.id AND ltx.status = 'live' AND ${txilladaVisible('ltx', u, v)} AND NOT ${txilladaBanned('ltx', v)}
+       AND ${notReportedBy('txillada', 'ltx.id', v)} LIMIT 1)`;

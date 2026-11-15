@@ -161,7 +161,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       )
     ).rows[0];
     if (!u || u.status !== 'active') throw new ForbiddenException('A tua conta não pode abrir uma Txillada.');
-    if (!u.has_birth) throw new ForbiddenException('Para abrires uma Txillada, diz primeiro a tua data de nascimento (em Definições).');
+    if (!u.has_birth) throw new ForbiddenException('A Txillada é só para maiores de 18 anos e a tua conta não tem a data de nascimento. Escreve para suporte@txillapp.com para a acrescentares.');
     if (!u.adult) throw new ForbiddenException('A Txillada é só para maiores de 18 anos.');
     this.filter.assertClean(title);
     const running = (await this.pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [me])).rows[0];
@@ -238,9 +238,24 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /* ───────────── tempo real ───────────── */
 
-  /** Quem recebe os eventos: quem está a ver e o anfitrião. */
+  /** Quem recebe os eventos: quem está a ver (menos quem tem um bloqueio com o anfitrião) e o anfitrião. */
   private async audience(id: string, hostId: string) {
-    return [...new Set([hostId, ...(await this.bus.recent(toKey(id), SET_MS))])];
+    const viewers = (await this.bus.recent(toKey(id), SET_MS)).filter((v) => v !== hostId);
+    return [hostId, ...(await this.withoutBlocks(hostId, viewers))];
+  }
+
+  /**
+   * Gancho do SocialService.block: um bloqueio entre `a` e `b`. Quem estava a ver a Txillada do outro sai da sala no
+   * LiveKit e deixa de receber os eventos (se voltar a entrar com o token antigo, o webhook tira-o outra vez).
+   */
+  async afterBlock(a: string, b: string) {
+    const { rows } = await this.pool.query(`SELECT id, room, host_id FROM content.txilladas WHERE status = 'live' AND host_id = ANY($1::uuid[])`, [[a, b]]);
+    for (const t of rows) {
+      const other = t.host_id === a ? b : a;
+      for (const k of [toKey(t.id), inKey(t.id)]) await this.bus.untouch(k, other);
+      if (this.rooms) await this.rooms.removeParticipant(t.room, other).catch(() => undefined);
+      await this.recount(t.id, t.host_id);
+    }
   }
 
   private emit(to: string[], e: TxilladaEvent) {
@@ -384,8 +399,13 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         return;
       case 'participant_joined': {
         if (!who) return;
-        // Alguém entrou numa sala que já acabou (com um token antigo) ou foi expulso: sai outra vez.
-        const banned = !isHost && (await this.pool.query('SELECT 1 FROM content.txillada_bans WHERE txillada_id = $1 AND user_id = $2', [t.id, who])).rowCount;
+        // Alguém entrou numa sala que já acabou (com um token antigo), foi expulso ou já não a pode ver (um bloqueio…): sai outra vez.
+        // (Uma identidade que não é das nossas — os tokens dão sempre o id da conta — também sai.)
+        const banned = !isHost && (!/^[0-9a-f-]{36}$/i.test(who) || !(await this.pool.query(
+          `SELECT 1 FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
+            WHERE t.id = $1 AND ${txilladaVisible('t', 'h', '$2::uuid')} AND NOT ${txilladaBanned('t', '$2::uuid')}`,
+          [t.id, who],
+        )).rowCount);
         if (t.status !== 'live' || banned) {
           if (this.rooms) await this.rooms.removeParticipant(t.room, who).catch(() => undefined);
           return;
@@ -426,7 +446,12 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async sweep(now = new Date()) {
     let n = 0;
-    const old = await this.pool.query(`SELECT id FROM content.txilladas WHERE status = 'live' AND started_at < $1::timestamptz - make_interval(secs => $2)`, [now, MAX_LIVE_MS / 1000]);
+    // As de mais de 4 h e as de um anfitrião que deixou de estar ativo (suspenso a meio: o LiveKit não o sabe e continuava a transmitir).
+    const old = await this.pool.query(
+      `SELECT t.id FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
+        WHERE t.status = 'live' AND (t.started_at < $1::timestamptz - make_interval(secs => $2) OR h.status <> 'active')`,
+      [now, MAX_LIVE_MS / 1000],
+    );
     for (const r of old.rows) if (await this.finish(r.id, 'ended')) n++;
     const quiet = await this.pool.query(
       `SELECT id, room, host_id FROM content.txilladas
