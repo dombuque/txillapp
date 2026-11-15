@@ -22,7 +22,8 @@ import { cheerPeople, cheerTarget, cheerVerb } from '@/lib/cheerNotice';
 import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
 import { moderationTarget, moderationVerb } from '@/lib/moderationNotice';
 import { musicReviewTarget, musicReviewVerb, type MusicReviewData } from '@/lib/artists';
-import { sized } from '@/lib/config';
+import { abs, sized } from '@/lib/config';
+import { zasPhotoUrl } from '@/components/zas/zasDeck';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -30,6 +31,7 @@ import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
 import { noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget, noticeText as txilladaNoticeText } from '@/lib/txillada';
+import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -127,6 +129,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
     case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
+    // O resumo semanal dos Zás (do Txillapp; a linha não leva o nome do ator à frente): «8–15 nov · 12 Zás».
+    case 'zas_recap': return { text: RECAP_NOTICE, sub: recapNoticeSub(n.data) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -167,6 +171,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'gelada_paid': return geladaNoticeTarget(n.kind, n.data);
     // Entra na Txillada (se já acabou, o ecrã diz «A Txillada acabou»).
     case 'txillada_live': return txilladaNoticeTarget(n.data);
+    // O ecrã do resumo (se já não existe, diz «Este resumo já não existe»).
+    case 'zas_recap': return recapNoticeTarget(n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':
@@ -263,6 +269,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
   }
 
   const go = (t: string | null) => t && router.push(t as never);
+  const zasRecap = n.kind === 'zas_recap';
   // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
   const txLive = n.kind === 'txillada_live' && (!n.txillada || n.txillada.status === 'live');
   const right = n.kind === 'txillada_live' ? (
@@ -270,8 +277,9 @@ function Row({ g, me }: { g: Group; me?: string }) {
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
     </View>
   ) : thumb ? (
-    <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel="Abrir a publicação">
-      <Image source={{ uri: sized(thumb.url, 160) }} style={styles.thumb} contentFit="cover" />
+    <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel={zasRecap ? 'Abrir o resumo' : 'Abrir a publicação'}>
+      {/* O resumo (1080×1920, endereço assinado do chat) pede-se pequeno, com &w=. */}
+      <Image source={{ uri: zasRecap ? zasPhotoUrl(abs(thumb.url) ?? thumb.url, 160) : sized(thumb.url, 160) }} style={styles.thumb} contentFit="cover" />
       {thumb.video && <View style={styles.playDot}><Icon name="play" size={10} color="#fff" solid /></View>}
     </Pressable>
   ) : followBack || back ? (
@@ -282,12 +290,17 @@ function Row({ g, me }: { g: Group; me?: string }) {
 
   return (
     <Pressable onPress={() => go(target)} disabled={!target} style={(s) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, (s as { hovered?: boolean }).hovered && target && { backgroundColor: '#fafafa' }, s.pressed && target && { backgroundColor: colors.zinc100 }]}>
-      <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
-        <Faces actors={people.actors} />
-      </Pressable>
+      {zasRecap ? (
+        // O resumo dos Zás: o raio do Zás num círculo da cor da marca, em vez da cara.
+        <View style={styles.zasIcon} accessibilityLabel="Zás"><Icon name="bolt" size={24} solid color="#fff" /></View>
+      ) : (
+        <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
+          <Faces actors={people.actors} />
+        </Pressable>
+      )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          <Names actors={people.actors} total={people.total} /> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
+          {zasRecap ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
@@ -455,6 +468,7 @@ const styles = StyleSheet.create({
   reply: { fontSize: 14, fontWeight: '600', color: colors.zinc500 },
   thumb: { width: 46, height: 46, borderRadius: 8, backgroundColor: colors.zinc100 },
   txIcon: { width: 46, height: 46, borderRadius: 12, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  zasIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   playDot: { position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   msg: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   msgText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },

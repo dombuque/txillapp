@@ -123,14 +123,16 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // da tcheka original retirou o meu dueto (data.postId = o dueto).
   | 'sound_review' | 'remix_takedown'
   // Txillada (o live): alguém que sigo abriu uma (data.txilladaId, data.title). No máximo uma por anfitrião por hora.
-  | 'txillada_live';
+  | 'txillada_live'
+  // O resumo semanal dos Zás está pronto (data.recapId, data.label «8–15 nov», data.count; o ator é o Txillapp, staff).
+  | 'zas_recap';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
