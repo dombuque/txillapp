@@ -54,11 +54,11 @@ export default function Txilladas() {
                   <td className={`${td} text-xs`}>{ago(t.startedAt)}</td>
                   <td className={td}>{t.viewers}<span className="block text-xs text-zinc-500">máx. {t.peakViewers}</span></td>
                   <td className={td}>
-                    {t.reports.open > 0 ? <Badge tone="red">{t.reports.open} por decidir</Badge> : <span className="text-xs text-zinc-400">—</span>}
+                    {t.reports.open > 0 ? <Badge tone="red">{t.reports.open} por decidir</Badge> : <span className="text-xs text-zinc-400">Nenhuma</span>}
                     {t.reports.reasons.length > 0 && <span className="mt-1 block text-xs text-zinc-600">{t.reports.reasons.map((r) => REASON[r] ?? r).join(', ')}</span>}
                   </td>
                   <td className={`${td} max-w-xs text-xs`}>
-                    {t.lastComments.length === 0 ? <span className="text-zinc-400">—</span> : (
+                    {t.lastComments.length === 0 ? <span className="text-zinc-400">Sem comentários</span> : (
                       <ul className="space-y-0.5">
                         {t.lastComments.map((c) => <li key={c.id} className="truncate"><span className="font-semibold">@{c.username}</span> {c.body}</li>)}
                       </ul>

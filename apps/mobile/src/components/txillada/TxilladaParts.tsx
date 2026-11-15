@@ -23,14 +23,14 @@ function usePulse(ms = 1100) {
   return p;
 }
 
-/** A pílula «AO VIVO» com a bolinha a pulsar (e o tempo ao lado, se o houver). */
+/** A pílula «AO VIVO» com o ícone da Txillada a pulsar (e o tempo ao lado, se o houver). */
 export function LiveBadge({ time, small = false }: { time?: string; small?: boolean }) {
   const p = usePulse();
-  const dot = useAnimatedStyle(() => ({ opacity: 0.45 + 0.55 * (1 - p.value), transform: [{ scale: 0.8 + 0.35 * p.value }] }));
+  const pulse = useAnimatedStyle(() => ({ opacity: 0.55 + 0.45 * (1 - p.value) }));
   return (
     <View style={[st.badgeRow]} accessibilityRole="text" accessibilityLabel={time ? `Ao vivo, ${time}` : 'Ao vivo'}>
       <View style={[st.badge, small && st.badgeSmall]}>
-        <Animated.View style={[st.dot, small && { width: 5, height: 5 }, dot]} />
+        <Animated.View style={pulse}><Icon name="txillada" size={small ? 11 : 14} color="#fff" strokeWidth={2.4} /></Animated.View>
         <Text style={[st.badgeText, small && { fontSize: 9.5 }]}>AO VIVO</Text>
       </View>
       {time ? <View style={st.time}><Text style={st.timeText}>{time}</Text></View> : null}
@@ -69,6 +69,7 @@ export function LiveRing({ children }: { children: React.ReactNode }) {
       </Svg>
       <View style={st.ringInner}>{children}</View>
       <View style={st.ringBadge} pointerEvents="none">
+        <Icon name="txillada" size={9} color="#fff" strokeWidth={2.6} />
         <Text style={st.ringBadgeText}>AO VIVO</Text>
       </View>
     </View>
@@ -79,7 +80,7 @@ export function LiveRing({ children }: { children: React.ReactNode }) {
 export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas não ficam gravadas: só se veem ao vivo.', onBack }: { title?: string; sub?: string; onBack: () => void }) {
   return (
     <View style={st.center}>
-      <View style={st.endIcon}><Icon name="video" size={30} color="#fff" /></View>
+      <View style={st.endIcon}><Icon name="txillada" size={32} color="#fff" /></View>
       <Text style={st.endTitle} accessibilityRole="header">{title}</Text>
       <Text style={st.endSub}>{sub}</Text>
       <Pressable onPress={onBack} style={({ pressed }) => [st.cta, pressed && { opacity: 0.85 }]} accessibilityRole="button">
@@ -131,7 +132,6 @@ const st = StyleSheet.create({
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 24, paddingHorizontal: 9, borderRadius: 6, backgroundColor: LIVE },
   badgeSmall: { height: 18, paddingHorizontal: 6, gap: 4, borderRadius: 5 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
   badgeText: { color: '#fff', fontSize: 11.5, fontWeight: '900', letterSpacing: 0.6 },
   time: { height: 24, paddingHorizontal: 8, borderRadius: 6, backgroundColor: 'rgba(14,14,18,0.5)', justifyContent: 'center' },
   timeText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
@@ -140,7 +140,7 @@ const st = StyleSheet.create({
   ring: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
   halo: { position: 'absolute', left: 0, top: 0, width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: LIVE_2 },
   ringInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  ringBadge: { position: 'absolute', bottom: -3, alignSelf: 'center', paddingHorizontal: 5, height: 16, borderRadius: 4, backgroundColor: LIVE, borderWidth: 1.5, borderColor: colors.white, justifyContent: 'center' },
+  ringBadge: { position: 'absolute', bottom: -3, alignSelf: 'center', paddingHorizontal: 5, height: 16, borderRadius: 4, backgroundColor: LIVE, borderWidth: 1.5, borderColor: colors.white, flexDirection: 'row', alignItems: 'center', gap: 2, justifyContent: 'center' },
   ringBadgeText: { color: '#fff', fontSize: 8.5, fontWeight: '900', letterSpacing: 0.4 },
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 12 },
   endIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

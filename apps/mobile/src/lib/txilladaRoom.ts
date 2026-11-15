@@ -256,6 +256,13 @@ export function useTxillada(id: string) {
         setConn('connected');
       } catch (e) {
         if (dead) return;
+        // 410 do join: acabou entre o GET e o join. Não é uma falha de ligação: o ecrã passa a «A Txillada acabou».
+        if (e instanceof ApiError && e.status === 410) {
+          dispatch({ t: 'event', ev: { type: 'txillada.ended', txilladaId: id, status: 'ended' }, me });
+          void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+          setConn('idle');
+          return;
+        }
         console.warn('[txillada] room', e);
         setConn('failed');
         setError(e instanceof ApiError ? errorText(e.status, e.message) : (e as Error)?.message || errorText(undefined));

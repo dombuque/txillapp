@@ -29,7 +29,7 @@ import { timeAgo } from '@/lib/time';
 import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
-import { noticeTarget as txilladaNoticeTarget, noticeText as txilladaNoticeText } from '@/lib/txillada';
+import { noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget, noticeText as txilladaNoticeText } from '@/lib/txillada';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -126,7 +126,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_answer':
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
-    case 'txillada_live': return { text: txilladaNoticeText(n.data) };
+    case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -263,7 +263,13 @@ function Row({ g, me }: { g: Group; me?: string }) {
   }
 
   const go = (t: string | null) => t && router.push(t as never);
-  const right = thumb ? (
+  // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
+  const txLive = n.kind === 'txillada_live' && (!n.txillada || n.txillada.status === 'live');
+  const right = n.kind === 'txillada_live' ? (
+    <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? 'Txillada ao vivo' : 'A Txillada já acabou'}>
+      <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
+    </View>
+  ) : thumb ? (
     <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel="Abrir a publicação">
       <Image source={{ uri: sized(thumb.url, 160) }} style={styles.thumb} contentFit="cover" />
       {thumb.video && <View style={styles.playDot}><Icon name="play" size={10} color="#fff" solid /></View>}
@@ -448,6 +454,7 @@ const styles = StyleSheet.create({
   sub: { marginTop: 2, fontSize: 14, color: colors.zinc600 },
   reply: { fontSize: 14, fontWeight: '600', color: colors.zinc500 },
   thumb: { width: 46, height: 46, borderRadius: 8, backgroundColor: colors.zinc100 },
+  txIcon: { width: 46, height: 46, borderRadius: 12, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   playDot: { position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   msg: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   msgText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },

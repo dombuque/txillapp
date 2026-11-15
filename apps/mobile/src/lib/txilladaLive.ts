@@ -1,6 +1,6 @@
 /**
  * O LiveKit no telemóvel (Android e iPhone): o @livekit/react-native por cima do @livekit/react-native-webrtc (o fork da
- * LiveKit do react-native-webrtc, que também serve as chamadas: ver react-native.config.js). O site usa o
+ * LiveKit do react-native-webrtc, que também serve as chamadas; o original já não está instalado). O site usa o
  * txilladaLive.web.ts (o bundle da web nunca importa os módulos nativos).
  *
  * Os módulos são carregados só quando se entra numa Txillada, e dentro de try: o @livekit/react-native mete polyfills

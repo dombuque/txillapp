@@ -52,6 +52,20 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
       router.push(`/txillada/${r.txillada.id}` as never);
       setTitle('');
     } catch (e) {
+      // 409 com `id`: já tenho uma a decorrer (noutro aparelho, ou a app fechou a meio). Volto a entrar nela como
+      // anfitrião, com a câmara que já está aberta aqui (o join dá ao anfitrião o token com canPublish).
+      const running = e instanceof ApiError && e.status === 409 && typeof e.extra?.id === 'string' ? (e.extra.id as string) : null;
+      if (running) {
+        try {
+          const access = await txilladaApi.join(running);
+          handOff(running, access, preview.keep(), preview.front);
+          router.push(`/txillada/${running}` as never);
+          setTitle('');
+        } catch (j) {
+          setMsg(j instanceof ApiError ? errorText(j.status, j.message) : errorText(undefined));
+        }
+        return;
+      }
       setMsg(e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined));
     } finally {
       setBusy(false);
@@ -107,7 +121,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
           <Text style={st.hint}>{hint}</Text>
           {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
           <Pressable onPress={() => void start()} disabled={busy} style={({ pressed }) => [st.go, (busy || !preview.tracks) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.goText}>Começar Txillada</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="txillada" size={22} color="#fff" strokeWidth={2.1} /><Text style={st.goText}>Começar Txillada</Text></>}
           </Pressable>
         </LinearGradient>
       </View>
@@ -150,7 +164,7 @@ const st = StyleSheet.create({
   audTextOn: { color: '#fff' },
   hint: { color: 'rgba(255,255,255,0.7)', fontSize: 12.5, textAlign: 'center', marginTop: -2 },
   msg: { color: '#fff', backgroundColor: 'rgba(220,38,38,0.85)', borderRadius: 12, overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  go: { height: 52, borderRadius: 26, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
+  go: { height: 52, borderRadius: 26, backgroundColor: colors.brand, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
   goText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
   modes: { position: 'absolute', justifyContent: 'center' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 0, paddingHorizontal: 6 },

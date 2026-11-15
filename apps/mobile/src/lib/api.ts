@@ -138,6 +138,8 @@ export interface AppNotification {
   thumb?: { url: string; video: boolean } | null;
   /** Só nos brindes (`cheer`): quantos ainda estão postos nesta linha e os dois últimos a brindar. */
   cheer?: { count: number; actors: ({ username: string; displayName: string } & Badged)[] };
+  /** Só em `txillada_live`: o estado de agora da Txillada ('live' ainda a decorrer; null se já não existe). */
+  txillada?: { status: 'live' | 'ended' | 'cut' | null };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
 export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';

@@ -2,7 +2,7 @@
  * Regras do R8 (APK de release com minify) que têm de sobreviver a um `expo prebuild --clean`: acrescenta-as ao
  * android/app/proguard-rules.pro gerado, entre marcas, sem as repetir quando o prebuild corre outra vez.
  *
- * react-native-webrtc: as classes org.webrtc (e o jni_zero / J.N das versões novas do libwebrtc) são chamadas pelo código
+ * @livekit/react-native-webrtc (o fork do react-native-webrtc, com os mesmos pacotes): as classes org.webrtc (e o jni_zero / J.N das versões novas do libwebrtc) são chamadas pelo código
  * nativo por JNI; o módulo da ponte (com.oney.WebRTCModule) é guardado inteiro para o R8 não lhe mexer (só inlining,
  * mas assim fica igual ao que corre em dev).
  *
@@ -21,7 +21,7 @@ const START = '# >>> txillapp: regras extra (plugins/withProguardRules.js)';
 const END = '# <<< txillapp';
 
 const RULES = [
-  '# react-native-webrtc',
+  '# @livekit/react-native-webrtc (o fork do react-native-webrtc)',
   '-keep class org.webrtc.** { *; }',
   '-dontwarn org.webrtc.**',
   '-keep class org.jni_zero.** { *; }',

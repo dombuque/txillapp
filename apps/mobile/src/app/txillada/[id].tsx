@@ -17,6 +17,7 @@ import { EndedView, GlassButton, HostSummary, LiveBadge, ViewersPill } from '@/c
 import { TxilladaVideo } from '@/components/txillada/TxilladaVideo';
 import { SITE_URL } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
+import { useNoIndex } from '@/lib/noIndex';
 import { storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
 import { COMMENT_MAX, commentActions, elapsed, liveClock, liveSummary, shareLink, shareMessage, type TxilladaComment } from '@/lib/txillada';
@@ -38,6 +39,8 @@ export default function TxilladaScreen() {
   const wide = useDesktop();
   const kb = useKeyboardHeight();
   const tx = useTxillada(String(id));
+  // As ligações das Txilladas nunca aparecem nos motores de busca (também no nginx e no robots.txt).
+  useNoIndex();
   const { dto, live, kind, ui, host } = tx;
   const now = useNow(kind === 'live');
   const [text, setText] = useState('');

@@ -301,6 +301,7 @@ export function errorText(status: number | undefined, message?: string | null): 
     case 403: return m || 'Não podes ver esta Txillada.';
     case 404: return 'Esta Txillada não existe ou não a podes ver.';
     case 409: return m || 'Já tens uma Txillada a decorrer.';
+    case 410: return m || 'A Txillada já acabou.';
     case 429: return m || 'Calma! Espera um bocadinho antes de comentar outra vez.';
     case 503: return m || 'A Txillada ainda não está disponível.';
     default: return m || 'Não consegui ligar à Txillada. Verifica a internet e tenta outra vez.';
@@ -321,6 +322,14 @@ export function noticeText(data: { title?: unknown } | null | undefined): string
 export function noticeTarget(data: { txilladaId?: unknown; id?: unknown } | null | undefined): string | null {
   const id = typeof data?.txilladaId === 'string' && data.txilladaId ? data.txilladaId : typeof data?.id === 'string' && data.id ? data.id : null;
   return id ? `/txillada/${encodeURIComponent(id)}` : null;
+}
+/**
+ * A lista das notificações junta `txillada: { status }` (o estado de agora; null se já não existe). Ainda a decorrer:
+ * nada a acrescentar; acabada (ou cortada, ou apagada): «Já acabou». Sem o campo (servidor antigo): não se sabe, nada.
+ */
+export function noticeSub(tx: { status?: unknown } | null | undefined): string | undefined {
+  if (!tx || typeof tx !== 'object') return undefined;
+  return tx.status === 'live' ? undefined : 'Já acabou';
 }
 
 // ─── Os balões a flutuar ───────────────────────────────────────────────────────────────────────────────────────────────

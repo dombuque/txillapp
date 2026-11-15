@@ -24,7 +24,7 @@ export function NotifyPrefs() {
   return (
     <SettingsSection title="O que me pode notificar">
       {q.data.categories.filter((c) => NOTIFY_LABELS[c]).map((c) => (
-        <SettingRow key={c} anchor={notifyEntryId(c)} icon="bell" title={NOTIFY_LABELS[c][0]} description={NOTIFY_LABELS[c][1]} toggle={{ on: !off.includes(c), onChange: (v) => void set(c, v) }} />
+        <SettingRow key={c} anchor={notifyEntryId(c)} icon={c === 'txilladas' ? 'txillada' : 'bell'} title={NOTIFY_LABELS[c][0]} description={NOTIFY_LABELS[c][1]} toggle={{ on: !off.includes(c), onChange: (v) => void set(c, v) }} />
       ))}
     </SettingsSection>
   );

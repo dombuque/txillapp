@@ -46,7 +46,7 @@ const seoTags = (page) => {
   const t = [
     `<title>${esc(page.title)}</title>`,
     `<meta name="description" content="${esc(page.desc)}"/>`,
-    `<meta name="robots" content="${page.index ? 'index, follow, max-image-preview:large' : 'noindex, follow'}"/>`,
+    `<meta name="robots" content="${page.robots ?? (page.index ? 'index, follow, max-image-preview:large' : 'noindex, follow')}"/>`,
     '<meta property="og:type" content="website"/>',
     '<meta property="og:site_name" content="Txillapp"/>',
     '<meta property="og:locale" content="pt_PT"/>',
@@ -95,6 +95,8 @@ let n = 0;
     else if (f.endsWith('.html')) {
       const rel = p.slice(dir.length + 1).replace(/\\/g, '/');
       const page = PAGES[rel] ?? { path: '/' + rel.replace(/\.html$/, ''), title: 'Txillapp', desc: HOME_DESC, index: false };
+      // As Txilladas (os lives) nunca entram nos motores de busca: nem indexar, nem seguir ligações, nem guardar cópia.
+      if (rel.startsWith('txillada/')) page.robots = 'noindex, nofollow, noarchive';
       let s = readFileSync(p, 'utf8');
       s = s
         .replace(/<html lang="[^"]*"/, '<html lang="pt"')
@@ -116,6 +118,8 @@ writeFileSync(join(dir, 'robots.txt'), [
   'Allow: /api/v1/media/',
   'Allow: /api/v1/avatars/',
   'Disallow: /app/',
+  // As Txilladas (os lives): só se veem ao vivo e nunca aparecem nos resultados (também X-Robots-Tag no nginx).
+  'Disallow: /txillada/',
   '',
   `Sitemap: ${SITE}/sitemap.xml`,
   '',

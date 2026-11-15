@@ -239,8 +239,14 @@ test('notificação txillada_live: «abriu uma Txillada: <título>» e tocar ent
   assert.equal(t.noticeTarget({ txilladaId: 't1' }), '/txillada/t1');
   assert.equal(t.noticeTarget({ id: 't2' }), '/txillada/t2');
   assert.equal(t.noticeTarget({}), null);
+  // A lista junta `txillada: { status }`: acabada (ou já não existe) diz «Já acabou»; a decorrer ou sem o campo, nada.
+  assert.equal(t.noticeSub({ status: 'live' }), undefined);
+  assert.equal(t.noticeSub({ status: 'ended' }), 'Já acabou');
+  assert.equal(t.noticeSub({ status: 'cut' }), 'Já acabou');
+  assert.equal(t.noticeSub({ status: null }), 'Já acabou');
+  assert.equal(t.noticeSub(undefined), undefined);
   const n = read('src/app/notifications.tsx');
-  assert.match(n, /case 'txillada_live': return \{ text: txilladaNoticeText\(n\.data\) \};/);
+  assert.match(n, /case 'txillada_live': return \{ text: txilladaNoticeText\(n\.data\), sub: txilladaNoticeSub\(n\.txillada\) \};/);
   assert.match(n, /case 'txillada_live': return txilladaNoticeTarget\(n\.data\);/);
 });
 
@@ -357,6 +363,7 @@ test('erros em palavras: o servidor primeiro; senão um texto por cada caso', ()
   assert.equal(t.errorText(403), 'Não podes ver esta Txillada.');
   assert.equal(t.errorText(404, 'Not found'), 'Esta Txillada não existe ou não a podes ver.');
   assert.equal(t.errorText(409), 'Já tens uma Txillada a decorrer.');
+  assert.equal(t.errorText(410), 'A Txillada já acabou.');
   assert.match(t.errorText(429), /Espera um bocadinho/);
   assert.equal(t.errorText(503), 'A Txillada ainda não está disponível.');
   assert.match(t.errorText(undefined, 'Erro inesperado'), /internet/);
@@ -364,13 +371,13 @@ test('erros em palavras: o servidor primeiro; senão um texto por cada caso', ()
 
 // ── pacotes e plataforma ──────────────────────────────────────────────────────────────────────────────────────────────
 
-test('pacotes: LiveKit no telemóvel e no site; o react-native-webrtc não se liga (o fork serve também as chamadas)', () => {
+test('pacotes: LiveKit no telemóvel e no site; o react-native-webrtc saiu (o fork serve também as chamadas)', () => {
   const pkg = JSON.parse(read('package.json'));
   for (const p of ['@livekit/react-native', '@livekit/react-native-webrtc', '@livekit/react-native-expo-plugin', 'livekit-client']) assert.ok(pkg.dependencies[p], p);
+  // Os dois juntos davam classes repetidas (com.oney.WebRTCModule) no Android e no iPhone.
+  assert.equal(pkg.dependencies['react-native-webrtc'], undefined);
   const app = JSON.parse(read('app.json'));
   assert.ok(app.expo.plugins.some((p) => (Array.isArray(p) ? p[0] : p) === '@livekit/react-native-expo-plugin'));
-  const rnc = read('react-native.config.js');
-  assert.match(rnc, /'react-native-webrtc': \{ platforms: \{ android: null, ios: null \} \}/);
   const calls = read('src/lib/calls/webrtc.ts');
   assert.match(calls, /require\('@livekit\/react-native-webrtc'\)/);
   assert.doesNotMatch(calls, /require\('react-native-webrtc'\)/);
@@ -385,4 +392,15 @@ test('a Txillada não se grava: nada de gravar, replay ou «guardar como tcheka�
     const s = read(f);
     assert.doesNotMatch(s, /replay|egress|startRecording|guardar como tcheka/i, f);
   }
+});
+
+test('as ligações das Txilladas não entram nos motores de busca (página, robots.txt e nginx)', () => {
+  const exp = read('scripts/post-export-web.mjs');
+  assert.match(exp, /'Disallow: \/txillada\/'/);
+  assert.match(exp, /rel\.startsWith\('txillada\/'\)\) page\.robots = 'noindex, nofollow, noarchive'/);
+  assert.match(read('src/lib/noIndex.ts'), /noindex, nofollow, noarchive/);
+  assert.match(read('src/app/txillada/[id].tsx'), /useNoIndex\(\)/);
+  const ngx = readFileSync(new URL('../../../infra/prod/nginx/conf.d/txillapp.conf', import.meta.url), 'utf8');
+  assert.match(ngx, /map "\$host\$request_uri" \$robots_tag/);
+  assert.match(ngx, /txillada\(\[\/\?\]\|\$\)" "noindex, nofollow, noarchive"/);
 });

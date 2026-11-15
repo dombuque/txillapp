@@ -1,7 +1,7 @@
 /**
  * WebRTC no telemóvel (Android e iPhone) com o @livekit/react-native-webrtc: o fork da LiveKit do react-native-webrtc (a
- * mesma API e o mesmo módulo nativo, com.oney.WebRTCModule), que a Txillada também usa. Os dois juntos davam classes
- * repetidas no build, por isso o react-native-webrtc já não se liga (react-native.config.js). O site usa o webrtc.web.ts
+ * mesma API e o mesmo módulo nativo, com.oney.WebRTCModule), que a Txillada também usa. O react-native-webrtc saiu do
+ * package.json (os dois juntos davam classes repetidas no build). O site usa o webrtc.web.ts
  * (o bundle da web nunca importa o módulo nativo).
  *
  * O módulo nativo é carregado só quando é preciso e dentro de try: uma app instalada antes de o módulo existir (APK antigo)
