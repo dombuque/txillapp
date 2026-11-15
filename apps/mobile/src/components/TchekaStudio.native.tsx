@@ -22,7 +22,7 @@ import {
 import { buildComposeRequest, compatRequest, composeBlocker, requestSignature } from '@/lib/studio/composeRequest';
 import { clipFit, withFit, type ClipFit } from '@/lib/studio/fit';
 import { Cancelled, pollJob, requestCompose, uploadAll, type Signal } from '@/lib/studio/composeRunner';
-import { debounce, DRAFT_DEBOUNCE_MS, newDraftId } from '@/lib/studio/drafts';
+import { newDraftId } from '@/lib/studio/drafts';
 import {
   animState, fxSeconds, sourceOffset, newSticker, newText, restingTime, sanitizeFx, sanitizeOverlay, sanitizePano, transitionFor,
   type ClipFx, type Overlay, type StickerContent, type StickerOverlay, type TextOverlay, type TransitionId,
@@ -578,10 +578,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   }
 
   // ---------------------------------------------------------------- rascunhos (ficheiros no telemóvel)
+  // Só se guarda com «Guardar rascunho» ao sair; «Apagar» tira-o do telemóvel (também o que já estava guardado). Nada sozinho.
   const draftKey = useRef(draftId ?? draft?.id ?? newDraftId());
-  const saver = useMemo(() => debounce((snap: { clips: Item[]; extra: { key: string; uri: string; mime: string }[]; settings: StudioSettings; seconds: number; context?: Record<string, unknown> }) => {
-    void studioStore().save({ id: draftKey.current, ...snap, settings: { ...snap.settings } }).catch(() => undefined);
-  }, DRAFT_DEBOUNCE_MS), []);
 
   // ---------------------------------------------------------------- os efeitos de voz a ouvir (preparados no servidor)
   const fxTargets = useMemo(() => previewTargets({
@@ -606,13 +604,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const skiaFails = useSkiaFailures();
   const settingsNow: StudioSettings = { music, rhythm, origVol, musicVol, coverAt, overlays: hist.present.overlays, mix: mix.voice ? { ...mix, voice: { ...mix.voice, uri: undefined } } : mix, applied, pano };
   const voiceFile = mix.voice?.uri ? [{ key: mix.voice.id, uri: mix.voice.uri, mime: mix.voice.mime ?? 'audio/mp4' }] : [];
-  const settingsSig = JSON.stringify(settingsNow).length + ':' + JSON.stringify(settingsNow).slice(-200);
-  useEffect(() => {
-    if (run) return;
-    if (!items.length) { saver.cancel(); if (hist.past.length) void studioStore().remove(draftKey.current).catch(() => undefined); return; }
-    saver({ clips: items, extra: voiceFile, settings: settingsNow, seconds: Math.round(playTotal * 100) / 100, context: draftContext });
-  }, [items, settingsSig, !!run]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => saver.flush(), [saver]);
+  function keepDraftNow() {
+    void studioStore().save({ id: draftKey.current, clips: items, extra: voiceFile, settings: { ...settingsNow }, seconds: Math.round(playTotal * 100) / 100, context: draftContext }).catch(() => undefined);
+  }
+  function dropDraftNow() { void studioStore().remove(draftKey.current).catch(() => undefined); }
   // Fechar o estúdio pára os envios da Montagem mágica que estejam a meio.
   useEffect(() => () => cancelMagicUploads(draftKey.current), []);
 
@@ -658,7 +653,6 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     if (s.cancelled) return;
     let rec: JobRecord = (await loadJobRecord(draftKey.current)) ?? emptyRecord(draftKey.current);
     try {
-      saver.flush();
       const files = uploadFiles(items, mix.voice);
       const up = await uploadAll(files, rec, { signal: s, onState: setRun, onRecord: (r) => { rec = r; void saveJobRecord(r); } });
       rec = up.rec;
@@ -729,8 +723,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   function close() {
     if (run) { cancelBuild(); return; }
     clock.pause();
-    saver.flush();
-    onClose();
+    if (!items.length) { dropDraftNow(); onClose(); return; }
+    Alert.alert('Sair do estúdio?', 'Guarda um rascunho neste telemóvel para continuares depois, ou apaga o que editaste.', [
+      { text: 'Continuar a editar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: () => { dropDraftNow(); onClose(); } },
+      { text: 'Guardar rascunho', onPress: () => { keepDraftNow(); onClose(); } },
+    ]);
   }
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

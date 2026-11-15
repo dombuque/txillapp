@@ -15,7 +15,7 @@ import { applyLive, createStudioGraph, scheduleMix, sliceBuffer, type MixSchedul
 import { defaultMix, mixParts, mixTimingParts, voiceSecondsIn, type StudioMix, type Template } from '@/lib/studio/audioMix';
 import { beatsFrom, planRhythm, type BeatState } from '@/lib/studio/audioRhythm';
 import { stickerById } from '@/lib/stickers';
-import { debounce, DRAFT_DEBOUNCE_MS, newDraftId, studioDrafts } from '@/lib/studio/drafts';
+import { newDraftId, studioDrafts } from '@/lib/studio/drafts';
 import {
   animState, fxSeconds, newSticker, newText, playbackRateAt, resolveFx, restingTime, reverseFrameIndex, sanitizeFx, sanitizeOverlay, sanitizePano, sourceOffset, transitionFor,
   type ClipFx, type Overlay, type StickerContent, type StickerOverlay, type TextOverlay,
@@ -1077,7 +1077,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       return;
     }
     if (playingRef.current) pause();
-    onClose();
+    if (!items.length) { dropDraftNow(); onClose(); return; }
+    Alert.alert('Sair do estúdio?', 'Guarda um rascunho neste aparelho para continuares depois, ou apaga o que editaste.', [
+      { text: 'Continuar a editar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: () => { dropDraftNow(); onClose(); } },
+      { text: 'Guardar rascunho', onPress: () => { keepDraftNow(); onClose(); } },
+    ]);
   }
   /** Pára a montagem em curso: o ciclo sai no frame seguinte e a edição volta a ficar ativa. */
   function cancelBuild() { if (progressRef.current === null) return; cancelled.current = true; gen.current += 1; }
@@ -1526,21 +1531,16 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     return () => window.removeEventListener('keydown', h);
   }, []);
 
-  // O rascunho: guarda-se a cada mudança (com debounce); sem clipes, apaga-se.
+  // O rascunho: só se guarda quando se escolhe «Guardar rascunho» ao sair; «Apagar» tira-o deste aparelho (também o que
+  // já estava guardado, se o projeto veio de um rascunho). Nada se guarda sozinho.
   const draftKey = useRef(draftId ?? draft?.id ?? newDraftId());
-  const saver = useMemo(() => debounce((snap: { clips: Item[]; extra: { key: string; uri: string; mime: string }[]; settings: StudioSettings; seconds: number; context?: Record<string, unknown> }) => {
-    void studioDrafts().save({ id: draftKey.current, ...snap, settings: { ...snap.settings }, poster: posterOf(canvasRef.current) }).catch(() => undefined);
-  }, DRAFT_DEBOUNCE_MS), []);
   // O som vai sem o URL da voz-off (só vale nesta sessão): o ficheiro dela vai à parte, com a chave dela.
   const settingsNow: StudioSettings = { music, rhythm, origVol, musicVol, coverAt, overlays: hist.present.overlays, mix: mix.voice ? { ...mix, voice: { ...mix.voice, uri: undefined } } : mix, applied, pano };
   const voiceFile = mix.voice?.uri ? [{ key: mix.voice.id, uri: mix.voice.uri, mime: mix.voice.mime ?? 'audio/webm' }] : [];
-  const settingsSig = studioSignature(settingsNow);
-  useEffect(() => {
-    if (progress !== null) return;
-    if (!items.length) { saver.cancel(); if (hist.past.length) void studioDrafts().remove(draftKey.current).catch(() => undefined); return; }
-    saver({ clips: items, extra: voiceFile, settings: settingsNow, seconds: Math.round(playTotal * 100) / 100, context: draftContext });
-  }, [items, settingsSig, progress !== null]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => saver.flush(), [saver]);
+  function keepDraftNow() {
+    void studioDrafts().save({ id: draftKey.current, clips: items, extra: voiceFile, settings: { ...settingsNow }, seconds: Math.round(playTotal * 100) / 100, context: draftContext, poster: posterOf(canvasRef.current) }).catch(() => undefined);
+  }
+  function dropDraftNow() { void studioDrafts().remove(draftKey.current).catch(() => undefined); }
 
   // Os object URLs do estúdio (rascunho reaberto, ficheiros juntados ou substituídos, fotos congeladas): saem quando nenhum
   // passo do histórico os usa e todos ao sair, sempre depois das gravações do rascunho que ainda os possam ler.
@@ -1555,7 +1555,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   useEffect(() => {
     void studioDrafts().idle().then(() => { const h = histRef.current; if (alive.current) urls.current?.sweep(urlsInUse([...h.past, h.present, ...h.future])); });
   }, [hist]);
-  useEffect(() => () => { saver.flush(); const k = urls.current; void studioDrafts().idle().then(() => k?.releaseAll()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { const k = urls.current; void studioDrafts().idle().then(() => k?.releaseAll()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const pickedMusic = (t: Track) => {
     // A música nova entra no ponto onde a pré-visualização estava (o som começa nesse instante da faixa).
     restartFrom.current = pausedAt.current;

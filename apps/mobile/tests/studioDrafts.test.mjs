@@ -134,16 +134,27 @@ test('debounce: só guarda depois de parar; flush guarda já; cancel esquece', (
   assert.deepEqual(calls, [3, 4]);
 });
 
-test('ligação: o estúdio guarda a cada mudança; criar oferece «Continuar o rascunho?» e apaga-o depois de publicar', () => {
-  const studio = read('components', 'TchekaStudio.tsx');
-  assert.match(studio, /studioDrafts\(\)\.save\(/);
-  assert.match(studio, /debounce\(/);
+test('ligação: nada se guarda sozinho; ao sair «Guardar rascunho» ou «Apagar» (de vez); criar oferece «Continuar o rascunho?»', () => {
+  for (const f of ['TchekaStudio.tsx', 'TchekaStudio.native.tsx']) {
+    const studio = read('components', f);
+    assert.doesNotMatch(studio, /debounce\(|saver/, `${f}: sem gravação automática`);
+    assert.match(studio, /Sair do estúdio\?/, f);
+    assert.match(studio, /text: 'Apagar', style: 'destructive', onPress: \(\) => \{ dropDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /text: 'Guardar rascunho', onPress: \(\) => \{ keepDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /if \(!items\.length\) \{ dropDraftNow\(\); onClose\(\); return; \}/, f);
+    // A única gravação é a do botão.
+    assert.equal(studio.match(/\(\)\.save\(/g)?.length, 1, `${f}: uma só gravação`);
+  }
   const nw = read('app', '(tabs)', 'new.tsx');
   assert.match(nw, /Continuar o rascunho\?/);
   assert.match(nw, /studioDrafts\(\)\.remove\(/);
   assert.match(nw, /Rascunhos/);
+  assert.doesNotMatch(nw, /useEffect\(\(\) => \(\) => \{\s*const l = latest\.current;/, 'a publicação também não se guarda ao sair do ecrã');
   const sheet = read('components', 'studio', 'StudioDrafts.tsx');
   assert.match(sheet, /Apagar o rascunho/);
+  // O caixote confirma na própria folha (no PWA a caixa por cima da folha ficava escondida).
+  assert.doesNotMatch(sheet, /Alert\.alert/);
+  assert.match(sheet, /onPress=\{\(\) => \{ setAsking\(null\); onDelete\(d\.id\); \}\}/);
 });
 
 test('object URLs: saem quando nenhum passo do histórico os usa, todos ao sair, e só os do estúdio', async () => {
@@ -176,7 +187,7 @@ test('o armazenamento diz quando as gravações acabaram (antes de libertar os U
 test('ligação: o estúdio liberta os URLs (histórico e ao sair), o ecrã de criar os da câmara já montados', () => {
   const studio = read('components', 'TchekaStudio.tsx');
   assert.match(studio, /urls\.current\?\.sweep\(urlsInUse\(\[\.\.\.h\.past, h\.present, \.\.\.h\.future\]\)\)/);
-  assert.match(studio, /saver\.flush\(\); const k = urls\.current; void studioDrafts\(\)\.idle\(\)\.then\(\(\) => k\?\.releaseAll\(\)\);/);
+  assert.match(studio, /useEffect\(\(\) => \(\) => \{ const k = urls\.current; void studioDrafts\(\)\.idle\(\)\.then\(\(\) => k\?\.releaseAll\(\)\);/);
   assert.match(studio, /more\.forEach\(\(c\) => urls\.current\?\.own\(c\.uri\)\)/);
   assert.match(studio, /urls\.current\?\.own\(c\?\.uri\)/, 'substituir');
   const nw = read('app', '(tabs)', 'new.tsx');

@@ -56,7 +56,7 @@ test('ligação: o projeto leva os clipes, as camadas e o som; o desfazer abrang
   assert.match(studio, /interface Project \{ clips: Item\[\]; overlays: Overlay\[\]; mix: StudioMix; origVol: number; musicVol: number; applied: string \| null; uris: string\[\] \}/);
   assert.match(studio, /useStudioAudio\(\{[^\n]*mix, setMix \}\)/, 'o som do painel é o do projeto');
   assert.match(studio, /if \(auto\) fixPresent\(step\); else commit\(step, \{ coalesce: 'mix' \}\);/, 'o trecho sugerido não é um passo');
-  assert.match(studio, /settings: \{ \.\.\.snap\.settings \}/);
+  assert.match(studio, /settings: \{ \.\.\.settingsNow \}/);
   assert.match(studio, /mix: mix\.voice \? \{ \.\.\.mix, voice: \{ \.\.\.mix\.voice, uri: undefined \} \} : mix/, 'o rascunho leva o som sem o URL da sessão');
   assert.match(studio, /extra: voiceFile/, 'e o ficheiro da voz-off à parte');
   assert.match(studio, /onGesture=\{\(ph\) => \{ ovGesture\.current = /, 'arrastar um texto no palco é um passo');

@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { agoLabel, draftLabel, type StudioDraft } from '@/lib/studio/drafts';
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
@@ -15,10 +16,17 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
   onNew: () => void;
 }) {
   const [first, ...rest] = drafts;
-  const confirmDelete = (d: StudioDraft) => Alert.alert('Apagar o rascunho?', 'Os clipes e as edições deste rascunho saem deste aparelho.', [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Apagar', style: 'destructive', onPress: () => onDelete(d.id) },
-  ]);
+  // Confirmar aqui mesmo (o caixote passa a «Apagar»): uma caixa por cima da folha ficava escondida no PWA e nada se apagava.
+  const [asking, setAsking] = useState<string | null>(null);
+  const trash = (d: StudioDraft, size: number) => asking === d.id ? (
+    <Pressable onPress={() => { setAsking(null); onDelete(d.id); }} hitSlop={8} style={st.confirm} accessibilityRole="button" accessibilityLabel="Apagar de vez o rascunho">
+      <Text style={st.confirmText}>Apagar</Text>
+    </Pressable>
+  ) : (
+    <Pressable onPress={() => setAsking(d.id)} hitSlop={8} style={st.trash} accessibilityRole="button" accessibilityLabel="Apagar o rascunho">
+      <Icon name="trash" size={size} color="#fff" />
+    </Pressable>
+  );
   const poster = (d: StudioDraft, big: boolean) => (
     <View style={[big ? st.posterBig : st.poster]}>
       {d.poster ? <Image source={{ uri: d.poster }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="film" size={big ? 28 : 18} color="rgba(255,255,255,0.6)" />}
@@ -34,9 +42,7 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
           <Text style={st.sub}>Guardado {agoLabel(first.savedAt)}</Text>
           <Text style={st.sub}>Continua de onde ficaste: os cortes, a ordem e a música ficaram.</Text>
         </View>
-        <Pressable onPress={() => confirmDelete(first)} hitSlop={8} style={st.trash} accessibilityRole="button" accessibilityLabel="Apagar o rascunho">
-          <Icon name="trash" size={18} color="#fff" />
-        </Pressable>
+        {trash(first, 18)}
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Pressable onPress={onNew} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>Começar de novo</Text></Pressable>
@@ -54,9 +60,7 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
                   <Text style={st.sub}>{agoLabel(d.savedAt)}</Text>
                 </View>
                 <Pressable onPress={() => onContinue(d)} style={st.small} accessibilityRole="button" accessibilityLabel={`Abrir o rascunho de ${draftLabel(d)}`}><Text style={st.smallText}>Abrir</Text></Pressable>
-                <Pressable onPress={() => confirmDelete(d)} hitSlop={8} style={st.trash} accessibilityRole="button" accessibilityLabel="Apagar o rascunho">
-                  <Icon name="trash" size={16} color="#fff" />
-                </Pressable>
+                {trash(d, 16)}
               </View>
             ))}
           </ScrollView>
@@ -73,6 +77,8 @@ const st = StyleSheet.create({
   heroTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
   sub: { color: 'rgba(255,255,255,0.62)', fontSize: 14 },
   trash: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  confirm: { height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center' },
+  confirmText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   btn: { flex: 1, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   ghost: { backgroundColor: 'rgba(255,255,255,0.1)' },
   primary: { backgroundColor: colors.brand },

@@ -69,7 +69,7 @@ test('sair do estúdio ou abrir o seletor de música pára a pré-visualização
   assert.match(studio, /function openPicker\(\) \{ pickerWasPlaying\.current = playingRef\.current; if \(playingRef\.current\) pause\(\); setPickMusic\(true\); \}/);
   assert.match(studio, /<Pressable onPress=\{openPicker\}/);
   assert.match(studio, /<MusicPicker allowLocal onClose=\{closePicker\}/);
-  assert.match(studio, /if \(playingRef\.current\) pause\(\);\n\s+onClose\(\);/, 'o × pára antes de fechar');
+  assert.match(studio, /if \(playingRef\.current\) pause\(\);\n\s+if \(!items\.length\) \{ dropDraftNow\(\); onClose\(\); return; \}/, 'o × pára antes de fechar (e de perguntar pelo rascunho)');
   assert.match(studio, /e\.videos\.forEach\(\(v\) => \{ v\.pause\(\);/, 'ao desmontar, os vídeos param');
   assert.match(studio, /void e\.ac\?\.close\(\)/, 'e o som fecha');
 });

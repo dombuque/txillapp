@@ -212,7 +212,7 @@ export default function Compose() {
   const [studio, setStudio] = useState(false);
   /** O estúdio abre com a «Montagem mágica» (o botão por cima da câmara, com 2 ou mais ficheiros). */
   const [studioMagic, setStudioMagic] = useState(false);
-  /** Rascunhos do estúdio (guardados sozinhos a cada mudança, no IndexedDB): «Continuar o rascunho?» ao entrar em Tcheka. */
+  /** Rascunhos do estúdio (só os guardados com «Guardar rascunho» ao sair): «Continuar o rascunho?» ao entrar em Tcheka. */
   const [studioOffer, setStudioOffer] = useState<StudioDraft[] | null>(null);
   const studioOffered = useRef(false);
   const [studioDraft, setStudioDraft] = useState<StudioDraftIn | null>(null);
@@ -289,13 +289,7 @@ export default function Compose() {
     setStep('write');
   }
 
-  // Se saíres por outro caminho (menu, voltar), o que escreveste fica guardado em vez de se perder.
-  const latest = useRef({ hasContent, snapshot });
-  latest.current = { hasContent, snapshot };
-  useEffect(() => () => {
-    const l = latest.current;
-    if (!settled.current && l.hasContent) void saveDraft(draftKey.current, l.snapshot());
-  }, []);
+  // Nada se guarda sozinho: um rascunho só fica com «Guardar rascunho» (ao sair com o «x»).
 
   function reset() {
     setBody('');
