@@ -23,6 +23,6 @@ import { PublicPostController, ShareController } from './share.controller';
   imports: [AuthModule, WalletModule, MusicModule, BoostsModule, NearbyModule, SoundsModule, MediaModule],
   controllers: [FeedController, PostsController, GiftsController, ShareController, PublicPostController, SoundsController, PostDownloadController],
   providers: [PostsService, MusicBakeService, PostDownloadService],
-  exports: [PostsService],
+  exports: [PostsService, PostDownloadService],
 })
 export class PostsModule {}
