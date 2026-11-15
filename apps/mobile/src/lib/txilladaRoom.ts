@@ -20,7 +20,7 @@ import {
   applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withComments, withDto,
   type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent,
 } from '@/lib/txillada';
-import { askBroadcast, attachAudio, captureResolution, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
+import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
 
@@ -219,7 +219,7 @@ export function useTxillada(id: string) {
         if (dead) { stopTracks(handed?.tracks); return; }
         await liveAudio(true, amHost);
         undo.push(() => void liveAudio(false, amHost));
-        const room = new lk.Room({ adaptiveStream: !amHost, dynacast: amHost, disconnectOnPageLeave: true });
+        const room = new lk.Room({ adaptiveStream: !amHost && adaptiveVideo, dynacast: amHost, disconnectOnPageLeave: true });
         roomRef.current = room;
         undo.push(() => { void room.disconnect(); if (roomRef.current === room) roomRef.current = null; });
         room.on(lk.RoomEvent.TrackSubscribed, (track) => {
@@ -231,7 +231,7 @@ export function useTxillada(id: string) {
         });
         room.on(lk.RoomEvent.Reconnecting, () => setConn('reconnecting'));
         room.on(lk.RoomEvent.Reconnected, () => setConn('connected'));
-        room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
+        room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio));
         room.on(lk.RoomEvent.Disconnected, (reason) => {
           if (dead) return;
           if (reason === lk.DisconnectReason.PARTICIPANT_REMOVED && !amHost) setError('Saíste desta Txillada: o anfitrião tirou-te.');
@@ -252,7 +252,7 @@ export function useTxillada(id: string) {
           await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true });
           await room.localParticipant.publishTrack(tracks.audio, { source: lk.Track.Source.Microphone });
         }
-        setAudioBlocked(!room.canPlaybackAudio);
+        setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio);
         setConn('connected');
       } catch (e) {
         if (dead) return;
@@ -293,7 +293,7 @@ export function useTxillada(id: string) {
   /** O som no browser pode precisar de um toque (as regras do autoplay). */
   async function startAudio() {
     try { await roomRef.current?.startAudio(); } catch { /* fica bloqueado */ }
-    setAudioBlocked(!(roomRef.current?.canPlaybackAudio ?? true));
+    setAudioBlocked(audioNeedsTap && !(roomRef.current?.canPlaybackAudio ?? true));
   }
 
   /** Manda um comentário. Devolve a mensagem de erro, ou null se correu bem. */

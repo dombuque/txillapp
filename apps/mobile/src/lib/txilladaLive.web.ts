@@ -54,6 +54,12 @@ export function attachAudio(track: unknown): () => void {
   };
 }
 
+/** No browser o som pode ficar bloqueado (as regras do autoplay) até um toque: o «Toca para ouvir». */
+export const audioNeedsTap = true;
+
+/** No browser quem vê usa o «adaptive stream» (o vídeo pára com o separador escondido e segue o tamanho do <video>). */
+export const adaptiveVideo = true;
+
 /** No browser pede-se logo ao alto (9:16): uma webcam deitada é cortada ao meio, como fica no cartão. */
 export const captureResolution = { width: 720, height: 1280, frameRate: 30, aspectRatio: 9 / 16 };
 
