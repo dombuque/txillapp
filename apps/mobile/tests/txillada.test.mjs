@@ -194,6 +194,92 @@ test('toque longo num comentário: o anfitrião apaga e expulsa (menos a si); o 
   assert.deepEqual(t.commentActions(null, other, 'zeca'), []);
 });
 
+test('o menu de um comentário: quem vê, o anfitrião e o próprio; acabada ou sem sessão, nada', () => {
+  const other = cm('b', 1, 'ana');
+  const mine = cm('a', 1, 'eu');
+  const hostC = cm('c', 1, 'zeca');
+  assert.deepEqual(t.commentMenu(dto(), other, 'eu'), ['reply', 'cheer', 'report']);
+  assert.deepEqual(t.commentMenu(dto({ canComment: false }), other, 'eu'), ['cheer', 'report']);
+  assert.deepEqual(t.commentMenu(dto(), mine, 'eu'), ['remove']);
+  assert.deepEqual(t.commentMenu(dto({ isHost: true }), other, 'zeca'), ['reply', 'cheer', 'pin', 'remove', 'ban', 'report']);
+  assert.deepEqual(t.commentMenu(dto({ isHost: true }), other, 'zeca', 'b'), ['reply', 'cheer', 'unpin', 'remove', 'ban', 'report']);
+  assert.deepEqual(t.commentMenu(dto({ isHost: true }), hostC, 'zeca'), ['pin', 'remove']);
+  assert.deepEqual(t.commentMenu(dto({ isHost: true }), hostC, 'zeca', 'c'), ['unpin', 'remove']);
+  assert.deepEqual(t.commentMenu(dto({ status: 'ended' }), other, 'eu'), []);
+  assert.deepEqual(t.commentMenu(dto(), other, null), []);
+  assert.deepEqual(t.commentMenu(null, other, 'eu'), []);
+});
+
+test('«Responder a @fulano»: o campo começa pela menção (troca a que lá estava), até 300 letras', () => {
+  assert.equal(t.replyText('', 'ana'), '@ana ');
+  assert.equal(t.replyText('boa!', 'ana'), '@ana boa!');
+  assert.equal(t.replyText('@rui boa!', 'ana'), '@ana boa!');
+  assert.equal(t.replyText('  @rui.x   ', 'ana'), '@ana ');
+  assert.equal(t.replyText('x'.repeat(400), 'ana').length, t.COMMENT_MAX);
+});
+
+test('o fixado: o DTO, o evento (com e sem comentário), apagar ou esconder tira-o, os brindes contam', () => {
+  const p = { ...cm('p', 1, 'ana', 'Fixado!'), cheers: 1, cheered: false };
+  let s = t.initialLive(dto({ pinned: p }));
+  assert.equal(s.pinned?.id, 'p');
+  // Um servidor antigo (sem `pinned`) não mexe no que se sabe.
+  assert.equal(t.withDto(s, dto()).pinned?.id, 'p');
+  assert.equal(t.withDto(s, dto({ pinned: null })).pinned, null);
+  // O mesmo fixado outra vez: o mesmo objeto (a pílula não se desenha de novo).
+  assert.equal(t.withDto(s, dto({ pinned: { ...p } })).pinned, s.pinned);
+  // O evento.
+  const ev = t.parseTxilladaEvent({ type: 'txillada.pinned', txilladaId: 't1', comment: cm('q', 2, 'rui') }, 't1');
+  assert.equal(ev.comment.id, 'q');
+  assert.deepEqual(t.parseTxilladaEvent({ type: 'txillada.pinned', txilladaId: 't1', comment: null }, 't1'), { type: 'txillada.pinned', txilladaId: 't1', comment: null });
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.pinned', txilladaId: 't1', comment: { id: 'x' } }, 't1'), null);
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.pinned', txilladaId: 't2', comment: null }, 't1'), null);
+  s = t.applyEvent(s, ev);
+  assert.equal(s.pinned?.id, 'q');
+  s = t.applyEvent(s, { type: 'txillada.pinned', txilladaId: 't1', comment: null });
+  assert.equal(s.pinned, null);
+  // Brindes ao fixado (mesmo fora dos balões), e o meu estado.
+  s = t.applyEvent(s, { type: 'txillada.pinned', txilladaId: 't1', comment: p });
+  s = t.applyEvent(s, { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'p', cheers: 4 });
+  assert.deepEqual([s.pinned.cheers, s.pinned.cheered], [4, false]);
+  s = t.withCommentCheer(s, 'p', 5, true);
+  assert.deepEqual([s.pinned.cheers, s.pinned.cheered], [5, true]);
+  // Apagado (ou denunciado por mim: o ecrã esconde-o com o mesmo evento) sai, e não volta pelo DTO.
+  s = t.applyEvent(s, { type: 'txillada.comment_removed', txilladaId: 't1', commentId: 'p' });
+  assert.equal(s.pinned, null);
+  assert.equal(t.withDto(s, dto({ pinned: p })).pinned, null);
+  assert.equal(t.applyEvent(s, { type: 'txillada.pinned', txilladaId: 't1', comment: p }).pinned, null);
+});
+
+test('fixar e denunciar um comentário: as rotas do contrato, o menu e a pílula no ecrã', async () => {
+  globalThis.__calls = [];
+  globalThis.__reply = (path) => (path.endsWith('/pin') ? { pinned: null } : undefined);
+  await txilladaApi.pin('t1', 'c1');
+  await txilladaApi.pin('t1', null);
+  await txilladaApi.reportComment('t1', 'c 1', 'spam');
+  await txilladaApi.reportComment('t1', 'c1', 'other', 'insulta');
+  assert.deepEqual(globalThis.__calls.map((c) => [c.method, c.path, c.body]), [
+    ['POST', '/txilladas/t1/pin', { commentId: 'c1' }],
+    ['POST', '/txilladas/t1/pin', { commentId: null }],
+    ['POST', '/txilladas/t1/comments/c%201/report', { reason: 'spam' }],
+    ['POST', '/txilladas/t1/comments/c1/report', { reason: 'other', note: 'insulta' }],
+  ]);
+  const screen = read('src/app/txillada/[id].tsx');
+  // O toque simples espera ~250 ms pelo segundo (que brinda); o longo abre o mesmo menu.
+  const bubble = read('src/components/StoryFloatComments.tsx');
+  assert.match(bubble, /export const DOUBLE_MS = 250;/);
+  const live = read('src/components/txillada/LiveFloatComments.tsx');
+  assert.match(live, /onPress=\{onOpen \? \(\) => onOpen\(c\) : undefined\}\n\s+onLongPress=\{onOpen \? \(\) => onOpen\(c\) : undefined\}/);
+  // O fixado em baixo, por cima da barra, e a denúncia esconde-o logo.
+  assert.match(screen, /<PinnedComment c=\{pinned\} bottom=\{pinBottom\}/);
+  assert.match(screen, /type="txillada_comment" id=\{reporting\.id\} txilladaId=\{dto\.id\}/);
+  assert.match(screen, /onReported=\{\(\) => tx\.hideComment\(reporting\)\}/);
+  const pill = read('src/components/txillada/PinnedComment.tsx');
+  assert.match(pill, /📌 FIXADO/);
+  assert.match(pill, /<InlineBadge who=\{c\.author\}/);
+  const menu = read('src/components/txillada/CommentMenu.tsx');
+  assert.match(menu, /<InlineBadge who=\{c\.author\}/);
+});
+
 test('limites: 1 comentário de 2 em 2 s; no máximo 5 brindes por segundo', () => {
   assert.deepEqual(t.commentGate(null, 1000), { ok: true, wait: 0 });
   assert.deepEqual(t.commentGate(1000, 2500), { ok: false, wait: 500 });
@@ -472,10 +558,10 @@ test('brindes aos comentários: a rota do contrato, o ecrã e os balões', async
   const room = read('src/lib/txilladaRoom.ts');
   assert.match(room, /function cheerComment\(c: TxilladaComment\): boolean \{\n\s+if \(c\.cheered \|\| kind !== 'live'\) return false;/);
   assert.match(room, /cheerGate\(commentCheerTimes\.current, Date\.now\(\)\)/);
-  assert.match(room, /cheerComment, removeComment/);
-  // O ecrã liga os dois toques; o toque longo do anfitrião fica.
+  assert.match(room, /cheerComment, pin, hideComment, removeComment/);
+  // O ecrã liga os dois toques; um toque (ou o toque longo) abre o menu do comentário.
   const screen = read('src/app/txillada/[id].tsx');
-  assert.match(screen, /onHold=\{host \|\| tx\.me \? hold : undefined\} onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
+  assert.match(screen, /onOpen=\{tx\.me \? openMenu : undefined\} onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
   const live = read('src/components/txillada/LiveFloatComments.tsx');
   assert.match(live, /onDoubleTap=\{onCheer \? \(\) => onCheer\(c\) : undefined\}/);
   assert.match(live, /cheers=\{c\.cheers \?\? 0\}/);

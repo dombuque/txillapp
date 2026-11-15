@@ -8,9 +8,9 @@ import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
 import { audienceOk } from '../stories/stories.service';
 import { instantVisible } from '../instants/instants.service';
-import { txilladaVisible } from '../txillada/txillada-visibility';
+import { txilladaBanned, txilladaVisible } from '../txillada/txillada-visibility';
 import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens';
-import { canView } from '../social/visibility';
+import { blockedBetween, canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
 import { purgeRemovalCopies, removeContent } from './content-removal';
 import { MediaService } from '../media/media.service';
@@ -18,12 +18,13 @@ import { HELD_PUBLICATIONS } from '../media/held-token';
 import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment'] as const;
 /**
  * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
- * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158).
+ * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158; 'txillada_comment' um
+ * comentário num live, 0162).
  */
-export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada'] as const;
+export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment'] as const;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -135,6 +136,14 @@ export class ModerationService implements OnModuleInit {
         // Uma Txillada que quem denuncia pode ver (a decorrer ou já acabada: os comentários ficam até à decisão).
         sql = `SELECT t.host_id AS owner FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $2 AND ${txilladaVisible('t', 'h', '$1')}`;
         break;
+      case 'txillada_comment':
+        // Um comentário que ainda se vê, numa Txillada que quem denuncia pode ver (sem ter sido expulso) e de quem não tem um
+        // bloqueio com ele.
+        sql = `SELECT c.author_id AS owner FROM content.txillada_comments c JOIN content.txilladas t ON t.id = c.txillada_id
+                 JOIN identity.users h ON h.id = t.host_id JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
+                WHERE c.id = $2 AND c.removed_at IS NULL AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
+                  AND NOT ${blockedBetween('a.id', '$1')}`;
+        break;
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
       case 'user':
@@ -193,7 +202,7 @@ export class ModerationService implements OnModuleInit {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -204,6 +213,7 @@ export class ModerationService implements OnModuleInit {
          LEFT JOIN content.story_comments sc ON r.target_type = 'story_comment' AND sc.id = r.target_id
          LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
          LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
+         LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
         WHERE r.status = $1
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
@@ -261,6 +271,7 @@ export class ModerationService implements OnModuleInit {
       if (action === 'suspend' && owner) this.indexer.userRemoved(owner);
       if (outcome) void afterAppealDecision(this.moduleRef, this.notifications, id, owner, admin, outcome, this.log);
       if (action === 'remove' && type === 'txillada') void afterTxilladaCut(this.moduleRef, id, this.log);
+      if (action === 'remove' && type === 'txillada_comment') void afterTxilladaCommentRemoved(this.moduleRef, id, this.log);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -346,6 +357,15 @@ export async function afterTxilladaCut(moduleRef: ModuleRef, id: string, log: Lo
   }
 }
 
+/** Depois do COMMIT de um comentário de uma Txillada removido pela fila de queixas: quem está na sala deixa de o ver. */
+export async function afterTxilladaCommentRemoved(moduleRef: ModuleRef, commentId: string, log: Logger) {
+  try {
+    await moduleRef.get<TxilladaHooks>(TXILLADA_HOOKS, { strict: false }).afterCommentRemoved(commentId);
+  } catch (e) {
+    log.warn(`não consegui avisar a sala do comentário removido ${commentId}: ${(e as Error).message}`);
+  }
+}
+
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
   if (type === 'message') {
     const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
@@ -364,6 +384,14 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
   }
   if (type === 'instant') {
     await client.query('UPDATE social.instants SET expires_at = now() WHERE id = $1 AND expires_at > now()', [id]);
+    return;
+  }
+  // Comentário de uma Txillada (0162): deixa de se ver (como quando o anfitrião o apaga; não se repõe) e, se estava
+  // fixado, sai da pílula. A linha fica até à limpeza dos 7 dias. Depois do COMMIT, afterTxilladaCommentRemoved avisa a sala.
+  if (type === 'txillada_comment') {
+    const c = (await client.query('UPDATE content.txillada_comments SET removed_at = now() WHERE id = $1 AND removed_at IS NULL RETURNING txillada_id', [id])).rows[0];
+    if (c) await client.query('UPDATE content.txilladas SET comments = GREATEST(comments - 1, 0) WHERE id = $1', [c.txillada_id]);
+    await client.query('UPDATE content.txilladas SET pinned_comment_id = NULL WHERE pinned_comment_id = $1', [id]);
     return;
   }
   // Txillada a decorrer: é cortada (fica 'cut', com o motivo). Depois do COMMIT, afterTxilladaCut fecha a sala e avisa quem via.

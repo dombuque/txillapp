@@ -8,7 +8,7 @@ import { tchekaPost } from '../posts/feed';
 import { SearchIndexer } from '../search/search-index';
 import { StaffService } from '../staff/staff.service';
 import { REMOVABLE_TYPES, type RemovableType, removeContent, restoreContent } from './content-removal';
-import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, afterTxilladaCut, removeReported, settleRejectedMedia } from './moderation.service';
+import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, afterTxilladaCommentRemoved, afterTxilladaCut, removeReported, settleRejectedMedia } from './moderation.service';
 import { ModuleRef } from '@nestjs/core';
 import { TEXT_FILTER_PATTERN, TEXT_RULES, textHits } from './text-filter';
 
@@ -144,7 +144,7 @@ export class ModerationDeskService {
               max(r.resolution) AS resolution, max(r.resolution_note) AS resolution_note, max(CASE WHEN rb.status = 'staff' THEN rb.display_name ELSE '@' || rb.username END) AS decided_by,
               bool_or(r.reporter_id IS NULL) AS automatic, ${SEVERITY_SQL}::int AS severity,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), NULLIF(max(ins.caption), ''), max(tx.title),
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), NULLIF(max(ins.caption), ''), max(tx.title), max(tc.body),
                        CASE WHEN r.target_type = 'media' THEN max(r.note) END,
                        CASE WHEN r.target_type = 'venue' THEN max(v.name) || coalesce(' · ' || max(v.about), '') END,
                        CASE WHEN r.target_type = 'user' THEN max(tu.display_name) END, '') AS preview,
@@ -152,7 +152,7 @@ export class ModerationDeskService {
               s.expires_at AS story_expires_at, max(v.slug) AS venue_slug,
               bool_or(sc.id IS NOT NULL) AS story_comment_exists, max(ins.expires_at) AS instant_expires_at, max(ins.media_id::text) AS instant_media_id,
               (SELECT ima.nsfw_score FROM content.media_assets ima WHERE ima.id = max(ins.media_id::text)::uuid) AS instant_nsfw,
-              max(tx.status) AS txillada_status,
+              max(tx.status) AS txillada_status, bool_or(tc.id IS NOT NULL) AS tx_comment_exists, max(tc.removed_at) AS tx_comment_removed_at,
               (SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = r.target_type AND mr.target_id = r.target_id AND mr.restored_at IS NULL) AS mod_removed_at,
               (SELECT ma.nsfw_score FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_nsfw,
               (SELECT ma.appealed_at IS NOT NULL AND ma.status = 'rejected' FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_appeal,
@@ -168,6 +168,7 @@ export class ModerationDeskService {
          LEFT JOIN content.story_comments sc ON r.target_type = 'story_comment' AND sc.id = r.target_id
          LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
          LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
+         LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
         WHERE r.status = $1 AND ($2::text[] IS NULL OR r.target_type = ANY($2::text[]))
           AND ($4::text IS NULL OR tu.username ILIKE $4 ESCAPE '\\' OR tu.display_name ILIKE $4 ESCAPE '\\')
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption,
@@ -207,6 +208,8 @@ export class ModerationDeskService {
       : type === 'instant' ? (!r.instant_expires_at ? 'gone' : new Date(r.instant_expires_at) <= new Date() ? (r.resolution === 'remove' ? 'moderation' : 'expired') : null)
       // Txillada (0158): cortada pela moderação; acabada (o anfitrião, sem vídeo…) conta como «expirada».
       : type === 'txillada' ? (!r.txillada_status ? 'gone' : r.txillada_status === 'cut' ? 'moderation' : r.txillada_status === 'ended' ? 'expired' : null)
+      // Comentário de uma Txillada (0162): apagado pela moderação ou pelo autor/anfitrião (a linha fica até à decisão).
+      : type === 'txillada_comment' ? (!r.tx_comment_exists ? 'gone' : r.tx_comment_removed_at ? (r.resolution === 'remove' ? 'moderation' : 'author') : null)
       : null;
     return {
       type,
@@ -329,6 +332,7 @@ export class ModerationDeskService {
             // avisado, com um aviso próprio (em vez do geral).
             if (appeal) void afterAppealDecision(this.moduleRef, this.notifications, it.id, owner, actor, appeal, this.log);
             if (action === 'remove' && it.type === 'txillada') void afterTxilladaCut(this.moduleRef, it.id, this.log);
+            if (action === 'remove' && it.type === 'txillada_comment') void afterTxilladaCommentRemoved(this.moduleRef, it.id, this.log);
             const kind: NotificationKind | null = action === 'remove' ? 'content_removed' : action === 'warn' ? 'moderation_warning' : null;
             if (kind && notify && owner && !appeal) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
           });

@@ -69,7 +69,23 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** As colunas do anfitrião (`h`) com o prefixo h_. */
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
                    h.verified AS h_verified, h.verified_tier AS h_verified_tier`;
-const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments`;
+const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments, t.pinned_comment_id`;
+/** As colunas de um comentário com o autor (`c` = txillada_comments, `a` = identity.users) para o commentDto. */
+const COMMENT_COLS = `c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
+                      (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier`;
+/**
+ * O comentário fixado de `t` como o espectador `v` o vê (0162), em JSON com as colunas do commentDto, ou null: apagado,
+ * de uma conta que já não está ativa, com um bloqueio entre o autor e o espectador, ou denunciado por ele não se mostra.
+ */
+const pinnedSql = (t = 't', v = '$1') =>
+  `(SELECT json_build_object('id', pc.id, 'body', pc.body, 'created_at', pc.created_at, 'a_id', pa.id, 'a_username', pa.username,
+            'a_display_name', pa.display_name, 'a_has_avatar', pa.avatar_media_id IS NOT NULL, 'a_verified', pa.verified,
+            'a_verified_tier', pa.verified_tier,
+            'cheers', (SELECT count(*) FROM content.txillada_comment_cheers px WHERE px.comment_id = pc.id),
+            'cheered', EXISTS (SELECT 1 FROM content.txillada_comment_cheers px WHERE px.comment_id = pc.id AND px.user_id = ${v}))
+      FROM content.txillada_comments pc JOIN identity.users pa ON pa.id = pc.author_id AND pa.status = 'active'
+     WHERE pc.id = ${t}.pinned_comment_id AND pc.removed_at IS NULL AND NOT ${blockedBetween('pa.id', v)}
+       AND ${notReportedBy('txillada_comment', 'pc.id', v)})`;
 
 @Injectable()
 export class TxilladaService implements OnModuleInit, TxilladaHooks {
@@ -122,6 +138,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       comments: r.comments as number,
       isHost,
       canComment: r.status === 'live' && (isHost || (!!r.comment_ok && !r.banned)),
+      /** O comentário fixado pelo anfitrião (0162), como eu o vejo; null sem nenhum (ou se não o posso ver). */
+      pinned: r.pinned ? this.commentDto(r.pinned) : null,
     };
   }
 
@@ -129,7 +147,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   private async access(me: string, id: string) {
     const { rows } = await this.pool.query(
       `SELECT ${TX_COLS}, ${HOST_COLS}, ${txilladaVisible('t', 'h', '$1')} AS visible, ${txilladaBanned('t', '$1')} AS banned,
-              ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok
+              ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned
          FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $2`,
       [me, id],
     );
@@ -150,7 +168,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /** As que estão a decorrer e posso ver: de quem sigo primeiro, depois as mais vistas do meu país (máx. 30). */
   async live(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT ${TX_COLS}, ${HOST_COLS}, false AS banned, ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok,
+      `SELECT ${TX_COLS}, ${HOST_COLS}, false AS banned, ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = t.host_id) AS followed
          FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
         WHERE t.status = 'live' AND t.host_id <> $1 AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
@@ -321,8 +339,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (um comentário novo vai com 0 e false para todos). */
   private commentDto(r: Record<string, any>) {
     return {
-      id: r.id as string, author: person(r, 'a_'), body: r.body as string, createdAt: r.created_at as string,
-      cheers: (r.cheers as number | undefined) ?? 0, cheered: r.cheered === true,
+      id: r.id as string, author: person(r, 'a_'), body: r.body as string, createdAt: new Date(r.created_at as string).toISOString(),
+      cheers: Number(r.cheers ?? 0), cheered: r.cheered === true,
     };
   }
 
@@ -335,6 +353,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
               EXISTS (SELECT 1 FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $3) AS cheered
          FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
         WHERE c.txillada_id = $1 AND c.removed_at IS NULL AND ($2::uuid IS NULL OR c.id > $2) AND NOT ${blockedBetween('a.id', '$3')}
+          AND ${notReportedBy('txillada_comment', 'c.id', '$3')}
         ORDER BY c.id DESC LIMIT 50`,
       [id, after ?? null, me],
     );
@@ -351,9 +370,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const row = (
       await this.pool.query(
         `WITH c AS (INSERT INTO content.txillada_comments (id, txillada_id, author_id, body) VALUES ($1, $2, $3, $4) RETURNING id, body, created_at)
-         SELECT c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
-                (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier
-           FROM c, identity.users a WHERE a.id = $3`,
+         SELECT ${COMMENT_COLS} FROM c, identity.users a WHERE a.id = $3`,
         [cid, id, me, body],
       )
     ).rows[0];
@@ -377,7 +394,79 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const r = await this.pool.query('UPDATE content.txillada_comments SET removed_at = now() WHERE id = $1 AND removed_at IS NULL', [commentId]);
     if (!r.rowCount) return;
     await this.pool.query('UPDATE content.txilladas SET comments = GREATEST(comments - 1, 0) WHERE id = $1', [id]);
-    this.emit(await this.audience(id, c.host_id), { type: 'txillada.comment_removed', txilladaId: id, commentId });
+    // Apagar o comentário fixado tira-o (0162).
+    const unpinned = await this.pool.query('UPDATE content.txilladas SET pinned_comment_id = NULL WHERE id = $1 AND pinned_comment_id = $2', [id, commentId]);
+    const to = await this.audience(id, c.host_id);
+    this.emit(to, { type: 'txillada.comment_removed', txilladaId: id, commentId });
+    if (unpinned.rowCount) this.emit(to, { type: 'txillada.pinned', txilladaId: id, comment: null });
+  }
+
+  /**
+   * Gancho da moderação (TXILLADA_HOOKS): um comentário denunciado foi removido (já gravado, e já sem estar fixado). Quem
+   * está na sala recebe `txillada.comment_removed` (a app tira-o dos balões e, se era o fixado, da pílula).
+   */
+  async afterCommentRemoved(commentId: string) {
+    const r = (
+      await this.pool.query(
+        `SELECT t.id, t.host_id FROM content.txillada_comments c JOIN content.txilladas t ON t.id = c.txillada_id WHERE c.id = $1 AND t.status = 'live'`,
+        [commentId],
+      )
+    ).rows[0];
+    if (r) this.emit(await this.audience(r.id, r.host_id), { type: 'txillada.comment_removed', txilladaId: r.id, commentId });
+  }
+
+  /**
+   * Fixar um comentário (ou tirar o fixado, com null): só o anfitrião, só enquanto está a decorrer, e só um comentário desta
+   * Txillada que ainda se vê (no máximo um fixado: fixar outro troca). Quem está na sala recebe `txillada.pinned` com o
+   * comentário completo (autor e selo), menos quem tem um bloqueio com o autor ou o denunciou, que recebe null (não o vê).
+   */
+  async pin(me: string, id: string, commentId: string | null) {
+    const r = await this.access(me, id);
+    if (r.host_id !== me) throw new ForbiddenException('Só o anfitrião pode fixar um comentário.');
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    let row: Record<string, any> | null = null;
+    if (commentId) {
+      row = (
+        await this.pool.query(
+          `SELECT ${COMMENT_COLS}, (SELECT count(*) FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id)::int AS cheers
+             FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
+            WHERE c.id = $2 AND c.txillada_id = $1 AND c.removed_at IS NULL AND NOT ${blockedBetween('a.id', '$3')}`,
+          [id, commentId, me],
+        )
+      ).rows[0] ?? null;
+      if (!row) throw new NotFoundException('Comentário não encontrado');
+    }
+    const upd = await this.pool.query(
+      `UPDATE content.txilladas SET pinned_comment_id = $2 WHERE id = $1 AND status = 'live' AND pinned_comment_id IS DISTINCT FROM $2`,
+      [id, commentId],
+    );
+    const comment = row ? this.commentDto(row) : null;
+    if (upd.rowCount) {
+      const to = await this.audience(id, r.host_id);
+      if (!row) this.emit(to, { type: 'txillada.pinned', txilladaId: id, comment: null });
+      else {
+        const sees = new Set(await this.withoutBlocks(row.a_id as string, to));
+        const reporters = new Set(
+          (await this.pool.query(
+            `SELECT reporter_id FROM social.reports WHERE target_type = 'txillada_comment' AND target_id = $1 AND reporter_id = ANY($2::uuid[])`,
+            [commentId, to],
+          )).rows.map((x) => x.reporter_id as string),
+        );
+        for (const u of to) this.bus.publish(u, { type: 'txillada.pinned', txilladaId: id, comment: sees.has(u) && !reporters.has(u) ? comment : null });
+      }
+    }
+    return { pinned: comment };
+  }
+
+  /**
+   * Denunciar um comentário da Txillada ('txillada_comment', a mesma fila de moderação). Quem denuncia deixa de o ver (na
+   * lista e no fixado); o comentário fica guardado até à decisão (a limpeza dos 7 dias salta-o).
+   */
+  async reportComment(me: string, id: string, commentId: string, reason: ReportReason, note?: string) {
+    await this.access(me, id);
+    const c = (await this.pool.query('SELECT 1 FROM content.txillada_comments WHERE id = $2 AND txillada_id = $1 AND removed_at IS NULL', [id, commentId])).rows[0];
+    if (!c) throw new NotFoundException('Comentário não encontrado');
+    await this.moderation.report(me, 'txillada_comment', commentId, reason, note);
   }
 
   /**
@@ -629,7 +718,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /**
    * Nada fica guardado: os comentários e os brindes (e as expulsões) de uma Txillada acabada há mais de 7 dias apagam-se,
-   * menos os comentários de uma Txillada com denúncia por decidir (ficam até à decisão, mas os brindes a eles saem já).
+   * menos os comentários de uma Txillada com denúncia por decidir e os comentários denunciados por decidir (0162): ficam
+   * até à decisão, mas os brindes a eles saem já.
    * A linha da Txillada fica (registo).
    */
   async purge(days = TX_KEEP_DAYS) {
@@ -642,7 +732,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const c = await this.pool.query(
       `DELETE FROM content.txillada_comments c USING content.txilladas t
         WHERE c.txillada_id = t.id AND ${ended}
-          AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open')`,
+          AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open')
+          AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'txillada_comment' AND r.target_id = c.id AND r.status = 'open')`,
       [days],
     );
     const ch = await this.pool.query(`DELETE FROM content.txillada_cheers x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);

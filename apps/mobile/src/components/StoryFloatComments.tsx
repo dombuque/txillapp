@@ -85,12 +85,15 @@ export function StoryFloatComments({ storyId, comments, col, active, hidden, onO
 /** O que um balão precisa de um comentário (o dos mimos e o da Txillada). */
 export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean } & Badged; body: string };
 
-/** Dois toques dentro disto contam como um duplo toque (o toque simples espera este tempo antes de abrir). */
-const DOUBLE_MS = 280;
+/**
+ * Dois toques dentro disto contam como um duplo toque (o toque simples espera este tempo antes de abrir: os comentários
+ * do mimo, ou o menu do comentário na Txillada). O padrão do projeto: ~250 ms, curto o bastante para não parecer lento.
+ */
+export const DOUBLE_MS = 250;
 
 /**
  * Um balão de vidro com a roda da foto de quem comentou (também os da Txillada, components/txillada/LiveFloatComments).
- * `label`: o que o leitor de ecrã diz ao tocar; `onLongPress`: o toque longo (na Txillada, apagar e expulsar).
+ * `label`: o que o leitor de ecrã diz ao tocar; `onLongPress`: o toque longo (na Txillada, o mesmo menu do toque simples).
  * `onDoubleTap`: dois toques brindam (os copos saltam do balão e o telemóvel vibra). `cheers`: a pastilha «🍻 N» ao lado,
  * que salta quando a contagem sobe; com a contagem a subir por outra pessoa (a sala da Txillada) também saltam os copos.
  */

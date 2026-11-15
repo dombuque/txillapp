@@ -7,7 +7,7 @@ import { modApi, type ModAction, type ModQueueItem, type ModReason, type ModRepo
 import { AuthorCard, DecideDialog, Field, MediaThumb, NsfwBadge, REASON, REASONS, REASON_PRESETS, RESOLUTION, SEVERE, Segmented, SeverityPill, TYPE, TYPE_ICON, TextHits, inputCls, selectCls, useDebounced, useToast } from './ui/mod-kit';
 
 type Status = 'open' | 'actioned' | 'dismissed';
-const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'message', 'user', 'venue', 'media'];
+const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'message', 'user', 'venue', 'media'];
 const SORTS: { value: ModSort; label: string }[] = [
   { value: 'severity', label: 'Mais graves primeiro' },
   { value: 'oldest', label: 'Mais antigas primeiro' },

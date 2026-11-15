@@ -19,6 +19,7 @@ const createSchema = z.object({
 const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });
 const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
 const afterSchema = z.object({ after: z.string().uuid().optional() });
+const pinSchema = z.object({ commentId: z.string().uuid().nullable() });
 const cutSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
 const reactSchema = z.object({
   kind: z.enum(TXILLADA_REACTIONS),
@@ -95,6 +96,25 @@ export class TxilladaController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   cheerComment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('commentId', ParseUUIDPipe) commentId: string) {
     return this.tx.cheerComment(req.userId!, id, commentId);
+  }
+
+  /** Denunciar um comentário (a fila da moderação, tipo 'txillada_comment'): deixa de aparecer a quem denunciou. */
+  @Post(':id/comments/:commentId/report')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
+  async reportComment(
+    @Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body(new ZodPipe(reportSchema)) b: z.infer<typeof reportSchema>,
+  ) {
+    await this.tx.reportComment(req.userId!, id, commentId, b.reason, b.note);
+  }
+
+  /** Fixar um comentário (`commentId`) ou tirar o fixado (null): só o anfitrião. */
+  @Post(':id/pin')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  pin(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(pinSchema)) b: z.infer<typeof pinSchema>) {
+    return this.tx.pin(req.userId!, id, b.commentId);
   }
 
   /** No máximo 5 por segundo por pessoa (no serviço); aqui só o teto por minuto, acima do geral. */

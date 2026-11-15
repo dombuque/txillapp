@@ -13,7 +13,9 @@ import { ReportSheet } from '@/components/ReportSheet';
 import { Panel, useKeyboardHeight } from '@/components/StoryParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { FxLayer, HelloAllButton, HelloStack, JoinedToast, ReactionBar, ViewersList, ViewersStack } from '@/components/txillada/LiveFx';
+import { CommentMenu } from '@/components/txillada/CommentMenu';
 import { LiveFloatComments } from '@/components/txillada/LiveFloatComments';
+import { PinnedComment } from '@/components/txillada/PinnedComment';
 import { EndedView, GlassButton, HostSummary, LiveBadge } from '@/components/txillada/TxilladaParts';
 import { TxilladaVideo } from '@/components/txillada/TxilladaVideo';
 import { txilladaApi } from '@/lib/api.txillada';
@@ -23,7 +25,7 @@ import { useDesktop } from '@/lib/desktop';
 import { useNoIndex } from '@/lib/noIndex';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
-import { COMMENT_MAX, commentActions, elapsed, errorText, liveClock, liveSummary, shareLink, shareMessage, type TxilladaComment } from '@/lib/txillada';
+import { COMMENT_MAX, commentMenu, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { liveLayout, type FxPerson, type ReactionKind } from '@/lib/txilladaFx';
 import { useTxilladaFx } from '@/lib/txilladaFxRoom';
 import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
@@ -69,6 +71,10 @@ export default function TxilladaScreen() {
   const [sending, setSending] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [panel, setPanel] = useState<null | 'more' | 'report' | 'viewers'>(null);
+  /** O comentário com o menu aberto (o id: as contagens vêm sempre do estado da sala) e o que se está a denunciar. */
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [reporting, setReporting] = useState<TxilladaComment | null>(null);
+  const [pinH, setPinH] = useState(48);
   const flashT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
@@ -118,15 +124,38 @@ export default function TxilladaScreen() {
       await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: `Txillada de @${dto.host.username}` });
     } catch { /* cancelado */ }
   }
-  /** O toque longo num comentário: apagar (o anfitrião ou o autor) e expulsar (o anfitrião). */
-  function hold(c: TxilladaComment) {
-    const acts = commentActions(dto, c, tx.me);
-    if (!acts.length) return;
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
-    if (acts.includes('remove')) buttons.push({ text: 'Apagar o comentário', style: 'destructive', onPress: () => void tx.removeComment(c).then((e) => say(e ?? 'Comentário apagado')) });
-    if (acts.includes('ban')) buttons.push({ text: `Expulsar @${c.author.username}`, style: 'destructive', onPress: () => confirmBan(c.author.username) });
-    buttons.push({ text: 'Cancelar', style: 'cancel' });
-    Alert.alert(`Comentário de @${c.author.username}`, c.body.length > 120 ? `${c.body.slice(0, 119)}…` : c.body, buttons);
+  /** Um toque (ou o toque longo) num comentário: o menu (responder, brindar, denunciar; o anfitrião fixa, apaga e expulsa). */
+  function openMenu(c: TxilladaComment) {
+    if (!commentMenu(dto, c, tx.me, live.pinned?.id).length) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
+    setMenuId(c.id);
+  }
+  function pick(item: CommentMenuItem, c: TxilladaComment) {
+    setMenuId(null);
+    switch (item) {
+      case 'reply':
+        setText((t) => replyText(t, c.author.username));
+        // Depois de a folha fechar, para o teclado abrir por cima do vídeo.
+        setTimeout(() => inputRef.current?.focus(), 60);
+        return;
+      case 'cheer':
+        if (!tx.cheerComment(c)) say(c.cheered ? 'Já brindaste este comentário' : 'Calma! No máximo 5 brindes por segundo.');
+        else if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        return;
+      case 'pin':
+      case 'unpin':
+        void tx.pin(item === 'pin' ? c : null).then((e) => say(e ?? (item === 'pin' ? 'Comentário fixado' : 'Deixou de estar fixado')));
+        return;
+      case 'remove':
+        void tx.removeComment(c).then((e) => say(e ?? 'Comentário apagado'));
+        return;
+      case 'ban':
+        confirmBan(c.author.username);
+        return;
+      case 'report':
+        setReporting(c);
+        return;
+    }
   }
   function confirmBan(username: string) {
     Alert.alert(`Expulsar @${username}?`, 'Sai já da Txillada e não pode voltar a entrar nesta.', [
@@ -176,8 +205,13 @@ export default function TxilladaScreen() {
   const barBottom = Platform.OS !== 'web' && kb ? Math.max(L.padBottom, kb + 6) : L.padBottom;
   // A barra de baixo: duas filas (as reações ou as ferramentas do anfitrião, e comentar) de 44 px com 8 entre elas.
   const blockH = 44 + 8 + 44;
-  const laneBottom = barBottom + blockH + 10;
+  // O fixado fica logo por cima da barra; quem entrou, os avisos e os balões sobem por cima dele.
+  const pinned = live.pinned;
+  const pinBottom = barBottom + blockH + 10;
+  const laneBottom = pinBottom + (pinned ? pinH + 8 : 0);
   const floatBottom = laneBottom + 42;
+  const menuC = menuId ? (live.comments.find((c) => c.id === menuId) ?? (pinned?.id === menuId ? pinned : null)) : null;
+  const menuItems = menuC ? commentMenu(dto, menuC, tx.me, pinned?.id) : [];
   const floatH = Math.max(120, Math.min(320, Math.round(height * 0.32)));
   const waiting = !tx.video;
   const viewersCount = Math.max(live.viewers, fxs.viewersTotal);
@@ -266,7 +300,10 @@ export default function TxilladaScreen() {
 
         {/* A conversa por cima do vídeo (também para o anfitrião): os comentários a flutuar e quem entrou. */}
         {panel === null ? (
-          <LiveFloatComments comments={live.comments} bottom={floatBottom} width={L.floatW} height={floatH} onHold={host || tx.me ? hold : undefined} onCheer={tx.me && tx.kind === 'live' ? tx.cheerComment : undefined} />
+          <LiveFloatComments comments={live.comments} bottom={floatBottom} width={L.floatW} height={floatH} onOpen={tx.me ? openMenu : undefined} onCheer={tx.me && tx.kind === 'live' ? tx.cheerComment : undefined} hidden={pinned?.id} />
+        ) : null}
+        {pinned ? (
+          <PinnedComment c={pinned} bottom={pinBottom} left={L.side} width={L.colW - L.side * 2} onPress={tx.me ? () => openMenu(pinned) : undefined} onHeight={(h) => setPinH((old) => (old === h ? old : h))} />
         ) : null}
         <JoinedToast users={fxs.joined?.users ?? null} bottom={laneBottom} left={L.side} onHello={host ? (u) => (u ? fxs.helloTo(u.username) : react('hello')) : undefined} />
 
@@ -350,6 +387,23 @@ export default function TxilladaScreen() {
         </View>
       ) : null}
       {panel === 'report' ? <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none"><ReportSheet type="txillada" id={dto.id} onClose={() => setPanel(null)} /></View> : null}
+      {menuC && menuItems.length ? (
+        <CommentMenu
+          c={menuC}
+          items={menuItems}
+          left={L.colLeft}
+          width={L.colW}
+          bottomInset={insets.bottom}
+          reduce={reduce}
+          onPick={(item) => pick(item, menuC)}
+          onClose={() => setMenuId(null)}
+        />
+      ) : null}
+      {reporting ? (
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
+          <ReportSheet type="txillada_comment" id={reporting.id} txilladaId={dto.id} onClose={() => setReporting(null)} onReported={() => tx.hideComment(reporting)} />
+        </View>
+      ) : null}
     </View>
   );
 }

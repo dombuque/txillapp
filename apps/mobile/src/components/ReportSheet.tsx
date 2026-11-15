@@ -19,16 +19,17 @@ const REASONS: { value: ReportReason; label: string; text: string }[] = [
 ];
 
 /** O que se está a denunciar, para o título da folha. */
-const WHAT: Record<ReportType | 'txillada', string> = {
-  txillada: 'esta Txillada', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
+const WHAT: Record<ReportType | 'txillada' | 'txillada_comment', string> = {
+  txillada: 'esta Txillada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
 };
 
 /**
  * Denunciar uma publicação, comentário, mimo, Zás, mensagem, conta ou local. Fica para a moderação analisar; a outra pessoa
  * não é avisada, e o que denunciaste deixa de te aparecer (o servidor esconde-o; `onReported` deixa o ecrã escondê-lo já).
- * Uma Txillada (o live) vai por POST /txilladas/:id/report, só com o motivo (docs/txillada-contrato.md).
+ * Uma Txillada (o live) vai por POST /txilladas/:id/report, só com o motivo (docs/txillada-contrato.md); um comentário
+ * de uma Txillada ('txillada_comment', `id` = o comentário e `txilladaId` = a Txillada) por POST /txilladas/:id/comments/:c/report.
  */
-export function ReportSheet({ type, id, onClose, onReported }: { type: ReportType | 'txillada'; id: string; onClose: () => void; onReported?: () => void }) {
+export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { type: ReportType | 'txillada' | 'txillada_comment'; id: string; txilladaId?: string; onClose: () => void; onReported?: () => void }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -41,6 +42,7 @@ export function ReportSheet({ type, id, onClose, onReported }: { type: ReportTyp
     setErr('');
     try {
       if (type === 'txillada') await txilladaApi.report(id, reason);
+      else if (type === 'txillada_comment') await txilladaApi.reportComment(txilladaId ?? '', id, reason, note.trim() || undefined);
       else await api.report(type, id, reason, note.trim() || undefined);
       setDone(true);
       onReported?.();

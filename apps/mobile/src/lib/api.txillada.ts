@@ -42,6 +42,11 @@ export const txilladaApi = {
   cheer: (txilladaId: string): Promise<{ cheers: number }> => raw(`/txilladas/${id(txilladaId)}/cheer`, post({})),
   ban: (txilladaId: string, username: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/ban/${id(username)}`, post({})),
   report: (txilladaId: string, reason: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/report`, post({ reason })),
+  /** Denunciar um comentário (a fila da moderação); deixa de me aparecer. */
+  reportComment: (txilladaId: string, commentId: string, reason: string, note?: string): Promise<void> =>
+    raw(`/txilladas/${id(txilladaId)}/comments/${id(commentId)}/report`, post(note ? { reason, note } : { reason })),
+  /** Fixar um comentário (ou tirar o fixado, com null): só o anfitrião. A sala recebe `txillada.pinned`. */
+  pin: (txilladaId: string, commentId: string | null): Promise<{ pinned: TxilladaComment | null }> => raw(`/txilladas/${id(txilladaId)}/pin`, post({ commentId })),
   /**
    * Uma reação rápida (👋 🍻 🔥 😂 ❤️) a quem está na sala, sem se guardar (o 🍻 conta como um brinde e devolve `cheers`).
    * `to`: só o anfitrião, com 👋, a responder a quem entrou.
