@@ -28,6 +28,8 @@ Disallow: /
     }
     reverse_proxy 127.0.0.1:11434 {
       header_up -Authorization
+      # O Ollama só aceita pedidos com Host local (proteção contra DNS rebinding): o Caddy passa-lhe o endereço dele.
+      header_up Host 127.0.0.1:11434
       transport http {
         read_timeout 150s
       }
