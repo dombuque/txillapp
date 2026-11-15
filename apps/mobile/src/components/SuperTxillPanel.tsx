@@ -15,16 +15,15 @@ import { aiApi } from '@/lib/api.ai';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 
-/** O raio do SuperTxill, cheio (como o "bolt" do site com fill). */
-/** O símbolo do SuperTxill (brilho), diferente do raio do Zás. */
+/** O símbolo do SuperTxill: o balão com cara e o brilho no canto (ícone `supertxill`), diferente do raio do Zás. */
 export function Bolt({ size = 20, color = colors.brand }: { size?: number; color?: string }) {
-  return <Icon name="sparkles" size={size} color={color} strokeWidth={2.2} />;
+  return <Icon name="supertxill" size={size} color={color} strokeWidth={2.1} />;
 }
 
 function BotAvatar({ size }: { size: number }) {
   return (
     <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}>
-      <Bolt size={Math.round(size * 0.5)} color="#fff" />
+      <Bolt size={Math.round(size * 0.58)} color="#fff" />
     </LinearGradient>
   );
 }
