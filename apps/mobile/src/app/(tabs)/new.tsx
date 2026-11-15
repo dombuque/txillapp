@@ -336,17 +336,20 @@ export default function Compose() {
     let problem = '';
     const next: Asset[] = [];
     let count = assets.length;
+    // Numa tcheka (na câmara), a galeria entrega os ficheiros ao estúdio, já montados (até 30 clipes), como no telemóvel.
+    const toStudio = kindSel === 'tcheka' && step !== 'write';
+    const cap = toStudio ? MAX_CLIPS : MAX_PHOTOS;
     for (const f of files) {
       if (f.type.startsWith('video/')) {
-        if (count >= MAX_PHOTOS) { problem = `Máximo de ${MAX_PHOTOS} fotos e vídeos por publicação`; continue; }
+        if (count >= cap) { problem = toStudio ? `Máximo de ${MAX_CLIPS} fotos e vídeos por tcheka` : `Máximo de ${MAX_PHOTOS} fotos e vídeos por publicação`; continue; }
         if (f.size > 100 * 1024 * 1024) { problem = 'Vídeo pesado demais! Máximo 100 MB'; continue; }
         const uri = URL.createObjectURL(f);
         const ms = await probeDuration(uri);
         if (ms > 60_500) { URL.revokeObjectURL(uri); problem = 'O vídeo tem de ter até 60 segundos'; continue; }
         next.push({ uri, video: true, mime: videoMime(f.type), durationMs: ms || undefined, tags: [] });
         count += 1;
-      } else if (count >= MAX_PHOTOS) {
-        problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
+      } else if (count >= cap) {
+        problem = toStudio ? `Máximo de ${MAX_CLIPS} fotos e vídeos por tcheka` : `Máximo de ${MAX_PHOTOS} fotos por publicação`;
         break;
       } else {
         // Onde foi tirada (lido antes de converter, que apaga os metadados).
@@ -363,6 +366,13 @@ export default function Compose() {
       }
     }
     setErr(problem);
+    if (next.length && toStudio) {
+      setAssets((cur) => [...cur, ...next].slice(0, MAX_CLIPS));
+      bumpKind('tcheka');
+      if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId();
+      setStudio(true);
+      return;
+    }
     if (next.length) {
       // Fotos e vídeos podem ir juntos na mesma publicação (carrossel), até 10, com as fotos na proporção da primeira.
       void appendAssets(next, postFlow());
