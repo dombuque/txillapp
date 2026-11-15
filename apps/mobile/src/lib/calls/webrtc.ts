@@ -172,10 +172,27 @@ export function setEnabled(local: unknown, kind: 'audio' | 'video', on: boolean)
   for (const t of kind === 'audio' ? s.getAudioTracks() : s.getVideoTracks()) t.enabled = on;
 }
 
-/** Vira a câmara (frente ↔ trás). No telemóvel a faixa troca de câmara sem renegociar. */
-export async function flipCamera(_pc: PeerLike | null, local: unknown, _front: boolean): Promise<void> {
-  const t = (local as NStream | null)?.getVideoTracks()[0];
-  t?._switchCamera();
+/**
+ * Vira a câmara (frente ↔ trás), como no site: abre a outra câmara e troca a faixa enviada (replaceTrack, sem renegociar).
+ * O `_switchCamera` do @livekit/react-native-webrtc não serve no Android: aplica restrições, e o Android ignora mudar a
+ * câmara por restrições (só virava o espelho da imagem).
+ */
+export async function flipCamera(pc: PeerLike | null, local: unknown, front: boolean): Promise<void> {
+  const s = local as NStream | null;
+  const old = s?.getVideoTracks()[0];
+  if (!s || !old) return;
+  const m = rtc();
+  if (!m) return;
+  const cam = await m.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(!front) });
+  const track = cam.getVideoTracks()[0];
+  if (!track) return;
+  track.enabled = old.enabled;
+  const senders = pc ? (pc as unknown as InstanceType<RTC['RTCPeerConnection']>).getSenders() : [];
+  const sender = senders.find((x) => x.track?.id === old.id);
+  if (sender) await sender.replaceTrack(track);
+  s.removeTrack(old);
+  try { old.stop(); } catch { /* já parada */ }
+  s.addTrack(track);
 }
 
 export const canFlip = async () => true;

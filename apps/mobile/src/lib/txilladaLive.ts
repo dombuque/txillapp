@@ -116,9 +116,11 @@ export const captureResolution = { width: 1280, height: 720, frameRate: 30 };
  */
 export async function ensurePortrait(_track: unknown, _front: boolean): Promise<void> {}
 
-/** Virar a câmara: no telemóvel a faixa troca de câmara sem a fechar. */
+/**
+ * Virar a câmara: reabre a câmara com a outra direção (restartTrack do LiveKit troca a faixa publicada). O `_switchCamera`
+ * do @livekit/react-native-webrtc não serve no Android: muda a câmara por restrições, que o Android ignora (só virava o
+ * espelho da imagem).
+ */
 export async function flipTrack(track: { mediaStreamTrack: MediaStreamTrack; restartTrack: (o?: { facingMode?: 'user' | 'environment'; resolution?: { width: number; height: number; frameRate?: number } }) => Promise<void> }, front: boolean): Promise<void> {
-  const t = track.mediaStreamTrack as unknown as { _switchCamera?: () => void };
-  if (typeof t._switchCamera === 'function') t._switchCamera();
-  else await track.restartTrack({ facingMode: front ? 'user' : 'environment', resolution: captureResolution });
+  await track.restartTrack({ facingMode: front ? 'user' : 'environment', resolution: captureResolution });
 }
