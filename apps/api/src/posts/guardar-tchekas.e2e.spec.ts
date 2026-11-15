@@ -123,10 +123,10 @@ describe('guardar tchekas: «Deixar guardar as minhas tchekas»', () => {
     await setAllow(ana, false);
     expect((await getPost(beto, anaPost)).canDownload).toBe(false);
     await blocked(beto, anaPost);
-    // O próprio: vê canDownload e guarda (a cópia já feita sai da cache).
+    // O próprio: vê canDownload e guarda (a cópia de antes saiu ao desligar: faz-se outra).
     expect((await getPost(ana, anaPost)).canDownload).toBe(true);
     const own = await download(ana, anaPost).expect(200);
-    expect(own.headers['x-cache']).toBe('hit');
+    expect(own.headers['x-cache']).toBe('miss');
     // No feed do perfil também.
     const tab = (await api().get(`/api/v1/users/${ana.username}/posts?tab=reels`).set(as(beto)).expect(200)).body.items as { id: string; canDownload: boolean }[];
     expect(tab.find((p) => p.id === anaPost)?.canDownload).toBe(false);

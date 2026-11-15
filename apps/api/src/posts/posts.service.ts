@@ -92,7 +92,7 @@ const FEED_SQL = `
          p.geleira, CASE WHEN p.geleira IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM identity.users va WHERE va.id = $1 AND va.birth_date <= (current_date - interval '18 years')) END AS viewer_adult,
          -- «Paga-me uma» publicado (0145): a bebida e quantas pessoas foram identificadas (cada uma em taste.gelada_requests).
          p.gelada,
-         -- «Deixar guardar as minhas tchekas» (0153): quem vê pode guardar o vídeo (só colunas do autor, sem subconsultas).
+         -- «Deixar guardar as minhas tchekas» (0153): quem vê pode guardar o vídeo (num dueto, também o autor do original deixa).
          ${CAN_DOWNLOAD_SQL('p', 'u')} AS can_download,
          -- «Deixar repostar as minhas publicações» (0156): quem vê pode repostar (só a coluna do autor; numa citação, hydrate
          -- junta a regra do original citado).

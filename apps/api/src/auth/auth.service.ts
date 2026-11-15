@@ -23,6 +23,7 @@ import { ReqContext, SecurityService } from '../security/security.service';
 import { AppleService } from './apple.service';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
+import { dropDownloadCopies } from '../posts/download-copies';
 
 const ACCESS_TTL_S = 10 * 60;
 // Sessão deslizante: cada renovação estende a validade. Só termina com logout (ou após 1 ano sem usar a app).
@@ -804,7 +805,8 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM content.post_remixes rx USING content.posts p WHERE rx.post_id = p.id AND p.author_id = $1', [userId]);
       // Fim de tcheka (0152): o vídeo com a música gravada e as cópias guardadas com o cartão do fim (os ficheiros saem abaixo).
       await client.query('DELETE FROM content.post_music_bakes b USING content.posts p WHERE b.post_id = p.id AND p.author_id = $1', [userId]);
-      await client.query('DELETE FROM content.post_downloads d USING content.posts p WHERE d.post_id = p.id AND p.author_id = $1', [userId]);
+      // Também as cópias dos duetos de outros feitos com os meus vídeos (os ficheiros saem na limpeza de sempre).
+      await dropDownloadCopies(client, userId);
       // A impressão da rede de quem entrou com um convite (antifraude) já não é precisa.
       await client.query('UPDATE social.referrals SET ip_hash = NULL WHERE invitee_id = $1', [userId]);
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);

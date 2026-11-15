@@ -13,8 +13,9 @@ import { END_CARD_S } from '../media/end-card';
 import { renderSignedCopy } from '../media/end-card-video';
 import { MediaService } from '../media/media.service';
 import type { SealTier } from '../media/signature';
-import { canView } from '../social/visibility';
+import { blockedBetween, canView } from '../social/visibility';
 import { POST_SOUND_REMOVED_SQL } from '../sounds/sounds.service';
+import { dropDownloadCopies } from './download-copies';
 import { BAKE_PLAYABLE } from './music-bake';
 import { MusicBakeService } from './music-bake.service';
 import { TchekaStorage } from './tcheka-storage';
@@ -49,8 +50,23 @@ export function downloadVersion(p: { sourceId: string; sourceSize: number; label
 export const DOWNLOADS_ALLOWED = (u = 'u') =>
   `(${u}.allow_downloads AND NOT ${u}.is_private AND ${u}.birth_date <= (current_date - interval '18 years'))`;
 
-/** O `canDownload` de cada publicação (FEED_SQL, com $1 = quem vê e `p`/`u` = a publicação e o autor). */
-export const CAN_DOWNLOAD_SQL = (p = 'p', u = 'u') => `((${p}.author_id = $1 OR ${DOWNLOADS_ALLOWED(u)}) IS TRUE)`;
+/**
+ * Num dueto a cópia leva o vídeo do original: também é preciso que o autor do original deixe (ou que seja ele a pedir). O
+ * original apagado, de uma conta que já não está ativa ou com um bloqueio entre ele e quem pede: não deixa. Verdadeiro
+ * quando `p` não é um dueto. Em SQL, com $1 = quem pede.
+ */
+export const DUET_SOURCE_OK = (p = 'p') =>
+  `NOT EXISTS (SELECT 1 FROM content.post_remixes dx
+      LEFT JOIN content.posts dop ON dop.id = dx.original_id AND dop.removed_at IS NULL
+      LEFT JOIN identity.users dou ON dou.id = dop.author_id AND dou.status = 'active'
+     WHERE dx.post_id = ${p}.id AND dx.kind = 'duet'
+       AND ((dou.id = $1 OR (${DOWNLOADS_ALLOWED('dou')} AND NOT ${blockedBetween('dou.id', '$1')})) IS NOT TRUE))`;
+
+/**
+ * O `canDownload` de cada publicação (FEED_SQL e o download, com $1 = quem vê e `p`/`u` = a publicação e o autor): o autor
+ * ou DOWNLOADS_ALLOWED do autor e, num dueto, o mesmo para o autor do original (DUET_SOURCE_OK).
+ */
+export const CAN_DOWNLOAD_SQL = (p = 'p', u = 'u') => `(((${p}.author_id = $1 OR ${DOWNLOADS_ALLOWED(u)}) AND ${DUET_SOURCE_OK(p)}) IS TRUE)`;
 
 /** A resposta (403) quando quem publicou não deixa guardar (a definição, uma conta privada ou de um menor: não se diz qual). */
 export const DOWNLOAD_BLOCKED = 'Quem publicou não deixa guardar as suas tchekas.';
@@ -64,7 +80,9 @@ export const DOWNLOAD_BLOCKED = 'Quem publicou não deixa guardar as suas tcheka
  * ou seguida) e o autor deixa (DOWNLOADS_ALLOWED: «Deixar guardar as minhas tchekas», ligado por omissão; nunca numa conta
  * privada ou de um menor). Senão 403 (DOWNLOAD_BLOCKED). Num post de um sítio conta a conta de quem o publicou. Só
  * publicações com um vídeo (as tchekas e o primeiro vídeo de um carrossel); um repost guarda o original, com a regra do autor
- * do original. A definição vê-se e muda-se em `GET/PUT /posts/me/download-settings` (settings/setSettings).
+ * do original. Num dueto o vídeo do original vai na cópia: também o autor do original tem de deixar (DUET_SOURCE_OK). A
+ * definição vê-se e muda-se em `GET/PUT /posts/me/download-settings` (settings/setSettings); desligar, ou passar a conta a
+ * privada, apaga logo as cópias que deixam de ser permitidas (dropDownloadCopies).
  *
  * A cópia faz-se uma vez por versão (downloadVersion) e fica em content.post_downloads (ficheiro privado que expira em
  * KEEP_DAYS); as vezes seguintes saem logo.
@@ -166,9 +184,38 @@ export class PostDownloadService {
     return { allow: !!r.allow_downloads, effective: !!r.allow_downloads && !r.is_private && !!r.adult, private: !!r.is_private, minor: !r.adult };
   }
 
+  /** Desligar apaga logo as cópias que deixam de ser permitidas (dropDownloadCopies). */
   async setSettings(userId: string, allow: boolean) {
-    await this.pool.query('UPDATE identity.users SET allow_downloads = $2 WHERE id = $1', [userId, allow]);
+    const client = await this.pool.connect();
+    let gone: string[] = [];
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE identity.users SET allow_downloads = $2 WHERE id = $1', [userId, allow]);
+      if (!allow) gone = await dropDownloadCopies(client, userId);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    this.purge(gone);
     return this.settings(userId);
+  }
+
+  /**
+   * Tira do armazenamento os ficheiros que dropDownloadCopies marcou (depois do COMMIT de quem os marcou), em segundo plano: o
+   * pedido não espera. Se falhar, a limpeza de sempre (sweepDeleted, de 10 em 10 minutos) apaga-os (status 'deleted', sem
+   * purged_at). Também ao passar a conta a privada (SocialService.updateMe).
+   */
+  purge(gone: string[]): void {
+    if (!gone.length) return;
+    void (async () => {
+      for (const id of gone) {
+        await this.media.purgeFiles(id, 'chat');
+        await this.pool.query('UPDATE content.media_assets SET purged_at = now() WHERE id = $1', [id]);
+      }
+    })().catch((e) => this.log.warn(`cópias guardadas por apagar (a limpeza de sempre trata delas): ${(e as Error).message}`));
   }
 
   private async cached(postId: string, version: string): Promise<string | null> {

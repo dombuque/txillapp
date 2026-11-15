@@ -9,6 +9,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { mentionableBy } from '../notifications/notifications.service';
 import { blockedBetween, canView, sameCountry } from './visibility';
 import { badge, type Badge } from '../common/badge';
+import { dropDownloadCopies } from '../posts/download-copies';
+import { PostDownloadService } from '../posts/post-download.service';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -38,6 +40,7 @@ export class SocialService {
     private readonly indexer: SearchIndexer,
     private readonly filter: TextFilter,
     private readonly insights: InsightsService,
+    private readonly downloads: PostDownloadService,
   ) {}
 
   /* ───────────── perfil ───────────── */
@@ -144,7 +147,10 @@ export class SocialService {
     throw new ForbiddenException('Esta pessoa mantém estas listas privadas 🔒');
   }
 
-  /** Editar o próprio perfil. Só campos enviados são alterados. Passar a público aceita os pedidos pendentes. */
+  /**
+   * Editar o próprio perfil. Só campos enviados são alterados. Passar a público aceita os pedidos pendentes. Passar a privada
+   * apaga logo as cópias guardadas das tchekas (e dos duetos de outros com o vídeo dela), que deixam de ser permitidas.
+   */
   async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }) {
     this.filter.assertClean(patch.displayName, patch.bio, patch.city);
     const client = await this.pool.connect();
@@ -168,7 +174,9 @@ export class SocialService {
         );
         await client.query('DELETE FROM social.follow_requests WHERE target_id = $1', [userId]);
       }
+      const gone = patch.isPrivate === true ? await dropDownloadCopies(client, userId) : [];
       await client.query('COMMIT');
+      this.downloads.purge(gone);
       this.indexer.userChanged(userId);
       return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private, website: rows[0].website as string | null, city: rows[0].city as string | null };
     } catch (e) {
