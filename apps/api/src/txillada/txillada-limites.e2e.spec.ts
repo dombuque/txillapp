@@ -151,7 +151,7 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     await api().post(`/api/v1/txilladas/${id}/cheer`).set(auth(lrui)).expect(200);
     const all = JSON.stringify([dto, c, ...txEvents(lana), ...txEvents(lrui), ...txEvents(lhost)]);
     expect(all).not.toMatch(/@example\.com|email|birth|1990-06-15/i);
-    // Quem está a ver não sai em lado nenhum (só o número): o id do Rui (que só brindou) não chega à Ana.
+    // O id interno de quem está a ver não sai em lado nenhum (o «entrou» só leva o @ e o nome): o id do Rui não chega à Ana.
     expect(JSON.stringify(txEvents(lana))).not.toContain(lrui.id);
     await endAll(lhost);
   });
@@ -212,14 +212,15 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     await pool.query(`UPDATE identity.users SET status = 'active' WHERE id = $1`, [lsus.id]);
   });
 
-  it('os espectadores entram escondidos na sala (hidden); o anfitrião não', async () => {
+  it('quem está a ver é visível na sala: o token do espectador não leva hidden (nem o do anfitrião)', async () => {
     const { lhost, lana } = u;
-    const created = (await open(lhost, 'Escondidos').expect(201)).body;
+    const created = (await open(lhost, 'Visíveis').expect(201)).body;
     const id = created.txillada.id as string;
     expect(decodeJwt(created.token).video).toMatchObject({ canPublish: true });
     expect((decodeJwt(created.token).video as { hidden?: boolean }).hidden).toBeFalsy();
     const v = (await api().post(`/api/v1/txilladas/${id}/join`).set(auth(lana)).expect(200)).body;
-    expect(decodeJwt(v.token).video).toMatchObject({ canPublish: false, canSubscribe: true, hidden: true });
+    expect(decodeJwt(v.token).video).toMatchObject({ canPublish: false, canSubscribe: true });
+    expect(decodeJwt(v.token).video).not.toHaveProperty('hidden');
     const h = (await api().post(`/api/v1/txilladas/${id}/join`).set(auth(lhost)).expect(200)).body;
     expect((decodeJwt(h.token).video as { hidden?: boolean }).hidden).toBeFalsy();
   });

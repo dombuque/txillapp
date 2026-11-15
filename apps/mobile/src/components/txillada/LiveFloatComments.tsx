@@ -4,14 +4,14 @@ import { FloatBubble } from '@/components/StoryFloatComments';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP } from '@/lib/storyFrame';
 import {
-  FLOAT_MAX, FLOAT_STEP_MS, floatAdd, floatBusy, floatInit, floatLift, floatRemove, floatSkip, floatStep, floatView,
+  FLOAT_MAX, FLOAT_STEP_MS, LIVE_FLOAT_TTL_MS, floatAdd, floatBusy, floatInit, floatLift, floatRemove, floatSkip, floatStep, floatView,
   type FloatState, type TxilladaComment,
 } from '@/lib/txillada';
 
 /**
  * Os comentários da Txillada a flutuar (o estilo dos balões dos mimos, components/StoryFloatComments): à esquerda, em
  * baixo no vídeo. Cada comentário novo entra de baixo, um de cada vez (numa enxurrada, de 0,65 em 0,65 s, saltando os que
- * esperam demais), sobe e desvanece ao fim de 9 s ou quando já não cabe. Quem entra vê só os 3 últimos que já lá estavam.
+ * esperam demais) e fica à vista (até 45 s) até os novos o empurrarem para cima, onde desvanece. Quem entra vê só os 3 últimos que já lá estavam.
  * `onHold`: o toque longo num balão (o anfitrião apaga ou expulsa; o autor apaga o seu).
  */
 export function LiveFloatComments({ comments, bottom, width, height, onHold }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onHold?: (c: TxilladaComment) => void }) {
@@ -42,14 +42,14 @@ export function LiveFloatComments({ comments, bottom, width, height, onHold }: {
     const tick = () => {
       const at = Date.now();
       setNow(at);
-      setSt((s) => floatStep(s, at, max));
+      setSt((s) => floatStep(s, at, max, LIVE_FLOAT_TTL_MS));
     };
     tick();
     const t = setInterval(tick, FLOAT_STEP_MS);
     return () => clearInterval(t);
   }, [busy, max]);
 
-  const entries = floatView(st, now, max);
+  const entries = floatView(st, now, max, LIVE_FLOAT_TTL_MS);
   const lift = floatLift(entries, heights, 44, FLOAT_GAP);
   const byId = new Map(comments.map((c) => [c.id, c]));
   if (!entries.length) return null;

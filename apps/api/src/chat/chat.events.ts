@@ -72,7 +72,24 @@ export type TxilladaEvent =
   | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string } }
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
   | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut' }
-  | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string };
+  | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
+  /** Uma reação (não se guarda). `to`: o anfitrião respondeu com um olá a quem entrou. */
+  | {
+      type: 'txillada.reaction';
+      txilladaId: string;
+      kind: TxilladaReaction;
+      from: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null; host: boolean };
+      to?: { username: string; verified: boolean; verifiedTier: string | null };
+    }
+  /** Alguém (que não o anfitrião) entrou; no máximo uma vez por pessoa por Txillada a cada 60 s. */
+  | {
+      type: 'txillada.joined';
+      txilladaId: string;
+      user: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null };
+    };
+
+export const TXILLADA_REACTIONS = ['hello', 'cheers', 'fire', 'laugh', 'heart'] as const;
+export type TxilladaReaction = (typeof TXILLADA_REACTIONS)[number];
 
 export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent | MixarEvent | TxilladaEvent;
 

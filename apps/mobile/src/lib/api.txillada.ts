@@ -5,6 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { post, raw } from '@/lib/api';
 import { txilladaEnabled, type TxilladaAudience, type TxilladaComment, type TxilladaDto } from '@/lib/txillada';
+import type { FxPerson, ReactionKind } from '@/lib/txilladaFx';
 
 export type { TxilladaAudience, TxilladaComment, TxilladaDto } from '@/lib/txillada';
 
@@ -38,6 +39,14 @@ export const txilladaApi = {
   cheer: (txilladaId: string): Promise<{ cheers: number }> => raw(`/txilladas/${id(txilladaId)}/cheer`, post({})),
   ban: (txilladaId: string, username: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/ban/${id(username)}`, post({})),
   report: (txilladaId: string, reason: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/report`, post({ reason })),
+  /**
+   * Uma reação rápida (👋 🍻 🔥 😂 ❤️) a quem está na sala, sem se guardar (o 🍻 conta como um brinde e devolve `cheers`).
+   * `to`: só o anfitrião, com 👋, a responder a quem entrou.
+   */
+  react: (txilladaId: string, kind: ReactionKind, to?: string): Promise<{ sent: boolean; cheers?: number }> =>
+    raw(`/txilladas/${id(txilladaId)}/react`, post(to ? { kind, to } : { kind })),
+  /** Quem está a ver agora (sem quem tem um bloqueio comigo). */
+  viewers: (txilladaId: string): Promise<{ items: FxPerson[]; total: number }> => raw(`/txilladas/${id(txilladaId)}/viewers`),
 };
 
 /** A chave da configuração no React Query (o mesmo valor serve Criar e o resto da app). */

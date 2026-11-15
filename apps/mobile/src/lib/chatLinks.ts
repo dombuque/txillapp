@@ -20,7 +20,7 @@ const MENTION = /(?<![\p{L}\p{N}_.&#@/])@([a-zA-Z0-9_.]{3,30})/gu;
 const PARTS = /^(https?):\/\/([^/?#\s@]+)(?::\d{1,5})?([/?#][^\s]*)?$/i;
 const OWN_HOSTS = new Set(['txillapp.com', 'www.txillapp.com', 'app.txillapp.com']);
 /** O primeiro pedaço do caminho que é um ecrã da app (o resto, ex. /api ou /tiles, abre fora). */
-const APP_ROUTES = new Set(['p', 'r', 'u', 'm', 'c', 'g', 't', 'tag', 'v', 'evento', 'place', 'reels', 'stories', 'locais', 'perto', 'geleira', 'invites']);
+const APP_ROUTES = new Set(['p', 'r', 'u', 'm', 'c', 'g', 't', 'tag', 'v', 'evento', 'place', 'reels', 'stories', 'locais', 'perto', 'geleira', 'invites', 'txillada']);
 
 /** O endereço limpo (sem a pontuação do fim) e, se for do Txillapp e de um ecrã da app, o caminho para abrir lá dentro. */
 export function chatUrl(raw: string): { href: string; path: string | null } | null {
