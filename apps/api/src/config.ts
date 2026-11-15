@@ -85,6 +85,8 @@ const schema = z.object({
   OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().default('qwen3:4b')),
   /** Fios de CPU do modelo (o mesmo número de CPUs dado ao contentor do Ollama; na máquina da Txillada, 3). Sem ele, o Ollama escolhe. */
   OLLAMA_NUM_THREAD: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(64).optional()),
+  /** Raciocínio à parte (`think`) nos modelos que o têm: mais certeiro, mas gera muito mais texto (em CPU, minutos). Por omissão desligado. */
+  OLLAMA_THINK: z.preprocess(blankToUndefined, z.enum(['on', 'off']).default('off')),
   /** Tempo máximo de uma resposta (com as chamadas de ferramentas) e quantas se preparam ao mesmo tempo (o resto espera na fila). */
   SUPERTXILL_TIMEOUT_MS: z.preprocess(blankToUndefined, z.coerce.number().int().min(1000).max(300_000).default(90_000)),
   SUPERTXILL_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(4).default(1)),

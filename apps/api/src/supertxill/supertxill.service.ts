@@ -56,8 +56,8 @@ export class SuperTxillService {
   private client?: Anthropic;
   private running = 0;
   private readonly queue: Array<() => Promise<void>> = [];
-  /** O modelo aceita `think` (raciocínio à parte)? Desliga-se sozinho se o Ollama disser que não. */
-  private think = true;
+  /** Raciocínio à parte (`think`, OLLAMA_THINK=on). Desliga-se sozinho se o modelo não o tiver. */
+  private think: boolean;
   /** Substituível (nos testes): recebe o histórico e devolve a resposta. */
   llm: (history: Turn[], ctx: LlmCtx) => Promise<string> = (h, ctx) => (this.provider === 'anthropic' ? this.callClaude(h, ctx.signal) : this.callOllama(h, ctx));
   /** Substituível (nos testes): o pedido ao Ollama (POST /api/chat). */
@@ -69,6 +69,7 @@ export class SuperTxillService {
     private readonly filter: TextFilter,
     private readonly tools: SuperTxillTools,
   ) {
+    this.think = config.OLLAMA_THINK === 'on';
     this.chat = config.OLLAMA_URL ? ollamaClient(config.OLLAMA_URL, config.OLLAMA_TOKEN) : async () => { throw new Error('OLLAMA_URL em falta'); };
   }
 
@@ -218,7 +219,7 @@ export class SuperTxillService {
     const r = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [userId])).rows[0];
     const now = new Date().toLocaleString('pt-PT', { timeZone: 'Africa/Maputo', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
     const name = String(r?.display_name ?? '').split(/\s+/)[0].replace(/[^\p{L}\p{N}' -]/gu, '').slice(0, 30);
-    return `Em Maputo é ${now}.${name ? ` A pessoa chama-se ${name}.` : ''}`;
+    return `AGORA: em Maputo é ${now}.${name ? ` A pessoa chama-se ${name}.` : ''}`;
   }
 
   /**
@@ -226,18 +227,24 @@ export class SuperTxillService {
    * a pessoa e devolve os resultados; no fim responde em texto. O raciocínio (`think`) fica à parte e nunca se guarda.
    */
   private async callOllama(history: Turn[], ctx: LlmCtx): Promise<string> {
-    const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt({ tools: true, ctx: await this.context(ctx.userId) }) }, ...history];
+    // As instruções e as ferramentas vão sempre iguais, no início: o Ollama guarda-as já processadas e não as volta a ler
+    // (em CPU poupa muito tempo). O que muda (o dia, a hora e o nome) vai numa nota logo antes da última pergunta.
+    const turns: OllamaMessage[] = [...history];
+    turns.splice(Math.max(0, turns.length - 1), 0, { role: 'system', content: await this.context(ctx.userId) });
+    const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt({ tools: true }) }, ...turns];
     let calls = 0;
-    for (let round = 0; round <= MAX_TOOL_CALLS; round++) {
-      const withTools = calls < MAX_TOOL_CALLS;
-      const res = await this.ollama(messages, withTools, ctx.signal);
+    let nudged = false;
+    for (let round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
+      const res = await this.ollama(messages, true, ctx.signal);
       const m = res.message;
-      const wanted = withTools ? (m.tool_calls ?? []) : [];
+      const wanted = calls < MAX_TOOL_CALLS ? (m.tool_calls ?? []) : [];
       if (!wanted.length) {
         const text = stripThinking(m.content ?? '');
-        if (text || !withTools) return text;
-        // Sem texto nem ferramentas: pede-se a resposta outra vez, já sem ferramentas.
-        calls = MAX_TOOL_CALLS;
+        if (text) return text;
+        if (nudged) break;
+        // Já não pode (ou não quis) chamar mais ferramentas e não respondeu: pede-se a resposta com o que já tem.
+        nudged = true;
+        messages.push({ role: 'system', content: 'Já não podes chamar ferramentas. Responde agora à pessoa, só com o que já sabes.' });
         continue;
       }
       messages.push({ role: 'assistant', content: m.content ?? '', tool_calls: wanted });
@@ -248,7 +255,7 @@ export class SuperTxillService {
         messages.push({ role: 'tool', tool_name: c.function.name, content: JSON.stringify(out).slice(0, TOOL_OUT) });
       }
     }
-    // Gastou as chamadas todas: uma última vez, sem ferramentas, para responder com o que tem.
+    // Último recurso: sem ferramentas nenhumas (o modelo já não as pode pedir).
     return stripThinking((await this.ollama(messages, false, ctx.signal)).message.content ?? '');
   }
 

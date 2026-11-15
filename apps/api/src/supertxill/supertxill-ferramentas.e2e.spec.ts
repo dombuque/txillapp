@@ -111,6 +111,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
       loadConfig({
         DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test',
         OLLAMA_URL: 'http://ollama.invalid:11434', OLLAMA_MODEL: 'modelo-teste', SUPERTXILL_DAILY_LIMIT: '200', SUPERTXILL_TIMEOUT_MS: '1500', SUPERTXILL_CONCURRENCY: '1',
+        OLLAMA_THINK: 'on', OLLAMA_NUM_THREAD: '3',
       }),
     );
     await app.init();
@@ -133,6 +134,9 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect(make({ OLLAMA_URL: 'http://o:11434', SUPERTXILL_PROVIDER: 'off' })).toBe('off');
     expect(make({ SUPERTXILL_PROVIDER: 'ollama' })).toBe('off');
     expect(() => loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40), SUPERTXILL_PROVIDER: 'gpt' })).toThrow(/SUPERTXILL_PROVIDER/);
+    // Por omissão: sem raciocínio à parte (em CPU gera minutos de texto), 90 s, 1 de cada vez.
+    const d = loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40) });
+    expect([d.OLLAMA_THINK, d.SUPERTXILL_TIMEOUT_MS, d.SUPERTXILL_CONCURRENCY, d.OLLAMA_NUM_THREAD]).toEqual(['off', 90_000, 1, undefined]);
   });
 
   it('ciclo de ferramentas: o modelo pede, a API corre como a pessoa e devolve; o raciocínio não se guarda; histórico de 20 mensagens', async () => {
@@ -156,8 +160,14 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect(seen[0].tools?.map((t) => t.function.name)).toEqual(TOOLS.map((t) => t.function.name));
     expect(seen[0].messages[0].role).toBe('system');
     expect(seen[0].messages[0].content).toContain('malta_perto');
-    expect(seen[0].messages[0].content).toMatch(/A pessoa chama-se sxa\./);
-    expect(seen[0].messages.slice(1)).toEqual([{ role: 'user', content: 'Estou animado, onde anda a malta?' }]);
+    expect(seen[0].options).toMatchObject({ num_thread: 3, num_ctx: 8192 });
+    // As instruções são sempre as mesmas (o Ollama reaproveita-as); o dia, a hora e o nome vão numa nota antes da pergunta.
+    expect(seen[0].messages[0].content).not.toMatch(/AGORA|sxa/);
+    expect(seen[0].messages[1]).toEqual({ role: 'system', content: expect.stringMatching(/^AGORA: em Maputo é .+ A pessoa chama-se sxa\.$/) });
+    expect(seen[0].messages.slice(2)).toEqual([{ role: 'user', content: 'Estou animado, onde anda a malta?' }]);
+    // Todos os pedidos levam as ferramentas e começam igual.
+    expect(seen[1].tools?.length).toBe(TOOLS.length);
+    expect(seen[1].messages[0]).toEqual(seen[0].messages[0]);
     // Segundo pedido: a chamada e o resultado da ferramenta, sem coordenadas.
     const toolMsg = seen[1].messages.find((m) => m.role === 'tool')!;
     expect(toolMsg.tool_name).toBe('malta_perto');
@@ -166,7 +176,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     for (let g = 1; g <= 30; g++) await pool.query('INSERT INTO social.ai_messages (id, user_id, role, body) VALUES ($1, $2, $3, $4)', [uuidv7(), me.id, g % 2 ? 'user' : 'assistant', `msg ${g}`]);
     const seen2 = script([], 'ok');
     await ask(me, 'e agora?');
-    expect(seen2[0].messages.length - 1).toBeLessThanOrEqual(20);
+    expect(seen2[0].messages.length - 2).toBeLessThanOrEqual(20);
     expect(seen2[0].messages[1].role).toBe('user');
     expect(seen2[0].messages[seen2[0].messages.length - 1]).toEqual({ role: 'user', content: 'e agora?' });
   });
