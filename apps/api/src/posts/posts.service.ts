@@ -545,7 +545,7 @@ export class PostsService implements OnModuleInit {
 
   /**
    * Repostar: partilha a publicação de outra pessoa no teu perfil, sozinha ou com um comentário (citação).
-   * Só publicações normais de contas públicas; nunca as tuas, de bloqueados, nem reposts de reposts.
+   * Só publicações normais de contas públicas (ou as tuas, mesmo com a conta privada); nunca de bloqueados, nem reposts de reposts.
    */
   async repost(userId: string, postId: string, body = '', textFont: TextFontId | null = null) {
     this.filter.assertClean(body);
@@ -558,8 +558,9 @@ export class PostsService implements OnModuleInit {
     if (!o) throw new NotFoundException('Publicação não encontrada');
     // Reposta-se publicações (incluindo presentes) e citações, como no X; um repost simples já mostra o original, repostas esse.
     if (!(o.kind === 'post' || o.kind === 'gift' || (o.kind === 'repost' && o.body))) throw new BadRequestException('Um repost simples não se reposta: reposta a publicação original');
-    // O dono também pode repostar a sua própria publicação (como no X). Contas privadas não se repostam, nem a própria.
-    if (o.is_private) throw new ForbiddenException('As publicações de contas privadas não podem ser repostadas 🔒');
+    // O dono também pode repostar a sua própria publicação (como no X), mesmo com a conta privada (o repost fica só para
+    // quem o segue, como tudo o resto). As de outras contas privadas não se repostam.
+    if (o.is_private && o.author_id !== userId) throw new ForbiddenException('As publicações de contas privadas não podem ser repostadas 🔒');
 
     const text = body.trim().slice(0, 500);
     if (!text) {

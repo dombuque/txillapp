@@ -218,6 +218,9 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     await rp(viewer, q.id).expect(404); // nem a vê
     await rp(sharer, q.id).expect(404);
     expect((await feedOf(viewer)).some((x) => x.kind === 'repost' && x.repostOf?.id === p.id)).toBe(false);
+    // O próprio dono reposta (e cita) a sua publicação mesmo com a conta privada.
+    const ownQuote = await rp(author, q.id, 'hoje é aonde?').expect(201);
+    expect(ownQuote.body).toMatchObject({ body: 'hoje é aonde?', repostOf: { id: q.id } });
     await api().patch('/api/v1/users/me').set(auth(author)).send({ isPrivate: false }).expect(200);
 
     // Bloqueio: quem foi bloqueado não repõe.
