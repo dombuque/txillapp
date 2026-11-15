@@ -25,7 +25,7 @@ const SPARKS: { a: number; d: number; c: string; r: number; delay: number }[] = 
 ];
 
 /**
- * O brinde, ao jeito das reações do Teams: os dois copos entram com mola, tocam no meio do post (esticam e encolhem
+ * O brinde, ao jeito das reações do Teams: os dois copos entram com mola, tocam no meio do post (esticam e encolhem, a espuma salta
  * com o choque, abre-se um anel e saltam faíscas), o da esquerda inclina e despeja cerveja para o outro, que enche;
  * no fim tudo sobe um pouco e desvanece. `n` muda a cada brinde. Fica por cima do conteúdo, sem apanhar toques.
  */
@@ -116,6 +116,24 @@ function Mug({ t, side, w }: { t: SharedValue<number>; side: 'left' | 'right'; w
     const wob = Math.sin(t.value * 40) * 1.5 * interpolate(t.value, [0.4, 0.5, 0.8, 0.9], [0, 1, 1, 0], 'clamp');
     return { d: `M10 ${top + 3} q7 ${-10 + wob} 15 -2 q8 ${-9 - wob} 16 -1 q8 ${-9 + wob} 16 0 q7 -7 9 3 v7 h-56 z` };
   });
+  // A cabeça de espuma acima da borda: sobe com o choque dos copos (nos dois) e, no da direita, quando enche transborda.
+  const head = useAnimatedProps(() => {
+    const clink = interpolate(t.value, [0.18, 0.23, 0.38], [0, 1, 0], 'clamp');
+    const over = side === 'right' ? interpolate(t.value, [0.7, 0.82], [0, 1], 'clamp') : 0;
+    const k = Math.max(clink, over);
+    const h = 13 * k;
+    const wob = Math.sin(t.value * 34) * 1.2 * k;
+    return {
+      d: `M9 23 C7 ${21 - h * 0.6} 16 ${17 - h} 24 ${19 - h + wob} C29 ${13 - h * 1.25} 41 ${13 - h * 1.3} 45 ${18 - h - wob} C51 ${14 - h * 1.15} 63 ${16 - h * 0.9} 67 23 Z`,
+      opacity: k > 0.02 ? 1 : 0,
+    };
+  });
+  // A espuma que escorre pelo lado de fora do copo cheio, devagar.
+  const drip = useAnimatedProps(() => {
+    const p = side === 'right' ? interpolate(t.value, [0.8, 0.98], [0, 1], 'clamp') : 0;
+    const len = 30 * (1 - (1 - p) * (1 - p));
+    return { d: `M11 21 q-5 1 -5 7 v${len} a3.5 3.5 0 0 0 7 0 v${-len} z`, opacity: p > 0 ? 1 : 0 };
+  });
   return (
     <Svg viewBox="0 0 100 120" width={w} height={w * 1.2}>
       <Defs>
@@ -147,6 +165,8 @@ function Mug({ t, side, w }: { t: SharedValue<number>; side: 'left' | 'right'; w
       </G>
       <Rect x={12} y={18} width={52} height={74} rx={7} fill="none" stroke={INK} strokeWidth={5.5} strokeLinejoin="round" />
       <Rect x={8} y={90} width={60} height={9} rx={4.5} fill="#f59e0b" stroke={INK} strokeWidth={4.5} />
+      <AnimatedPath fill={FOAM} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" animatedProps={drip} />
+      <AnimatedPath fill={FOAM} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" animatedProps={head} />
     </Svg>
   );
 }
@@ -181,10 +201,39 @@ function Stream({ t, size }: { t: SharedValue<number>; size: number }) {
 function Sparks({ t, size }: { t: SharedValue<number>; size: number }) {
   return (
     <Svg viewBox="0 0 200 200" width={size} height={size} style={StyleSheet.absoluteFill}>
-      {SPARKS.map((s, i) => <Spark key={i} t={t} s={s} />)}
       <Ring t={t} />
+      {PUFFS.map((s, i) => <Puff key={`p${i}`} t={t} s={s} />)}
+      {SPARKS.map((s, i) => <Spark key={i} t={t} s={s} />)}
     </Svg>
   );
+}
+
+/** Flocos de espuma que saltam dos copos no «tchin»: sobem, caem com o peso e desfazem-se. */
+const PUFFS: { x: number; a: number; d: number; r: number; delay: number }[] = [
+  { x: -14, a: -120, d: 46, r: 7, delay: 0 },
+  { x: -10, a: -150, d: 40, r: 5.5, delay: 0.02 },
+  { x: -6, a: -100, d: 60, r: 6, delay: 0.01 },
+  { x: 14, a: -60, d: 46, r: 7, delay: 0 },
+  { x: 10, a: -30, d: 40, r: 5.5, delay: 0.02 },
+  { x: 6, a: -80, d: 60, r: 6, delay: 0.01 },
+  { x: 0, a: -90, d: 34, r: 8, delay: 0.005 },
+  { x: -4, a: -135, d: 66, r: 4, delay: 0.04 },
+  { x: 4, a: -45, d: 66, r: 4, delay: 0.04 },
+];
+
+function Puff({ t, s }: { t: SharedValue<number>; s: (typeof PUFFS)[number] }) {
+  const props = useAnimatedProps(() => {
+    const p = interpolate(t.value, [0.19 + s.delay, 0.56 + s.delay], [0, 1], 'clamp');
+    const e = 1 - (1 - p) * (1 - p);
+    const rad = (s.a * Math.PI) / 180;
+    return {
+      cx: 100 + s.x + Math.cos(rad) * s.d * e,
+      cy: 72 + Math.sin(rad) * s.d * e + 46 * p * p, // o peso puxa-os para baixo
+      r: s.r * (p < 0.12 ? 0.4 + (p / 0.12) * 0.6 : 1 - (p - 0.12) * 0.45),
+      opacity: p > 0 && p < 1 ? 1 - p * p * p : 0,
+    };
+  });
+  return <AnimatedCircle fill={FOAM} stroke={INK} strokeWidth={1.6} animatedProps={props} />;
 }
 
 function Spark({ t, s }: { t: SharedValue<number>; s: (typeof SPARKS)[number] }) {
