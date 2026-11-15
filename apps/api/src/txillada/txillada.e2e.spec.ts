@@ -202,8 +202,12 @@ describe('Txillada: os lives (integração)', () => {
     const v = await api().post(`/api/v1/txilladas/${id}/join`).set(auth(ana)).expect(200);
     expect(v.body.url).toBe('ws://localhost:7880');
     expect(decodeJwt(v.body.token)).toMatchObject({ sub: ana.id, video: { roomJoin: true, room: `tx-${id}`, canPublish: false, canSubscribe: true, canPublishData: false } });
-    expect(JSON.parse(String(decodeJwt(v.body.token).metadata))).toEqual({ username: ana.username });
+    // Quem vê não leva o nome nem o @ no token (chega a todos na sala, também a quem tem bloqueio); o anfitrião leva.
+    expect(decodeJwt(v.body.token)).not.toHaveProperty('name');
+    expect(decodeJwt(v.body.token)).not.toHaveProperty('metadata');
     const h = await api().post(`/api/v1/txilladas/${id}/join`).set(auth(host)).expect(200);
+    expect(decodeJwt(h.body.token)).toMatchObject({ sub: host.id, name: 'Host Teste' });
+    expect(JSON.parse(String(decodeJwt(h.body.token).metadata))).toEqual({ username: host.username });
     expect((decodeJwt(h.body.token).video as { canPublish: boolean }).canPublish).toBe(true);
     // A lista: a de quem sigo aparece; a minha não.
     const mine = (await api().get('/api/v1/txilladas/live').set(auth(ana)).expect(200)).body.items as { id: string }[];

@@ -31,20 +31,23 @@ export function livekitRoomsFromConfig(c: AppConfig): LiveKitRooms | null {
 
 /**
  * Um token de entrada na sala: o anfitrião publica (câmara e microfone); os espectadores só recebem. Quem está a ver é
- * visível na sala (o nome e o @ vão no token); `hidden` esconde-o.
+ * visível na sala só pelo identity (o id da conta, como nos comentários); `hidden` esconde-o. O nome e o @ só vão no token
+ * do anfitrião: o token de quem vê chega a todos os aparelhos da sala, também aos de quem tem bloqueio com essa pessoa.
+ * A app mostra quem está a ver pela API (GET /txilladas/:id/viewers, que filtra os bloqueios), nunca pelo LiveKit.
  */
 export async function roomToken(
   c: AppConfig,
   o: {
-    room: string; identity: string; name: string; username: string; host: boolean;
+    room: string; identity: string; host: boolean;
+    /** Só para o anfitrião: a quem vê não se põe o nome nem o @ no token. */
+    name?: string; username?: string;
     /** As futuras Txilladas pagas: quem vê volta a entrar escondido. Por omissão false. */
     hidden?: boolean;
   },
 ): Promise<string> {
   const at = new AccessToken(c.LIVEKIT_API_KEY!, c.LIVEKIT_API_SECRET!, {
     identity: o.identity,
-    name: o.name,
-    metadata: JSON.stringify({ username: o.username }),
+    ...(o.host ? { name: o.name, metadata: JSON.stringify({ username: o.username }) } : {}),
     // O token só vale para ligar (o LiveKit renova-o sozinho enquanto a ligação dura). A Txillada dura no máximo 4 h.
     ttl: o.host ? '5h' : '2h',
   });
@@ -56,7 +59,7 @@ export async function roomToken(
     // Os comentários e os brindes passam pela API (com o filtro e os limites), não pelos dados do LiveKit.
     canPublishData: false,
     canUpdateOwnMetadata: false,
-    // Quem está a ver é visível (os outros na sala veem o nome e o @). Escondido (`hidden`) só quando se pede: as futuras
+    // Quem está a ver é visível (os outros na sala veem o identity, sem nome nem @). Escondido (`hidden`) só quando se pede: as futuras
     // Txilladas pagas, em que quem vê volta a entrar escondido. O webhook avisa sempre quem entra e sai (é assim que se contam).
     ...(!o.host && o.hidden ? { hidden: true } : {}),
   });

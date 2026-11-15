@@ -216,7 +216,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         [me],
       )
     ).rows[0];
-    const token = await roomToken(this.config, { room: r.room, identity: me, name: u.display_name, username: u.username, host: isHost });
+    // O nome e o @ só no token do anfitrião: o de quem vê chega a todos na sala (também a quem tem bloqueio com essa pessoa).
+    const token = await roomToken(this.config, isHost
+      ? { room: r.room, identity: me, name: u.display_name, username: u.username, host: true }
+      : { room: r.room, identity: me, host: false });
     if (!isHost) {
       await this.bus.touch(toKey(id), me, SET_MS);
       // «@fulano entrou»: daqui (o webhook pode não estar ligado), uma vez por pessoa a cada 60 s (as religações não repetem).

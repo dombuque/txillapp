@@ -107,7 +107,9 @@ describe('Txillada: reações, quem está a ver e «entrou» (integração)', ()
     const v = (await join(rana, created.txillada.id)).body;
     expect(decodeJwt(v.token).video).toMatchObject({ roomJoin: true, canPublish: false, canSubscribe: true });
     expect(decodeJwt(v.token).video).not.toHaveProperty('hidden');
-    expect(JSON.parse(String(decodeJwt(v.token).metadata))).toEqual({ username: rana.username });
+    expect(decodeJwt(v.token)).not.toHaveProperty('name');
+    expect(decodeJwt(v.token)).not.toHaveProperty('metadata');
+    expect(JSON.parse(String(decodeJwt(created.token).metadata))).toEqual({ username: rhost.username });
   });
 
   it('react: o evento chega ao anfitrião e a quem vê (não a quem tem bloqueio com quem reagiu) e nada se guarda', async () => {
