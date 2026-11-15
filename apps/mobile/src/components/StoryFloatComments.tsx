@@ -3,7 +3,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
-import type { StoryComment } from '@/lib/api';
+import { InlineBadge } from '@/components/NameWithBadge';
+import type { Badged, StoryComment } from '@/lib/api';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP, type FloatColumn } from '@/lib/storyFrame';
 import { FLOAT_EVERY_MS, FLOAT_FIRST_MS, floatDone, floatName, floatOffsets, floatPool, floatText, floatWindow } from '@/lib/storyFloat';
@@ -58,7 +59,7 @@ export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { 
 }
 
 /** O que um balão precisa de um comentário (o dos mimos e o da Txillada). */
-export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean }; body: string };
+export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean } & Badged; body: string };
 
 /**
  * Um balão de vidro com a roda da foto de quem comentou (também os da Txillada, components/txillada/LiveFloatComments).
@@ -88,6 +89,8 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         <View style={[st.glass, glassWeb]}>
           <Text style={st.text} numberOfLines={2}>
             <Text style={st.name}>{name}</Text>
+            {/* Contas verificadas com o selo em todo o lado, também nos balões. */}
+            {c.author.verified ? <InlineBadge who={c.author} fontSize={14} /> : null}
             {'  '}
             {text}
           </Text>

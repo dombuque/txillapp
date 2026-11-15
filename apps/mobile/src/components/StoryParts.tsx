@@ -156,7 +156,7 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, 
         </View>
         {!open && (
           <>
-            {onComments ? <BarButton icon="comment" label={story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={onComments} n={story.commentCount} /> : null}
+            {onComments ? <BarButton icon="comment" label={story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={onComments} /> : null}
             <Pressable onPress={() => void cheer()} hitSlop={4} style={({ pressed }) => [st.barBtn, cheered && st.barBtnOn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Brindar" accessibilityState={{ selected: cheered }}>
               <Icon name="cheers" size={26} color={cheered ? colors.brandWarm : '#fff'} strokeWidth={cheered ? 2.1 : 1.8} />
             </Pressable>
