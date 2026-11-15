@@ -314,6 +314,28 @@ export function liveId(u: { live?: { id?: unknown } | null } | null | undefined)
   return typeof id === 'string' && id ? id : null;
 }
 
+type TrayLike = { isMe: boolean; count: number; live?: { id?: unknown } | null };
+
+/**
+ * A fila dos mimos sem o meu: cada entrada com a Txillada que tocar abre (`live`, só com ela ligada). Quem está ao vivo vem
+ * primeiro (a ordem do resto não muda); uma entrada só ao vivo (sem mimos, `count: 0`) sai se não houver Txillada para abrir.
+ */
+export function trayOthers<T extends TrayLike>(users: readonly T[], txilladaOn: boolean): { u: T; live: string | null }[] {
+  const rows = users.filter((u) => !u.isMe).map((u) => ({ u, live: txilladaOn ? liveId(u) : null })).filter((r) => r.live || r.u.count > 0);
+  return rows.filter((r) => r.live).concat(rows.filter((r) => !r.live));
+}
+
+/** Acabou a Txillada `id`: a entrada só ao vivo sai da fila; a que tem mimos fica, sem a roda. */
+export function trayWithoutLive<T extends TrayLike>(users: readonly T[] | undefined, id: string): T[] | undefined {
+  if (!users) return users;
+  return users.filter((u) => !(liveId(u) === id && u.count === 0)).map((u) => (liveId(u) === id ? { ...u, live: null } : u));
+}
+
+/** Quem tem mimos para ver (o visor passa de pessoa a pessoa só por estas; as entradas só ao vivo ficam de fora). */
+export function withStories<T extends { count: number }>(users: readonly T[]): T[] {
+  return users.filter((u) => u.count > 0);
+}
+
 /** A notificação `txillada_live`: «abriu uma Txillada: <título>» (o @ vem antes, como nas outras). */
 export function noticeText(data: { title?: unknown } | null | undefined): string {
   const t = typeof data?.title === 'string' ? data.title.trim() : '';

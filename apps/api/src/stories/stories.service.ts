@@ -11,7 +11,7 @@ import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView, notReportedBy } from '../social/visibility';
 import { badge, badgeJson, tierOf } from '../common/badge';
-import { liveOf } from '../txillada/txillada-visibility';
+import { liveOf, txilladaBanned, txilladaVisible } from '../txillada/txillada-visibility';
 
 /** O autor escondeu os stories a este espectador? */
 /** Stories só para amigos próximos: visíveis ao autor e à lista dele. */
@@ -75,7 +75,13 @@ export class StoriesService {
    * Bandeja: stories activos de quem sigo (e os meus). O próprio primeiro, depois "não vistos", depois os mais recentes.
    * O meu fica visto quando já vi o mais recente (max(created_at) <= seen_at), em qualquer aparelho.
    */
-  async tray(userId: string) {
+  /**
+   * Com `withLive` (a app nova manda `?live=1`), entram também os amigos (quem sigo, ou quem me tem nos amigos próximos)
+   * com uma Txillada a decorrer que posso ver, mesmo sem mimos (`count: 0`), e vêm primeiro: as de quem sigo antes, depois
+   * as mais recentes. Sem o parâmetro (a app 1.51 conta com pelo menos um mimo por entrada) a fila fica como era.
+   * Barato: as Txilladas 'live' estão no índice parcial txilladas_one_live (uma por anfitrião).
+   */
+  async tray(userId: string, withLive = false) {
     const { rows } = await this.pool.query(
       `WITH active AS (
          SELECT s.id, s.author_id, s.created_at, s.audience, ${seenBy()} AS seen
@@ -83,16 +89,30 @@ export class StoriesService {
           WHERE s.expires_at > now()
             AND (s.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.author_id))
             AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} AND ${notReportedBy('story', 's.id')}
-       )
+       ),
+       lv AS (
+         SELECT t.host_id, t.started_at,
+                EXISTS (SELECT 1 FROM social.follows lf WHERE lf.follower_id = $1 AND lf.followee_id = t.host_id) AS followed
+           FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
+          WHERE $2::boolean AND t.status = 'live' AND t.host_id <> $1
+            AND (EXISTS (SELECT 1 FROM social.follows lf WHERE lf.follower_id = $1 AND lf.followee_id = t.host_id)
+                 OR EXISTS (SELECT 1 FROM social.close_friends lc WHERE lc.owner_id = t.host_id AND lc.friend_id = $1))
+            AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')} AND ${notReportedBy('txillada', 't.id', '$1')}
+       ),
+       people AS (SELECT author_id AS uid FROM active UNION SELECT host_id FROM lv)
        SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.id = $1) AS is_me,
-              count(*)::int AS story_count, bool_and(a.seen) AS seen,
-              count(*) FILTER (WHERE a.seen)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at,
+              count(a.id)::int AS story_count, COALESCE(bool_and(a.seen), false) AS seen,
+              count(a.id) FILTER (WHERE a.seen)::int AS seen_count, COALESCE(bool_and(a.audience = 'close_friends'), false) AS close_only,
+              COALESCE(max(a.created_at), l.started_at) AS latest_at,
               ${liveOf('u', '$1')} AS live
-         FROM active a JOIN identity.users u ON u.id = a.author_id
-        GROUP BY u.id
-        ORDER BY (u.id = $1) DESC, bool_and(a.seen) ASC, max(a.created_at) DESC
+         FROM people p JOIN identity.users u ON u.id = p.uid
+         LEFT JOIN active a ON a.author_id = u.id
+         LEFT JOIN lv l ON l.host_id = u.id
+        GROUP BY u.id, l.host_id, l.followed, l.started_at
+        ORDER BY (u.id = $1) DESC, (l.host_id IS NOT NULL) DESC, l.followed DESC NULLS LAST, l.started_at DESC NULLS LAST,
+                 COALESCE(bool_and(a.seen), false) ASC, max(a.created_at) DESC
         LIMIT 50`,
-      [userId],
+      [userId, withLive],
     );
     return rows.map((r) => ({
       username: r.username,

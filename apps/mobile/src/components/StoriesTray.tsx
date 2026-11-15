@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api } from '@/lib/api';
+import { api, type TrayUser } from '@/lib/api';
+import { onTxilladaEvent } from '@/lib/realtime';
 import { useAuth } from '@/lib/auth';
 import { useOwnSeen } from '@/lib/ownSeen';
 import { trayMine } from '@/lib/ownStorySeen';
@@ -11,16 +13,31 @@ import { Ring } from './StoryRing';
 import { NameWithBadge } from './NameWithBadge';
 import { navTap } from '@/lib/tapGuard';
 import { useTxilladaEnabled } from '@/lib/api.txillada';
-import { liveId } from '@/lib/txillada';
+import { trayOthers, trayWithoutLive } from '@/lib/txillada';
 import { LiveRing } from './txillada/TxilladaParts';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
 export function StoriesTray() {
   const { user } = useAuth();
   const router = useRouter();
-  const { data } = useQuery({ queryKey: ['stories'], queryFn: api.stories, refetchInterval: 60_000 });
+  const qc = useQueryClient();
+  const { data, refetch } = useQuery({ queryKey: ['stories'], queryFn: api.stories, refetchInterval: 60_000 });
+  // Volta-se ao Início: a fila põe-se em dia (quem entrou ou saiu do ar).
+  // (Na primeira vez não: o useQuery acabou de pedir.)
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) void refetch();
+    focusedOnce.current = true;
+  }, [refetch]));
+  // Acabou uma Txillada (o evento chega a quem a esteve a ver): a entrada sai já, e a fila confirma com o servidor.
+  useEffect(() => onTxilladaEvent((raw) => {
+    const e = raw as { type?: unknown; txilladaId?: unknown } | null;
+    if (e?.type !== 'txillada.ended' || typeof e.txilladaId !== 'string') return;
+    const id = e.txilladaId;
+    qc.setQueryData<TrayUser[]>(['stories'], (old) => trayWithoutLive(old, id));
+    void qc.invalidateQueries({ queryKey: ['stories'], exact: true });
+  }), [qc]);
   const users = data ?? [];
-  const others = users.filter((u) => !u.isMe);
   const mine = users.find((u) => u.isMe);
   const ownSeenAt = useOwnSeen(user?.username);
   // O `seen` do servidor (vale em todos os aparelhos), reforçado pelo que este aparelho já viu.
@@ -28,8 +45,10 @@ export function StoriesTray() {
   // Dois toques rápidos no anel abriam o visor duas vezes (fechar um mostrava o outro por baixo).
   const create = () => { if (navTap('/stories/new')) router.push('/stories/new' as never); };
   const view = (u: string) => { if (navTap(`/stories/${u}`)) router.push(`/stories/${u}` as never); };
-  // Quem está ao vivo (Txillada): a roda coral «AO VIVO» e tocar entra no live, em vez dos mimos.
+  // Quem está ao vivo (Txillada): a roda coral «AO VIVO» e tocar entra no live, em vez dos mimos (que ficam no toque longo
+  // e no perfil). Vêm primeiro, também os amigos ao vivo sem mimos.
   const txilladaOn = useTxilladaEnabled();
+  const others = trayOthers(users, txilladaOn);
   const watch = (id: string) => { if (navTap(`/txillada/${id}`)) router.push(`/txillada/${id}` as never); };
 
   return (
@@ -48,10 +67,9 @@ export function StoriesTray() {
         </Pressable>
 
         {/* Quem está ao vivo vem primeiro (a ordem do resto não muda). */}
-        {others.slice().sort((a, b) => Number(!!(txilladaOn && liveId(b))) - Number(!!(txilladaOn && liveId(a)))).map((u) => {
-          const live = txilladaOn ? liveId(u) : null;
+        {others.map(({ u, live }) => {
           return (
-          <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? `${u.displayName} está ao vivo: ver a Txillada` : `Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+          <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} onLongPress={live && u.count > 0 ? () => view(u.username) : undefined} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? `${u.displayName} está ao vivo: ver a Txillada` : `Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             {live ? (
               <LiveRing><Avatar name={u.displayName} username={u.username} size={56} /></LiveRing>
             ) : (

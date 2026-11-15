@@ -32,6 +32,7 @@ import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
+import { withStories } from '@/lib/txillada';
 import { freshEnough, startIndex } from '@/lib/storyLink';
 import { artistHref } from '@/lib/artists';
 import { MusicPill } from '@/components/PostMusic';
@@ -211,7 +212,8 @@ export default function StoryViewer() {
     else router.replace('/' as never);
   };
   // Ordem como no site: os teus (se tiveres) e depois os outros. Avança para o próximo ainda por ver.
-  const order = (tray.data ?? []).slice().sort((a, b) => Number(b.isMe) - Number(a.isMe));
+  // As entradas só ao vivo (sem mimos) ficam de fora: passar para elas abria um visor vazio.
+  const order = withStories(tray.data ?? []).sort((a, b) => Number(b.isMe) - Number(a.isMe));
   const at = order.findIndex((t) => t.username === username);
   const goUser = (u?: string, dir: 1 | -1 = 1) => { if (!u) return close(); lastDir = dir; router.replace(`/stories/${u}` as never); };
   // Entrada: desliza do lado por onde se veio (como a passagem de pessoa a pessoa no Instagram).
