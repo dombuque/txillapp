@@ -2,7 +2,9 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import * as Haptics from 'expo-haptics';
 import { useRef, useState, useEffect } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
+import { CheersPour } from './CheersPour';
 import { api, type Comment, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { detectPaymentAsk } from '@/lib/chatIntent';
@@ -57,14 +59,36 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
   // Pedido de pagamento no comentário de outra pessoa (que seguimos): o mesmo aviso do chat.
   const ask = !mine && !dismissed && c.authorFollowed ? detectPaymentAsk(text.body, c.author.displayName.split(' ')[0]) : null;
 
+  // O brinde do comentário: os copos pequenos por cima do comentário, o ícone salta e o telemóvel vibra (só ao pôr).
+  const [burst, setBurst] = useState(0);
+  const pop = useSharedValue(1);
+  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  function celebrate() {
+    setBurst((n) => n + 1);
+    pop.value = withSequence(withTiming(1.45, { duration: 120 }), withSpring(1, { damping: 7, stiffness: 260 }));
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  }
   async function toggle() {
     const prev = cheer;
+    if (!prev.cheered) celebrate();
     setCheer({ cheered: !prev.cheered, cheers: prev.cheers + (prev.cheered ? -1 : 1) });
     try {
       setCheer(await api.cheerComment(c.id));
     } catch {
       setCheer(prev);
     }
+  }
+  // Dois toques seguidos no comentário brindam (só põem, como nas publicações).
+  const lastTap = useRef(0);
+  function onRowPress() {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      lastTap.current = 0;
+      if (cheer.cheered) celebrate();
+      else void toggle();
+      return;
+    }
+    lastTap.current = now;
   }
   async function saveEdit() {
     const body = draft.trim();
@@ -118,6 +142,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
 
   return (
     <Pressable
+      onPress={onRowPress}
       onLongPress={openMenu}
       delayLongPress={380}
       style={[styles.row, highlighted && { backgroundColor: colors.rose50 }, desktop && over && !highlighted && { backgroundColor: '#fafafa' }]}
@@ -186,8 +211,9 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         </Pressable>
       ) : null}
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
-        <Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} />
+        <Animated.View style={popStyle}><Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} /></Animated.View>
       </Pressable>
+      <CheersPour n={burst} size={120} />
       {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
         <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null}>
