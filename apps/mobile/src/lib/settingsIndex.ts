@@ -122,7 +122,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'insights', group: 'conteudo', title: 'Estatísticas do perfil', to: '/insights', keywords: ['visitas', 'alcance', 'números', 'insights', 'estatísticas'] },
   { id: 'locais', group: 'conteudo', title: 'Tenho um local (bar, restaurante…)', to: '/locais', keywords: ['negócio', 'bar', 'restaurante', 'página', 'empresa', 'local'] },
   { id: 'soundReuse', group: 'conteudo', title: 'Deixar usar o meu som', keywords: ['som', 'sons', 'som original', 'usar este som', 'usar o meu som', 'reutilizar', 'sons em alta', 'áudio', 'música', 'direitos', 'tchekas', 'reels', 'sound'] },
-  { id: 'allowDownloads', group: 'conteudo', title: 'Deixar guardar as minhas tchekas', keywords: ['guardar', 'guardar vídeo', 'guardar o vídeo', 'guardar tchekas', 'descarregar', 'descarregar vídeo', 'download', 'baixar', 'transferir', 'galeria', 'copiar vídeo', 'tchekas', 'vídeos', 'reels'] },
+  { id: 'allowDownloads', group: 'conteudo', title: 'Deixar guardar as minhas tchekas', keywords: ['guardar', 'guardar vídeo', 'guardar o vídeo', 'guardar tchekas', 'descarregar', 'descarregar vídeo', 'download', 'baixar', 'transferir', 'galeria', 'copiar vídeo', 'impedir que guardem', 'não deixar guardar', 'tchekas', 'vídeos', 'reels'] },
   { id: 'mySounds', group: 'conteudo', title: 'Os meus sons', to: '/settings/sons', keywords: ['som', 'sons', 'som original', 'retirar o som', 'retirar o meu som', 'apagar som', 'tirar o som', 'direitos', 'música', 'tchekas', 'sound'] },
   { id: 'invites', group: 'conteudo', title: 'Convida a tua malta', to: '/invites', keywords: ['convites', 'convidar', 'código de convite', 'amigos'] },
   { id: 'contacts', group: 'conteudo', title: 'Encontrar amigos nos contactos', keywords: ['contactos', 'amigos', 'agenda', 'procurar amigos'] },
@@ -154,7 +154,8 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
     'encher', 'inteiro', 'enquadrar', 'foto cortada', 'vídeo cortado', 'vídeo deitado', 'fundo desfocado',
     // As letras ao publicar (textos nos mimos, publicações só com texto, legenda do Zás) também não têm opção: só a Ajuda.
     'letra', 'letras', 'fonte', 'fontes', 'tipo de letra', 'texto no mimo', 'texto nos mimos',
-    // Guardar uma tcheka (GET /posts/:id/download) não tem opção para desligar, e a música gravada no vídeo também não: só a Ajuda.
+    // Guardar uma tcheka (GET /posts/:id/download): a opção é «Deixar guardar as minhas tchekas» (acima, em Conteúdo); como
+    // guardar, o que leva a cópia e a música gravada no vídeo (que não tem opção) estão na Ajuda.
     'guardar tcheka', 'guardar vídeo', 'descarregar tcheka', 'descarregar vídeo', 'impedir que guardem', 'marca de água', 'assinatura', 'música gravada'] },
   { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições', 'tolerância zero', 'regras da malta'] },
   { id: 'privacyPolicy', group: 'ajuda', title: 'Política de privacidade', to: '/privacy', keywords: ['rgpd', 'dados pessoais', 'privacidade'] },
