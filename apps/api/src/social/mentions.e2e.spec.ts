@@ -77,6 +77,16 @@ describe('menções (@utilizador) e amigos próximos (integração)', () => {
     await api().post(`/api/v1/posts/${p.id}/comments`).set(auth(ma)).send({ body: `outra vez @${mb.username}` }).expect(201);
     await wait();
     expect(await mentions(mb)).toHaveLength(2);
+
+    // Responder ao comentário de alguém com o @ dele: chega só o «respondeu ao teu comentário», sem o «mencionou-te» repetido.
+    const cb = (await api().post(`/api/v1/posts/${p.id}/comments`).set(auth(mb)).send({ body: 'gostei' }).expect(201)).body;
+    await api().post(`/api/v1/posts/${p.id}/comments`).set(auth(ma)).send({ body: `@${mb.username} mng 😂`, parentId: cb.id }).expect(201);
+    await wait();
+    expect(await mentions(mb)).toHaveLength(2);
+    // O dono da publicação (ma) também não leva o «mencionou-te» de quem lhe comenta com o @ dele.
+    await api().post(`/api/v1/posts/${p.id}/comments`).set(auth(mb)).send({ body: `boa @${ma.username}` }).expect(201);
+    await wait();
+    expect(await mentions(ma)).toHaveLength(0);
   });
 
   it('stories para amigos próximos: só a lista vê; só se pode juntar quem me segue', async () => {
