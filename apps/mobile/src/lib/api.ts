@@ -385,7 +385,7 @@ export interface Story {
   /** Stickers e textos por cima do mimo (centro e tamanho em fração do ecrã, rotação em graus; os textos com `kind: 'text'`, lib/textLayers). */
   stickers?: import('./stickers').MimoLayer[];
 }
-export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
+export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; /** Brindes (0161; servidores antigos não mandam). */ cheers?: number; cheered?: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
 export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -781,6 +781,8 @@ export const api = {
   cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => trackOk(raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }), 'cheer', on && { target: 'story' }),
   storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
   commentStory: (id: string, body: string): Promise<{ id: string }> => trackOk(raw(`/stories/${id}/comments`, post({ body })), 'comment', { target: 'story' }),
+  /** Brindar um comentário do mimo (outra vez tira). */
+  cheerStoryComment: (commentId: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/stories/comments/${commentId}/cheer`, post({})), 'cheer', (r) => r?.cheered && { target: 'story_comment' }),
   deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
   closeFriends: (): Promise<({ username: string; displayName: string; hasAvatar: boolean } & Badged)[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),

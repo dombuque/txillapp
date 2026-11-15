@@ -33,3 +33,21 @@ test('o visor dos mimos escolhe onde começar só com a lista fresca do servidor
   const viewer = readFileSync(new URL('../src/app/stories/[username].tsx', import.meta.url), 'utf8');
   assert.match(viewer, /if \(!freshEnough\(q\.dataUpdatedAt, openedAt\.current, q\.isFetching\)\) return;/);
 });
+
+test('o aviso de brinde a um comentário do mimo (?comments=1) abre a folha só nesse mimo', async () => {
+  const { opensComments } = await import('../src/lib/storyLink.ts');
+  const list = [{ mediaUrl: `/api/v1/media/${A}` }, { mediaUrl: `/api/v1/media/${B}` }];
+  assert.equal(opensComments(list, B, '1'), true);
+  assert.equal(opensComments(list, B.toUpperCase(), '1'), true);
+  assert.equal(opensComments(list, B, undefined), false, 'sem ?comments=1');
+  assert.equal(opensComments(list, undefined, '1'), false, 'sem ?m=');
+  assert.equal(opensComments(list, '0193a1b2-0000-7000-8000-00000000000c', '1'), false, 'o mimo já expirou');
+  const viewer = readFileSync(new URL('../src/app/stories/[username].tsx', import.meta.url), 'utf8');
+  assert.match(viewer, /if \(opensComments\(stories, wantedMedia, wantComments\)\) setPanel\('comments'\);/);
+  assert.match(viewer, /<StoryFloatComments key=\{cur\.id\} storyId=\{cur\.id\}/);
+  // A folha: o copo, a contagem e os dois toques em cada comentário.
+  const parts = readFileSync(new URL('../src/components/StoryParts.tsx', import.meta.url), 'utf8');
+  assert.match(parts, /api\.cheerStoryComment\(c\.id\)/);
+  assert.match(parts, /\{cheer\.cheers\} \{cheer\.cheers === 1 \? 'brinde' : 'brindes'\}/);
+  assert.match(parts, /<CheersPour n=\{burst\} size=\{96\} \/>/);
+});

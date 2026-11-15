@@ -17,7 +17,7 @@ import { txilladaApi, txilladaKey, type TxilladaAccess } from '@/lib/api.txillad
 import { useAuth } from '@/lib/auth';
 import { onTxilladaEvent } from '@/lib/realtime';
 import {
-  applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withComments, withDto,
+  applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withCommentCheer, withComments, withDto,
   type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent,
 } from '@/lib/txillada';
 import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
@@ -141,9 +141,12 @@ export function useNow(on: boolean): number {
   return now;
 }
 
-type Act = { t: 'dto'; dto: TxilladaDto } | { t: 'comments'; items: TxilladaComment[] } | { t: 'event'; ev: TxilladaEvent; me: string | null } | { t: 'cheers'; n: number };
+type Act =
+  | { t: 'dto'; dto: TxilladaDto } | { t: 'comments'; items: TxilladaComment[] } | { t: 'event'; ev: TxilladaEvent; me: string | null } | { t: 'cheers'; n: number }
+  | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean };
 function reduce(s: LiveState, a: Act): LiveState {
   switch (a.t) {
+    case 'commentCheer': return withCommentCheer(s, a.id, a.cheers, a.cheered);
     case 'dto': return withDto(s, a.dto);
     case 'comments': return withComments(s, a.items);
     case 'event': return applyEvent(s, a.ev, a.me);
@@ -194,6 +197,7 @@ export function useTxillada(id: string) {
   const tracksRef = useRef<LiveTracks | null>(null);
   const lastComment = useRef<number | null>(null);
   const cheerTimes = useRef<number[]>([]);
+  const commentCheerTimes = useRef<number[]>([]);
   const afterRef = useRef<string | null>(null);
 
   useEffect(() => { if (q.data) dispatch({ t: 'dto', dto: q.data }); }, [q.data]);
@@ -338,6 +342,24 @@ export function useTxillada(id: string) {
     void txilladaApi.react(id, 'cheers').then((r) => { if (typeof r?.cheers === 'number') dispatch({ t: 'cheers', n: r.cheers }); }, () => undefined);
     return true;
   }
+  /**
+   * Brindar um comentário (dois toques no balão): só põe, como nas publicações (já brindado, só os copos). A contagem sobe
+   * logo e acerta com a resposta; no máximo 5 por segundo (mais depressa não manda nada). Devolve false se não brindou agora.
+   */
+  function cheerComment(c: TxilladaComment): boolean {
+    if (c.cheered || kind !== 'live') return false;
+    const g = cheerGate(commentCheerTimes.current, Date.now());
+    commentCheerTimes.current = g.times;
+    if (!g.ok) return false;
+    dispatch({ t: 'commentCheer', id: c.id, cheers: (c.cheers ?? 0) + 1, cheered: true });
+    void txilladaApi.cheerComment(id, c.id).then(
+      (r) => {
+        if (typeof r?.cheers === 'number') dispatch({ t: 'commentCheer', id: c.id, cheers: r.cheers, cheered: !!r.cheered });
+      },
+      () => dispatch({ t: 'commentCheer', id: c.id, cheers: c.cheers ?? 0, cheered: false }),
+    );
+    return true;
+  }
   async function removeComment(c: TxilladaComment): Promise<string | null> {
     try {
       await txilladaApi.removeComment(id, c.id);
@@ -370,6 +392,6 @@ export function useTxillada(id: string) {
   const loadError = q.error ? (q.error instanceof ApiError ? errorText(q.error.status, q.error.message) : errorText(undefined)) : null;
   return {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
-    toggleMic, flip, startAudio, sendComment, cheer, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
+    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
   };
 }
