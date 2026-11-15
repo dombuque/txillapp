@@ -5,6 +5,7 @@ import { cheeredByA11y, cheeredByView, closeCheerers, othersLabel, type CheeredB
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { compactCount } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
+import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Avatar } from './Avatar';
 import { InlineBadge } from './NameWithBadge';
 
@@ -12,6 +13,47 @@ type Hover = { pressed: boolean; hovered?: boolean };
 const NATIVE = Platform.OS !== 'web';
 /** A cerveja da caneca (âmbar). */
 const BEER = '#fbbf24';
+
+/** O contorno serrilhado de uma carica (tampinha de garrafa), numa caixa 100×100: 21 dentes com as pontas arredondadas. */
+const CAP_PATH = (() => {
+  const n = 21, R = 49, r = 43.5;
+  const pt = (a: number, rad: number) => `${(50 + rad * Math.cos(a)).toFixed(2)} ${(50 + rad * Math.sin(a)).toFixed(2)}`;
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 0.5) / n) * Math.PI * 2 - Math.PI / 2;
+    const a2 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
+    d += `${i ? '' : `M${pt(a0, R)}`} Q${pt(a1 - 0.06, r)} ${pt(a1, r)} Q${pt(a1 + 0.06, r)} ${pt(a2, R)}`;
+  }
+  return `${d}Z`;
+})();
+
+/**
+ * Uma carica com a cara de quem brindou: a tampinha serrilhada na cor da marca (com brilho), um aro e a foto ao meio.
+ * O selo de «brindou» do Txillapp (em vez da bolinha com o coração das outras apps).
+ */
+export function Carica({ u, size }: { u: CheeredByUser; size: number }) {
+  const face = Math.round(size * 0.66);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} viewBox="0 0 100 100" style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <LinearGradient id="cap" x1="0.15" y1="0.05" x2="0.85" y2="0.95">
+            <Stop offset="0" stopColor="#ff8a7a" />
+            <Stop offset="0.45" stopColor={colors.brand} />
+            <Stop offset="1" stopColor="#9f1239" />
+          </LinearGradient>
+        </Defs>
+        <Path d={CAP_PATH} fill="url(#cap)" stroke="#7f1d1d" strokeOpacity={0.35} strokeWidth={1.5} strokeLinejoin="round" />
+        <Circle cx={50} cy={50} r={39} fill="none" stroke="#fff" strokeOpacity={0.45} strokeWidth={2.2} />
+        <Path d="M22 34 A32 32 0 0 1 46 17" fill="none" stroke="#fff" strokeOpacity={0.7} strokeWidth={4} strokeLinecap="round" />
+      </Svg>
+      <View style={{ width: face + 3, height: face + 3, borderRadius: (face + 3) / 2, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+        <Avatar name={u.displayName} username={u.avatarUrl ? u.username : undefined} size={face} />
+      </View>
+    </View>
+  );
+}
 
 /** A caneca pequenina, com espuma, num disco da cor da marca: o selo de «brindou» nos avatares. */
 export function MiniMug({ size = 16 }: { size?: number }) {
@@ -54,8 +96,8 @@ export function CheeredByLine({ post, onOpen, style }: { post: { cheers: number;
     >
       <View style={line.stack}>
         {v.avatars.map((u, i) => (
-          <View key={u.username} style={[line.ring, i > 0 && { marginLeft: -8 }, { zIndex: v.avatars.length - i }]}>
-            <Avatar name={u.displayName} username={u.avatarUrl ? u.username : undefined} size={22} />
+          <View key={u.username} style={[i > 0 && { marginLeft: -9 }, { zIndex: v.avatars.length - i, transform: [{ rotate: `${[-8, 6, -3][i] ?? 0}deg` }] }]}>
+            <Carica u={u} size={28} />
           </View>
         ))}
       </View>
@@ -68,46 +110,52 @@ export function CheeredByLine({ post, onOpen, style }: { post: { cheers: number;
   );
 }
 
-/** Uma roda a flutuar: entra com mola e sobe e desce devagar (parada com «reduzir movimento»). */
+/** Inclinações de cada carica em repouso (meio desarrumadas, como em cima da mesa). */
+const TILT = [-10, 8, -4];
+
+/**
+ * Uma carica a flutuar: salta da garrafa com um «pop» (sobe, rodopia e assenta com mola) e depois balança devagar, como a
+ * boiar (roda e sobe e desce um pouco). Parada com «reduzir movimento».
+ */
 function Floating({ u, i, reduce, size }: { u: CheeredByUser; i: number; reduce: boolean; size: number }) {
   const enter = useRef(new Animated.Value(reduce ? 1 : 0)).current;
-  const bob = useRef(new Animated.Value(0)).current;
+  const sway = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (reduce) {
       enter.setValue(1);
-      bob.setValue(0);
+      sway.setValue(0);
       return;
     }
-    const spring = Animated.spring(enter, { toValue: 1, friction: 5, tension: 70, delay: 120 + i * 110, useNativeDriver: NATIVE });
+    const pop = Animated.spring(enter, { toValue: 1, friction: 4.5, tension: 60, delay: 150 + i * 140, useNativeDriver: NATIVE });
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(bob, { toValue: 1, duration: 1700 + i * 260, easing: Easing.inOut(Easing.sin), useNativeDriver: NATIVE }),
-        Animated.timing(bob, { toValue: 0, duration: 1700 + i * 260, easing: Easing.inOut(Easing.sin), useNativeDriver: NATIVE }),
+        Animated.timing(sway, { toValue: 1, duration: 1900 + i * 300, easing: Easing.inOut(Easing.sin), useNativeDriver: NATIVE }),
+        Animated.timing(sway, { toValue: -1, duration: 2300 + i * 300, easing: Easing.inOut(Easing.sin), useNativeDriver: NATIVE }),
+        Animated.timing(sway, { toValue: 0, duration: 1200 + i * 200, easing: Easing.inOut(Easing.sin), useNativeDriver: NATIVE }),
       ]),
     );
-    spring.start();
-    const t = setTimeout(() => loop.start(), 400 + i * 380);
+    pop.start();
+    const t = setTimeout(() => loop.start(), 700 + i * 420);
     return () => {
       clearTimeout(t);
-      spring.stop();
+      pop.stop();
       loop.stop();
     };
-  }, [reduce, i, enter, bob]);
+  }, [reduce, i, enter, sway]);
+  const tilt = TILT[i] ?? 0;
   const style = {
-    opacity: enter.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
+    opacity: enter.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
     transform: [
-      { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
-      { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
+      { translateY: enter.interpolate({ inputRange: [0, 0.6, 1], outputRange: [size * 0.9, -size * 0.18, 0] }) },
+      { translateY: sway.interpolate({ inputRange: [-1, 0, 1], outputRange: [2, 0, -3] }) },
+      { rotate: enter.interpolate({ inputRange: [0, 1], outputRange: [`${tilt - 300}deg`, `${tilt}deg`] }) },
+      { rotate: sway.interpolate({ inputRange: [-1, 1], outputRange: ['-7deg', '7deg'] }) },
+      { scale: enter.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.3, 1.12, 1] }) },
     ],
   };
   return (
-    <Animated.View style={[float.item, i > 0 && { marginLeft: -6 }, { zIndex: 5 - i }, style]}>
-      <View style={[float.ring, { borderRadius: size / 2 + 2 }]}>
-        <Avatar name={u.displayName} username={u.avatarUrl ? u.username : undefined} size={size} />
-      </View>
-      <View style={float.mug}>
-        <MiniMug size={Math.round(size * 0.5)} />
-      </View>
+    <Animated.View style={[float.item, i > 0 && { marginLeft: -size * 0.28 }, { zIndex: 5 - i }, style]}>
+      <Carica u={u} size={size} />
     </Animated.View>
   );
 }
@@ -116,7 +164,7 @@ function Floating({ u, i, reduce, size }: { u: CheeredByUser; i: number; reduce:
  * Os meus amigos próximos que brindaram, em rodas a flutuar sobre a foto ou o vídeo (no canto de baixo à esquerda; quem
  * chama põe-nas acima do selo da música). Nada quando nenhum brindou ou o dono não deixa ver quem brindou.
  */
-export function CheeredFriends({ post, onOpen, style, size = 30 }: { post: { cheeredBy?: CheeredBy | null }; onOpen: () => void; style?: StyleProp<ViewStyle>; size?: number }) {
+export function CheeredFriends({ post, onOpen, style, size = 38 }: { post: { cheeredBy?: CheeredBy | null }; onOpen: () => void; style?: StyleProp<ViewStyle>; size?: number }) {
   const reduce = useReduceMotion();
   const friends = closeCheerers(post);
   if (!friends.length) return null;
