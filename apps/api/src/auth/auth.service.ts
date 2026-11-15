@@ -621,6 +621,12 @@ export class AuthService implements OnModuleInit {
       const svc = this.moduleRef.get(GroupsService, { strict: false });
       for (const g of groups) await svc.removeMember(userId, g.group_id as string, username).catch(() => undefined);
     }
+    // Uma Txillada a decorrer acaba como se a pessoa a terminasse (quem estava a ver é avisado e a sala no LiveKit fecha).
+    const live = (await this.pool.query("SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'", [userId])).rows[0];
+    if (live) {
+      const { TxilladaService } = await import('../txillada/txillada.service');
+      await this.moduleRef.get(TxilladaService, { strict: false }).end(userId, live.id as string).catch(() => undefined);
+    }
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -663,6 +669,12 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);
       await client.query('DELETE FROM content.stories WHERE author_id = $1', [userId]);
+      // Txillada (0158): as que fez (e, com elas, os comentários, os brindes e as expulsões dos outros nelas), os comentários
+      // e os brindes que deixou nas dos outros e as expulsões de que foi alvo.
+      await client.query('DELETE FROM content.txilladas WHERE host_id = $1', [userId]);
+      await client.query('DELETE FROM content.txillada_comments WHERE author_id = $1', [userId]);
+      await client.query('DELETE FROM content.txillada_cheers WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM content.txillada_bans WHERE user_id = $1', [userId]);
       // Conversas (e as mensagens nelas), listas, subscrições de notificações e denúncias feitas por esta conta.
       await client.query('DELETE FROM social.conversations WHERE user_a = $1 OR user_b = $1', [userId]);
       await client.query('DELETE FROM social.close_friends WHERE owner_id = $1 OR friend_id = $1', [userId]);

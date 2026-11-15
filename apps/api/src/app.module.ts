@@ -51,6 +51,8 @@ import { BoostsModule } from './boosts/boosts.module';
 import { FinModule } from './backoffice/fin.module';
 import { IapModule } from './iap/iap.module';
 import { ComposeModule } from './compose/compose.module';
+import { TxilladaModule } from './txillada/txillada.module';
+import { LIVEKIT_ROOMS, livekitRoomsFromConfig, type LiveKitRooms } from './txillada/livekit';
 import type Redis from 'ioredis';
 import { RealtimeModule } from './realtime/realtime.module';
 import { REDIS } from './realtime/redis';
@@ -59,7 +61,7 @@ import { SharedThrottlerStorage } from './realtime/throttler-storage';
 @Module({})
 export class AppModule {
   /** `googleJwks`: chaves públicas para validar tokens da Google; só os testes as substituem. */
-  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; bodyDetector?: BodyPartDetector; esClient?: Client } = {}): DynamicModule {
+  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; bodyDetector?: BodyPartDetector; esClient?: Client; livekitRooms?: LiveKitRooms | null } = {}): DynamicModule {
     return {
       module: AppModule,
       global: true,
@@ -113,6 +115,7 @@ export class AppModule {
         SocialModule,
         SearchModule,
         ComposeModule,
+        TxilladaModule,
       ],
       controllers: [HealthController, MetricsController],
       providers: [
@@ -129,9 +132,11 @@ export class AppModule {
               ? new Client({ node: config.ELASTICSEARCH_URL!, ...(config.ELASTICSEARCH_API_KEY ? { auth: { apiKey: config.ELASTICSEARCH_API_KEY } } : {}) })
               : null),
         },
+        // O LiveKit da Txillada (tirar pessoas, fechar salas). Sem LIVEKIT_*, null. Os testes passam um falso.
+        { provide: LIVEKIT_ROOMS, useValue: opts.livekitRooms !== undefined ? opts.livekitRooms : livekitRoomsFromConfig(config) },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
-      exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, BODY_DETECTOR, ES_CLIENT],
+      exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, BODY_DETECTOR, ES_CLIENT, LIVEKIT_ROOMS],
     };
   }
 }

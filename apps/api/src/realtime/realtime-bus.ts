@@ -151,6 +151,8 @@ export abstract class RealtimeBus {
   abstract touch(set: string, member: string, ttlMs: number, now?: number): Promise<void>;
   /** Quem foi marcado em `set` há menos de `windowMs` (e esquece os mais antigos). */
   abstract recent(set: string, windowMs: number, now?: number): Promise<string[]>;
+  /** Tira `member` de `set` já (por exemplo, saiu da sala de uma Txillada). */
+  abstract untouch(set: string, member: string): Promise<void>;
 
   /** Para os testes e o fim do processo. */
   async close(): Promise<void> {}
@@ -178,6 +180,12 @@ export abstract class RealtimeBus {
     let m = this.sets.get(set);
     if (!m) this.sets.set(set, (m = new Map()));
     m.set(member, now);
+  }
+  protected memUntouch(set: string, member: string) {
+    const m = this.sets.get(set);
+    if (!m) return;
+    m.delete(member);
+    if (!m.size) this.sets.delete(set);
   }
   protected memRecent(set: string, windowMs: number, now: number): string[] {
     const m = this.sets.get(set);
@@ -238,6 +246,9 @@ export class MemoryRealtimeBus extends RealtimeBus {
   }
   async recent(set: string, windowMs: number, now = Date.now()) {
     return this.memRecent(set, windowMs, now);
+  }
+  async untouch(set: string, member: string) {
+    this.memUntouch(set, member);
   }
 }
 
@@ -431,6 +442,11 @@ export class RedisRealtimeBus extends RealtimeBus {
       this.warn('recent', e);
       return this.memRecent(set, windowMs, now);
     }
+  }
+
+  async untouch(set: string, member: string) {
+    this.memUntouch(set, member);
+    await this.redis.zrem(set, member).catch((e) => this.warn('untouch', e));
   }
 
   async close() {

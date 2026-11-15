@@ -11,6 +11,7 @@ import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView, notReportedBy } from '../social/visibility';
 import { badge, badgeJson, tierOf } from '../common/badge';
+import { liveOf } from '../txillada/txillada-visibility';
 
 /** O autor escondeu os stories a este espectador? */
 /** Stories só para amigos próximos: visíveis ao autor e à lista dele. */
@@ -85,7 +86,8 @@ export class StoriesService {
        )
        SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.id = $1) AS is_me,
               count(*)::int AS story_count, bool_and(a.seen) AS seen,
-              count(*) FILTER (WHERE a.seen)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at
+              count(*) FILTER (WHERE a.seen)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at,
+              ${liveOf('u', '$1')} AS live
          FROM active a JOIN identity.users u ON u.id = a.author_id
         GROUP BY u.id
         ORDER BY (u.id = $1) DESC, bool_and(a.seen) ASC, max(a.created_at) DESC
@@ -104,6 +106,8 @@ export class StoriesService {
       /** Todos os stories activos desta pessoa são só para amigos próximos (anel verde). */
       closeFriends: r.close_only,
       latestAt: r.latest_at,
+      /** Txillada (0158): a que a pessoa tem a decorrer, se a posso ver (a roda fica vermelha com «AO VIVO» e tocar entra). */
+      live: (r.live as { id: string } | null) ?? null,
     }));
   }
 

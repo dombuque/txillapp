@@ -84,6 +84,10 @@ function contract(name: string, make: () => Promise<{ a: RealtimeBus; b: Realtim
       expect((await a.recent(s, 6_000, now)).sort()).toEqual(['rui']);
       await a.touch(s, 'eva', 6_000, now);
       expect((await a.recent(s, 6_000, now)).sort()).toEqual(['eva', 'rui']);
+      // Sair do conjunto já (a Txillada: saiu da sala).
+      await a.untouch(s, 'rui');
+      expect((await a.recent(s, 6_000, now)).sort()).toEqual(['eva']);
+      await a.untouch(s, 'ninguem');
     });
 
     if (name.includes('Redis')) {
