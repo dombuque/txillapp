@@ -7,6 +7,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { arcPoints, zasCaptionSvg } from './zas-caption';
+import { ZAS_OUT, zasCardLayout, zasWhen } from './zas-card';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -29,6 +30,19 @@ async function brightest(img: Buffer, left: number, top: number, width: number, 
   let max = 0;
   for (const v of px) if (v > max) max = v;
   return max;
+}
+
+/** A cor de um píxel (r, g, b). */
+async function pixel(img: Buffer, x: number, y: number): Promise<[number, number, number]> {
+  const px = await sharp(img).extract({ left: Math.round(x), top: Math.round(y), width: 1, height: 1 }).removeAlpha().raw().toBuffer();
+  return [px[0], px[1], px[2]];
+}
+
+/** Há algum píxel coral (o vermelho da marca, #d6334f) na zona? */
+async function coral(img: Buffer, left: number, top: number, width: number, height: number): Promise<boolean> {
+  const px = await sharp(img).extract({ left: Math.round(left), top: Math.round(top), width: Math.round(width), height: Math.round(height) }).removeAlpha().raw().toBuffer();
+  for (let i = 0; i < px.length; i += 3) if (px[i] > 180 && px[i + 1] < 90 && px[i + 2] < 120) return true;
+  return false;
 }
 
 describe('guardar um Zás: só o dono, com a assinatura e a legenda (integração)', () => {
@@ -69,33 +83,50 @@ describe('guardar um Zás: só o dono, com a assinatura e a legenda (integraçã
     await pool.end();
   });
 
-  it('o dono recebe o JPEG assinado (logótipo e @ em baixo à direita) e com a legenda na curva', async () => {
+  it('o dono recebe o Zás com o desenho da app: quadro 9:16, cartão squircle, marca, legenda na curva, hora e assinatura fora da foto', async () => {
     const id = await makeZas(u.zsa, 'cheguei ao Tofo');
     const r = await get(u.zsa, id).expect(200);
     expect(r.headers['content-type']).toMatch(/^image\/jpeg/);
     expect(r.headers['content-disposition']).toMatch(/attachment; filename="txillapp-zas-.+\.jpg"/);
     expect(r.headers['cache-control']).toMatch(/no-store/);
     const out = r.body as Buffer;
-    expect(Buffer.compare(out, jpeg)).not.toBe(0);
     const meta = await sharp(out).metadata();
     expect(meta.format).toBe('jpeg');
-    expect([meta.width, meta.height]).toEqual([W, H]);
-    // O original é cinzento por igual: a assinatura (branca) acende o canto de baixo à direita...
-    expect(await brightest(jpeg, 420, 680, 170, 110)).toBeLessThan(GRAY + 15);
-    expect(await brightest(out, 420, 680, 170, 110)).toBeGreaterThan(200);
-    // ... e a legenda acende o troço da curva do lado esquerdo e do topo (onde corre no ecrã).
-    const p = arcPoints(W, H)[40];
-    expect(await brightest(out, Math.max(0, Math.round(p.x) - 30), Math.max(0, Math.round(p.y) - 30), 60, 60)).toBeGreaterThan(200);
-    // O meio da foto fica como estava.
-    expect(await brightest(out, 250, 350, 100, 100)).toBeLessThan(GRAY + 15);
+    expect([meta.width, meta.height]).toEqual([ZAS_OUT.W, ZAS_OUT.H]);
+    const L = zasCardLayout();
+    // O fundo do quadro, fora do cartão: quase preto (#08080b).
+    const [br, bgc, bb] = await pixel(out, 20, 20);
+    expect(Math.max(br, bgc, bb)).toBeLessThan(20);
+    // O canto do cartão fica de fora da forma squircle (fundo escuro, não a foto cinzenta).
+    expect(Math.max(...(await pixel(out, L.x + 6, L.y + 6)))).toBeLessThan(40);
+    // O meio do cartão é a foto (cinzenta, sem nada por cima).
+    const mid = await pixel(out, L.x + L.cardW / 2, L.y + L.cardH / 2);
+    for (const v of mid) expect(Math.abs(v - GRAY)).toBeLessThan(12);
+    // A marca do Zás em cima: o raio coral (#d6334f), à esquerda de «Zás».
+    expect(await coral(out, 0, Math.max(0, L.headY - L.headSize), ZAS_OUT.W / 2, L.headSize * 2)).toBe(true);
+    // A legenda acende o troço da curva do cartão (do lado esquerdo e do topo, como no ecrã).
+    const p = arcPoints(L.cardW, L.cardH)[40];
+    expect(await brightest(out, Math.round(L.x + p.x) - 30, Math.round(L.y + p.y) - 30, 60, 60)).toBeGreaterThan(200);
+    // A data e a hora por baixo do cartão.
+    expect(await brightest(out, 300, L.timeY - L.timeSize, 480, L.timeSize + 8)).toBeGreaterThan(120);
+    // A assinatura (branca) no canto de baixo à direita, abaixo do cartão: nunca por cima da foto.
+    const sy = L.y + L.cardH + 40;
+    expect(await brightest(out, 780, ZAS_OUT.H - 170, 290, 160)).toBeGreaterThan(200);
+    expect(ZAS_OUT.H - 170).toBeGreaterThan(sy);
   });
 
-  it('sem legenda sai só a assinatura (a curva fica como a foto)', async () => {
+  it('sem legenda: o cartão e a assinatura, a curva fica como a foto', async () => {
     const id = await makeZas(u.zsa);
     const out = (await get(u.zsa, id).expect(200)).body as Buffer;
-    expect(await brightest(out, 420, 680, 170, 110)).toBeGreaterThan(200);
-    const p = arcPoints(W, H)[40];
-    expect(await brightest(out, Math.round(p.x) - 30, Math.round(p.y) - 30, 60, 60)).toBeLessThan(GRAY + 15);
+    const L = zasCardLayout();
+    expect(await brightest(out, 780, ZAS_OUT.H - 170, 290, 160)).toBeGreaterThan(200);
+    const p = arcPoints(L.cardW, L.cardH)[40];
+    expect(await brightest(out, Math.round(L.x + p.x) - 30, Math.round(L.y + p.y) - 30, 60, 60)).toBeLessThan(GRAY + 15);
+  });
+
+  it('a hora sai na de Moçambique', () => {
+    expect(zasWhen(new Date('2026-11-15T12:32:00Z'))).toBe('15 nov · 14:32');
+    expect(zasWhen(new Date('2026-01-31T23:05:00Z'))).toBe('1 fev · 01:05');
   });
 
   it('o Zás de outra pessoa não se guarda (403), nem para quem o pode ver', async () => {
