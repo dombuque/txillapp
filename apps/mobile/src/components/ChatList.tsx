@@ -25,7 +25,7 @@ export const CHAT_BG = '#f5f6f8';
  */
 export function ChatList({
   items: serverItems, pendingKey, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
-  onRaised, onScrollY, onTouch, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
+  onRaised, onScrollY, onTouch, onMenu, onLove, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
 }: {
   items: Msg[];
   /** A conversa nas mensagens a caminho (lib/chatPending): `u:<username>` ou `g:<id>`. Junta-as às do servidor. */
@@ -44,7 +44,7 @@ export function ChatList({
   onRaised?: (raised: boolean) => void;
   /** Quanto se subiu nas mensagens (pt; 0 = no fim da conversa): a nota no cabeçalho encolhe quando se sobe. */
   onScrollY?: (y: number) => void;
-  onMenu: (m: Msg, at?: MenuAt, mode?: MenuMode) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
+  onMenu: (m: Msg, at?: MenuAt, mode?: MenuMode) => void; onLove: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
   /** Deslizar uma bolha para a direita responde-lhe (o mesmo que "Responder" no menu). */
   onReply?: (m: Msg) => void;
   /** Leitor de ecrã, ação "Apagar" de uma bolha: a folha "Apagar mensagem?". */
@@ -168,7 +168,7 @@ export function ChatList({
                   peerHasAvatar={peerHasAvatar}
                   meHandle={meHandle}
                   onMenu={onMenu}
-                  onCheer={onCheer}
+                  onLove={onLove}
                   onOpenOnce={onOpenOnce}
                   onStopLive={onStopLive}
                   onRetry={retry}

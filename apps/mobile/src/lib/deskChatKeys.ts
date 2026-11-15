@@ -73,10 +73,13 @@ export function neighbourChat(paths: string[], current: string | null, dir: 1 | 
   return j >= 0 && j < paths.length ? paths[j] : null;
 }
 
-/** A conversa aberta, pelo endereço (/messages/ana, /messages/g/123), ou null na lista sozinha e em "Nova mensagem". */
+/**
+ * A conversa aberta, pelo endereço (/messages/ana, /messages/g/123), ou null na lista sozinha, em "Nova mensagem" e nas
+ * «Conversas escondidas» (/messages/escondidas).
+ */
 export function openChatPath(pathname: string): string | null {
   const m = /^\/messages\/(g\/[^/]+|[^/]+)$/.exec(pathname);
-  if (!m || m[1] === 'new') return null;
+  if (!m || m[1] === 'new' || m[1] === 'escondidas') return null;
   return `/messages/${m[1]}`;
 }
 

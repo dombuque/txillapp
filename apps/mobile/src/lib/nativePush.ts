@@ -15,11 +15,17 @@ const TOKEN_KEY = 'tx_native_push_token';
 if (Platform.OS !== 'web') {
   // Com a app aberta também aparece (como as conversas no WhatsApp). As chamadas não: o ecrã de chamada da app já toca.
   Notifications.setNotificationHandler({
+    // Conversa escondida (dados quiet = '1', apps/api chat/hidden-push.ts): vai só para a lista, sem som nem faixa.
     handleNotification: async (n) => isForegroundCall(n)
       ? { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false }
-      : { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true },
+      : isQuiet(n.request.content.data)
+        ? { shouldShowBanner: false, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: true }
+        : { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true },
   });
 }
+
+/** Aviso de uma conversa escondida (sem pré-visualização nem som de destaque). */
+const isQuiet = (data: unknown) => (data as { quiet?: unknown } | null | undefined)?.quiet === '1';
 
 async function channel() {
   // Canal e botões das chamadas (Android e iPhone).
@@ -30,6 +36,15 @@ async function channel() {
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 180, 120, 180],
     lightColor: '#d6334f',
+  });
+  // Conversas escondidas: «Nova mensagem» sem som nem faixa por cima (o servidor manda-as para este canal).
+  await Notifications.setNotificationChannelAsync('discreto', {
+    name: 'Conversas escondidas',
+    importance: Notifications.AndroidImportance.LOW,
+    sound: null,
+    vibrationPattern: null,
+    enableVibrate: false,
+    showBadge: true,
   });
 }
 

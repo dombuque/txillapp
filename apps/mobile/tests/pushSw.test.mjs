@@ -295,3 +295,19 @@ test('«chegou»: 404 (código fora de prazo) ou 409 (já não toca) não se rep
   assert.equal(sw.api.txCallInfo({ kind: 'call', callId: 'c2', data: { ackToken: 'x.y' } }).ackToken, '');
   assert.equal(sw.api.txCallInfo({ kind: 'call', data: { callId: 'c2', ackToken: 'x.y' } }, { callId: 'c2', ackToken: 'x.y' }).ackToken, 'x.y');
 });
+
+test('conversa escondida (quiet = 1): «Nova mensagem» na lista, sem som nem vibração, e não volta a avisar', async () => {
+  const sw = load({ windows: ['hidden'] });
+  await sw.push({ title: 'Txillapp', body: 'Nova mensagem', url: '/messages/ana', tag: 'chat:hidden', quiet: '1' });
+  const open = sw.open();
+  assert.equal(open.length, 1);
+  assert.equal(open[0].title, 'Txillapp');
+  assert.equal(open[0].options.body, 'Nova mensagem');
+  assert.equal(open[0].options.silent, true);
+  assert.equal(open[0].options.renotify, false);
+  assert.equal(open[0].options.data.url, '/messages/ana');
+  // Sem o sinal, a mesma mensagem avisa como sempre.
+  const loud = load({ windows: ['hidden'] });
+  await loud.push({ title: 'Ana', body: 'enviou-te uma mensagem', url: '/messages/ana', tag: 'chat:1' });
+  assert.equal(loud.open()[0].options.silent, false);
+});

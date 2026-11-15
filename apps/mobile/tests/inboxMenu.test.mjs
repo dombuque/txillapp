@@ -19,14 +19,14 @@ const labels = (items) => items.map((i) => i.label);
 test('conversa lida: deslizar mostra "Por ler" e "Apagar"; a folha marca como por ler, vê o perfil, apaga e cancela', () => {
   assert.deepEqual(m.inboxSwipe(chat()), { left: ['unread'], right: ['delete'] });
   assert.deepEqual(m.inboxMenu(chat()), ['unread', 'profile', 'delete']);
-  assert.deepEqual(labels(m.inboxMenuItems(chat())), ['Marcar como por ler', 'Ver perfil', 'Mensagens temporárias', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(chat())), ['Marcar como por ler', 'Ver perfil', 'Mensagens temporárias', 'Esconder conversa', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
   assert.equal(m.swipeLabel('unread'), 'Por ler');
   assert.equal(m.swipeLabel('delete'), 'Apagar');
 });
 
 test('conversa por ler (mensagens novas ou marcada à mão): "Marcar como lida" em vez de "por ler"', () => {
   assert.deepEqual(m.inboxSwipe(chat({ unread: 3 })).left, ['read']);
-  assert.deepEqual(labels(m.inboxMenuItems(chat({ unread: 1 }))), ['Marcar como lida', 'Ver perfil', 'Mensagens temporárias', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(chat({ unread: 1 }))), ['Marcar como lida', 'Ver perfil', 'Mensagens temporárias', 'Esconder conversa', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
   assert.equal(m.swipeLabel('read'), 'Lida');
 });
 
@@ -39,13 +39,13 @@ test('segurar a conversa: todas as opções do computador; limpar e apagar a ver
 
 test('TxillGroup sem por ler: sem "lido"; info do grupo e sair (vermelho)', () => {
   assert.deepEqual(m.inboxSwipe(group()), { left: [], right: ['leave'] });
-  assert.deepEqual(labels(m.inboxMenuItems(group())), ['Info do grupo', 'Sair do grupo', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(group())), ['Info do grupo', 'Esconder conversa', 'Sair do grupo', 'Cancelar']);
   assert.deepEqual(m.inboxMenuItems(group()).filter((i) => i.danger).map((i) => i.id), ['leave']);
 });
 
 test('TxillGroup com por ler: "Marcar como lido" (masculino) primeiro; nunca "por ler", ver perfil nem apagar', () => {
   assert.deepEqual(m.inboxSwipe(group({ unread: 2 })), { left: ['read'], right: ['leave'] });
-  assert.deepEqual(labels(m.inboxMenuItems(group({ unread: 2 }))), ['Marcar como lido', 'Info do grupo', 'Sair do grupo', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(group({ unread: 2 }))), ['Marcar como lido', 'Info do grupo', 'Esconder conversa', 'Sair do grupo', 'Cancelar']);
   for (const u of [0, 5]) {
     const acts = m.inboxMenu(group({ unread: u }));
     assert.ok(!acts.includes('unread') && !acts.includes('profile') && !acts.includes('delete'));

@@ -117,11 +117,11 @@ test('a ajuda dos atalhos: Ctrl no Windows, ⌘ no Mac, e as teclas todas', () =
 
 test('lista no computador: o menu de contexto (⋯ e botão direito) tem as ações de deslizar e as da conversa', () => {
   const chat = { group: false, unread: 0, username: 'ana', me: 'eu' };
-  assert.deepEqual(im.inboxDeskMenu(chat), ['unread', 'profile', 'ttl', 'clear', 'delete']);
-  assert.deepEqual(im.inboxDeskMenuItems(chat).map((i) => i.label), ['Marcar como por ler', 'Ver perfil', 'Mensagens temporárias', 'Limpar conversa', 'Apagar conversa']);
+  assert.deepEqual(im.inboxDeskMenu(chat), ['unread', 'profile', 'ttl', 'hide', 'clear', 'delete']);
+  assert.deepEqual(im.inboxDeskMenuItems(chat).map((i) => i.label), ['Marcar como por ler', 'Ver perfil', 'Mensagens temporárias', 'Esconder conversa', 'Limpar conversa', 'Apagar conversa']);
   assert.deepEqual(im.inboxDeskMenu({ ...chat, unread: 2 })[0], 'read');
   assert.ok(!im.inboxDeskMenu({ ...chat, request: true }).includes('ttl'), 'num pedido de mensagem não se mudam as temporárias');
-  assert.deepEqual(im.inboxDeskMenu({ group: true, unread: 1, me: 'eu' }), ['read', 'info', 'leave']);
+  assert.deepEqual(im.inboxDeskMenu({ group: true, unread: 1, me: 'eu' }), ['read', 'info', 'hide', 'leave']);
   assert.deepEqual(im.inboxDeskMenu({ group: false, unread: 0 }), []);
   assert.ok(im.inboxDeskMenuItems(chat).find((i) => i.id === 'delete').danger);
   assert.ok(!im.inboxDeskMenuItems(chat).some((i) => i.id === 'cancel'), 'sem "Cancelar": clicar fora ou Esc fecham');

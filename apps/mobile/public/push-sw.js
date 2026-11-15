@@ -254,6 +254,8 @@ self.addEventListener('push', (event) => {
       const mode = txMessageMode({ inChat, apple: TX_APPLE });
       if (mode === 'skip') return undefined;
       const quiet = mode === 'quiet';
+      // Conversa escondida (apps/api chat/hidden-push.ts): «Nova mensagem» sem som nem vibração, mas fica na lista.
+      const discreet = data.quiet === '1' || data.quiet === true;
       // iPhone/Safari: um aviso sem notificação conta como "silencioso" e, ao fim de poucos, o Safari cancela a
       // subscrição (as notificações deixam de chegar de vez). Por isso mostra-se sempre, sem som, e fecha-se logo.
       const tag = data.tag || (quiet ? 'tx-quiet' : undefined);
@@ -264,8 +266,8 @@ self.addEventListener('push', (event) => {
           badge: '/badge-96.png',
           tag,
           // Mesma conversa/pessoa: a notificação nova substitui a antiga mas volta a avisar (som e vibração).
-          renotify: !quiet && !!tag,
-          silent: quiet,
+          renotify: !quiet && !discreet && !!tag,
+          silent: quiet || discreet,
           timestamp: Date.now(),
           lang: 'pt',
           data: { url: data.url || '/' },
