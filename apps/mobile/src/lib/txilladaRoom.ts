@@ -20,7 +20,7 @@ import {
   applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withComments, withDto,
   type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent,
 } from '@/lib/txillada';
-import { askBroadcast, attachAudio, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
+import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
 
@@ -71,12 +71,13 @@ async function openTracks(front: boolean): Promise<LiveTracks> {
 
 /**
  * A qualidade de quem transmite: 720p a 30 imagens por segundo até ~2 Mbps, com simulcast (uma camada de 360p para quem
- * tem rede fraca). Quem vê em ecrã inteiro pede a camada alta (adaptiveStream com a densidade do ecrã).
+ * tem rede fraca). Quem vê no browser em ecrã inteiro pede a camada alta (adaptiveStream com a densidade do ecrã); quem
+ * vê no telemóvel fica sem adaptiveStream (o VideoView do @livekit/react-native mandava parar o vídeo; ver adaptiveVideo).
  */
 const VIDEO_ENCODING = { maxBitrate: 2_000_000, maxFramerate: 30 };
 function roomOptions(lk: typeof import('livekit-client'), amHost: boolean) {
   return {
-    adaptiveStream: amHost ? false : { pixelDensity: 'screen' as const },
+    adaptiveStream: !amHost && adaptiveVideo ? { pixelDensity: 'screen' as const } : false,
     dynacast: true,
     disconnectOnPageLeave: true,
     publishDefaults: { simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] },
@@ -247,7 +248,7 @@ export function useTxillada(id: string) {
         });
         room.on(lk.RoomEvent.Reconnecting, () => setConn('reconnecting'));
         room.on(lk.RoomEvent.Reconnected, () => setConn('connected'));
-        room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
+        room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio));
         room.on(lk.RoomEvent.Disconnected, (reason) => {
           if (dead) return;
           if (reason === lk.DisconnectReason.PARTICIPANT_REMOVED && !amHost) setError('Saíste desta Txillada: o anfitrião tirou-te.');
@@ -268,7 +269,7 @@ export function useTxillada(id: string) {
           await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] });
           await room.localParticipant.publishTrack(tracks.audio, { source: lk.Track.Source.Microphone });
         }
-        setAudioBlocked(!room.canPlaybackAudio);
+        setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio);
         setConn('connected');
       } catch (e) {
         if (dead) return;
@@ -309,7 +310,7 @@ export function useTxillada(id: string) {
   /** O som no browser pode precisar de um toque (as regras do autoplay). */
   async function startAudio() {
     try { await roomRef.current?.startAudio(); } catch { /* fica bloqueado */ }
-    setAudioBlocked(!(roomRef.current?.canPlaybackAudio ?? true));
+    setAudioBlocked(audioNeedsTap && !(roomRef.current?.canPlaybackAudio ?? true));
   }
 
   /** Manda um comentário. Devolve a mensagem de erro, ou null se correu bem. */

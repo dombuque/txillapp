@@ -185,6 +185,7 @@
       "./plugins/withAndroidUploadSigning",
       "./plugins/withoutUnusedServices",
       "./plugins/withCallService",
+      "./plugins/withLiveKitDecoders",
       [
         "@livekit/react-native-expo-plugin",
         {

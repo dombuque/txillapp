@@ -94,6 +94,19 @@ export function attachAudio(_track: unknown): () => void {
   return () => undefined;
 }
 
+/**
+ * No telemóvel o som nunca fica à espera de um toque: o `room.canPlaybackAudio` do livekit-client vem falso no React
+ * Native (não há regras de autoplay; o WebRTC toca o som sozinho) e o «Toca para ouvir» ficava no meio do vídeo.
+ */
+export const audioNeedsTap = false;
+
+/**
+ * Quem vê no telemóvel recebe o vídeo sem o «adaptive stream» do livekit-client: o vídeo ocupa o ecrã todo (pediria a
+ * camada de cima de qualquer maneira) e, com ele ligado, o VideoView do @livekit/react-native mede-se de segundo a
+ * segundo (ViewPortDetector) e manda PARAR o vídeo no servidor se a medida vier a 0 (o ecrã ficaria preto, sem erro).
+ */
+export const adaptiveVideo = false;
+
 /** A câmara para transmitir: no telemóvel o WebRTC roda as imagens (720p ao alto). */
 export const captureResolution = { width: 1280, height: 720, frameRate: 30 };
 
