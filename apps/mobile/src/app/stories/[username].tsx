@@ -16,7 +16,8 @@ import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
 import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, BarButton, CommentsPanel, Panel, ReplyBar, shareSharedPost, useKeyboardHeight } from '@/components/StoryParts';
-import { captionSpot, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
+import { StoryFloatComments } from '@/components/StoryFloatComments';
+import { captionSpot, floatColumn, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { sheetViewport } from '@/lib/sheetViewport';
@@ -363,6 +364,12 @@ export default function StoryViewer() {
   }, () => panel !== null || typing || overlayOpen());
   useEffect(() => { setKbPaused(false); }, [cur?.id]);
   const hold = { onPressIn: () => { down.current = Date.now(); setHeld(true); }, onPressOut: () => setHeld(false) };
+  // Os comentários a flutuar: só se pedem quando o mimo à vista tem comentários (a mesma cache da folha dos comentários;
+  // voltar ao mesmo mimo não pede outra vez).
+  const floatOn = ready && !!cur && cur.commentCount > 0 && !cur.commentsOff && !away && !background;
+  const floatQ = useQuery({ queryKey: ['story-comments', cur?.id], queryFn: () => api.storyComments(cur!.id), enabled: floatOn, staleTime: 5 * 60_000 });
+  /** A altura medida da legenda deste mimo (os balões acabam acima dela). */
+  const [capH, setCapH] = useState<{ id: string; h: number } | null>(null);
 
   if (q.isLoading) return <View style={st.center}><ActivityIndicator color="#fff" /></View>;
   if (q.isError || !cur) {
@@ -410,6 +417,7 @@ export default function StoryViewer() {
   const frame = storyFrame({ w: screen.w || width, h: screen.h || winH, top: insets.top, bottom: insets.bottom, wide });
   const ratio = cur.mediaKind === 'image' && photoRatio?.id === cur.id ? photoRatio.r : null;
   const cap = captionSpot(frame.cardW, frame.cardH, ratio);
+  const floatCol = floatColumn(frame.cardW, frame.cardH, ratio, cur.caption ? (capH?.id === cur.id ? capH.h : 56) : 0);
   // A barra presa ao fim do cartão; a escrever sobe para cima do teclado (no nativo o teclado não encolhe o visor; na
   // web o visor já é só a zona visível). No computador não há teclado no ecrã e a barra fica onde está.
   const liveH = rootH || winH;
@@ -504,9 +512,14 @@ export default function StoryViewer() {
 
           {/* A legenda: por baixo de uma foto deitada, ou logo acima da assinatura (captionSpot), nunca por cima dela. */}
           {!typing && cur.caption ? (
-            <View style={[st.captionWrap, { bottom: cap.bottom, maxHeight: cap.maxHeight }, fade]} pointerEvents="box-none">
+            <View style={[st.captionWrap, { bottom: cap.bottom, maxHeight: cap.maxHeight }, fade]} pointerEvents="box-none" onLayout={(e) => { const h = Math.ceil(e.nativeEvent.layout.height); if (capH?.id !== cur.id || capH.h !== h) setCapH({ id: cur.id, h }); }}>
               <View style={st.caption}><RichText text={cur.caption} style={{ color: '#fff', fontSize: 17, lineHeight: 23, fontWeight: '600', textAlign: 'center' }} /></View>
             </View>
+          ) : null}
+
+          {/* Os comentários a flutuar, à esquerda na metade de baixo (floatColumn): acima da legenda e da assinatura. */}
+          {!typing && panel === null && floatOn && floatQ.data?.length ? (
+            <StoryFloatComments key={cur.id} comments={floatQ.data} col={floatCol} active={!paused} hidden={hideUi} onOpen={() => setPanel('comments')} />
           ) : null}
         </View>
 

@@ -99,6 +99,33 @@ export function captionSpot(cardW: number, cardH: number, mediaRatio?: number | 
   return { bottom: Math.ceil(cardH - s.y + 10) };
 }
 
+/** A altura máxima de um balão de comentário a flutuar (o @ e duas linhas de texto) e o espaço entre balões. */
+export const FLOAT_BUBBLE_H = 60;
+export const FLOAT_GAP = 8;
+/** Os balões nunca passam desta fração da largura do cartão (o resto, à direita, fica livre para a foto e a assinatura). */
+export const FLOAT_MAX_W = 0.62;
+
+export type FloatColumn = { left: number; width: number; top: number; bottom: number; height: number; max: number };
+
+/**
+ * A coluna dos comentários a flutuar (px do cartão): à esquerda, na metade de baixo, e acaba acima da legenda (`captionH`
+ * é a altura medida dela, 0 sem legenda) e da assinatura do canto de baixo à direita (medida com um @ comprido). `max` diz
+ * quantos balões cabem (até 3).
+ */
+export function floatColumn(cardW: number, cardH: number, mediaRatio?: number | null, captionH = 0): FloatColumn {
+  const fit = mimoFit(mediaRatio, cardW, cardH);
+  const shown = mediaRatio ? shownRect(mediaRatio, cardW, cardH, fit) : { x: 0, y: 0, w: cardW, h: cardH };
+  const sig = signatureInCard(shown, 'um_nome_bem_comprido');
+  const cap = captionSpot(cardW, cardH, mediaRatio);
+  const bottom = Math.ceil(Math.max(cardH - sig.y + 10, captionH > 0 ? cap.bottom + captionH + 10 : 0));
+  // Na metade de baixo; numa foto deitada (a assinatura fica mais acima) sobe o que for preciso para caberem dois balões.
+  const two = 2 * FLOAT_BUBBLE_H + FLOAT_GAP;
+  const top = Math.max(Math.min(Math.round(cardH * 0.5), cardH - bottom - two), HEADER_H + 46 + FLOAT_GAP);
+  const height = Math.max(0, cardH - bottom - top);
+  const max = Math.max(0, Math.min(3, Math.floor((height + FLOAT_GAP) / (FLOAT_BUBBLE_H + FLOAT_GAP))));
+  return { left: 12, width: Math.floor(cardW * FLOAT_MAX_W), top, bottom, height, max };
+}
+
 /** Um ponto (x, y) do cartão fica dentro dos cantos redondos? (A assinatura não pode ser cortada pelo canto.) */
 export function insideRounded(x: number, y: number, w: number, h: number, r: number): boolean {
   if (x < 0 || y < 0 || x > w || y > h) return false;
