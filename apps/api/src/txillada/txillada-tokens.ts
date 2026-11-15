@@ -9,4 +9,6 @@ export interface TxilladaHooks {
   afterCut(id: string): Promise<void>;
   /** Depois de um bloqueio entre `a` e `b` (já gravado): quem via a Txillada do outro sai da sala e deixa de receber os eventos. */
   afterBlock(a: string, b: string): Promise<void>;
+  /** Depois de a moderação remover um comentário denunciado (já gravado): quem está na sala deixa de o ver. */
+  afterCommentRemoved(commentId: string): Promise<void>;
 }

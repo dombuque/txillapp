@@ -75,6 +75,8 @@ export type TxilladaEvent =
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
   /** Brindaram (ou tiraram o brinde a) um comentário: a contagem nova (0161). Não diz quem foi. */
   | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }
+  /** O anfitrião fixou um comentário (o comentário completo, com o autor e o selo) ou tirou o fixado (null), 0162. */
+  | { type: 'txillada.pinned'; txilladaId: string; comment: unknown }
   /** Uma reação (não se guarda). `to`: o anfitrião respondeu com um olá a quem entrou. */
   | {
       type: 'txillada.reaction';
