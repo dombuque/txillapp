@@ -79,6 +79,34 @@ test('a assinatura fica inteira dentro do cartão (também nos cantos redondos) 
   }
 });
 
+test('os comentários a flutuar ficam à esquerda, na metade de baixo, acima da legenda e longe da assinatura', () => {
+  for (const s of SCREENS) {
+    const fr = f.storyFrame(s);
+    for (const ratio of [null, 9 / 16, 0.57, 3 / 4, 4 / 5, 1, 16 / 9, 0.45]) {
+      const fit = f.mimoFit(ratio, fr.cardW, fr.cardH);
+      const shown = ratio ? f.shownRect(ratio, fr.cardW, fr.cardH, fit) : { x: 0, y: 0, w: fr.cardW, h: fr.cardH };
+      for (const capH of [0, 33, 56, 92]) {
+        const col = f.floatColumn(fr.cardW, fr.cardH, ratio, capH);
+        const tag = `${JSON.stringify(s)} forma ${ratio} legenda ${capH}`;
+        const colBottomY = fr.cardH - col.bottom;
+        // Largura até 62% do cartão, encostada à esquerda, na metade de baixo e por baixo do cabeçalho (com a música).
+        assert.ok(col.left >= 8 && col.width <= fr.cardW * f.FLOAT_MAX_W && col.left + col.width < fr.cardW, tag);
+        assert.ok(col.top >= f.HEADER_H + 46, `${tag}: o cabeçalho`);
+        // Na metade de baixo, a não ser que a assinatura (foto deitada) ou a legenda obriguem a subir para caberem dois.
+        if (col.top < fr.cardH / 2 - 1) assert.ok(col.height <= 2 * f.FLOAT_BUBBLE_H + f.FLOAT_GAP, `${tag}: subiu sem precisar`);
+        assert.ok(col.top + col.height <= colBottomY + 0.5, `${tag}: a coluna passa do fundo`);
+        // Os balões que cabem (cada um no máximo FLOAT_BUBBLE_H) ficam dentro da coluna.
+        assert.ok(col.max * f.FLOAT_BUBBLE_H + Math.max(0, col.max - 1) * f.FLOAT_GAP <= col.height, `${tag}: ${col.max} balões não cabem`);
+        // Nunca chega à assinatura (nem com um @ comprido) nem à legenda.
+        for (const u of ['ana', 'txillapp_oficial', 'um_nome_bem_comprido']) assert.ok(colBottomY <= f.signatureInCard(shown, u).y, `${tag}: tapava a assinatura de @${u}`);
+        if (capH) assert.ok(colBottomY <= fr.cardH - f.captionSpot(fr.cardW, fr.cardH, ratio).bottom - capH, `${tag}: tapava a legenda`);
+      }
+      // Sem legenda há sempre lugar para dois balões, pelo menos.
+      assert.ok(f.floatColumn(fr.cardW, fr.cardH, ratio, 0).max >= 2, `${JSON.stringify(s)} forma ${ratio}: pouco lugar`);
+    }
+  }
+});
+
 test('a foto só enche (cover) quando quase não corta; de outra forma aparece inteira', () => {
   const fr = f.storyFrame(SCREENS[0]);
   assert.equal(f.mimoFit(9 / 16, fr.cardW, fr.cardH), 'cover');
