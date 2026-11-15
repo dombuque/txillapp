@@ -11,3 +11,36 @@ Disallow: /
 " 200
   reverse_proxy 127.0.0.1:7880
 }
+
+# O modelo do SuperTxill (Ollama, em 127.0.0.1:11434). Só a API do Txillapp entra: com o token (OLLAMA_TOKEN) e só no
+# /api/chat (e /api/version para ver se está vivo). Sem token, com outro, ou sem OLLAMA_TOKEN no .env: 401. Nada de
+# /api/pull, /api/delete, etc. de fora (os modelos puxam-se dentro do contentor).
+llm.txillapp.com {
+  header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+  handle /robots.txt {
+    respond "User-agent: *
+Disallow: /
+" 200
+  }
+  @autorizado {
+    method GET POST
+    path /api/chat /api/version
+    header Authorization "Bearer {$OLLAMA_TOKEN}"
+    not header Authorization "Bearer"
+    not header Authorization "Bearer "
+  }
+  handle @autorizado {
+    request_body {
+      max_size 256KB
+    }
+    reverse_proxy 127.0.0.1:11434 {
+      header_up -Authorization
+      transport http {
+        read_timeout 150s
+      }
+    }
+  }
+  handle {
+    respond "Sem autorização" 401
+  }
+}
