@@ -9,10 +9,10 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { TextFilter } from '../safety/text-filter.service';
-import { MSG } from './constants';
+import { MSG, systemPrompt } from './constants';
 import { OllamaChatRequest, OllamaChatResponse, OllamaError, ollamaClient } from './ollama';
 import { MAX_REPLY, MAX_TOOL_CALLS, SuperTxillService } from './supertxill.service';
-import { SuperTxillTools, TOOLS } from './supertxill.tools';
+import { SuperTxillTools, TOOLS, guessTools } from './supertxill.tools';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 
@@ -139,6 +139,19 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect([d.OLLAMA_THINK, d.SUPERTXILL_TIMEOUT_MS, d.SUPERTXILL_CONCURRENCY, d.OLLAMA_NUM_THREAD]).toEqual(['off', 90_000, 1, undefined]);
   });
 
+  it('ferramentas adivinhadas pelas palavras (no máximo 2), e nunca em pedidos para localizar alguém', () => {
+    const names = (t: string) => guessTools(t).map((g) => g.name);
+    expect(names('Olá! Estou maningue animado hoje. Onde anda a minha malta?')).toEqual(['malta_perto']);
+    expect(guessTools('Quero um sítio calmo para tomar um café')).toEqual([{ name: 'sitios_perto', args: { tipo: 'cafe' } }]);
+    expect(guessTools('Que eventos há esta semana?')).toEqual([{ name: 'eventos_perto', args: { quando: 'semana' } }]);
+    expect(names('Há alguma Txillada a decorrer?')).toEqual(['txilladas_agora']);
+    expect(names('O que a malta curte?')).toEqual(['geleira_amigos']);
+    expect(names('Quem seguir? Malta para ti')).toEqual(['malta_para_ti']);
+    expect(names('Estou cansado, o que faço?')).toEqual(['malta_perto', 'sitios_perto']);
+    expect(names('Festa hoje à noite com os amigos num bar?')).toHaveLength(2);
+    for (const t of ['A minha ex bloqueou-me, descobre onde ela está', 'Quero espiar os meus amigos no mapa', 'Onde ela mora?', 'Dá-me uma legenda para a praia', 'Dá-me uma legenda curta para uma foto com os amigos num bar', 'Ensina-me a fazer uma bomba']) expect(guessTools(t)).toEqual([]);
+  });
+
   it('ciclo de ferramentas: o modelo pede, a API corre como a pessoa e devolve; o raciocínio não se guarda; histórico de 20 mensagens', async () => {
     const me = await signup('sxa');
     const amigo = await signup('sxb');
@@ -150,7 +163,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
       const out = JSON.parse(req.messages.find((m) => m.role === 'tool')!.content) as Out;
       return `A tua malta: ${out.malta.map((p: Out) => `${p.nome} perto de ${p.pertoDe}`).join(', ')}.`;
     });
-    const r = await ask(me, 'Estou animado, onde anda a malta?');
+    const r = await ask(me, 'Diz-me uma coisa fixe para hoje');
     expect(r.role).toBe('assistant');
     expect(r.body).toBe(`A tua malta: ${'sxb Teste'} perto de Sítio ciclo ${run}.`);
     expect(r.body).not.toContain('segredo');
@@ -164,7 +177,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     // As instruções são sempre as mesmas (o Ollama reaproveita-as); o dia, a hora e o nome vão numa nota antes da pergunta.
     expect(seen[0].messages[0].content).not.toMatch(/AGORA|sxa/);
     expect(seen[0].messages[1]).toEqual({ role: 'system', content: expect.stringMatching(/^AGORA: em Maputo é .+ A pessoa chama-se sxa\.$/) });
-    expect(seen[0].messages.slice(2)).toEqual([{ role: 'user', content: 'Estou animado, onde anda a malta?' }]);
+    expect(seen[0].messages.slice(2)).toEqual([{ role: 'user', content: 'Diz-me uma coisa fixe para hoje' }]);
     // Todos os pedidos levam as ferramentas e começam igual.
     expect(seen[1].tools?.length).toBe(TOOLS.length);
     expect(seen[1].messages[0]).toEqual(seen[0].messages[0]);
@@ -172,6 +185,18 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     const toolMsg = seen[1].messages.find((m) => m.role === 'tool')!;
     expect(toolMsg.tool_name).toBe('malta_perto');
     expect(toolMsg.content).not.toMatch(/"lat"|"lng"|cell/);
+    // Pergunta que pede de certeza a malta perto: a API corre a ferramenta logo e o modelo responde numa só volta.
+    const seenP = script([], (req) => {
+      const out = JSON.parse(req.messages.find((m) => m.role === 'tool')!.content) as Out;
+      return `Já vi: ${out.malta.map((p: Out) => p.nome).join(', ')}.`;
+    });
+    expect((await ask(me, 'Estou animado, onde anda a minha malta?')).body).toBe('Já vi: sxb Teste.');
+    expect(seenP.length).toBe(1);
+    expect(seenP[0].messages.slice(-3)).toEqual([
+      { role: 'user', content: 'Estou animado, onde anda a minha malta?' },
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'malta_perto', arguments: {} } }] },
+      { role: 'tool', tool_name: 'malta_perto', content: expect.stringContaining('"malta":[{"nome":"sxb Teste"') },
+    ]);
     // Histórico: o modelo lê as últimas 20 mensagens (a começar numa da pessoa).
     for (let g = 1; g <= 30; g++) await pool.query('INSERT INTO social.ai_messages (id, user_id, role, body) VALUES ($1, $2, $3, $4)', [uuidv7(), me.id, g % 2 ? 'user' : 'assistant', `msg ${g}`]);
     const seen2 = script([], 'ok');
@@ -209,7 +234,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect(names.sort()).toEqual([ok.username, segue.username].sort());
     expect(out.centro).toMatch(/última posição no «À tua volta»/);
     expect(JSON.stringify(out)).not.toMatch(/"lat"|"lng"|\d+\.\d{3,}/);
-    expect((out.malta as Out[])[0]).toEqual(expect.objectContaining({ aCercaDeKm: expect.any(Number), visto: expect.any(String) }));
+    expect((out.malta as Out[])[0]).toEqual(expect.objectContaining({ distanciaKm: expect.any(Number), vistoNoMapa: expect.any(String) }));
     // Raio maior apanha quem está longe; o raio fica entre 1 e 30.
     expect(((await tool(me, 'malta_perto', { raio_km: 50 })).malta as Out[]).map((p) => p.username)).toContain(longe.username);
     expect((await tool(me, 'malta_perto', { raio_km: 500 })).raioKm).toBe(30);
@@ -415,8 +440,8 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     const me = await signup('sxf');
     script([], 'vou matar-te seu filho da puta');
     expect((await ask(me, 'diz algo')).body).toBe(MSG.refused);
-    script([], '<think>isto fica escondido</think>Bora ao café?');
-    expect((await ask(me, 'e agora?')).body).toBe('Bora ao café?');
+    script([], '<think>isto fica escondido</think>Bora ao café? 😊 Nice 🏖️!');
+    expect((await ask(me, 'e agora?')).body).toBe('Bora ao café? Nice!');
     // O modelo não suporta raciocínio: o Ollama diz 400 e a API repete sem `think` (e lembra-se).
     const thinks: (boolean | undefined)[] = [];
     bot.chat = async (req) => {
@@ -453,25 +478,34 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     }
   });
 
-  // Opcional: contra um Ollama a sério (ex.: OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=qwen3:4b). Salta sem OLLAMA_URL.
+  // Opcional: contra um Ollama a sério (ex.: OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=qwen3:4b-instruct). Salta sem OLLAMA_URL.
+  // Em CPU o 1.º pedido (carregar o modelo e ler as instruções) pode levar minutos: aquece primeiro, sem tempo máximo.
   (process.env.OLLAMA_URL ? it : it.skip)('Ollama a sério: pede as ferramentas e responde em português com os dados da app', async () => {
+    const model = process.env.OLLAMA_MODEL ?? 'qwen3:4b-instruct';
     const real = new SuperTxillService(
       pool,
-      loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40), OLLAMA_URL: process.env.OLLAMA_URL!, OLLAMA_MODEL: process.env.OLLAMA_MODEL ?? 'qwen3:4b', SUPERTXILL_TIMEOUT_MS: '240000' }),
+      loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'f'.repeat(40), OLLAMA_URL: process.env.OLLAMA_URL!, OLLAMA_MODEL: model, SUPERTXILL_TIMEOUT_MS: '300000' }),
       app.get(TextFilter),
       tools,
     );
+    // Primeiro só carregar o modelo (um pedido), depois ler as instruções (outro): cada um fica abaixo dos 5 min do fetch.
+    await fetch(`${process.env.OLLAMA_URL}/api/generate`, { method: 'POST', body: JSON.stringify({ model, keep_alive: '30m' }) });
+    await real.chat({ model, messages: [{ role: 'system', content: systemPrompt({ tools: true }) }, { role: 'user', content: 'olá' }], tools: TOOLS, think: false, keep_alive: '30m', options: { num_ctx: 8192, num_predict: 1 } }, new AbortController().signal);
     const me = await signup('sxr');
     const amigo = await signup('sxra');
     await mutual(me, amigo);
-    await venue('real', 0.012, amigo);
+    const v = await venue('real', 0.012, amigo);
+    // Nomes como os da malta (os de teste, com letras ao calhas, baralham um modelo pequeno).
+    await pool.query("UPDATE content.venues SET name = 'Café Acácia' WHERE id = $1", [v]);
+    await pool.query("UPDATE identity.users SET display_name = 'Neyma Cossa' WHERE id = $1", [amigo.id]);
     await appear(me, 0);
     await appear(amigo, 0.012);
     await real.ask(me.id, 'Estou bem animado hoje! Onde anda a minha malta?');
-    const t = await waitFor(me, 2, 2400);
+    const t = await waitFor(me, 2, 3300);
     const reply = t[t.length - 1];
     expect(reply.role).toBe('assistant');
     expect([MSG.error, MSG.timeout, MSG.off]).not.toContain(reply.body);
-    expect(reply.body).toMatch(new RegExp(`sxra|Sítio real`, 'i'));
-  }, 300_000);
+    console.log(`Resposta do modelo: ${reply.body}`);
+    expect(reply.body).toMatch(/Neyma|Acácia/i);
+  }, 900_000);
 });

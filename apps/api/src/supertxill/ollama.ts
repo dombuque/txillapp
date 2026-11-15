@@ -94,3 +94,12 @@ export function toolArgs(c: OllamaToolCall): Record<string, unknown> {
 export function stripThinking(s: string): string {
   return s.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*?<\/think>/i, '').trim();
 }
+
+/** Tira os emojis (o SuperTxill não os usa, mas os modelos pequenos às vezes escapam-se). */
+export function noEmoji(s: string): string {
+  return s
+    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +([.,!?;:])/g, '$1')
+    .trim();
+}

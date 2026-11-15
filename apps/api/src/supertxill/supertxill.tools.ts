@@ -49,6 +49,41 @@ const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().replace(
 const hm = (iso: string) =>
   new Date(iso).toLocaleString('pt-PT', { timeZone: 'Africa/Maputo', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+export interface ToolGuess {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/**
+ * As ferramentas que a pergunta pede de certeza, por palavras (no máximo 2). A API corre-as antes de perguntar ao modelo e
+ * entrega-lhe já os resultados: os modelos pequenos às vezes esquecem-se de as chamar (e inventam), e em CPU poupa-se uma
+ * volta inteira. Nunca em pedidos para localizar alguém às escondidas (bloqueios, ex, espiar…): aí o modelo recusa sozinho.
+ */
+export function guessTools(text: string): ToolGuess[] {
+  const t = ` ${norm(text)} `;
+  if (/\b(bloque|ex\b|espia|vigia|persegu|descobr|localiz|rastre|escondid|morada|onde (ela|ele) (mora|vive|esta))/.test(t)) return [];
+  // Pedidos de escrita (legendas, bios…) não precisam de dados da app, mesmo que falem de amigos ou de um bar.
+  if (/\b(legendas?|bio|nota|escreve|escrever|texto|frase|poema|mensagem)\b/.test(t)) return [];
+  const out: ToolGuess[] = [];
+  const add = (name: string, args: Record<string, unknown> = {}) => out.length < 2 && !out.some((o) => o.name === name) && out.push({ name, args });
+  const forYou = /\b(quem seguir|malta para ti|gente nova|pessoas novas|sugere(s)? (pessoas|malta|amigos))\b/.test(t);
+  if (forYou) add('malta_para_ti');
+  if (!forYou && /\b((a |minha |nossa )malta|meus amigos|minhas amigas|amigos|amigas|galera|quem (esta|anda) (por )?(perto|aqui))\b/.test(t) && !/\b(curte|gosta|gostos)\b/.test(t)) add('malta_perto');
+  if (/\b(txilladas?|lives?|ao vivo|em direto)\b/.test(t)) add('txilladas_agora');
+  if (/\b(eventos?|festas?|concertos?|shows?|hoje a noite|esta noite|fim de semana)\b/.test(t)) add('eventos_perto', { quando: /\b(agora|ja)\b/.test(t) ? 'agora' : /\b(semana|fim de semana)\b/.test(t) ? 'semana' : 'hoje' });
+  const kind = /\bcafes?\b|\bcafezinho\b/.test(t) ? 'cafe' : /\b(restaurantes?|comer|jantar|almocar)\b/.test(t) ? 'restaurante' : /\b(discotecas?|dancar|balada)\b/.test(t) ? 'discoteca' : /\b(bares?|beber|uma gelada|cerveja)\b/.test(t) ? 'bar' : null;
+  if (kind) add('sitios_perto', { tipo: kind });
+  else if (/\b(sitios?|lugares?|onde (ir|sair)|sair hoje)\b/.test(t)) add('sitios_perto');
+  if (/\b(o que|que) a malta (curte|gosta)\b/.test(t)) add('geleira_amigos');
+  else if (/\b(a minha geleira|os meus gostos|o que (eu )?curto)\b/.test(t)) add('geleira');
+  // Humor sem pedido claro ("estou animado, o que faço?"): a malta perto e sítios.
+  if (!out.length && /\b(animad|cansad|aborrecid|entediad|em baixo|triste|feliz|de boa)\w*/.test(t) && /\b(onde|o que (faco|fazer)|sugere|sugestoes?|plano|programa|ideias?)\b/.test(t)) {
+    add('malta_perto');
+    add('sitios_perto');
+  }
+  return out;
+}
+
 const NO_PLACE = {
   erro: 'sem_localizacao',
   dica: 'Não sei onde estás: liga «Aparecer no mapa» no «À tua volta» ou põe a tua cidade no perfil. Não peças coordenadas.',
@@ -240,7 +275,7 @@ export class SuperTxillTools {
     return {
       centro: at.label,
       raioKm: km,
-      malta: list.map((p, i) => ({ nome: p.displayName, username: p.username, aCercaDeKm: p.approxKm, visto: p.ago, ...(near[i] ? { pertoDe: near[i] } : {}) })),
+      malta: list.map((p, i) => ({ nome: p.displayName, username: p.username, distanciaKm: p.approxKm, vistoNoMapa: p.ago, ...(near[i] ? { pertoDe: near[i] } : {}) })),
       ...(people.length ? {} : { nota: 'Ninguém da tua malta está a aparecer no mapa por aqui agora.' }),
     };
   }

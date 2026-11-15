@@ -8,8 +8,8 @@ import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween, sameCountry } from '../social/visibility';
 import { badge } from '../common/badge';
 import { MSG, SYSTEM_PROMPT, systemPrompt } from './constants';
-import { OllamaChat, OllamaError, OllamaMessage, ollamaClient, stripThinking, toolArgs } from './ollama';
-import { SuperTxillTools, TOOLS } from './supertxill.tools';
+import { OllamaChat, OllamaError, OllamaMessage, noEmoji, ollamaClient, stripThinking, toolArgs } from './ollama';
+import { SuperTxillTools, TOOLS, guessTools } from './supertxill.tools';
 
 export type Turn = { role: 'user' | 'assistant'; content: string };
 export type Provider = 'ollama' | 'anthropic' | 'off';
@@ -234,13 +234,24 @@ export class SuperTxillService {
     const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt({ tools: true }) }, ...turns];
     let calls = 0;
     let nudged = false;
+    // O que a pergunta pede de certeza (por palavras) corre já, e o modelo recebe os resultados como se os tivesse pedido.
+    const last = history[history.length - 1];
+    const guessed = last?.role === 'user' ? guessTools(last.content) : [];
+    if (guessed.length) {
+      messages.push({ role: 'assistant', content: '', tool_calls: guessed.map((g) => ({ function: { name: g.name, arguments: g.args } })) });
+      for (const g of guessed) {
+        calls++;
+        const out = await this.tools.run(ctx.userId, g.name, g.args, { forYou: (u) => this.forYou(u, 8) });
+        messages.push({ role: 'tool', tool_name: g.name, content: JSON.stringify(out).slice(0, TOOL_OUT) });
+      }
+    }
     for (let round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
       const res = await this.ollama(messages, true, ctx.signal);
       const m = res.message;
       const wanted = calls < MAX_TOOL_CALLS ? (m.tool_calls ?? []) : [];
       if (!wanted.length) {
         const text = stripThinking(m.content ?? '');
-        if (text) return text;
+        if (text) return noEmoji(text);
         if (nudged) break;
         // Já não pode (ou não quis) chamar mais ferramentas e não respondeu: pede-se a resposta com o que já tem.
         nudged = true;
@@ -256,7 +267,7 @@ export class SuperTxillService {
       }
     }
     // Último recurso: sem ferramentas nenhumas (o modelo já não as pode pedir).
-    return stripThinking((await this.ollama(messages, false, ctx.signal)).message.content ?? '');
+    return noEmoji(stripThinking((await this.ollama(messages, false, ctx.signal)).message.content ?? ''));
   }
 
   private async ollama(messages: OllamaMessage[], withTools: boolean, signal: AbortSignal) {
@@ -267,7 +278,7 @@ export class SuperTxillService {
       think: this.think,
       keep_alive: '24h',
       options: {
-        temperature: 0.6,
+        temperature: 0.4,
         top_p: 0.9,
         num_ctx: 8192,
         num_predict: this.think ? 1400 : 500,

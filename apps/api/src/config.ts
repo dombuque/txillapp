@@ -82,7 +82,7 @@ const schema = z.object({
   /** O Ollama (ex.: https://llm.txillapp.com). O OLLAMA_TOKEN vai como `Authorization: Bearer` (o Caddy à frente só deixa passar com ele). */
   OLLAMA_URL: z.preprocess(blankToUndefined, z.string().trim().url().optional()),
   OLLAMA_TOKEN: z.preprocess(blankToUndefined, z.string().trim().min(16).optional()),
-  OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().default('qwen3:4b')),
+  OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().default('qwen3:4b-instruct')),
   /** Fios de CPU do modelo (o mesmo número de CPUs dado ao contentor do Ollama; na máquina da Txillada, 3). Sem ele, o Ollama escolhe. */
   OLLAMA_NUM_THREAD: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(64).optional()),
   /** Raciocínio à parte (`think`) nos modelos que o têm: mais certeiro, mas gera muito mais texto (em CPU, minutos). Por omissão desligado. */
