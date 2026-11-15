@@ -547,7 +547,7 @@ export default function StoryViewer() {
                 <Icon name="lock" size={15} color="rgba(255,255,255,0.6)" />
                 <Text style={st.noReplyText} numberOfLines={1}>Este mimo não aceita respostas</Text>
               </View>
-              <BarButton icon="comment" label={cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} n={cur.commentCount} onPress={() => setPanel('comments')} />
+              <BarButton icon="comment" label={cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={() => setPanel('comments')} />
               <BarButton icon="share" label="Partilhar o mimo" size={24} onPress={() => void shareMimo()} />
             </View>
           )}
