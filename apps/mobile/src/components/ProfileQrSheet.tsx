@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
@@ -10,7 +10,8 @@ import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Wordmark } from './Wordmark';
 import { Sheet } from './Sheet';
-import { linkShare } from '@/lib/shareLink';
+import { qrShareNote, qrShareText } from '@/lib/profileQrCard';
+import { forgetProfileQr, renderProfileQr, shareProfileQr, type QrImage } from '@/lib/profileQrImage';
 
 const INK = '#18181b';
 
@@ -72,12 +73,40 @@ export function ProfileQrSheet({ username, displayName, invite = false, onClose 
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setNote(''), 2000);
   };
+  // A imagem do cartão (QR + @ + logótipo) faz-se logo ao abrir, para o «Partilhar» sair na hora (no browser, a folha de
+  // partilha só abre logo a seguir ao toque). Guarda-se com a ligação de que saiu: se a ligação mudar, não serve.
+  const [ready, setReady] = useState<{ url: string; img: QrImage } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let made: QrImage | null = null;
+    renderProfileQr(url, username).then(
+      (img) => {
+        if (!alive) return forgetProfileQr(img);
+        made = img;
+        setReady({ url, img });
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+      forgetProfileQr(made);
+    };
+  }, [url, username]);
+  const busy = useRef(false);
   async function share() {
-    const text = link ? `Segue-me no Txillapp (@${username}) e entra com o meu convite: ganhamos Txills os dois.` : `Segue @${username} no Txillapp, a rede da malta:`;
+    if (busy.current) return;
+    busy.current = true;
     try {
-      await Share.share({ title: `${displayName} no Txillapp`, ...linkShare(text, url) });
-    } catch {
-      flash('Não consegui partilhar');
+      // Ainda não estava pronta (ou não deu): faz-se agora; sem imagem, partilha-se a ligação como antes.
+      let img = ready?.url === url ? ready.img : null;
+      let fresh: QrImage | null = null;
+      if (!img) img = fresh = await renderProfileQr(url, username).catch(() => null);
+      const out = await shareProfileQr(img, qrShareText(username, !!link), url, `${displayName} no Txillapp`);
+      forgetProfileQr(fresh);
+      const t = qrShareNote(out);
+      if (t) flash(t);
+    } finally {
+      busy.current = false;
     }
   }
   async function copy() {

@@ -23,7 +23,7 @@ const fontOf = (size: number, weight: CardText['weight']) => {
 };
 
 /** Pinta uma linha: encolhe a letra se passar da largura e, com `spacing`, põe letra a letra. */
-function drawText(canvas: SkCanvas, t: CardText) {
+export function drawText(canvas: SkCanvas, t: CardText) {
   const paint = Skia.Paint();
   paint.setAntiAlias(true);
   paint.setColor(Skia.Color(t.color));
