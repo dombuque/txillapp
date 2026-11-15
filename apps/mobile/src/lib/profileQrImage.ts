@@ -1,6 +1,7 @@
 import { ImageFormat, Skia } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 import { drawText } from './inviteCardImage';
 import { qrCardLayout, qrFileName, type QrShareOutcome } from './profileQrCard';
@@ -47,7 +48,7 @@ const saved = new WeakSet<QrImage>();
 
 /**
  * «Partilhar». No iPhone, a folha do sistema leva a imagem e o texto com a ligação. No Android a folha do React Native só
- * leva texto (e não há pacote para partilhar ficheiros): a imagem vai para a galeria e partilha-se o texto com a ligação.
+ * leva texto: com o expo-sharing vai a imagem; sem ele (APK antiga), a imagem vai para a galeria e partilha-se o texto com a ligação.
  */
 export async function shareProfileQr(img: QrImage | null, text: string, url: string, title?: string): Promise<QrShareOutcome> {
   const message = `${text} ${url}`;
@@ -55,6 +56,11 @@ export async function shareProfileQr(img: QrImage | null, text: string, url: str
     if (img && Platform.OS === 'ios') {
       const r = await Share.share({ url: img.uri, message, title });
       return r.action === Share.dismissedAction ? 'cancelled' : 'shared';
+    }
+    // Android com o expo-sharing (desde a 1.51.0): a folha do sistema leva a própria imagem (o QR já leva a ligação).
+    if (img && Platform.OS === 'android' && (await Sharing.isAvailableAsync().catch(() => false))) {
+      await Sharing.shareAsync(img.uri, { mimeType: 'image/png', dialogTitle: title ?? 'Partilhar perfil' });
+      return 'shared';
     }
     let kept = false;
     if (img) {
