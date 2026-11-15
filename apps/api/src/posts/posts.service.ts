@@ -25,6 +25,7 @@ import { postGeladas } from '../gelada/gelada-cards';
 import { BAKE_COLS, BAKE_JOIN, bakedMediaId, musicBakedOf } from './music-bake';
 import { MusicBakeService } from './music-bake.service';
 import { CAN_DOWNLOAD_SQL } from './post-download.service';
+import { cheeredByOf } from './cheered-by';
 
 export const MAX_PHOTOS = 10;
 
@@ -517,11 +518,19 @@ export class PostsService implements OnModuleInit {
     const first = await load(rows.map((r) => r.repost_of));
     const second = await load([...first.values()].map((r) => r.repost_of));
     // Duetos e respostas: o original e o comentário (só o que este espectador vê), numa vez para a página toda.
-    const links = await remixLinks(this.pool, viewerId, [...rows, ...first.values(), ...second.values()]);
-    const geleiras = await this.geleiraOf(viewerId, [...rows, ...first.values(), ...second.values()]);
-    // «Paga-me uma» publicado (0145): o cartão com a bebida e o estado de cada pessoa identificada, como quem vê o pode ver.
-    const geladas = await postGeladas(this.pool, viewerId, [...rows, ...first.values(), ...second.values()].map((r) => ({ id: r.id as string, gelada: r.gelada })));
-    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null, geleira: geleiras.get(r.id as string) ?? null, gelada: geladas.get(r.id as string) ?? null });
+    // «Brindado por @fulano e outras N pessoas» (posts/cheered-by.ts): só onde o dono deixa ver quem brindou. Em paralelo
+    // com o resto (outra ligação do pool): não soma tempo à página.
+    const all = [...rows, ...first.values(), ...second.values()];
+    const [cheeredBy, [links, geleiras, geladas]] = await Promise.all([
+      cheeredByOf(this.pool, viewerId, all),
+      (async () => [
+        await remixLinks(this.pool, viewerId, all),
+        await this.geleiraOf(viewerId, all),
+        // «Paga-me uma» publicado (0145): o cartão com a bebida e o estado de cada pessoa identificada, como quem vê o pode ver.
+        await postGeladas(this.pool, viewerId, all.map((r) => ({ id: r.id as string, gelada: r.gelada }))),
+      ] as const)(),
+    ]);
+    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null, geleira: geleiras.get(r.id as string) ?? null, gelada: geladas.get(r.id as string) ?? null, cheeredBy: cheeredBy.get(r.id as string) ?? null });
     return rows
       .filter((r) => {
         if (!r.repost_of) return true;

@@ -35,6 +35,8 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
+import { CheeredByLine, CheeredFriends } from './CheeredBy';
+import { cheeredByView, closeCheerers } from '@/lib/cheeredBy';
 import { GeleiraPostCard } from './GeleiraPostCard';
 import { GeladaPostCard } from './gelada/GeladaPostCard';
 import { RemixesLink, RemixTag, ReplyStickerOverlay } from './remix/RemixParts';
@@ -381,7 +383,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         // O brinde aparece no meio da foto ou do vídeo. Com a música já gravada no vídeo (`musicBaked`), o vídeo toca com o som
         // dele e o selo fica só com o crédito (sem a tocar outra vez por cima).
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} play={musicPlayback(post).apart} soundTo={soundHref(post as { sound?: unknown })} /> : undefined} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={mediaOverlay(post, musicOn, () => setSheet({ people: 'cheers' }))} />
           <ReplyStickerOverlay remix={post.remixOf} />
           {/* O som que a tcheka usava foi tirado: o vídeo fica sem som e diz porquê. */}
           {soundRemovedText(post.soundRemoved) ? <View style={{ position: 'absolute', left: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5 }} pointerEvents="none"><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>♪ {soundRemovedText(post.soundRemoved)}</Text></View> : null}
@@ -590,6 +592,18 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
 }
 
 /** Fotos e vídeos: arredondados (12), na proporção da primeira (entre 4:5 e 1,91:1), com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
+/**
+ * Por cima da foto ou do vídeo, no canto de baixo à esquerda: o selo da música e, acima dele, os meus amigos próximos que
+ * brindaram (a flutuar; tocar abre «Quem brindou»). Sem nenhum dos dois: nada (as pessoas identificadas ficam à esquerda).
+ */
+function mediaOverlay(post: Post, musicOn: boolean, openCheers: () => void): ReactNode {
+  const music = post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} play={musicPlayback(post).apart} soundTo={soundHref(post as { sound?: unknown })} /> : null;
+  const above = !!music || !!soundRemovedText(post.soundRemoved);
+  const friends = closeCheerers(post).length ? <CheeredFriends post={post} onOpen={openCheers} style={above ? { bottom: 12 + 34 + 10 } : undefined} /> : null;
+  if (!music && !friends) return undefined;
+  return <>{music}{friends}</>;
+}
+
 function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
   const router = useRouter();
   const tap = useTap(onDouble);
@@ -760,6 +774,10 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
   ].filter((c) => c.n > 0);
   // Só se pode ver quem foi se o dono deixar (e num repost só os brindes).
   const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
+  // «Brindado por @fulano e outras N pessoas» (lib/cheeredBy): no lugar do «🍻 N» quando o servidor manda quem brindou;
+  // sem isso (o dono não deixa ver, ou a publicação veio da cache) fica a contagem de sempre.
+  const byNames = cheeredByView(post)?.kind === 'names';
+  const shown = byNames ? chips.filter((c) => c.kind !== 'cheers') : chips;
 
   const Btn = ({ label, icon, onPress, color = colors.zinc800, size = 22, strokeWidth }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; size?: number; strokeWidth?: number }) => (
     <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
@@ -770,9 +788,11 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
 
   return (
     <>
-      <View style={styles.counts}>
+      {byNames ? <CheeredByLine post={post} onOpen={() => people('cheers')} /> : null}
+      {byNames && !shown.length && post.comments <= 0 ? null : (
+      <View style={[styles.counts, byNames && { marginTop: 4 }]}>
         <View style={styles.chips}>
-          {chips.map((c) =>
+          {shown.map((c) =>
             canSee(c.kind) ? (
               <Pressable key={c.icon} onPress={() => people(c.kind)} hitSlop={8} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
                 <Icon name={c.icon} size={18} color={colors.zinc700} />
@@ -792,7 +812,8 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
           </Pressable>
         )}
       </View>
-      <View style={[styles.bar, hot && styles.barHot]}>
+      )}
+      <View style={[styles.bar, hot && styles.barHot, byNames && !shown.length && post.comments <= 0 && { marginTop: 10 }]}>
         <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" size={24} color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
         {/* Quem publicou não deixa repostar (lib/repost): o botão some, a não ser que haja um repost meu para desfazer. */}

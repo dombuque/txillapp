@@ -87,7 +87,9 @@ test('PostCard: o cartão só nas publicações de texto e o selo dentro da caix
   // Uma tcheka cujo som foi tirado (docs/sons.md) também fica muda; com a música gravada no vídeo (musicBaked) o vídeo toca
   // com o som dele e o selo é só o crédito (musicPlayback, tests/tchekaFim.test.mjs).
   assert.match(pc, /mute=\{musicPlayback\(post\)\.muteVideo\}/);
-  assert.match(pc, /overlay=\{post\.music && !post\.remixOf \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} play=\{musicPlayback\(post\)\.apart\} soundTo=\{soundHref\(post as \{ sound\?: unknown \}\)\} \/> : undefined\}/);
+  // (mediaOverlay junta-lhe os amigos próximos que brindaram, tests/brindadoPor.test.mjs.)
+  assert.match(pc, /const music = post\.music && !post\.remixOf \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} play=\{musicPlayback\(post\)\.apart\} soundTo=\{soundHref\(post as \{ sound\?: unknown \}\)\} \/> : null;/);
+  assert.match(pc, /overlay=\{mediaOverlay\(post, musicOn, /);
   // O selo vai por cima das fotos e por baixo dos controlos; as pessoas identificadas passam para a direita.
   assert.match(pc, /\{overlay\}\n\s+\{tags\.length > 0 && \(/);
   assert.match(pc, /overlay \? styles\.tagsRight : null/);
