@@ -21,6 +21,7 @@ const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string()
 const afterSchema = z.object({ after: z.string().uuid().optional() });
 const pinSchema = z.object({ commentId: z.string().uuid().nullable() });
 const cutSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
+const inviteSchema = z.object({ username: z.string().trim().min(1).max(40) });
 const reactSchema = z.object({
   kind: z.enum(TXILLADA_REACTIONS),
   /** O @ de quem entrou (só o anfitrião, só com 'hello'). */
@@ -151,6 +152,70 @@ export class TxilladaController {
   @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
   async report(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reportSchema)) b: z.infer<typeof reportSchema>) {
     await this.tx.report(req.userId!, id, b.reason, b.note);
+  }
+
+  /* Convidados (0165): até 3 a transmitir com o anfitrião. */
+
+  /** Quem vê pede para entrar (1 pedido a cada 20 s, no serviço). Com um convite à espera, aceita-o. */
+  @NeedsVerifiedEmail()
+  @Post(':id/guests/request')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  requestToJoin(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.requestToJoin(req.userId!, id);
+  }
+
+  /** O anfitrião convida alguém que está a ver (`{ username }`). */
+  @Post(':id/guests/invite')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  invite(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(inviteSchema)) b: z.infer<typeof inviteSchema>) {
+    return this.tx.invite(req.userId!, id, b.username);
+  }
+
+  /** Quem foi convidado aceita (passa a transmitir) ou recusa. */
+  @Post(':id/guests/accept')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  acceptInvite(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.acceptInvite(req.userId!, id);
+  }
+
+  @Post(':id/guests/decline')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  declineInvite(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.declineInvite(req.userId!, id);
+  }
+
+  /** Deixar de transmitir (volta a só ver), desistir do pedido ou recusar o convite. */
+  @Post(':id/guests/leave')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  leaveGuest(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.leaveGuest(req.userId!, id);
+  }
+
+  /** O anfitrião aceita ou recusa um pedido, ou tira alguém de transmitir (também retira um convite). */
+  @Post(':id/guests/:username/accept')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  acceptRequest(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('username') username: string) {
+    return this.tx.acceptRequest(req.userId!, id, username.slice(0, 40));
+  }
+
+  @Post(':id/guests/:username/decline')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  declineRequest(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('username') username: string) {
+    return this.tx.declineRequest(req.userId!, id, username.slice(0, 40));
+  }
+
+  @Post(':id/guests/:username/remove')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  removeGuest(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('username') username: string) {
+    return this.tx.removeGuest(req.userId!, id, username.slice(0, 40));
   }
 }
 

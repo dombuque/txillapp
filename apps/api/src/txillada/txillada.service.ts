@@ -66,6 +66,40 @@ const CHEERS_PER_SEC = 5;
 const HELLO_MS = 4_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Convidados (0165): no máximo 3 a transmitir ao mesmo tempo com o anfitrião (4 pessoas no ecrã). */
+export const GUESTS_MAX = 3;
+/** Pedir para entrar outra vez (depois de recusado ou de desistir): 1 pedido a cada 20 s por pessoa e Txillada. */
+const REQUEST_GAP_MS = 20_000;
+/** Convites do anfitrião: no máximo 20 por minuto. */
+const INVITES_PER_MIN = 20;
+const GUESTS_FULL = `Já há ${GUESTS_MAX} convidados a transmitir. Tira um para entrar outro.`;
+/** O meu lugar numa Txillada (0165): só a ver, pedi para entrar, fui convidado, ou estou a transmitir. */
+export type GuestState = 'none' | 'requested' | 'invited' | 'guest';
+type GuestReason = 'left' | 'removed';
+/** As colunas de uma pessoa (`gu` = identity.users) em JSON, para o `person()`. */
+const GUEST_JSON = `'id', gu.id, 'username', gu.username, 'display_name', gu.display_name, 'has_avatar', gu.avatar_media_id IS NOT NULL,
+                    'verified', gu.verified, 'verified_tier', gu.verified_tier`;
+/**
+ * Os convidados a transmitir agora em `t` (0165), por ordem de entrada, como o espectador `v` os vê: só contas ativas e sem
+ * bloqueio com ele (quem tem um bloqueio com um convidado não o vê no ecrã; a app não recebe as faixas dele). `v` null: todos.
+ */
+const guestsSql = (t = 't', v: string | null = '$1') =>
+  `(SELECT COALESCE(json_agg(json_build_object(${GUEST_JSON}, 'since', g.since) ORDER BY g.since, gu.id), '[]'::json)
+      FROM content.txillada_guests g JOIN identity.users gu ON gu.id = g.user_id AND gu.status = 'active'
+     WHERE g.txillada_id = ${t}.id AND g.status = 'accepted'${v ? ` AND NOT ${blockedBetween('gu.id', v)}` : ''})`;
+/** Os pedidos (`request`) ou os convites (`invite`) à espera em `t`, só para o anfitrião `v` (os outros: null). */
+const pendingSql = (t: string, v: string, kind: 'request' | 'invite') =>
+  `CASE WHEN ${t}.host_id = ${v} THEN (SELECT COALESCE(json_agg(json_build_object(${GUEST_JSON}, 'at', g.updated_at) ORDER BY g.updated_at, gu.id), '[]'::json)
+      FROM content.txillada_guests g JOIN identity.users gu ON gu.id = g.user_id AND gu.status = 'active'
+     WHERE g.txillada_id = ${t}.id AND g.status = 'pending' AND g.kind = '${kind}' AND NOT ${blockedBetween('gu.id', v)}) END`;
+/** O meu lugar (GuestState) em `t`. */
+const myGuestSql = (t = 't', v = '$1') =>
+  `(SELECT CASE WHEN g.status = 'accepted' THEN 'guest' WHEN g.kind = 'request' THEN 'requested' ELSE 'invited' END
+      FROM content.txillada_guests g WHERE g.txillada_id = ${t}.id AND g.user_id = ${v} AND g.status IN ('pending', 'accepted'))`;
+const iso = (v: unknown) => new Date(v as string).toISOString();
+/** Um convidado a transmitir (0165): a pessoa (com o id, que é o identity no LiveKit) e desde quando. */
+type GuestDto = { user: ReturnType<typeof person>; since: string };
+
 /** As colunas do anfitrião (`h`) com o prefixo h_. */
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
                    h.verified AS h_verified, h.verified_tier AS h_verified_tier`;
@@ -140,14 +174,31 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       canComment: r.status === 'live' && (isHost || (!!r.comment_ok && !r.banned)),
       /** O comentário fixado pelo anfitrião (0162), como eu o vejo; null sem nenhum (ou se não o posso ver). */
       pinned: r.pinned ? this.commentDto(r.pinned) : null,
+      /** Quem está a transmitir com o anfitrião (0165), por ordem de entrada, como eu os vejo. */
+      guests: this.guestList(r.guests),
+      guestsMax: GUESTS_MAX,
+      /** O meu lugar: só a ver, pedi para entrar, fui convidado, ou estou a transmitir. */
+      guestState: (isHost ? 'none' : (r.my_guest ?? 'none')) as GuestState,
+      // Os pedidos e os convites à espera: só o anfitrião os vê.
+      ...(isHost ? { requests: this.pendingList(r.requests), invites: this.pendingList(r.invites) } : {}),
     };
+  }
+
+  private guestList(v: unknown): GuestDto[] {
+    return ((v as Record<string, any>[] | null) ?? []).map((g) => ({ user: person(g), since: iso(g.since) }));
+  }
+
+  private pendingList(v: unknown) {
+    return ((v as Record<string, any>[] | null) ?? []).map((g) => ({ user: person(g), at: iso(g.at) }));
   }
 
   /** A Txillada como `me` a vê: 404 se não a pode ver, 403 se foi expulso. */
   private async access(me: string, id: string) {
     const { rows } = await this.pool.query(
       `SELECT ${TX_COLS}, ${HOST_COLS}, ${txilladaVisible('t', 'h', '$1')} AS visible, ${txilladaBanned('t', '$1')} AS banned,
-              ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned
+              ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned,
+              ${guestsSql('t', '$1')} AS guests, ${myGuestSql('t', '$1')} AS my_guest,
+              ${pendingSql('t', '$1', 'request')} AS requests, ${pendingSql('t', '$1', 'invite')} AS invites
          FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $2`,
       [me, id],
     );
@@ -169,6 +220,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async live(me: string) {
     const { rows } = await this.pool.query(
       `SELECT ${TX_COLS}, ${HOST_COLS}, false AS banned, ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned,
+              ${guestsSql('t', '$1')} AS guests, ${myGuestSql('t', '$1')} AS my_guest,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = t.host_id) AS followed
          FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
         WHERE t.status = 'live' AND t.host_id <> $1 AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
@@ -237,9 +289,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       )
     ).rows[0];
     // O nome e o @ só no token do anfitrião: o de quem vê chega a todos na sala (também a quem tem bloqueio com essa pessoa).
+    // Um convidado aceite (0165) que volta a entrar já pode publicar.
     const token = await roomToken(this.config, isHost
       ? { room: r.room, identity: me, name: u.display_name, username: u.username, host: true }
-      : { room: r.room, identity: me, host: false });
+      : { room: r.room, identity: me, host: false, publish: r.my_guest === 'guest' });
     if (!isHost) {
       await this.bus.touch(toKey(id), me, SET_MS);
       // «@fulano entrou»: daqui (o webhook pode não estar ligado), uma vez por pessoa a cada 60 s (as religações não repetem).
@@ -273,6 +326,12 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /** Todos os que estavam a ver (e o anfitrião) recebem `txillada.ended`; a sala no LiveKit fecha. */
   private async afterEnd(r: { id: string; room: string; host_id: string; status: 'ended' | 'cut' }) {
+    // Acaba para todos: os convidados deixam de transmitir e os pedidos e convites à espera caem (0165).
+    await this.pool.query(
+      `UPDATE content.txillada_guests SET status = CASE WHEN status = 'accepted' THEN 'left' ELSE 'cancelled' END, updated_at = now()
+        WHERE txillada_id = $1 AND status IN ('pending', 'accepted')`,
+      [r.id],
+    );
     const to = await this.audience(r.id, r.host_id);
     this.emit(to, { type: 'txillada.ended', txilladaId: r.id, status: r.status });
     for (const k of [toKey(r.id), inKey(r.id)]) for (const m of await this.bus.recent(k, SET_MS)) await this.bus.untouch(k, m);
@@ -298,9 +357,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    * LiveKit e deixa de receber os eventos (se voltar a entrar com o token antigo, o webhook tira-o outra vez).
    */
   async afterBlock(a: string, b: string) {
-    const { rows } = await this.pool.query(`SELECT id, room, host_id FROM content.txilladas WHERE status = 'live' AND host_id = ANY($1::uuid[])`, [[a, b]]);
+    const { rows } = await this.pool.query(`SELECT id, room, host_id, status FROM content.txilladas WHERE status = 'live' AND host_id = ANY($1::uuid[])`, [[a, b]]);
     for (const t of rows) {
       const other = t.host_id === a ? b : a;
+      // Um convidado (ou um pedido, ou um convite) com o anfitrião deixa de o ser (0165).
+      await this.dropGuest(t, other, 'removed');
       for (const k of [toKey(t.id), inKey(t.id)]) await this.bus.untouch(k, other);
       if (this.rooms) await this.rooms.removeParticipant(t.room, other).catch(() => undefined);
       await this.recount(t.id, t.host_id);
@@ -323,9 +384,12 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     return to.filter((u) => !out.has(u));
   }
 
-  /** Quantos estão na sala (sem o anfitrião), pelo que o webhook disse; avisa se mudou. */
+  /** Quantos estão na sala (sem o anfitrião e sem os convidados, que contam à parte), pelo que o webhook disse; avisa se mudou. */
   private async recount(id: string, hostId: string) {
-    const n = (await this.bus.recent(inKey(id), SET_MS)).filter((u) => u !== hostId).length;
+    const guests = new Set(
+      (await this.pool.query(`SELECT user_id FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [id])).rows.map((x) => x.user_id as string),
+    );
+    const n = (await this.bus.recent(inKey(id), SET_MS)).filter((u) => u !== hostId && !guests.has(u)).length;
     const r = await this.pool.query(
       `UPDATE content.txilladas SET viewers = $2, peak_viewers = GREATEST(peak_viewers, $2)
         WHERE id = $1 AND status = 'live' AND viewers IS DISTINCT FROM $2 RETURNING viewers`,
@@ -585,6 +649,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
          FROM identity.users u
         WHERE u.id = ANY($1::uuid[]) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$2')}
           AND NOT EXISTS (SELECT 1 FROM content.txillada_bans b WHERE b.txillada_id = $3 AND b.user_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM content.txillada_guests g WHERE g.txillada_id = $3 AND g.user_id = u.id AND g.status = 'accepted')
         ORDER BY followed DESC, lower(u.username)
         LIMIT 200`,
       [ids, me, id],
@@ -602,6 +667,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     if (!t) throw new NotFoundException('Utilizador não encontrado');
     if (t.id === me) throw new BadRequestException('Não te podes tirar da tua própria Txillada.');
     await this.pool.query('INSERT INTO content.txillada_bans (txillada_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, t.id]);
+    // Expulsar também tira de transmitir (e o pedido ou o convite à espera), antes de sair da sala (0165).
+    await this.dropGuest(r, t.id, 'removed');
     await this.bus.untouch(toKey(id), t.id);
     if (r.status === 'live' && this.rooms) await this.rooms.removeParticipant(r.room, t.id).catch((e) => this.log.warn(`não consegui tirar ${t.id} da sala ${r.room}: ${(e as Error).message}`));
   }
@@ -609,6 +676,304 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async report(me: string, id: string, reason: ReportReason, note?: string) {
     await this.access(me, id);
     await this.moderation.report(me, 'txillada', id, reason, note);
+  }
+
+  /* ───────────── convidados (0165): até 3 a transmitir com o anfitrião ───────────── */
+
+  private async guestRow(id: string, userId: string) {
+    return (await this.pool.query('SELECT kind, status FROM content.txillada_guests WHERE txillada_id = $1 AND user_id = $2', [id, userId])).rows[0] as
+      | { kind: 'request' | 'invite'; status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'left' | 'removed' }
+      | undefined;
+  }
+
+  /** Pode transmitir? Conta ativa e 18 anos ou mais (como para abrir uma Txillada). */
+  private async canBroadcast(userId: string) {
+    const r = (await this.pool.query(
+      `SELECT status = 'active' AND COALESCE(birth_date <= (current_date - interval '18 years'), false) AS ok FROM identity.users WHERE id = $1`,
+      [userId],
+    )).rows[0];
+    return !!r?.ok;
+  }
+
+  /** Está na sala (fez `join` e não saiu)? */
+  private async watching(id: string, userId: string) {
+    return (await this.bus.recent(toKey(id), SET_MS)).includes(userId);
+  }
+
+  private async personOf(userId: string) {
+    const r = (await this.pool.query(
+      'SELECT id, username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar, verified, verified_tier FROM identity.users WHERE id = $1',
+      [userId],
+    )).rows[0];
+    return person(r);
+  }
+
+  /** O que o anfitrião vê: quem transmite, os pedidos e os convites à espera. */
+  private async hostLists(id: string, hostId: string) {
+    const r = (await this.pool.query(
+      `SELECT ${guestsSql('t', '$2')} AS guests, ${pendingSql('t', '$2', 'request')} AS requests, ${pendingSql('t', '$2', 'invite')} AS invites
+         FROM content.txilladas t WHERE t.id = $1`,
+      [id, hostId],
+    )).rows[0];
+    return { guests: this.guestList(r?.guests), requests: this.pendingList(r?.requests), invites: this.pendingList(r?.invites) };
+  }
+
+  /** Os pedidos ou os convites mudaram: o anfitrião recebe as listas novas (`txillada.requests`). Devolve-as. */
+  private async sendLists(id: string, hostId: string) {
+    const l = await this.hostLists(id, hostId);
+    this.bus.publish(hostId, { type: 'txillada.requests', txilladaId: id, requests: l.requests, invites: l.invites });
+    return l;
+  }
+
+  /** A conta pelo @ (ativa e sem bloqueio com o anfitrião), ou 404. */
+  private async guestTarget(hostId: string, username: string) {
+    const t = (await this.pool.query(
+      `SELECT u.id, u.username FROM identity.users u WHERE lower(u.username) = lower($1) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$2')}`,
+      [username.replace(/^@/, ''), hostId],
+    )).rows[0] as { id: string; username: string } | undefined;
+    if (!t) throw new NotFoundException('Utilizador não encontrado');
+    if (t.id === hostId) throw new BadRequestException('Já estás a transmitir: és o anfitrião.');
+    return t;
+  }
+
+  /** A Txillada como o anfitrião a vê, a decorrer (403 a quem não é o anfitrião, 409 acabada). */
+  private async hostLive(me: string, id: string) {
+    this.assertEnabled();
+    const r = await this.access(me, id);
+    if (r.host_id !== me) throw new ForbiddenException('Só o anfitrião pode escolher quem transmite.');
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    return r;
+  }
+
+  /**
+   * Pedir para entrar (quem vê): 18 anos ou mais, conta ativa, não expulso, sem bloqueio com o anfitrião (o access() já dá
+   * 404/403). Um convite à espera passa logo a aceite. 1 pedido a cada 20 s (429); um pedido à espera não se repete. O
+   * anfitrião recebe `txillada.request` (com as listas).
+   */
+  async requestToJoin(me: string, id: string): Promise<{ state: GuestState; guests?: GuestDto[] }> {
+    this.assertEnabled();
+    const r = await this.access(me, id);
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.host_id === me) throw new BadRequestException('Já estás a transmitir: és o anfitrião.');
+    if (!(await this.canBroadcast(me))) throw new ForbiddenException('Para transmitir numa Txillada tens de ter 18 anos ou mais.');
+    const g = await this.guestRow(id, me);
+    if (g?.status === 'accepted') throw new ConflictException('Já estás a transmitir nesta Txillada.');
+    if (g?.status === 'pending' && g.kind === 'invite') return this.acceptInvite(me, id);
+    if (g?.status === 'pending') return { state: 'requested' };
+    if (!(await this.bus.claimOnce(`tx:greq:${id}:${me}`, REQUEST_GAP_MS))) {
+      throw new HttpException('Calma! Espera um bocadinho antes de pedires outra vez.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const ins = await this.pool.query(
+      `INSERT INTO content.txillada_guests (txillada_id, user_id, kind, status) VALUES ($1, $2, 'request', 'pending')
+       ON CONFLICT (txillada_id, user_id) DO UPDATE SET kind = 'request', status = 'pending', since = NULL, updated_at = now()
+        WHERE content.txillada_guests.status NOT IN ('pending', 'accepted')`,
+      [id, me],
+    );
+    if (ins.rowCount) {
+      const l = await this.hostLists(id, r.host_id);
+      this.bus.publish(r.host_id, { type: 'txillada.request', txilladaId: id, user: await this.personOf(me), requests: l.requests, invites: l.invites });
+    }
+    return { state: 'requested' };
+  }
+
+  /**
+   * O anfitrião convida alguém que está a ver (da lista «A ver agora»): conta ativa, 18 anos ou mais, sem bloqueio, não
+   * expulso. Quem já pediu para entrar fica logo aceite. Com 3 a transmitir: 409. A pessoa recebe `txillada.invite`.
+   */
+  async invite(me: string, id: string, username: string) {
+    const r = await this.hostLive(me, id);
+    if ((await this.rates.hit(`tx:invite:${me}`, 60_000)) > INVITES_PER_MIN) throw new HttpException('Calma! Muitos convites seguidos.', HttpStatus.TOO_MANY_REQUESTS);
+    const t = await this.guestTarget(me, username);
+    const banned = (await this.pool.query('SELECT 1 FROM content.txillada_bans WHERE txillada_id = $1 AND user_id = $2', [id, t.id])).rowCount;
+    if (banned || !(await this.watching(id, t.id))) throw new ConflictException(`Só podes convidar quem está a ver a tua Txillada.`);
+    // Sem dizer porquê (a idade de outra pessoa não se mostra).
+    if (!(await this.canBroadcast(t.id))) throw new ForbiddenException(`Não podes convidar @${t.username} para transmitir.`);
+    const g = await this.guestRow(id, t.id);
+    if (g?.status === 'accepted') throw new ConflictException(`@${t.username} já está a transmitir.`);
+    if (g?.status === 'pending' && g.kind === 'request') return this.acceptRequest(me, id, t.username);
+    if (g?.status !== 'pending') {
+      const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [id])).rows[0].n as number;
+      if (n >= GUESTS_MAX) throw new ConflictException(GUESTS_FULL);
+      await this.pool.query(
+        `INSERT INTO content.txillada_guests (txillada_id, user_id, kind, status) VALUES ($1, $2, 'invite', 'pending')
+         ON CONFLICT (txillada_id, user_id) DO UPDATE SET kind = 'invite', status = 'pending', since = NULL, updated_at = now()
+          WHERE content.txillada_guests.status NOT IN ('pending', 'accepted')`,
+        [id, t.id],
+      );
+      this.bus.publish(t.id, { type: 'txillada.invite', txilladaId: id, host: publicPerson(r, 'h_') });
+    }
+    return this.sendLists(id, me);
+  }
+
+  /** O anfitrião aceita um pedido: a pessoa passa a transmitir (tem de estar a ver). 409 com 3 a transmitir. */
+  async acceptRequest(me: string, id: string, username: string) {
+    const r = await this.hostLive(me, id);
+    const t = await this.guestTarget(me, username);
+    const g = await this.guestRow(id, t.id);
+    if (g?.status === 'accepted') return this.hostLists(id, me);
+    if (g?.status !== 'pending' || g.kind !== 'request') throw new NotFoundException('Pedido não encontrado');
+    if (!(await this.watching(id, t.id))) {
+      await this.pool.query(`UPDATE content.txillada_guests SET status = 'cancelled', updated_at = now() WHERE txillada_id = $1 AND user_id = $2 AND status = 'pending'`, [id, t.id]);
+      await this.sendLists(id, me);
+      throw new ConflictException(`@${t.username} já não está a ver.`);
+    }
+    if (!(await this.canBroadcast(t.id))) throw new ForbiddenException(`@${t.username} não pode transmitir.`);
+    await this.admit(r, t.id, 'request');
+    return this.hostLists(id, me);
+  }
+
+  /** O anfitrião recusa um pedido: a pessoa recebe `txillada.request_declined` (pode pedir outra vez daqui a 20 s). */
+  async declineRequest(me: string, id: string, username: string) {
+    await this.hostLive(me, id);
+    const t = await this.guestTarget(me, username);
+    const u = await this.pool.query(
+      `UPDATE content.txillada_guests SET status = 'declined', updated_at = now() WHERE txillada_id = $1 AND user_id = $2 AND status = 'pending' AND kind = 'request'`,
+      [id, t.id],
+    );
+    if (!u.rowCount) throw new NotFoundException('Pedido não encontrado');
+    this.bus.publish(t.id, { type: 'txillada.request_declined', txilladaId: id });
+    return this.sendLists(id, me);
+  }
+
+  /** Aceitar o convite do anfitrião (quem foi convidado, a ver): passa a transmitir. 409 com 3 a transmitir. */
+  async acceptInvite(me: string, id: string): Promise<{ state: GuestState; guests: GuestDto[] }> {
+    this.assertEnabled();
+    const r = await this.access(me, id);
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    const g = await this.guestRow(id, me);
+    if (g?.status !== 'accepted') {
+      if (g?.status !== 'pending' || g.kind !== 'invite') throw new NotFoundException('Convite não encontrado');
+      if (!(await this.canBroadcast(me))) throw new ForbiddenException('Para transmitir numa Txillada tens de ter 18 anos ou mais.');
+      if (!(await this.watching(id, me))) throw new ConflictException('Entra na Txillada para aceitares o convite.');
+      await this.admit(r, me, 'invite');
+    }
+    return { state: 'guest', guests: this.guestList((await this.pool.query(`SELECT ${guestsSql('t', '$2')} AS guests FROM content.txilladas t WHERE t.id = $1`, [id, me])).rows[0].guests) };
+  }
+
+  /** Recusar o convite: o anfitrião recebe `txillada.invite_declined`. */
+  async declineInvite(me: string, id: string) {
+    const t = await this.txRow(id);
+    const u = await this.pool.query(
+      `UPDATE content.txillada_guests SET status = 'declined', updated_at = now() WHERE txillada_id = $1 AND user_id = $2 AND status = 'pending' AND kind = 'invite'`,
+      [id, me],
+    );
+    if (u.rowCount && t.status === 'live') {
+      this.bus.publish(t.host_id, { type: 'txillada.invite_declined', txilladaId: id, user: await this.personOf(me) });
+      await this.sendLists(id, t.host_id);
+    }
+    return { state: 'none' as GuestState };
+  }
+
+  /** Sair (o convidado deixa de transmitir e volta a só ver), desistir do pedido ou recusar o convite. Sempre 200. */
+  async leaveGuest(me: string, id: string) {
+    const t = await this.txRow(id);
+    const g = await this.guestRow(id, me);
+    if (g?.status === 'pending' && g.kind === 'invite') return this.declineInvite(me, id);
+    await this.dropGuest(t, me, 'left');
+    return { state: 'none' as GuestState };
+  }
+
+  /** O anfitrião tira um convidado (deixa de publicar; as faixas param), retira um convite ou recusa um pedido. */
+  async removeGuest(me: string, id: string, username: string) {
+    const r = await this.hostLive(me, id);
+    const t = await this.guestTarget(me, username);
+    if (!(await this.dropGuest(r, t.id, 'removed'))) throw new NotFoundException(`@${t.username} não está a transmitir.`);
+    return this.hostLists(id, me);
+  }
+
+  private async txRow(id: string) {
+    const t = (await this.pool.query('SELECT id, host_id, room, status FROM content.txilladas WHERE id = $1', [id])).rows[0] as
+      | { id: string; host_id: string; room: string; status: TxStatus }
+      | undefined;
+    if (!t) throw new NotFoundException('Txillada não encontrada');
+    return t;
+  }
+
+  /**
+   * Passa a transmitir (o pedido ou o convite já verificados): com a linha da Txillada trancada, conta os que transmitem
+   * (no máximo 3: 409) e aceita. Depois deixa-o publicar no LiveKit (sem voltar a entrar) e a sala recebe
+   * `txillada.guest_joined` (menos quem tem um bloqueio com o convidado, que não o vê).
+   */
+  private async admit(t: { id: string; host_id: string; room: string }, userId: string, kind: 'request' | 'invite') {
+    const client = await this.pool.connect();
+    let since: string;
+    try {
+      await client.query('BEGIN');
+      const row = (await client.query('SELECT status FROM content.txilladas WHERE id = $1 FOR UPDATE', [t.id])).rows[0];
+      if (row?.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+      const n = (await client.query(`SELECT count(*)::int AS n FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [t.id])).rows[0].n as number;
+      if (n >= GUESTS_MAX) throw new ConflictException(GUESTS_FULL);
+      const u = await client.query(
+        `UPDATE content.txillada_guests SET status = 'accepted', since = now(), updated_at = now()
+          WHERE txillada_id = $1 AND user_id = $2 AND status = 'pending' AND kind = $3 RETURNING since`,
+        [t.id, userId, kind],
+      );
+      if (!u.rowCount) throw new NotFoundException(kind === 'request' ? 'Pedido não encontrado' : 'Convite não encontrado');
+      since = u.rows[0].since;
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    if (this.rooms) {
+      await this.rooms.setCanPublish(t.room, userId, true).catch((e) => this.log.warn(`não consegui deixar ${userId} publicar na sala ${t.room}: ${(e as Error).message}`));
+    }
+    const guest = { user: await this.personOf(userId), since: iso(since) };
+    const to = new Set([userId, ...(await this.withoutBlocks(userId, await this.audience(t.id, t.host_id)))]);
+    this.emit([...to], { type: 'txillada.guest_joined', txilladaId: t.id, guest });
+    await this.recount(t.id, t.host_id);
+    await this.sendLists(t.id, t.host_id);
+  }
+
+  /** Deixa de transmitir (saiu ou foi tirado): sem permissão de publicar no LiveKit e a sala recebe `txillada.guest_left`. */
+  private async endGuest(t: { id: string; host_id: string; room: string; status: string }, userId: string, reason: GuestReason) {
+    const u = await this.pool.query(
+      `UPDATE content.txillada_guests SET status = $3, updated_at = now() WHERE txillada_id = $1 AND user_id = $2 AND status = 'accepted'`,
+      [t.id, userId, reason],
+    );
+    if (!u.rowCount) return false;
+    if (this.rooms && t.status === 'live') {
+      await this.rooms.setCanPublish(t.room, userId, false).catch((e) => this.log.warn(`não consegui tirar a permissão a ${userId} na sala ${t.room}: ${(e as Error).message}`));
+    }
+    // O anfitrião recebe sempre (mesmo depois de um bloqueio com o convidado: o quadrado tem de sair do ecrã dele).
+    const to = new Set([t.host_id, userId, ...(await this.withoutBlocks(userId, await this.audience(t.id, t.host_id)))]);
+    this.emit([...to], { type: 'txillada.guest_left', txilladaId: t.id, user: await this.personOf(userId), reason });
+    await this.recount(t.id, t.host_id);
+    return true;
+  }
+
+  /**
+   * Tira alguém de transmitir, ou o pedido ou o convite à espera (sair, tirar, expulsar, bloquear, apagar a conta). Devolve
+   * true se havia alguma coisa a tirar.
+   */
+  private async dropGuest(t: { id: string; host_id: string; room: string; status: string }, userId: string, reason: GuestReason) {
+    const g = await this.guestRow(t.id, userId);
+    if (g?.status === 'accepted') return this.endGuest(t, userId, reason);
+    if (g?.status !== 'pending') return false;
+    const u = await this.pool.query(
+      `UPDATE content.txillada_guests SET status = $3, updated_at = now() WHERE txillada_id = $1 AND user_id = $2 AND status = 'pending'`,
+      [t.id, userId, reason === 'left' || g.kind === 'invite' ? 'cancelled' : 'declined'],
+    );
+    if (!u.rowCount) return false;
+    if (g.kind === 'invite' && reason === 'removed') this.bus.publish(userId, { type: 'txillada.invite_cancelled', txilladaId: t.id });
+    if (g.kind === 'request' && reason === 'removed') this.bus.publish(userId, { type: 'txillada.request_declined', txilladaId: t.id });
+    if (t.status === 'live') await this.sendLists(t.id, t.host_id);
+    return true;
+  }
+
+  /** Apagar a conta: deixa de transmitir nas Txilladas dos outros (e os pedidos e convites caem), antes de a apagar. */
+  async leaveAllGuests(userId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT t.id, t.host_id, t.room, t.status FROM content.txillada_guests g JOIN content.txilladas t ON t.id = g.txillada_id
+        WHERE g.user_id = $1 AND g.status IN ('pending', 'accepted') AND t.status = 'live'`,
+      [userId],
+    );
+    for (const t of rows) {
+      await this.dropGuest(t, userId, 'left');
+      if (this.rooms) await this.rooms.removeParticipant(t.room, userId).catch(() => undefined);
+    }
   }
 
   /* ───────────── webhook do LiveKit ───────────── */
@@ -648,6 +1013,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         await this.bus.touch(toKey(t.id), who, SET_MS);
         await this.bus.touch(inKey(t.id), who, SET_MS);
         await this.recount(t.id, t.host_id);
+        // Um convidado que voltou a entrar (uma religação reaproveita o token antigo, sem `canPublish`): a permissão outra vez.
+        if (this.rooms && (await this.guestRow(t.id, who))?.status === 'accepted') {
+          await this.rooms.setCanPublish(t.room, who, true).catch((e) => this.log.warn(`não consegui deixar ${who} publicar na sala ${t.room}: ${(e as Error).message}`));
+        }
         return;
       }
       case 'participant_left':
@@ -659,6 +1028,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         }
         await this.bus.untouch(toKey(t.id), who);
         await this.bus.untouch(inKey(t.id), who);
+        // Um convidado que saiu da sala deixa de transmitir (se ainda lá está com outra ligação, o aviso era da antiga).
+        if ((await this.guestRow(t.id, who))?.status === 'accepted') {
+          const still = this.rooms ? (await this.rooms.participants(t.room).catch(() => [])).some((p) => p.identity === who) : false;
+          if (!still) await this.endGuest(t, who, 'left');
+        }
         await this.recount(t.id, t.host_id);
         return;
       case 'track_published':
@@ -738,7 +1112,9 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     );
     const ch = await this.pool.query(`DELETE FROM content.txillada_cheers x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);
     await this.pool.query(`DELETE FROM content.txillada_bans x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);
-    return { comments: c.rowCount ?? 0, cheers: ch.rowCount ?? 0, commentCheers: cc.rowCount ?? 0 };
+    // Quem pediu, foi convidado ou transmitiu (0165).
+    const g = await this.pool.query(`DELETE FROM content.txillada_guests x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);
+    return { comments: c.rowCount ?? 0, cheers: ch.rowCount ?? 0, commentCheers: cc.rowCount ?? 0, guests: g.rowCount ?? 0 };
   }
 
   /* ───────────── backoffice ───────────── */
@@ -746,7 +1122,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /** As que estão a decorrer, com as denúncias por decidir e os últimos comentários (as denunciadas primeiro). */
   async adminList() {
     const { rows } = await this.pool.query(
-      `SELECT ${TX_COLS}, ${HOST_COLS}, h.status AS h_status,
+      `SELECT ${TX_COLS}, ${HOST_COLS}, h.status AS h_status, ${guestsSql('t', null)} AS guests,
               (SELECT count(*) FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open')::int AS open_reports,
               (SELECT array_agg(DISTINCT r.reason) FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open') AS reasons,
               (SELECT json_agg(x ORDER BY x.id) FROM (

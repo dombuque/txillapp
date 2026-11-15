@@ -90,7 +90,25 @@ export type TxilladaEvent =
       type: 'txillada.joined';
       txilladaId: string;
       user: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null };
-    };
+    }
+  /**
+   * Convidados (0165). Ao anfitrião: um pedido novo (`txillada.request`, com as listas) ou as listas dos pedidos e dos
+   * convites à espera mudaram (`txillada.requests`); a pessoa convidada recusou (`txillada.invite_declined`).
+   */
+  | { type: 'txillada.request'; txilladaId: string; user: TxilladaGuestPerson; requests: unknown[]; invites: unknown[] }
+  | { type: 'txillada.requests'; txilladaId: string; requests: unknown[]; invites: unknown[] }
+  | { type: 'txillada.invite_declined'; txilladaId: string; user: TxilladaGuestPerson }
+  /** A quem foi convidado: o convite (`host`: quem convidou) e o convite retirado (o anfitrião tirou-o ou expulsou-o). */
+  | { type: 'txillada.invite'; txilladaId: string; host: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null } }
+  | { type: 'txillada.invite_cancelled'; txilladaId: string }
+  /** A quem pediu para entrar: o anfitrião recusou. */
+  | { type: 'txillada.request_declined'; txilladaId: string }
+  /** À sala (menos quem tem um bloqueio com o convidado): alguém passou a transmitir, ou deixou de transmitir. */
+  | { type: 'txillada.guest_joined'; txilladaId: string; guest: { user: TxilladaGuestPerson; since: string } }
+  | { type: 'txillada.guest_left'; txilladaId: string; user: TxilladaGuestPerson; reason: 'left' | 'removed' };
+
+/** Quem transmite com o anfitrião (o `id` é o identity no LiveKit: a app liga o quadrado à faixa). */
+export type TxilladaGuestPerson = { id: string; username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null };
 
 export const TXILLADA_REACTIONS = ['hello', 'cheers', 'fire', 'laugh', 'heart'] as const;
 export type TxilladaReaction = (typeof TXILLADA_REACTIONS)[number];

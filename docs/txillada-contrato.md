@@ -35,9 +35,14 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
   índice parcial) — o comentário fixado pelo anfitrião, no máximo um. O serviço põe-no a NULL quando o comentário é apagado
   (anfitrião, autor ou moderação); a limpeza dos 7 dias e apagar a conta tiram-no pela FK. `social.reports.target_type`
   ganha `'txillada_comment'`.
-- **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários
-  e expulsões, menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia aberta
-  (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
+- **0165_txillada_convidados.sql:** `content.txillada_guests` `(txillada_id, user_id)` PK, `kind` ('request' — a pessoa
+  pediu; 'invite' — o anfitrião convidou), `status` ('pending' | 'accepted' | 'declined' | 'cancelled' | 'left' |
+  'removed'), `created_at`, `updated_at`, `since` (quando passou a transmitir). Uma linha por pessoa e Txillada, que muda de
+  estado. Apagar a conta apaga as linhas da pessoa (e as das suas Txilladas pelo CASCADE); a exportação junta
+  `txilladaGuests` (as Txilladas dos outros em que pedi, fui convidado ou transmiti: anfitrião, `kind`, `status`, horas).
+- **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários,
+  expulsões e convidados (0165), menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia
+  aberta (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
 
 ## Regras
 
@@ -63,7 +68,62 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
   (menos o próprio e quem tem bloqueio com quem entrou), no máximo uma vez por pessoa por Txillada a cada 60 s (as
   religações não repetem). Sai do `join` da API (o webhook pode não estar ligado).
 - **Fim:** o anfitrião termina; ou o LiveKit avisa `room_finished` (webhook); ou ninguém publica vídeo há 60 s; ou a
-  moderação corta (`cut`). Ao acabar, todos os espectadores recebem `txillada.ended`.
+  moderação corta (`cut`). Ao acabar, todos os espectadores recebem `txillada.ended`. Acaba para todos: os convidados
+  deixam de transmitir (`left`) e os pedidos e convites à espera caem (`cancelled`).
+
+## Convidados (0165): até 4 pessoas a transmitir
+
+O anfitrião e **até 3 convidados** transmitem ao mesmo tempo (câmara e microfone). O identity no LiveKit continua a ser o id
+da conta; os nomes vêm dos DTO da API (o token do convidado não leva nome nem @, como o de quem vê).
+
+- **Pedir para entrar:** quem vê (conta ativa, 18 anos ou mais, não expulso, sem bloqueio com o anfitrião) pede; o anfitrião
+  recebe `txillada.request` e vê o pedido em `requests` (aceitar ou recusar). Um pedido à espera não se repete; depois de
+  recusado (ou de desistir), 1 pedido a cada 20 s (429). Com um convite à espera, pedir aceita-o.
+- **Convidar:** o anfitrião convida quem está a ver (a lista «A ver agora»: fez `join` e não saiu; senão 409); conta ativa,
+  18 anos ou mais (senão 403 «Não podes convidar @x para transmitir.», sem dizer porquê), sem bloqueio (404), não expulso
+  (409); 20 convites por minuto. A pessoa recebe `txillada.invite` (com quem convidou e o selo) e aceita ou recusa. Convidar
+  quem pediu aceita o pedido.
+- **Aceitar:** com a linha da Txillada trancada, conta os que transmitem — **no máximo 3 (409 «Já há 3 convidados a
+  transmitir…»)**; a pessoa tem de estar a ver. A API muda a permissão no LiveKit sem voltar a entrar
+  (`RoomService.updateParticipant`, `canPublish: true`; o `LiveKitRooms.setCanPublish` injetável) e a sala recebe
+  `txillada.guest_joined`. Um `join` de um convidado aceite já dá um token com `canPublish`; o webhook volta a dar a
+  permissão quando um convidado entra outra vez na sala (uma religação reaproveita o token antigo).
+- **Sair e tirar:** o convidado sai quando quer (volta a só ver); o anfitrião tira (`removed`); expulsar, um bloqueio com o
+  anfitrião e apagar a conta também tiram. `canPublish: false` no LiveKit (as faixas param) e a sala recebe
+  `txillada.guest_left`. Um convidado que sai da sala (webhook `participant_left`, confirmado no LiveKit) deixa de transmitir.
+- **Quem vê quem:** quem tem um bloqueio com um convidado não o vê em `guests` nem recebe os avisos dele; a app deixa de
+  receber as faixas de quem não está na lista (`setSubscribed(false)`).
+- **Espectadores:** `viewers` conta quem está na sala sem o anfitrião e sem os convidados (contam à parte); «A ver agora»
+  também não os mostra.
+
+| Rota (prefixo /api/v1, com sessão) | Quem | Resposta |
+|---|---|---|
+| `POST /txilladas/:id/guests/request` | quem vê | `{ state: 'requested' }` (ou `{ state: 'guest', guests }` com um convite à espera) — 400 anfitrião, 403 menor/expulso, 404, 409 já transmite/acabada, 429 |
+| `POST /txilladas/:id/guests/invite` `{ username }` | anfitrião | `{ guests, requests, invites }` — 403/404/409/429 como acima |
+| `POST /txilladas/:id/guests/accept` | quem foi convidado | `{ state: 'guest', guests }` — 404 sem convite, 409 com 3 ou sem estar a ver |
+| `POST /txilladas/:id/guests/decline` | quem foi convidado | `{ state: 'none' }`; o anfitrião recebe `txillada.invite_declined` |
+| `POST /txilladas/:id/guests/leave` | convidado, quem pediu ou foi convidado | `{ state: 'none' }` (sair do ecrã, desistir do pedido, recusar o convite) |
+| `POST /txilladas/:id/guests/:username/accept` | anfitrião | `{ guests, requests, invites }` — 404 sem pedido, 409 com 3 ou se já não está a ver |
+| `POST /txilladas/:id/guests/:username/decline` | anfitrião | idem; a pessoa recebe `txillada.request_declined` |
+| `POST /txilladas/:id/guests/:username/remove` | anfitrião | idem — tira de transmitir, retira um convite (`txillada.invite_cancelled`) ou recusa um pedido; 404 sem nada |
+
+`TxilladaDto` ganha `guests: [{ user: { id, username, displayName, avatarUrl, verified, verifiedTier }, since }]` (por ordem
+de entrada, como eu os vejo), `guestsMax: 3`, `guestState: 'none' | 'requested' | 'invited' | 'guest'` (o meu lugar) e, só
+para o anfitrião, `requests` e `invites` (`[{ user, at }]`).
+
+Tempo real: `txillada.request` `{ user, requests, invites }` e `txillada.requests` `{ requests, invites }` (ao anfitrião);
+`txillada.invite` `{ host }`, `txillada.invite_cancelled`, `txillada.request_declined` (à pessoa); `txillada.invite_declined`
+`{ user }` (ao anfitrião); `txillada.guest_joined` `{ guest: { user, since } }` e `txillada.guest_left` `{ user, reason:
+'left' | 'removed' }` (à sala, menos quem tem bloqueio com o convidado; o anfitrião e o próprio recebem sempre).
+
+**App:** `lib/txilladaGuests.ts` (o estado, o ecrã e os avisos, com testes), `components/txillada/TxilladaGuests.tsx`
+(`TxilladaStage`, `InviteCard`, `GuestsPanel`). O ecrã: 1 pessoa = inteiro; 2 = uma em cima da outra ao alto (lado a lado
+num ecrã deitado); 3 = o anfitrião grande em cima e dois em baixo; 4 = grelha 2×2. Cada quadrado com o @ e o selo, o
+microfone calado e um contorno coral em quem fala (`ActiveSpeakersChanged`); nos quadrados pequenos pede-se a camada de
+360p (`setVideoQuality`, por cima do adaptiveStream do site). Quem vê: «Pedir para entrar» em cima (e em «Mais»); o
+cartão do convite (aceitar abre a câmara antes de dizer que sim); a transmitir: microfone, virar e «Sair do ecrã». O
+anfitrião: o botão das pessoas com o número de pedidos (a lista: tirar, aceitar, recusar, retirar) e «Convidar para
+transmitir» em «A ver agora». Todos recebem as faixas de quem transmite (o anfitrião também: as dos convidados).
 
 ## API (prefixo /api/v1, com sessão)
 

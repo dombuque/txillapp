@@ -187,6 +187,13 @@ export class ExportService {
         `SELECT c.id, c.txillada_id AS "txilladaId", c.body, c.created_at AS "createdAt", c.removed_at AS "removedAt"
            FROM content.txillada_comments c WHERE c.author_id = $1 ORDER BY c.id`,
       ).catch(() => []),
+      // Convidado nas Txilladas dos outros (0165): os pedidos para entrar, os convites e quando transmitiu (apagam-se 7 dias
+      // depois do fim). `kind`: 'request' (pedi) ou 'invite' (convidaram-me); o vídeo nunca se gravou.
+      txilladaGuests: await q(
+        `SELECT g.txillada_id AS "txilladaId", h.username AS host, g.kind, g.status, g.created_at AS "createdAt", g.since, g.updated_at AS "updatedAt"
+           FROM content.txillada_guests g JOIN content.txilladas t ON t.id = g.txillada_id JOIN identity.users h ON h.id = t.host_id
+          WHERE g.user_id = $1 ORDER BY g.created_at`,
+      ).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(
         `SELECT c.id, (c.caller_id = $1) AS outgoing, o.username AS "with", c.video, c.status, c.created_at AS "createdAt", c.started_at AS "startedAt", c.ended_at AS "endedAt"

@@ -37,6 +37,7 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     removeParticipant: async (room, identity) => void roomCalls.push(`remove:${room}:${identity}`),
     deleteRoom: async (room) => void roomCalls.push(`delete:${room}`),
     participants: async () => [],
+    setCanPublish: async () => undefined,
   };
   let n = 0;
 
@@ -143,7 +144,7 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     await api().post(`/api/v1/txilladas/${id}/join`).set(auth(lana)).expect(200);
     await api().post(`/api/v1/txilladas/${id}/join`).set(auth(lrui)).expect(200);
     const dto = (await api().get(`/api/v1/txilladas/${id}`).set(auth(lana)).expect(200)).body;
-    expect(Object.keys(dto).sort()).toEqual(['audience', 'canComment', 'cheers', 'comments', 'endedAt', 'host', 'id', 'isHost', 'peakViewers', 'pinned', 'startedAt', 'status', 'title', 'viewers'].sort());
+    expect(Object.keys(dto).sort()).toEqual(['audience', 'canComment', 'cheers', 'comments', 'endedAt', 'guestState', 'guests', 'guestsMax', 'host', 'id', 'isHost', 'peakViewers', 'pinned', 'startedAt', 'status', 'title', 'viewers'].sort());
     expect(Object.keys(dto.host).sort()).toEqual(expect.arrayContaining(['avatarUrl', 'displayName', 'id', 'username']));
     await wait(2_100); // 1 comentário a cada 2 s por pessoa
     const c = (await api().post(`/api/v1/txilladas/${id}/comments`).set(auth(lana)).send({ body: 'Que fixe' }).expect(201)).body;

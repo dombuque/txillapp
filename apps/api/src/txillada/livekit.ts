@@ -13,6 +13,11 @@ export interface LiveKitRooms {
   deleteRoom(room: string): Promise<void>;
   /** Quem está na sala e quantas faixas de vídeo cada um publica. */
   participants(room: string): Promise<{ identity: string; videoTracks: number }[]>;
+  /**
+   * Os convidados (0165): passa a poder publicar (câmara e microfone) ou deixa de poder, sem voltar a entrar na sala
+   * (RoomService.updateParticipant). Ao tirar a permissão, o LiveKit para as faixas que a pessoa publicava.
+   */
+  setCanPublish(room: string, identity: string, canPublish: boolean): Promise<void>;
 }
 
 export const livekitEnabled = (c: Pick<AppConfig, 'LIVEKIT_URL' | 'LIVEKIT_API_KEY' | 'LIVEKIT_API_SECRET'>) => !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET);
@@ -26,6 +31,9 @@ export function livekitRoomsFromConfig(c: AppConfig): LiveKitRooms | null {
     deleteRoom: (room) => svc.deleteRoom(room),
     participants: async (room) =>
       (await svc.listParticipants(room)).map((p) => ({ identity: p.identity, videoTracks: p.tracks.filter((t) => t.type === TrackType.VIDEO).length })),
+    // A permissão vai inteira (a do LiveKit troca-se toda): recebe sempre, nunca manda dados nem muda os seus metadados.
+    setCanPublish: async (room, identity, canPublish) =>
+      void (await svc.updateParticipant(room, identity, { permission: { canPublish, canSubscribe: true, canPublishData: false, canUpdateMetadata: false } })),
   };
 }
 
@@ -41,6 +49,8 @@ export async function roomToken(
     room: string; identity: string; host: boolean;
     /** Só para o anfitrião: a quem vê não se põe o nome nem o @ no token. */
     name?: string; username?: string;
+    /** Um convidado aceite (0165) que entra (ou volta a entrar) já a poder publicar. Sem nome no token, como quem vê. */
+    publish?: boolean;
     /** As futuras Txilladas pagas: quem vê volta a entrar escondido. Por omissão false. */
     hidden?: boolean;
   },
@@ -54,7 +64,7 @@ export async function roomToken(
   at.addGrant({
     roomJoin: true,
     room: o.room,
-    canPublish: o.host,
+    canPublish: o.host || !!o.publish,
     canSubscribe: true,
     // Os comentários e os brindes passam pela API (com o filtro e os limites), não pelos dados do LiveKit.
     canPublishData: false,

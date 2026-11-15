@@ -627,6 +627,11 @@ export class AuthService implements OnModuleInit {
       const { TxilladaService } = await import('../txillada/txillada.service');
       await this.moduleRef.get(TxilladaService, { strict: false }).end(userId, live.id as string).catch(() => undefined);
     }
+    // Convidado nas Txilladas dos outros (0165): deixa de transmitir e sai da sala; os pedidos e convites à espera caem.
+    if ((await this.pool.query(`SELECT 1 FROM content.txillada_guests WHERE user_id = $1 AND status IN ('pending', 'accepted') LIMIT 1`, [userId])).rowCount) {
+      const { TxilladaService } = await import('../txillada/txillada.service');
+      await this.moduleRef.get(TxilladaService, { strict: false }).leaveAllGuests(userId).catch(() => undefined);
+    }
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -675,6 +680,8 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM content.txillada_comments WHERE author_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_cheers WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_bans WHERE user_id = $1', [userId]);
+      // Os pedidos, os convites e as vezes que transmitiu nas Txilladas dos outros (0165; as das suas saem com elas).
+      await client.query('DELETE FROM content.txillada_guests WHERE user_id = $1', [userId]);
       // Brindes aos comentários (0161) que deu nos mimos e nas Txilladas dos outros (os dos seus comentários saem com eles).
       await client.query('DELETE FROM content.txillada_comment_cheers WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM content.story_comment_cheers WHERE user_id = $1', [userId]);
