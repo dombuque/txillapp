@@ -13,6 +13,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice', label: 'Resumo', icon: 'home', end: true },
     { to: '/backoffice/reports', label: 'Queixas', icon: 'flag', perm: 'reports.read', badge: 'reports' },
     { to: '/backoffice/content', label: 'Conteúdo', icon: 'images', perm: 'content.moderate' },
+    { to: '/backoffice/txilladas', label: 'Txilladas ao vivo', icon: 'video', perm: 'reports.read' },
     { to: '/backoffice/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
     { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
     { to: '/backoffice/catalog', label: 'Catálogo da Geleira', icon: 'snowflake', perm: 'catalog.manage' },
