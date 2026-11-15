@@ -9,7 +9,7 @@ export interface GroupSender extends Badged { username: string; displayName: str
 export type GroupMessage = ChatMessage & { sender: GroupSender };
 export interface GroupThread {
   /** `ttl`: mensagens temporárias (segundos) ou null; servidores antigos não mandam. */
-  // `hidden`: escondi o grupo («Conversas escondidas»); servidores antigos não mandam.
+  // `hidden`: escondi o grupo («Conversas ocultas»); servidores antigos não mandam.
   group: { id: string; name: string; myRole: GroupRole; members: GroupMember[]; ttl?: number | null; hidden?: boolean };
   items: GroupMessage[];
   nextCursor: string | null;
@@ -50,6 +50,6 @@ export const gruposApi = {
   screenshot: (id: string): Promise<unknown> => raw(`/chat/groups/${id}/screenshot`, post({})),
   /** Limpar a conversa do grupo só para mim. */
   clear: (id: string): Promise<{ ok: true }> => raw(`/chat/groups/${id}/clear`, post({})),
-  /** Esconder o grupo só para mim (fica em «Conversas escondidas») ou mostrá-lo outra vez. */
+  /** Esconder o grupo só para mim (fica em «Conversas ocultas») ou mostrá-lo outra vez. */
   setHidden: (id: string, hidden: boolean): Promise<{ hidden: boolean }> => raw(`/chat/groups/${id}/hidden`, { method: 'PUT', body: JSON.stringify({ hidden }) }),
 };

@@ -54,7 +54,7 @@ import { HIDDEN_PATH, HIDDEN_TITLE } from '@/lib/chatHidden';
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
 
-/** O texto da última mensagem numa linha da lista (também nas «Conversas escondidas», app/messages/escondidas). */
+/** O texto da última mensagem numa linha da lista (também nas «Conversas ocultas», app/messages/escondidas). */
 export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
@@ -240,7 +240,7 @@ export default function Messages() {
   }
   const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request, mixar: !r.g, name: r.name });
   const mixar = useOpenMixar();
-  // Esconder a conversa (sai da lista e do contador; fica em «Conversas escondidas», no "⋯" de cima).
+  // Esconder a conversa (sai da lista e do contador; fica em «Conversas ocultas», no "⋯" de cima).
   const hiding = useChatHiding();
   const [moreOpen, setMoreOpen] = useState(false);
   /** Correr uma ação numa linha (do deslizar, da folha ou do leitor de ecrã). */
@@ -409,7 +409,7 @@ export default function Messages() {
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou TxillGroup"><Icon name="compose" size={24} /></Pressable>
-        {/* "⋯": «Conversas escondidas» (e, no computador, os atalhos do teclado). */}
+        {/* "⋯": «Conversas ocultas» (e, no computador, os atalhos do teclado). */}
         <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel="Mais opções das mensagens"><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
         {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel="Atalhos do teclado (?)"><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
       </View>

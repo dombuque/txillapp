@@ -368,7 +368,7 @@ export default function Thread() {
             // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).
             // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
             ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
-            // Esconder (sai da lista e do contador; fica em «Conversas escondidas») ou, se já está, mostrar outra vez.
+            // Esconder (sai da lista e do contador; fica em «Conversas ocultas») ou, se já está, mostrar outra vez.
             ...(first?.hidden !== undefined && (items.length || first.hidden)
               ? [{ icon: first.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.hidden), onPress: () => (first.hidden ? hiding.unhide({ username }) : hiding.hide({ username }, person?.displayName ?? username)) }]
               : []),

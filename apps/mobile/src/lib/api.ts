@@ -318,7 +318,7 @@ export interface Conversation extends Badged {
   unread: number;
   /** Por ler só porque a marquei à mão (sem mensagens novas para contar): a lista mostra um ponto e não um número. */
   marked?: boolean;
-  /** Escondida por mim (só em «Conversas escondidas», GET /chat/hidden): desde quando. */
+  /** Escondida por mim (só em «Conversas ocultas», GET /chat/hidden): desde quando. */
   hidden?: boolean;
   hiddenAt?: string;
 }
@@ -333,7 +333,7 @@ export interface GroupSummary {
   /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
   ttl?: number | null;
   unread: number;
-  /** Escondido por mim (só em «Conversas escondidas»): desde quando. */
+  /** Escondido por mim (só em «Conversas ocultas»): desde quando. */
   hidden?: boolean;
   hiddenAt?: string;
 }
@@ -345,7 +345,7 @@ export interface ChatThread {
   blocked: boolean;
   /** Mensagens temporárias nesta conversa (segundos: 86400, 604800 ou 7776000), ou null. Servidores antigos não mandam. */
   ttl?: number | null;
-  /** Escondi esta conversa («Conversas escondidas»): o "⋯" mostra «Mostrar outra vez». Servidores antigos não mandam. */
+  /** Escondi esta conversa («Conversas ocultas»): o "⋯" mostra «Mostrar outra vez». Servidores antigos não mandam. */
   hidden?: boolean;
   otherRead: string | null;
   items: ChatMessage[];
@@ -812,9 +812,9 @@ export const api = {
   chatClear: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   /** Limpar a conversa só para mim: as mensagens até agora desaparecem para mim; a conversa fica na lista, vazia. */
   chatClearKeep: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/clear`, post({})),
-  /** Esconder a conversa só para mim (sai da lista e do contador; fica em «Conversas escondidas») ou mostrá-la outra vez. */
+  /** Esconder a conversa só para mim (sai da lista e do contador; fica em «Conversas ocultas») ou mostrá-la outra vez. */
   chatSetHidden: (username: string, hidden: boolean): Promise<{ hidden: boolean }> => raw(`/chat/with/${encodeURIComponent(username)}/hidden`, { method: 'PUT', body: JSON.stringify({ hidden }) }),
-  /** «Conversas escondidas»: as conversas a dois e os TxillGroups que escondi. */
+  /** «Conversas ocultas»: as conversas a dois e os TxillGroups que escondi. */
   chatHiddenList: (): Promise<{ conversations: Conversation[]; groups: GroupSummary[] }> => raw('/chat/hidden'),
   /** Mensagens temporárias (qualquer um dos dois): segundos (86400, 604800, 7776000) ou null para desligar. */
   chatSetTtl: (username: string, ttl: number | null): Promise<{ ttl: number | null }> => raw(`/chat/with/${encodeURIComponent(username)}/ttl`, { method: 'PUT', body: JSON.stringify({ ttl }) }),

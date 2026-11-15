@@ -6,7 +6,7 @@
  * - segurar a linha (ou o botão direito do rato, na web): a folha com o nome e a foto em cima e as ações por baixo;
  * - o leitor de ecrã (`accessibilityActions`): as mesmas ações e "Mais opções", que abre a folha.
  *
- * «Esconder conversa» (0160): sai da lista e do contador e fica em «Conversas escondidas» (Mensagens → ⋯); lá, a mesma
+ * «Ocultar conversa» (0160): sai da lista e do contador e fica em «Conversas ocultas» (Mensagens → ⋯); lá, a mesma
  * folha mostra «Mostrar outra vez» (`hidden`). Silenciar e afixar ainda não existem na API: quando existirem, entram aqui.
  */
 
@@ -28,7 +28,7 @@ export interface InboxMenuRow {
   mixar?: boolean;
   /** O nome do outro lado («Mixar com Ana»: só o primeiro nome). */
   name?: string;
-  /** A linha está em «Conversas escondidas»: «Mostrar outra vez» em vez de «Esconder conversa». */
+  /** A linha está em «Conversas ocultas»: «Mostrar outra vez» em vez de «Ocultar conversa». */
   hidden?: boolean;
 }
 
@@ -61,7 +61,7 @@ export function actionLabel(a: InboxAction, group: boolean, name?: string): stri
     case 'leave': return 'Sair do grupo';
     case 'ttl': return 'Mensagens temporárias';
     case 'clear': return 'Limpar conversa';
-    case 'hide': return 'Esconder conversa';
+    case 'hide': return 'Ocultar conversa';
     case 'unhide': return 'Mostrar outra vez';
     case 'mixar': {
       const first = (name ?? '').trim().split(/\s+/)[0];
@@ -112,7 +112,7 @@ export function inboxDeskMenu(r: InboxMenuRow): InboxAction[] {
   const base = inboxMenu(r);
   if (!base.length) return base;
   const s = inboxSwipe(r);
-  // Esconder (ou, em «Conversas escondidas», mostrar outra vez): antes do que apaga ou sai.
+  // Esconder (ou, em «Conversas ocultas», mostrar outra vez): antes do que apaga ou sai.
   const hide: InboxAction = r.hidden ? 'unhide' : 'hide';
   if (r.group) return [...s.left, 'info', hide, ...s.right];
   // «Mixar com Fulano» logo a seguir ao perfil (só quando o ecrã o pede e não num pedido de mensagem).

@@ -1,8 +1,8 @@
 /**
- * Conversas escondidas (apps/api 0160): a lógica pura, sem dependências (testes em tests/chatHidden.test.mjs).
+ * Conversas ocultas (apps/api 0160): a lógica pura, sem dependências (testes em tests/chatHidden.test.mjs).
  *
  * Esconder uma conversa (a dois ou TxillGroup) é só para mim: sai da lista de Mensagens e do número de por ler e fica em
- * Mensagens → ⋯ → «Conversas escondidas» (HIDDEN_PATH), de onde se abre e se «Mostrar outra vez». Mensagens novas não a
+ * Mensagens → ⋯ → «Conversas ocultas» (HIDDEN_PATH), de onde se abre e se «Mostrar outra vez». Mensagens novas não a
  * trazem de volta e o aviso no telemóvel chega sem pré-visualização («Nova mensagem», sem som). O outro lado não sabe.
  * O servidor guarda por pessoa e conversa (sincroniza entre aparelhos pelo eco 'read' do tempo real).
  *
@@ -14,30 +14,30 @@
 export const HIDDEN_PATH = '/messages/escondidas';
 
 /** O nome da entrada no "⋯" das Mensagens e o título do ecrã. */
-export const HIDDEN_TITLE = 'Conversas escondidas';
+export const HIDDEN_TITLE = 'Conversas ocultas';
 
 /** O texto do botão no menu de uma conversa (lista ou "⋯" dentro da conversa). */
-export const hideLabel = (hidden: boolean) => (hidden ? 'Mostrar outra vez' : 'Esconder conversa');
+export const hideLabel = (hidden: boolean) => (hidden ? 'Mostrar outra vez' : 'Ocultar conversa');
 
 /** A pergunta antes de esconder: o que acontece (o nome é o da pessoa ou do grupo). */
 export function hideAsk(name: string, group: boolean): { title: string; body: string; ok: string } {
   const who = name.trim() || (group ? 'este TxillGroup' : 'esta pessoa');
   return {
-    title: group ? 'Esconder este TxillGroup?' : 'Esconder esta conversa?',
+    title: group ? 'Esconder este TxillGroup?' : 'Ocultar esta conversa?',
     body: `${group ? `“${who}”` : `A conversa com ${who}`} sai da tua lista e do número de mensagens por ler. Encontras em Mensagens → ⋯ → ${HIDDEN_TITLE}. Mensagens novas não a trazem de volta e os avisos chegam sem pré-visualização. ${group ? 'Os outros membros não sabem.' : `${who.split(' ')[0]} não sabe.`}`,
     ok: 'Esconder',
   };
 }
 
 /** O que se diz logo a seguir a esconder (aviso curto). */
-export const hiddenToast = (group: boolean) => `${group ? 'TxillGroup escondido' : 'Conversa escondida'}. Está em Mensagens → ⋯ → ${HIDDEN_TITLE}.`;
+export const hiddenToast = (group: boolean) => `${group ? 'TxillGroup oculto' : 'Conversa oculta'}. Está em Mensagens → ⋯ → ${HIDDEN_TITLE}.`;
 
 /** O texto do ecrã das escondidas (por cima da lista). */
-export const HIDDEN_NOTE = 'Só tu vês que estão escondidas. Mensagens novas não as trazem de volta e os avisos chegam sem pré-visualização.';
-export const HIDDEN_EMPTY = { title: 'Nada escondido', body: 'Para esconder uma conversa, mantém-na premida na lista de Mensagens (ou abre o ⋯ dentro dela) e escolhe «Esconder conversa».' };
+export const HIDDEN_NOTE = 'Só tu vês que estão ocultas. Mensagens novas não as trazem de volta e os avisos chegam sem pré-visualização.';
+export const HIDDEN_EMPTY = { title: 'Nada oculto', body: 'Para ocultar uma conversa, mantém-na premida na lista de Mensagens (ou abre o ⋯ dentro dela) e escolhe «Ocultar conversa».' };
 
 interface HasLast { lastMessage: { at: string } }
-/** As conversas e os TxillGroups escondidos juntos, da mensagem mais recente para a mais antiga. */
+/** As conversas e os TxillGroups ocultos juntos, da mensagem mais recente para a mais antiga. */
 export function hiddenRows<C extends HasLast, G extends HasLast>(d: { conversations?: C[]; groups?: G[] } | undefined): ({ kind: 'chat'; c: C } | { kind: 'group'; g: G })[] {
   const rows = [
     ...(d?.conversations ?? []).map((c) => ({ kind: 'chat' as const, c, at: c.lastMessage.at })),

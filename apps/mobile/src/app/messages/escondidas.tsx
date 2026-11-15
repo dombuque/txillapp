@@ -28,7 +28,7 @@ function HiddenLock({ children }: { children: ReactNode }) {
 }
 
 /**
- * «Conversas escondidas» (Mensagens → ⋯): as conversas a dois e os TxillGroups que escondi. Tocar abre a conversa;
+ * «Conversas ocultas» (Mensagens → ⋯): as conversas a dois e os TxillGroups que escondi. Tocar abre a conversa;
  * «Mostrar» volta a pô-la na lista de Mensagens. Mensagens novas não as trazem de volta (o servidor, 0160).
  */
 export default function HiddenChats() {

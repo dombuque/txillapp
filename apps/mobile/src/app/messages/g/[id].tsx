@@ -310,7 +310,7 @@ export default function GroupThreadScreen() {
               { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
               // Todos veem como está; só quem administra muda (a folha diz porquê).
               { icon: 'clock', label: TTL_TITLE, onPress: () => setTtlOpen(true) },
-              // Esconder (só para mim; fica em «Conversas escondidas») ou mostrar outra vez. Servidores antigos não mandam `hidden`.
+              // Esconder (só para mim; fica em «Conversas ocultas») ou mostrar outra vez. Servidores antigos não mandam `hidden`.
               ...(first?.group.hidden !== undefined
                 ? [{ icon: first.group.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.group.hidden), onPress: () => (first.group.hidden ? hiding.unhide({ groupId: id }) : hiding.hide({ groupId: id }, group.name)) }]
                 : []),

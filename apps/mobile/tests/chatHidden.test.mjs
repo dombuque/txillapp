@@ -1,4 +1,4 @@
-// Testes das «Conversas escondidas» (src/lib/chatHidden.ts) e de onde o ecrã as liga: o menu da linha (lib/inboxMenu),
+// Testes das «Conversas ocultas» (src/lib/chatHidden.ts) e de onde o ecrã as liga: o menu da linha (lib/inboxMenu),
 // o "⋯" das Mensagens, o "⋯" dentro da conversa (a dois e TxillGroup), o ecrã próprio e as notificações discretas.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
@@ -14,14 +14,14 @@ const k = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'deskChatKeys
 const read = (f) => readFileSync(path.join(ROOT, ...f.split('/')), 'utf8').replace(/\r\n/g, '\n');
 
 test('os textos: o botão, a pergunta (diz onde fica e que o outro não sabe) e o ecrã', () => {
-  assert.equal(h.hideLabel(false), 'Esconder conversa');
+  assert.equal(h.hideLabel(false), 'Ocultar conversa');
   assert.equal(h.hideLabel(true), 'Mostrar outra vez');
-  assert.equal(h.HIDDEN_TITLE, 'Conversas escondidas');
+  assert.equal(h.HIDDEN_TITLE, 'Conversas ocultas');
   assert.equal(h.HIDDEN_PATH, '/messages/escondidas');
   const a = h.hideAsk('Ana Lopes', false);
-  assert.equal(a.title, 'Esconder esta conversa?');
+  assert.equal(a.title, 'Ocultar esta conversa?');
   assert.match(a.body, /A conversa com Ana Lopes sai da tua lista/);
-  assert.match(a.body, /Mensagens → ⋯ → Conversas escondidas/);
+  assert.match(a.body, /Mensagens → ⋯ → Conversas ocultas/);
   assert.match(a.body, /sem pré-visualização/);
   assert.match(a.body, /Ana não sabe\.$/);
   const g = h.hideAsk('Malta do Tofo', true);
@@ -51,13 +51,13 @@ test('a chave das escondidas fica debaixo de chat-list (o tempo real e as listas
   assert.deepEqual(h.HIDDEN_KEYS.map((x) => x[0]), ['chat-list', 'chat-groups', 'chat-unread']);
 });
 
-test('menu da linha: «Esconder conversa» antes de limpar e apagar; num TxillGroup, antes de sair; nas escondidas, «Mostrar outra vez»', () => {
+test('menu da linha: «Ocultar conversa» antes de limpar e apagar; num TxillGroup, antes de sair; nas escondidas, «Mostrar outra vez»', () => {
   const chat = { group: false, unread: 0, username: 'ana', me: 'eu' };
   assert.deepEqual(m.inboxDeskMenu(chat), ['unread', 'profile', 'ttl', 'hide', 'clear', 'delete']);
   assert.deepEqual(m.inboxDeskMenu({ ...chat, hidden: true }), ['unread', 'profile', 'ttl', 'unhide', 'clear', 'delete']);
   assert.deepEqual(m.inboxDeskMenu({ group: true, unread: 0, me: 'eu' }), ['info', 'hide', 'leave']);
   const item = m.inboxMenuItems(chat).find((i) => i.id === 'hide');
-  assert.deepEqual(item, { id: 'hide', label: 'Esconder conversa', icon: 'eye-off', danger: false });
+  assert.deepEqual(item, { id: 'hide', label: 'Ocultar conversa', icon: 'eye-off', danger: false });
   assert.equal(m.inboxMenuItems({ ...chat, hidden: true }).find((i) => i.id === 'unhide').label, 'Mostrar outra vez');
   // Conversa sem @ não tem menu nenhum.
   assert.deepEqual(m.inboxDeskMenu({ group: false, unread: 0 }), []);

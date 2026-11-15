@@ -275,7 +275,7 @@ test('tempo real: o evento mixar só põe em dia esse Mixar (sem som nem aviso),
 test('menu da lista de Mensagens: «Mixar com Ana» só quando pedido, nunca num pedido de mensagem nem num grupo', () => {
   const row = { group: false, unread: 0, username: 'ana', me: 'eu', mixar: true, name: 'Ana Maria' };
   const labels = im.inboxMenuItems(row).map((i) => i.label);
-  assert.deepEqual(labels, ['Marcar como por ler', 'Ver perfil', 'Mixar com Ana', 'Mensagens temporárias', 'Esconder conversa', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
+  assert.deepEqual(labels, ['Marcar como por ler', 'Ver perfil', 'Mixar com Ana', 'Mensagens temporárias', 'Ocultar conversa', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
   assert.equal(im.inboxMenuItems(row).find((i) => i.id === 'mixar').icon, 'mixar');
   assert.ok(!im.inboxDeskMenu({ ...row, request: true }).includes('mixar'));
   assert.ok(!im.inboxDeskMenu({ ...row, mixar: false }).includes('mixar'));

@@ -75,7 +75,7 @@ export function neighbourChat(paths: string[], current: string | null, dir: 1 | 
 
 /**
  * A conversa aberta, pelo endereço (/messages/ana, /messages/g/123), ou null na lista sozinha, em "Nova mensagem" e nas
- * «Conversas escondidas» (/messages/escondidas).
+ * «Conversas ocultas» (/messages/escondidas).
  */
 export function openChatPath(pathname: string): string | null {
   const m = /^\/messages\/(g\/[^/]+|[^/]+)$/.exec(pathname);

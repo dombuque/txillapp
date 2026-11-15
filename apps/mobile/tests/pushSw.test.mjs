@@ -296,7 +296,7 @@ test('«chegou»: 404 (código fora de prazo) ou 409 (já não toca) não se rep
   assert.equal(sw.api.txCallInfo({ kind: 'call', data: { callId: 'c2', ackToken: 'x.y' } }, { callId: 'c2', ackToken: 'x.y' }).ackToken, 'x.y');
 });
 
-test('conversa escondida (quiet = 1): «Nova mensagem» na lista, sem som nem vibração, e não volta a avisar', async () => {
+test('conversa oculta (quiet = 1): «Nova mensagem» na lista, sem som nem vibração, e não volta a avisar', async () => {
   const sw = load({ windows: ['hidden'] });
   await sw.push({ title: 'Txillapp', body: 'Nova mensagem', url: '/messages/ana', tag: 'chat:hidden', quiet: '1' });
   const open = sw.open();
