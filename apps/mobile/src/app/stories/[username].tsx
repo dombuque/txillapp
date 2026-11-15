@@ -15,7 +15,9 @@ import { Icon } from '@/components/Icon';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
 import { CheersPour } from '@/components/CheersPour';
-import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
+import { ActivityPanel, BarButton, CommentsPanel, Panel, ReplyBar, shareSharedPost, useKeyboardHeight } from '@/components/StoryParts';
+import { captionSpot, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
+import { colors } from '@/lib/theme';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { sheetViewport } from '@/lib/sheetViewport';
 import { api, type Story } from '@/lib/api';
@@ -29,7 +31,7 @@ import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
-import { freshEnough, startIndex, storyFit } from '@/lib/storyLink';
+import { freshEnough, startIndex } from '@/lib/storyLink';
 import { artistHref } from '@/lib/artists';
 import { MusicPill } from '@/components/PostMusic';
 import { SoundWaves } from '@/components/SoundWaves';
@@ -50,6 +52,7 @@ const expiresIn = (iso: string) => {
 /**
  * Vídeo do mimo na web: um <video> com playsInline, sem controlos, a ocupar o mimo (no iPhone, sem playsInline, o Safari
  * abria o leitor do sistema em ecrã inteiro). Tenta tocar com som; se o browser não deixar, toca sem som e mostra o botão.
+ * Inteiro (`contain`): um vídeo 9:16 enche o cartão e um de outra forma não perde o canto da assinatura.
  */
 function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: boolean; onEnd: () => void; onDuration: (ms: number) => void }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -67,7 +70,7 @@ function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused
         ref, src: url, playsInline: true, 'webkit-playsinline': 'true', autoPlay: true, preload: 'auto', controls: false, disablePictureInPicture: true,
         onEnded: onEnd,
         onLoadedMetadata: (e: { currentTarget: HTMLVideoElement }) => { if (Number.isFinite(e.currentTarget.duration)) onDuration(e.currentTarget.duration * 1000); },
-        style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000', pointerEvents: 'none' },
+        style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000', pointerEvents: 'none' },
       })}
       <Pressable onPress={() => setMuted((m) => !m)} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
         <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
@@ -84,7 +87,8 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
     return () => { a.remove(); b.remove(); };
   }, [player, onEnd, onDuration]);
   useEffect(() => { if (paused) player.pause(); else player.play(); }, [paused, player]);
-  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
+  // textureView: no Android o vídeo respeita os cantos redondos do cartão.
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} surfaceType="textureView" />;
 }
 
 /**
@@ -114,7 +118,7 @@ function StoryMusic({ track, paused, onLive }: { track: NonNullable<Story['music
   const playing = !!status.playing && !paused && !bg;
   useEffect(() => { onLive?.({ playing, player: playing ? player : null }); }, [playing, player, onLive]);
   useEffect(() => () => onLive?.({ playing: false, player: null }), [onLive]);
-  // Vidro escuro à esquerda, com largura máxima: longe da assinatura «txillapp @…» do canto de baixo à direita.
+  // Vidro escuro no cabeçalho, por baixo do autor (como nos visores pro): longe da assinatura do canto de baixo à direita.
   return <MusicPill track={track} live={playing} muted={muted} onToggleMute={toggleMute} onArtist={artistTo ? () => router.push(artistTo as never) : undefined} />;
 }
 
@@ -125,7 +129,7 @@ export default function StoryViewer() {
   const qc = useQueryClient();
   const { user: me } = useAuth();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: winH } = useWindowDimensions();
   const wide = width > 520;
   // A música do mimo está a tocar (com o leitor, para as ondas medirem o som na web).
   const [tune, setTune] = useState<{ playing: boolean; player: AudioPlayer | null }>({ playing: false, player: null });
@@ -156,8 +160,12 @@ export default function StoryViewer() {
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments' | 'more' | 'report'>(null);
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
-  const [photoRatio, setPhotoRatio] = useState<{ id: string; r: number } | null>(null); // a forma da foto (para encher o ecrã quando é parecida)
-  const [box, setBox] = useState({ w: 0, h: 0 }); // o tamanho do ecrã do mimo (para pousar os stickers)
+  const [photoRatio, setPhotoRatio] = useState<{ id: string; r: number } | null>(null); // a forma da foto (para encher o cartão quando é a mesma)
+  /** O tamanho do visor sem o teclado (fica parado enquanto se escreve: o cartão não salta) e a altura de agora. */
+  const [screen, setScreen] = useState({ w: 0, h: 0 });
+  const [rootH, setRootH] = useState(0);
+  /** A segurar o mimo há um bocadinho: o cabeçalho e a legenda saem da frente (como nos visores pro). */
+  const [hideUi, setHideUi] = useState(false);
   const [saving, setSaving] = useState(false); // a guardar o mimo na galeria (antes do primeiro `return`, como todos os hooks)
   const [videoMs, setVideoMs] = useState<number | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
@@ -178,6 +186,11 @@ export default function StoryViewer() {
   }, []);
   // Segurar (dedo ou rato) ou o espaço do teclado (computador) pausam.
   const held = holding || kbPaused;
+  useEffect(() => {
+    if (!holding) { setHideUi(false); return; }
+    const t = setTimeout(() => setHideUi(true), 260);
+    return () => clearTimeout(t);
+  }, [holding]);
   const paused = storyPaused({ held, typing, panelOpen: panel !== null, away, background });
   // Com rato (computador) não se arrasta o mimo: muda-se com os cliques nas metades, com ←/→ e fecha-se com Esc.
   const mouse = finePointer();
@@ -392,97 +405,140 @@ export default function StoryViewer() {
     } catch { /* cancelado */ }
     setAway(false);
   }
-  const chip = (icon: 'eye' | 'cheers' | 'comment', n: number, label: string, onPress: () => void) => (
-    <Pressable onPress={onPress} style={st.chip} accessibilityRole="button" accessibilityLabel={`${n} ${label}`}>
-      <Icon name={icon} size={18} color="#fff" strokeWidth={icon === 'eye' ? 2 : undefined} />
-      <Text style={st.chipText}>{n}</Text>
-    </Pressable>
-  );
+  // O cartão do mimo e a barra por baixo dele (lib/storyFrame): a barra nunca vai para cima da imagem, por isso a
+  // assinatura «txillapp @…» do canto de baixo à direita fica sempre à vista. Medido sem o teclado (não salta ao escrever).
+  const frame = storyFrame({ w: screen.w || width, h: screen.h || winH, top: insets.top, bottom: insets.bottom, wide });
+  const ratio = cur.mediaKind === 'image' && photoRatio?.id === cur.id ? photoRatio.r : null;
+  const cap = captionSpot(frame.cardW, frame.cardH, ratio);
+  // A barra presa ao fim do cartão; a escrever sobe para cima do teclado (no nativo o teclado não encolhe o visor; na
+  // web o visor já é só a zona visível). No computador não há teclado no ecrã e a barra fica onde está.
+  const liveH = rootH || winH;
+  const restBottom = liveH - (frame.barTop + frame.barH);
+  const lift = 6 + (Platform.OS !== 'web' ? Math.max(0, kb - Math.max(0, (screen.h || winH) - liveH)) : 0);
+  const barBottom = typing || kb ? Math.max(restBottom, lift) : restBottom;
+  const sub = [
+    cur.audience === 'close_friends' ? 'Amigos próximos' : null,
+    cur.sharedFrom ? `Publicação de @${cur.sharedFrom.username}` : null,
+    mine ? expiresIn(cur.expiresAt) : null,
+  ].filter(Boolean).join(' · ');
+  const fade = hideUi ? st.hidden : null;
 
   return (
-    <View style={[{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}>
+    <View
+      style={[st.screen, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}
+      onLayout={(e) => {
+        const { width: w, height: h } = e.nativeEvent.layout;
+        if (h !== rootH) setRootH(h);
+        if (!typing && !kb && !vvOn && (w !== screen.w || h !== screen.h)) setScreen({ w, h });
+      }}
+    >
+      {/* No computador: o fundo é a própria foto, desfocada e escura, à volta do cartão. */}
+      {wide && cur.mediaKind === 'image' ? <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.28 }]} contentFit="cover" blurRadius={60} /> : null}
       <Animated.View
-        style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
+        style={[StyleSheet.absoluteFill, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
         {...(mouse ? {} : pan.panHandlers)}
-        onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width !== box.w || height !== box.h) setBox({ w: width, h: height }); }}
       >
-        {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas (recortado: está ampliado e não pode sair do ecrã). */}
-        <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-          {cur.mediaKind === 'video' ? (
-            Platform.OS === 'web'
-              ? <WebVideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
-              : <VideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
-          ) : (
-            <>
-              <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
-              <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit={storyFit(photoRatio?.id === cur.id ? photoRatio.r : null, box.h ? box.w / box.h : 0)} onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) setPhotoRatio({ id: cur.id, r: w / h }); }} accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
-            </>
+        <View style={[st.card, { left: frame.cardLeft, top: frame.cardTop, width: frame.cardW, height: frame.cardH, borderRadius: frame.radius }]}>
+          {/* Fundo desfocado da própria foto: uma foto de outra forma aparece inteira, sem barras pretas (recortado: está ampliado e não pode sair do cartão). */}
+          <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+            {cur.mediaKind === 'video' ? (
+              Platform.OS === 'web'
+                ? <WebVideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
+                : <VideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
+            ) : (
+              <>
+                <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
+                <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit={mimoFit(ratio, frame.cardW, frame.cardH)} onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) setPhotoRatio({ id: cur.id, r: w / h }); }} accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
+              </>
+            )}
+          </View>
+          {/* As ondas da música: por cima da foto, por baixo dos stickers e dos controlos, sem apanhar toques. */}
+          {cur.music ? <SoundWaves active={tune.playing && !tuneMuted && !typing} colors={trackColors(cur.music)} player={tune.player} band={0.3} /> : null}
+          <StickerLayer stickers={cur.stickers} width={frame.cardW} height={frame.cardH} animate={!paused} />
+
+          {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
+          <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />
+          {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel="Mostrar a ligação à publicação" />}
+          <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
+
+          {shared && seePost && (
+            <Pressable onPress={() => { setAway(true); router.push(`/${cur.mediaKind === 'video' ? 'r' : 'p'}/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{cur.mediaKind === 'video' ? 'Ver tcheka' : 'Ver publicação'}</Text>
+              <Icon name="chevron-right" size={16} color="#fff" strokeWidth={3} />
+            </Pressable>
+          )}
+
+          <CheersPour n={burst} size={Math.min(240, frame.cardW * 0.6)} />
+
+          {/* Em cima do cartão, num degradê suave: o progresso, o autor e as ações (longe do canto da assinatura). */}
+          <LinearGradient colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.22)', 'transparent']} style={[st.top, fade]} pointerEvents="box-none">
+            <View style={st.bars} pointerEvents="none">
+              {stories.map((s, n) => (
+                <View key={s.id} style={st.track}>
+                  <Animated.View style={[st.fill, { width: n < i ? '100%' : n === i ? progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) : '0%' }]}>
+                    <LinearGradient colors={[colors.brand, colors.brandWarm]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                </View>
+              ))}
+            </View>
+            <View style={st.who} pointerEvents="box-none">
+              {/* Tocar na pessoa abre o perfil dela (o mimo fica em pausa enquanto estás lá). */}
+              <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={st.author} accessibilityRole="link" accessibilityLabel={`Perfil de ${cur.author.displayName}`}>
+                <View style={[st.ring, cur.audience === 'close_friends' && st.ringFriends]}>
+                  <Avatar name={cur.author.displayName} username={cur.author.username} size={34} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
+                  <View style={st.nameRow}>
+                    <View style={{ flexShrink: 1, minWidth: 0 }}><NameWithBadge name={cur.author.username} who={cur.author} style={st.name} /></View>
+                    <Text style={st.ago} numberOfLines={1}>{timeAgo(cur.createdAt)}</Text>
+                  </View>
+                  {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
+                </View>
+              </Pressable>
+              {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              {!mine && <Pressable onPress={() => setPanel('more')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+            </View>
+            {!typing && cur.music && <View style={st.music} pointerEvents="box-none"><StoryMusic key={cur.id} track={cur.music} paused={paused} onLive={setTune} /></View>}
+          </LinearGradient>
+
+          {/* A legenda: por baixo de uma foto deitada, ou logo acima da assinatura (captionSpot), nunca por cima dela. */}
+          {!typing && cur.caption ? (
+            <View style={[st.captionWrap, { bottom: cap.bottom, maxHeight: cap.maxHeight }, fade]} pointerEvents="box-none">
+              <View style={st.caption}><RichText text={cur.caption} style={{ color: '#fff', fontSize: 17, lineHeight: 23, fontWeight: '600', textAlign: 'center' }} /></View>
+            </View>
+          ) : null}
+        </View>
+
+        {/* A barra, fora do mimo, sobre o fundo escuro: responder, comentar, brindar e partilhar (ou a atividade, nos meus). */}
+        <View style={[st.bar, { left: frame.cardLeft, width: frame.cardW, minHeight: frame.barH, bottom: barBottom }]} pointerEvents="box-none">
+          {mine && (
+            <View style={st.barRow}>
+              <Pressable onPress={() => setPanel('viewers')} style={({ pressed }) => [st.activity, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${cur.viewCount ?? 0} visualizações`}>
+                <Icon name="eye" size={18} color="#fff" strokeWidth={2} />
+                <Text style={st.activityN}>{cur.viewCount ?? 0}</Text>
+                {frame.cardW >= 340 && <Text style={st.activityLabel} numberOfLines={1}>Atividade</Text>}
+              </Pressable>
+              <View style={{ flex: 1 }} />
+              <BarButton icon="cheers" label={`${cur.cheerCount ?? 0} brindes`} n={cur.cheerCount} on={!!cur.cheerCount} color={cur.cheerCount ? colors.brandWarm : '#fff'} onPress={() => setPanel('viewers')} />
+              <BarButton icon="comment" label={`${cur.commentCount} comentários`} n={cur.commentCount} onPress={() => setPanel('comments')} />
+              <BarButton icon="share" label="Partilhar o mimo" size={24} onPress={() => void shareMimo()} />
+            </View>
+          )}
+          {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} onCheered={() => setBurst((b) => b + 1)} onComments={() => setPanel('comments')} onShare={() => void shareMimo()} compact={frame.cardW < 340} />}
+          {!mine && !cur.canReply && (
+            <View style={st.barRow}>
+              <View style={st.noReply}>
+                <Icon name="lock" size={15} color="rgba(255,255,255,0.6)" />
+                <Text style={st.noReplyText} numberOfLines={1}>Este mimo não aceita respostas</Text>
+              </View>
+              <BarButton icon="comment" label={cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} n={cur.commentCount} onPress={() => setPanel('comments')} />
+              <BarButton icon="share" label="Partilhar o mimo" size={24} onPress={() => void shareMimo()} />
+            </View>
           )}
         </View>
-        {/* As ondas da música: por cima da foto, por baixo dos stickers e dos controlos, sem apanhar toques. */}
-        {cur.music ? <SoundWaves active={tune.playing && !tuneMuted && !typing} colors={trackColors(cur.music)} player={tune.player} band={0.3} /> : null}
-        <StickerLayer stickers={cur.stickers} width={box.w} height={box.h} animate={!paused} />
 
-        {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
-        <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />
-        {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel="Mostrar a ligação à publicação" />}
-        <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
-
-        {shared && seePost && (
-          <Pressable onPress={() => { setAway(true); router.push(`/${cur.mediaKind === 'video' ? 'r' : 'p'}/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{cur.mediaKind === 'video' ? 'Ver tcheka' : 'Ver publicação'}</Text>
-            <Icon name="chevron-right" size={16} color="#fff" strokeWidth={3} />
-          </Pressable>
-        )}
-
-        <CheersPour n={burst} size={Math.min(240, width * 0.6)} />
-
-        <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
-          <View style={st.bars} pointerEvents="none">
-            {stories.map((s, n) => (
-              <View key={s.id} style={st.track}>
-                <Animated.View style={[st.fill, { width: n < i ? '100%' : n === i ? progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) : '0%' }]} />
-              </View>
-            ))}
-          </View>
-          <View style={st.who} pointerEvents="box-none">
-            {/* Tocar na pessoa abre o perfil dela (o mimo fica em pausa enquanto estás lá). */}
-            <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="link" accessibilityLabel={`Perfil de ${cur.author.displayName}`}>
-              <Avatar name={cur.author.displayName} username={cur.author.username} size={40} />
-              <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
-                <NameWithBadge name={cur.author.username} who={cur.author} style={st.name} />
-                <Text style={st.ago}>{timeAgo(cur.createdAt)}{mine ? ` · ${expiresIn(cur.expiresAt)}` : ''}</Text>
-              </View>
-            </Pressable>
-            {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
-            {!mine && <Pressable onPress={() => setPanel('more')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
-            <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2} /></Pressable>
-          </View>
-        </LinearGradient>
-
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={[st.bottom, { paddingBottom: Math.max(insets.bottom, 20) + (kb ? kb - insets.bottom : 0) }]} pointerEvents="box-none">
-          {!typing && cur.music && <StoryMusic key={cur.id} track={cur.music} paused={paused} onLive={setTune} />}
-          {!typing && cur.caption ? <View style={st.caption}><RichText text={cur.caption} style={{ color: '#fff', fontSize: 18, lineHeight: 24, textAlign: 'center' }} /></View> : null}
-          {mine && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {chip('eye', cur.viewCount ?? 0, 'visualizações', () => setPanel('viewers'))}
-              {chip('cheers', cur.cheerCount ?? 0, 'brindes', () => setPanel('viewers'))}
-              {chip('comment', cur.commentCount, 'comentários', () => setPanel('comments'))}
-              <Pressable onPress={() => void shareMimo()} style={st.chip} accessibilityRole="button" accessibilityLabel="Partilhar o mimo"><Icon name="share" size={18} color="#fff" /></Pressable>
-            </View>
-          )}
-          {!mine && !typing && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={() => setPanel('comments')} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button">
-                <Icon name="comment" size={18} color="#fff" />
-                <Text style={st.chipText}>{cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'}</Text>
-              </Pressable>
-              <Pressable onPress={() => void shareMimo()} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button" accessibilityLabel="Partilhar o mimo"><Icon name="share" size={18} color="#fff" /></Pressable>
-            </View>
-          )}
-          {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} onCheered={() => setBurst((b) => b + 1)} />}
-          {!mine && !cur.canReply && <Text style={st.noReply}>Este mimo não aceita respostas</Text>}
-        </LinearGradient>
+        {panel !== null && <View style={[StyleSheet.absoluteFill, wide && { left: frame.cardLeft, width: frame.cardW, top: frame.cardTop, height: frame.cardH + frame.barH, right: undefined, bottom: undefined, borderRadius: frame.radius, overflow: 'hidden' }]} pointerEvents="box-none">
 
         {panel === 'menu' && (
           <Panel title="O teu mimo" onClose={() => setPanel(null)}>
@@ -496,6 +552,7 @@ export default function StoryViewer() {
         )}
         {panel === 'more' && (
           <Panel title={`Mimo de ${cur.author.username}`} onClose={() => setPanel(null)}>
+            {cur.sharedFrom && <Pressable onPress={() => { setPanel(null); void shareSharedPost(cur); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{cur.mediaKind === 'video' ? 'Partilhar a tcheka' : 'Partilhar a publicação'}</Text></Pressable>}
             <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Denunciar mimo</Text></Pressable>
             <Pressable onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil (para bloquear)</Text></Pressable>
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
@@ -505,31 +562,48 @@ export default function StoryViewer() {
         {panel === 'report' && <ReportSheet type="story" id={cur.id} onReported={() => { reported.current = true; }} onClose={() => { setPanel(null); if (reported.current) { reported.current = false; next(); } }} />}
         {panel === 'comments' && <CommentsPanel story={cur} canComment={mine || cur.canReply} onTyping={setTyping} onClose={() => setPanel(null)} />}
         {panel === 'viewers' && <ActivityPanel story={cur} onClose={() => setPanel(null)} />}
+        </View>}
       </Animated.View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, width: '100%', backgroundColor: '#18181b' },
+  screen: { flex: 1, backgroundColor: '#000', overflow: 'hidden' },
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   btn: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 24, paddingVertical: 12 },
-  zone: { position: 'absolute', top: 112, bottom: 112 },
-  videoMute: { position: 'absolute', right: 14, top: 110, zIndex: 6, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 5, elevation: 5, paddingHorizontal: 12, paddingBottom: 40 },
-  bars: { flexDirection: 'row', gap: 4 },
-  track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)', overflow: 'hidden' },
-  fill: { height: 3, borderRadius: 2, backgroundColor: '#fff' },
-  who: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  name: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  ago: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
-  circle: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 64, gap: 12, alignItems: 'center' },
-  caption: { maxWidth: '100%', borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 16, paddingVertical: 8 },
-  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16 },
-  chipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  noReply: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
-  seePost: { position: 'absolute', left: '50%', top: '50%', marginLeft: -80, marginTop: -22, zIndex: 10, minHeight: 44, width: 160, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, backgroundColor: 'rgba(63,63,70,0.9)' },
+  // O cartão do mimo (a forma e o lugar vêm de lib/storyFrame).
+  card: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.zinc900 },
+  zone: { position: 'absolute', top: HEADER_H, bottom: 0 },
+  videoMute: { position: 'absolute', right: 10, top: HEADER_H + 8, zIndex: 6, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(14,14,18,0.5)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 5, elevation: 5, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 26 },
+  hidden: { opacity: 0 },
+  bars: { flexDirection: 'row', gap: 3 },
+  track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
+  fill: { height: 3, borderRadius: 2, overflow: 'hidden' },
+  who: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  author: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  // O anel do avatar: branco (verde nos mimos para amigos próximos).
+  ring: { borderRadius: 999, padding: 1.5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.9)' },
+  ringFriends: { borderColor: '#22c55e' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  name: { color: '#fff', fontWeight: '700', fontSize: 15, letterSpacing: -0.2 },
+  ago: { flexShrink: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: '500' },
+  sub: { marginTop: 1, color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: '500' },
+  // Botões de vidro escuro, iguais em todo o visor.
+  circle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(14,14,18,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', ...({ backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' } as object) },
+  music: { marginTop: 8 },
+  captionWrap: { position: 'absolute', left: 16, right: 16, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  caption: { maxWidth: '100%', borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.46)', paddingHorizontal: 14, paddingVertical: 8 },
+  // A barra por baixo do cartão, sobre o fundo escuro.
+  bar: { position: 'absolute', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 8 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  activity: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
+  activityN: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  activityLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '600' },
+  noReply: { flex: 1, minWidth: 0, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  noReplyText: { flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.72)' },
+  seePost: { position: 'absolute', left: '50%', top: '50%', marginLeft: -84, marginTop: -22, zIndex: 10, minHeight: 44, width: 168, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 22, backgroundColor: 'rgba(14,14,18,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
   menuRow: { paddingVertical: 14, alignItems: 'center' },
   menuText: { fontSize: 18, color: '#18181b' },
 });
