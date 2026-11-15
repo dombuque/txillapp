@@ -68,6 +68,8 @@ const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 /** Editar uma mensagem de texto (o texto novo; o resto das regras está no serviço). */
 const editSchema = z.object({ body: z.string().max(2000) });
 /** Mensagens temporárias: 24 horas, 7 dias ou 90 dias (em segundos), ou null (desligadas). */
+/** Esconder (true) ou mostrar outra vez (false) uma conversa ou um TxillGroup, só para mim (0160). */
+const hiddenSchema = z.object({ hidden: z.boolean() });
 const ttlSchema = z.object({ ttl: z.union([z.literal(86_400), z.literal(604_800), z.literal(7_776_000), z.null()]) });
 
 @Controller('chat')
@@ -128,6 +130,17 @@ export class ChatController {
   async unread(@Req() req: AuthedReq) {
     const [direct, groups] = await Promise.all([this.chat.unread(req.userId!), this.groups.list(req.userId!)]);
     return { conversations: direct.conversations + groups.filter((g) => g.unread > 0).length, requests: direct.requests };
+  }
+
+  /**
+   * «Conversas escondidas» (0160): as conversas a dois e os TxillGroups que escondi, com a última mensagem e os por ler
+   * (como as listas normais, mais `hidden: true` e `hiddenAt`). Não contam para o número de por ler.
+   */
+  @Get('hidden')
+  @UseGuards(JwtAuthGuard)
+  async hidden(@Req() req: AuthedReq) {
+    const [conversations, groups] = await Promise.all([this.chat.list(req.userId!, { hidden: true }), this.groups.list(req.userId!, { hidden: true })]);
+    return { conversations, groups };
   }
 
   /* ───────────── grupos ───────────── */
@@ -207,6 +220,14 @@ export class ChatController {
     return this.groups.clear(req.userId!, id);
   }
 
+  /** Esconder o grupo só para mim (`{ hidden: true }`) ou mostrá-lo outra vez (`false`): 200 { hidden }. */
+  @Put('groups/:id/hidden')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  hideGroup(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(hiddenSchema)) b: z.infer<typeof hiddenSchema>) {
+    return this.groups.setHidden(req.userId!, id, b.hidden);
+  }
+
   @Delete('groups/:id/members/:username')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
@@ -274,6 +295,14 @@ export class ChatController {
   @HttpCode(200)
   clearKeep(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.chat.clearForMe(req.userId!, username, true);
+  }
+
+  /** Esconder a conversa só para mim (`{ hidden: true }`) ou mostrá-la outra vez (`false`): 200 { hidden }. */
+  @Put('with/:username/hidden')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  hideConversation(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(hiddenSchema)) b: z.infer<typeof hiddenSchema>) {
+    return this.chat.setHidden(req.userId!, username, b.hidden);
   }
 
   /** Mensagens temporárias na conversa (qualquer um dos dois): { ttl } -> 200 { ttl }. Deixa o aviso na conversa. */

@@ -47,11 +47,15 @@ import { usePagerPan } from '@/components/SwipePager';
 import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { mixarPreview } from '@/lib/mixar';
+import { useChatHiding } from '@/components/ChatHide';
+import { ChatMenuSheet } from '@/components/ChatHeader';
+import { HIDDEN_PATH, HIDDEN_TITLE } from '@/lib/chatHidden';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
 
-function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
+/** O texto da última mensagem numa linha da lista (também nas «Conversas escondidas», app/messages/escondidas). */
+export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
   if (m.kind === 'voice') return `${you}Mensagem de voz`;
@@ -236,11 +240,15 @@ export default function Messages() {
   }
   const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request, mixar: !r.g, name: r.name });
   const mixar = useOpenMixar();
+  // Esconder a conversa (sai da lista e do contador; fica em «Conversas escondidas», no "⋯" de cima).
+  const hiding = useChatHiding();
+  const [moreOpen, setMoreOpen] = useState(false);
   /** Correr uma ação numa linha (do deslizar, da folha ou do leitor de ecrã). */
   function runAction(a: InboxAction, r: Row) {
     const me = user?.username;
     if (r.g) {
-      if (a === 'read') groupRead(r.g);
+      if (a === 'hide') hiding.hide({ groupId: r.g.id }, r.name);
+      else if (a === 'read') groupRead(r.g);
       else if (a === 'info') router.push(`/messages/g/${r.g.id}?info=1` as never);
       else if (a === 'leave' && me) leaveGroup(r.g, me);
       return;
@@ -253,9 +261,10 @@ export default function Messages() {
     else if (a === 'delete') deleteChat(u, r.name);
     else if (a === 'clear') clearChat(u);
     else if (a === 'mixar') void mixar.run(u, r.name);
+    else if (a === 'hide') hiding.hide({ username: u }, r.name);
     else if (a === 'ttl') setTtlFor({ username: u, ttl: direct.data?.find((c) => c.username === u)?.ttl ?? null });
   }
-  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600, mixar: colors.brand };
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600, mixar: colors.brand, hide: colors.zinc600, unhide: colors.zinc600 };
   const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
     acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */
@@ -400,7 +409,9 @@ export default function Messages() {
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou TxillGroup"><Icon name="compose" size={24} /></Pressable>
-        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel="Atalhos do teclado (?)"><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
+        {/* "⋯": «Conversas escondidas» (e, no computador, os atalhos do teclado). */}
+        <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel="Mais opções das mensagens"><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
+        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel="Atalhos do teclado (?)"><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
       </View>
       <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
         <Icon name="search" size={18} color={colors.zinc500} />
@@ -586,6 +597,16 @@ export default function Messages() {
       ) : null}
       {ttlFor ? <TtlSheet ttl={ttlFor.ttl} canChange onPick={(next) => pickTtl(ttlFor.username, next)} onClose={() => setTtlFor(null)} /> : null}
       {help ? <ShortcutHelp onClose={() => setHelp(false)} /> : null}
+      {moreOpen ? (
+        <ChatMenuSheet
+          title="Mensagens"
+          onClose={() => setMoreOpen(false)}
+          items={[
+            { icon: 'eye-off', label: HIDDEN_TITLE, onPress: () => router.push(HIDDEN_PATH as never) },
+            ...(desk ? [{ icon: 'info' as const, label: 'Atalhos do teclado', onPress: () => setHelp(true) }] : []),
+          ]}
+        />
+      ) : null}
       <InstantsDock />
     </View>
   );

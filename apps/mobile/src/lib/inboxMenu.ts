@@ -6,10 +6,11 @@
  * - segurar a linha (ou o botão direito do rato, na web): a folha com o nome e a foto em cima e as ações por baixo;
  * - o leitor de ecrã (`accessibilityActions`): as mesmas ações e "Mais opções", que abre a folha.
  *
- * Silenciar e afixar conversas ainda não existem na API (apps/api/src/chat): quando existirem, entram aqui.
+ * «Esconder conversa» (0160): sai da lista e do contador e fica em «Conversas escondidas» (Mensagens → ⋯); lá, a mesma
+ * folha mostra «Mostrar outra vez» (`hidden`). Silenciar e afixar ainda não existem na API: quando existirem, entram aqui.
  */
 
-export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear' | 'mixar';
+export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear' | 'mixar' | 'hide' | 'unhide';
 
 /** O que a linha precisa de saber para escolher as ações. */
 export interface InboxMenuRow {
@@ -27,13 +28,15 @@ export interface InboxMenuRow {
   mixar?: boolean;
   /** O nome do outro lado («Mixar com Ana»: só o primeiro nome). */
   name?: string;
+  /** A linha está em «Conversas escondidas»: «Mostrar outra vez» em vez de «Esconder conversa». */
+  hidden?: boolean;
 }
 
 export interface InboxMenuItem {
   id: InboxAction | 'cancel';
   label: string;
   /** Nome de um ícone de components/Icon. */
-  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off' | 'mixar';
+  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off' | 'mixar' | 'eye-off' | 'eye';
   /** Vermelho: apaga ou sai (pergunta antes). */
   danger: boolean;
 }
@@ -41,11 +44,11 @@ export interface InboxMenuItem {
 /** A ação do leitor de ecrã que abre a folha. `longpress` é a ação padrão do Android (manter premido). */
 export const MORE_ACTION = 'longpress';
 
-const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off', mixar: 'mixar' };
-const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true, mixar: false };
+const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off', mixar: 'mixar', hide: 'eye-off', unhide: 'eye' };
+const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true, mixar: false, hide: false, unhide: false };
 
 /** O texto curto do botão que aparece ao deslizar (cabe em 84 px). */
-const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar', mixar: 'Mixar' };
+const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar', mixar: 'Mixar', hide: 'Esconder', unhide: 'Mostrar' };
 
 /** O texto inteiro (folha e leitor de ecrã). "Lida" de uma conversa, "lido" de um grupo. `name`: «Mixar com Ana». */
 export function actionLabel(a: InboxAction, group: boolean, name?: string): string {
@@ -58,6 +61,8 @@ export function actionLabel(a: InboxAction, group: boolean, name?: string): stri
     case 'leave': return 'Sair do grupo';
     case 'ttl': return 'Mensagens temporárias';
     case 'clear': return 'Limpar conversa';
+    case 'hide': return 'Esconder conversa';
+    case 'unhide': return 'Mostrar outra vez';
     case 'mixar': {
       const first = (name ?? '').trim().split(/\s+/)[0];
       return first ? `Mixar com ${first}` : 'Mixar';
@@ -105,11 +110,14 @@ export function inboxMenuItems(r: InboxMenuRow): InboxMenuItem[] {
  */
 export function inboxDeskMenu(r: InboxMenuRow): InboxAction[] {
   const base = inboxMenu(r);
-  if (r.group || !base.length) return base;
+  if (!base.length) return base;
   const s = inboxSwipe(r);
+  // Esconder (ou, em «Conversas escondidas», mostrar outra vez): antes do que apaga ou sai.
+  const hide: InboxAction = r.hidden ? 'unhide' : 'hide';
+  if (r.group) return [...s.left, 'info', hide, ...s.right];
   // «Mixar com Fulano» logo a seguir ao perfil (só quando o ecrã o pede e não num pedido de mensagem).
   const mixar = r.mixar && !r.request ? (['mixar'] as const) : [];
-  return [...s.left, 'profile', ...mixar, ...(r.request ? [] : (['ttl'] as const)), 'clear', ...s.right];
+  return [...s.left, 'profile', ...mixar, ...(r.request ? [] : (['ttl'] as const)), hide, 'clear', ...s.right];
 }
 
 /** O menu de contexto com os textos (sem "Cancelar": clicar fora ou Esc fecham). */
