@@ -20,6 +20,7 @@ import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
 import { RemixTag, ReplyStickerOverlay } from '@/components/remix/RemixParts';
+import { CheeredFriends } from '@/components/CheeredBy';
 import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
@@ -627,6 +628,8 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
 
       {/* Em baixo: o @ com o selo, a legenda (expande ao tocar), as hashtags, o local e o letreiro do som. */}
       <Animated.View style={[st.info, { bottom: infoBottom, opacity: chrome }]} pointerEvents={scrubbing || comments ? 'none' : 'box-none'} onLayout={(e) => setInfoW(Math.round(e.nativeEvent.layout.width))}>
+        {/* Os meus amigos próximos que brindaram, a flutuar por cima do @, da legenda e do letreiro do som (abre «Quem brindou»). */}
+        <CheeredFriends post={post} onOpen={() => setPeople('cheers')} size={34} style={st.friends} />
         {infoExtra}
         {/* «Dueto com @x» / «Resposta a @y»: leva ao original. */}
         {post.remixOf ? <View style={{ marginBottom: 8 }}><RemixTag remix={post.remixOf} /></View> : null}
@@ -931,6 +934,7 @@ const st = StyleSheet.create({
   speedChip: { position: 'absolute', top: 100, right: 12, zIndex: 6, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, paddingVertical: 4 },
   speedChipText: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
   info: { position: 'absolute', left: 12, right: 76 },
+  friends: { position: 'relative', left: 0, bottom: 0, alignSelf: 'flex-start', marginBottom: 10 },
   authorName: { color: '#fff', fontWeight: '700', fontSize: 16, ...SHADOW },
   body: { color: '#fff', fontSize: 15, lineHeight: 20.6, ...SHADOW },
   more: { marginTop: 2, color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', ...SHADOW },

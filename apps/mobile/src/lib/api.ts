@@ -53,6 +53,8 @@ export interface Post {
   commentsOff?: boolean;
   editedAt?: string | null;
   lists?: { reposts: boolean; cheers: boolean; gifts: boolean };
+  /** «Brindado por @fulano e outras N pessoas» (lib/cheeredBy): só quando o dono deixa ver quem brindou. Servidores antigos não mandam. */
+  cheeredBy?: import('./cheeredBy').CheeredBy | null;
   feed?: { source: 'following' | 'self' | 'discover'; seen: boolean };
   kind: 'post' | 'gift' | 'repost';
   repostOf?: Post | null;
