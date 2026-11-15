@@ -183,6 +183,7 @@ function Gate() {
       <Stack.Screen name="register" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="search" />
+      <Stack.Screen name="qr" options={{ contentStyle: { backgroundColor: '#0b0b0f' } }} />
       <Stack.Screen name="supertxill" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="u/[username]" />

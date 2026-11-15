@@ -183,6 +183,8 @@ export default function Search() {
           <Icon name="search" size={20} color={colors.zinc600} />
           <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
           {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
+          {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
+          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={20} color={colors.zinc700} /></Pressable>
           <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
         {focusMode ? (
