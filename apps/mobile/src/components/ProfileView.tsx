@@ -288,7 +288,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               <View style={[styles.tailDot, { width: 7, height: 7, borderRadius: 3.5, bottom: -19, left: 34 }]} />
             </Animated.View>
           ) : null}
-          <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} />
+          <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} liveId={p.live?.id ?? null} />
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
             {stat(p.counts.posts, 'publicações')}
             {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}

@@ -40,6 +40,15 @@ export function onCallEvent(f: (e: unknown) => void): () => void {
   callSubs.add(f);
   return () => void callSubs.delete(f);
 }
+/**
+ * Txillada (o live, docs/txillada-contrato.md): os eventos {type:'txillada.comment'|'txillada.cheer'|…} vêm no mesmo
+ * stream e vão só para quem se inscreve aqui (o ecrã da Txillada, lib/txilladaRoom). Não mexem nas queries do chat.
+ */
+const txilladaSubs = new Set<(e: unknown) => void>();
+export function onTxilladaEvent(f: (e: unknown) => void): () => void {
+  txilladaSubs.add(f);
+  return () => void txilladaSubs.delete(f);
+}
 let held = false;
 const holdSubs = new Set<() => void>();
 /** Mantém o stream ligado em segundo plano (durante uma chamada a sinalização não pode parar). */
@@ -101,6 +110,10 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
       if (e.type === 'call') {
         callSubs.forEach((f) => f(e));
         void qc.invalidateQueries({ queryKey: ['calls'] });
+        return;
+      }
+      if (typeof e.type === 'string' && e.type.startsWith('txillada.')) {
+        txilladaSubs.forEach((f) => f(e));
         return;
       }
       if (e.type === 'group') {
