@@ -31,6 +31,13 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 - `content.txillada_bans`: `(txillada_id, user_id)` PK, `created_at`.
 - Apagar a conta apaga as Txilladas, comentários, brindes e expulsões da pessoa; exportação inclui as Txilladas que fez
   e os comentários que escreveu.
+- **0162_txillada_fixar.sql:** `content.txilladas.pinned_comment_id uuid` (FK para `txillada_comments`, `ON DELETE SET NULL`;
+  índice parcial) — o comentário fixado pelo anfitrião, no máximo um. O serviço põe-no a NULL quando o comentário é apagado
+  (anfitrião, autor ou moderação); a limpeza dos 7 dias e apagar a conta tiram-no pela FK. `social.reports.target_type`
+  ganha `'txillada_comment'`.
+- **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários
+  e expulsões, menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia aberta
+  (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
 
 ## Regras
 
@@ -76,13 +83,17 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 | `POST /txilladas/:id/react` `{ kind: 'hello'\|'cheers'\|'fire'\|'laugh'\|'heart', to?: username }` | quem pode ver (`to` só o anfitrião, só com `hello`) | 200 `{ sent }` (com `cheers` quando `kind` é 'cheers') — 404/403/409 como o brinde; 400 (anfitrião com 'cheers', `to` fora das regras); 404 (`to` que não existe ou com bloqueio); 429 (mais de 8/s, ou o 👋 de quem vê antes de 4 s). Não se guarda nada (o 🍻 conta como brinde) |
 | `GET /txilladas/:id/viewers` | quem pode ver | `{ items: [{ username, displayName, avatarUrl, verified, verifiedTier }], total }` — quem está a ver agora (fez `join` e não saiu), sem o anfitrião, só contas ativas, sem expulsos e sem quem tem bloqueio com quem pede; quem eu sigo primeiro, depois pelo @ (máx. 200; `total` = `items.length`) |
 | `POST /txilladas/:id/ban/:username` | anfitrião | 204 — tira-o da sala no LiveKit e não volta a entrar |
+| `POST /txilladas/:id/comments/:commentId/report` `{ reason, note? }` | quem pode ver | 204 (fila de denúncias, `target_type = 'txillada_comment'`; 30 por hora) — deixa de aparecer a quem denunciou (lista, balões e fixado); fica guardado até à decisão; 404 se já foi apagado |
+| `POST /txilladas/:id/pin` `{ commentId: uuid \| null }` | anfitrião | 200 `{ pinned: TxilladaComment \| null }` — fixa (troca o que estava) ou tira com null; só a decorrer (409), só um comentário desta Txillada que ainda se vê (404), 403 a quem não é anfitrião; 60 por minuto. Manda `txillada.pinned` se mudou |
 | `POST /txilladas/:id/report` `{ reason }` | quem pode ver | 204 (entra na fila de denúncias, `target_type = 'txillada'`) |
 | `POST /txilladas/livekit-webhook` | LiveKit (assinado) | 200 — `participant_joined/left` atualiza `viewers`/`peak_viewers`; `room_finished` acaba |
 | `GET /admin/txilladas` | backoffice | as que estão a decorrer, com denúncias |
 | `POST /admin/txilladas/:id/cut` `{ reason }` | backoffice | 204 — apaga a sala no LiveKit, status 'cut' |
 
 `TxilladaDto`: `{ id, host: { id, username, displayName, avatarUrl, verified, verifiedTier }, title, audience, status,
-startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment }`.
+startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment, pinned }` (`pinned`: o comentário fixado
+como eu o vejo, `TxilladaComment | null`; null se não há, se o apagaram, se a conta do autor não está ativa, se há bloqueio
+entre mim e o autor ou se o denunciei).
 
 `TxilladaComment`: `{ id, author: { id, username, displayName, avatarUrl, verified, verifiedTier }, body, createdAt, cheers, cheered }` (`cheers`: quantos brindaram; `cheered`: se eu brindei).
 
@@ -102,6 +113,13 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
   chega nenhum dos dois (`sent: false`).
 - `{ type: 'txillada.joined', txilladaId, user: { username, displayName, avatarUrl, verified, verifiedTier } }` — «@fulano
   entrou» (ver as regras). Sem o id interno.
+- `{ type: 'txillada.pinned', txilladaId, comment: TxilladaComment | null }` — o fixado mudou (`POST /pin`) ou saiu
+  (o comentário foi apagado pelo anfitrião ou pelo autor). A cada pessoa da sala vai o comentário, ou null a quem tem
+  bloqueio com o autor ou o denunciou. Quando a moderação remove um comentário denunciado, a sala recebe
+  `txillada.comment_removed` (a app tira-o dos balões e, se era o fixado, da pílula).
+- **Moderação de um comentário (`txillada_comment`):** na fila do backoffice, com as outras denúncias. Remover marca
+  `removed_at` (não se repõe), desconta em `comments`, tira-o do fixado e avisa o autor (`content_removed`, «o teu comentário
+  na Txillada»), se a moderação escolher avisar.
 
 ## Avisos e perfil
 
@@ -123,6 +141,13 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
   responde a quem entrou com um toque no aviso «@fulano entrou» (ou na lista «A ver agora»).
 - Quem está a ver: os avatares empilhados ao lado do contador; tocar abre «A ver agora» (avatar, nome com selo e @).
   «@fulano entrou» discreto, em fila e agrupado («@a, @b e mais 3 entraram»).
+- Menu do comentário (`components/txillada/CommentMenu.tsx`, `commentMenu()` em `lib/txillada.ts`): um toque (ou o
+  toque longo) num balão, ou no fixado, abre uma folha de vidro escuro. De outra pessoa: «Responder a @fulano» (se posso
+  comentar; o campo começa por `@fulano `), «Brindar» e «Denunciar comentário»; o anfitrião também «Fixar comentário» (ou
+  «Tirar o fixado»), «Apagar» e «Expulsar @fulano» (com confirmação). O meu: «Apagar» (e fixar, se sou o anfitrião).
+  Acabada, sem menu.
+- Fixado (`components/txillada/PinnedComment.tsx`): a pílula em baixo, por cima da barra, com a foto, o @ com o selo, a
+  marca «FIXADO» e o texto (2 linhas); o comentário fixado sai dos balões para não aparecer duas vezes.
 - Ligações `txillapp.com/txillada/<id>` no chat abrem a rota da app (ecrã inteiro), nunca o browser por cima.
 - «Reduzir movimento»: as reações aparecem e desvanecem no sítio, sem subir nem rodar.
 
@@ -132,7 +157,7 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
   título, público, «Começar Txillada».
 - Anfitrião: a câmara a transmitir (virar, calar o microfone), «AO VIVO» e o tempo, quantos estão a ver, os
   comentários a flutuar (o estilo dos balões dos mimos), os brindes com os copos, terminar (com confirmação), expulsar e
-  apagar comentários (toque longo).
+  apagar comentários, fixar um (o menu do comentário, com um toque ou o toque longo).
 - Espectador (`/txillada/[id]`): o vídeo 9:16, o anfitrião com selo e «AO VIVO», quantos estão a ver, os comentários a
   flutuar, o campo para comentar, brindar (CheersPour), partilhar, denunciar, sair. Quando acaba: «A Txillada acabou».
 - Fila dos mimos e perfil: roda vermelha «AO VIVO».
