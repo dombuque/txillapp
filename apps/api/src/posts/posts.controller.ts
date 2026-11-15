@@ -45,6 +45,7 @@ export const createSchema = z.object({
 });
 const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional(), textFont: textFontSchema });
 const repostSchema = z.object({ body: z.string().trim().max(500).default(''), textFont: textFontSchema });
+const repostSettingsSchema = z.object({ allow: z.boolean() });
 const giftSchema = z.object({
   amount: z.number().int().positive(),
   note: z.string().trim().max(280).default(''),
@@ -202,6 +203,17 @@ export class PostsController {
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
     return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined, b.geleira === true, b.textFont ?? null, b.musicInFile === true);
+  }
+
+  /** Definições → Conteúdo → «Deixar repostar as minhas publicações» (0156): `{ allow, private }`. */
+  @Get('me/repost-settings')
+  repostSettings(@Req() req: AuthedReq) {
+    return this.posts.repostSettings(req.userId!);
+  }
+
+  @Put('me/repost-settings')
+  setRepostSettings(@Req() req: AuthedReq, @Body(new ZodPipe(repostSettingsSchema)) b: z.infer<typeof repostSettingsSchema>) {
+    return this.posts.setRepostSettings(req.userId!, b.allow);
   }
 
   /** «Duetos e respostas» desta publicação (?kind=duet|reply para só uns). */

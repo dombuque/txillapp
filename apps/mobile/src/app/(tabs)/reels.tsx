@@ -29,6 +29,7 @@ import { SoundDisc, SoundMarquee } from '@/components/reel/ReelSound';
 import { SeekBar } from '@/components/reel/SeekBar';
 import { useDesktop } from '@/lib/desktop';
 import { useDeskReels } from '@/lib/desktopHooks';
+import { showRepostButton } from '@/lib/repost';
 import { GestureDetector, useExclusiveGestures, useLongPressGesture, useTapGesture } from 'react-native-gesture-handler';
 import { api, isTcheka, raw, type Badged, type Page, type Post } from '@/lib/api';
 import { feedApi } from '@/lib/api.feed';
@@ -668,15 +669,18 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
           labelA11y="Ver quem brindou"
         />
         <RailButton icon={<View style={railStyles.circle}><Icon name="comment" size={28} color="#fff" /></View>} label={compactCount(post.comments)} onPress={() => setSheet('comments')} accessibilityLabel={`Comentários (${post.comments})`} />
-        <RailButton
-          icon={<View style={[railStyles.circle, post.reposted && { backgroundColor: 'rgba(16,185,129,0.9)' }]}><Icon name="repeat" size={26} color="#fff" /></View>}
-          label={compactCount(post.reposts)}
-          onPress={() => setSheet('repost')}
-          selected={!!post.reposted}
-          accessibilityLabel={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`}
-          onLabelPress={post.lists?.reposts && post.reposts > 0 ? () => setPeople('reposts') : undefined}
-          labelA11y="Ver quem repostou"
-        />
+        {/* Quem publicou não deixa repostar (lib/repost): sem o botão, a não ser que haja um repost meu para desfazer. */}
+        {showRepostButton(post) ? (
+          <RailButton
+            icon={<View style={[railStyles.circle, post.reposted && { backgroundColor: 'rgba(16,185,129,0.9)' }]}><Icon name="repeat" size={26} color="#fff" /></View>}
+            label={compactCount(post.reposts)}
+            onPress={() => setSheet('repost')}
+            selected={!!post.reposted}
+            accessibilityLabel={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`}
+            onLabelPress={post.lists?.reposts && post.reposts > 0 ? () => setPeople('reposts') : undefined}
+            labelA11y="Ver quem repostou"
+          />
+        ) : null}
         <RailButton icon={<View style={railStyles.circle}><BookmarkIcon on={!!post.saved} size={26} color={post.saved ? '#f5c518' : '#fff'} /></View>} onPress={() => void save()} selected={!!post.saved} accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} />
         <RailButton icon={<View style={railStyles.circle}><Icon name="share" size={26} color="#fff" /></View>} onPress={() => setSheet('share')} accessibilityLabel="Partilhar" />
         {extraActions ?? <ReelExtraActions post={post} active={active} />}

@@ -71,6 +71,12 @@ export interface Post {
    * tchekas»; numa conta privada ou de menor nunca). Servidores antigos e posts em cache não mandam: a opção aparece.
    */
   canDownload?: boolean;
+  /**
+   * Quem vê pode repostar (tal como está ou com comentário): o autor sempre; os outros se ele deixa («Deixar repostar as
+   * minhas publicações»; numa citação também o autor do original citado). Servidores antigos e posts em cache não mandam: a
+   * opção aparece (lib/repost).
+   */
+  canRepost?: boolean;
   /** O dono deixa fazer dueto (tchekas) e responder com tcheka aos comentários. */
   canRemix?: boolean;
   /** Quantos duetos e respostas com tcheka tem. */

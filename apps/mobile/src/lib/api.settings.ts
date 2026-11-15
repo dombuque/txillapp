@@ -1,5 +1,6 @@
 import { post, raw, type Badged } from '@/lib/api';
 import type { TasteVisibility } from '@/lib/api.geleira';
+import type { RepostSettings } from '@/lib/repost';
 import type { DownloadSettings } from '@/lib/tchekaDownload';
 
 /**
@@ -14,6 +15,9 @@ export const settingsApi = {
   /** «Deixar guardar as minhas tchekas» (0153): `allow` é a escolha, `effective` o que vale (conta privada ou de menor: não). */
   downloadSettings: (): Promise<DownloadSettings> => raw('/posts/me/download-settings'),
   setDownloadSettings: (allow: boolean): Promise<DownloadSettings> => raw('/posts/me/download-settings', { method: 'PUT', body: JSON.stringify({ allow }) }),
+  /** «Deixar repostar as minhas publicações» (0156): `allow` é o que vale; `private`, se a conta é privada. */
+  repostSettings: (): Promise<RepostSettings> => raw('/posts/me/repost-settings'),
+  setRepostSettings: (allow: boolean): Promise<RepostSettings> => raw('/posts/me/repost-settings', { method: 'PUT', body: JSON.stringify({ allow }) }),
 };
 
 export interface ContactMatch extends Badged { username: string; displayName: string; isPrivate: boolean; requested: boolean; followsYou: boolean; mutual: number; reason: string }

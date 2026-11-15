@@ -30,6 +30,7 @@ import { ShareSheet } from './ShareSheet';
 import { MusicBadge, MusicCard } from './PostMusic';
 import { musicPlacement, musicPlayback, soundHref, wavesOverMedia } from '@/lib/musicLook';
 import { soundRemovedText } from '@/lib/sounds';
+import { showRepostButton } from '@/lib/repost';
 import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
@@ -493,7 +494,7 @@ function ViewerBar({ post, full, mine, onOpen, onCheered }: { post: Post; full: 
       {full && (
         <>
           <B icon="comment" n={post.comments} label="Comentar" onPress={() => onOpen('comments')} />
-          <B icon="repeat" n={post.reposts} on={post.reposted} label="Repostar" onPress={() => onOpen('repost')} />
+          {showRepostButton(post) ? <B icon="repeat" n={post.reposts} on={post.reposted} label="Repostar" onPress={() => onOpen('repost')} /> : null}
           {!mine && post.canGift ? <B icon="present" n={post.gifts} label="Presentear" onPress={() => onOpen('gift')} /> : null}
           <B icon="share" label="Partilhar" onPress={() => onOpen('share')} />
         </>
@@ -794,7 +795,8 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
       <View style={[styles.bar, hot && styles.barHot]}>
         <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" size={24} color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
-        <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />
+        {/* Quem publicou não deixa repostar (lib/repost): o botão some, a não ser que haja um repost meu para desfazer. */}
+        {showRepostButton(post) && <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
         {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => open('gift')} />}
         <Btn label="Partilhar" icon="share" size={24} onPress={() => open('share')} />
       </View>

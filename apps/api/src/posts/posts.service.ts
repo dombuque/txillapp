@@ -44,6 +44,19 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = { following: 'balanced', fres
 /** Os temas que o "modo tranquilo" deixa de mostrar. */
 const CALM_TOPICS = ['festa', 'bebidas'];
 
+/**
+ * «Deixar repostar as minhas publicações» (0156): quem vê ($1) pode repostar esta publicação (`p`, de `u`)? O próprio autor
+ * sempre; os outros, se ele deixa (ligado por omissão; também numa conta privada, onde o repost só o vê quem pode ver o
+ * original). Num post de um sítio conta a conta de quem o publicou.
+ */
+export const CAN_REPOST_SQL = (p = 'p', u = 'u') => `((${p}.author_id = $1 OR ${u}.allow_reposts) IS TRUE)`;
+
+/** A resposta (403) de `POST /posts/:id/repost` quando quem publicou (ou o autor do original citado) não deixa repostar. */
+export const REPOST_BLOCKED = 'Quem publicou não deixa repostar as suas publicações.';
+
+/** Uma citação: um repost com comentário (o repost simples não tem texto; um presente é outra coisa). */
+const isQuote = (r: { kind?: unknown; body?: unknown }) => r.kind === 'repost' && !!r.body;
+
 const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
 
 const FEED_SQL = `
@@ -81,6 +94,9 @@ const FEED_SQL = `
          p.gelada,
          -- «Deixar guardar as minhas tchekas» (0153): quem vê pode guardar o vídeo (só colunas do autor, sem subconsultas).
          ${CAN_DOWNLOAD_SQL('p', 'u')} AS can_download,
+         -- «Deixar repostar as minhas publicações» (0156): quem vê pode repostar (só a coluna do autor; numa citação, hydrate
+         -- junta a regra do original citado).
+         ${CAN_REPOST_SQL('p', 'u')} AS can_repost,
          (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes,
          -- A música gravada no vídeo (0152, posts/music-bake.ts): o vídeo com ela, enquanto se puder ouvir.
          ${BAKE_COLS('p')}
@@ -522,10 +538,15 @@ export class PostsService implements OnModuleInit {
         const noVideo = (row: Record<string, any>, d: { media: { kind: string }[] }) => row.kind === 'repost' && !d.media.some((m) => m.kind === 'video');
         const mid = l1 ? dto(l1) : null;
         const midCan = l1 && mid ? (l2 && noVideo(l1, mid) ? l2.can_download === true : mid.canDownload) : false;
+        // Repostar (0156, como em repost()): numa citação também tem de deixar o autor do original citado; um repost simples
+        // reposta o original, por isso vale o dele.
+        const midRepost = !!l1 && l1.can_repost === true && (!isQuote(l1) || !l2 || l2.can_repost === true);
+        const ownRepost = !l1 ? own.canRepost : r.kind === 'repost' && !r.body ? midRepost : isQuote(r) ? own.canRepost && midRepost : own.canRepost;
         return {
           ...own,
+          canRepost: ownRepost,
           ...(mid && noVideo(r, own) ? { canDownload: midCan } : {}),
-          repostOf: mid ? { ...mid, canDownload: midCan, repostOf: inner } : null,
+          repostOf: mid ? { ...mid, canDownload: midCan, canRepost: midRepost, repostOf: inner } : null,
         };
       });
   }
@@ -545,12 +566,18 @@ export class PostsService implements OnModuleInit {
 
   /**
    * Repostar: partilha a publicação de outra pessoa no teu perfil, sozinha ou com um comentário (citação).
-   * Só publicações normais de contas públicas (ou as tuas, mesmo com a conta privada); nunca de bloqueados, nem reposts de reposts.
+   * Só publicações que podes ver; nunca de bloqueados, nem reposts simples (reposta-se o original).
+   *
+   * «Deixar repostar as minhas publicações» (0156, CAN_REPOST_SQL): o autor reposta sempre as suas; os outros só se ele deixa
+   * (ligado por omissão), também numa conta privada: o repost só o vê quem pode ver o original (hydrate esconde-o aos
+   * outros, no feed, no perfil e na pesquisa). Numa citação também tem de deixar o autor do original citado (e assim por
+   * diante, numa citação de uma citação). Num post de um sítio conta a conta de quem o publicou. Senão 403 (REPOST_BLOCKED).
    */
   async repost(userId: string, postId: string, body = '', textFont: TextFontId | null = null) {
     this.filter.assertClean(body);
     const { rows } = await this.pool.query(
-      `SELECT p.author_id, p.kind, p.body, u.is_private FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+      `SELECT p.author_id, p.kind, p.body, p.repost_of, ${CAN_REPOST_SQL('p', 'u')} AS can_repost
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
         WHERE p.id = $2 AND ${canView()}`,
       [userId, postId],
     );
@@ -558,9 +585,19 @@ export class PostsService implements OnModuleInit {
     if (!o) throw new NotFoundException('Publicação não encontrada');
     // Reposta-se publicações (incluindo presentes) e citações, como no X; um repost simples já mostra o original, repostas esse.
     if (!(o.kind === 'post' || o.kind === 'gift' || (o.kind === 'repost' && o.body))) throw new BadRequestException('Um repost simples não se reposta: reposta a publicação original');
-    // O dono também pode repostar a sua própria publicação (como no X), mesmo com a conta privada (o repost fica só para
-    // quem o segue, como tudo o resto). As de outras contas privadas não se repostam.
-    if (o.is_private && o.author_id !== userId) throw new ForbiddenException('As publicações de contas privadas não podem ser repostadas 🔒');
+    if (o.can_repost !== true) throw new ForbiddenException(REPOST_BLOCKED);
+    // Numa citação, o original citado (que vai dentro do repost) também tem de deixar.
+    let below: Record<string, any> | undefined = o;
+    for (let depth = 0; below && isQuote(below) && below.repost_of && depth < 8; depth++) {
+      below = (
+        await this.pool.query(
+          `SELECT p.kind, p.body, p.repost_of, ${CAN_REPOST_SQL('p', 'u')} AS can_repost
+             FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND p.removed_at IS NULL`,
+          [userId, below.repost_of],
+        )
+      ).rows[0];
+      if (below && below.can_repost !== true) throw new ForbiddenException(REPOST_BLOCKED);
+    }
 
     const text = body.trim().slice(0, 500);
     if (!text) {
@@ -578,6 +615,21 @@ export class PostsService implements OnModuleInit {
     if (text) this.indexer.postChanged(id);
     if (text) void this.notifications.notifyMentions(userId, text, { postId: id, snippet: text.slice(0, 80) });
     return this.getOne(userId, id);
+  }
+
+  /**
+   * «Deixar repostar as minhas publicações» (0156): `allow` é o que vale (ligado por omissão; as contas que já eram privadas
+   * quando chegou ficaram desligadas). `private`: a conta é privada (o repost só o vê quem te segue), para a descrição.
+   */
+  async repostSettings(userId: string) {
+    const r = (await this.pool.query('SELECT allow_reposts, is_private FROM identity.users WHERE id = $1', [userId])).rows[0];
+    if (!r) throw new NotFoundException();
+    return { allow: !!r.allow_reposts, private: !!r.is_private };
+  }
+
+  async setRepostSettings(userId: string, allow: boolean) {
+    await this.pool.query('UPDATE identity.users SET allow_reposts = $2 WHERE id = $1', [userId, allow]);
+    return this.repostSettings(userId);
   }
 
   /** Desfaz o repost simples que fizeste desta publicação. */
@@ -1166,6 +1218,12 @@ export class PostsService implements OnModuleInit {
      * permissão: se há vídeo para guardar vê-se pelos `media`.
      */
     canDownload: r.can_download === true,
+    /**
+     * Quem vê pode repostar esta publicação (tal como está ou com comentário): o autor sempre; os outros, se ele deixa
+     * («Deixar repostar as minhas publicações»). Numa citação também o autor do original citado; num repost simples, a
+     * regra do original. Só a permissão: um repost simples continua a não se repostar (reposta-se o original).
+     */
+    canRepost: r.can_repost === true,
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
       // O vídeo com a música gravada, quando está pronto (a capa continua a do original).
       url: `/api/v1/media/${m.video ? bakedMediaId(m.id, r) : m.id}`,
