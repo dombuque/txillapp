@@ -1,8 +1,8 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -32,9 +32,11 @@ function BotAvatar({ size }: { size: number }) {
  * O SuperTxill: um ecrã da pilha (/supertxill), aberto a partir das Mensagens e da Pesquisa, só com dados do Txillapp.
  * Por ser um ecrã (e não uma janela por cima), arrastar para trás ou o «voltar» do browser volta para onde estavas.
  */
-export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
+export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose: () => void; initialTab?: SuperTxillTab }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<SuperTxillTab>(initialTab);
+  const chat = useSuperTxillThread();
   const q = useQuery({ queryKey: ['supertxill-for-you'], queryFn: aiApi.forYou, staleTime: 60_000 });
   const list = q.data ?? [];
   // Procurar malta pelo nome ou pelo @ (a mesma pesquisa da lupa), com um pequeno atraso enquanto se escreve.
@@ -58,9 +60,25 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
             <BotAvatar size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.title}>SuperTxill</Text>
-              <Text style={s.sub} numberOfLines={1}>Escolhido para ti, com o que se passa no Txillapp</Text>
+              <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
             </View>
+            {tab === 'conversa' && chat.messages.length > 0 && (
+              <Pressable onPress={chat.clear} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
+            )}
           </View>
+
+          <View style={s.tabs} accessibilityRole="tablist">
+            {TABS.map((t) => (
+              <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} style={[s.tab, tab === t.id && s.tabOn]}>
+                <Text style={[s.tabText, tab === t.id && s.tabTextOn]}>{t.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {tab === 'conversa' ? (
+            <Conversa chat={chat} bottom={Math.max(12, insets.bottom + 8)} />
+          ) : (
+          <>
 
           <View style={s.findWrap}>
             <View style={s.find}>
@@ -136,13 +154,168 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
             )}
             <Text style={s.box}>Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas. Podes desligar o uso da geleira nas Definições.</Text>
           </ScrollView>
+          </>
+          )}
         </View>
       </View>
     </>
   );
 }
 
+export type SuperTxillTab = 'conversa' | 'malta';
+const TABS: { id: SuperTxillTab; label: string }[] = [
+  { id: 'conversa', label: 'Conversa' },
+  { id: 'malta', label: 'Malta para ti' },
+];
+const IDEAS = ['Estou animado hoje: onde anda a malta?', 'Que eventos há hoje perto de mim?', 'Há alguma Txillada a decorrer?', 'Dá-me uma legenda para uma foto na praia'];
+
+/**
+ * A conversa com o SuperTxill: a pergunta fica guardada e a resposta chega em segundo plano (pode demorar, o modelo corre no
+ * nosso servidor). Enquanto há resposta pendente, o ecrã pergunta de 1,5 em 1,5 s e mostra «SuperTxill está a pensar…».
+ */
+export function useSuperTxillThread() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['supertxill'], queryFn: aiApi.thread, refetchInterval: (query) => (query.state.data?.pending ? 1500 : false) });
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const messages = q.data?.messages ?? [];
+  const ask = async (text: string) => {
+    const t = text.trim();
+    if (!t || sending) return false;
+    setSending(true);
+    setError('');
+    try {
+      await aiApi.ask(t);
+      await qc.invalidateQueries({ queryKey: ['supertxill'] });
+      return true;
+    } catch (e) {
+      setError((e as Error).message || 'Não consegui enviar. Tenta outra vez.');
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+  const clear = () => {
+    void aiApi.clear().catch(() => undefined).then(() => qc.invalidateQueries({ queryKey: ['supertxill'] }));
+  };
+  return { messages, pending: sending || !!q.data?.pending, loaded: q.isSuccess, failed: q.isError && !q.data, error, ask, clear };
+}
+type Chat = ReturnType<typeof useSuperTxillThread>;
+
+/** «SuperTxill está a pensar…»: três pontos a acender um a seguir ao outro, devagar. */
+export function Thinking() {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(a, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }));
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+  const dot = (i: number) => {
+    const start = i * 0.2;
+    const inputRange = [0, start, start + 0.25, start + 0.5, 1];
+    return {
+      opacity: a.interpolate({ inputRange, outputRange: [0.3, 0.3, 1, 0.3, 0.3] }),
+      transform: [{ translateY: a.interpolate({ inputRange, outputRange: [0, 0, -3, 0, 0] }) }],
+    };
+  };
+  return (
+    <View style={s.thinkRow} accessibilityLiveRegion="polite" accessibilityLabel="SuperTxill está a pensar…">
+      <BotAvatar size={28} />
+      <View style={s.thinkBubble}>
+        <Text style={s.thinkText}>SuperTxill está a pensar…</Text>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {[0, 1, 2].map((i) => <Animated.View key={i} style={[s.dot, dot(i)]} />)}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
+  const [text, setText] = useState('');
+  const list = useRef<ScrollView>(null);
+  const send = async (t: string) => {
+    if (await chat.ask(t)) setText('');
+  };
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16, gap: 8 }} onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        {chat.failed && <Text accessibilityRole="alert" style={s.note}>Não consegui abrir a conversa. Tenta daqui a pouco.</Text>}
+        {chat.loaded && chat.messages.length === 0 && !chat.pending && (
+          <View style={{ alignItems: 'center', marginTop: 16 }}>
+            <BotAvatar size={64} />
+            <Text style={s.hello}>Fala, malta!</Text>
+            <Text style={s.helloSub}>Diz-me como te sentes e eu vejo onde anda a tua malta, o que há perto ou que Txilladas estão a dar. Também te ajudo com legendas e com a app.</Text>
+            <View style={s.ideas}>
+              {IDEAS.map((i) => (
+                <Pressable key={i} onPress={() => void send(i)} accessibilityRole="button" style={s.idea}><Text style={s.ideaText}>{i}</Text></Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+        {chat.messages.map((m) => (
+          <View key={m.id} style={{ flexDirection: 'row', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <Text selectable style={[s.bubble, m.role === 'user' ? s.mine : s.theirs]}>{m.body}</Text>
+          </View>
+        ))}
+        {chat.pending && <Thinking />}
+      </ScrollView>
+      <View style={[s.composer, { paddingBottom: bottom }]}>
+        {!!chat.error && <Text accessibilityRole="alert" style={s.err}>{chat.error}</Text>}
+        <View style={s.inputRow}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Pergunta ao SuperTxill…"
+            placeholderTextColor={colors.zinc500}
+            multiline
+            numberOfLines={1}
+            maxLength={1000}
+            style={s.input}
+            accessibilityLabel="Pergunta ao SuperTxill"
+            onKeyPress={(e) => {
+              const k = e.nativeEvent as unknown as { key: string; shiftKey?: boolean };
+              if (Platform.OS === 'web' && k.key === 'Enter' && !k.shiftKey) {
+                (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+                void send(text);
+              }
+            }}
+          />
+          <Pressable onPress={() => void send(text)} disabled={!text.trim() || chat.pending} accessibilityRole="button" accessibilityLabel="Enviar" style={[s.sendBtn, (!text.trim() || chat.pending) && { opacity: 0.4 }]}>
+            <Icon name="send" size={18} color="#fff" />
+          </Pressable>
+        </View>
+        <Text style={s.fine}>O SuperTxill corre no servidor do Txillapp e só vê o que tu já podes ver na app. Pode errar.</Text>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
 const s = StyleSheet.create({
+  tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 12 },
+  tab: { height: 36, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: colors.zinc900 },
+  tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc600 },
+  tabTextOn: { color: '#fff' },
+  hello: { marginTop: 12, fontSize: 20, fontWeight: '800', color: colors.zinc900 },
+  helloSub: { marginTop: 4, fontSize: 15, lineHeight: 21, color: colors.zinc600, textAlign: 'center', maxWidth: 380 },
+  ideas: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  idea: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 9 },
+  ideaText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
+  bubble: { maxWidth: '84%', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, lineHeight: 21, overflow: 'hidden' },
+  mine: { backgroundColor: colors.brand, color: '#fff', borderBottomRightRadius: 6 },
+  theirs: { backgroundColor: colors.zinc100, color: colors.zinc900, borderBottomLeftRadius: 6 },
+  thinkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  thinkBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20, borderBottomLeftRadius: 6, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 11 },
+  thinkText: { fontSize: 15, color: colors.zinc600 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand },
+  composer: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 8 },
+  err: { textAlign: 'center', color: '#dc2626', fontSize: 14, paddingBottom: 6 },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderRadius: 24, backgroundColor: colors.zinc100, padding: 4 },
+  input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 128, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 20, color: colors.zinc900, outlineStyle: 'none' } as object,
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  fine: { marginTop: 6, textAlign: 'center', fontSize: 11, color: colors.zinc500 },
+
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.zinc100 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontWeight: '800', lineHeight: 22, color: colors.zinc900 },
