@@ -29,8 +29,18 @@ export function livekitRoomsFromConfig(c: AppConfig): LiveKitRooms | null {
   };
 }
 
-/** Um token de entrada na sala: o anfitrião publica (câmara e microfone); os espectadores só recebem. */
-export async function roomToken(c: AppConfig, o: { room: string; identity: string; name: string; username: string; host: boolean }): Promise<string> {
+/**
+ * Um token de entrada na sala: o anfitrião publica (câmara e microfone); os espectadores só recebem. Quem está a ver é
+ * visível na sala (o nome e o @ vão no token); `hidden` esconde-o.
+ */
+export async function roomToken(
+  c: AppConfig,
+  o: {
+    room: string; identity: string; name: string; username: string; host: boolean;
+    /** As futuras Txilladas pagas: quem vê volta a entrar escondido. Por omissão false. */
+    hidden?: boolean;
+  },
+): Promise<string> {
   const at = new AccessToken(c.LIVEKIT_API_KEY!, c.LIVEKIT_API_SECRET!, {
     identity: o.identity,
     name: o.name,
@@ -46,9 +56,9 @@ export async function roomToken(c: AppConfig, o: { room: string; identity: strin
     // Os comentários e os brindes passam pela API (com o filtro e os limites), não pelos dados do LiveKit.
     canPublishData: false,
     canUpdateOwnMetadata: false,
-    // Os espectadores entram escondidos: ninguém na sala recebe o id, o nome ou o @ dos outros que estão a ver (só o
-    // anfitrião aparece). O webhook continua a avisar quem entra e sai (é assim que se contam os espectadores).
-    ...(o.host ? {} : { hidden: true }),
+    // Quem está a ver é visível (os outros na sala veem o nome e o @). Escondido (`hidden`) só quando se pede: as futuras
+    // Txilladas pagas, em que quem vê volta a entrar escondido. O webhook avisa sempre quem entra e sai (é assim que se contam).
+    ...(!o.host && o.hidden ? { hidden: true } : {}),
   });
   return at.toJwt();
 }

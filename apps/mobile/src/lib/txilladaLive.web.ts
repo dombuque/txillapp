@@ -57,7 +57,39 @@ export function attachAudio(track: unknown): () => void {
 /** No browser pede-se logo ao alto (9:16): uma webcam deitada é cortada ao meio, como fica no cartão. */
 export const captureResolution = { width: 720, height: 1280, frameRate: 30, aspectRatio: 9 / 16 };
 
-/** Virar a câmara: no browser abre-se a outra (frente/trás) com o mesmo track. */
-export async function flipTrack(track: { restartTrack: (o?: { facingMode?: 'user' | 'environment' }) => Promise<void> }, front: boolean): Promise<void> {
-  await track.restartTrack({ facingMode: front ? 'user' : 'environment' });
+type Restartable = {
+  mediaStreamTrack?: MediaStreamTrack;
+  restartTrack: (o?: { facingMode?: 'user' | 'environment'; resolution?: { width: number; height: number; frameRate?: number; aspectRatio?: number } }) => Promise<void>;
+};
+
+/** O ecrã está ao alto (um telemóvel)? Num computador fica-se com o que a câmara der. */
+function portraitScreen(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.innerHeight > window.innerWidth;
+}
+function landscapeTrack(t: Restartable): boolean {
+  const s = t.mediaStreamTrack?.getSettings?.();
+  return !!s?.width && !!s?.height && s.width > s.height;
+}
+
+/**
+ * Garante a imagem ao alto num telemóvel. O Safari do iPhone lê o `width`/`height` pedidos na orientação do sensor (deitado)
+ * e, com 720×1280, podia escolher uma imagem deitada (4:3 ou 16:9): quem via recebia uma faixa deitada. Se a imagem vier
+ * deitada com o telemóvel ao alto, pede-se outra vez com as medidas trocadas (1280×720, sem forma imposta), que o Safari
+ * roda para o alto. No computador (ecrã deitado) não se mexe.
+ */
+export async function ensurePortrait(track: Restartable, front: boolean): Promise<void> {
+  if (!portraitScreen() || !landscapeTrack(track)) return;
+  try {
+    await track.restartTrack({ facingMode: front ? 'user' : 'environment', resolution: { width: 1280, height: 720, frameRate: 30 } });
+  } catch { /* fica a que estava (quem vê mostra-a inteira, com o fundo desfocado) */ }
+}
+
+/**
+ * Virar a câmara: no browser abre-se a outra (frente/trás) com o mesmo track. As medidas vão outra vez (sem elas o
+ * livekit-client voltava às de omissão, 1280×720 deitado) e confirma-se que fica ao alto.
+ */
+export async function flipTrack(track: Restartable, front: boolean): Promise<void> {
+  await track.restartTrack({ facingMode: front ? 'user' : 'environment', resolution: captureResolution });
+  await ensurePortrait(track, front);
 }

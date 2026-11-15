@@ -14,7 +14,7 @@ import { Scheduler } from '../realtime/scheduler';
 import { TextFilter } from '../safety/text-filter.service';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { allowedBy, blockedBetween, notReportedBy, sameCountry } from '../social/visibility';
-import type { TxilladaEvent } from '../chat/chat.events';
+import type { TxilladaEvent, TxilladaReaction } from '../chat/chat.events';
 import { LIVEKIT_ROOMS, TrackType, livekitEnabled, roomToken, webhookReceiver, type LiveKitRooms, type WebhookEvent } from './livekit';
 import type { TxilladaHooks } from './txillada-tokens';
 import { txilladaBanned, txilladaVisible } from './txillada-visibility';
@@ -50,6 +50,19 @@ const person = (r: Record<string, any>, p = '') => ({
   avatarUrl: avatarUrl(r[`${p}username`], r[`${p}has_avatar`]),
   ...badge(r[`${p}verified`], r[`${p}verified_tier`]),
 });
+/** Como `person`, sem o id interno (o que se mostra de quem está a ver e de quem entrou). */
+const publicPerson = (r: Record<string, any>, p = '') => ({
+  username: r[`${p}username`] as string,
+  displayName: r[`${p}display_name`] as string,
+  avatarUrl: avatarUrl(r[`${p}username`], r[`${p}has_avatar`]),
+  ...badge(r[`${p}verified`], r[`${p}verified_tier`]),
+});
+/** Reações: no máximo 8 por segundo por pessoa; acima de 40 por segundo na sala, já não se difundem. */
+const REACT_PER_SEC = 8;
+const REACT_ROOM_PER_SEC = 40;
+/** O «olá» de quem vê: 1 a cada 4 s por pessoa. */
+const HELLO_MS = 4_000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** As colunas do anfitrião (`h`) com o prefixo h_. */
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
@@ -197,9 +210,22 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const r = await this.access(me, id);
     if (r.status !== 'live') throw new GoneException('A Txillada já acabou.');
     const isHost = r.host_id === me;
-    const u = (await this.pool.query('SELECT username, display_name FROM identity.users WHERE id = $1', [me])).rows[0];
+    const u = (
+      await this.pool.query(
+        'SELECT id, username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar, verified, verified_tier FROM identity.users WHERE id = $1',
+        [me],
+      )
+    ).rows[0];
     const token = await roomToken(this.config, { room: r.room, identity: me, name: u.display_name, username: u.username, host: isHost });
-    if (!isHost) await this.bus.touch(toKey(id), me, SET_MS);
+    if (!isHost) {
+      await this.bus.touch(toKey(id), me, SET_MS);
+      // «@fulano entrou»: daqui (o webhook pode não estar ligado), uma vez por pessoa a cada 60 s (as religações não repetem).
+      if (await this.bus.claimOnce(`tx:joined:${id}:${me}`, 60_000)) {
+        const user = publicPerson(u);
+        const to = (await this.withoutBlocks(me, await this.audience(id, r.host_id))).filter((x) => x !== me);
+        this.emit(to, { type: 'txillada.joined', txilladaId: id, user });
+      }
+    }
     return { token, url: this.config.LIVEKIT_URL! };
   }
 
@@ -346,6 +372,16 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async cheer(me: string, id: string) {
     const r = await this.access(me, id);
     if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    const cheers = await this.addCheer(me, r);
+    return { cheers };
+  }
+
+  /**
+   * Um brinde (o POST /cheer e a reação 🍻): o anfitrião não brinda a sua, no máximo 5 por segundo, conta em
+   * txillada_cheers e txilladas.cheers e (com `broadcast`) manda `txillada.cheer`. `r` é a linha de access(), já 'live'.
+   */
+  private async addCheer(me: string, r: Record<string, any>, broadcast = true) {
+    const id = r.id as string;
     if (r.host_id === me) throw new BadRequestException('Não podes brindar a tua própria Txillada.');
     if ((await this.rates.hit(`tx:cheer:${me}`, 1_000)) > 5) throw new HttpException('Calma! No máximo 5 brindes por segundo.', HttpStatus.TOO_MANY_REQUESTS);
     await this.pool.query(
@@ -354,9 +390,82 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       [id, me],
     );
     const cheers = (await this.pool.query('UPDATE content.txilladas SET cheers = cheers + 1 WHERE id = $1 RETURNING cheers', [id])).rows[0].cheers as number;
-    const username = (await this.pool.query('SELECT username FROM identity.users WHERE id = $1', [me])).rows[0].username as string;
-    this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), { type: 'txillada.cheer', txilladaId: id, cheers, from: { username } });
-    return { cheers };
+    if (broadcast) {
+      const username = (await this.pool.query('SELECT username FROM identity.users WHERE id = $1', [me])).rows[0].username as string;
+      this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), { type: 'txillada.cheer', txilladaId: id, cheers, from: { username } });
+    }
+    return cheers;
+  }
+
+  /* ───────────── reações e quem está a ver ───────────── */
+
+  /**
+   * Uma reação (👋 🍻 🔥 😂 ❤️) a quem está na sala, sem se guardar nada (o 🍻 conta como um brinde). O anfitrião pode mandar
+   * tudo menos 🍻 e só ele usa `to` (um olá a quem entrou). No máximo 8 por segundo por pessoa; o olá de quem vê, 1 a cada
+   * 4 s. Com a sala acima de 40 por segundo, não se difunde (`sent: false`), mas o 🍻 conta na mesma.
+   */
+  async react(me: string, id: string, kind: TxilladaReaction, to?: string) {
+    const r = await this.access(me, id);
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    const isHost = r.host_id === me;
+    if (isHost && kind === 'cheers') throw new BadRequestException('Não podes brindar a tua própria Txillada.');
+    if (to !== undefined && !isHost) throw new BadRequestException('Só o anfitrião pode responder a alguém.');
+    if (to !== undefined && kind !== 'hello') throw new BadRequestException('Só se responde a alguém com um olá.');
+    if ((await this.rates.hit(`tx:react:${me}`, 1_000)) > REACT_PER_SEC) throw new HttpException('Calma! Muitas reações seguidas.', HttpStatus.TOO_MANY_REQUESTS);
+    let target: { username: string; verified: boolean; verifiedTier: string | null } | undefined;
+    if (to !== undefined) {
+      const t = (
+        await this.pool.query(
+          `SELECT u.id, u.username, u.verified, u.verified_tier FROM identity.users u
+            WHERE lower(u.username) = lower($1) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$2')}`,
+          [to.replace(/^@/, ''), me],
+        )
+      ).rows[0];
+      if (!t) throw new NotFoundException('Utilizador não encontrado');
+      if (t.id === me) throw new BadRequestException('Não podes responder a ti próprio.');
+      target = { username: t.username, ...badge(t.verified, t.verified_tier) };
+    }
+    if (kind === 'hello' && !isHost && !(await this.bus.claimOnce(`tx:hello:${me}`, HELLO_MS))) {
+      throw new HttpException('Calma! Muitas reações seguidas.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const sent = (await this.rates.hit(`tx:react-room:${id}`, 1_000)) <= REACT_ROOM_PER_SEC;
+    const cheers = kind === 'cheers' ? await this.addCheer(me, r, sent) : undefined;
+    if (sent) {
+      const u = (
+        await this.pool.query('SELECT username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar, verified, verified_tier FROM identity.users WHERE id = $1', [me])
+      ).rows[0];
+      this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), {
+        type: 'txillada.reaction',
+        txilladaId: id,
+        kind,
+        // O selo de verificado vai sempre com o nome (como nos comentários e no «entrou»).
+        from: { ...publicPerson(u), host: isHost },
+        ...(target ? { to: target } : {}),
+      });
+    }
+    return cheers === undefined ? { sent } : { sent, cheers };
+  }
+
+  /**
+   * Quem está a ver agora (quem fez `join` e não saiu): sem o anfitrião, só contas ativas, sem expulsos e sem quem tem um
+   * bloqueio com quem pede. Quem eu sigo primeiro, depois pelo @ (máx. 200).
+   */
+  async viewers(me: string, id: string) {
+    const r = await this.access(me, id);
+    const ids = (await this.bus.recent(toKey(id), SET_MS)).filter((v) => v !== r.host_id && UUID_RE.test(v));
+    if (!ids.length) return { items: [], total: 0 };
+    const { rows } = await this.pool.query(
+      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier,
+              EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id) AS followed
+         FROM identity.users u
+        WHERE u.id = ANY($1::uuid[]) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$2')}
+          AND NOT EXISTS (SELECT 1 FROM content.txillada_bans b WHERE b.txillada_id = $3 AND b.user_id = u.id)
+        ORDER BY followed DESC, lower(u.username)
+        LIMIT 200`,
+      [ids, me, id],
+    );
+    const items = rows.map((x) => publicPerson(x));
+    return { items, total: items.length };
   }
 
   /* ───────────── expulsar e denunciar ───────────── */

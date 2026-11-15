@@ -97,9 +97,15 @@ export function attachAudio(_track: unknown): () => void {
 /** A câmara para transmitir: no telemóvel o WebRTC roda as imagens (720p ao alto). */
 export const captureResolution = { width: 1280, height: 720, frameRate: 30 };
 
+/**
+ * No telemóvel a imagem sai sempre ao alto: o sensor dá 1280×720 deitado e o WebRTC manda a rotação com cada imagem (quem
+ * vê roda-a para o alto, 720×1280). Nada a corrigir (só no browser, txilladaLive.web).
+ */
+export async function ensurePortrait(_track: unknown, _front: boolean): Promise<void> {}
+
 /** Virar a câmara: no telemóvel a faixa troca de câmara sem a fechar. */
-export async function flipTrack(track: { mediaStreamTrack: MediaStreamTrack; restartTrack: (o?: { facingMode?: 'user' | 'environment' }) => Promise<void> }, front: boolean): Promise<void> {
+export async function flipTrack(track: { mediaStreamTrack: MediaStreamTrack; restartTrack: (o?: { facingMode?: 'user' | 'environment'; resolution?: { width: number; height: number; frameRate?: number } }) => Promise<void> }, front: boolean): Promise<void> {
   const t = track.mediaStreamTrack as unknown as { _switchCamera?: () => void };
   if (typeof t._switchCamera === 'function') t._switchCamera();
-  else await track.restartTrack({ facingMode: front ? 'user' : 'environment' });
+  else await track.restartTrack({ facingMode: front ? 'user' : 'environment', resolution: captureResolution });
 }

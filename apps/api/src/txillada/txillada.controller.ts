@@ -7,6 +7,7 @@ import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { REPORT_REASONS } from '../moderation/moderation.service';
 import { Needs, StaffGuard } from '../staff/staff.guard';
+import { TXILLADA_REACTIONS } from '../chat/chat.events';
 import { TxilladaService } from './txillada.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -19,6 +20,11 @@ const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });
 const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
 const afterSchema = z.object({ after: z.string().uuid().optional() });
 const cutSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
+const reactSchema = z.object({
+  kind: z.enum(TXILLADA_REACTIONS),
+  /** O @ de quem entrou (só o anfitrião, só com 'hello'). */
+  to: z.string().trim().min(1).max(40).optional(),
+});
 
 /**
  * Txillada (os lives), fase 1 — as rotas do contrato (docs/txillada-contrato.md). Todas com sessão, menos o webhook do
@@ -89,6 +95,21 @@ export class TxilladaController {
   @Throttle({ default: { limit: 400, ttl: 60_000 } })
   cheer(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.tx.cheer(req.userId!, id);
+  }
+
+  /** Reações (não se guardam): no máximo 8 por segundo por pessoa (no serviço); aqui só o teto por minuto. */
+  @Post(':id/react')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 600, ttl: 60_000 } })
+  react(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reactSchema)) b: z.infer<typeof reactSchema>) {
+    return this.tx.react(req.userId!, id, b.kind, b.to);
+  }
+
+  /** Quem está a ver agora. */
+  @Get(':id/viewers')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  viewers(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.viewers(req.userId!, id);
   }
 
   @Post(':id/ban/:username')

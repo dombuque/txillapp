@@ -360,6 +360,8 @@ export function noticeSub(tx: { status?: unknown } | null | undefined): string |
 export const FLOAT_MAX = 4;
 export const FLOAT_STEP_MS = 650;
 export const FLOAT_TTL_MS = 9000;
+/** No live os balões ficam à vista muito mais tempo (até os novos os empurrarem): a conversa vê-se sempre por cima do vídeo. */
+export const LIVE_FLOAT_TTL_MS = 45_000;
 /** Numa enxurrada, os que esperam mais do que isto saltam-se (fica-se sempre perto do que está a acontecer). */
 export const FLOAT_QUEUE_MAX = 6;
 
@@ -383,8 +385,8 @@ export function floatSkip(s: FloatState, ids: readonly string[]): FloatState {
 }
 
 /** Uma batida: entra o próximo da fila; os que já saíram (a mais ou passados do tempo) deixam de se desenhar. */
-export function floatStep(s: FloatState, now: number, max = FLOAT_MAX): FloatState {
-  let shown = s.shown.filter((e) => now - e.at < FLOAT_TTL_MS + 600);
+export function floatStep(s: FloatState, now: number, max = FLOAT_MAX, ttl = FLOAT_TTL_MS): FloatState {
+  let shown = s.shown.filter((e) => now - e.at < ttl + 600);
   let queue = s.queue;
   if (queue.length) {
     shown = [...shown, { id: queue[0], at: now }];
@@ -407,11 +409,11 @@ export function floatRemove(s: FloatState, id: string): FloatState {
 
 export type LiveFloatEntry = { id: string; age: number; leaving: boolean };
 /** Os balões a desenhar, do mais velho para o mais novo (`age` 0 = o mais novo, em baixo). */
-export function floatView(s: FloatState, now: number, max = FLOAT_MAX): LiveFloatEntry[] {
+export function floatView(s: FloatState, now: number, max = FLOAT_MAX, ttl = FLOAT_TTL_MS): LiveFloatEntry[] {
   const n = s.shown.length;
   return s.shown.map((e, i) => {
     const age = n - 1 - i;
-    return { id: e.id, age, leaving: age >= max || now - e.at >= FLOAT_TTL_MS };
+    return { id: e.id, age, leaving: age >= max || now - e.at >= ttl };
   });
 }
 

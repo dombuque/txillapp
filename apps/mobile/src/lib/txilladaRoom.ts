@@ -20,7 +20,7 @@ import {
   applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withComments, withDto,
   type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent,
 } from '@/lib/txillada';
-import { askBroadcast, attachAudio, captureResolution, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
+import { askBroadcast, attachAudio, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
 
@@ -64,7 +64,23 @@ async function openTracks(front: boolean): Promise<LiveTracks> {
     made.forEach((t) => t.stop());
     throw new Error('Não consegui abrir a câmara e o microfone.');
   }
+  // No browser de um telemóvel, a imagem tem de sair ao alto (o Safari do iPhone podia dar uma faixa deitada).
+  await ensurePortrait(video, front);
   return { video, audio };
+}
+
+/**
+ * A qualidade de quem transmite: 720p a 30 imagens por segundo até ~2 Mbps, com simulcast (uma camada de 360p para quem
+ * tem rede fraca). Quem vê em ecrã inteiro pede a camada alta (adaptiveStream com a densidade do ecrã).
+ */
+const VIDEO_ENCODING = { maxBitrate: 2_000_000, maxFramerate: 30 };
+function roomOptions(lk: typeof import('livekit-client'), amHost: boolean) {
+  return {
+    adaptiveStream: amHost ? false : { pixelDensity: 'screen' as const },
+    dynacast: true,
+    disconnectOnPageLeave: true,
+    publishDefaults: { simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] },
+  };
 }
 
 /** A câmara à vista no ecrã de preparar. `on` falso (fora de foco) fecha-a. */
@@ -219,7 +235,7 @@ export function useTxillada(id: string) {
         if (dead) { stopTracks(handed?.tracks); return; }
         await liveAudio(true, amHost);
         undo.push(() => void liveAudio(false, amHost));
-        const room = new lk.Room({ adaptiveStream: !amHost, dynacast: amHost, disconnectOnPageLeave: true });
+        const room = new lk.Room(roomOptions(lk, amHost));
         roomRef.current = room;
         undo.push(() => { void room.disconnect(); if (roomRef.current === room) roomRef.current = null; });
         room.on(lk.RoomEvent.TrackSubscribed, (track) => {
@@ -249,7 +265,7 @@ export function useTxillada(id: string) {
           setFront(handed?.front ?? true);
           setVideo(tracks.video);
           setMic(!tracks.audio.isMuted);
-          await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true });
+          await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] });
           await room.localParticipant.publishTrack(tracks.audio, { source: lk.Track.Source.Microphone });
         }
         setAudioBlocked(!room.canPlaybackAudio);
@@ -317,7 +333,8 @@ export function useTxillada(id: string) {
     cheerTimes.current = g.times;
     if (!g.ok) return false;
     setMyBurst((n) => n + 1);
-    void txilladaApi.cheer(id).then((r) => { if (typeof r?.cheers === 'number') dispatch({ t: 'cheers', n: r.cheers }); }, () => undefined);
+    // Pela reação 🍻 (conta como o brinde e, além dos copos, sobe a flutuar a todos).
+    void txilladaApi.react(id, 'cheers').then((r) => { if (typeof r?.cheers === 'number') dispatch({ t: 'cheers', n: r.cheers }); }, () => undefined);
     return true;
   }
   async function removeComment(c: TxilladaComment): Promise<string | null> {
