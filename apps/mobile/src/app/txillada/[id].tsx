@@ -16,8 +16,8 @@ import { FxLayer, HelloAllButton, HelloStack, JoinedToast, ReactionBar, ViewersL
 import { CommentMenu } from '@/components/txillada/CommentMenu';
 import { LiveFloatComments } from '@/components/txillada/LiveFloatComments';
 import { PinnedComment } from '@/components/txillada/PinnedComment';
+import { GuestsPanel, InviteCard, TxilladaStage } from '@/components/txillada/TxilladaGuests';
 import { EndedView, GlassButton, HostSummary, LiveBadge } from '@/components/txillada/TxilladaParts';
-import { TxilladaVideo } from '@/components/txillada/TxilladaVideo';
 import { txilladaApi } from '@/lib/api.txillada';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -28,6 +28,7 @@ import { colors } from '@/lib/theme';
 import { COMMENT_MAX, commentMenu, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { liveLayout, type FxPerson, type ReactionKind } from '@/lib/txilladaFx';
 import { useTxilladaFx } from '@/lib/txilladaFxRoom';
+import { guestUi, viewerGuestAction } from '@/lib/txilladaGuests';
 import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
 
 /**
@@ -42,6 +43,12 @@ import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
  * as reações de um toque e comentar (quem vê) ou o microfone, virar, «👋 Olá a todos» e comentar (o anfitrião).
  *
  * A Txillada não se grava (nem as reações): quando acaba, já não se pode ver («A Txillada acabou»); o anfitrião vê o resumo.
+ *
+ * Convidados (0165): até 3 pessoas transmitem com o anfitrião. Quem vê toca em «Pedir para entrar» (ou aceita o convite do
+ * anfitrião, que convida da lista «A ver agora»); o anfitrião aceita, recusa e tira na lista dos convidados (o botão das
+ * pessoas, com o número de pedidos). O ecrã reparte-se: 1 = inteiro; 2 = uma em cima da outra; 3 = uma grande em cima e duas
+ * em baixo; 4 = grelha 2×2 (components/txillada/TxilladaGuests `TxilladaStage`). Os comentários, as reações, o fixado e a
+ * barra ficam por cima, como sempre.
  */
 export default function TxilladaScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
@@ -70,7 +77,9 @@ export default function TxilladaScreen() {
   const [typing, setTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
-  const [panel, setPanel] = useState<null | 'more' | 'report' | 'viewers'>(null);
+  const [panel, setPanel] = useState<null | 'more' | 'report' | 'viewers' | 'guests'>(null);
+  /** A câmara a abrir ao aceitar um convite (o botão fica à espera). */
+  const [accepting, setAccepting] = useState(false);
   /** O comentário com o menu aberto (o id: as contagens vêm sempre do estado da sala) e o que se está a denunciar. */
   const [menuId, setMenuId] = useState<string | null>(null);
   const [reporting, setReporting] = useState<TxilladaComment | null>(null);
@@ -84,6 +93,10 @@ export default function TxilladaScreen() {
     flashT.current = setTimeout(() => setFlash(null), 2600);
   };
   useEffect(() => () => clearTimeout(flashT.current), []);
+  // Os avisos dos convidados («@ana pediu para entrar», «O anfitrião recusou o teu pedido»…).
+  const noticeN = tx.notice?.n ?? 0;
+  useEffect(() => { if (tx.notice) say(tx.notice.text); }, [noticeN]); // eslint-disable-line react-hooks/exhaustive-deps
+  const g = guestUi(dto, tx.guests);
 
   const leave = () => {
     if (router.canGoBack()) router.back();
@@ -170,14 +183,49 @@ export default function TxilladaScreen() {
       },
     ]);
   }
-  /** O anfitrião, na lista «A ver agora»: dizer olá ou expulsar. */
+  /** O anfitrião, na lista «A ver agora»: dizer olá, convidar para transmitir (0165) ou expulsar. */
   function viewerActions(u: FxPerson) {
     if (!host) return;
-    Alert.alert(`@${u.username}`, u.displayName, [
+    const act = viewerGuestAction(tx.guests, u.username);
+    const guest = act === 'invite'
+      ? [{ text: 'Convidar para transmitir 🎥', onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? `Convite enviado a @${u.username}`)) }]
+      : act === 'requested'
+        ? [{ text: 'Aceitar o pedido para entrar', onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? `@${u.username} entrou no ecrã`)) }]
+        : [];
+    Alert.alert(`@${u.username}`, act === 'invited' ? `${u.displayName} · convite enviado` : act === 'full' ? `${u.displayName} · já há 3 a transmitir` : u.displayName, [
       { text: 'Dizer olá 👋', onPress: () => fxs.helloTo(u.username) },
+      ...guest,
       { text: `Expulsar @${u.username}`, style: 'destructive', onPress: () => confirmBan(u.username) },
       { text: 'Cancelar', style: 'cancel' },
     ]);
+  }
+  /** Quem vê: pedir para entrar, ou desistir do pedido. */
+  function askJoin() {
+    if (g.waiting) {
+      Alert.alert('Desistir do pedido?', 'O anfitrião deixa de ver o teu pedido para entrar.', [
+        { text: 'Continuar à espera', style: 'cancel' },
+        { text: 'Desistir', style: 'destructive', onPress: () => void tx.leaveStage().then((e) => say(e ?? 'Desististe do pedido')) },
+      ]);
+      return;
+    }
+    void tx.requestJoin().then((e) => say(e ?? 'Pedido enviado: o anfitrião vai ver que queres entrar'));
+  }
+  /** O convidado deixa de transmitir (continua a ver). */
+  function confirmLeaveStage() {
+    Alert.alert('Sair do ecrã?', 'A tua câmara e o microfone desligam-se; continuas a ver a Txillada.', [
+      { text: 'Ficar', style: 'cancel' },
+      { text: 'Sair do ecrã', style: 'destructive', onPress: () => void tx.leaveStage().then((e) => say(e ?? 'Saíste do ecrã')) },
+    ]);
+  }
+  async function acceptInvite() {
+    if (accepting) return;
+    setAccepting(true);
+    const e = await tx.acceptInvite();
+    setAccepting(false);
+    if (e) say(e);
+  }
+  function hostGuest(what: 'accept' | 'decline' | 'remove', username: string) {
+    void tx.hostGuest(what, username).then((e) => { if (e) say(e); });
   }
 
   // ── Os estados sem vídeo ───────────────────────────────────────────────────────────────────────────────────────────
@@ -213,13 +261,15 @@ export default function TxilladaScreen() {
   const menuC = menuId ? (live.comments.find((c) => c.id === menuId) ?? (pinned?.id === menuId ? pinned : null)) : null;
   const menuItems = menuC ? commentMenu(dto, menuC, tx.me, pinned?.id) : [];
   const floatH = Math.max(120, Math.min(320, Math.round(height * 0.32)));
-  const waiting = !tx.video;
+  const waiting = !tx.tiles[0]?.track;
+  // A etiqueta dos quadrados de cima fica por baixo do cabeçalho (o anfitrião, «AO VIVO», os números).
+  const headerBottom = L.padTop + 84;
   const viewersCount = Math.max(live.viewers, fxs.viewersTotal);
 
   return (
     <View style={[st.screen, webFull]}>
       <KeepAwake />
-      <TxilladaVideo track={tx.video} mirror={host && tx.front} fit={host ? 'cover' : 'auto'} style={StyleSheet.absoluteFill} />
+      <TxilladaStage tiles={tx.tiles} w={width} h={height} headerBottom={headerBottom} wide={wide} />
       {waiting ? (
         <View style={[StyleSheet.absoluteFill, st.center, { gap: 12, paddingHorizontal: 24 }]} pointerEvents="none">
           <Avatar name={dto.host.displayName} username={dto.host.avatarUrl ? dto.host.username : undefined} size={84} />
@@ -254,6 +304,12 @@ export default function TxilladaScreen() {
               </Pressable>
             ) : (
               <>
+                {g.canRequest || g.waiting ? (
+                  <Pressable onPress={askJoin} style={({ pressed }) => [st.join, g.waiting && st.joinWaiting, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={g.waiting ? 'Pedido enviado: desistir' : 'Pedir para entrar'}>
+                    <Icon name={g.waiting ? 'clock' : 'user-plus'} size={15} color="#fff" strokeWidth={2.2} />
+                    <Text style={st.joinText} numberOfLines={1}>{g.waiting ? 'Pedido enviado' : 'Pedir para entrar'}</Text>
+                  </Pressable>
+                ) : null}
                 <GlassButton icon="more" label="Mais opções" onPress={() => setPanel('more')} />
                 <GlassButton icon="x" label="Sair da Txillada" onPress={leave} />
               </>
@@ -270,7 +326,7 @@ export default function TxilladaScreen() {
             ) : null}
           </View>
           {tx.conn === 'reconnecting' ? <Text style={st.weak}>A ligação está fraca… a voltar a ligar</Text> : null}
-          {host && !tx.mic ? (
+          {(host || g.onStage) && !tx.mic ? (
             <View style={st.muted} pointerEvents="none">
               <CallIcon name="mic-off" size={15} color="#fff" />
               <Text style={st.mutedText}>Microfone calado</Text>
@@ -279,7 +335,7 @@ export default function TxilladaScreen() {
         </View>
 
         {/* Os olás: «@rui: Olá 👋» por baixo dos números; a saudação do anfitrião em grande, ao centro. */}
-        <HelloStack items={fxs.hellos} top={L.padTop + (host && !tx.mic ? 124 : 88)} left={L.side} width={L.floatW} />
+        <HelloStack items={fxs.hellos} top={L.padTop + ((host || g.onStage) && !tx.mic ? 124 : 88)} left={L.side} width={L.floatW} />
 
         {tx.conn === 'failed' ? (
           <View style={st.failed}>
@@ -319,8 +375,23 @@ export default function TxilladaScreen() {
                     {tx.mic ? <Icon name="mic" size={20} color="#fff" strokeWidth={2.2} /> : <CallIcon name="mic-off" size={20} color="#fff" />}
                   </GlassButton>
                   <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void tx.flip()} />
+                  <View>
+                    <GlassButton icon="users" label={`Convidados${g.pending ? `: ${g.pending} pedidos para entrar` : ''}`} on={g.pending > 0} onPress={() => setPanel('guests')} />
+                    {g.pending ? <View style={st.count} pointerEvents="none"><Text style={st.countText}>{g.pending > 9 ? '9+' : g.pending}</Text></View> : null}
+                  </View>
                   <View style={{ flex: 1 }} />
                   <HelloAllButton onPress={() => react('hello')} />
+                </>
+              ) : g.onStage ? (
+                <>
+                  <GlassButton label={tx.mic ? 'Calar o microfone' : 'Ligar o microfone'} on={!tx.mic} onPress={() => void tx.toggleMic()}>
+                    {tx.mic ? <Icon name="mic" size={20} color="#fff" strokeWidth={2.2} /> : <CallIcon name="mic-off" size={20} color="#fff" />}
+                  </GlassButton>
+                  <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void tx.flip()} />
+                  <Pressable onPress={confirmLeaveStage} style={({ pressed }) => [st.leaveStage, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel="Sair do ecrã (continuar a ver)">
+                    <Text style={st.leaveStageText}>Sair do ecrã</Text>
+                  </Pressable>
+                  <View style={{ flex: 1 }} />
                 </>
               ) : (
                 <>
@@ -373,6 +444,8 @@ export default function TxilladaScreen() {
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`Txillada de ${dto.host.username}`} onClose={() => setPanel(null)}>
             <Pressable onPress={() => { setPanel(null); void share(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Partilhar</Text></Pressable>
+            {g.canRequest || g.waiting ? <Pressable onPress={() => { setPanel(null); askJoin(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'}</Text></Pressable> : null}
+            {g.onStage ? <Pressable onPress={() => { setPanel(null); confirmLeaveStage(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Sair do ecrã</Text></Pressable> : null}
             {ui.canReport ? <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: colors.red600, fontWeight: '600' }]}>Denunciar a Txillada</Text></Pressable> : null}
             <Pressable onPress={() => { setPanel(null); router.push(`/u/${dto.host.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil (para bloquear)</Text></Pressable>
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
@@ -386,6 +459,20 @@ export default function TxilladaScreen() {
           </Panel>
         </View>
       ) : null}
+      {panel === 'guests' ? (
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
+          <Panel title="Convidados" onClose={() => setPanel(null)}>
+            <GuestsPanel
+              s={tx.guests}
+              onAccept={(u) => hostGuest('accept', u)}
+              onDecline={(u) => hostGuest('decline', u)}
+              onRemove={(u) => hostGuest('remove', u)}
+              onOpenViewers={() => { fxs.refreshViewers(); setPanel('viewers'); }}
+            />
+          </Panel>
+        </View>
+      ) : null}
+      {g.invited && panel === null ? <InviteCard inviter={tx.guests.inviter ?? dto.host} busy={accepting} onAccept={() => void acceptInvite()} onDecline={() => void tx.leaveStage().then((e) => say(e ?? 'Recusaste o convite'))} /> : null}
       {panel === 'report' ? <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none"><ReportSheet type="txillada" id={dto.id} onClose={() => setPanel(null)} /></View> : null}
       {menuC && menuItems.length ? (
         <CommentMenu
@@ -453,6 +540,13 @@ const st = StyleSheet.create({
   send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   closed: { flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.72)' },
   barBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,14,18,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...glass },
+  join: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 34, paddingHorizontal: 11, borderRadius: 17, backgroundColor: colors.brand, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', flexShrink: 0 },
+  joinWaiting: { backgroundColor: 'rgba(14,14,18,0.55)', borderColor: 'rgba(255,154,91,0.55)', ...glass },
+  joinText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  count: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  countText: { color: colors.brand, fontSize: 11, fontWeight: '900' },
+  leaveStage: { height: 40, paddingHorizontal: 14, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,14,18,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', ...glass },
+  leaveStageText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   /** Os painéis (Mais, A ver agora) por cima de tudo, também da barra de baixo. */
   over: { zIndex: 20, elevation: 20 },
   menuRow: { paddingVertical: 14, alignItems: 'center' },

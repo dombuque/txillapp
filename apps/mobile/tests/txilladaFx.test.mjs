@@ -157,7 +157,9 @@ test('o ecrã da Txillada: fixo à janela no site (100dvh), vídeo de ponta a po
   const s = read('src/app/txillada/[id].tsx');
   assert.match(s, /height: '100dvh'/);
   assert.match(s, /position: 'fixed'/);
-  assert.match(s, /<TxilladaVideo track=\{tx\.video\} mirror=\{host && tx\.front\} fit=\{host \? 'cover' : 'auto'\} style=\{StyleSheet\.absoluteFill\} \/>/);
+  // Com uma pessoa, o vídeo de ponta a ponta (com convidados, 0165, o ecrã reparte-se: components/txillada/TxilladaGuests).
+  assert.match(s, /<TxilladaStage tiles=\{tx\.tiles\} w=\{width\} h=\{height\}/);
+  assert.match(read('src/components/txillada/TxilladaGuests.tsx'), /<TxilladaVideo track=\{t\?\.track \?\? null\} mirror=\{!!t\?\.mirror\} fit=\{t\?\.local \? 'cover' : 'auto'\} style=\{StyleSheet\.absoluteFill\} \/>/);
   assert.doesNotMatch(s, /storyFrame/);
   assert.match(s, /<ReactionBar onReact=\{react\} \/>/);
   assert.match(s, /<HelloAllButton /);

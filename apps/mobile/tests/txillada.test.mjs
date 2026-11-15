@@ -108,7 +108,7 @@ test('o canal da app entrega os txillada.* ao ecrã da Txillada e não mexe no c
     assert.deepEqual(se.planChatEvent({ type }), { notify: false, keys: [] }, type);
   }
   const room = read('src/lib/txilladaRoom.ts');
-  assert.match(room, /onTxilladaEvent\(\(raw\) => \{\n\s+const ev = parseTxilladaEvent\(raw, id\);/);
+  assert.match(room, /onTxilladaEvent\(\(raw\) => \{[\s\S]{0,500}?const ev = parseTxilladaEvent\(raw, id\);/);
 });
 
 // ── estado do live ───────────────────────────────────────────────────────────────────────────────────────────────────

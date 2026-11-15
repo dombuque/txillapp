@@ -11,6 +11,8 @@
  * - A Txillada não se grava: quando acaba, já não se pode ver (`viewKind` dá 'ended').
  */
 
+import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
+
 export type TxilladaAudience = 'everyone' | 'followers' | 'close';
 export type TxilladaStatus = 'live' | 'ended' | 'cut';
 export type TxilladaTier = 'verified' | 'official' | 'paid' | null;
@@ -33,6 +35,12 @@ export interface TxilladaDto {
   canComment: boolean;
   /** O comentário fixado pelo anfitrião, como eu o vejo (0162; servidores antigos não mandam: fica o que se sabe). */
   pinned?: TxilladaComment | null;
+  /** Quem transmite com o anfitrião (0165, até 3), por ordem de entrada, como eu os vejo; o meu lugar; e, só para o anfitrião, os pedidos e os convites à espera (lib/txilladaGuests). */
+  guests?: TxilladaGuest[];
+  guestsMax?: number;
+  guestState?: GuestState;
+  requests?: GuestPending[];
+  invites?: GuestPending[];
 }
 
 /** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). */
