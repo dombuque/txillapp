@@ -5,6 +5,14 @@ Txillapp só dá os acessos (tokens LiveKit assinados), guarda o estado, os come
 em tempo real pelo canal que a app já usa (chat/realtime — `RealtimeBus.publish(userId, evento)` e o transporte do
 chat).
 
+## Nada fica guardado
+
+**A Txillada não se grava.** O vídeo só passa pelo LiveKit ao vivo; não há gravação, nem replay, nem «guardar como
+tcheka». Quando acaba, já não se pode ver (o `GET /txilladas/:id` de uma acabada responde com o estado 'ended'/'cut' e a
+app mostra «A Txillada acabou»). Os comentários e os brindes de uma Txillada acabada apagam-se **7 dias** depois do fim
+(um job do Scheduler), menos os comentários ligados a uma denúncia por decidir, que ficam até à decisão. A linha da
+Txillada (título, horas, números) fica só como registo para o anfitrião e a moderação, e sai com a conta.
+
 ## Configuração
 
 `.env` da API: `LIVEKIT_URL` (ex. `wss://live.txillapp.com`), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Sem eles, as rotas
