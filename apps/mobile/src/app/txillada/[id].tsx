@@ -333,7 +333,7 @@ export default function TxilladaScreen() {
       </View>
 
       {panel === 'more' ? (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`Txillada de ${dto.host.username}`} onClose={() => setPanel(null)}>
             <Pressable onPress={() => { setPanel(null); void share(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Partilhar</Text></Pressable>
             {ui.canReport ? <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: colors.red600, fontWeight: '600' }]}>Denunciar a Txillada</Text></Pressable> : null}
@@ -343,13 +343,13 @@ export default function TxilladaScreen() {
         </View>
       ) : null}
       {panel === 'viewers' ? (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`A ver agora · ${viewersCount}`} onClose={() => setPanel(null)}>
             <ViewersList items={fxs.viewers} onOpen={host ? viewerActions : undefined} />
           </Panel>
         </View>
       ) : null}
-      {panel === 'report' ? <ReportSheet type="txillada" id={dto.id} onClose={() => setPanel(null)} /> : null}
+      {panel === 'report' ? <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none"><ReportSheet type="txillada" id={dto.id} onClose={() => setPanel(null)} /></View> : null}
     </View>
   );
 }
@@ -399,6 +399,8 @@ const st = StyleSheet.create({
   send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   closed: { flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.72)' },
   barBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,14,18,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...glass },
+  /** Os painéis (Mais, A ver agora) por cima de tudo, também da barra de baixo. */
+  over: { zIndex: 20, elevation: 20 },
   menuRow: { paddingVertical: 14, alignItems: 'center' },
   menuText: { fontSize: 18, color: colors.zinc900 },
 });
