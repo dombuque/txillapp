@@ -157,6 +157,13 @@ export async function addVideoTrack(pc: PeerLike, local: unknown, front: boolean
   const m = rtc();
   if (!m) return;
   const s = local as NStream;
+  // Numa chamada que começou só com voz a câmara ainda não foi pedida: pede-se antes do getUserMedia (no Android o pedido
+  // do próprio WebRTC fica numa fila e pode não responder).
+  if (Platform.OS === 'android') {
+    const ok = await askAndroid(PermissionsAndroid.PERMISSIONS.CAMERA);
+    if (ok === 'blocked') throw new Error('A câmara está bloqueada para o Txillapp. Ativa-a nas Definições do telemóvel > Apps > Txillapp > Permissões.');
+    if (ok !== 'granted') throw new Error('Sem acesso à câmara. Dá permissão ao Txillapp para mudares para vídeo.');
+  }
   const cam = await m.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(front) });
   const track = cam.getVideoTracks()[0];
   if (!track) return;

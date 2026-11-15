@@ -395,7 +395,8 @@ function VoiceCall({ c }: { c: CallState }) {
         <Text style={st.timer}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
         <PeerMuted c={c} />
       </View>
-      <Controls c={c} camera={false} />
+      {/* Na chamada de voz também se liga a câmara: passa a videochamada (o WebRTC renegoceia e o outro lado vê o vídeo). */}
+      <Controls c={c} camera={c.phase === 'active'} />
     </View>
   );
 }
