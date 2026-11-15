@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -42,13 +42,29 @@ export function downloadVersion(p: { sourceId: string; sourceSize: number; label
 }
 
 /**
+ * Os outros podem guardar as tchekas desta conta? A definição «Deixar guardar as minhas tchekas» (0153), uma conta pública e
+ * de um adulto (18+; sem data de nascimento conta como menor). Em SQL, com `u` = o autor; dá NULL sem data de nascimento
+ * (use-se com `IS TRUE`). O próprio autor pode sempre guardar as suas (isso fica de fora daqui).
+ */
+export const DOWNLOADS_ALLOWED = (u = 'u') =>
+  `(${u}.allow_downloads AND NOT ${u}.is_private AND ${u}.birth_date <= (current_date - interval '18 years'))`;
+
+/** O `canDownload` de cada publicação (FEED_SQL, com $1 = quem vê e `p`/`u` = a publicação e o autor). */
+export const CAN_DOWNLOAD_SQL = (p = 'p', u = 'u') => `((${p}.author_id = $1 OR ${DOWNLOADS_ALLOWED(u)}) IS TRUE)`;
+
+/** A resposta (403) quando quem publicou não deixa guardar (a definição, uma conta privada ou de um menor: não se diz qual). */
+export const DOWNLOAD_BLOCKED = 'Quem publicou não deixa guardar as suas tchekas.';
+
+/**
  * Guardar ou partilhar uma tcheka (`GET /posts/:id/download`), como o fim das do TikTok: o vídeo com a assinatura do canto
  * (o logótipo e o @, se o vídeo ainda não a tiver) e, no fim, o cartão do Txillapp (media/end-card.ts) com o logótipo
  * animado e o @ de quem publicou. Com a música gravada (posts/music-bake.ts): se ainda estiver na fila, faz-se antes.
  *
- * Quem pode: quem pode ver a publicação (as regras de sempre: conta ativa, sem bloqueio, pública ou seguida; o autor sempre).
- * Não há definição para desligar as cópias (como nos mimos: o vídeo vai assinado). Só publicações com um vídeo (as tchekas e
- * o primeiro vídeo de um carrossel); um repost guarda o original.
+ * Quem pode: o autor, sempre; os outros, se podem ver a publicação (as regras de sempre: conta ativa, sem bloqueio, pública
+ * ou seguida) e o autor deixa (DOWNLOADS_ALLOWED: «Deixar guardar as minhas tchekas», ligado por omissão; nunca numa conta
+ * privada ou de um menor). Senão 403 (DOWNLOAD_BLOCKED). Num post de um sítio conta a conta de quem o publicou. Só
+ * publicações com um vídeo (as tchekas e o primeiro vídeo de um carrossel); um repost guarda o original, com a regra do autor
+ * do original. A definição vê-se e muda-se em `GET/PUT /posts/me/download-settings` (settings/setSettings).
  *
  * A cópia faz-se uma vez por versão (downloadVersion) e fica em content.post_downloads (ficheiro privado que expira em
  * KEEP_DAYS); as vezes seguintes saem logo.
@@ -111,7 +127,7 @@ export class PostDownloadService {
                   (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                     WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%' AND ma.status = 'ready' AND ma.purpose = 'public' ORDER BY pm.position LIMIT 1) AS media_id,
                   pmb.status AS bake_status, CASE WHEN ${BAKE_PLAYABLE('p')} THEN pmb.media_id END AS bake_media, pmb.source_media_id AS bake_source,
-                  ${POST_SOUND_REMOVED_SQL('p')} AS sound_removed
+                  ${POST_SOUND_REMOVED_SQL('p')} AS sound_removed, ${CAN_DOWNLOAD_SQL('p', 'u')} AS can_download
              FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
              LEFT JOIN content.venues v ON v.id = p.venue_id
              LEFT JOIN content.post_music_bakes pmb ON pmb.post_id = p.id
@@ -123,6 +139,8 @@ export class PostDownloadService {
     if (r?.kind === 'repost' && r.repost_of && !r.media_id) r = await q(r.repost_of as string);
     if (!r) throw new NotFoundException('Publicação não encontrada');
     if (!r.media_id) throw new UnprocessableEntityException('Esta publicação não tem vídeo para guardar');
+    // Quem publicou (o do original, num repost) desligou, ou a conta é privada ou de um menor: só ele guarda.
+    if (r.can_download !== true) throw new ForbiddenException(DOWNLOAD_BLOCKED);
     // O vídeo com a música é o do primeiro vídeo da publicação.
     if (r.bake_media && r.bake_source !== r.media_id) r.bake_media = null;
     const ids = [r.media_id, r.bake_media].filter(Boolean);
@@ -131,6 +149,26 @@ export class PostDownloadService {
     r.signed = meta.get(r.media_id)?.signed ?? false;
     r.bake_size = r.bake_media ? meta.get(r.bake_media)?.size_bytes ?? 0 : 0;
     return r;
+  }
+
+  /**
+   * «Deixar guardar as minhas tchekas»: `allow` é o que a pessoa escolheu; `effective` é o que vale (conta privada ou de
+   * menor: desligado), como em «Deixar usar o meu som» (SoundsService.settings).
+   */
+  async settings(userId: string) {
+    const r = (
+      await this.pool.query(
+        `SELECT allow_downloads, is_private, (birth_date <= (current_date - interval '18 years')) AS adult FROM identity.users WHERE id = $1`,
+        [userId],
+      )
+    ).rows[0];
+    if (!r) throw new NotFoundException();
+    return { allow: !!r.allow_downloads, effective: !!r.allow_downloads && !r.is_private && !!r.adult, private: !!r.is_private, minor: !r.adult };
+  }
+
+  async setSettings(userId: string, allow: boolean) {
+    await this.pool.query('UPDATE identity.users SET allow_downloads = $2 WHERE id = $1', [userId, allow]);
+    return this.settings(userId);
   }
 
   private async cached(postId: string, version: string): Promise<string | null> {

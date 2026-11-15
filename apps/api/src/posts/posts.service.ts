@@ -24,6 +24,7 @@ import { buildSnapshot, geleiraDto, itemCheers, readSnapshot, type GeleiraPostDt
 import { postGeladas } from '../gelada/gelada-cards';
 import { BAKE_COLS, BAKE_JOIN, bakedMediaId, musicBakedOf } from './music-bake';
 import { MusicBakeService } from './music-bake.service';
+import { CAN_DOWNLOAD_SQL } from './post-download.service';
 
 export const MAX_PHOTOS = 10;
 
@@ -78,6 +79,8 @@ const FEED_SQL = `
          p.geleira, CASE WHEN p.geleira IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM identity.users va WHERE va.id = $1 AND va.birth_date <= (current_date - interval '18 years')) END AS viewer_adult,
          -- «Paga-me uma» publicado (0145): a bebida e quantas pessoas foram identificadas (cada uma em taste.gelada_requests).
          p.gelada,
+         -- «Deixar guardar as minhas tchekas» (0153): quem vê pode guardar o vídeo (só colunas do autor, sem subconsultas).
+         ${CAN_DOWNLOAD_SQL('p', 'u')} AS can_download,
          (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes,
          -- A música gravada no vídeo (0152, posts/music-bake.ts): o vídeo com ela, enquanto se puder ouvir.
          ${BAKE_COLS('p')}
@@ -512,7 +515,10 @@ export class PostsService implements OnModuleInit {
       .map((r) => {
         const l1 = r.repost_of ? first.get(r.repost_of)! : null;
         const inner = l1?.repost_of ? { ...dto(second.get(l1.repost_of)!), repostOf: null } : null;
-        return { ...dto(r), repostOf: l1 ? { ...dto(l1), repostOf: inner } : null };
+        const own = dto(r);
+        // Um repost sem vídeo próprio guarda o original (PostDownloadService): vale a regra do autor do original.
+        const viaOriginal = !!l1 && r.kind === 'repost' && !own.media.some((m) => m.kind === 'video');
+        return { ...own, ...(viaOriginal ? { canDownload: l1.can_download === true } : {}), repostOf: l1 ? { ...dto(l1), repostOf: inner } : null };
       });
   }
 
@@ -1145,6 +1151,12 @@ export class PostsService implements OnModuleInit {
      * cima. A `music` fica para o crédito e o «Usar este som».
      */
     musicBaked: musicBakedOf(r),
+    /**
+     * Quem vê pode guardar o vídeo (`GET /posts/:id/download`): o autor sempre; os outros, se ele deixa («Deixar guardar as
+     * minhas tchekas») e a conta é pública e de um adulto. Num repost sem vídeo, a regra do autor do original. Só a
+     * permissão: se há vídeo para guardar vê-se pelos `media`.
+     */
+    canDownload: r.can_download === true,
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
       // O vídeo com a música gravada, quando está pronto (a capa continua a do original).
       url: `/api/v1/media/${m.video ? bakedMediaId(m.id, r) : m.id}`,
