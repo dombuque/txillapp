@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -23,6 +24,7 @@ type Action = 'wa' | 'share' | 'save';
 
 /** Convida a tua malta: o progresso de quem entrou, o cartão do convite (feito no aparelho), o código e a ligação. */
 export default function Invites() {
+  const router = useRouter();
   const q = useQuery({ queryKey: ['invites'], queryFn: api.invites, staleTime: 30_000 });
   const [copied, setCopied] = useState(false);
   const [format, setFormat] = useState<CardFormat>('post');
@@ -145,7 +147,15 @@ export default function Invites() {
   const ratio = CARD_SIZE[format].width / CARD_SIZE[format].height;
 
   return (
-    <StackPage title="Convida a tua malta">
+    <StackPage
+      title="Convida a tua malta"
+      right={
+        // Alguém mostrou o QR do perfil (ou mandou-o como imagem): lê-se daqui.
+        <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR">
+          <Icon name="qr-scan" size={24} />
+        </Pressable>
+      }
+    >
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {q.isLoading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.brand} />}
         {q.isError && <Empty icon="user-plus" title="Não consegui abrir os convites." />}

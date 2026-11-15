@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -109,6 +110,11 @@ export function ProfileQrSheet({ username, displayName, invite = false, onClose 
       busy.current = false;
     }
   }
+  const router = useRouter();
+  function openReader() {
+    onClose();
+    router.push('/qr' as never);
+  }
   async function copy() {
     try {
       await Clipboard.setStringAsync(url);
@@ -138,6 +144,11 @@ export function ProfileQrSheet({ username, displayName, invite = false, onClose 
             <Icon name="link" size={18} />
             <Text style={st.btnText}>Copiar</Text>
           </Pressable>
+          {/* Ler o QR de outra pessoa (pela câmara ou de uma imagem/captura de ecrã guardada no telemóvel). */}
+          <Pressable onPress={openReader} accessibilityRole="button" accessibilityLabel="Ler um QR" accessibilityHint="Com a câmara ou de uma imagem da galeria" style={st.btn}>
+            <Icon name="qr-scan" size={18} />
+            <Text style={st.btnText}>Ler um QR</Text>
+          </Pressable>
         </View>
         <Text accessibilityLiveRegion="polite" style={st.note}>{note}</Text>
       </View>
@@ -150,7 +161,8 @@ const st = StyleSheet.create({
   user: { marginTop: 12, fontSize: 20, lineHeight: 28, fontWeight: '800', color: colors.zinc900 },
   brand: { marginTop: 6, alignItems: 'center' },
   hint: { marginTop: 12, textAlign: 'center', fontSize: 14, lineHeight: 20, color: colors.zinc600 },
-  btn: { flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 12 },
-  btnText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  // Três lado a lado: o ícone por cima do nome, para caberem num telemóvel estreito.
+  btn: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: colors.zinc100, paddingHorizontal: 6, paddingVertical: 8 },
+  btnText: { fontSize: 14, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   note: { marginTop: 8, minHeight: 20, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc700 },
 });
