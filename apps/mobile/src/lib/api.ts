@@ -66,6 +66,11 @@ export interface Post {
    * por cima (lib/musicLook, musicPlayback). Servidores antigos não mandam: a música toca à parte, como antes.
    */
   musicBaked?: boolean;
+  /**
+   * Quem vê pode guardar o vídeo (GET /posts/:id/download): o autor sempre; os outros se ele deixa («Deixar guardar as minhas
+   * tchekas»; numa conta privada ou de menor nunca). Servidores antigos e posts em cache não mandam: a opção aparece.
+   */
+  canDownload?: boolean;
   /** O dono deixa fazer dueto (tchekas) e responder com tcheka aos comentários. */
   canRemix?: boolean;
   /** Quantos duetos e respostas com tcheka tem. */

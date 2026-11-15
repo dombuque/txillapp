@@ -10,8 +10,9 @@ import { ApiError } from '@/lib/api';
 import { soundsApi } from '@/lib/api.sounds';
 import { settingsApi, type GeleiraSettings } from '@/lib/api.settings';
 import { reuseSetting } from '@/lib/sounds';
+import { downloadSetting } from '@/lib/tchekaDownload';
 
-/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as tchekas (duetos e o teu som), as estatísticas, o teu local e os convites. */
+/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as tchekas (duetos, o teu som e guardá-las), as estatísticas, o teu local e os convites. */
 export default function ContentSettings() {
   const [contacts, setContacts] = useState(false);
   const qc = useQueryClient();
@@ -28,6 +29,19 @@ export default function ContentSettings() {
       qc.setQueryData(['sounds', 'settings'], await soundsApi.setSettings(on));
     } catch (e) {
       qc.setQueryData(['sounds', 'settings'], before);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
+  // «Deixar guardar as minhas tchekas» (0153): ligado por omissão; numa conta privada (ou de menor) fica desligado e bloqueado.
+  const dl = useQuery({ queryKey: ['downloads', 'settings'], queryFn: settingsApi.downloadSettings, retry: false });
+  const dlRow = downloadSetting(dl.data);
+  async function setDownloads(on: boolean) {
+    const before = dl.data;
+    if (before) qc.setQueryData(['downloads', 'settings'], { ...before, allow: on, effective: on });
+    try {
+      qc.setQueryData(['downloads', 'settings'], await settingsApi.setDownloadSettings(on));
+    } catch (e) {
+      qc.setQueryData(['downloads', 'settings'], before);
       Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
@@ -74,6 +88,9 @@ export default function ContentSettings() {
         ) : null}
         {sounds.data ? (
           <SettingRow anchor="soundReuse" icon="music" title="Deixar usar o meu som" description={reuse.description} toggle={{ on: reuse.on, disabled: reuse.disabled, onChange: (v) => void setReuse(v) }} />
+        ) : null}
+        {dl.data ? (
+          <SettingRow anchor="allowDownloads" icon="download" title="Deixar guardar as minhas tchekas" description={dlRow.description} toggle={{ on: dlRow.on, disabled: dlRow.disabled, onChange: (v) => void setDownloads(v) }} />
         ) : null}
         <SettingRow anchor="mySounds" icon="music" title="Os meus sons" description="Os sons das tuas tchekas e «Retirar o som», que o tira de todo o lado." to="/settings/sons" />
       </SettingsSection>
