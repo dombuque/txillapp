@@ -1,0 +1,47 @@
+name: txillapp-live
+x-logging: &logging
+  driver: json-file
+  options: { max-size: 10m, max-file: "5" }
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro"]
+    logging: *logging
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    network_mode: host
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    logging: *logging
+  coturn:
+    image: coturn/coturn:4.6.2
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --listening-port=3478
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=txillapp.com
+      - --min-port=49160
+      - --max-port=49200
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --total-quota=200
+      - --user-quota=6
+      - --max-bps=2500000
+      - --log-file=stdout
+    logging: *logging
+volumes:
+  caddy_data:
+  caddy_config:

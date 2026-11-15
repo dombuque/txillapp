@@ -1,0 +1,13 @@
+{
+  servers {
+    protocols h1 h2
+  }
+}
+
+live.txillapp.com {
+  header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+  respond /robots.txt "User-agent: *
+Disallow: /
+" 200
+  reverse_proxy 127.0.0.1:7880
+}

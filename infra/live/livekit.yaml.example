@@ -1,0 +1,26 @@
+port: 7880
+bind_addresses: [""]
+log_level: info
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+turn:
+  enabled: true
+  domain: live.txillapp.com
+  udp_port: 443
+  relay_range_start: 30000
+  relay_range_end: 40000
+keys:
+  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+webhook:
+  api_key: ${LIVEKIT_API_KEY}
+  urls:
+    - https://txillapp.com/api/v1/txilladas/livekit-webhook
+room:
+  auto_create: true
+  empty_timeout: 60
+  departure_timeout: 20
+limit:
+  num_tracks: 0
