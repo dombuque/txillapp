@@ -10,12 +10,15 @@ import { useOwnSeen } from '@/lib/ownSeen';
 import { seenSegments } from '@/lib/ownStorySeen';
 import { Avatar, avatarUri, useAvatarVersion } from './Avatar';
 import { Ring } from './StoryRing';
+import { LiveRing } from './txillada/TxilladaParts';
+import { useTxilladaEnabled } from '@/lib/api.txillada';
 
 /**
  * Foto do perfil com story: anel a cores/cinzento/verde e, ao tocar, abre o story (o servidor só devolve se eu puder ver).
  * Toque longo: foto em grande, nítida (1080), com zoom de dois dedos e duplo toque; um toque a 1× fecha. Como no site.
+ * Ao vivo (`liveId`, a Txillada a decorrer): a roda coral «AO VIVO» e tocar entra no live.
  */
-export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96 }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number }) {
+export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96, liveId }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number; liveId?: string | null }) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [show, setShow] = useState(false);
@@ -25,6 +28,8 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   const list = q.data ?? [];
   const avatarName = displayName || username;
   const avatarV = useAvatarVersion();
+  const txilladaOn = useTxilladaEnabled();
+  const live = txilladaOn && !isMe ? liveId ?? null : null;
 
   const longPress = hasAvatar ? () => { held.current = true; setShow(true); } : undefined;
   const big = Math.min(width * 0.8, 420);
@@ -46,6 +51,27 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
     </Modal>
   );
 
+  const box = size + 12;
+  if (live) {
+    return (
+      <>
+        <Pressable
+          onPress={() => { if (held.current) { held.current = false; return; } router.push(`/txillada/${live}` as never); }}
+          onLongPress={longPress}
+          delayLongPress={400}
+          accessibilityRole="button"
+          accessibilityLabel={`${avatarName} está ao vivo: ver a Txillada`}
+          style={{ width: box, height: box }}
+        >
+          <View style={{ position: 'absolute', left: (box - 72) / 2, top: (box - 72) / 2, width: 72, height: 72, transform: [{ scale: box / 72 }] }}>
+            <LiveRing><Avatar name={avatarName} username={hasAvatar ? username : undefined} size={56} /></LiveRing>
+          </View>
+        </Pressable>
+        {preview}
+      </>
+    );
+  }
+
   if (list.length === 0) {
     return (
       <>
@@ -59,7 +85,6 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
 
   const seenCount = seenSegments(list, isMe, ownSeenAt);
   const green = list.every((x) => x.audience === 'close_friends');
-  const box = size + 12;
   return (
     <>
       <Pressable

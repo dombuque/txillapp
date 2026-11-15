@@ -1978,8 +1978,9 @@ const st = StyleSheet.create({
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 10 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
-  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
-  kindChip: { height: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  // Cinco modos (com a TXILLADA) cabem num telemóvel de 390 px sem rolar.
+  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 0, paddingHorizontal: 4 },
+  kindChip: { height: 44, paddingHorizontal: 9, alignItems: 'center', justifyContent: 'center', gap: 4 },
   kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
   galleryThumb: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.38)' },
   segBar: { position: 'absolute', left: 10, right: 10, height: 5, zIndex: 7, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden' },

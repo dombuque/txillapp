@@ -114,8 +114,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para as publicações, mimos, tchekas, Zás e mensagens, para as videochamadas e para a selfie da verificação da conta.",
-          "microphonePermission": "O Txillapp usa o microfone para gravares o som dos vídeos, as notas de voz e os teus clipes de música, e para falares nas chamadas.",
+          "cameraPermission": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para as publicações, mimos, tchekas, Zás e mensagens, para as videochamadas, para transmitires em direto nas Txilladas e para a selfie da verificação da conta.",
+          "microphonePermission": "O Txillapp usa o microfone para gravares o som dos vídeos, as notas de voz e os teus clipes de música, e para falares nas chamadas e nas Txilladas (em direto).",
           "recordAudioAndroid": true
         }
       ],
@@ -185,6 +185,14 @@
       "./plugins/withAndroidUploadSigning",
       "./plugins/withoutUnusedServices",
       "./plugins/withCallService",
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "communication"
+          }
+        }
+      ],
       "expo-sharing"
     ],
     "experiments": {

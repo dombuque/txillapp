@@ -121,14 +121,16 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'remix'
   // Direitos (0140): um som meu suspenso, retirado ou reposto (data.soundId, data.decision, data.reason, data.note); o autor
   // da tcheka original retirou o meu dueto (data.postId = o dueto).
-  | 'sound_review' | 'remix_takedown';
+  | 'sound_review' | 'remix_takedown'
+  // Txillada (o live): alguém que sigo abriu uma (data.txilladaId, data.title). No máximo uma por anfitrião por hora.
+  | 'txillada_live';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed' };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
@@ -248,6 +250,8 @@ export interface Profile {
   pendingRequests: number;
   activeStories: number;
   counts: { posts: number; followers: number; following: number };
+  /** Txillada (o live) a decorrer: a roda da foto fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */
+  live?: { id: string } | null;
 }
 export interface SearchResults {
   query: string;
@@ -372,7 +376,7 @@ export interface Story {
   stickers?: import('./stickers').MimoLayer[];
 }
 export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
-export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
+export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {

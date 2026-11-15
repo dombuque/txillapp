@@ -29,6 +29,7 @@ import { timeAgo } from '@/lib/time';
 import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
+import { noticeTarget as txilladaNoticeTarget, noticeText as txilladaNoticeText } from '@/lib/txillada';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -124,6 +125,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_tag':
     case 'gelada_answer':
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
+    // Txillada (o live): «@x abriu uma Txillada: <título>».
+    case 'txillada_live': return { text: txilladaNoticeText(n.data) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -162,6 +165,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'gelada_tag':
     case 'gelada_answer':
     case 'gelada_paid': return geladaNoticeTarget(n.kind, n.data);
+    // Entra na Txillada (se já acabou, o ecrã diz «A Txillada acabou»).
+    case 'txillada_live': return txilladaNoticeTarget(n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':

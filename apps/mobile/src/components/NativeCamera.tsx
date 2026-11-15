@@ -1225,8 +1225,9 @@ const st = StyleSheet.create({
   problemTitle: { marginTop: 10, color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
   problemBody: { marginTop: 6, color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 20, textAlign: 'center' },
   modes: { position: 'absolute', left: 0, right: 0, zIndex: 4, justifyContent: 'center' },
-  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingHorizontal: 12 },
-  kindPill: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 4, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  // Cinco modos (com a TXILLADA) cabem num telemóvel de 390 pt sem rolar.
+  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 0, paddingHorizontal: 4 },
+  kindPill: { minHeight: 44, paddingHorizontal: 9, paddingVertical: 4, alignItems: 'center', justifyContent: 'center', gap: 4 },
   kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   kindOn: { color: '#fff' },

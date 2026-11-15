@@ -41,7 +41,7 @@ export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { 
         const c = pool[e.index];
         if (!c) return null;
         return (
-          <Bubble
+          <FloatBubble
             key={e.key}
             c={c}
             y={offsets[e.key] ?? 0}
@@ -57,7 +57,14 @@ export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { 
   );
 }
 
-function Bubble({ c, y, age, leaving, reduce, onPress, onHeight }: { c: StoryComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress: () => void; onHeight: (h: number) => void }) {
+/** O que um balão precisa de um comentário (o dos mimos e o da Txillada). */
+export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean }; body: string };
+
+/**
+ * Um balão de vidro com a roda da foto de quem comentou (também os da Txillada, components/txillada/LiveFloatComments).
+ * `label`: o que o leitor de ecrã diz ao tocar; `onLongPress`: o toque longo (na Txillada, apagar e expulsar).
+ */
+export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onHeight, label = 'Abrir os comentários' }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onHeight: (h: number) => void; label?: string }) {
   const ty = useSharedValue(reduce ? -y : 22);
   const scale = useSharedValue(reduce ? 1 : 0.9);
   const op = useSharedValue(0);
@@ -74,7 +81,7 @@ function Bubble({ c, y, age, leaving, reduce, onPress, onHeight }: { c: StoryCom
   const text = floatText(c.body);
   return (
     <Animated.View style={[st.bubbleWrap, anim]} pointerEvents={leaving ? 'none' : 'box-none'} onLayout={(ev) => onHeight(Math.round(ev.nativeEvent.layout.height))}>
-      <Pressable onPress={onPress} style={st.row} accessibilityRole="button" accessibilityLabel={`Comentário de ${c.author.username}: ${text}. Abrir os comentários`}>
+      <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={400} style={st.row} accessibilityRole="button" accessibilityLabel={`Comentário de ${c.author.username}: ${text}${label ? `. ${label}` : ''}`}>
         <View style={st.ring}>
           <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={26} />
         </View>

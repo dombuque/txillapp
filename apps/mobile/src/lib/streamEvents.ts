@@ -66,6 +66,8 @@ export function mixarEventKeys(e: StreamChatEvent): QueryKey[] {
 /** O que fazer com um evento de chat (não 'call' nem 'group': esses têm o seu caminho em realtime.ts). */
 export function planChatEvent(e: StreamChatEvent): EventPlan {
   if (e.type === 'ping') return { notify: false, keys: [] };
+  // Txillada (o live): só o ecrã dela os ouve (realtime.ts → onTxilladaEvent); nada do chat muda, nem há som ou aviso.
+  if (e.type.startsWith('txillada.')) return { notify: false, keys: [] };
   // Zás novo (ou apagado) de alguém que posso ver, ou o eco de um meu noutro aparelho: só a faixa dos Zás se põe em dia
   // (sem som, sem aviso, sem mexer nas conversas).
   if (e.type === 'zas') return { notify: false, keys: ZAS_KEYS };
