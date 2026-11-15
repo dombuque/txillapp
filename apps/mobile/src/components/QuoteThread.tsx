@@ -106,7 +106,8 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
 
   return (
     <Pressable
-      onPress={() => onOpen?.(original)}
+      // Um toque abre a original; dois toques seguidos brindam o repost (como no resto do cartão).
+      onPress={() => tap(() => onOpen?.(original))}
       disabled={!live}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
       accessibilityRole={live ? 'link' : 'text'}

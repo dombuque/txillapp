@@ -25,3 +25,10 @@ test('o texto por baixo diz quem pediu', () => {
   assert.equal(fn(['ana']), 'Aprovar ou recusar · @ana');
   assert.equal(fn(['ana', 'rui', 'zé']), 'Aprovar ou recusar · @ana e mais 2');
 });
+
+test('repost com comentário: dois toques na original citada brindam o repost; um toque abre a original', () => {
+  const q = readFileSync(path.join(ROOT, 'src', 'components', 'QuoteThread.tsx'), 'utf8');
+  assert.match(q, /onPress=\{\(\) => tap\(\(\) => onOpen\?\.\(original\)\)\}/);
+  const card = readFileSync(path.join(ROOT, 'src', 'components', 'PostCard.tsx'), 'utf8');
+  assert.match(card, /<QuotedOriginal [^\n]*onDouble=\{\(\) => void brindar\(\)\}/);
+});
