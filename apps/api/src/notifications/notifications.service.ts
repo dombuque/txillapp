@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Pool, type PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
+import { MediaService } from '../media/media.service';
 import { PushService, type NotifyCategory } from '../push/push.service';
 import { allowedBy, blockedBetween, canView } from '../social/visibility';
 import { badge, type Badge } from '../common/badge';
@@ -54,7 +56,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'gelada_tag' | 'gelada_answer' | 'gelada_paid'
   // Txillada (0158): alguém que sigo abriu uma Txillada (no máximo um aviso por anfitrião por hora). Ator = o anfitrião.
   // data: { txilladaId, title }. A lista junta `txillada: { status }` (para dizer logo se já acabou).
-  | 'txillada_live';
+  | 'txillada_live'
+  // Resumo semanal dos Zás (0164): o meu resumo da semana está pronto (domingo à noite). Ator = a própria pessoa; a lista
+  // mostra-o como Txillapp, com a miniatura do resumo enquanto ele existe. data: { recapId, label, count }. Ver notifyZasRecap.
+  | 'zas_recap';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
@@ -78,6 +83,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   // O pedido publicado é uma identificação: desliga-se com as menções. «Já paguei» vai com as mensagens (é entre os dois).
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
   txillada_live: 'txilladas',
+  zas_recap: 'zas',
 };
 
 /** O que se brindou: uma publicação (ou tcheka), um comentário, ou um comentário num mimo (`storyAuthor`: o @ de quem fez o mimo). */
@@ -127,7 +133,17 @@ export class NotificationsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly push: PushService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /** O MediaService (para o endereço assinado da miniatura do resumo dos Zás), sem importar o módulo (evita um ciclo). */
+  private media(): MediaService | null {
+    try {
+      return this.moduleRef.get(MediaService, { strict: false });
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Cria uma notificação. Nunca falha a acção principal: um erro aqui só fica registado.
@@ -319,6 +335,27 @@ export class NotificationsService {
   }
 
   /**
+   * Resumo semanal dos Zás (0164): o meu resumo da semana está pronto. Uma linha na lista (ator = a própria pessoa; a lista
+   * mostra-a como Txillapp) e o push «O teu resumo dos Zás da semana está pronto», que abre o resumo. Categoria `zas`
+   * (desligada: nem lista nem push). Nunca falha: um erro aqui só fica registado. Devolve se avisou.
+   */
+  async notifyZasRecap(userId: string, recap: { id: string; label: string; count: number }): Promise<boolean> {
+    try {
+      if ((await this.push.off(userId)).includes('zas')) return false;
+      await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'zas_recap', $3)`, [
+        uuidv7(), userId, { recapId: recap.id, label: recap.label, count: recap.count },
+      ]);
+      void this.push
+        .send(userId, { title: 'Zás', body: 'O teu resumo dos Zás da semana está pronto', url: `/zas-resumo?id=${recap.id}`, tag: `zas-recap:${recap.id}`, category: 'zas', data: { kind: 'zas_recap', recapId: recap.id } })
+        .catch(() => undefined);
+      return true;
+    } catch (e) {
+      this.log.warn(`falha a avisar do resumo dos Zás ${recap.id}: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
    * Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. `skip`: quem já recebeu
    * outro aviso pela mesma coisa (respondeu ao teu comentário, comentou na tua publicação ou no teu mimo) não leva também o
    * «mencionou-te», que seria repetido.
@@ -469,7 +506,11 @@ export class NotificationsService {
                 WHERE n.kind = 'cheer' AND n.data->>'target' = 'story_comment' AND (n.data->>'storyId') ~ '^[0-9a-f-]{36}$'
                   AND st.id = (n.data->>'storyId')::uuid AND st.expires_at > now() AND ma.status = 'ready') AS story_thumb,
               (SELECT tx.status FROM content.txilladas tx
-                WHERE n.kind = 'txillada_live' AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status
+                WHERE n.kind = 'txillada_live' AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status,
+              -- O resumo dos Zás (0164): a imagem, enquanto o resumo existe (é só meu).
+              (SELECT zr.media_id FROM social.zas_recaps zr
+                WHERE n.kind = 'zas_recap' AND (n.data->>'recapId') ~ '^[0-9a-f-]{36}$' AND zr.id = (n.data->>'recapId')::uuid
+                  AND zr.user_id = $1 AND zr.expires_at > now()) AS recap_media
          FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
         WHERE n.user_id = $1 AND ($2::uuid IS NULL OR n.id < $2)
           AND (n.kind = ANY($4::text[]) OR NOT ${blockedBetween('a.id', '$1')})
@@ -478,6 +519,8 @@ export class NotificationsService {
     );
     const page = rows.slice(0, limit);
     const cheers = await this.cheersOf(userId, page.filter((r) => r.kind === 'cheer').map((r) => r.id as string));
+    const media = page.some((r) => r.recap_media) ? this.media() : null;
+    const recapThumb = (id: string) => (media ? { url: media.chatUrl(id), video: false } : null);
     return {
       items: page.map((r) => ({
         id: r.id,
@@ -486,11 +529,11 @@ export class NotificationsService {
         createdAt: r.created_at,
         read: r.read_at !== null,
         // Os avisos da equipa vêm em nome do Txillapp (nunca o nome nem o @ da pessoa da equipa).
-        actor: r.status === 'staff' || r.kind === 'sound_review'
+        actor: r.status === 'staff' || r.kind === 'sound_review' || r.kind === 'zas_recap'
           ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true, verified: true, verifiedTier: 'official' as const }
           : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested, ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
-        thumb: thumbOf(r.thumb ?? r.story_thumb),
+        thumb: r.recap_media ? recapThumb(r.recap_media as string) : thumbOf(r.thumb ?? r.story_thumb),
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
         ...(r.kind === 'cheer' ? { cheer: cheers.get(r.id as string) ?? { count: 0, actors: [] } } : {}),
         // Txillada: ainda está a decorrer? ('live' entra; 'ended'/'cut', ou null se já não existe, diz que acabou).
