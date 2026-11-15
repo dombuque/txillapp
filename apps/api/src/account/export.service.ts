@@ -79,6 +79,10 @@ export class ExportService {
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
       commentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      // Os brindes que dei a comentários nos mimos e nas Txilladas (0161; os da Txillada apagam-se 7 dias depois do fim).
+      storyCommentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.story_comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      txilladaCommentCheers: await q(`SELECT x.comment_id AS "commentId", c.txillada_id AS "txilladaId", x.created_at AS "createdAt"
+           FROM content.txillada_comment_cheers x JOIN content.txillada_comments c ON c.id = x.comment_id WHERE x.user_id = $1 ORDER BY x.created_at`).catch(() => []),
       // As mensagens que enviei, nas conversas a dois (`to` = o @ da outra pessoa) e nos TxillGroups (`group` = o nome do grupo),
       // com a hora da edição, o ponto, o nome e a morada do sítio e até quando durava a partilha em direto (o que está guardado).
       // Mensagens temporárias: `expiresAt` diz até quando existem; as que já expiraram não entram.

@@ -28,6 +28,7 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'geleira_cheer'
   // Brindaram a minha publicação (ou tcheka) ou o meu comentário: UMA linha por coisa brindada a cada 24 h, que sobe ao topo com
   // o último a brindar (ator). data: { target: 'post' | 'comment', targetId, postId, commentId?, tcheka?, since }. Ver notifyCheer.
+  // Também o meu comentário num mimo (0161): data: { target: 'story_comment', targetId, storyId, commentId, storyAuthor, mediaId, since }.
   | 'cheer'
   // Alguém entrou com o meu convite (ator = quem entrou; sem data). Chega logo no registo; o prémio tem o seu próprio aviso.
   | 'invite_joined'
@@ -79,8 +80,11 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   txillada_live: 'txilladas',
 };
 
-/** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
-export type CheerTarget = { kind: 'post'; postId: string; tcheka?: boolean } | { kind: 'comment'; postId: string; commentId: string };
+/** O que se brindou: uma publicação (ou tcheka), um comentário, ou um comentário num mimo (`storyAuthor`: o @ de quem fez o mimo). */
+export type CheerTarget =
+  | { kind: 'post'; postId: string; tcheka?: boolean }
+  | { kind: 'comment'; postId: string; commentId: string }
+  | { kind: 'story_comment'; storyId: string; commentId: string; storyAuthor: string; mediaId: string };
 
 /** O travão dos brindes no telemóvel: no máximo um aviso por coisa brindada a cada 30 min, e 6 por pessoa em 24 h. */
 export const CHEER_PUSH_EVERY_MIN = 30;
@@ -88,12 +92,24 @@ export const CHEER_PUSH_DAILY_MAX = 6;
 
 const cheerTargetId = (t: CheerTarget) => (t.kind === 'post' ? t.postId : t.commentId);
 const cheerWhat = (t: CheerTarget) =>
-  t.kind === 'comment' ? { a: 'o teu comentário', in: 'no teu comentário' } : t.tcheka ? { a: 'a tua tcheka', in: 'na tua tcheka' } : { a: 'a tua publicação', in: 'na tua publicação' };
-const cheerUrl = (t: CheerTarget) => (t.kind === 'comment' ? `/p/${t.postId}?comments=1&c=${t.commentId}` : `/p/${t.postId}`);
+  t.kind === 'comment' ? { a: 'o teu comentário', in: 'no teu comentário' }
+  : t.kind === 'story_comment' ? { a: 'o teu comentário no mimo', in: 'no teu comentário no mimo' }
+  : t.tcheka ? { a: 'a tua tcheka', in: 'na tua tcheka' } : { a: 'a tua publicação', in: 'na tua publicação' };
+const cheerUrl = (t: CheerTarget) =>
+  t.kind === 'comment' ? `/p/${t.postId}?comments=1&c=${t.commentId}`
+  : t.kind === 'story_comment' ? `/stories/${encodeURIComponent(t.storyAuthor)}?m=${t.mediaId}&comments=1`
+  : `/p/${t.postId}`;
 /** O brinde ainda está posto (tirar o brinde não apaga o aviso, mas já não conta). `cn` = linha de social.cheer_notices. */
 const cheerStillOn = (cn = 'cn') =>
   `(CASE ${cn}.kind WHEN 'post' THEN EXISTS (SELECT 1 FROM content.cheers ch WHERE ch.post_id = ${cn}.target_id AND ch.user_id = ${cn}.user_id)
+                    WHEN 'story_comment' THEN EXISTS (SELECT 1 FROM content.story_comment_cheers ch WHERE ch.comment_id = ${cn}.target_id AND ch.user_id = ${cn}.user_id)
                     ELSE EXISTS (SELECT 1 FROM content.comment_cheers ch WHERE ch.comment_id = ${cn}.target_id AND ch.user_id = ${cn}.user_id) END)`;
+
+/** A miniatura de uma linha (a primeira foto da publicação ou o mimo; nos vídeos, o cartaz). */
+const thumbOf = (t: unknown) => {
+  const x = t as { id?: string; video?: boolean } | null | undefined;
+  return x?.id ? { url: `/api/v1/media/${x.id}${x.video ? '?poster=1' : ''}`, video: !!x.video } : null;
+};
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
 const DEDUPE_UNREAD = new Set<NotificationKind>(['blocked', 'follow', 'follow_request']);
@@ -324,7 +340,7 @@ export class NotificationsService {
   }
 
   /**
-   * Brindaram uma publicação (ou tcheka) ou um comentário de `ownerId`. Os avisos juntam-se, como no Instagram:
+   * Brindaram uma publicação (ou tcheka), um comentário ou um comentário num mimo de `ownerId`. Os avisos juntam-se, como no Instagram:
    * - cada pessoa conta uma vez por coisa brindada (tirar e voltar a pôr não avisa outra vez);
    * - há UMA linha por coisa brindada a cada 24 h: o primeiro brinde abre-a, os seguintes sobem-na ao topo (por ler) com o
    *   último a brindar como ator; quem são e quantos calcula-se na lista, só com os brindes que ainda estão postos;
@@ -359,7 +375,9 @@ export class NotificationsService {
         // A mesma linha sobe ao topo (id novo, que ordena a lista) e volta a estar por ler.
         await client.query('UPDATE social.notifications SET id = $2, actor_id = $3, created_at = now(), read_at = NULL WHERE id = $1', [open.rows[0].id, uuidv7(), actorId]);
       } else {
-        const data = { target: t.kind, targetId, postId: t.postId, ...(t.kind === 'comment' ? { commentId: t.commentId } : t.tcheka ? { tcheka: true } : {}) };
+        const data = t.kind === 'story_comment'
+          ? { target: t.kind, targetId, storyId: t.storyId, commentId: t.commentId, storyAuthor: t.storyAuthor, mediaId: t.mediaId }
+          : { target: t.kind, targetId, postId: t.postId, ...(t.kind === 'comment' ? { commentId: t.commentId } : t.tcheka ? { tcheka: true } : {}) };
         await client.query(
           `INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $3, 'cheer', $4::jsonb || jsonb_build_object('since', now()))`,
           [uuidv7(), ownerId, actorId, JSON.stringify(data)],
@@ -445,6 +463,11 @@ export class NotificationsService {
                  FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                 WHERE n.data ? 'postId' AND (n.data->>'postId') ~ '^[0-9a-f-]{36}$' AND pm.post_id = (n.data->>'postId')::uuid AND ma.status = 'ready'
                 ORDER BY pm.position LIMIT 1) AS thumb,
+              -- Brinde a um comentário num mimo: a miniatura do mimo, enquanto o mimo ainda está à vista.
+              (SELECT json_build_object('id', st.media_id, 'video', ma.mime LIKE 'video/%')
+                 FROM content.stories st JOIN content.media_assets ma ON ma.id = st.media_id
+                WHERE n.kind = 'cheer' AND n.data->>'target' = 'story_comment' AND (n.data->>'storyId') ~ '^[0-9a-f-]{36}$'
+                  AND st.id = (n.data->>'storyId')::uuid AND st.expires_at > now() AND ma.status = 'ready') AS story_thumb,
               (SELECT tx.status FROM content.txilladas tx
                 WHERE n.kind = 'txillada_live' AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status
          FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
@@ -467,7 +490,7 @@ export class NotificationsService {
           ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true, verified: true, verifiedTier: 'official' as const }
           : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested, ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
-        thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
+        thumb: thumbOf(r.thumb ?? r.story_thumb),
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
         ...(r.kind === 'cheer' ? { cheer: cheers.get(r.id as string) ?? { count: 0, actors: [] } } : {}),
         // Txillada: ainda está a decorrer? ('live' entra; 'ended'/'cut', ou null se já não existe, diz que acabou).

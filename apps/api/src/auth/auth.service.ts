@@ -675,6 +675,9 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM content.txillada_comments WHERE author_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_cheers WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_bans WHERE user_id = $1', [userId]);
+      // Brindes aos comentários (0161) que deu nos mimos e nas Txilladas dos outros (os dos seus comentários saem com eles).
+      await client.query('DELETE FROM content.txillada_comment_cheers WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM content.story_comment_cheers WHERE user_id = $1', [userId]);
       // Conversas (e as mensagens nelas), listas, subscrições de notificações e denúncias feitas por esta conta.
       await client.query('DELETE FROM social.conversations WHERE user_a = $1 OR user_b = $1', [userId]);
       await client.query('DELETE FROM social.close_friends WHERE owner_id = $1 OR friend_id = $1', [userId]);

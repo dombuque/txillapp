@@ -89,6 +89,14 @@ export class TxilladaController {
     await this.tx.deleteComment(req.userId!, id, commentId);
   }
 
+  /** Brindar um comentário (outra vez tira). No máximo 5 por segundo por pessoa (no serviço); aqui o teto por minuto. */
+  @Post(':id/comments/:commentId/cheer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  cheerComment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('commentId', ParseUUIDPipe) commentId: string) {
+    return this.tx.cheerComment(req.userId!, id, commentId);
+  }
+
   /** No máximo 5 por segundo por pessoa (no serviço); aqui só o teto por minuto, acima do geral. */
   @Post(':id/cheer')
   @HttpCode(200)

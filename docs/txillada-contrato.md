@@ -71,6 +71,7 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 | `GET /txilladas/:id/comments?after=<id>` | quem pode ver | `{ items: TxilladaComment[] }` (os 50 mais recentes, do mais antigo para o mais recente) |
 | `POST /txilladas/:id/comments` `{ body }` | quem pode comentar | `TxilladaComment` |
 | `DELETE /txilladas/:id/comments/:commentId` | anfitrião ou autor | 204 |
+| `POST /txilladas/:id/comments/:commentId/cheer` | quem pode ver (sem bloqueio com o autor) | 200 `{ cheered, cheers }` — brindar outra vez tira; 404 (apagado, bloqueio), 403 (expulso), 409 (acabada), 429 (mais de 5/s). Sem aviso ao autor; manda `txillada.comment_cheer` (0161) |
 | `POST /txilladas/:id/cheer` | quem pode ver | `{ cheers }` |
 | `POST /txilladas/:id/react` `{ kind: 'hello'\|'cheers'\|'fire'\|'laugh'\|'heart', to?: username }` | quem pode ver (`to` só o anfitrião, só com `hello`) | 200 `{ sent }` (com `cheers` quando `kind` é 'cheers') — 404/403/409 como o brinde; 400 (anfitrião com 'cheers', `to` fora das regras); 404 (`to` que não existe ou com bloqueio); 429 (mais de 8/s, ou o 👋 de quem vê antes de 4 s). Não se guarda nada (o 🍻 conta como brinde) |
 | `GET /txilladas/:id/viewers` | quem pode ver | `{ items: [{ username, displayName, avatarUrl, verified, verifiedTier }], total }` — quem está a ver agora (fez `join` e não saiu), sem o anfitrião, só contas ativas, sem expulsos e sem quem tem bloqueio com quem pede; quem eu sigo primeiro, depois pelo @ (máx. 200; `total` = `items.length`) |
@@ -83,13 +84,13 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 `TxilladaDto`: `{ id, host: { id, username, displayName, avatarUrl, verified, verifiedTier }, title, audience, status,
 startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment }`.
 
-`TxilladaComment`: `{ id, author: { id, username, displayName, avatarUrl, verified, verifiedTier }, body, createdAt }`.
+`TxilladaComment`: `{ id, author: { id, username, displayName, avatarUrl, verified, verifiedTier }, body, createdAt, cheers, cheered }` (`cheers`: quantos brindaram; `cheered`: se eu brindei).
 
 ## Tempo real (pelo canal da app)
 
 Para cada espectador ligado e o anfitrião: `{ type: 'txillada.comment', txilladaId, comment }`,
 `{ type: 'txillada.cheer', txilladaId, cheers, from: { username } }`, `{ type: 'txillada.viewers', txilladaId, viewers }`,
-`{ type: 'txillada.ended', txilladaId, status }`, `{ type: 'txillada.comment_removed', txilladaId, commentId }`. Quem está a
+`{ type: 'txillada.ended', txilladaId, status }`, `{ type: 'txillada.comment_removed', txilladaId, commentId }`, `{ type: 'txillada.comment_cheer', txilladaId, commentId, cheers }` (a contagem nova de um comentário, sem dizer quem brindou; não vai a quem tem bloqueio com o autor do comentário). Quem está a
 ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se no Redis/RealtimeBus).
 
 - `{ type: 'txillada.reaction', txilladaId, kind, from: { username, displayName, avatarUrl, verified, verifiedTier, host },
