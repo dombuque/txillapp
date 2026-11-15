@@ -20,8 +20,11 @@ export function TxilladaVideo({ track, mirror = false, fit = 'auto', style }: { 
   useEffect(() => {
     if (!track || fit === 'cover') return;
     const read = () => {
-      const d = track.dimensions;
-      if (d?.width && d?.height) setDims((o) => (o && o.w === d.width && o.h === d.height ? o : { w: d.width, h: d.height }));
+      // As medidas da faixa (o livekit-client lê-as do getSettings do WebRTC); sem elas ainda, fica o cover.
+      const d = (track as unknown as { dimensions?: { width?: number; height?: number } }).dimensions ?? track.mediaStreamTrack?.getSettings?.();
+      const w = d?.width ?? 0;
+      const h = d?.height ?? 0;
+      if (w && h) setDims((o) => (o && o.w === w && o.h === h ? o : { w, h }));
     };
     read();
     const t = setInterval(read, 1500);

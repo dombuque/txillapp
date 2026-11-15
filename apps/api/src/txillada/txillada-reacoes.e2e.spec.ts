@@ -197,9 +197,12 @@ describe('Txillada: reações, quem está a ver e «entrou» (integração)', ()
     await react(rana, id, { kind: 'heart' }).expect(200);
     // O olá do anfitrião (a saudação a todos) não tem o limite dos 4 s.
     await react(rhost, id, { kind: 'hello' }).expect(200);
+    // As contas verificadas levam sempre o selo (o nome nunca aparece sem ele).
+    await pool.query(`UPDATE identity.users SET verified = true, verified_tier = 'official' WHERE username = $1`, [rhost.username]);
     await react(rhost, id, { kind: 'hello' }).expect(200);
     expect(txEvents(rana, 'txillada.reaction', id).at(-1)).toEqual({
-      type: 'txillada.reaction', txilladaId: id, kind: 'hello', from: { username: rhost.username, displayName: 'rhost Teste', avatarUrl: null, host: true },
+      type: 'txillada.reaction', txilladaId: id, kind: 'hello',
+      from: { username: rhost.username, displayName: 'rhost Teste', avatarUrl: null, verified: true, verifiedTier: 'official', host: true },
     });
     // `to`: só o anfitrião, só com 'hello', a alguém que existe e sem bloqueio com ele.
     await react(rrui, id, { kind: 'hello', to: rana.username }).expect(400);
@@ -209,7 +212,7 @@ describe('Txillada: reações, quem está a ver e «entrou» (integração)', ()
     await react(rhost, id, { kind: 'hello', to: rhost.username }).expect(400);
     expect((await react(rhost, id, { kind: 'hello', to: `@${rana.username.toUpperCase()}` }).expect(200)).body).toEqual({ sent: true });
     const e = txEvents(rrui, 'txillada.reaction', id).at(-1);
-    expect(e).toEqual({ type: 'txillada.reaction', txilladaId: id, kind: 'hello', from: expect.objectContaining({ username: rhost.username, host: true }), to: { username: rana.username } });
+    expect(e).toEqual({ type: 'txillada.reaction', txilladaId: id, kind: 'hello', from: expect.objectContaining({ username: rhost.username, host: true }), to: { username: rana.username, verified: false, verifiedTier: null } });
     expect(txEvents(rana, 'txillada.reaction', id).at(-1)).toMatchObject({ to: { username: rana.username } });
   });
 

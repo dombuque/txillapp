@@ -15,7 +15,7 @@ import {
 
 export const viewersKey = (id: string) => ['txillada', id, 'viewers'] as const;
 
-type Me = { username: string; displayName: string; avatarUrl: string | null } | null;
+type Me = FxPerson | null;
 
 export function useTxilladaFx(o: { id: string; live: boolean; host: boolean; me: Me; reduce: boolean; onCheer: () => boolean }) {
   const { id, live, host, me, reduce } = o;

@@ -60,7 +60,7 @@ export default function TxilladaScreen() {
     live: kind === 'live',
     host,
     // A foto vem pelo @ (o Avatar mostra as iniciais por baixo, se não houver).
-    me: user ? { username: user.username, displayName: user.displayName || user.username, avatarUrl: `/api/v1/avatars/${encodeURIComponent(user.username)}` } : null,
+    me: user ? { username: user.username, displayName: user.displayName || user.username, avatarUrl: `/api/v1/avatars/${encodeURIComponent(user.username)}`, verified: !!user.verified, verifiedTier: user.verifiedTier ?? null } : null,
     reduce,
     onCheer: () => tx.cheer(),
   });

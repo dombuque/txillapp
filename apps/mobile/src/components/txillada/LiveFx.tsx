@@ -35,15 +35,17 @@ const shadow = Platform.OS === 'web' ? ({ textShadow: '0 2px 10px rgba(0,0,0,0.3
 function Particle({ p, travel, reduce }: { p: FxParticle; travel: number; reduce: boolean }) {
   const t = useSharedValue(0);
   useEffect(() => {
-    t.value = withDelay(p.delay, withTiming(1, { duration: p.dur, easing: reduce ? Easing.linear : Easing.out(Easing.quad) }));
-  }, [p.delay, p.dur, reduce, t]);
+    // O tempo corre a direito; a subida abranda no fim (o emoji fica à vista quase todo o tempo e desvanece lá em cima).
+    t.value = withDelay(p.delay, withTiming(1, { duration: p.dur, easing: Easing.linear }));
+  }, [p.delay, p.dur, t]);
   const a = useAnimatedStyle(() => {
     const v = t.value;
     if (reduce) return { opacity: interpolate(v, [0, 0.2, 0.75, 1], [0, 1, 1, 0]), transform: [{ translateY: -24 * v }] };
+    const rise = 1 - (1 - v) * (1 - v) * (1 - v) * 0.6 - (1 - v) * 0.4;
     return {
-      opacity: interpolate(v, [0, 0.08, 0.65, 1], [0, 1, 1, 0]),
+      opacity: interpolate(v, [0, 0.06, 0.78, 1], [0, 1, 1, 0]),
       transform: [
-        { translateY: -travel * v },
+        { translateY: -travel * rise },
         { translateX: p.x * v + Math.sin(v * Math.PI * 2.2) * 7 },
         { rotate: `${p.rot * v}deg` },
         { scale: interpolate(v, [0, 0.14, 1], [0.35, p.scale * 1.18, p.scale * 0.85]) },
@@ -115,7 +117,7 @@ export function HelloStack({ items, top, left, width }: { items: readonly Hello[
             <Text style={fx.bigEmoji}>👋</Text>
             <View style={fx.bigWho}>
               <View style={fx.bigRing}><Avatar name={big.avatar.displayName} username={big.avatar.avatarUrl ? big.avatar.username : undefined} size={30} /></View>
-              <Parts parts={big.parts} style={fx.bigText} lines={2} />
+              <Parts parts={big.parts.map((x) => (x.t === 'text' ? { ...x, s: x.s.replace(/ 👋$/u, '') } : x))} style={fx.bigText} lines={2} />
             </View>
           </Animated.View>
         </View>
