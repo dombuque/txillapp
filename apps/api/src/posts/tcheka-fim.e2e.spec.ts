@@ -274,16 +274,16 @@ describe('fim de tcheka: música gravada no vídeo e cópia com o cartão do fim
     expect(Math.abs((await probe(join(MEDIA, idOf(seen.media[0].url)))).seconds - 4)).toBeLessThan(0.15);
   }, 180_000);
 
-  it('quem pode guardar: quem vê a publicação (conta privada, bloqueios); sem vídeo dá 422', async () => {
+  it('quem pode guardar: quem vê a publicação (conta privada: nem quem segue; bloqueios); sem vídeo dá 422', async () => {
     const mediaId = await uploadVideo(b, video('privada', 2, true));
     const p = (await api().post('/api/v1/posts').set(as(b)).send({ body: 'só para quem me segue', mediaIds: [mediaId] }).expect(201)).body;
     await pool.query('UPDATE identity.users SET is_private = true WHERE id = $1', [b.id]);
     try {
       await download(c, p.id).expect(404);
       await download(b, p.id).expect(200); // o próprio, sempre
+      // Quem segue vê a tcheka, mas numa conta privada só o autor a guarda (0153, guardar-tchekas.e2e.spec.ts).
       await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [c.id, b.id]);
-      const ok = await download(c, p.id).expect(200);
-      expect(ok.headers['x-cache']).toBe('hit');
+      await download(c, p.id).expect(403);
     } finally {
       await pool.query('UPDATE identity.users SET is_private = false WHERE id = $1', [b.id]);
       await pool.query('DELETE FROM social.follows WHERE follower_id = $1 AND followee_id = $2', [c.id, b.id]);

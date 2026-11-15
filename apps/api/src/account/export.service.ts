@@ -201,6 +201,8 @@ export class ExportService {
       // Sons das tchekas (0133): «Deixar usar o meu som», os meus sons originais (de que tcheka saíram, quantas tchekas os usam,
       // se estão em análise ou foram tirados), os sons que usei nas minhas tchekas e as denúncias de sons que fiz.
       soundReuse: ((await q(`SELECT sound_reuse FROM identity.users WHERE id = $1`).catch(() => []))[0]?.sound_reuse as boolean | undefined) ?? null,
+      // «Deixar guardar as minhas tchekas» (0153): se os outros podem guardar as minhas tchekas (privada ou menor: nunca).
+      allowDownloads: ((await q(`SELECT allow_downloads FROM identity.users WHERE id = $1`).catch(() => []))[0]?.allow_downloads as boolean | undefined) ?? null,
       sounds: await q(
         `SELECT s.id, s.title, s.duration_ms AS "durationMs", s.source_post_id AS "sourcePostId", s.created_at AS "createdAt", s.hold_at AS "heldAt",
                 s.removed_at AS "removedAt", s.removed_reason AS "removedReason",

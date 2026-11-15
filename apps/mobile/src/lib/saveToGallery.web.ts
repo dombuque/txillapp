@@ -3,7 +3,12 @@ import { fetchAuthed } from './api';
 /** No browser: no telemóvel abre a folha do sistema (Guardar imagem/vídeo); no computador descarrega o ficheiro. */
 export async function saveToGallery(path: string, name: string): Promise<'saved' | 'denied'> {
   const res = await fetchAuthed(path);
-  if (!res.ok) throw new Error('Não consegui preparar o ficheiro');
+  // A recusa da API traz a razão (por exemplo, quem publicou não deixa guardar as suas tchekas): mostra-se essa.
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: unknown } | null;
+    const msg = Array.isArray(body?.message) ? body.message[0] : body?.message;
+    throw new Error(typeof msg === 'string' && msg.trim() ? msg : 'Não consegui preparar o ficheiro');
+  }
   const blob = await res.blob();
   const f = new File([blob], name, { type: blob.type });
   if (navigator.canShare?.({ files: [f] })) {
