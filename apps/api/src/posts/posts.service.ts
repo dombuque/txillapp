@@ -514,11 +514,19 @@ export class PostsService implements OnModuleInit {
       })
       .map((r) => {
         const l1 = r.repost_of ? first.get(r.repost_of)! : null;
-        const inner = l1?.repost_of ? { ...dto(second.get(l1.repost_of)!), repostOf: null } : null;
+        const l2 = l1?.repost_of ? second.get(l1.repost_of)! : null;
+        const inner = l2 ? { ...dto(l2), repostOf: null } : null;
         const own = dto(r);
-        // Um repost sem vídeo próprio guarda o original (PostDownloadService): vale a regra do autor do original.
-        const viaOriginal = !!l1 && r.kind === 'repost' && !own.media.some((m) => m.kind === 'video');
-        return { ...own, ...(viaOriginal ? { canDownload: l1.can_download === true } : {}), repostOf: l1 ? { ...dto(l1), repostOf: inner } : null };
+        // Um repost sem vídeo próprio guarda o original (PostDownloadService): vale a regra do autor do original. Também na
+        // citação que vem dentro de um repost (repost simples de uma citação de uma tcheka): o vídeo é o do fundo.
+        const noVideo = (row: Record<string, any>, d: { media: { kind: string }[] }) => row.kind === 'repost' && !d.media.some((m) => m.kind === 'video');
+        const mid = l1 ? dto(l1) : null;
+        const midCan = l1 && mid ? (l2 && noVideo(l1, mid) ? l2.can_download === true : mid.canDownload) : false;
+        return {
+          ...own,
+          ...(mid && noVideo(r, own) ? { canDownload: midCan } : {}),
+          repostOf: mid ? { ...mid, canDownload: midCan, repostOf: inner } : null,
+        };
       });
   }
 
