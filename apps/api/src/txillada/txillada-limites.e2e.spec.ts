@@ -102,7 +102,10 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
 
   it('validação: título, público, comentário, ids e motivo da denúncia', async () => {
     const { lhost, lana } = u;
-    await open(lhost, '').expect(400);
+    // O título é opcional (0159): vazio abre uma Txillada sem título; mais de 80 letras não.
+    const semTitulo = await open(lhost, '').expect(201);
+    expect(semTitulo.body.txillada.title).toBe('');
+    await endAll(lhost);
     await open(lhost, 'x'.repeat(81)).expect(400);
     await open(lhost, 'Ok', 'amigos').expect(400);
     await api().get('/api/v1/txilladas/nao-e-uuid').set(auth(lana)).expect(400);

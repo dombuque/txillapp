@@ -128,7 +128,8 @@ describe('Txillada: os lives (integração)', () => {
     expect((await open(u.minor).expect(403)).body.message).toMatch(/18 anos/);
     expect((await open(u.nobirth).expect(403)).body.message).toMatch(/data de nascimento/);
     await open(u.host, 'kys').expect(422);
-    await open(u.host, '').expect(400);
+    await open(u.host, 'x'.repeat(81)).expect(400);
+    // Título opcional (0159): vazio também abre (aqui não se abre para o resto do teste seguir com o título).
     const r = await open(u.host).expect(201);
     const t = r.body.txillada;
     expect(t).toMatchObject({ title: 'Bora conversar', audience: 'everyone', status: 'live', viewers: 0, peakViewers: 0, cheers: 0, comments: 0, isHost: true, canComment: true, endedAt: null });

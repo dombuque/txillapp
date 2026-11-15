@@ -286,7 +286,7 @@ export class NotificationsService {
           await this.push
             .send(uid, {
               title: (h?.display_name as string | undefined) ?? 'Txillada',
-              body: `@${h?.username as string} abriu uma Txillada: ${title}`,
+              body: title ? `@${h?.username as string} abriu uma Txillada: ${title}` : `@${h?.username as string} abriu uma Txillada`,
               url: `/txillada/${txilladaId}`,
               tag: `txillada:${txilladaId}`,
               category: 'txilladas',

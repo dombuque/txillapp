@@ -28,6 +28,11 @@ const RULES = [
   '-keep class J.N { *; }',
   '-dontwarn org.jni_zero.**',
   '-keep class com.oney.WebRTCModule.** { *; }',
+  // O libwebrtc do fork da LiveKit vem com os pacotes mudados para livekit.org.* (webrtc e jni_zero), também por JNI.
+  '-keep class livekit.org.webrtc.** { *; }',
+  '-dontwarn livekit.org.webrtc.**',
+  '-keep class livekit.org.jni_zero.** { *; }',
+  '-dontwarn livekit.org.jni_zero.**',
   '# react-native-vision-camera 5 + react-native-nitro-modules + react-native-nitro-image (Nitro: JNI pelo nome)',
   '-keep class com.margelo.nitro.** { *; }',
   '-keep interface com.margelo.nitro.** { *; }',

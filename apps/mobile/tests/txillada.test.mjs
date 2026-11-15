@@ -64,9 +64,9 @@ test('Criar usa a configuração (React Query) e o ecrã de preparar na câmara 
 
 // ── título e público ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-test('título: obrigatório, até 80 letras, espaços limpos', () => {
-  assert.equal(t.titleError(''), 'Dá um título à tua Txillada.');
-  assert.equal(t.titleError('   '), 'Dá um título à tua Txillada.');
+test('título: opcional, até 80 letras, espaços limpos', () => {
+  assert.equal(t.titleError(''), null);
+  assert.equal(t.titleError('   '), null);
   assert.equal(t.titleError('Bom dia'), null);
   assert.equal(t.titleError('a'.repeat(80)), null);
   assert.match(t.titleError('a'.repeat(81)), /80/);

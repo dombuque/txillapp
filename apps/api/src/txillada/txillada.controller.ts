@@ -12,7 +12,7 @@ import { TxilladaService } from './txillada.service';
 type AuthedReq = Request & { userId?: string };
 
 const createSchema = z.object({
-  title: z.string().trim().min(1, 'Dá um título à Txillada').max(80),
+  title: z.string().trim().max(80).optional().default(''),
   audience: z.enum(['everyone', 'followers', 'close']).default('everyone'),
 });
 const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });

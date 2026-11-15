@@ -22,7 +22,7 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 
 ## Base de dados (migração 0158_txillada.sql)
 
-- `content.txilladas`: `id uuid PK`, `host_id uuid` (identity.users), `title text` (1–80, limpo pelo filtro de palavras),
+- `content.txilladas`: `id uuid PK`, `host_id uuid` (identity.users), `title text` (0–80, opcional desde a 0159; limpo pelo filtro de palavras),
   `audience text` ('everyone' | 'followers' | 'close'), `status text` ('live' | 'ended' | 'cut'), `room text UNIQUE`
   (`tx-<id>`), `started_at`, `ended_at`, `viewers int` (agora), `peak_viewers int`, `cheers int`, `comments int`,
   `cut_reason text`, `cut_by uuid`. Índice parcial em `status = 'live'`. **No máximo uma `live` por anfitrião.**

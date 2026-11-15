@@ -76,8 +76,8 @@ export function cleanTitle(s: string): string {
   return s.replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
 }
 export function titleError(s: string): string | null {
+  // O título é opcional (vazio pode); só não passa das TITLE_MAX letras.
   const t = s.replace(/\s+/g, ' ').trim();
-  if (!t) return 'Dá um título à tua Txillada.';
   if (t.length > TITLE_MAX) return `O título vai até ${TITLE_MAX} letras.`;
   return null;
 }

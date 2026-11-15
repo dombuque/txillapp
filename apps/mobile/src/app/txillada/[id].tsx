@@ -170,7 +170,7 @@ export default function TxilladaScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
                 <NameWithBadge name={dto.host.username} who={dto.host} style={st.name} />
-                <Text style={st.title} numberOfLines={1}>{dto.title}</Text>
+                {dto.title ? <Text style={st.title} numberOfLines={1}>{dto.title}</Text> : null}
               </View>
             </Pressable>
             {host ? (

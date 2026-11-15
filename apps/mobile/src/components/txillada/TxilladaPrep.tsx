@@ -99,7 +99,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
               value={title}
               onChangeText={(t) => { setTitle(t.slice(0, TITLE_MAX)); if (msg) setMsg(null); }}
               maxLength={TITLE_MAX}
-              placeholder="Dá um título à tua Txillada"
+              placeholder="Título (opcional)"
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={st.input}
               returnKeyType="done"
