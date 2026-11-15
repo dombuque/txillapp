@@ -55,7 +55,9 @@ describe('hashtags, em alta e pesquisa melhor (integração)', () => {
     expect(tags).toEqual([tagB, tagA].sort()); // "#Ç", "#a" (curtas) e "x.com#nao" (colada) não contam
 
     const page = await get(sc, `tags/${tagA}`);
-    expect(page).toMatchObject({ tag: tagA, posts: 2, authors: 2 }); // a privada não conta
+    expect(page).toMatchObject({ tag: tagA, posts: 2, authors: 2 }); // a privada não conta para quem não a vê
+    // a dona da conta privada vê a sua na lista e no contador (o contador segue as regras da lista)
+    expect(await get(sp, `tags/${tagA}`)).toMatchObject({ posts: 3, authors: 3 });
     const ids = page.items.map((i: { id: string }) => i.id);
     expect(ids).toEqual([p2.id, p1.id]); // mais recentes primeiro
     expect(ids).not.toContain(priv.id);
@@ -65,6 +67,7 @@ describe('hashtags, em alta e pesquisa melhor (integração)', () => {
     await api().post(`/api/v1/users/${sp.username}/follow`).set(auth(sc)).expect(200);
     await api().post(`/api/v1/follow-requests/${sc.username}/accept`).set(auth(sp)).expect((r) => expect([200, 204]).toContain(r.status));
     expect((await get(sc, `tags/${tagA}`)).items.map((i: { id: string }) => i.id)).toContain(priv.id);
+    expect(await get(sc, `tags/${tagA}`)).toMatchObject({ posts: 3, authors: 3 });
 
     await api().get('/api/v1/tags/x').set(auth(sc)).expect(404); // curta demais
     await api().delete(`/api/v1/posts/${p2.id}`).set(auth(sb)).expect(204);

@@ -4,7 +4,7 @@ import { PG_POOL } from '../db/db.module';
 import { PostsService } from '../posts/posts.service';
 import { SearchIndexer } from './search-index';
 import { isValidTag, normalizeTag } from '../common/hashtags';
-import { blockedBetween, inMyNetwork } from '../social/visibility';
+import { blockedBetween, canView, inMyNetwork } from '../social/visibility';
 import { VenuesService } from '../venues/venues.service';
 
 /** Escapa % _ \ para usar o texto da pesquisa em ILIKE sem que vire padrão. */
@@ -147,14 +147,14 @@ export class SearchService {
     return { people: r.people.slice(0, 5), tags: r.tags.slice(0, 5) };
   }
 
-  /** Quantas publicações visíveis para quem pede têm esta hashtag. */
+  /** Quantas publicações visíveis para quem pede têm esta hashtag (as mesmas regras da lista: também as suas e as de contas privadas que segue). */
   async tagInfo(viewerId: string, tag: string) {
     const t = normalizeTag(tag);
     if (!isValidTag(t)) return null;
     const { rows } = await this.pool.query(
       `SELECT count(DISTINCT p.id)::int AS posts, count(DISTINCT p.author_id)::int AS authors
          FROM content.post_tags t JOIN content.posts p ON p.id = t.post_id JOIN identity.users u ON u.id = p.author_id
-        WHERE t.tag = $1 AND ${PUBLIC_POST} AND ${inMyNetwork('p.author_id', 'p.country', '$2')}`,
+        WHERE t.tag = $1 AND p.removed_at IS NULL AND p.kind IN ('post', 'repost') AND ${canView('u', '$2')} AND ${inMyNetwork('p.author_id', 'p.country', '$2')}`,
       [t, viewerId],
     );
     return { tag: t, posts: rows[0].posts as number, authors: rows[0].authors as number };
