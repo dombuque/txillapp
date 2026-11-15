@@ -61,7 +61,7 @@ export function LiveFloatComments({ comments, bottom, width, height, onHold }: {
         return (
           <FloatBubble
             key={e.id}
-            c={{ author: { username: c.author.username, displayName: c.author.displayName, hasAvatar: !!c.author.avatarUrl }, body: c.body }}
+            c={{ author: { username: c.author.username, displayName: c.author.displayName, hasAvatar: !!c.author.avatarUrl, verified: c.author.verified, verifiedTier: c.author.verifiedTier }, body: c.body }}
             y={lift[e.id] ?? 0}
             age={e.age}
             leaving={e.leaving}
