@@ -209,6 +209,8 @@ export function useTxillada(id: string) {
     if (!ev) return;
     dispatch({ t: 'event', ev, me });
     if (ev.type === 'txillada.ended') void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+    // O fixado novo também fica na resposta guardada (um pedido antigo não o traz de volta).
+    if (ev.type === 'txillada.pinned') qc.setQueryData<TxilladaDto>(txilladaKey(id), (d) => (d ? { ...d, pinned: ev.comment } : d));
   }), [id, me, qc]);
 
   // Os comentários: os 50 mais recentes ao entrar e, de 8 em 8 s, os que vieram depois (se o canal perder algum).
@@ -360,6 +362,27 @@ export function useTxillada(id: string) {
     );
     return true;
   }
+  /** O anfitrião fixa um comentário (ou tira o fixado, com null). A pílula muda logo; devolve a mensagem de erro, ou null. */
+  async function pin(c: TxilladaComment | null): Promise<string | null> {
+    const before = live.pinned;
+    const set = (x: TxilladaComment | null) => {
+      dispatch({ t: 'event', ev: { type: 'txillada.pinned', txilladaId: id, comment: x }, me });
+      qc.setQueryData<TxilladaDto>(txilladaKey(id), (d) => (d ? { ...d, pinned: x } : d));
+    };
+    set(c);
+    try {
+      const r = await txilladaApi.pin(id, c?.id ?? null);
+      if (r && 'pinned' in r) set(r.pinned ?? null);
+      return null;
+    } catch (e) {
+      set(before);
+      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
+    }
+  }
+  /** Denunciei um comentário: deixa já de me aparecer (nos balões e no fixado); o servidor também o esconde. */
+  function hideComment(c: TxilladaComment) {
+    dispatch({ t: 'event', ev: { type: 'txillada.comment_removed', txilladaId: id, commentId: c.id }, me });
+  }
   async function removeComment(c: TxilladaComment): Promise<string | null> {
     try {
       await txilladaApi.removeComment(id, c.id);
@@ -392,6 +415,6 @@ export function useTxillada(id: string) {
   const loadError = q.error ? (q.error instanceof ApiError ? errorText(q.error.status, q.error.message) : errorText(undefined)) : null;
   return {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
-    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
+    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
   };
 }

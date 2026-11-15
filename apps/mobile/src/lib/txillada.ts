@@ -31,6 +31,8 @@ export interface TxilladaDto {
   comments: number;
   isHost: boolean;
   canComment: boolean;
+  /** O comentário fixado pelo anfitrião, como eu o vejo (0162; servidores antigos não mandam: fica o que se sabe). */
+  pinned?: TxilladaComment | null;
 }
 
 /** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). */
@@ -43,7 +45,9 @@ export type TxilladaEvent =
   | { type: 'txillada.ended'; txilladaId: string; status: TxilladaStatus }
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
   /** A contagem nova de brindes de um comentário (não diz quem brindou). */
-  | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number };
+  | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }
+  /** O anfitrião fixou um comentário (completo, com o autor e o selo) ou tirou o fixado (null). */
+  | { type: 'txillada.pinned'; txilladaId: string; comment: TxilladaComment | null };
 
 /** O título vai até 80 letras; um comentário até 300 (o servidor também limpa as palavras proibidas). */
 export const TITLE_MAX = 80;
@@ -124,6 +128,9 @@ export function parseTxilladaEvent(e: unknown, id?: string): TxilladaEvent | nul
       return str(x.commentId) ? { type: x.type, txilladaId, commentId: x.commentId } : null;
     case 'txillada.comment_cheer':
       return str(x.commentId) && num(x.cheers) ? { type: x.type, txilladaId, commentId: x.commentId, cheers: Math.max(0, Math.floor(x.cheers)) } : null;
+    case 'txillada.pinned':
+      if (x.comment === null) return { type: x.type, txilladaId, comment: null };
+      return validComment(x.comment) ? { type: x.type, txilladaId, comment: x.comment } : null;
     default:
       return null;
   }
@@ -158,11 +165,22 @@ export interface LiveState {
   /** Sobe a cada brinde de outra pessoa (os copos aparecem); os meus aparecem logo ao tocar. */
   cheerBurst: number;
   lastCheerFrom: string | null;
+  /** O comentário fixado pelo anfitrião (fica sempre à vista, em baixo); null sem nenhum. */
+  pinned: TxilladaComment | null;
 }
 
 export function initialLive(dto?: TxilladaDto | null): LiveState {
-  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null };
+  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null, pinned: null };
   return dto ? withDto(s, dto) : s;
+}
+
+/** O fixado novo (sem os apagados ou escondidos); devolve o mesmo objeto se não mudou (o mesmo id, brindes e estado). */
+function withPinned(s: LiveState, c: TxilladaComment | null | undefined): LiveState {
+  if (c === undefined) return s;
+  const next = c && !s.removed.includes(c.id) ? c : null;
+  const cur = s.pinned;
+  if (cur === next || (cur && next && cur.id === next.id && cur.body === next.body && (cur.cheers ?? 0) === (next.cheers ?? 0) && cur.cheered === next.cheered)) return s;
+  return { ...s, pinned: next };
 }
 
 /**
@@ -171,14 +189,14 @@ export function initialLive(dto?: TxilladaDto | null): LiveState {
  */
 export function withDto(s: LiveState, dto: TxilladaDto): LiveState {
   const status = s.status && s.status !== 'live' ? s.status : dto.status;
-  return {
+  return withPinned({
     ...s,
     status,
     viewers: Math.max(0, dto.viewers),
     peak: Math.max(s.peak, dto.peakViewers, dto.viewers),
     cheers: Math.max(s.cheers, dto.cheers),
     commentCount: Math.max(s.commentCount, dto.comments),
-  };
+  }, dto.pinned);
 }
 
 /** Os comentários pedidos à API (o arranque ou `?after=`). */
@@ -203,9 +221,16 @@ export function applyEvent(s: LiveState, ev: TxilladaEvent, me?: string | null):
     case 'txillada.ended':
       return { ...s, status: ev.status };
     case 'txillada.comment_removed':
-      return { ...s, comments: s.comments.filter((c) => c.id !== ev.commentId), removed: s.removed.includes(ev.commentId) ? s.removed : [...s.removed, ev.commentId].slice(-200) };
+      return {
+        ...s,
+        comments: s.comments.filter((c) => c.id !== ev.commentId),
+        removed: s.removed.includes(ev.commentId) ? s.removed : [...s.removed, ev.commentId].slice(-200),
+        pinned: s.pinned?.id === ev.commentId ? null : s.pinned,
+      };
     case 'txillada.comment_cheer':
       return withCommentCheer(s, ev.commentId, ev.cheers);
+    case 'txillada.pinned':
+      return withPinned(s, ev.comment);
   }
 }
 
@@ -214,15 +239,17 @@ export function applyEvent(s: LiveState, ev: TxilladaEvent, me?: string | null):
  * fui eu (o evento não diz quem brindou). Um comentário que já não está no ecrã fica como está.
  */
 export function withCommentCheer(s: LiveState, commentId: string, cheers: number, cheered?: boolean): LiveState {
-  const i = s.comments.findIndex((c) => c.id === commentId);
-  if (i < 0) return s;
-  const c = s.comments[i];
   const n = Math.max(0, Math.floor(cheers));
-  const mine = cheered ?? c.cheered;
-  if ((c.cheers ?? 0) === n && c.cheered === mine) return s;
+  // O fixado também conta (pode já não estar entre os balões).
+  const p = s.pinned;
+  const pinned = p && p.id === commentId && ((p.cheers ?? 0) !== n || p.cheered !== (cheered ?? p.cheered)) ? { ...p, cheers: n, cheered: cheered ?? p.cheered } : p;
+  const i = s.comments.findIndex((c) => c.id === commentId);
+  const c = i < 0 ? null : s.comments[i];
+  const mine = cheered ?? c?.cheered;
+  if (!c || ((c.cheers ?? 0) === n && c.cheered === mine)) return pinned === p ? s : { ...s, pinned };
   const comments = s.comments.slice();
   comments[i] = { ...c, cheers: n, cheered: mine };
-  return { ...s, comments };
+  return { ...s, comments, pinned };
 }
 
 /** «🍻 3» no balão (nada com 0). */
@@ -266,6 +293,34 @@ export function commentActions(dto: TxilladaDto | null | undefined, c: TxilladaC
   if (!dto || dto.status !== 'live') return [];
   if (dto.isHost) return c.author.username === dto.host.username ? ['remove'] : ['remove', 'ban'];
   return me && c.author.username === me ? ['remove'] : [];
+}
+
+/** O que o menu de um comentário oferece (tocar num balão ou no fixado), pela ordem em que aparece. */
+export type CommentMenuItem = 'reply' | 'cheer' | 'pin' | 'unpin' | 'remove' | 'ban' | 'report';
+/**
+ * O menu de um comentário (o toque simples, ou o longo, num balão; ou o toque no fixado):
+ * - de outra pessoa: «Responder» (se posso comentar), «Brindar» e «Denunciar»;
+ * - o anfitrião, além disso: «Fixar» (ou «Tirar o fixado»), «Apagar» e «Expulsar»;
+ * - o meu: «Apagar» (e, se sou o anfitrião, fixar).
+ * Acabada (ou sem sessão), nada.
+ */
+export function commentMenu(dto: TxilladaDto | null | undefined, c: TxilladaComment, me: string | null | undefined, pinnedId?: string | null): CommentMenuItem[] {
+  if (!dto || dto.status !== 'live' || !me) return [];
+  const mine = c.author.username === me;
+  const pin: CommentMenuItem = pinnedId === c.id ? 'unpin' : 'pin';
+  if (mine) return dto.isHost ? [pin, 'remove'] : ['remove'];
+  const out: CommentMenuItem[] = [];
+  if (dto.canComment) out.push('reply');
+  out.push('cheer');
+  if (dto.isHost) out.push(pin, 'remove', 'ban');
+  out.push('report');
+  return out;
+}
+
+/** «Responder a @fulano»: o campo passa a começar por `@fulano ` (troca uma menção que já lá estava no início). */
+export function replyText(current: string, username: string): string {
+  const rest = current.replace(/^\s*@[\w.]+\s*/, '').replace(/^\s+/, '');
+  return `@${username} ${rest}`.slice(0, COMMENT_MAX);
 }
 
 /** Pode mandar já outro comentário? `wait`: quantos ms faltam (2 s entre comentários). */

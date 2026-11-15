@@ -12,6 +12,9 @@ export const isModerationKind = (k: string): k is ModerationKind => (MODERATION_
 export function moderationNoun(d: ModerationData): string {
   switch (d.type) {
     case 'comment': return 'o teu comentário';
+    case 'story_comment': return 'o teu comentário no mimo';
+    case 'txillada': return 'a tua Txillada';
+    case 'txillada_comment': return 'o teu comentário na Txillada';
     case 'story': return 'o teu mimo';
     case 'message': return 'a tua mensagem';
     case 'media': return 'a tua foto';

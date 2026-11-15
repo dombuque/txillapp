@@ -12,10 +12,12 @@ import {
  * Os comentários da Txillada a flutuar (o estilo dos balões dos mimos, components/StoryFloatComments): à esquerda, em
  * baixo no vídeo. Cada comentário novo entra de baixo, um de cada vez (numa enxurrada, de 0,65 em 0,65 s, saltando os que
  * esperam demais) e fica à vista (até 45 s) até os novos o empurrarem para cima, onde desvanece. Quem entra vê só os 3 últimos que já lá estavam.
- * `onHold`: o toque longo num balão (o anfitrião apaga ou expulsa; o autor apaga o seu). `onCheer`: dois toques brindam o
+ * `onOpen`: um toque (~250 ms depois, se não vier o segundo) ou o toque longo num balão abrem o menu do comentário
+ * (responder, brindar, denunciar; o anfitrião também fixa, apaga e expulsa). `onCheer`: dois toques brindam o
  * comentário; a pastilha «🍻 N» de cada balão salta (e os copos saem) sempre que a contagem sobe, também pelos outros da sala.
+ * `hidden`: o id do comentário fixado não flutua (está na pílula).
  */
-export function LiveFloatComments({ comments, bottom, width, height, onHold, onCheer }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onHold?: (c: TxilladaComment) => void; onCheer?: (c: TxilladaComment) => void }) {
+export function LiveFloatComments({ comments, bottom, width, height, onOpen, onCheer, hidden }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onOpen?: (c: TxilladaComment) => void; onCheer?: (c: TxilladaComment) => void; hidden?: string | null }) {
   const reduce = useReduceMotion();
   const [st, setSt] = useState<FloatState>(floatInit);
   const [first, setFirst] = useState(true);
@@ -50,7 +52,7 @@ export function LiveFloatComments({ comments, bottom, width, height, onHold, onC
     return () => clearInterval(t);
   }, [busy, max]);
 
-  const entries = floatView(st, now, max, LIVE_FLOAT_TTL_MS);
+  const entries = floatView(st, now, max, LIVE_FLOAT_TTL_MS).filter((e) => e.id !== hidden);
   const lift = floatLift(entries, heights, 44, FLOAT_GAP);
   const byId = new Map(comments.map((c) => [c.id, c]));
   if (!entries.length) return null;
@@ -67,10 +69,11 @@ export function LiveFloatComments({ comments, bottom, width, height, onHold, onC
             age={e.age}
             leaving={e.leaving}
             reduce={reduce}
-            onLongPress={onHold ? () => onHold(c) : undefined}
+            onPress={onOpen ? () => onOpen(c) : undefined}
+            onLongPress={onOpen ? () => onOpen(c) : undefined}
             onDoubleTap={onCheer ? () => onCheer(c) : undefined}
             cheers={c.cheers ?? 0}
-            label={onHold ? 'Mantém para apagar ou expulsar' : ''}
+            label={onOpen ? 'Toca para responder, brindar ou denunciar' : ''}
             onHeight={(h) => setHeights((old) => (old[e.id] === h ? old : { ...old, [e.id]: h }))}
           />
         );
