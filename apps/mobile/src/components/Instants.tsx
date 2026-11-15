@@ -685,13 +685,13 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
               {(Platform.OS === 'web'
                 ? ([
                     ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
-                    ['download', 'Descarregar', 'Ficheiro JPG com a legenda e a assinatura.', () => void saveZas(menu, 'file'), false],
-                    ['share', 'Partilhar', 'Manda a foto a quem quiseres.', () => void shareZas(menu), false],
+                    ['download', 'Descarregar', 'O Zás como na app, em JPG, com a assinatura.', () => void saveZas(menu, 'file'), false],
+                    ['share', 'Partilhar', 'Manda o Zás a quem quiseres.', () => void shareZas(menu), false],
                     ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
                   ] as const)
                 : ([
-                    ['image', 'Guardar na galeria', 'A foto fica nas fotos do telemóvel.', () => void saveZas(menu), false],
-                    ['share', 'Partilhar', 'Manda a foto a quem quiseres (ou guarda-a).', () => void shareZas(menu), false],
+                    ['image', 'Guardar na galeria', 'O Zás, como na app, fica nas fotos do telemóvel.', () => void saveZas(menu), false],
+                    ['share', 'Partilhar', 'Manda o Zás a quem quiseres (ou guarda-o).', () => void shareZas(menu), false],
                     ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
                   ] as const)
               ).map(([ic, label, text, run, danger]) => (

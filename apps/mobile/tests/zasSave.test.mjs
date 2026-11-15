@@ -39,3 +39,11 @@ test('«Guardar», «Descarregar» e «Partilhar» só nos meus Zás', () => {
   assert.ok(calls.length >= 4);
   assert.deepEqual([...new Set(calls)].sort(), ['cur', 'menu']);
 });
+
+test('no telemóvel, partilhar leva o Zás desenhado do servidor (nunca a foto crua)', () => {
+  const share = zas.slice(zas.indexOf('export async function shareZas'));
+  assert.match(share, /signedCacheFile\(it\)/);
+  assert.doesNotMatch(share, /url: it\.url/);
+  assert.match(zas, /FsFile\.downloadFileAsync\(`\$\{SITE_URL\}\/api\/v1\$\{downloadPath\(it\)\}`, dest, \{ headers: authHeaders\(\) \}\)/);
+  assert.match(share, /Sharing\.shareAsync\(uri, \{ mimeType: 'image\/jpeg'/);
+});
