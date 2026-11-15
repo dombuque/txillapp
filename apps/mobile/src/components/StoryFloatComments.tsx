@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
+import { CheersPour } from '@/components/CheersPour';
 import { InlineBadge } from '@/components/NameWithBadge';
-import type { Badged, StoryComment } from '@/lib/api';
+import { api, type Badged, type StoryComment } from '@/lib/api';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP, type FloatColumn } from '@/lib/storyFrame';
+import { commentCheersLabel } from '@/lib/txillada';
 import { FLOAT_EVERY_MS, FLOAT_FIRST_MS, floatDone, floatName, floatOffsets, floatPool, floatText, floatWindow } from '@/lib/storyFloat';
 
 /** O vidro escuro dos balões (o mesmo tom dos botões do visor). */
@@ -17,10 +21,28 @@ const glassWeb = Platform.OS === 'web' ? ({ backdropFilter: 'blur(12px) saturate
  * Os comentários do mimo a flutuar, à esquerda na metade de baixo do cartão (como nos diretos dos visores pro): cada um
  * num balão de vidro com a roda da foto de quem comentou. Entram de baixo com mola, sobem e desvanecem; no máximo `col.max`
  * à vista, a ciclar pelos últimos 10. `active` falso (mimo em pausa) pára o ciclo; `hidden` (a segurar) esconde-os.
- * A coluna (lib/storyFrame `floatColumn`) acaba acima da legenda e da assinatura. Tocar num balão abre os comentários.
+ * A coluna (lib/storyFrame `floatColumn`) acaba acima da legenda e da assinatura. Tocar num balão abre os comentários;
+ * dois toques brindam o comentário (só põem; já brindado, só os copos). A contagem nova vai para a lista dos comentários
+ * em memória (`['story-comments', storyId]`), a mesma da folha.
  */
-export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { comments: readonly StoryComment[]; col: FloatColumn; active: boolean; hidden: boolean; onOpen: () => void }) {
+export function StoryFloatComments({ storyId, comments, col, active, hidden, onOpen }: { storyId: string; comments: readonly StoryComment[]; col: FloatColumn; active: boolean; hidden: boolean; onOpen: () => void }) {
   const reduce = useReduceMotion();
+  const qc = useQueryClient();
+  const setCheer = (id: string, cheers: number, cheered: boolean) =>
+    qc.setQueryData<StoryComment[]>(['story-comments', storyId], (old) => old?.map((x) => (x.id === id ? { ...x, cheers: Math.max(0, cheers), cheered } : x)));
+  function cheer(c: StoryComment) {
+    if (c.cheered) return;
+    const before = c.cheers ?? 0;
+    setCheer(c.id, before + 1, true);
+    api.cheerStoryComment(c.id).then(
+      (r) => {
+        // O pedido alterna: se já estava posto (noutro aparelho), tirou-o; volta a pôr.
+        if (!r.cheered) return api.cheerStoryComment(c.id).then((r2) => setCheer(c.id, r2.cheers, !!r2.cheered));
+        setCheer(c.id, r.cheers, true);
+      },
+      () => setCheer(c.id, before, false),
+    ).catch(() => undefined);
+  }
   const pool = floatPool(comments);
   const [tick, setTick] = useState(-1);
   const [heights, setHeights] = useState<Record<number, number>>({});
@@ -50,6 +72,8 @@ export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { 
             leaving={e.leaving}
             reduce={reduce}
             onPress={onOpen}
+            cheers={c.cheers ?? 0}
+            onDoubleTap={() => cheer(c)}
             onHeight={(h) => setHeights((old) => (old[e.key] === h ? old : { ...old, [e.key]: h }))}
           />
         );
@@ -61,11 +85,16 @@ export function StoryFloatComments({ comments, col, active, hidden, onOpen }: { 
 /** O que um balão precisa de um comentário (o dos mimos e o da Txillada). */
 export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean } & Badged; body: string };
 
+/** Dois toques dentro disto contam como um duplo toque (o toque simples espera este tempo antes de abrir). */
+const DOUBLE_MS = 280;
+
 /**
  * Um balão de vidro com a roda da foto de quem comentou (também os da Txillada, components/txillada/LiveFloatComments).
  * `label`: o que o leitor de ecrã diz ao tocar; `onLongPress`: o toque longo (na Txillada, apagar e expulsar).
+ * `onDoubleTap`: dois toques brindam (os copos saltam do balão e o telemóvel vibra). `cheers`: a pastilha «🍻 N» ao lado,
+ * que salta quando a contagem sobe; com a contagem a subir por outra pessoa (a sala da Txillada) também saltam os copos.
  */
-export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onHeight, label = 'Abrir os comentários' }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onHeight: (h: number) => void; label?: string }) {
+export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários' }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string }) {
   const ty = useSharedValue(reduce ? -y : 22);
   const scale = useSharedValue(reduce ? 1 : 0.9);
   const op = useSharedValue(0);
@@ -78,11 +107,56 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
     scale.value = withSpring(1, { damping: 14, stiffness: 160 });
   }, [y, target, leaving, reduce, op, ty, scale]);
   const anim = useAnimatedStyle(() => ({ opacity: op.value, transform: [{ translateY: ty.value }, { scale: scale.value }] }));
+
+  // O brinde: os copos (CheersPour pequeno) por cima do balão e a pastilha a saltar.
+  const [burst, setBurst] = useState(0);
+  const pill = useSharedValue(1);
+  const pillStyle = useAnimatedStyle(() => ({ transform: [{ scale: pill.value }] }));
+  const seen = useRef(cheers);
+  const mineAt = useRef(0);
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = cheers;
+    if (cheers <= before || reduce) return;
+    pill.value = withSequence(withTiming(1.35, { duration: 110 }), withSpring(1, { damping: 7, stiffness: 260 }));
+    // Os copos do meu duplo toque já saíram; os de outra pessoa saem agora.
+    if (Date.now() - mineAt.current > 1500) setBurst((n) => n + 1);
+  }, [cheers, reduce, pill]);
+  const lastTap = useRef(0);
+  const single = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (single.current) clearTimeout(single.current); }, []);
+  function press() {
+    if (!onDoubleTap) return onPress?.();
+    const now = Date.now();
+    if (now - lastTap.current < DOUBLE_MS) {
+      lastTap.current = 0;
+      if (single.current) clearTimeout(single.current);
+      single.current = null;
+      mineAt.current = now;
+      if (!reduce) setBurst((n) => n + 1);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      onDoubleTap();
+      return;
+    }
+    lastTap.current = now;
+    if (onPress) single.current = setTimeout(() => { single.current = null; onPress(); }, DOUBLE_MS);
+  }
+  const pillText = commentCheersLabel(cheers);
   const name = floatName(c.author.username);
   const text = floatText(c.body);
   return (
     <Animated.View style={[st.bubbleWrap, anim]} pointerEvents={leaving ? 'none' : 'box-none'} onLayout={(ev) => onHeight(Math.round(ev.nativeEvent.layout.height))}>
-      <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={400} style={st.row} accessibilityRole="button" accessibilityLabel={`Comentário de ${c.author.username}: ${text}${label ? `. ${label}` : ''}`}>
+      <Pressable
+        onPress={onPress || onDoubleTap ? press : undefined}
+        onLongPress={onLongPress}
+        delayLongPress={400}
+        style={st.row}
+        accessibilityRole="button"
+        accessibilityLabel={`Comentário de ${c.author.username}: ${text}${cheers ? `. ${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}` : ''}${label ? `. ${label}` : ''}`}
+        accessibilityHint={onDoubleTap ? 'Dois toques para brindar' : undefined}
+        accessibilityActions={onDoubleTap ? [{ name: 'cheer', label: 'Brindar' }] : undefined}
+        onAccessibilityAction={onDoubleTap ? (e) => { if (e.nativeEvent.actionName === 'cheer') onDoubleTap(); } : undefined}
+      >
         <View style={st.ring}>
           <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={26} />
         </View>
@@ -99,6 +173,12 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         <Svg width={7} height={11} viewBox="0 0 7 11" style={st.tail} pointerEvents="none">
           <Path d="M7 0 C7 5 5 9 0 11 L7 11 Z" fill={GLASS} />
         </Svg>
+        {pillText ? (
+          <Animated.View style={[st.pill, glassWeb, pillStyle]} pointerEvents="none">
+            <Text style={st.pillText}>{pillText}</Text>
+          </Animated.View>
+        ) : null}
+        <View style={st.burst} pointerEvents="none"><CheersPour n={burst} size={72} /></View>
       </Pressable>
     </Animated.View>
   );
@@ -115,4 +195,9 @@ const st = StyleSheet.create({
   tail: { position: 'absolute', left: 31.5, bottom: 0 },
   name: { fontWeight: '800', color: '#fff', letterSpacing: -0.1 },
   text: { color: 'rgba(255,255,255,0.94)', fontSize: 13.5, lineHeight: 18, fontWeight: '500' },
+  // «🍻 N» encostada ao fim do balão, em baixo (o mesmo vidro).
+  pill: { alignSelf: 'flex-end', flexShrink: 0, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
+  pillText: { color: '#fff', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  // Os copos saem do meio do balão (sem a roda da foto).
+  burst: { position: 'absolute', left: 38, right: 0, top: -24, bottom: -24 },
 });

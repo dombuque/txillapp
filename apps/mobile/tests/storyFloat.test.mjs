@@ -63,7 +63,7 @@ test('o visor mostra os balões só com comentários, fora da escrita e com a fo
   assert.match(v, /const floatOn = ready && !!cur && cur\.commentCount > 0 && !cur\.commentsOff && !away && !background;/);
   assert.match(v, /queryKey: \['story-comments', cur\?\.id\], queryFn: \(\) => api\.storyComments\(cur!\.id\), enabled: floatOn, staleTime: 5 \* 60_000/);
   assert.match(v, /\{!typing && panel === null && floatOn && floatQ\.data\?\.length \? \(/);
-  assert.match(v, /<StoryFloatComments key=\{cur\.id\} comments=\{floatQ\.data\} col=\{floatCol\} active=\{!paused\} hidden=\{hideUi\} onOpen=\{\(\) => setPanel\('comments'\)\} \/>/);
+  assert.match(v, /<StoryFloatComments key=\{cur\.id\} storyId=\{cur\.id\} comments=\{floatQ\.data\} col=\{floatCol\} active=\{!paused\} hidden=\{hideUi\} onOpen=\{\(\) => setPanel\('comments'\)\} \/>/);
   assert.match(v, /floatColumn\(frame\.cardW, frame\.cardH, ratio, /);
   // A mesma cache da folha dos comentários.
   assert.match(read('components/StoryParts.tsx'), /const key = \['story-comments', story\.id\];/);

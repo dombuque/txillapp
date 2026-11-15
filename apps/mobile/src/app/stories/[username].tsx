@@ -33,7 +33,7 @@ import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
 import { withStories } from '@/lib/txillada';
-import { freshEnough, startIndex } from '@/lib/storyLink';
+import { freshEnough, opensComments, startIndex } from '@/lib/storyLink';
 import { artistHref } from '@/lib/artists';
 import { MusicPill } from '@/components/PostMusic';
 import { SoundWaves } from '@/components/SoundWaves';
@@ -126,7 +126,7 @@ function StoryMusic({ track, paused, onLive }: { track: NonNullable<Story['music
 
 /** Ver os stories de uma pessoa: barras, toca à direita/esquerda, segura para pausar, arrasta para baixo para sair e para cima para responder (ou ver a atividade, nos teus). */
 export default function StoryViewer() {
-  const { username = '', m: wantedMedia } = useLocalSearchParams<{ username: string; m?: string }>();
+  const { username = '', m: wantedMedia, comments: wantComments } = useLocalSearchParams<{ username: string; m?: string; comments?: string }>();
   const router = useRouter();
   const qc = useQueryClient();
   const { user: me } = useAuth();
@@ -259,6 +259,8 @@ export default function StoryViewer() {
     // Os meus: o `seen` vem do servidor (guardado na conta, vale em todos os aparelhos), reforçado pelo que este aparelho guardou.
     // Vindo de uma resposta no chat (`?m=`): abre nesse mimo, se ainda existir.
     setI(startIndex(stories, wantedMedia, firstToWatch(stories, mine, ownSeen)));
+    // Vindo do aviso de brinde a um comentário (`?comments=1`): a folha dos comentários desse mimo abre logo.
+    if (opensComments(stories, wantedMedia, wantComments)) setPanel('comments');
     setReady(true);
   }, [q.isSuccess, q.isFetching, q.dataUpdatedAt, username]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -521,7 +523,7 @@ export default function StoryViewer() {
 
           {/* Os comentários a flutuar, à esquerda na metade de baixo (floatColumn): acima da legenda e da assinatura. */}
           {!typing && panel === null && floatOn && floatQ.data?.length ? (
-            <StoryFloatComments key={cur.id} comments={floatQ.data} col={floatCol} active={!paused} hidden={hideUi} onOpen={() => setPanel('comments')} />
+            <StoryFloatComments key={cur.id} storyId={cur.id} comments={floatQ.data} col={floatCol} active={!paused} hidden={hideUi} onOpen={() => setPanel('comments')} />
           ) : null}
         </View>
 

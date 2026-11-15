@@ -19,6 +19,16 @@ export function startIndex(stories: { mediaUrl: string }[], wanted: string | nul
 }
 
 /**
+ * Abrir logo a folha dos comentários (`?comments=1`, do aviso «brindou o teu comentário no mimo»)? Só quando o mimo pedido
+ * ainda existe: sem ele, o visor abre noutro mimo e a folha seria a de outro.
+ */
+export function opensComments(stories: { mediaUrl: string }[], wanted: string | null | undefined, comments: string | null | undefined): boolean {
+  if (comments !== '1' || !wanted) return false;
+  const id = String(wanted).toLowerCase();
+  return stories.some((s) => storyMediaId(s.mediaUrl) === id);
+}
+
+/**
  * Já dá para escolher por onde começar? Só com uma lista pedida depois de o visor abrir, ou quando já não há pedido a
  * correr (sem rede fica a que houver). Com a lista antiga em memória, os mimos já vistos podiam vir como novos e o visor
  * começava sempre do primeiro.

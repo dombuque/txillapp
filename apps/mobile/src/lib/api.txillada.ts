@@ -36,6 +36,9 @@ export const txilladaApi = {
     raw(`/txilladas/${id(txilladaId)}/comments${after ? `?after=${id(after)}` : ''}`),
   comment: (txilladaId: string, body: string): Promise<TxilladaComment> => raw(`/txilladas/${id(txilladaId)}/comments`, post({ body })),
   removeComment: (txilladaId: string, commentId: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/comments/${id(commentId)}`, { method: 'DELETE' }),
+  /** Brindar um comentário (outra vez tira; no máximo 5 por segundo). A sala recebe `txillada.comment_cheer`. */
+  cheerComment: (txilladaId: string, commentId: string): Promise<{ cheered: boolean; cheers: number }> =>
+    raw(`/txilladas/${id(txilladaId)}/comments/${id(commentId)}/cheer`, post({})),
   cheer: (txilladaId: string): Promise<{ cheers: number }> => raw(`/txilladas/${id(txilladaId)}/cheer`, post({})),
   ban: (txilladaId: string, username: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/ban/${id(username)}`, post({})),
   report: (txilladaId: string, reason: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/report`, post({ reason })),

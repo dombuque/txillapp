@@ -33,14 +33,17 @@ export interface TxilladaDto {
   canComment: boolean;
 }
 
-export interface TxilladaComment { id: string; author: TxilladaPerson; body: string; createdAt: string }
+/** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). */
+export interface TxilladaComment { id: string; author: TxilladaPerson; body: string; createdAt: string; cheers?: number; cheered?: boolean }
 
 export type TxilladaEvent =
   | { type: 'txillada.comment'; txilladaId: string; comment: TxilladaComment }
   | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string } }
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
   | { type: 'txillada.ended'; txilladaId: string; status: TxilladaStatus }
-  | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string };
+  | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
+  /** A contagem nova de brindes de um comentário (não diz quem brindou). */
+  | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number };
 
 /** O título vai até 80 letras; um comentário até 300 (o servidor também limpa as palavras proibidas). */
 export const TITLE_MAX = 80;
@@ -119,6 +122,8 @@ export function parseTxilladaEvent(e: unknown, id?: string): TxilladaEvent | nul
       return { type: x.type, txilladaId, status: typeof x.status === 'string' && STATUSES.includes(x.status) && x.status !== 'live' ? (x.status as TxilladaStatus) : 'ended' };
     case 'txillada.comment_removed':
       return str(x.commentId) ? { type: x.type, txilladaId, commentId: x.commentId } : null;
+    case 'txillada.comment_cheer':
+      return str(x.commentId) && num(x.cheers) ? { type: x.type, txilladaId, commentId: x.commentId, cheers: Math.max(0, Math.floor(x.cheers)) } : null;
     default:
       return null;
   }
@@ -199,7 +204,32 @@ export function applyEvent(s: LiveState, ev: TxilladaEvent, me?: string | null):
       return { ...s, status: ev.status };
     case 'txillada.comment_removed':
       return { ...s, comments: s.comments.filter((c) => c.id !== ev.commentId), removed: s.removed.includes(ev.commentId) ? s.removed : [...s.removed, ev.commentId].slice(-200) };
+    case 'txillada.comment_cheer':
+      return withCommentCheer(s, ev.commentId, ev.cheers);
   }
+}
+
+/**
+ * A contagem de brindes de um comentário (o evento da sala ou a resposta ao meu brinde). `cheered`: o meu estado, só quando
+ * fui eu (o evento não diz quem brindou). Um comentário que já não está no ecrã fica como está.
+ */
+export function withCommentCheer(s: LiveState, commentId: string, cheers: number, cheered?: boolean): LiveState {
+  const i = s.comments.findIndex((c) => c.id === commentId);
+  if (i < 0) return s;
+  const c = s.comments[i];
+  const n = Math.max(0, Math.floor(cheers));
+  const mine = cheered ?? c.cheered;
+  if ((c.cheers ?? 0) === n && c.cheered === mine) return s;
+  const comments = s.comments.slice();
+  comments[i] = { ...c, cheers: n, cheered: mine };
+  return { ...s, comments };
+}
+
+/** «🍻 3» no balão (nada com 0). */
+export function commentCheersLabel(n: number | null | undefined): string {
+  const v = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  if (!v) return '';
+  return v < 1000 ? `🍻 ${v}` : `🍻 ${String(Math.round(v / 100) / 10).replace('.', ',')} mil`;
 }
 
 /** O id do comentário mais recente (para o `?after=`). */

@@ -130,6 +130,13 @@ export class StoriesController {
     return this.stories.comment(req.userId!, id, b.body);
   }
 
+  /** Brindar um comentário do mimo; outra vez tira (como nos comentários das publicações). */
+  @Post('comments/:commentId/cheer')
+  @HttpCode(200)
+  cheerComment(@Req() req: AuthedReq, @Param('commentId', ParseUUIDPipe) commentId: string) {
+    return this.stories.toggleCommentCheer(req.userId!, commentId);
+  }
+
   @Delete('comments/:commentId')
   @HttpCode(204)
   deleteComment(@Req() req: AuthedReq, @Param('commentId', ParseUUIDPipe) commentId: string) {

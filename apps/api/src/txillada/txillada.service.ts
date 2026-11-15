@@ -60,6 +60,8 @@ const publicPerson = (r: Record<string, any>, p = '') => ({
 /** Reações: no máximo 8 por segundo por pessoa; acima de 40 por segundo na sala, já não se difundem. */
 const REACT_PER_SEC = 8;
 const REACT_ROOM_PER_SEC = 40;
+/** Brindes (à Txillada e aos comentários, cada um com a sua conta): no máximo 5 por segundo por pessoa. */
+const CHEERS_PER_SEC = 5;
 /** O «olá» de quem vê: 1 a cada 4 s por pessoa. */
 const HELLO_MS = 4_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -316,15 +318,21 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /* ───────────── comentários e brindes ───────────── */
 
+  /** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (um comentário novo vai com 0 e false para todos). */
   private commentDto(r: Record<string, any>) {
-    return { id: r.id as string, author: person(r, 'a_'), body: r.body as string, createdAt: r.created_at as string };
+    return {
+      id: r.id as string, author: person(r, 'a_'), body: r.body as string, createdAt: r.created_at as string,
+      cheers: (r.cheers as number | undefined) ?? 0, cheered: r.cheered === true,
+    };
   }
 
   async comments(me: string, id: string, after?: string) {
     await this.access(me, id);
     const { rows } = await this.pool.query(
       `SELECT c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
-              (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier
+              (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier,
+              (SELECT count(*) FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
+              EXISTS (SELECT 1 FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $3) AS cheered
          FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
         WHERE c.txillada_id = $1 AND c.removed_at IS NULL AND ($2::uuid IS NULL OR c.id > $2) AND NOT ${blockedBetween('a.id', '$3')}
         ORDER BY c.id DESC LIMIT 50`,
@@ -372,6 +380,31 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     this.emit(await this.audience(id, c.host_id), { type: 'txillada.comment_removed', txilladaId: id, commentId });
   }
 
+  /**
+   * Brindar um comentário (outra vez tira), como nos comentários das publicações. Só enquanto está a decorrer, só quem pode
+   * ver a Txillada (sem expulsos) e o comentário (sem bloqueio com quem o escreveu); no máximo 5 por segundo por pessoa.
+   * Não avisa o autor (é ao vivo): a contagem nova vai a quem está na sala (`txillada.comment_cheer`, sem dizer quem foi),
+   * menos a quem tem um bloqueio com o autor do comentário (não o vê).
+   */
+  async cheerComment(me: string, id: string, commentId: string) {
+    const r = await this.access(me, id);
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    const c = (
+      await this.pool.query(
+        `SELECT c.author_id FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
+          WHERE c.id = $2 AND c.txillada_id = $1 AND c.removed_at IS NULL AND NOT ${blockedBetween('a.id', '$3')}`,
+        [id, commentId, me],
+      )
+    ).rows[0];
+    if (!c) throw new NotFoundException('Comentário não encontrado');
+    if ((await this.rates.hit(`tx:ccheer:${me}`, 1_000)) > CHEERS_PER_SEC) throw new HttpException('Calma! No máximo 5 brindes por segundo.', HttpStatus.TOO_MANY_REQUESTS);
+    const del = await this.pool.query('DELETE FROM content.txillada_comment_cheers WHERE comment_id = $1 AND user_id = $2', [commentId, me]);
+    if (!del.rowCount) await this.pool.query('INSERT INTO content.txillada_comment_cheers (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, me]);
+    const cheers = (await this.pool.query('SELECT count(*)::int AS n FROM content.txillada_comment_cheers WHERE comment_id = $1', [commentId])).rows[0].n as number;
+    this.emit(await this.withoutBlocks(c.author_id as string, await this.audience(id, r.host_id)), { type: 'txillada.comment_cheer', txilladaId: id, commentId, cheers });
+    return { cheered: !del.rowCount, cheers };
+  }
+
   async cheer(me: string, id: string) {
     const r = await this.access(me, id);
     if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
@@ -386,7 +419,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   private async addCheer(me: string, r: Record<string, any>, broadcast = true) {
     const id = r.id as string;
     if (r.host_id === me) throw new BadRequestException('Não podes brindar a tua própria Txillada.');
-    if ((await this.rates.hit(`tx:cheer:${me}`, 1_000)) > 5) throw new HttpException('Calma! No máximo 5 brindes por segundo.', HttpStatus.TOO_MANY_REQUESTS);
+    if ((await this.rates.hit(`tx:cheer:${me}`, 1_000)) > CHEERS_PER_SEC) throw new HttpException('Calma! No máximo 5 brindes por segundo.', HttpStatus.TOO_MANY_REQUESTS);
     await this.pool.query(
       `INSERT INTO content.txillada_cheers (txillada_id, user_id, count, last_at) VALUES ($1, $2, 1, now())
        ON CONFLICT (txillada_id, user_id) DO UPDATE SET count = content.txillada_cheers.count + 1, last_at = now()`,
@@ -596,10 +629,16 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /**
    * Nada fica guardado: os comentários e os brindes (e as expulsões) de uma Txillada acabada há mais de 7 dias apagam-se,
-   * menos os comentários de uma Txillada com denúncia por decidir (ficam até à decisão). A linha da Txillada fica (registo).
+   * menos os comentários de uma Txillada com denúncia por decidir (ficam até à decisão, mas os brindes a eles saem já).
+   * A linha da Txillada fica (registo).
    */
   async purge(days = TX_KEEP_DAYS) {
     const ended = `t.status <> 'live' AND t.ended_at < now() - make_interval(days => $1)`;
+    const cc = await this.pool.query(
+      `DELETE FROM content.txillada_comment_cheers x USING content.txillada_comments c, content.txilladas t
+        WHERE x.comment_id = c.id AND c.txillada_id = t.id AND ${ended}`,
+      [days],
+    );
     const c = await this.pool.query(
       `DELETE FROM content.txillada_comments c USING content.txilladas t
         WHERE c.txillada_id = t.id AND ${ended}
@@ -608,7 +647,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     );
     const ch = await this.pool.query(`DELETE FROM content.txillada_cheers x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);
     await this.pool.query(`DELETE FROM content.txillada_bans x USING content.txilladas t WHERE x.txillada_id = t.id AND ${ended}`, [days]);
-    return { comments: c.rowCount ?? 0, cheers: ch.rowCount ?? 0 };
+    return { comments: c.rowCount ?? 0, cheers: ch.rowCount ?? 0, commentCheers: cc.rowCount ?? 0 };
   }
 
   /* ───────────── backoffice ───────────── */

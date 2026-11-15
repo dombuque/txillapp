@@ -266,7 +266,7 @@ export default function TxilladaScreen() {
 
         {/* A conversa por cima do vídeo (também para o anfitrião): os comentários a flutuar e quem entrou. */}
         {panel === null ? (
-          <LiveFloatComments comments={live.comments} bottom={floatBottom} width={L.floatW} height={floatH} onHold={host || tx.me ? hold : undefined} />
+          <LiveFloatComments comments={live.comments} bottom={floatBottom} width={L.floatW} height={floatH} onHold={host || tx.me ? hold : undefined} onCheer={tx.me && tx.kind === 'live' ? tx.cheerComment : undefined} />
         ) : null}
         <JoinedToast users={fxs.joined?.users ?? null} bottom={laneBottom} left={L.side} onHello={host ? (u) => (u ? fxs.helloTo(u.username) : react('hello')) : undefined} />
 

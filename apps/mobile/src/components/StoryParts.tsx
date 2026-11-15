@@ -3,12 +3,14 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
-import { api, type Story } from '@/lib/api';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { api, type Story, type StoryComment } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { CheersPour } from './CheersPour';
 import { NameWithBadge } from './NameWithBadge';
 import { Icon } from './Icon';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
@@ -204,17 +206,7 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
         <ScrollView style={{ maxHeight: 320, minHeight: 96 }}>
           {list.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
           {list.isSuccess && list.data.length === 0 && <Text style={st.none}>Ainda sem comentários. Sê o primeiro</Text>}
-          {list.data?.map((c) => (
-            <View key={c.id} style={st.item}>
-              <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
-                <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: colors.zinc900 }} />
-              </View>
-              {!c.mine && <Pressable onPress={() => setReporting(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={colors.zinc500} /></Pressable>}
-              {c.canDelete && <Pressable onPress={() => del(c.id)} hitSlop={8} accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>}
-            </View>
-          ))}
+          {list.data?.map((c) => <StoryCommentRow key={c.id} c={c} onReport={() => setReporting(c.id)} onDelete={() => del(c.id)} />)}
         </ScrollView>
         {canComment ? <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginTop: 8, marginBottom: 0 }} /> : null}
         {canComment ? (
@@ -231,6 +223,62 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
       {/* O comentário denunciado sai logo da lista de quem denunciou (o servidor também já não o devolve). */}
       {reporting && <ReportSheet type="story_comment" id={reporting} onReported={refresh} onClose={() => setReporting(null)} />}
     </Panel>
+  );
+}
+
+/**
+ * Um comentário do mimo na folha, com o brinde como nos comentários das publicações (components/CommentsSheet): o copo à
+ * direita põe e tira; dois toques no comentário só põem (já brindado, só os copos). Ao pôr: os copos pequenos por cima, o
+ * ícone salta e o telemóvel vibra. A contagem sobe logo e acerta com a resposta do servidor.
+ */
+function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport: () => void; onDelete: () => void }) {
+  const [cheer, setCheer] = useState({ cheered: !!c.cheered, cheers: c.cheers ?? 0 });
+  useEffect(() => { setCheer({ cheered: !!c.cheered, cheers: c.cheers ?? 0 }); }, [c.cheered, c.cheers]);
+  const [burst, setBurst] = useState(0);
+  const pop = useSharedValue(1);
+  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  function celebrate() {
+    setBurst((n) => n + 1);
+    pop.value = withSequence(withTiming(1.45, { duration: 120 }), withSpring(1, { damping: 7, stiffness: 260 }));
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  }
+  async function toggle() {
+    const prev = cheer;
+    if (!prev.cheered) celebrate();
+    setCheer({ cheered: !prev.cheered, cheers: Math.max(0, prev.cheers + (prev.cheered ? -1 : 1)) });
+    try {
+      const r = await api.cheerStoryComment(c.id);
+      setCheer({ cheered: !!r.cheered, cheers: r.cheers });
+    } catch {
+      setCheer(prev);
+    }
+  }
+  const lastTap = useRef(0);
+  function onRowPress() {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      lastTap.current = 0;
+      if (cheer.cheered) celebrate();
+      else void toggle();
+      return;
+    }
+    lastTap.current = now;
+  }
+  return (
+    <Pressable onPress={onRowPress} style={st.item} accessibilityHint="Dois toques para brindar">
+      <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
+        <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: colors.zinc900 }} />
+        {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
+      </View>
+      {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={colors.zinc500} /></Pressable>}
+      {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>}
+      <Pressable onPress={() => void toggle()} hitSlop={10} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'} accessibilityState={{ selected: cheer.cheered }}>
+        <Reanimated.View style={popStyle}><Icon name="cheers" size={19} color={cheer.cheered ? colors.brand : '#a1a1aa'} /></Reanimated.View>
+      </Pressable>
+      <CheersPour n={burst} size={96} />
+    </Pressable>
   );
 }
 
@@ -357,6 +405,7 @@ const st = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
   who: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
   whoAgo: { flexShrink: 0, fontSize: 14, color: colors.zinc500 },
+  cheers: { marginTop: 4, fontSize: 13, fontWeight: '600', color: colors.zinc500 },
   compose: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingTop: 12 },
   commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' as never },
   closed: { marginTop: 8, borderRadius: 12, backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: colors.zinc600 },

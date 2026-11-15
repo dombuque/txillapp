@@ -73,6 +73,8 @@ export type TxilladaEvent =
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
   | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut' }
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
+  /** Brindaram (ou tiraram o brinde a) um comentário: a contagem nova (0161). Não diz quem foi. */
+  | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }
   /** Uma reação (não se guarda). `to`: o anfitrião respondeu com um olá a quem entrou. */
   | {
       type: 'txillada.reaction';

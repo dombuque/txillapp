@@ -147,7 +147,7 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     expect(Object.keys(dto.host).sort()).toEqual(expect.arrayContaining(['avatarUrl', 'displayName', 'id', 'username']));
     await wait(2_100); // 1 comentário a cada 2 s por pessoa
     const c = (await api().post(`/api/v1/txilladas/${id}/comments`).set(auth(lana)).send({ body: 'Que fixe' }).expect(201)).body;
-    expect(Object.keys(c).sort()).toEqual(['author', 'body', 'createdAt', 'id']);
+    expect(Object.keys(c).sort()).toEqual(['author', 'body', 'cheered', 'cheers', 'createdAt', 'id']);
     await api().post(`/api/v1/txilladas/${id}/cheer`).set(auth(lrui)).expect(200);
     const all = JSON.stringify([dto, c, ...txEvents(lana), ...txEvents(lrui), ...txEvents(lhost)]);
     expect(all).not.toMatch(/@example\.com|email|birth|1990-06-15/i);

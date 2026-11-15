@@ -431,3 +431,57 @@ test('as ligações das Txilladas não entram nos motores de busca (página, rob
   assert.match(ngx, /map "\$host\$request_uri" \$robots_tag/);
   assert.match(ngx, /txillada\(\[\/\?\]\|\$\)" "noindex, nofollow, noarchive"/);
 });
+
+// ── brindar os comentários (0161) ───────────────────────────────────────────────────────────────────────────────────
+
+test('brindes aos comentários: o evento da sala, a contagem no balão e a pastilha «🍻 N»', () => {
+  assert.deepEqual(
+    t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1', cheers: 3.7 }, 't1'),
+    { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1', cheers: 3 },
+  );
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1', cheers: -2 }, 't1').cheers, 0);
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1' }, 't1'), null, 'sem contagem');
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't1', cheers: 2 }, 't1'), null, 'sem comentário');
+  assert.equal(t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't2', commentId: 'c1', cheers: 2 }, 't1'), null, 'de outra Txillada');
+
+  let s = t.withComments(t.initialLive(dto({ comments: 0 })), [cm('a', 1), cm('b', 2)]);
+  s = t.applyEvent(s, { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'b', cheers: 4 });
+  assert.equal(s.comments.find((c) => c.id === 'b').cheers, 4);
+  assert.equal(s.comments.find((c) => c.id === 'b').cheered, undefined, 'o evento não diz quem brindou');
+  assert.equal(t.applyEvent(s, { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'b', cheers: 4 }), s, 'a mesma contagem: o mesmo estado');
+  assert.equal(t.applyEvent(s, { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'zz', cheers: 9 }), s, 'um comentário que já não está à vista');
+  s = t.withCommentCheer(s, 'a', 1, true);
+  assert.deepEqual([s.comments[0].cheers, s.comments[0].cheered], [1, true]);
+  s = t.applyEvent(s, { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'a', cheers: 2 });
+  assert.deepEqual([s.comments[0].cheers, s.comments[0].cheered], [2, true], 'o meu brinde fica marcado com a contagem dos outros');
+
+  assert.equal(t.commentCheersLabel(0), '');
+  assert.equal(t.commentCheersLabel(undefined), '');
+  assert.equal(t.commentCheersLabel(Number.NaN), '');
+  assert.equal(t.commentCheersLabel(3), '🍻 3');
+  assert.equal(t.commentCheersLabel(999), '🍻 999');
+  assert.equal(t.commentCheersLabel(1250), '🍻 1,3 mil');
+});
+
+test('brindes aos comentários: a rota do contrato, o ecrã e os balões', async () => {
+  globalThis.__calls = [];
+  globalThis.__reply = () => ({ cheered: true, cheers: 2 });
+  assert.deepEqual(await txilladaApi.cheerComment('t1', 'c 1'), { cheered: true, cheers: 2 });
+  assert.deepEqual(globalThis.__calls.map((c) => [c.method, c.path, c.body]), [['POST', '/txilladas/t1/comments/c%201/cheer', {}]]);
+  // A sala: só põe (já brindado não manda nada), no máximo 5 por segundo, a contagem sobe logo.
+  const room = read('src/lib/txilladaRoom.ts');
+  assert.match(room, /function cheerComment\(c: TxilladaComment\): boolean \{\n\s+if \(c\.cheered \|\| kind !== 'live'\) return false;/);
+  assert.match(room, /cheerGate\(commentCheerTimes\.current, Date\.now\(\)\)/);
+  assert.match(room, /cheerComment, removeComment/);
+  // O ecrã liga os dois toques; o toque longo do anfitrião fica.
+  const screen = read('src/app/txillada/[id].tsx');
+  assert.match(screen, /onHold=\{host \|\| tx\.me \? hold : undefined\} onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
+  const live = read('src/components/txillada/LiveFloatComments.tsx');
+  assert.match(live, /onDoubleTap=\{onCheer \? \(\) => onCheer\(c\) : undefined\}/);
+  assert.match(live, /cheers=\{c\.cheers \?\? 0\}/);
+  // O balão: duplo toque, os copos (72 px) e a pastilha que salta quando a contagem sobe.
+  const bubble = read('src/components/StoryFloatComments.tsx');
+  assert.match(bubble, /<CheersPour n=\{burst\} size=\{72\} \/>/);
+  assert.match(bubble, /commentCheersLabel\(cheers\)/);
+  assert.match(bubble, /if \(cheers <= before \|\| reduce\) return;/);
+});

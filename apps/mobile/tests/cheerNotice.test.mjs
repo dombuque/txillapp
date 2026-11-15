@@ -45,3 +45,16 @@ test('o ecrã das notificações conhece o tipo cheer (texto e destino) e o tipo
   const api = readFileSync(path.join(ROOT, 'src', 'lib', 'api.ts'), 'utf8');
   assert.match(api, /export type NotificationKind = [^;]*'cheer'/);
 });
+
+test('brinde a um comentário num mimo: o texto e o visor nesse mimo com a folha dos comentários', () => {
+  const M = '0193a1b2-0000-7000-8000-00000000000a';
+  const d = { target: 'story_comment', storyId: 's1', commentId: 'c1', storyAuthor: 'zeca', mediaId: M };
+  assert.equal(c.cheerVerb(d, false), 'brindou o teu comentário no mimo');
+  assert.equal(c.cheerVerb(d, true), 'brindaram o teu comentário no mimo');
+  assert.equal(c.cheerTarget(d), `/stories/zeca?m=${M}&comments=1`, 'o mesmo destino do push');
+  assert.equal(c.cheerTarget({ ...d, mediaId: M.toUpperCase() }), `/stories/zeca?m=${M}&comments=1`);
+  assert.equal(c.cheerTarget({ ...d, mediaId: undefined }), '/stories/zeca', 'sem o ficheiro: os mimos de quem publicou');
+  assert.equal(c.cheerTarget({ ...d, mediaId: '../x' }), '/stories/zeca', 'um id estranho não entra no endereço');
+  assert.equal(c.cheerTarget({ ...d, storyAuthor: 'a b' }), `/stories/a%20b?m=${M}&comments=1`);
+  assert.equal(c.cheerTarget({ target: 'story_comment', commentId: 'c1' }), null);
+});

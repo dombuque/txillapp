@@ -12,9 +12,10 @@ import {
  * Os comentários da Txillada a flutuar (o estilo dos balões dos mimos, components/StoryFloatComments): à esquerda, em
  * baixo no vídeo. Cada comentário novo entra de baixo, um de cada vez (numa enxurrada, de 0,65 em 0,65 s, saltando os que
  * esperam demais) e fica à vista (até 45 s) até os novos o empurrarem para cima, onde desvanece. Quem entra vê só os 3 últimos que já lá estavam.
- * `onHold`: o toque longo num balão (o anfitrião apaga ou expulsa; o autor apaga o seu).
+ * `onHold`: o toque longo num balão (o anfitrião apaga ou expulsa; o autor apaga o seu). `onCheer`: dois toques brindam o
+ * comentário; a pastilha «🍻 N» de cada balão salta (e os copos saem) sempre que a contagem sobe, também pelos outros da sala.
  */
-export function LiveFloatComments({ comments, bottom, width, height, onHold }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onHold?: (c: TxilladaComment) => void }) {
+export function LiveFloatComments({ comments, bottom, width, height, onHold, onCheer }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onHold?: (c: TxilladaComment) => void; onCheer?: (c: TxilladaComment) => void }) {
   const reduce = useReduceMotion();
   const [st, setSt] = useState<FloatState>(floatInit);
   const [first, setFirst] = useState(true);
@@ -67,6 +68,8 @@ export function LiveFloatComments({ comments, bottom, width, height, onHold }: {
             leaving={e.leaving}
             reduce={reduce}
             onLongPress={onHold ? () => onHold(c) : undefined}
+            onDoubleTap={onCheer ? () => onCheer(c) : undefined}
+            cheers={c.cheers ?? 0}
             label={onHold ? 'Mantém para apagar ou expulsar' : ''}
             onHeight={(h) => setHeights((old) => (old[e.id] === h ? old : { ...old, [e.id]: h }))}
           />

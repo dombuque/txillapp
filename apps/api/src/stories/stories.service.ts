@@ -245,7 +245,9 @@ export class StoriesService {
     await this.visibleStory(viewerId, storyId);
     const { rows } = await this.pool.query(
       `SELECT c.id, c.body, c.created_at, a.username, a.display_name, a.verified, a.verified_tier, (a.avatar_media_id IS NOT NULL) AS has_avatar,
-              (c.author_id = $1) AS mine, (st.author_id = $1 OR c.author_id = $1) AS can_delete
+              (c.author_id = $1) AS mine, (st.author_id = $1 OR c.author_id = $1) AS can_delete,
+              (SELECT count(*) FROM content.story_comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
+              EXISTS (SELECT 1 FROM content.story_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered
          FROM content.story_comments c
          JOIN content.stories st ON st.id = c.story_id
          JOIN identity.users a ON a.id = c.author_id
@@ -260,8 +262,43 @@ export class StoriesService {
       createdAt: r.created_at as string,
       mine: r.mine as boolean,
       canDelete: r.can_delete as boolean,
+      cheers: r.cheers as number,
+      cheered: r.cheered as boolean,
       author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, ...badge(r.verified, r.verified_tier) },
     }));
+  }
+
+  /**
+   * Brindar um comentário de um mimo (outra vez tira), como nos comentários das publicações. Só quem vê o mimo e o
+   * comentário (as mesmas regras da lista: sem bloqueio, sem o ter denunciado, conta privada só para quem a segue). Avisa
+   * quem escreveu o comentário com o aviso juntado dos brindes (NotificationsService.notifyCheer, categoria «Reações»).
+   */
+  async toggleCommentCheer(userId: string, commentId: string) {
+    const c = (
+      await this.pool.query(
+        `SELECT c.story_id, c.author_id FROM content.story_comments c
+           JOIN content.stories st ON st.id = c.story_id JOIN identity.users a ON a.id = c.author_id
+          WHERE c.id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')} AND ${notReportedBy('story_comment', 'c.id')}
+            AND (a.id = $1 OR st.author_id = $1 OR ${canView('a')})`,
+        [userId, commentId],
+      )
+    ).rows[0];
+    if (!c) throw new NotFoundException('Comentário não encontrado');
+    const s = await this.visibleStory(userId, c.story_id as string);
+    const del = await this.pool.query('DELETE FROM content.story_comment_cheers WHERE comment_id = $1 AND user_id = $2', [commentId, userId]);
+    if (!del.rowCount) {
+      const ins = await this.pool.query('INSERT INTO content.story_comment_cheers (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, userId]);
+      if (ins.rowCount) {
+        const author = (await this.pool.query('SELECT username FROM identity.users WHERE id = $1', [s.author_id])).rows[0]?.username as string | undefined;
+        if (author) {
+          await this.notifications.notifyCheer(c.author_id as string, userId, {
+            kind: 'story_comment', storyId: c.story_id as string, commentId, storyAuthor: author, mediaId: s.media_id,
+          });
+        }
+      }
+    }
+    const n = await this.pool.query('SELECT count(*)::int AS n FROM content.story_comment_cheers WHERE comment_id = $1', [commentId]);
+    return { cheered: !del.rowCount, cheers: n.rows[0].n as number };
   }
 
   /** Comentar num story: segue a mesma definição de respostas do autor (todos, quem ele segue, ninguém). */
