@@ -804,6 +804,8 @@ export const api = {
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
   mentionable: (q: string): Promise<({ username: string; displayName: string; hasAvatar: boolean; following: boolean } & Badged)[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   /** Sugestões ao escrever @: as pessoas mais próximas primeiro; `context` + `id` sobem quem está na publicação/no grupo/no mimo. */
+  /** Que @nomes existem (contas ativas); até 20 de cada vez. */
+  mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionSuggest: (q: string, context?: MentionSuggestContext, id?: string): Promise<{ items: MentionSuggestion[] }> =>
     raw(`/mentions/suggest?q=${encodeURIComponent(q)}${context && id ? `&context=${context}&id=${encodeURIComponent(id)}` : ''}`),
   // A pesquisa corre a cada tecla: conta no máximo uma a cada 10 s (e nunca o que se escreveu).
