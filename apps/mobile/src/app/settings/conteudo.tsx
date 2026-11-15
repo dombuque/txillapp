@@ -11,8 +11,9 @@ import { soundsApi } from '@/lib/api.sounds';
 import { settingsApi, type GeleiraSettings } from '@/lib/api.settings';
 import { reuseSetting } from '@/lib/sounds';
 import { downloadSetting } from '@/lib/tchekaDownload';
+import { repostSetting } from '@/lib/repost';
 
-/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as tchekas (duetos, o teu som e guardá-las), as estatísticas, o teu local e os convites. */
+/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, os reposts das tuas publicações, as tchekas (duetos, o teu som e guardá-las), as estatísticas, o teu local e os convites. */
 export default function ContentSettings() {
   const [contacts, setContacts] = useState(false);
   const qc = useQueryClient();
@@ -45,6 +46,19 @@ export default function ContentSettings() {
       Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
+  // «Deixar repostar as minhas publicações» (0156): ligado por omissão (as contas que já eram privadas ficaram desligadas).
+  const rp = useQuery({ queryKey: ['reposts', 'settings'], queryFn: settingsApi.repostSettings, retry: false });
+  const rpRow = repostSetting(rp.data);
+  async function setReposts(on: boolean) {
+    const before = rp.data;
+    if (before) qc.setQueryData(['reposts', 'settings'], { ...before, allow: on });
+    try {
+      qc.setQueryData(['reposts', 'settings'], await settingsApi.setRepostSettings(on));
+    } catch (e) {
+      qc.setQueryData(['reposts', 'settings'], before);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
   // «Mostrar o livro das geladas a quem vê a geleira» (0145): desligado por omissão; servidor antigo não manda (sem linha).
   const gel = useQuery({ queryKey: ['geleira', 'settings'], queryFn: settingsApi.geleiraSettings, retry: false });
   async function setBook(on: boolean) {
@@ -74,6 +88,11 @@ export default function ContentSettings() {
           />
         ) : null}
       </SettingsSection>
+      {rp.data ? (
+        <SettingsSection title="As tuas publicações">
+          <SettingRow anchor="allowReposts" icon="repeat" title="Deixar repostar as minhas publicações" description={rpRow.description} toggle={{ on: rpRow.on, disabled: rpRow.disabled, onChange: (v) => void setReposts(v) }} />
+        </SettingsSection>
+      ) : null}
       <SettingsSection title="As tuas tchekas">
         {p ? (
           <SettingRow

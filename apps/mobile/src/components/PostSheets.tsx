@@ -18,6 +18,7 @@ import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
 import { saveTcheka } from '@/lib/saveTcheka';
 import { canDownload } from '@/lib/tchekaDownload';
+import { canRepost, REPOST_BLOCKED } from '@/lib/repost';
 import { takedownText, takedownTitle } from '@/lib/remix';
 import { normTextFont, type TextFontId } from '@/lib/textLayers';
 import { FontChips } from './FontChips';
@@ -158,6 +159,8 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // «Deixar repostar as minhas publicações» (lib/repost): sem licença, só fica o «Desfazer repost» (se houver um meu).
+  const allowed = canRepost(post);
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -167,7 +170,10 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
       for (const k of ['feed', 'profile-posts']) void qc.invalidateQueries({ queryKey: [k] });
       onClose();
     } catch (x) {
-      setErr((x as Error).message);
+      // A mensagem da API (ex.: «Quem publicou não deixa repostar as suas publicações.»). Numa publicação em cache sem o
+      // `canRepost`, a recusa esconde logo a opção.
+      setErr((x as Error).message || 'Não consegui repostar agora. Tenta outra vez.');
+      if (x instanceof ApiError && x.status === 403 && x.message === REPOST_BLOCKED) onChange({ canRepost: false });
       setBusy(false);
     }
   }
@@ -193,11 +199,11 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
           <View>
             {post.reposted ? (
               <MenuRow icon={<Icon name="undo" size={22} />} title="Desfazer repost" text="Tira esta publicação do teu perfil." disabled={busy} onPress={() => void run(async () => onChange(await api.unrepost(post.id)))} />
-            ) : (
+            ) : allowed ? (
               <MenuRow icon={<Icon name="repeat" size={22} />} title="Repostar" text="Partilha no teu perfil, tal como está." disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
-            )}
-            <MenuRow icon={<Icon name="pencil" size={22} />} title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onPress={() => setQuote(true)} />
-            {err ? <Text style={styles.err}>{err}</Text> : null}
+            ) : null}
+            {allowed ? <MenuRow icon={<Icon name="pencil" size={22} />} title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onPress={() => setQuote(true)} /> : null}
+            {err ? <Text style={styles.err}>{err}</Text> : !allowed ? <Text style={styles.note}>{REPOST_BLOCKED}</Text> : null}
           </View>
         )}
       </View>
@@ -368,6 +374,7 @@ const styles = StyleSheet.create({
   optTitle: { marginTop: 2, fontSize: 14, fontWeight: '700', color: colors.zinc900 },
   optText: { marginTop: 2, fontSize: 11, lineHeight: 14, color: colors.zinc600 },
   err: { minHeight: 20, marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  note: { minHeight: 20, marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
   primary: { marginTop: 8, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   ghost: { marginTop: 8, height: 48, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
