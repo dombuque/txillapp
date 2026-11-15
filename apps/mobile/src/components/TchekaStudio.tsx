@@ -447,6 +447,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     if (e.ac) return e;
     const AC = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext | undefined;
     if (!AC) return e;
+    // No iPhone com o som em silêncio, o Web Audio ficava calado (os <video> não): a música não se ouvia no estúdio. Com a
+    // sessão de áudio em «playback» (Safari 17+) toca como um vídeo.
+    try { const s = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (s) s.type = 'playback'; } catch { /* browser sem audioSession */ }
     const ac = new AC();
     const dest = ac.createMediaStreamDestination();
     const master = ac.createGain();

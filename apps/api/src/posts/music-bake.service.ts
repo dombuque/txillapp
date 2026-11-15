@@ -5,7 +5,8 @@ import { join } from 'path';
 import { Pool } from 'pg';
 import { newInstanceId, runsBackground } from '../common/role';
 import { uuidv7 } from '../common/uuid7';
-import { ffmpeg, FfmpegError, probe, SAFE_VIDEO } from '../compose/ffmpeg';
+import { ANALYZE_DECODE_HZ, ANALYZE_MAX_S, SILENCE_RMS } from '../compose/analyze';
+import { decodeMono, ffmpeg, FfmpegError, probe, SAFE_VIDEO } from '../compose/ffmpeg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
@@ -86,14 +87,16 @@ export class MusicBakeService implements OnModuleInit, OnModuleDestroy {
    */
   async afterPublish(postId: string, mediaId: string, o: { musicInFile: boolean; viaSound: boolean }): Promise<void> {
     const composed = (await this.pool.query(`SELECT 1 FROM content.compose_jobs WHERE media_id = $1 AND status = 'done'`, [mediaId])).rowCount;
-    if (composed || o.musicInFile) {
+    if (composed) {
       await this.pool.query(`INSERT INTO content.post_music_bakes (post_id, source_media_id, status, finished_at) VALUES ($1, $2, 'inline', now()) ON CONFLICT (post_id) DO NOTHING`, [postId, mediaId]);
       return;
     }
+    // O estúdio do site diz que a música já vai no vídeo: confirma-se primeiro (`verify_inline`, ver work): no Safari do
+    // iPhone o vídeo podia sair calado e a tcheka ficava muda.
     const mix = bakeMix(o.viaSound);
     await this.pool.query(
-      `INSERT INTO content.post_music_bakes (post_id, source_media_id, original_volume, music_volume, music_start_ms) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (post_id) DO NOTHING`,
-      [postId, mediaId, mix.originalVolume, mix.musicVolume, mix.musicStartMs],
+      `INSERT INTO content.post_music_bakes (post_id, source_media_id, original_volume, music_volume, music_start_ms, verify_inline) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (post_id) DO NOTHING`,
+      [postId, mediaId, mix.originalVolume, mix.musicVolume, mix.musicStartMs, o.musicInFile],
     );
     this.kick();
   }
@@ -183,7 +186,7 @@ export class MusicBakeService implements OnModuleInit, OnModuleDestroy {
     try {
       const r = (
         await this.pool.query(
-          `SELECT b.source_media_id, b.original_volume, b.music_volume, b.music_start_ms, p.music, p.author_id, p.removed_at, (${MUSIC_SOUND_OK('p')}) AS music_ok,
+          `SELECT b.source_media_id, b.original_volume, b.music_volume, b.music_start_ms, b.verify_inline, p.music, p.author_id, p.removed_at, (${MUSIC_SOUND_OK('p')}) AS music_ok,
                   ma.status AS media_status, ma.signed, ma.width, ma.height, ma.duration_ms
              FROM content.post_music_bakes b JOIN content.posts p ON p.id = b.post_id JOIN content.media_assets ma ON ma.id = b.source_media_id
             WHERE b.post_id = $1`,
@@ -194,13 +197,19 @@ export class MusicBakeService implements OnModuleInit, OnModuleDestroy {
       if (!r.music) throw new Skip('sem música');
       if (r.media_status !== 'ready') throw new Skip('o vídeo já não está disponível');
       if (r.music_ok === false) throw new Skip('o som foi tirado');
-      const src = await this.audioSource(r.music as Record<string, unknown>);
       tmp = await mkdtemp(join(tmpdir(), 'txbake-'));
       const video = join(tmp, 'in.mp4'), music = join(tmp, 'music'), out = join(tmp, 'out.mp4');
       await writeFile(video, await this.media.rawBytes(r.source_media_id as string, 'public'));
-      await this.fetchAudio(src, music, ac.signal);
       const info = await probe(video, SAFE_VIDEO);
       if (!info.hasVideo || !(info.seconds > 0)) throw new Skip('o vídeo não tem imagem');
+      // Do estúdio do site, com a música já misturada: se o vídeo tem som, fica como está ('inline').
+      if (r.verify_inline && (await this.audible(video, info, tmp, ac.signal))) {
+        await this.pool.query(`UPDATE content.post_music_bakes SET status = 'inline', error = NULL, finished_at = now(), worker_id = NULL WHERE post_id = $1 AND status = 'working'`, [postId]);
+        this.log.log(`tcheka ${postId}: a música já vinha no vídeo do estúdio do site`);
+        return;
+      }
+      const src = await this.audioSource(r.music as Record<string, unknown>);
+      await this.fetchAudio(src, music, ac.signal);
       await ffmpeg(bakeArgs({ video, music, seconds: info.seconds, hasAudio: info.hasAudio, originalVolume: Number(r.original_volume), musicVolume: Number(r.music_volume), musicStartMs: Number(r.music_start_ms), out }), { cwd: tmp, signal: ac.signal });
       const check = await probe(out);
       if (!check.hasAudio || !check.hasVideo) throw new Error('o vídeo gravado saiu sem som');
@@ -229,6 +238,20 @@ export class MusicBakeService implements OnModuleInit, OnModuleDestroy {
       clearInterval(beat);
       if (tmp) await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  /** O vídeo tem som que se ouça (uma pista de áudio acima do silêncio, como na Montagem mágica)? */
+  private async audible(file: string, info: { hasAudio: boolean; seconds: number }, cwd: string, signal: AbortSignal): Promise<boolean> {
+    if (!info.hasAudio) return false;
+    const mono = await decodeMono(file, Math.min(ANALYZE_MAX_S, info.seconds + 0.5), ANALYZE_DECODE_HZ, { cwd, signal });
+    const block = Math.max(1, Math.round(ANALYZE_DECODE_HZ / 20));
+    for (let i = 0; i < mono.length; i += block) {
+      const end = Math.min(mono.length, i + block);
+      let s = 0;
+      for (let k = i; k < end; k++) s += mono[k] * mono[k];
+      if (Math.sqrt(s / (end - i)) >= SILENCE_RMS) return true;
+    }
+    return false;
   }
 
   /**

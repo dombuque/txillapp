@@ -194,10 +194,11 @@ describe('fim de tcheka: música gravada no vídeo e cópia com o cartão do fim
     const p1 = (await api().post('/api/v1/posts').set(as(a)).send({ body: '', mediaIds: [composed], music }).expect(201)).body;
     expect(p1.musicBaked).toBe(true);
     expect(idOf(p1.media[0].url)).toBe(composed);
-    // O estúdio do site manda musicInFile.
+    // O estúdio do site manda musicInFile: o worker ouve o vídeo e, com som, fica 'inline' sem gravar outra vez.
     const web = await uploadVideo(a, video('estudio', 2, true));
     const p2 = (await api().post('/api/v1/posts').set(as(a)).send({ body: '', mediaIds: [web], music, musicInFile: true }).expect(201)).body;
-    expect(p2.musicBaked).toBe(true);
+    expect((await waitBake(p2.id)).status).toBe('inline');
+    expect((await getPost(a, p2.id)).musicBaked).toBe(true);
     const rows = (await pool.query('SELECT post_id, status, media_id FROM content.post_music_bakes WHERE post_id = ANY($1)', [[p1.id, p2.id]])).rows;
     expect(rows.map((r) => r.status)).toEqual(['inline', 'inline']);
     expect(rows.every((r) => r.media_id === null)).toBe(true);
@@ -207,6 +208,21 @@ describe('fim de tcheka: música gravada no vídeo e cópia com o cartão do fim
     expect(p3.musicBaked).toBe(false);
     expect((await pool.query('SELECT 1 FROM content.post_music_bakes WHERE post_id = $1', [p3.id])).rowCount).toBe(0);
   }, 120_000);
+
+  it('estúdio do site com musicInFile mas o vídeo saiu calado (Safari do iPhone): grava-se lá a música', async () => {
+    for (const [label, withAudio] of [['webmudo', false], ['websilencio', true]] as const) {
+      // Sem pista de áudio, ou com uma pista em silêncio.
+      const file = withAudio
+        ? make(`${label}.mp4`, ['-f', 'lavfi', '-i', 'testsrc=size=360x640:rate=30:duration=2', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', '2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest'])
+        : video(label, 2, false);
+      const mediaId = await uploadVideo(a, file);
+      const p = (await api().post('/api/v1/posts').set(as(a)).send({ body: '', mediaIds: [mediaId], music, musicInFile: true }).expect(201)).body;
+      const job = await waitBake(p.id);
+      expect(job.status).toBe('done');
+      expect(meanDb(join(MEDIA, job.media_id!))).toBeGreaterThan(-40);
+      expect((await getPost(b, p.id)).musicBaked).toBe(true);
+    }
+  }, 180_000);
 
   it('a música licenciada não se grava (fica à parte, como o contrato pede)', async () => {
     const mediaId = await uploadVideo(a, video('licenciada', 2, true));
