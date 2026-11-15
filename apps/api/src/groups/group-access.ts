@@ -5,6 +5,7 @@ import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { ChatEvents, type GroupEvent } from '../chat/chat.events';
 import { blockedBetween } from '../social/visibility';
+import { pushFor } from '../chat/hidden-push';
 
 const UUID = /^[0-9a-f-]{36}$/;
 export type GroupRole = 'admin' | 'member';
@@ -97,13 +98,14 @@ export class GroupAccess {
   async fanOut(groupId: string, senderId: string, messageId: string, what: string) {
     await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, senderId, messageId]);
     await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
-    const others = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [groupId, senderId])).rows.map((r) => r.user_id as string);
+    const others = (await this.pool.query('SELECT user_id, hidden_at FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [groupId, senderId])).rows as { user_id: string; hidden_at: string | null }[];
     const meta = (await this.pool.query('SELECT g.name, u.display_name FROM social.groups g, identity.users u WHERE g.id = $1 AND u.id = $2', [groupId, senderId])).rows[0];
     // Os outros aparelhos de quem enviou mostram logo a mensagem (eco, sem aviso).
     this.events.echo(senderId, { type: 'message', group: groupId });
-    for (const u of others) {
+    for (const { user_id: u, hidden_at } of others) {
       this.events.emit(u, { type: 'message', group: groupId });
-      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${what}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
+      // Quem escondeu o grupo (0160) recebe o aviso sem pré-visualização (nem o grupo, nem quem, nem o quê).
+      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, pushFor({ title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${what}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' }, hidden_at != null));
     }
   }
 

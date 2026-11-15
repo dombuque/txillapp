@@ -15,6 +15,7 @@ import { PotService } from '../groups/pot.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from './screenshot';
+import { pushFor } from './hidden-push';
 
 const PAGE = 30;
 export const MAX_MEMBERS = 50;
@@ -166,10 +167,13 @@ export class GroupsService {
     return { id };
   }
 
-  /** Os grupos de que faço parte, com a última mensagem e quantas por ler (para a lista de conversas). */
-  async list(me: string) {
+  /**
+   * Os grupos de que faço parte, com a última mensagem e quantas por ler (para a lista de conversas). Sem os que escondi
+   * (0160); `hidden` = só os escondidos («Conversas escondidas»), com `hiddenAt`.
+   */
+  async list(me: string, opts: { hidden?: boolean } = {}) {
     const { rows } = await this.pool.query(
-      `SELECT g.id, g.name, g.last_message_at, g.ttl_seconds, gm.cleared_id,
+      `SELECT g.id, g.name, g.last_message_at, g.ttl_seconds, gm.cleared_id, gm.hidden_at,
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
@@ -180,7 +184,7 @@ export class GroupsService {
          JOIN social.groups g ON g.id = gm.group_id
          LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND (gm.cleared_id IS NULL OR x.id > gm.cleared_id) ORDER BY x.id DESC LIMIT 1) lm ON true
          LEFT JOIN identity.users su ON su.id = lm.sender_id
-        WHERE gm.user_id = $1
+        WHERE gm.user_id = $1 AND gm.hidden_at IS ${opts.hidden ? 'NOT NULL' : 'NULL'}
         ORDER BY COALESCE(lm.created_at, g.last_message_at) DESC LIMIT 100`,
       [me],
     );
@@ -207,14 +211,31 @@ export class GroupsService {
         cleared: !r.last_at && !!r.cleared_id,
       },
       unread: r.unread as number,
+      /** Escondido por mim (só vem em «Conversas escondidas»): desde quando. */
+      ...(opts.hidden ? { hidden: true as const, hiddenAt: r.hidden_at as string } : {}),
     }));
+  }
+
+  /**
+   * Esconder o grupo (`hidden` = true) ou mostrá-lo outra vez, só para mim (0160): as mesmas regras das conversas a dois
+   * (ChatService.setHidden). Só membros (404 para quem não é). Os outros membros não sabem; os meus aparelhos põem a
+   * lista em dia (eco 'read').
+   */
+  async setHidden(me: string, groupId: string, hidden: boolean) {
+    await this.needMember(groupId, me);
+    await this.pool.query(
+      'UPDATE social.group_members SET hidden_at = CASE WHEN $3 THEN COALESCE(hidden_at, now()) ELSE NULL END WHERE group_id = $1 AND user_id = $2',
+      [groupId, me, hidden],
+    );
+    this.events.echo(me, { type: 'read', group: groupId });
+    return { hidden };
   }
 
   /** O grupo e as mensagens (as mais recentes primeiro). Abrir marca como lido. */
   async thread(me: string, groupId: string, cursor?: string, markRead = true) {
     const myRole = await this.needMember(groupId, me);
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
-    const g = (await this.pool.query('SELECT g.id, g.name, g.ttl_seconds, gm.cleared_id FROM social.groups g JOIN social.group_members gm ON gm.group_id = g.id AND gm.user_id = $2 WHERE g.id = $1', [groupId, me])).rows[0];
+    const g = (await this.pool.query('SELECT g.id, g.name, g.ttl_seconds, gm.cleared_id, gm.hidden_at FROM social.groups g JOIN social.group_members gm ON gm.group_id = g.id AND gm.user_id = $2 WHERE g.id = $1', [groupId, me])).rows[0];
     const members = (
       await this.pool.query(
         `SELECT u.id, u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier", x.role
@@ -250,7 +271,7 @@ export class GroupsService {
     const sum = (await this.plan.summaries(me, [groupId])).get(groupId)!;
     return {
       // `ttl`: mensagens temporárias (segundos, ou null); só quem administra muda (PUT /chat/groups/:id/ttl).
-      group: { id: g.id as string, name: g.name as string, ...sum, groupKind: sum.kind, myRole, ttl: (g.ttl_seconds as number | null) ?? null, members: members.map(({ id: _id, ...m }) => m) },
+      group: { id: g.id as string, name: g.name as string, ...sum, groupKind: sum.kind, myRole, ttl: (g.ttl_seconds as number | null) ?? null, hidden: g.hidden_at != null, members: members.map(({ id: _id, ...m }) => m) },
       items,
       nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
     };
@@ -316,7 +337,7 @@ export class GroupsService {
     await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
     await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
     const title = (await this.pool.query('SELECT name FROM social.groups WHERE id = $1', [groupId])).rows[0]?.name as string;
-    const rows = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [groupId])).rows;
+    const rows = (await this.pool.query('SELECT user_id, hidden_at FROM social.group_members WHERE group_id = $1', [groupId])).rows;
     for (const r of rows) {
       const u = r.user_id as string;
       if (u === me) {
@@ -324,7 +345,8 @@ export class GroupsService {
         continue;
       }
       this.events.emit(u, { type: 'message', group: groupId });
-      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, { title, body: `${name || 'Alguém'} fez uma captura de ecrã da conversa`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
+      // Quem escondeu o grupo (0160) recebe o aviso sem pré-visualização.
+      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, pushFor({ title, body: `${name || 'Alguém'} fez uma captura de ecrã da conversa`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' }, r.hidden_at != null));
     }
     return done;
   }

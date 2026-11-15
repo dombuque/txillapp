@@ -14,6 +14,7 @@ import { Scheduler } from '../realtime/scheduler';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { blockedBetween, canView, inMyNetwork, notReportedBy } from '../social/visibility';
 import { MIXAR_CARD_TEXT } from './mixar-cards';
+import { pushFor } from '../chat/hidden-push';
 import {
   CHALLENGE_QUESTION, commonTopics, matchScore, MAX_ITEMS, mixarDay, onlyOf, pickChallenge, pickDaily, streakOf,
   type Candidate, type ChallengeKind, type From, type Weights,
@@ -211,7 +212,9 @@ export class MixarService implements OnModuleInit {
     }
     this.notify(other.id as string, me, id, 'invite');
     const myName = await this.displayName(me);
-    void this.push.send(other.id as string, { title: 'Mixar', body: `${myName} convidou-te para um Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'messages' });
+    // O convite é um cartão na conversa: se a outra pessoa a escondeu (0160), o aviso vai sem pré-visualização.
+    const hidden = await this.chat.hiddenBy(other.id as string, me);
+    void this.push.send(other.id as string, pushFor({ title: 'Mixar', body: `${myName} convidou-te para um Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'messages' }, hidden));
     return this.get(me, id);
   }
 

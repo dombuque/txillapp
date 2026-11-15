@@ -94,6 +94,16 @@ export class ExportService {
       ),
       // "Apagar para mim": que mensagens escondi e quando (só o id: o conteúdo das dos outros não é meu).
       messagesHiddenForMe: await q(`SELECT message_id AS id, created_at AS "hiddenAt" FROM social.message_hidden WHERE user_id = $1 ORDER BY created_at`),
+      // «Conversas escondidas» (0160): com quem (o @) e que TxillGroups (id e nome) escondi, e desde quando.
+      hiddenConversations: await q(
+        `SELECT o.username AS "with", (CASE WHEN c.user_a = $1 THEN c.hidden_at_a ELSE c.hidden_at_b END) AS "hiddenAt"
+           FROM social.conversations c JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
+          WHERE (c.user_a = $1 AND c.hidden_at_a IS NOT NULL) OR (c.user_b = $1 AND c.hidden_at_b IS NOT NULL) ORDER BY 2`,
+      ),
+      hiddenGroups: await q(
+        `SELECT g.id, g.name, gm.hidden_at AS "hiddenAt" FROM social.group_members gm JOIN social.groups g ON g.id = gm.group_id
+          WHERE gm.user_id = $1 AND gm.hidden_at IS NOT NULL ORDER BY gm.hidden_at`,
+      ),
       following: (await q(`SELECT u.username FROM social.follows f JOIN identity.users u ON u.id = f.followee_id WHERE f.follower_id = $1 ORDER BY u.username`)).map((r) => r.username),
       followers: (await q(`SELECT u.username FROM social.follows f JOIN identity.users u ON u.id = f.follower_id WHERE f.followee_id = $1 ORDER BY u.username`)).map((r) => r.username),
       blocked: (await q(`SELECT u.username FROM social.blocks b JOIN identity.users u ON u.id = b.blocked_id WHERE b.blocker_id = $1 ORDER BY u.username`)).map((r) => r.username),
