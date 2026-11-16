@@ -17,7 +17,8 @@ import { CommentMenu } from '@/components/txillada/CommentMenu';
 import { LiveFloatComments } from '@/components/txillada/LiveFloatComments';
 import { PinnedComment } from '@/components/txillada/PinnedComment';
 import { GuestsPanel, InviteCard, TxilladaStage } from '@/components/txillada/TxilladaGuests';
-import { EndedView, GlassButton, HostSummary, LiveBadge } from '@/components/txillada/TxilladaParts';
+import { EndedView, GlassButton, HostSummary, LiveBadge, ViewersPill } from '@/components/txillada/TxilladaParts';
+import { GiftSheet, GoalBar, LockedView, TopGivers } from '@/components/txillada/TxilladaMoney';
 import { txilladaApi } from '@/lib/api.txillada';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -25,7 +26,7 @@ import { useDesktop } from '@/lib/desktop';
 import { useNoIndex } from '@/lib/noIndex';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
-import { COMMENT_MAX, commentMenu, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
+import { COMMENT_MAX, commentMenu, dtoKind, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, txillsLabel, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { liveLayout, type FxPerson, type ReactionKind } from '@/lib/txilladaFx';
 import { useTxilladaFx } from '@/lib/txilladaFxRoom';
 import { guestUi, viewerGuestAction } from '@/lib/txilladaGuests';
@@ -49,6 +50,11 @@ import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
  * pessoas, com o número de pedidos). O ecrã reparte-se: 1 = inteiro; 2 = uma em cima da outra; 3 = uma grande em cima e duas
  * em baixo; 4 = grelha 2×2 (components/txillada/TxilladaGuests `TxilladaStage`). Os comentários, as reações, o fixado e a
  * barra ficam por cima, como sempre.
+ *
+ * Tipos e Angariação (0167): uma Txillada privada mostra primeiro o cartão com o cadeado e «Entrar por N Txills» (sem ligar à
+ * sala nem pedir nada dela antes de pagar); lá dentro, quem vê não aparece aos outros (só ao anfitrião). Com Angariação, a
+ * barra «X de Y Txills» e quem mais ofereceu ficam por baixo dos números; quem vê oferece Txills (o botão do presente) e
+ * cada oferta aparece na conversa, destacada.
  */
 export default function TxilladaScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
@@ -72,12 +78,14 @@ export default function TxilladaScreen() {
     me: user ? { username: user.username, displayName: user.displayName || user.username, avatarUrl: `/api/v1/avatars/${encodeURIComponent(user.username)}`, verified: !!user.verified, verifiedTier: user.verifiedTier ?? null } : null,
     reduce,
     onCheer: () => tx.cheer(),
+    // Numa privada, «A ver agora» é só do anfitrião.
+    noViewers: !!dto?.viewersHidden && !host,
   });
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
-  const [panel, setPanel] = useState<null | 'more' | 'report' | 'viewers' | 'guests'>(null);
+  const [panel, setPanel] = useState<null | 'more' | 'report' | 'viewers' | 'guests' | 'gift'>(null);
   /** A câmara a abrir ao aceitar um convite (o botão fica à espera). */
   const [accepting, setAccepting] = useState(false);
   /** O comentário com o menu aberto (o id: as contagens vêm sempre do estado da sala) e o que se está a denunciar. */
@@ -236,13 +244,26 @@ export default function TxilladaScreen() {
     return <View style={[st.screen, webFull]}><EndedView title="Não dá para ver esta Txillada" sub={tx.error ?? 'Esta Txillada não existe ou não a podes ver.'} onBack={leave} /></View>;
   }
   if (kind === 'ended') {
+    const cut = (live.status ?? dto?.status) === 'cut';
     if (host) {
       const sum = liveSummary(dto, live, now);
-      return <View style={[st.screen, webFull, { paddingTop: insets.top, paddingBottom: insets.bottom }]}><HostSummary {...sum} cut={(live.status ?? dto?.status) === 'cut'} onDone={leave} /></View>;
+      return <View style={[st.screen, webFull, { paddingTop: insets.top, paddingBottom: insets.bottom }]}><HostSummary {...sum} cut={cut} onDone={leave} /></View>;
+    }
+    // Uma privada cortada pela moderação: a entrada volta para a carteira (0167).
+    if (cut && dtoKind(dto) === 'paid' && dto?.hasTicket && !dto.locked) {
+      return <View style={[st.screen, webFull]}><EndedView sub="A equipa do Txillapp terminou esta Txillada. A tua entrada voltou para a tua carteira." onBack={leave} /></View>;
     }
     return <View style={[st.screen, webFull]}><EndedView onBack={leave} /></View>;
   }
   if (!dto) return null;
+  // Privada sem a entrada (0167): o cartão com o cadeado e o preço; pagar liga à sala.
+  if (kind === 'locked') {
+    return (
+      <View style={[st.screen, webFull]}>
+        <LockedView dto={dto} onPay={tx.pay} onWallet={() => router.push('/wallet' as never)} onBack={leave} top={insets.top} bottom={insets.bottom} />
+      </View>
+    );
+  }
   if (tx.error && tx.conn !== 'connected') {
     return <View style={[st.screen, webFull]}><EndedView title="Não deu para entrar" sub={tx.error} onBack={leave} /></View>;
   }
@@ -265,6 +286,10 @@ export default function TxilladaScreen() {
   // A etiqueta dos quadrados de cima fica por baixo do cabeçalho (o anfitrião, «AO VIVO», os números).
   const headerBottom = L.padTop + 84;
   const viewersCount = Math.max(live.viewers, fxs.viewersTotal);
+  // A Angariação e quem mais ofereceu, por baixo dos números (os olás descem o mesmo).
+  const hasGoal = live.goal != null;
+  const fundH = (hasGoal ? 48 : 0) + (live.topGivers.length ? 32 : 0);
+  const paid = dtoKind(dto) === 'paid';
 
   return (
     <View style={[st.screen, webFull]}>
@@ -317,7 +342,17 @@ export default function TxilladaScreen() {
           </View>
           <View style={st.stats} pointerEvents="box-none">
             <LiveBadge time={time} />
-            <ViewersStack items={fxs.viewers} total={viewersCount} onPress={() => { fxs.refreshViewers(); setPanel('viewers'); }} />
+            {ui.canSeeViewers ? (
+              <ViewersStack items={fxs.viewers} total={viewersCount} onPress={() => { fxs.refreshViewers(); setPanel('viewers'); }} />
+            ) : (
+              <ViewersPill n={live.viewers} />
+            )}
+            {paid ? (
+              <View style={st.cheerPill} accessibilityLabel={host ? `Txillada privada: ${dto.tickets ?? 0} entradas pagas` : 'Txillada privada'}>
+                <Icon name="lock" size={13} color="#fff" strokeWidth={2.3} />
+                {host ? <Text style={st.cheerText}>{dto.tickets ?? 0}</Text> : null}
+              </View>
+            ) : null}
             {live.cheers > 0 ? (
               <View style={st.cheerPill} accessibilityLabel={`${live.cheers} brindes`}>
                 <Icon name="cheers" size={15} color={colors.brandWarm} strokeWidth={2} />
@@ -325,6 +360,12 @@ export default function TxilladaScreen() {
               </View>
             ) : null}
           </View>
+          {fundH ? (
+            <View style={[st.fund, { maxWidth: L.floatW + 40 }]} pointerEvents="none">
+              <GoalBar raised={live.raised} goal={live.goal} purpose={dto.goalPurpose} />
+              <TopGivers items={live.topGivers} />
+            </View>
+          ) : null}
           {tx.conn === 'reconnecting' ? <Text style={st.weak}>A ligação está fraca… a voltar a ligar</Text> : null}
           {(host || g.onStage) && !tx.mic ? (
             <View style={st.muted} pointerEvents="none">
@@ -335,7 +376,7 @@ export default function TxilladaScreen() {
         </View>
 
         {/* Os olás: «@rui: Olá 👋» por baixo dos números; a saudação do anfitrião em grande, ao centro. */}
-        <HelloStack items={fxs.hellos} top={L.padTop + ((host || g.onStage) && !tx.mic ? 124 : 88)} left={L.side} width={L.floatW} />
+        <HelloStack items={fxs.hellos} top={L.padTop + fundH + ((host || g.onStage) && !tx.mic ? 124 : 88)} left={L.side} width={L.floatW} />
 
         {tx.conn === 'failed' ? (
           <View style={st.failed}>
@@ -397,6 +438,11 @@ export default function TxilladaScreen() {
                 <>
                   {ui.canCheer ? <ReactionBar onReact={react} /> : null}
                   <View style={{ flex: 1 }} />
+                  {ui.canGift ? (
+                    <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.barBtn, st.giftBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer Txills a @${dto.host.username}`}>
+                      <Icon name="present" size={21} color="#fff" strokeWidth={2.1} />
+                    </Pressable>
+                  ) : null}
                 </>
               )}
               {ui.canShare ? (
@@ -444,6 +490,7 @@ export default function TxilladaScreen() {
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`Txillada de ${dto.host.username}`} onClose={() => setPanel(null)}>
             <Pressable onPress={() => { setPanel(null); void share(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Partilhar</Text></Pressable>
+            {ui.canGift ? <Pressable onPress={() => setPanel('gift')} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Oferecer Txills</Text></Pressable> : null}
             {g.canRequest || g.waiting ? <Pressable onPress={() => { setPanel(null); askJoin(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'}</Text></Pressable> : null}
             {g.onStage ? <Pressable onPress={() => { setPanel(null); confirmLeaveStage(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Sair do ecrã</Text></Pressable> : null}
             {ui.canReport ? <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: colors.red600, fontWeight: '600' }]}>Denunciar a Txillada</Text></Pressable> : null}
@@ -456,6 +503,19 @@ export default function TxilladaScreen() {
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`A ver agora · ${viewersCount}`} onClose={() => setPanel(null)}>
             <ViewersList items={fxs.viewers} onOpen={host ? viewerActions : undefined} />
+          </Panel>
+        </View>
+      ) : null}
+      {panel === 'gift' ? (
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
+          <Panel title="Oferecer Txills" onClose={() => setPanel(null)}>
+            <GiftSheet
+              host={dto.host.username}
+              goal={live.goal}
+              onSend={tx.gift}
+              onWallet={() => { setPanel(null); router.push('/wallet' as never); }}
+              onDone={(n) => { setPanel(null); say(`Ofereceste ${txillsLabel(n)} a @${dto.host.username}`); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined); }}
+            />
           </Panel>
         </View>
       ) : null}
@@ -521,6 +581,8 @@ const st = StyleSheet.create({
   stats: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 2, flexWrap: 'wrap' },
   cheerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 9, borderRadius: 14, backgroundColor: 'rgba(14,14,18,0.5)' },
   cheerText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  fund: { gap: 6, alignSelf: 'stretch' },
+  giftBtn: { backgroundColor: 'rgba(214,51,79,0.85)', borderColor: 'rgba(255,154,91,0.6)' },
   weak: { color: '#fff', fontSize: 12.5, fontWeight: '600', alignSelf: 'flex-start', backgroundColor: 'rgba(217,119,6,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   muted: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 6, height: 28, paddingHorizontal: 10, borderRadius: 14, backgroundColor: 'rgba(14,14,18,0.6)' },
   mutedText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },

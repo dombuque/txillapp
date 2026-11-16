@@ -257,7 +257,7 @@ export interface Profile {
   activeStories: number;
   counts: { posts: number; followers: number; following: number };
   /** Txillada (o live) a decorrer: a roda da foto fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */
-  live?: { id: string } | null;
+  live?: { id: string; /** Privada que ainda não paguei (0167): o preço da entrada. */ price?: number } | null;
 }
 export interface SearchResults {
   query: string;
@@ -390,7 +390,7 @@ export interface Story {
   stickers?: import('./stickers').MimoLayer[];
 }
 export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; /** Brindes (0161; servidores antigos não mandam). */ cheers?: number; cheered?: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
-export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string } | null }
+export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string; price?: number } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {

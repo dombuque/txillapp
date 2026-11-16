@@ -18,9 +18,10 @@ import { txilladaApi, txilladaKey, type TxilladaAccess } from '@/lib/api.txillad
 import { useAuth } from '@/lib/auth';
 import { onTxilladaEvent } from '@/lib/realtime';
 import {
-  applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withCommentCheer, withComments, withDto,
-  type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent, type TxilladaPerson,
+  applyEvent, cheerGate, commentGate, errorText, giftKey, initialLive, isInsufficient, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withCommentCheer,
+  withComments, withDto, withMyGift, type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent, type TxilladaPerson,
 } from '@/lib/txillada';
+import type { GiftResult } from '@/lib/api.txillada';
 import {
   guestNotice, guestsInit, guestsReduce, parseGuestEvent, stageIds, stageLayout, stagePeople, tileQuality, type GuestState,
 } from '@/lib/txilladaGuests';
@@ -147,9 +148,10 @@ export function useNow(on: boolean): number {
 
 type Act =
   | { t: 'dto'; dto: TxilladaDto } | { t: 'comments'; items: TxilladaComment[] } | { t: 'event'; ev: TxilladaEvent; me: string | null } | { t: 'cheers'; n: number }
-  | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean };
+  | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean } | { t: 'gift'; r: GiftResult };
 function reduce(s: LiveState, a: Act): LiveState {
   switch (a.t) {
+    case 'gift': return withMyGift(s, a.r);
     case 'commentCheer': return withCommentCheer(s, a.id, a.cheers, a.cheered);
     case 'dto': return withDto(s, a.dto);
     case 'comments': return withComments(s, a.items);
@@ -647,6 +649,39 @@ export function useTxillada(id: string) {
       return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
     }
   }
+  /**
+   * Pagar a entrada de uma Txillada privada (0167): uma vez só (pagar outra vez não cobra). Correu bem: o ecrã passa a ligar
+   * à sala. Devolve null, ou a mensagem e se foi por falta de saldo (a app aponta para a carteira).
+   */
+  async function pay(): Promise<{ error: string; insufficient: boolean } | null> {
+    try {
+      const r = await txilladaApi.pay(id);
+      if (r?.txillada?.id) qc.setQueryData(txilladaKey(id), r.txillada);
+      else void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      return null;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 410) void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      return { error: e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined), insufficient: e instanceof ApiError && isInsufficient(e) };
+    }
+  }
+  /**
+   * Oferecer Txills (0167): a linha «ofereceu N Txills», a barra e o top mudam logo com a resposta (o evento da sala chega
+   * depois e não repete). A chave é a mesma se o pedido se perder pelo caminho (uma segunda tentativa não cobra outra vez).
+   */
+  async function gift(amount: number): Promise<{ balance: number | null; error?: string; insufficient?: boolean }> {
+    const key = giftKey();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const r = await txilladaApi.gift(id, amount, key);
+        if (r?.gift?.id) dispatch({ t: 'gift', r });
+        return { balance: typeof r?.balance === 'number' ? r.balance : null };
+      } catch (e) {
+        // Sem resposta (a rede caiu a meio): mais uma vez com a mesma chave.
+        if (!(e instanceof ApiError) && attempt < 1) continue;
+        return { balance: null, error: e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined), insufficient: e instanceof ApiError && isInsufficient(e) };
+      }
+    }
+  }
   /** O anfitrião termina: a sala fecha e fica o resumo (a Txillada não fica gravada). */
   async function end(): Promise<string | null> {
     try {
@@ -662,7 +697,7 @@ export function useTxillada(id: string) {
   const loadError = q.error ? (q.error instanceof ApiError ? errorText(q.error.status, q.error.message) : errorText(undefined)) : null;
   return {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
-    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
+    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, pay, gift, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
     // Convidados (0165).
     guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest,
   };

@@ -5,7 +5,7 @@ import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
-import { viewersLabel } from '@/lib/txillada';
+import { fmtTxills, txillsLabel, viewersLabel } from '@/lib/txillada';
 
 /** O coral do «AO VIVO» (a cor da marca) e o tom mais claro do gradiente da roda. */
 export const LIVE = colors.brand;
@@ -52,7 +52,8 @@ export function ViewersPill({ n }: { n: number }) {
  * A roda da foto quando a pessoa está ao vivo (fila dos mimos e perfil): um anel coral a pulsar com a pílula «AO VIVO»
  * por baixo, por cima da foto. Mede 72 px, como a roda dos mimos (components/StoryRing).
  */
-export function LiveRing({ children }: { children: React.ReactNode }) {
+/** `price` (0167): uma Txillada privada que ainda não paguei: o cadeado e o preço na pílula, em vez de «AO VIVO». */
+export function LiveRing({ children, price }: { children: React.ReactNode; price?: number | null }) {
   const p = usePulse(1400);
   const halo = useAnimatedStyle(() => ({ opacity: 0.55 * (1 - p.value), transform: [{ scale: 1 + 0.1 * p.value }] }));
   return (
@@ -68,9 +69,9 @@ export function LiveRing({ children }: { children: React.ReactNode }) {
         <Circle cx={36} cy={36} r={33} fill="none" strokeWidth={3.5} stroke="url(#lr)" />
       </Svg>
       <View style={st.ringInner}>{children}</View>
-      <View style={st.ringBadge} pointerEvents="none">
-        <Icon name="txillada" size={9} color="#fff" strokeWidth={2.6} />
-        <Text style={st.ringBadgeText}>AO VIVO</Text>
+      <View style={st.ringBadge} pointerEvents="none" accessibilityLabel={price ? `Ao vivo, privada: ${txillsLabel(price)}` : undefined}>
+        <Icon name={price ? 'lock' : 'txillada'} size={9} color="#fff" strokeWidth={2.6} />
+        <Text style={st.ringBadgeText}>{price ? `${fmtTxills(price)} TXL` : 'AO VIVO'}</Text>
       </View>
     </View>
   );
@@ -91,12 +92,15 @@ export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas nã
 }
 
 /** O resumo do anfitrião no fim: a duração, o pico de espectadores, os brindes e os comentários. Não fica gravada. */
-export function HostSummary({ duration, peak, cheers, comments, cut, onDone }: { duration: string; peak: number; cheers: number; comments: number; cut?: boolean; onDone: () => void }) {
+export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void }) {
   const items: { label: string; value: string }[] = [
     { label: 'Duração', value: duration },
     { label: 'Pico de espectadores', value: String(peak) },
     { label: 'Brindes', value: String(cheers) },
     { label: 'Comentários', value: String(comments) },
+    // Txillada privada e Angariação (0167): as entradas pagas e os Txills oferecidos (já estão na carteira).
+    ...(tickets != null ? [{ label: cut ? 'Entradas (devolvidas)' : 'Entradas pagas', value: String(tickets) }] : []),
+    ...(raised > 0 ? [{ label: 'Txills oferecidos', value: fmtTxills(raised) }] : []),
   ];
   return (
     <View style={st.center}>

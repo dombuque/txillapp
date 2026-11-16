@@ -69,11 +69,12 @@ export function LiveFloatComments({ comments, bottom, width, height, onOpen, onC
             age={e.age}
             leaving={e.leaving}
             reduce={reduce}
-            onPress={onOpen ? () => onOpen(c) : undefined}
-            onLongPress={onOpen ? () => onOpen(c) : undefined}
-            onDoubleTap={onCheer ? () => onCheer(c) : undefined}
+            onPress={onOpen && !c.gift ? () => onOpen(c) : undefined}
+            onLongPress={onOpen && !c.gift ? () => onOpen(c) : undefined}
+            onDoubleTap={onCheer && !c.gift ? () => onCheer(c) : undefined}
             cheers={c.cheers ?? 0}
-            label={onOpen ? 'Toca para responder, brindar ou denunciar' : ''}
+            gift={!!c.gift}
+            label={onOpen && !c.gift ? 'Toca para responder, brindar ou denunciar' : ''}
             onHeight={(h) => setHeights((old) => (old[e.id] === h ? old : { ...old, [e.id]: h }))}
           />
         );

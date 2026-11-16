@@ -13,7 +13,13 @@
 
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 
-export type TxilladaAudience = 'everyone' | 'followers' | 'close';
+/**
+ * Quem pode ver (0167): 'everyone' (Pública), 'friends' (Para amigos: quem segues e te segue), 'close' (Para amigos com «Só
+ * amigos próximos»), 'paid' (Privada: paga-se a entrada) e o antigo 'followers' (as Txilladas abertas por apps antigas).
+ */
+export type TxilladaAudience = 'everyone' | 'followers' | 'close' | 'friends' | 'paid';
+/** Os três tipos que se escolhem ao preparar (0167). */
+export type TxilladaKind = 'public' | 'friends' | 'paid';
 export type TxilladaStatus = 'live' | 'ended' | 'cut';
 export type TxilladaTier = 'verified' | 'official' | 'paid' | null;
 
@@ -41,10 +47,35 @@ export interface TxilladaDto {
   guestState?: GuestState;
   requests?: GuestPending[];
   invites?: GuestPending[];
+  /** O tipo (0167; servidores antigos não mandam: sai do `audience`), «Só amigos próximos» e o preço da entrada (só nas pagas). */
+  kind?: TxilladaKind;
+  closeOnly?: boolean;
+  price?: number | null;
+  /** Posso entrar (anfitrião, entrada paga, convidado; nas outras, sempre). */
+  hasTicket?: boolean;
+  /** Paga e sem a entrada: só o cartão com o cadeado e o preço (nada da sala). */
+  locked?: boolean;
+  /** Nas pagas, quem está a ver não aparece aos outros (só ao anfitrião). */
+  viewersHidden?: boolean;
+  /** A Angariação: a meta (null sem ela), o motivo, quanto já se ofereceu e quem mais ofereceu (top 3). */
+  goal?: number | null;
+  goalPurpose?: string;
+  raised?: number;
+  topGivers?: TxilladaGiver[];
+  /** Só o anfitrião de uma paga: quantas entradas se pagaram. */
+  tickets?: number;
 }
 
-/** `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). */
-export interface TxilladaComment { id: string; author: TxilladaPerson; body: string; createdAt: string; cheers?: number; cheered?: boolean }
+/** Um de «quem mais ofereceu» (com o selo, como em todo o lado). */
+export interface TxilladaGiver { username: string; displayName: string; avatarUrl: string | null; verified?: boolean; verifiedTier?: TxilladaTier; total: number }
+/** Uma oferta de Txills durante o live. */
+export interface TxilladaGift { id: string; from: Omit<TxilladaPerson, 'id'>; amount: number; createdAt: string }
+
+/**
+ * `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). `gift`: não é um
+ * comentário, é a linha destacada «@x ofereceu N Txills» (0167; o id começa por `gift:`, nunca vai para a API).
+ */
+export interface TxilladaComment { id: string; author: TxilladaPerson; body: string; createdAt: string; cheers?: number; cheered?: boolean; gift?: { amount: number } }
 
 export type TxilladaEvent =
   | { type: 'txillada.comment'; txilladaId: string; comment: TxilladaComment }
@@ -55,7 +86,9 @@ export type TxilladaEvent =
   /** A contagem nova de brindes de um comentário (não diz quem brindou). */
   | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }
   /** O anfitrião fixou um comentário (completo, com o autor e o selo) ou tirou o fixado (null). */
-  | { type: 'txillada.pinned'; txilladaId: string; comment: TxilladaComment | null };
+  | { type: 'txillada.pinned'; txilladaId: string; comment: TxilladaComment | null }
+  /** Uma oferta de Txills (0167): a linha destacada, quanto já se juntou, a meta e quem mais ofereceu. */
+  | { type: 'txillada.gift'; txilladaId: string; gift: TxilladaGift; raised: number; goal: number | null; topGivers: TxilladaGiver[] };
 
 /** O título vai até 80 letras; um comentário até 300 (o servidor também limpa as palavras proibidas). */
 export const TITLE_MAX = 80;
@@ -74,6 +107,101 @@ export const AUDIENCES: { id: TxilladaAudience; label: string; hint: string }[] 
   { id: 'followers', label: 'Seguidores', hint: 'Só quem te segue' },
   { id: 'close', label: 'Amigos próximos', hint: 'A tua lista dos mimos' },
 ];
+
+/** Os três tipos ao preparar (0167): Pública, Para amigos (com «Só amigos próximos») e Privada (paga). */
+export const KINDS: { id: TxilladaKind; label: string; hint: string; icon: 'globe' | 'users' | 'lock' }[] = [
+  { id: 'public', label: 'Pública', hint: 'Quem pode ver o teu perfil', icon: 'globe' },
+  { id: 'friends', label: 'Para amigos', hint: 'Quem segues e te segue de volta', icon: 'users' },
+  { id: 'paid', label: 'Privada', hint: 'Quem quiser entrar paga uma vez a entrada em Txills', icon: 'lock' },
+];
+/** A entrada de uma Txillada privada, a meta e o motivo da Angariação, e as ofertas (os mesmos limites do servidor). */
+export const PRICE_MIN = 5;
+export const PRICE_MAX = 5000;
+export const GOAL_MIN = 10;
+export const GOAL_MAX = 1_000_000;
+export const PURPOSE_MAX = 80;
+export const GIFT_MAX = 5000;
+export const GIFT_PRESETS = [5, 10, 50, 100] as const;
+
+/** O público que vai para a API a partir do que se escolheu ao preparar. */
+export function prepAudience(kind: TxilladaKind, closeOnly: boolean): TxilladaAudience {
+  if (kind === 'paid') return 'paid';
+  if (kind === 'friends') return closeOnly ? 'close' : 'friends';
+  return 'everyone';
+}
+/** O texto por baixo dos tipos (o de «Para amigos» muda com «Só amigos próximos»). */
+export function kindHint(kind: TxilladaKind, closeOnly: boolean): string {
+  if (kind === 'friends' && closeOnly) return 'Só a tua lista de amigos próximos (a mesma dos mimos)';
+  return KINDS.find((k) => k.id === kind)?.hint ?? '';
+}
+/** O tipo de uma Txillada (servidores antigos não mandam `kind`: sai do público). */
+export function dtoKind(dto: Pick<TxilladaDto, 'kind' | 'audience'> | null | undefined): TxilladaKind {
+  if (dto?.kind === 'public' || dto?.kind === 'friends' || dto?.kind === 'paid') return dto.kind;
+  const a = dto?.audience;
+  return a === 'paid' ? 'paid' : a === 'friends' || a === 'close' ? 'friends' : 'public';
+}
+
+/** Um número inteiro escrito pela pessoa («50», « 1 000 »); vazio ou com outras coisas: null. */
+export function parseAmount(s: string): number | null {
+  const t = String(s ?? '').replace(/[\s.\u00a0]/g, '');
+  if (!/^\d{1,9}$/.test(t)) return null;
+  return Number(t);
+}
+export function priceError(n: number | null): string | null {
+  if (n == null) return `Escreve o preço da entrada (de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} Txills).`;
+  if (n < PRICE_MIN || n > PRICE_MAX) return `A entrada vai de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} Txills.`;
+  return null;
+}
+export function goalError(n: number | null): string | null {
+  if (n == null) return `Escreve a meta da angariação (de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} Txills).`;
+  if (n < GOAL_MIN || n > GOAL_MAX) return `A meta vai de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} Txills.`;
+  return null;
+}
+/** Uma oferta: de 1 a 5000 e, se se sabe o saldo, não mais do que ele. */
+export function giftError(n: number | null, balance?: number | null): string | null {
+  if (n == null || n < 1) return 'Escolhe quantos Txills queres oferecer.';
+  if (n > GIFT_MAX) return `Podes oferecer até ${fmtTxills(GIFT_MAX)} Txills de cada vez.`;
+  if (typeof balance === 'number' && n > balance) return `Não tens Txills suficientes (tens ${fmtTxills(balance)}).`;
+  return null;
+}
+/** «50», «1000», «12 500» (como em pt: o espaço só a partir de 5 algarismos). */
+export function fmtTxills(n: number): string {
+  const v = Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+  const s = String(v);
+  return s.length < 5 ? s : s.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+}
+/** «50 Txills» (e «1 Txill»). */
+export const txillsLabel = (n: number): string => `${fmtTxills(n)} ${Math.round(n) === 1 ? 'Txill' : 'Txills'}`;
+/** A barra da Angariação: quanto falta, em 0..1 (pode passar da meta: a barra fica cheia), e «X de Y Txills». */
+export function goalProgress(raised: number, goal: number | null | undefined): { pct: number; label: string; done: boolean } | null {
+  if (goal == null || !(goal > 0)) return null;
+  const r = Math.max(0, Math.round(raised || 0));
+  return { pct: Math.min(1, r / goal), label: `${fmtTxills(r)} de ${txillsLabel(goal)}`, done: r >= goal };
+}
+/** A chave de idempotência de uma oferta (a mesma ao repetir o pedido; nova a cada oferta). */
+export function giftKey(now = Date.now(), rnd = Math.random): string {
+  return `g${now.toString(36)}${Math.floor(rnd() * 36 ** 8).toString(36).padStart(8, '0')}`;
+}
+/** A linha destacada «@x ofereceu N Txills» no meio dos comentários. */
+export function giftLine(g: TxilladaGift): TxilladaComment {
+  return {
+    id: `gift:${g.id}`,
+    author: { id: '', username: g.from.username, displayName: g.from.displayName, avatarUrl: g.from.avatarUrl, verified: g.from.verified, verifiedTier: g.from.verifiedTier },
+    body: `ofereceu ${txillsLabel(g.amount)}`,
+    createdAt: g.createdAt,
+    gift: { amount: g.amount },
+  };
+}
+export const isGiftLine = (c: Pick<TxilladaComment, 'id' | 'gift'>): boolean => !!c.gift || c.id.startsWith('gift:');
+/** Os erros de dinheiro (sem saldo): a app mostra a mensagem e aponta para a carteira. */
+export function isInsufficient(e: { status?: number; code?: string; extra?: Record<string, unknown> } | null | undefined): boolean {
+  return !!e && e.status === 422 && (e.code === 'insufficient_funds' || e.extra?.code === 'insufficient_funds');
+}
+/** O preço da roda «AO VIVO» (0167): só numa paga em que ainda não tenho a entrada. */
+export function livePrice(u: { live?: { price?: unknown } | null } | null | undefined): number | null {
+  const p = u?.live?.price;
+  return typeof p === 'number' && p > 0 ? p : null;
+}
 
 /** A configuração do servidor diz que a Txillada está ligada? (Sem resposta, ou uma resposta estranha, não está.) */
 export function txilladaEnabled(config: unknown): boolean {
@@ -139,9 +267,21 @@ export function parseTxilladaEvent(e: unknown, id?: string): TxilladaEvent | nul
     case 'txillada.pinned':
       if (x.comment === null) return { type: x.type, txilladaId, comment: null };
       return validComment(x.comment) ? { type: x.type, txilladaId, comment: x.comment } : null;
+    case 'txillada.gift': {
+      const g = x.gift as TxilladaGift | undefined;
+      if (!g || !str(g.id) || !num(g.amount) || !g.from || !str(g.from.username)) return null;
+      return {
+        type: x.type, txilladaId, gift: { ...g, createdAt: str(g.createdAt) ? g.createdAt : new Date().toISOString() },
+        raised: num(x.raised) ? Math.max(0, x.raised) : 0, goal: num(x.goal) ? x.goal : null, topGivers: giverList(x.topGivers),
+      };
+    }
     default:
       return null;
   }
+}
+
+function giverList(v: unknown): TxilladaGiver[] {
+  return Array.isArray(v) ? v.filter((g): g is TxilladaGiver => !!g && typeof g === 'object' && str((g as TxilladaGiver).username) && num((g as TxilladaGiver).total)).slice(0, 3) : [];
 }
 
 /** Junta comentários novos aos que já há: sem repetidos, sem os apagados, do mais antigo para o mais recente, os últimos `max`. */
@@ -175,10 +315,16 @@ export interface LiveState {
   lastCheerFrom: string | null;
   /** O comentário fixado pelo anfitrião (fica sempre à vista, em baixo); null sem nenhum. */
   pinned: TxilladaComment | null;
+  /** A Angariação (0167): quanto já se juntou, a meta (null sem ela) e quem mais ofereceu. */
+  raised: number;
+  goal: number | null;
+  topGivers: TxilladaGiver[];
+  /** Sobe a cada oferta (a animação). */
+  giftBurst: number;
 }
 
 export function initialLive(dto?: TxilladaDto | null): LiveState {
-  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null, pinned: null };
+  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null, pinned: null, raised: 0, goal: null, topGivers: [], giftBurst: 0 };
   return dto ? withDto(s, dto) : s;
 }
 
@@ -204,6 +350,10 @@ export function withDto(s: LiveState, dto: TxilladaDto): LiveState {
     peak: Math.max(s.peak, dto.peakViewers, dto.viewers),
     cheers: Math.max(s.cheers, dto.cheers),
     commentCount: Math.max(s.commentCount, dto.comments),
+    // A Angariação: o que já se juntou nunca desce (um evento pode ter chegado antes da resposta).
+    raised: Math.max(s.raised, typeof dto.raised === 'number' ? dto.raised : 0),
+    goal: dto.goal === undefined ? s.goal : dto.goal,
+    topGivers: Array.isArray(dto.topGivers) && (dto.raised ?? 0) >= s.raised ? dto.topGivers : s.topGivers,
   }, dto.pinned);
 }
 
@@ -239,7 +389,24 @@ export function applyEvent(s: LiveState, ev: TxilladaEvent, me?: string | null):
       return withCommentCheer(s, ev.commentId, ev.cheers);
     case 'txillada.pinned':
       return withPinned(s, ev.comment);
+    case 'txillada.gift': {
+      const line = giftLine(ev.gift);
+      if (s.comments.some((c) => c.id === line.id)) return s;
+      return {
+        ...s,
+        comments: mergeComments(s.comments, [line], s.removed),
+        raised: Math.max(s.raised, ev.raised),
+        goal: ev.goal,
+        topGivers: ev.raised >= s.raised ? ev.topGivers : s.topGivers,
+        giftBurst: s.giftBurst + 1,
+      };
+    }
   }
+}
+
+/** A resposta à minha oferta (antes de o evento chegar): a linha, a barra e o top, como o evento. */
+export function withMyGift(s: LiveState, r: { gift: TxilladaGift; raised: number; goal: number | null; topGivers: TxilladaGiver[] }, txilladaId = ''): LiveState {
+  return applyEvent(s, { type: 'txillada.gift', txilladaId, gift: r.gift, raised: r.raised, goal: r.goal, topGivers: r.topGivers });
 }
 
 /**
@@ -267,15 +434,20 @@ export function commentCheersLabel(n: number | null | undefined): string {
   return v < 1000 ? `🍻 ${v}` : `🍻 ${String(Math.round(v / 100) / 10).replace('.', ',')} mil`;
 }
 
-/** O id do comentário mais recente (para o `?after=`). */
-export const lastCommentId = (s: LiveState): string | null => s.comments[s.comments.length - 1]?.id ?? null;
+/** O id do comentário mais recente (para o `?after=`; as linhas das ofertas não contam: não são comentários). */
+export const lastCommentId = (s: LiveState): string | null => {
+  for (let i = s.comments.length - 1; i >= 0; i--) if (!isGiftLine(s.comments[i])) return s.comments[i].id;
+  return null;
+};
 
 /** O que mostrar no ecrã da Txillada. A Txillada não se grava: acabada, já não se vê. */
-export type ViewKind = 'loading' | 'live' | 'ended' | 'error';
+export type ViewKind = 'loading' | 'live' | 'locked' | 'ended' | 'error';
+/** 'locked' (0167): uma Txillada privada a decorrer sem a entrada paga (o cartão com o cadeado; não se liga à sala). */
 export function viewKind(dto: TxilladaDto | null | undefined, live: LiveState, failed: boolean): ViewKind {
   if (live.status === 'ended' || live.status === 'cut') return 'ended';
   if (dto && dto.status !== 'live') return 'ended';
   if (failed) return 'error';
+  if (dto?.locked) return 'locked';
   return dto ? 'live' : 'loading';
 }
 
@@ -288,17 +460,24 @@ export interface LiveUi {
   canShare: boolean;
   /** Virar a câmara, calar o microfone, terminar. */
   canBroadcast: boolean;
+  /** Oferecer Txills (0167): quem vê (não o anfitrião), com a entrada. */
+  canGift: boolean;
+  /** A lista «A ver agora» e os avatares: nas privadas, só o anfitrião. */
+  canSeeViewers: boolean;
 }
 export function liveUi(dto: TxilladaDto | null | undefined): LiveUi {
-  const on = !!dto && dto.status === 'live';
+  const on = !!dto && dto.status === 'live' && !dto.locked;
   const host = !!dto?.isHost;
-  return { host, canComment: on && dto.canComment, canCheer: on && !host, canReport: on && !host, canShare: on, canBroadcast: on && host };
+  return {
+    host, canComment: on && dto.canComment, canCheer: on && !host, canReport: !!dto && dto.status === 'live' && !host, canShare: on, canBroadcast: on && host,
+    canGift: on && !host, canSeeViewers: host || !dto?.viewersHidden,
+  };
 }
 
 export type CommentAction = 'remove' | 'ban';
 /** O toque longo num comentário: o anfitrião apaga qualquer um e expulsa quem não é ele; o autor só apaga o seu. */
 export function commentActions(dto: TxilladaDto | null | undefined, c: TxilladaComment, me?: string | null): CommentAction[] {
-  if (!dto || dto.status !== 'live') return [];
+  if (!dto || dto.status !== 'live' || isGiftLine(c)) return [];
   if (dto.isHost) return c.author.username === dto.host.username ? ['remove'] : ['remove', 'ban'];
   return me && c.author.username === me ? ['remove'] : [];
 }
@@ -313,7 +492,8 @@ export type CommentMenuItem = 'reply' | 'cheer' | 'pin' | 'unpin' | 'remove' | '
  * Acabada (ou sem sessão), nada.
  */
 export function commentMenu(dto: TxilladaDto | null | undefined, c: TxilladaComment, me: string | null | undefined, pinnedId?: string | null): CommentMenuItem[] {
-  if (!dto || dto.status !== 'live' || !me) return [];
+  // As linhas das ofertas não são comentários: sem menu.
+  if (!dto || dto.status !== 'live' || !me || isGiftLine(c)) return [];
   const mine = c.author.username === me;
   const pin: CommentMenuItem = pinnedId === c.id ? 'unpin' : 'pin';
   if (mine) return dto.isHost ? [pin, 'remove'] : ['remove'];
@@ -370,12 +550,14 @@ export function viewersLabel(n: number): string {
 }
 
 /** O resumo do anfitrião no fim (a Txillada não fica gravada). */
-export function liveSummary(dto: TxilladaDto | null | undefined, s: LiveState, now: number): { duration: string; peak: number; cheers: number; comments: number } {
+export function liveSummary(dto: TxilladaDto | null | undefined, s: LiveState, now: number): { duration: string; peak: number; cheers: number; comments: number; raised: number; tickets: number | null } {
   return {
     duration: liveClock(elapsed(dto?.startedAt, now, dto?.endedAt)),
     peak: Math.max(s.peak, dto?.peakViewers ?? 0),
     cheers: Math.max(s.cheers, dto?.cheers ?? 0),
     comments: Math.max(s.commentCount, dto?.comments ?? 0),
+    raised: Math.max(s.raised, dto?.raised ?? 0),
+    tickets: dtoKind(dto) === 'paid' ? (dto?.tickets ?? 0) : null,
   };
 }
 
@@ -391,10 +573,12 @@ export function shareMessage(dto: Pick<TxilladaDto, 'title' | 'host'>): string {
 export function errorText(status: number | undefined, message?: string | null): string {
   const m = message && message !== 'Erro inesperado' ? message : '';
   switch (status) {
+    case 402: return m || 'Esta Txillada é privada: paga a entrada para entrar.';
     case 403: return m || 'Não podes ver esta Txillada.';
     case 404: return 'Esta Txillada não existe ou não a podes ver.';
     case 409: return m || 'Já tens uma Txillada a decorrer.';
     case 410: return m || 'A Txillada já acabou.';
+    case 422: return m || 'Não deu. Verifica o que escreveste e tenta outra vez.';
     case 429: return m || 'Calma! Espera um bocadinho antes de comentar outra vez.';
     case 503: return m || 'A Txillada ainda não está disponível.';
     default: return m || 'Não consegui ligar à Txillada. Verifica a internet e tenta outra vez.';

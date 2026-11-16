@@ -17,8 +17,10 @@ export const viewersKey = (id: string) => ['txillada', id, 'viewers'] as const;
 
 type Me = FxPerson | null;
 
-export function useTxilladaFx(o: { id: string; live: boolean; host: boolean; me: Me; reduce: boolean; onCheer: () => boolean }) {
+/** `noViewers`: numa Txillada privada (0167) quem vê não tem a lista «A ver agora» (só o anfitrião): não se pede. */
+export function useTxilladaFx(o: { id: string; live: boolean; host: boolean; me: Me; reduce: boolean; onCheer: () => boolean; noViewers?: boolean }) {
   const { id, live, host, me, reduce } = o;
+  const askViewers = live && !o.noViewers;
   const qc = useQueryClient();
   const [fx, setFx] = useState<FxParticle[]>([]);
   const [joins, setJoins] = useState<JoinState>(joinInit);
@@ -34,8 +36,8 @@ export function useTxilladaFx(o: { id: string; live: boolean; host: boolean; me:
   const viewers = useQuery({
     queryKey: viewersKey(id),
     queryFn: () => txilladaApi.viewers(id),
-    enabled: live && !!id,
-    refetchInterval: live ? 10_000 : false,
+    enabled: askViewers && !!id,
+    refetchInterval: askViewers ? 10_000 : false,
     retry: false,
   });
 

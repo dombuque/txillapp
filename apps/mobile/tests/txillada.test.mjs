@@ -174,9 +174,9 @@ test('o que se vê: a carregar, ao vivo, erro, e acabada (a Txillada não se gra
 // ── permissões da UI ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 test('UI: quem vê comenta (se o anfitrião deixa), brinda, partilha e denuncia; o anfitrião transmite', () => {
-  assert.deepEqual(t.liveUi(dto()), { host: false, canComment: true, canCheer: true, canReport: true, canShare: true, canBroadcast: false });
+  assert.deepEqual(t.liveUi(dto()), { host: false, canComment: true, canCheer: true, canReport: true, canShare: true, canBroadcast: false, canGift: true, canSeeViewers: true });
   assert.equal(t.liveUi(dto({ canComment: false })).canComment, false);
-  assert.deepEqual(t.liveUi(dto({ isHost: true })), { host: true, canComment: true, canCheer: false, canReport: false, canShare: true, canBroadcast: true });
+  assert.deepEqual(t.liveUi(dto({ isHost: true })), { host: true, canComment: true, canCheer: false, canReport: false, canShare: true, canBroadcast: true, canGift: false, canSeeViewers: true });
   const off = t.liveUi(dto({ status: 'ended' }));
   assert.deepEqual([off.canComment, off.canCheer, off.canShare, off.canBroadcast], [false, false, false, false]);
   assert.equal(t.liveUi(null).canComment, false);
@@ -268,7 +268,7 @@ test('fixar e denunciar um comentário: as rotas do contrato, o menu e a pílula
   const bubble = read('src/components/StoryFloatComments.tsx');
   assert.match(bubble, /export const DOUBLE_MS = 250;/);
   const live = read('src/components/txillada/LiveFloatComments.tsx');
-  assert.match(live, /onPress=\{onOpen \? \(\) => onOpen\(c\) : undefined\}\n\s+onLongPress=\{onOpen \? \(\) => onOpen\(c\) : undefined\}/);
+  assert.match(live, /onPress=\{onOpen && !c\.gift \? \(\) => onOpen\(c\) : undefined\}\n\s+onLongPress=\{onOpen && !c\.gift \? \(\) => onOpen\(c\) : undefined\}/);
   // O fixado em baixo, por cima da barra, e a denúncia esconde-o logo.
   assert.match(screen, /<PinnedComment c=\{pinned\} bottom=\{pinBottom\}/);
   assert.match(screen, /type="txillada_comment" id=\{reporting\.id\} txilladaId=\{dto\.id\}/);
@@ -307,7 +307,7 @@ test('o tempo e os números', () => {
 test('resumo do anfitrião: duração, pico, brindes e comentários; diz que não fica gravada', () => {
   const s = t.applyEvent(t.initialLive(dto({ peakViewers: 5 })), { type: 'txillada.viewers', txilladaId: 't1', viewers: 8 });
   const sum = t.liveSummary(dto({ status: 'ended', endedAt: '2026-11-15T10:12:30.000Z', cheers: 40, comments: 17 }), s, Date.now());
-  assert.deepEqual(sum, { duration: '12:30', peak: 8, cheers: 40, comments: 17 });
+  assert.deepEqual(sum, { duration: '12:30', peak: 8, cheers: 40, comments: 17, raised: 0, tickets: null });
   assert.match(read('src/components/txillada/TxilladaParts.tsx'), /A Txillada acabou e não fica gravada/);
   assert.match(read('src/components/txillada/TxilladaParts.tsx'), /A Txillada acabou/);
 });
@@ -563,7 +563,8 @@ test('brindes aos comentários: a rota do contrato, o ecrã e os balões', async
   const screen = read('src/app/txillada/[id].tsx');
   assert.match(screen, /onOpen=\{tx\.me \? openMenu : undefined\} onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
   const live = read('src/components/txillada/LiveFloatComments.tsx');
-  assert.match(live, /onDoubleTap=\{onCheer \? \(\) => onCheer\(c\) : undefined\}/);
+  // As linhas das ofertas (0167) não se brindam.
+  assert.match(live, /onDoubleTap=\{onCheer && !c\.gift \? \(\) => onCheer\(c\) : undefined\}/);
   assert.match(live, /cheers=\{c\.cheers \?\? 0\}/);
   // O balão: duplo toque, os copos (72 px) e a pastilha que salta quando a contagem sobe.
   const bubble = read('src/components/StoryFloatComments.tsx');
