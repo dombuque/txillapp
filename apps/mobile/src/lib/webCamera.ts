@@ -175,8 +175,27 @@ export function videoBitrate(w: number | undefined, h: number | undefined, fps: 
   const px = (w || 1280) * (h || 720) * clamp(fps || 30, 15, 60);
   return Math.round(clamp(px * 0.13, 2_500_000, 10_000_000));
 }
+/** O lado maior do vídeo gravado através do canvas (o mesmo 1080p do pedido 16:9 à câmara). */
+export const CANVAS_REC_LONG = 1920;
+export type RecordSource = { kind: 'track' } | { kind: 'canvas'; w: number; h: number };
+/**
+ * De onde se grava o vídeo da câmara. O normal é a faixa da câmara (melhor qualidade). Mas no Safari do iPhone (iOS 26) e
+ * em alguns Chrome do Android a faixa diz-se deitada (getSettings 1920×1080) enquanto o <video> mostra a imagem ao alto
+ * (videoWidth×videoHeight 1080×1920), e o MediaRecorder grava o frame do sensor tal como vem: o vídeo saía deitado, sem
+ * nada no ficheiro que o servidor pudesse corrigir (WebKit bug 323550). Quando as duas medidas não têm a mesma forma
+ * (uma ao alto, outra deitada), grava-se um canvas com o que o <video> mostra, no tamanho dele (lado maior até `maxLong`,
+ * em números pares para o H.264). Sem medidas, ou quadradas, fica a faixa.
+ */
+export function recordSource(drawn: { w?: number; h?: number }, track: { width?: number; height?: number } | null | undefined, maxLong = CANVAS_REC_LONG): RecordSource {
+  const dw = Number(drawn.w) || 0, dh = Number(drawn.h) || 0, tw = Number(track?.width) || 0, th = Number(track?.height) || 0;
+  if (dw <= 0 || dh <= 0 || tw <= 0 || th <= 0 || dw === dh || tw === th) return { kind: 'track' };
+  if (dh > dw === th > tw) return { kind: 'track' };
+  const k = Math.min(1, maxLong / Math.max(dw, dh));
+  const even = (n: number) => Math.max(2, Math.round((n * k) / 2) * 2);
+  return { kind: 'canvas', w: even(dw), h: even(dh) };
+}
 /** "0:07" */
-export const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+export const clock =(s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // ----- Geometria: visor "cover" com zoom ↔ píxeis do sensor -----
 

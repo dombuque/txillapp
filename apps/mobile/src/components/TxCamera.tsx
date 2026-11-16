@@ -11,7 +11,7 @@ import {
   activePill, bestMatch, browserKind, classifyCameraError, clock, coverCrop, exposureLabel, exposureValue, fallbackConstraints, ncc,
   permissionSteps, photoUpgrade, pickRecorderType, readCaps, recorderFile, retryWithFallback, sensorRatioFor, tapToPoint, videoBitrate,
   videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
-  freshVideoFor, nextVideo, viewTransform, coverBox, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
+  freshVideoFor, nextVideo, viewTransform, coverBox, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow, recordSource,
 } from '@/lib/webCamera';
 import { timerIcon } from '@/lib/cameraControls';
 import { useAuth } from '@/lib/auth';
@@ -239,6 +239,60 @@ function grabFrame(v: HTMLVideoElement, r: Rect, mirror: boolean): HTMLCanvasEle
   if (mirror) { g.translate(r.w, 0); g.scale(-1, 1); }
   g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   return c;
+}
+/** A faixa de vídeo do canvas, que deixa pedir cada frame (captureStream(0) e requestFrame). */
+type CaptureTrack = MediaStreamTrack & { requestFrame?: () => void };
+type FrameVideo = HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number; cancelVideoFrameCallback?: (h: number) => void };
+/**
+ * O vídeo a gravar a partir do que o <video> mostra (webCamera.recordSource): cada frame novo da câmara é desenhado num
+ * canvas `w`×`h` (o browser já o desenha ao alto) e o MediaRecorder grava o canvas, com o som da câmara. A frontal sai
+ * espelhada, como no visor e nas fotos. `stop` pára o desenho e a faixa do canvas (o microfone continua da câmara).
+ * null se o browser não grava canvas: fica a faixa da câmara, como antes.
+ */
+function canvasCameraStream(v: HTMLVideoElement, w: number, h: number, mirror: boolean, audio: MediaStreamTrack[]): { stream: MediaStream; stop: () => void } | null {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d');
+  const cv = c as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream };
+  if (!g || typeof cv.captureStream !== 'function') return null;
+  let out: MediaStream;
+  try {
+    // Cada frame desenhado é pedido ao gravador (como no estúdio de tchekas); sem `requestFrame`, 30 por segundo.
+    out = cv.captureStream(0);
+    if (!(out.getVideoTracks()[0] as CaptureTrack | undefined)?.requestFrame) { out.getTracks().forEach((t) => t.stop()); out = cv.captureStream(30); }
+  } catch { return null; }
+  const stream = out;
+  const vt = stream.getVideoTracks()[0] as CaptureTrack | undefined;
+  if (!vt) return null;
+  g.imageSmoothingQuality = 'high';
+  if (mirror) { g.translate(w, 0); g.scale(-1, 1); }
+  const draw = () => {
+    if (v.readyState < 2 || !v.videoWidth) return;
+    g.drawImage(v, 0, 0, w, h);
+    vt.requestFrame?.();
+  };
+  const fv = v as FrameVideo;
+  const rvfc = typeof fv.requestVideoFrameCallback === 'function';
+  let stopped = false;
+  let handle = 0;
+  const next = () => { handle = rvfc ? fv.requestVideoFrameCallback!(loop) : requestAnimationFrame(loop); };
+  function loop() {
+    if (stopped) return;
+    draw();
+    next();
+  }
+  draw();
+  next();
+  audio.forEach((t) => stream.addTrack(t));
+  return {
+    stream,
+    stop: () => {
+      stopped = true;
+      if (rvfc) fv.cancelVideoFrameCallback?.(handle); else cancelAnimationFrame(handle);
+      stream.getVideoTracks().forEach((t) => t.stop());
+    },
+  };
 }
 /** Quantas imagens o <video> mostrou em `ms` (requestVideoFrameCallback). Sem ele (browsers antigos): null, não se mede. */
 function countFrames(v: HTMLVideoElement, ms: number): Promise<{ frames: number; ms: number } | null> {
@@ -531,6 +585,8 @@ export function TxCamera({
   const looksRow = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const stream = useRef<MediaStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
+  /** Pára o desenho do canvas da gravação (quando se grava o que o visor mostra: webCamera.recordSource). */
+  const recCanvas = useRef<(() => void) | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const countTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -996,6 +1052,8 @@ export function TxCamera({
     clearTimeout(holdT.current);
     clearTimeout(expoTimer.current);
     if (recorder.current?.state === 'recording') { recorder.current.onstop = null; recorder.current.stop(); }
+    recCanvas.current?.();
+    recCanvas.current = null;
     reviewSrc.current = null;
     previewSrc.current = null;
     pending.current = null;
@@ -1269,20 +1327,29 @@ export function TxCamera({
     if (light && caps.torch) void setTorch(true);
     const type = pickRecorderType((t) => MediaRecorder.isTypeSupported(t), IOS);
     const vs = s.getVideoTracks()[0]?.getSettings?.() ?? {};
-    const opts: MediaRecorderOptions = { videoBitsPerSecond: videoBitrate(vs.width, vs.height, vs.frameRate) };
+    // A faixa diz-se deitada mas o visor mostra a imagem ao alto (iPhone com iOS 26, alguns Android): gravada assim, o
+    // vídeo saía deitado. Grava-se então o que o <video> mostra, por um canvas (webCamera.recordSource).
+    const v = video.current;
+    const src = v ? recordSource({ w: v.videoWidth, h: v.videoHeight }, vs) : null;
+    const viaCanvas = src?.kind === 'canvas' && v ? canvasCameraStream(v, src.w, src.h, facing === 'user', s.getAudioTracks().filter((x) => x.readyState === 'live')) : null;
+    const recStream = viaCanvas?.stream ?? s;
+    const opts: MediaRecorderOptions = { videoBitsPerSecond: viaCanvas && src?.kind === 'canvas' ? videoBitrate(src.w, src.h, vs.frameRate) : videoBitrate(vs.width, vs.height, vs.frameRate) };
     if (hasAudio) opts.audioBitsPerSecond = 128_000;
     if (type) opts.mimeType = type;
     // Se o browser recusar alguma opção, tenta com menos (no fim, as escolhas dele): gravar nunca pode falhar por isto.
     let made: MediaRecorder | null = null;
     for (const o of [opts, type ? { mimeType: type } : null, { videoBitsPerSecond: opts.videoBitsPerSecond }, undefined]) {
       if (o === null) continue;
-      try { made = new MediaRecorder(s, o); break; } catch { /* a seguinte */ }
+      try { made = new MediaRecorder(recStream, o); break; } catch { /* a seguinte */ }
     }
-    if (!made) return;
+    if (!made) { viaCanvas?.stop(); return; }
     const r = made;
+    recCanvas.current = viaCanvas?.stop ?? null;
     chunks.current = [];
     r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
     r.onstop = () => {
+      viaCanvas?.stop();
+      if (recCanvas.current === viaCanvas?.stop) recCanvas.current = null;
       clearInterval(timer.current);
       setRecording(false);
       setSeconds(0);
@@ -1300,7 +1367,7 @@ export function TxCamera({
       setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs });
     };
     recorder.current = r;
-    try { r.start(1000); } catch { recorder.current = null; return; }
+    try { r.start(1000); } catch { recorder.current = null; viaCanvas?.stop(); recCanvas.current = null; return; }
     startedAt.current = Date.now();
     setMute(!hasAudio);
     setRecording(true);

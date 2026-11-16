@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { promisify } from 'util';
 import { newInstanceId, runsBackground } from '../common/role';
 import { uuidv7 } from '../common/uuid7';
+import { streamRotation } from '../compose/ffmpeg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ImageModerationService } from '../moderation/image-moderation.service';
@@ -245,13 +246,21 @@ export class VideoService implements OnModuleInit, OnModuleDestroy {
   static readonly SAFE_INPUT = ['-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm'];
 
 
+  /**
+   * Duração, tamanho de mostrar e fps. Os telemóveis gravam o vídeo ao alto como frames deitados (1920×1080) com a rotação
+   * nos metadados (displaymatrix / `rotate`); o ffmpeg roda os frames ao converter (autorotate, ligado por omissão) e o
+   * vídeo final sai com os píxeis ao alto e sem rotação. Por isso o tamanho daqui é sempre o de mostrar (largura e altura
+   * trocadas a 90°/270°), nunca o dos frames guardados (video-rotation.e2e.spec.ts).
+   */
   private async probe(file: string) {
     const { stdout } = await run(ffprobe.path, ['-v', 'error', ...VideoService.SAFE_INPUT, '-print_format', 'json', '-show_format', '-show_streams', file], { timeout: 30_000 });
-    const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string; avg_frame_rate?: string; r_frame_rate?: string }[] };
+    const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string; avg_frame_rate?: string; r_frame_rate?: string; tags?: { rotate?: string }; side_data_list?: { rotation?: number | string }[] }[] };
     const v = info.streams?.find((s) => s.codec_type === 'video');
     const seconds = Number(info.format?.duration ?? v?.duration ?? 0);
     if (!v || !v.width || !v.height || !Number.isFinite(seconds) || seconds <= 0) throw new VideoRejected('Este ficheiro não parece ser um vídeo válido.');
-    return { seconds, width: v.width, height: v.height, fps: sourceFps(v.avg_frame_rate, v.r_frame_rate) };
+    const rotation = streamRotation(v);
+    const side = rotation === 90 || rotation === 270;
+    return { seconds, width: side ? v.height : v.width, height: side ? v.width : v.height, rotation, fps: sourceFps(v.avg_frame_rate, v.r_frame_rate) };
   }
 
   private async process(id: string, owner: string, hooks?: VideoStorageHooks, posterMs?: number) {
@@ -265,6 +274,9 @@ export class VideoService implements OnModuleInit, OnModuleDestroy {
       await run(
         FFMPEG,
         [
+          // Sem `-noautorotate` (nunca): o autorotate do ffmpeg, ligado por omissão, passa a rotação dos metadados do
+          // telemóvel para os píxeis antes do scale (o iw/ih abaixo já são os de mostrar) e o ficheiro final sai sem
+          // rotação nenhuma (video-rotation.e2e.spec.ts).
           '-y', ...VideoService.SAFE_INPUT, '-i', f.src, '-t', String(MAX_VIDEO_SECONDS),
           // Lado menor até 1080 (vertical 1080×1920, horizontal 1920×1080), nunca amplia; 30 fps certos, cada um com o frame
           // da fonte mais perto dele (to30fps: num telemóvel a 60 fps com tempos irregulares, o `fps` sozinho saltava).
@@ -277,6 +289,7 @@ export class VideoService implements OnModuleInit, OnModuleDestroy {
       );
       await rename(tmp, f.out);
       const final = await this.probe(f.out);
+      if (final.rotation) this.log.warn(`vídeo ${id} ficou com rotação ${final.rotation}° nos metadados (devia sair com os píxeis ao alto)`);
 
       // Capa (no instante escolhido, se houver) e 3 imagens para a verificação (10%, 50% e 90%).
       await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(posterSeek(final.seconds, posterMs)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
