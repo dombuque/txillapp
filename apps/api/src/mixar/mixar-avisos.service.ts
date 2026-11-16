@@ -10,6 +10,7 @@ import type { NotificationKind } from '../notifications/notifications.service';
 import { interestSql } from '../posts/interest';
 import { PushService, type PushPayload } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
+import { dropTopics, privateTopicsOf } from './mixar-controlo';
 import { commonTopics, DAY_STARTS_HOUR, matchScore, mixarDay, type Weights } from './mixar-pick';
 
 /**
@@ -270,9 +271,9 @@ export class MixarAvisosService {
     );
   }
 
-  /** O perfil de temas de uma pessoa (o mesmo do Explorar, como em MixarService). */
+  /** O perfil de temas de uma pessoa (o mesmo do Explorar, como em MixarService), sem os temas privados dela (0172). */
   private async profile(userId: string): Promise<Weights> {
-    const { rows } = await this.pool.query(interestSql('$1'), [userId]);
-    return Object.fromEntries(rows.map((r) => [r.topic as string, Number(r.wt)]));
+    const [{ rows }, priv] = await Promise.all([this.pool.query(interestSql('$1'), [userId]), privateTopicsOf(this.pool, userId)]);
+    return dropTopics(Object.fromEntries(rows.map((r) => [r.topic as string, Number(r.wt)])), priv);
   }
 }

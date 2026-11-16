@@ -146,6 +146,17 @@ describe('Mixar: controlo dos temas, temas privados e resumo da semana (integra�
     expect(h.common.map((c) => c.topic)).toEqual(['historia']);
   });
 
+  it('integração: nos Guardados (0171) a razão também fica sem o tema privado', async () => {
+    const fe = (await pool.query(`SELECT i.post_id FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id WHERE i.mixar_id = $1 AND i.topic = 'fe' AND p.removed_at IS NULL LIMIT 1`, [mx])).rows[0]?.post_id as string | undefined;
+    expect(fe).toBeDefined();
+    await api().post(`/api/v1/mixar/${mx}/saved/${fe}`).set(auth(u.ana)).expect(200);
+    const saved = (await api().get(`/api/v1/mixar/${mx}/saved`).set(auth(u.ana)).expect(200)).body as { items: Item[] };
+    const it = saved.items.find((i) => i.post.id === fe);
+    expect(it).toBeDefined();
+    expect(it!.topic).toBeNull();
+    await api().delete(`/api/v1/mixar/${mx}/saved/${fe}`).set(auth(u.ana)).expect(200);
+  });
+
   it('afinar os temas: tirar um tema («off») sai logo do feed dos dois e do cabeçalho; só quem o tirou o volta a pôr', async () => {
     const before = await feed(u.dom, mx);
     const sol = Object.entries(P).filter(([k]) => k.startsWith('sol')).map(([, v]) => v);
@@ -155,6 +166,11 @@ describe('Mixar: controlo dos temas, temas privados e resumo da semana (integra�
     expect(r.theirsOff).toEqual([]);
     for (const x of [u.dom, u.ana]) expect((await feed(x, mx)).items.some((i) => sol.includes(i.post.id))).toBe(false);
     expect(topicsOf(await head(u.dom, mx))).not.toContain('solidariedade');
+    // O «Mais 5» (0171) também não traz nada do tema tirado.
+    const today = async () => new Set((await pool.query('SELECT post_id FROM social.mixar_items WHERE mixar_id = $1 AND day = $2::date', [mx, mixarDay()])).rows.map((x) => x.post_id as string));
+    const had = await today();
+    await api().post(`/api/v1/mixar/${mx}/more`).set(auth(u.dom)).expect(200);
+    for (const id of await today()) if (!had.has(id)) expect(sol).not.toContain(id);
     const domView = (await api().get(`/api/v1/mixar/${mx}/topics`).set(auth(u.dom)).expect(200)).body;
     expect(domView.theirsOff).toEqual([{ topic: 'solidariedade', label: 'Solidariedade' }]);
     expect(domView.mine).toEqual([]);

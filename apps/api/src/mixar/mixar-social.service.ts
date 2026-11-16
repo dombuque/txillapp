@@ -9,6 +9,7 @@ import { RealtimeBus } from '../realtime/realtime-bus';
 import { Scheduler } from '../realtime/scheduler';
 import { TextFilter } from '../safety/text-filter.service';
 import { notReportedBy } from '../social/visibility';
+import { controlCandidates, dropTopics, loadControl, maskTopic, mixarOffTopics, privateTopicsOfAll } from './mixar-controlo';
 import { mixarDay, pickDaily, type From } from './mixar-pick';
 import { bothSee, MixarService, type MixarItem, type ReactionId, type Row } from './mixar.service';
 
@@ -212,6 +213,9 @@ export class MixarSocialService implements OnModuleInit {
     const page = rows.slice(0, limit);
     const posts = new Map((await this.posts.feedPosts(me, page.map((r) => r.post_id as string))).map((p) => [p.id as string, p]));
     const meIsA = m.user_a === me;
+    // 0172: a razão fica sem tema se o tema for privado de um dos dois ou se foi tirado deste Mixar (o item guardado fica).
+    const [priv, off] = await Promise.all([privateTopicsOfAll(this.pool, [me, m.other_id]), mixarOffTopics(this.pool, id)]);
+    const hidden = new Set([...priv, ...off]);
     const items: MixarSavedItem[] = [];
     for (const r of page) {
       const post = posts.get(r.post_id as string);
@@ -219,7 +223,7 @@ export class MixarSocialService implements OnModuleInit {
       items.push({
         post,
         from: fromFor((r.source as From | null) ?? 'both', meIsA),
-        topic: r.topic ? { topic: r.topic as string, label: topicLabel(r.topic as string) } : null,
+        topic: maskTopic(r.topic as string | null, hidden) ? { topic: r.topic as string, label: topicLabel(r.topic as string) } : null,
         mine: (r.mine as ReactionId | null) ?? null,
         theirs: (r.theirs as ReactionId | null) ?? null,
         seenByThem: !!r.seen_by_them,
@@ -259,7 +263,7 @@ export class MixarSocialService implements OnModuleInit {
       if (rounds >= MORE_PER_DAY) {
         throw new HttpException(`Já pediram mais ${MORE_PER_DAY} vezes hoje. Amanhã às 05:00 há uma seleção nova`, HttpStatus.TOO_MANY_REQUESTS);
       }
-      const [pa, pb, pm, cands, before] = await Promise.all([
+      const [pa, pb, pm, cands, before, ctl] = await Promise.all([
         this.mixar.profile(m.user_a),
         this.mixar.profile(m.user_b),
         this.mixar.mixarProfile(id, day),
@@ -269,6 +273,7 @@ export class MixarSocialService implements OnModuleInit {
              FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id WHERE i.mixar_id = $1`,
           [id, day],
         ),
+        loadControl(this.pool, id, m.user_a, m.user_b),
       ]);
       // No máximo 2 do mesmo autor no dia (contando com o que já lá está).
       const perAuthor = new Map<string, number>();
@@ -279,10 +284,11 @@ export class MixarSocialService implements OnModuleInit {
         next = Math.max(next, (r.position as number) + 1);
       }
       const picked = pickDaily({
-        a: pa,
-        b: pb,
-        mixar: pm,
-        candidates: cands.filter((c) => (perAuthor.get(c.authorId) ?? 0) < 2),
+        // 0172: como na seleção do dia, sem os temas tirados e com o «Menos disto» (temas e autores) a pesar menos.
+        a: dropTopics(pa, ctl.off),
+        b: dropTopics(pb, ctl.off),
+        mixar: dropTopics(pm, ctl.off),
+        candidates: controlCandidates(cands, ctl).filter((c) => (perAuthor.get(c.authorId) ?? 0) < 2),
         exclude: before.rows.map((r) => r.post_id as string),
         max: MORE_ITEMS,
         perAuthor: 1,
