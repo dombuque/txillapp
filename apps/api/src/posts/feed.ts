@@ -25,6 +25,11 @@ export interface FeedCursor {
   t: string;
   /** Quantas publicações a sessão já mostrou (para os destaques do Bombar caírem de ~11 em ~11). Cursores antigos não o têm. */
   n?: number;
+  /**
+   * Já acabaram as publicações da janela do feed (10 dias): a continuação são as mais antigas da minha rede, por data,
+   * e `id` é a última mostrada.
+   */
+  o?: true;
 }
 
 export function encodeCursor(c: FeedCursor) {
@@ -37,6 +42,7 @@ export function decodeCursor(token: string | undefined): FeedCursor | null {
     const c = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
     const okTime = typeof c.t === 'string' && !Number.isNaN(Date.parse(c.t)) && Date.parse(c.t) <= Date.now() + 60_000;
     if (c.n !== undefined && !(Number.isInteger(c.n) && c.n >= 0 && c.n < 100_000)) delete c.n;
+    if (c.o !== undefined && c.o !== true) delete c.o;
     if (typeof c.s === 'number' && Number.isFinite(c.s) && /^[0-9a-f-]{36}$/.test(c.id) && okTime) return c as FeedCursor;
   } catch {
     /* cai no erro abaixo */
@@ -55,6 +61,18 @@ export function decodeCursor(token: string | undefined): FeedCursor | null {
 export const tchekaPost = (p = 'p') =>
   `(SELECT count(*) = 1 AND bool_and(tma.mime LIKE 'video/%') FROM content.post_media tpm JOIN content.media_assets tma ON tma.id = tpm.media_id WHERE tpm.post_id = ${p}.id)`;
 const VIDEO_POST = tchekaPost();
+
+/**
+ * Depois da janela do feed (RANKED_SQL, 10 dias): as publicações mais antigas da minha rede (as minhas, de quem sigo e dos
+ * locais que sigo), da mais recente para a mais antiga. $1 eu, $2 início da sessão, $3 a última já mostrada (ou null), $4 quantas.
+ */
+export const OLDER_SQL = `
+  SELECT p.id FROM content.posts p
+   WHERE p.removed_at IS NULL AND p.created_at <= $2::timestamptz - interval '10 days'
+     AND ($3::uuid IS NULL OR p.id < $3::uuid)
+     AND (p.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
+          OR (p.venue_id IS NOT NULL AND EXISTS (SELECT 1 FROM content.venue_follows vf WHERE vf.user_id = $1 AND vf.venue_id = p.venue_id)))
+   ORDER BY p.id DESC LIMIT $4`;
 
 export const RANKED_SQL = `
   WITH net AS (

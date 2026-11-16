@@ -121,6 +121,25 @@ describe('feed por relevância (integração)', () => {
     expect(longest).toBeLessThanOrEqual(3);
   });
 
+  it('depois dos 10 dias do feed continua com as publicações antigas da minha rede (por data), sem repetir nem estranhos', async () => {
+    const { fa, fb, fe } = u;
+    const old = [await post(fb, 'antiga 20 dias'), await post(fb, 'antiga 30 dias'), await post(fb, 'antiga 40 dias')];
+    const stranger = await post(fe, 'antiga de quem não sigo');
+    for (const [i, x] of old.entries()) await pool.query(`UPDATE content.posts SET created_at = now() - make_interval(days => $2) WHERE id = $1`, [x.id, 20 + i * 10]);
+    await pool.query(`UPDATE content.posts SET created_at = now() - interval '25 days' WHERE id = $1`, [stranger.id]);
+    for (const limit of [2, 5, 30]) {
+      const items = await session(fa, limit, 200);
+      const ids = items.map((i) => i.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const x of old) expect(ids).toContain(x.id);
+      expect(ids).not.toContain(stranger.id);
+      // As antigas vêm depois de tudo o que é da janela.
+      const firstOld = Math.min(...old.map((x) => ids.indexOf(x.id)));
+      const recent = items.filter((i) => Date.parse((i as any).createdAt) > Date.now() - 10 * 86_400_000).map((i) => ids.indexOf(i.id));
+      expect(Math.max(...recent)).toBeLessThan(firstOld);
+    }
+  });
+
   it('cursor inválido ou adulterado é recusado; sem sessão não há feed; lista longa de "visto" é limitada', async () => {
     const { fa } = u;
     await api().get('/api/v1/feed?cursor=lixo').set(auth(fa)).expect(400);

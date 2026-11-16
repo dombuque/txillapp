@@ -15,7 +15,7 @@ import { TOPICS, classify, topicLabel } from '../common/topics';
 import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
-import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
+import { RANKED_SQL, OLDER_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { interestSql } from './interest';
 import { WalletService } from '../wallet/wallet.service';
 import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
@@ -431,8 +431,20 @@ export class PostsService implements OnModuleInit {
     const cur = decodeCursor(token);
     const session = cur?.t ?? new Date().toISOString();
     const bucket = String(Math.floor(Date.parse(session) / 1_800_000)); // variedade estável durante ~30 min
-    const { rows: ranked } = await this.pool.query(RANKED_SQL, [userId, session, bucket, cur?.s ?? null, cur?.id ?? null, limit + 1, mode === 'reels', mode === 'reels' ? -0.1 : -0.6]);
+    // Na continuação das antigas (cur.o) já não há nada da janela por mostrar.
+    const { rows: ranked } = cur?.o
+      ? { rows: [] as Record<string, any>[] }
+      : await this.pool.query(RANKED_SQL, [userId, session, bucket, cur?.s ?? null, cur?.id ?? null, limit + 1, mode === 'reels', mode === 'reels' ? -0.1 : -0.6]);
     const page = ranked.slice(0, limit);
+    // Acabou a janela (10 dias) no feed: completa a página com as publicações mais antigas da minha rede, por data, e o
+    // cursor passa a continuar por aí. Antes, o feed parava aqui e as antigas nunca apareciam.
+    let older: Record<string, any>[] = [];
+    if (mode === 'feed' && ranked.length <= limit) {
+      const { rows } = await this.pool.query(OLDER_SQL, [userId, session, cur?.o ? cur.id : null, limit - page.length + 1]);
+      older = rows;
+    }
+    const olderPage = older.slice(0, limit - page.length);
+    page.push(...olderPage.map((r) => ({ id: r.id, source: 'following', seen: false, old: true })));
     const meta = new Map(page.map((r) => [r.id as string, { source: r.source as 'following' | 'self' | 'discover', seen: r.seen as boolean }]));
     let items: Awaited<ReturnType<PostsService['hydrate']>> = [];
     if (page.length) {
@@ -444,7 +456,13 @@ export class PostsService implements OnModuleInit {
     const last = page[page.length - 1];
     return {
       items: items.map((i) => ({ ...i, feed: meta.get(i.id) ?? { source: 'following' as const, seen: false } })),
-      nextCursor: ranked.length > limit && last ? encodeCursor({ s: last.score, id: last.id, t: session, n: (cur?.n ?? 0) + items.length }) : null,
+      nextCursor:
+        ranked.length > limit && last
+          ? encodeCursor({ s: last.score, id: last.id, t: session, n: (cur?.n ?? 0) + items.length })
+          : older.length > olderPage.length
+            ? // A página encheu-se antes das antigas: a continuação começa nelas (o maior id possível = desde o início).
+              encodeCursor({ s: 0, id: (olderPage[olderPage.length - 1]?.id as string | undefined) ?? 'ffffffff-ffff-ffff-ffff-ffffffffffff', t: session, n: (cur?.n ?? 0) + items.length, o: true })
+            : null,
     };
   }
 
