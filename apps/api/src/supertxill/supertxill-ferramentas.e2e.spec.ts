@@ -4,14 +4,16 @@ import { getStorageToken } from '@nestjs/throttler';
 import request from 'supertest';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { uuidv7 } from '../common/uuid7';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { TextFilter } from '../safety/text-filter.service';
 import { MSG, systemPrompt } from './constants';
-import { OllamaChatRequest, OllamaChatResponse, OllamaError, ollamaClient } from './ollama';
-import { MAX_REPLY, MAX_TOOL_CALLS, SuperTxillService } from './supertxill.service';
+import { OllamaChatRequest, OllamaChatResponse, OllamaError, ollamaClient, visiblePartial } from './ollama';
+import { MAX_REPLY, MAX_TOOL_CALLS, NUM_PREDICT, SuperTxillService } from './supertxill.service';
 import { SuperTxillTools, TOOLS, guessTools } from './supertxill.tools';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -96,6 +98,70 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     };
     return seen;
   }
+  /** Espera até a última resposta estar pronta (já não `writing`). */
+  const waitDone = async (x: U, count: number, tries = 80) => {
+    for (let i = 0; i < tries; i++) {
+      const t = (await pool.query('SELECT role, body, writing FROM social.ai_messages WHERE user_id = $1 ORDER BY id', [x.id])).rows as { role: string; body: string; writing: boolean }[];
+      if (t.length >= count && !t[t.length - 1].writing) return t;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return thread(x);
+  };
+
+  /**
+   * Um Ollama falso a sério (HTTP local): responde a POST /api/chat em stream (NDJSON), aos pedaços, devagar, como o nosso
+   * servidor em CPU. `fakePlan(req)` diz o que escrever: pedaços de texto, chamadas de ferramentas, e se no fim acaba, fica
+   * pendurado (até o pedido ser cancelado) ou manda um erro a meio.
+   */
+  type Plan = { pieces?: string[]; toolCalls?: { name: string; args?: Record<string, unknown> }[]; gap?: number; end?: 'done' | 'hang' | 'error' };
+  let fakePlan: (req: OllamaChatRequest) => Plan = () => ({ pieces: ['ok'] });
+  const fakeSeen: (OllamaChatRequest & { stream?: boolean })[] = [];
+  let fake: Server;
+  let fakeUrl = '';
+  const startFake = () =>
+    new Promise<void>((resolve) => {
+      fake = createServer((req, res) => {
+        let raw = '';
+        req.on('data', (c) => (raw += c));
+        req.on('end', async () => {
+          const body = JSON.parse(raw) as OllamaChatRequest & { stream?: boolean };
+          fakeSeen.push(body);
+          const p = fakePlan(body);
+          res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+          let open = true;
+          res.on('close', () => (open = false));
+          const send = (o: unknown) => open && res.write(`${JSON.stringify(o)}\n`);
+          for (const piece of p.pieces ?? []) {
+            await new Promise((r) => setTimeout(r, p.gap ?? 150));
+            send({ model: body.model, message: { role: 'assistant', content: piece }, done: false });
+          }
+          if (p.toolCalls?.length) send({ message: { role: 'assistant', content: '', tool_calls: p.toolCalls.map((c) => ({ function: { name: c.name, arguments: c.args ?? {} } })) }, done: false });
+          if (p.end === 'hang') return; // fica à espera até o pedido ser cancelado
+          if (p.end === 'error') return void (open && res.end(`${JSON.stringify({ error: 'rebentou a meio' })}\n`));
+          send({ message: { role: 'assistant', content: '' }, done: true, done_reason: 'stop', eval_count: 9 });
+          res.end();
+        });
+      }).listen(0, '127.0.0.1', () => {
+        fakeUrl = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
+        resolve();
+      });
+    });
+  /** Pergunta e vai lendo o GET /supertxill (como a app) até a resposta ficar pronta. Devolve o que se viu pelo caminho. */
+  const askWatching = async (x: U, text: string) => {
+    const before = (await thread(x)).length;
+    resetThrottle();
+    await api().post('/api/v1/supertxill/ask').set(auth(x)).send({ text }).expect(201);
+    const seen: { pending: boolean; last: { role: string; body: string; writing: boolean } }[] = [];
+    for (let i = 0; i < 120; i++) {
+      resetThrottle();
+      const g = (await api().get('/api/v1/supertxill').set(auth(x)).expect(200)).body as { pending: boolean; messages: { role: string; body: string; writing: boolean }[] };
+      seen.push({ pending: g.pending, last: g.messages[g.messages.length - 1] });
+      if (g.messages.length >= before + 2 && !g.pending) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return seen;
+  };
+
   const ask = async (x: U, text: string) => {
     const before = (await thread(x)).length;
     resetThrottle();
@@ -117,9 +183,12 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     await app.init();
     bot = app.get(SuperTxillService);
     tools = app.get(SuperTxillTools);
+    await startFake();
   }, 60_000);
 
   afterAll(async () => {
+    fake.closeAllConnections();
+    await new Promise((r) => fake.close(r));
     await app.close();
     await pool.end();
   });
@@ -457,7 +526,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect((await ask(me, 'mais')).body).toBe(MSG.error);
   });
 
-  it('o cliente do Ollama: POST /api/chat sem streaming, com o token no Authorization, e os erros com a mensagem do Ollama', async () => {
+  it('o cliente do Ollama: POST /api/chat sem streaming (quando não se pede o texto a meio), com o token no Authorization, e os erros com a mensagem do Ollama', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const real = global.fetch;
     global.fetch = (async (url: string, init: RequestInit) => {
@@ -476,6 +545,129 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     } finally {
       global.fetch = real;
     }
+  });
+
+  it('o cliente do Ollama em stream: junta as linhas NDJSON (mesmo partidas a meio), entrega o texto acumulado, as ferramentas e os erros a meio', async () => {
+    const real = global.fetch;
+    const enc = new TextEncoder();
+    const bodies = [
+      ['{"message":{"role":"assistant","content":"Ol', 'á"},"done":false}\n{"message":{"role":"assistant","content":" malta"},"done":false}\n', '{"message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"geleira","arguments":{}}}]},"done":false}\n{"message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}'],
+      ['{"message":{"role":"assistant","content":"Já"},"done":false}\n{"error":"sem memória"}\n'],
+    ];
+    let k = 0;
+    const sent: string[] = [];
+    global.fetch = (async (_url: string, init: RequestInit) => {
+      sent.push(String(init.body));
+      const parts = bodies[k++];
+      return new Response(new ReadableStream({ start(c) { for (const p of parts) c.enqueue(enc.encode(p)); c.close(); } }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const c = ollamaClient('http://ollama.test');
+      const got: string[] = [];
+      const r = await c({ model: 'm', messages: [] }, new AbortController().signal, (t) => got.push(t));
+      expect(JSON.parse(sent[0]).stream).toBe(true);
+      expect(got).toEqual(['Olá', 'Olá malta']);
+      expect(r.message).toEqual({ role: 'assistant', content: 'Olá malta', tool_calls: [{ function: { name: 'geleira', arguments: {} } }] });
+      expect(r.done_reason).toBe('stop');
+      await expect(c({ model: 'm', messages: [] }, new AbortController().signal, () => undefined)).rejects.toMatchObject({ message: 'sem memória' });
+    } finally {
+      global.fetch = real;
+    }
+    // O que se mostra a meio: nunca o raciocínio, nem um <think> por fechar, nem o início de uma etiqueta cortada.
+    expect(visiblePartial('<thi')).toBe('');
+    expect(visiblePartial('<think>isto é segredo')).toBe('');
+    expect(visiblePartial('<think>segredo</think>Olá malta <th')).toBe('Olá malta');
+    expect(visiblePartial('segredo</think>Olá')).toBe('Olá');
+    expect(visiblePartial('Bora 😊 ao café')).toBe('Bora ao café');
+    expect(visiblePartial('a < b')).toBe('a < b');
+  });
+
+  describe('a escrever ao vivo (Ollama falso em stream, devagar)', () => {
+    const cfg = () => (bot as unknown as { config: { SUPERTXILL_TIMEOUT_MS: number } }).config;
+    let keep = 0;
+    beforeEach(() => {
+      keep = cfg().SUPERTXILL_TIMEOUT_MS;
+      (bot as unknown as { think: boolean }).think = false;
+      bot.chat = ollamaClient(fakeUrl);
+      fakeSeen.length = 0;
+    });
+    afterEach(() => {
+      cfg().SUPERTXILL_TIMEOUT_MS = keep;
+    });
+    const writingBodies = (seen: Awaited<ReturnType<typeof askWatching>>) => seen.filter((s) => s.last?.role === 'assistant' && s.last.writing).map((s) => s.last.body);
+
+    it('o texto aparece no GET aos bocados antes do fim, numa só linha que cresce; no fim fica pronto; o pedido vai em stream e curto', async () => {
+      cfg().SUPERTXILL_TIMEOUT_MS = 10_000;
+      const me = await signup('sxw');
+      const final = 'Bora txilar, malta! Hoje há maningue ambiente no Café Acácia, a dois passos de ti. Leva a tua malta e aproveita.';
+      fakePlan = () => ({ pieces: `${final} 😊`.split(/(?<= )/), gap: 140 });
+      const seen = await askWatching(me, 'Dá-me uma ideia para hoje');
+      const partials = writingBodies(seen);
+      expect(partials.length).toBeGreaterThan(0);
+      for (const p of partials) {
+        expect(p.length).toBeGreaterThan(0);
+        expect(p.length).toBeLessThan(final.length);
+        expect(final.startsWith(p)).toBe(true);
+      }
+      expect(new Set(partials).size).toBeGreaterThanOrEqual(2); // vai crescendo (de ~1 em ~1 s)
+      expect(seen.filter((s) => s.last?.writing).every((s) => s.pending)).toBe(true); // a app continua a perguntar
+      expect(seen[seen.length - 1]).toEqual({ pending: false, last: expect.objectContaining({ role: 'assistant', body: final, writing: false }) });
+      expect((await thread(me)).map((m) => m.role)).toEqual(['user', 'assistant']); // atualizada, não repetida
+      expect(fakeSeen[0].stream).toBe(true);
+      expect(fakeSeen[0].options).toMatchObject({ num_predict: NUM_PREDICT });
+      expect(NUM_PREDICT).toBeLessThanOrEqual(250);
+      expect(fakeSeen[0].messages[0].content).toContain('no máximo 3 frases curtas');
+    }, 30_000);
+
+    it('com ferramentas: a volta da ferramenta não mostra nada, e o texto da resposta sai em stream', async () => {
+      cfg().SUPERTXILL_TIMEOUT_MS = 10_000;
+      const me = await signup('sxwt');
+      fakePlan = (req) => (req.messages.some((m) => m.role === 'tool') ? { pieces: ['Não ', 'há ', 'Txilladas ', 'agora, ', 'mas ', 'a ', 'malta ', 'anda ', 'por ', 'aí.'], gap: 250 } : { toolCalls: [{ name: 'geleira' }] });
+      const seen = await askWatching(me, 'Diz-me uma coisa');
+      expect(fakeSeen.map((r) => r.messages.filter((m) => m.role === 'tool').length)).toEqual([0, 1]);
+      expect(writingBodies(seen).length).toBeGreaterThan(0);
+      expect(seen[seen.length - 1].last).toMatchObject({ body: 'Não há Txilladas agora, mas a malta anda por aí.', writing: false });
+    }, 30_000);
+
+    it('o raciocínio em <think> nunca aparece a meio; o que o filtro não deixa também não; o fim passa pelo filtro', async () => {
+      cfg().SUPERTXILL_TIMEOUT_MS = 10_000;
+      const me = await signup('sxwk');
+      fakePlan = () => ({ pieces: ['<thi', 'nk>isto é ', 'segredo', '</thi', 'nk>', 'Olá ', 'malta. ', 'Tudo ', 'nice?'], gap: 250 });
+      const seen = await askWatching(me, 'olá');
+      for (const p of writingBodies(seen)) expect(p).not.toMatch(/segredo|</);
+      expect(seen[seen.length - 1].last).toMatchObject({ body: 'Olá malta. Tudo nice?', writing: false });
+      fakePlan = () => ({ pieces: ['Olá ', 'pessoal. ', 'vou matar-te ', 'seu filho ', 'da puta'], gap: 250 });
+      const bad = await askWatching(me, 'diz algo');
+      for (const p of writingBodies(bad)) expect(p).not.toMatch(/matar|puta/);
+      expect(bad[bad.length - 1].last).toMatchObject({ body: MSG.refused, writing: false });
+    }, 30_000);
+
+    it('tempo máximo ou erro a meio: fica o que já estava escrito, com uma nota curta; sem nada, a mensagem de sempre', async () => {
+      cfg().SUPERTXILL_TIMEOUT_MS = 1500;
+      const me = await signup('sxwc');
+      fakePlan = () => ({ pieces: ['Primeiro ', 'bocado.'], gap: 200, end: 'hang' });
+      await ask(me, 'pensa muito');
+      expect((await waitDone(me, 2)).pop()).toMatchObject({ body: `Primeiro bocado.\n\n(${MSG.cutTimeout})`, writing: false });
+      fakePlan = () => ({ pieces: ['Já ia ', 'a meio'], gap: 150, end: 'error' });
+      await ask(me, 'outra');
+      expect((await waitDone(me, 4)).pop()).toMatchObject({ body: `Já ia a meio\n\n(${MSG.cutError})`, writing: false });
+      fakePlan = () => ({ end: 'error' });
+      await ask(me, 'mais');
+      expect((await waitDone(me, 6)).pop()).toMatchObject({ body: MSG.error });
+      expect((await api().get('/api/v1/supertxill').set(auth(me)).expect(200)).body.pending).toBe(false);
+    }, 30_000);
+
+    it('apagar a conversa enquanto escreve: a resposta não volta a aparecer', async () => {
+      cfg().SUPERTXILL_TIMEOUT_MS = 10_000;
+      const me = await signup('sxwd');
+      fakePlan = () => ({ pieces: ['Um ', 'dois ', 'três ', 'quatro ', 'cinco.'], gap: 300 });
+      resetThrottle();
+      await api().post('/api/v1/supertxill/ask').set(auth(me)).send({ text: 'conta' }).expect(201);
+      for (let i = 0; i < 40 && (await thread(me)).length < 2; i++) await new Promise((r) => setTimeout(r, 50));
+      await api().post('/api/v1/supertxill/clear').set(auth(me)).expect(204);
+      await new Promise((r) => setTimeout(r, 2000));
+      expect(await thread(me)).toEqual([]);
+    }, 30_000);
   });
 
   // Opcional: contra um Ollama a sério (ex.: OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=qwen3:4b-instruct). Salta sem OLLAMA_URL.
@@ -501,7 +693,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     await appear(me, 0);
     await appear(amigo, 0.012);
     await real.ask(me.id, 'Estou bem animado hoje! Onde anda a minha malta?');
-    const t = await waitFor(me, 2, 3300);
+    const t = await waitDone(me, 2, 3300);
     const reply = t[t.length - 1];
     expect(reply.role).toBe('assistant');
     expect([MSG.error, MSG.timeout, MSG.off]).not.toContain(reply.body);
