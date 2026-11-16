@@ -54,7 +54,7 @@ A Apple conta o «social graph» (quem segues e quem te segue, os amigos próxim
 | Dado | Recolhido | Ligado | Rastreio | Finalidades |
 |---|---|---|---|---|
 | Emails ou mensagens de texto | Sim | Sim | Não | Funcionalidade (as mensagens do chat, a dois e em grupo) |
-| Fotos ou vídeos | Sim | Sim | Não | Funcionalidade (publicações, mimos, Zás, chat, foto de perfil e documentos e selfies da verificação, apagados quando há decisão) |
+| Fotos ou vídeos | Sim | Sim | Não | Funcionalidade (publicações, mimos, Zás, chat, foto de perfil e documentos e selfies da verificação, apagados quando há decisão; com «Guardar os meus Zás para o resumo semanal», ligada de origem, as fotos dos Zás ficam 7 dias só para o autor e o servidor faz com elas, de forma automática, o resumo semanal, uma imagem privada apagada aos 7 dias) |
 | Dados de áudio | Sim | Sim | Não | Funcionalidade (mensagens de voz e o som dos vídeos; as chamadas **não** são gravadas) |
 | Conteúdo de jogos | Não | | | |
 | Apoio ao cliente | Não (o suporte é por email, fora da app) | | | |

@@ -34,7 +34,7 @@ PUBLICA E PARTILHA
 • Fotos, vídeos e textos no feed, com música e o sítio onde estás.
 • Tchekas: vídeos curtos para ver e brindar.
 • Mimos: fotos e vídeos com stickers e música que duram 24 horas.
-• Zás: uma foto rápida só para os amigos ou para os mais próximos.
+• Zás: uma foto rápida só para os amigos ou para os mais próximos, e ao domingo o resumo da tua semana.
 • Brinda o que gostas e comenta, com stickers e GIFs.
 
 CONVERSA

@@ -63,7 +63,7 @@ Hoje os pagamentos só existem em teste. Deixar marcado: a Google aceita que se 
 ### Fotos e vídeos
 | Tipo | Recolhido | Partilhado | Obrig./Opc. | Finalidades |
 |---|---|---|---|---|
-| Fotos | Sim | Não | Opcional | Funcionalidade, Segurança (verificação automática e verificação de identidade) |
+| Fotos | Sim | Não | Opcional | Funcionalidade (também o resumo semanal dos Zás: com a definição ligada, de origem, o servidor junta de forma automática as fotos dos Zás da semana, guardadas 7 dias só para o autor, numa imagem privada apagada aos 7 dias), Segurança (verificação automática e verificação de identidade) |
 | Vídeos | Sim | Não | Opcional | Funcionalidade, Segurança |
 
 ### Ficheiros de áudio
