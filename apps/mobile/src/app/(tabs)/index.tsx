@@ -260,6 +260,10 @@ function Feed() {
         windowSize={7}
         initialNumToRender={3}
         maxToRenderPerBatch={4}
+        // Na web (sobretudo no PWA do iPhone) quem desliza às vezes é a página e não a lista: a FlatList não recebe o scroll,
+        // fica nas 3 primeiras e nunca desenha as outras. Na web desenham-se todas as que já vieram (10 de cada vez; o resto
+        // chega pelo LoadMore no fim).
+        disableVirtualization={Platform.OS === 'web'}
       />
       </PullView>
     </View>
