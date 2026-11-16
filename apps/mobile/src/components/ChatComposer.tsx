@@ -21,6 +21,7 @@ import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
+import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -66,6 +67,8 @@ export function ChatComposer({
   const [place, setPlace] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  /** Vários da galeria a caminho: quantos já foram e quantos são («A enviar 2 de 5…»). */
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -127,16 +130,45 @@ export function ChatComposer({
         const p = await ImagePicker.requestCameraPermissionsAsync();
         if (!p.granted) return setErr('Preciso de acesso à câmara para tirar a foto.');
       }
+      // Da galeria escolhem-se vários de uma vez (até CHAT_PICK_MAX, pela ordem dos toques): cada um vai como uma mensagem.
       const r = await (source === 'camera'
         ? ImagePicker.launchCameraAsync({ mediaTypes: ['images', 'videos'], quality: 0.8, videoMaxDuration: 30 })
-        : ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8 }));
-      const a = r.canceled ? null : r.assets[0];
-      if (!a) return;
-      const video = a.type === 'video';
-      await sendMedia(a.uri, a.mimeType ?? (video ? 'video/mp4' : 'image/jpeg'), video);
+        : ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8, allowsMultipleSelection: true, selectionLimit: CHAT_PICK_MAX, orderedSelection: true }));
+      const picks = r.canceled ? [] : chatPicks(r.assets);
+      if (!picks.length) return;
+      if (picks.length === 1) return await sendMedia(picks[0].uri, picks[0].mime, picks[0].video);
+      await sendMany(picks);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     }
+  }
+  /** Vários da galeria: um de cada vez, pela ordem escolhida; a legenda da caixa vai só com o primeiro. Se algum falhar, segue com os outros. */
+  async function sendMany(picks: ChatPick[]) {
+    setBusy(true);
+    setErr('');
+    const caption = text.trim() || undefined;
+    let failed = 0;
+    try {
+      for (let i = 0; i < picks.length; i++) {
+        setProgress({ done: i, total: picks.length });
+        const p = picks[i];
+        try {
+          const mediaId = await uploadChatMedia(p.uri, p.mime);
+          await dispatch({ kind: p.video ? 'video' : 'image', mediaId, body: i === 0 ? caption : undefined, once });
+          if (i === 0) {
+            setText('');
+            grow.reset();
+          }
+        } catch {
+          failed++;
+        }
+      }
+    } finally {
+      setProgress(null);
+      setBusy(false);
+      setOnce(false);
+    }
+    if (failed) setErr(failedLabel(failed, picks.length));
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda e "Ver uma vez". */
   /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
@@ -249,7 +281,7 @@ export function ChatComposer({
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
-        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">A enviar…</Text> : null}
+        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
         {replyTo && (
           <View style={st.reply}>
             <View style={st.replyBar} />

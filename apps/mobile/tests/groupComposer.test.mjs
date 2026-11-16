@@ -40,6 +40,6 @@ test('abrir os stickers fecha o teclado (como nas conversas a dois)', () => {
 
 test('as duas barras dizem "A enviar…" enquanto a foto, o vídeo ou a voz sobem', () => {
   for (const f of ['src/components/ChatComposer.tsx', 'src/components/GroupComposer.tsx']) {
-    assert.match(read(f), /: busy \? <Text style=\{(st|styles)\.busy\} accessibilityLiveRegion="polite">A enviar…<\/Text> : null\}/, f);
+    assert.match(read(f), /: busy \? <Text style=\{(st|styles)\.busy\} accessibilityLiveRegion="polite">\{progress \? sendingLabel\(progress\.done, progress\.total\) : 'A enviar…'\}<\/Text> : null\}/, f);
   }
 });
