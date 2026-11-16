@@ -170,7 +170,7 @@ export function guestNotice(ev: GuestEvent, me: string | null, host: boolean): s
     case 'txillada.invite_cancelled':
       return 'O anfitrião retirou o convite';
     case 'txillada.guest_joined':
-      return me && ev.guest.user.username === me ? 'Estás a transmitir 🎥' : `@${ev.guest.user.username} entrou no ecrã`;
+      return me && ev.guest.user.username === me ? 'Estás a transmitir' : `@${ev.guest.user.username} entrou no ecrã`;
     case 'txillada.guest_left':
       if (me && ev.user.username === me) return ev.reason === 'removed' ? 'O anfitrião tirou-te de transmitir' : null;
       return host ? `@${ev.user.username} saiu do ecrã` : null;

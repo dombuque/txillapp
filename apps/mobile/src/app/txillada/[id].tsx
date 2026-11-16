@@ -188,7 +188,7 @@ export default function TxilladaScreen() {
     if (!host) return;
     const act = viewerGuestAction(tx.guests, u.username);
     const guest = act === 'invite'
-      ? [{ text: 'Convidar para transmitir 🎥', onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? `Convite enviado a @${u.username}`)) }]
+      ? [{ text: 'Convidar para transmitir', onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? `Convite enviado a @${u.username}`)) }]
       : act === 'requested'
         ? [{ text: 'Aceitar o pedido para entrar', onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? `@${u.username} entrou no ecrã`)) }]
         : [];

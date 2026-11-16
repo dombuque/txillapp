@@ -117,7 +117,7 @@ test('o meu lugar: pedir → à espera → aceite (o evento) → a transmitir �
   assert.deepEqual(s.guests.map((x) => x.user.username), ['ana', 'rui']);
   s = ev({ type: 'txillada.guest_joined', guest: guest('rui', 2) });
   assert.equal(s.guests.length, 2, 'sem repetidos');
-  assert.equal(G.guestNotice({ type: 'txillada.guest_joined', txilladaId: 't1', guest: guest('rui', 2) }, 'rui', false), 'Estás a transmitir 🎥');
+  assert.equal(G.guestNotice({ type: 'txillada.guest_joined', txilladaId: 't1', guest: guest('rui', 2) }, 'rui', false), 'Estás a transmitir');
   s = ev({ type: 'txillada.guest_left', user: P('rui'), reason: 'removed' });
   assert.equal(s.mine, 'none');
   assert.deepEqual(s.guests.map((x) => x.user.username), ['ana']);
