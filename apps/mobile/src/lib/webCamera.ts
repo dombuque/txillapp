@@ -195,7 +195,7 @@ export function recordSource(drawn: { w?: number; h?: number }, track: { width?:
   return { kind: 'canvas', w: even(dw), h: even(dh) };
 }
 /** "0:07" */
-export const clock =(s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+export const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // ----- Geometria: visor "cover" com zoom ↔ píxeis do sensor -----
 
