@@ -388,9 +388,12 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                   </Pressable>
                 )}
                 <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
-                {/* «Pede uma gelada» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). */}
-                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel={`Pede uma gelada a ${p.displayName}`}><Icon name="cheers" size={19} /></Pressable>
-                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
+                {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). Com o
+                    nome escrito: só o ícone das canecas parecia «brindar com a pessoa». O «Partilhar perfil» passou para o «⋯». */}
+                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.askDrink]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
+                  {rowW > 340 ? <Icon name="beer" size={17} /> : null}
+                  <Text style={styles.askDrinkText} numberOfLines={1}>Paga-me uma</Text>
+                </Pressable>
                 {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
               </>
             )}
@@ -469,6 +472,13 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null}>
           <View style={{ paddingHorizontal: desktop && menuAt ? 8 : 24, paddingBottom: 8 }}>
+            <Pressable onPress={() => setSheet('qr')} style={styles.menuRow} accessibilityRole="button">
+              <View style={[styles.menuIcon, { backgroundColor: colors.zinc100 }]}><Icon name="share" size={22} color={colors.zinc800} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuText}>Partilhar o perfil</Text>
+                <Text style={styles.menuSub}>Um link ou o código QR de @{p.username}.</Text>
+              </View>
+            </Pressable>
             <Pressable onPress={() => setSheet('block')} style={styles.menuRow} accessibilityRole="button">
               <View style={[styles.menuIcon, { backgroundColor: '#fef2f2' }]}><Icon name="block" size={24} color="#b91c1c" /></View>
               <View style={{ flex: 1 }}>
@@ -536,6 +546,8 @@ const styles = StyleSheet.create({
   tip: { position: 'absolute', top: 6, zIndex: 10, width: 0, height: 0, borderLeftWidth: 11, borderRightWidth: 11, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.zinc300 },
   btnRow: { marginTop: 16, flexDirection: 'row', gap: 6 },
   small: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  askDrink: { flexDirection: 'row', gap: 5, paddingHorizontal: 12, flexShrink: 1, minWidth: 44 },
+  askDrinkText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   smallText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   requests: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, backgroundColor: colors.rose50, paddingHorizontal: 16, paddingVertical: 12 },
   requestsText: { fontWeight: '600', color: colors.brand },
