@@ -672,6 +672,9 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM social.mixars WHERE user_a = $1 OR user_b = $1', [userId]);
       // As sugestões «Faz um Mixar com…» dispensadas (0170), dos dois lados.
       await client.query('DELETE FROM social.mixar_suggestion_dismissals WHERE user_id = $1 OR person_id = $1', [userId]);
+      // Mixar, controlo (0172): os temas privados e o «menos» dos outros sobre esta conta (o resto foi com os Mixar).
+      await client.query('DELETE FROM social.mixar_private_topics WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_author_less WHERE author_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);

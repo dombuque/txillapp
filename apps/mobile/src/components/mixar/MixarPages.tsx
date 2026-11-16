@@ -20,7 +20,7 @@ const snap = isWeb ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as 
 /* ---------- Descoberta de interesses ---------- */
 
 /** Ao tocar no cabeçalho: o match, o que têm em comum, o que é só meu e só do outro, a série e os «match» do desafio. */
-export function DiscoverySheet({ mixar, me, them, onClose, onLeave }: { mixar: Mixar; me: Who; them: Who; onClose: () => void; onLeave?: () => void }) {
+export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, onPrivate }: { mixar: Mixar; me: Who; them: Who; onClose: () => void; onLeave?: () => void; onTopics?: () => void; onPrivate?: () => void }) {
   const p = matchPercent(mixar.match);
   return (
     <Sheet title="Descoberta de interesses" onClose={onClose}>
@@ -50,6 +50,8 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave }: { mixar: M
           <Stat icon="flame" value={daysLabel(mixar.streak)} label="Série no Mixa Challenge" />
           <Stat icon="party" value={timesLabel(mixar.matches)} label="Escolheram o mesmo" />
         </View>
+        {/* Controlo (0172): afinar os temas deste Mixar e os temas privados (components/mixar/MixarControloSheets). */}
+        {onTopics || onPrivate ? <ControlLinks onTopics={onTopics} onPrivate={onPrivate} /> : null}
         {onLeave ? (
           <Pressable onPress={onLeave} style={({ pressed }) => [ds.leave, pressed && { opacity: 0.6 }]} accessibilityRole="button">
             <Icon name="logout" size={16} color={colors.red600} />
@@ -58,6 +60,27 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave }: { mixar: M
         ) : null}
       </ScrollView>
     </Sheet>
+  );
+}
+
+function ControlLinks({ onTopics, onPrivate }: { onTopics?: () => void; onPrivate?: () => void }) {
+  return (
+    <View style={{ marginTop: 16, gap: 8 }}>
+      {onTopics ? (
+        <Pressable onPress={onTopics} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+          <Icon name="sliders" size={18} color={colors.zinc800} />
+          <Text style={ds.linkText}>Afinar os temas do Mixar</Text>
+          <Icon name="chevron-right" size={16} color="#a1a1aa" />
+        </Pressable>
+      ) : null}
+      {onPrivate ? (
+        <Pressable onPress={onPrivate} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+          <Icon name="lock" size={18} color={colors.zinc800} />
+          <Text style={ds.linkText}>Temas privados</Text>
+          <Icon name="chevron-right" size={16} color="#a1a1aa" />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -91,6 +114,8 @@ const ds = StyleSheet.create({
   stat: { flex: 1, borderRadius: 16, backgroundColor: colors.rose50, padding: 12, gap: 2 },
   statValue: { marginTop: 4, fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   statLabel: { fontSize: 13, color: colors.zinc600 },
+  link: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
+  linkText: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   leave: { marginTop: 18, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   leaveText: { fontSize: 15, fontWeight: '700', color: colors.red600 },
 });

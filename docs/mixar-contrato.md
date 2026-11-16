@@ -285,3 +285,69 @@ Evento SSE `{ type: 'mixar.live', id, what: 'comment' | 'saved' | 'more' | 'pres
 RealtimeBus: para o outro e, como eco (`self`), para os meus outros aparelhos (menos a presença). Na app (lib/streamEvents →
 `mixarLiveKeys`): 'comment' põe em dia a conversa desse item e os contadores; 'saved' os contadores e os Guardados; 'more' o
 feed de hoje; 'presence' vai só para o ecrã aberto (lib/realtime → `onMixarLive`).
+
+## Controlo e resumo (0172)
+
+Três coisas novas, só dentro do Mixar (o feed normal não muda). Código: `apps/api/src/mixar/mixar-controlo*.ts` e
+`mixar-week-card.ts`; na app `lib/api.mixarControlo.ts`, `lib/mixarControlo.ts` e `components/mixar/MixarControlo*.tsx`.
+
+### Afinar os temas de um Mixar
+
+- **«Menos disto»** (no menu do item, nas ações do lado): o tema do item (a razão; sem ela, o primeiro tema da
+  publicação) passa a `'less'` para mim neste Mixar e o autor também pesa menos (`social.mixar_author_less`). Na
+  geração, uma publicação com um tema `'less'` vale ×0,35 e de um autor `'less'` ×0,3 (acumulam). Um `'off'` não desce
+  para `'less'`.
+- **«Não quero isto no nosso Mixar»** (`'off'`): as publicações com esse tema saem da seleção seguinte e logo da leitura do
+  feed de hoje, **para os dois**; o tema sai também do `match`, `common`, `onlyMe` e `onlyThem` deste Mixar. Só quem tirou
+  o volta a pôr (`mode: null`). Tabela `social.mixar_topic_prefs (mixar_id, user_id, topic, mode 'less' | 'off', created_at)`.
+
+### Temas privados (por pessoa, para todos os meus Mixar)
+
+- `social.mixar_private_topics (user_id, topic)`. Um tema privado sai do meu perfil antes de tudo: não conta no `match`,
+  não aparece em `common`/`onlyMe`/`onlyThem` (de nenhum dos lados), não é razão de nenhum item («Porque gostas de…» /
+  «Porque Dom gosta de…»), não entra nos temas do resumo da semana nem na imagem partilhada. Uma razão já guardada com um
+  tema privado de um dos dois chega sem tema (`topic: null`) logo na leitura seguinte.
+
+### Resumo da semana
+
+- Os últimos 7 dias do Mixar (o de hoje e os 6 anteriores, dias que começam às 05:00 de Maputo). À segunda-feira
+  (`recapDay`) a app mostra o cartão no fim do feed; está sempre no cabeçalho («Resumo da semana»).
+- O cartão para partilhar (JPEG 1080×1920, assinado) é desenhado no servidor: «Resumo da semana», as datas, «Dom + Ana»
+  (com o selo de quem é verificado), a série, os acertos no desafio, os vídeos vistos e os temas da semana (já sem os
+  privados de nenhum dos dois). O vídeo mais reagido **não** entra na imagem (é de outra pessoa, pode ser de conta privada).
+- Partilhar: no Zás (um Zás para os amigos, como os outros) ou nos mimos (para os amigos ou só os amigos próximos).
+
+### Endpoints
+
+```
+GET    /mixar/:id/topics                          → MixarTopics
+PUT    /mixar/:id/topics  { topic, mode: 'less' | 'off' | null } → MixarTopics   (400 tema desconhecido)
+POST   /mixar/:id/items/:postId/less              → 200 { topic: Topic | null, author: Person, topics: MixarTopics }
+GET    /me/mixar/private-topics                   → { topics: Topic[], all: Topic[] }
+PUT    /me/mixar/private-topics  { topics: string[] } → { topics, all }   (substitui a lista; até 60)
+GET    /mixar/:id/week                            → MixarWeek
+GET    /mixar/:id/week/image                      → image/jpeg (o cartão que se partilha)
+POST   /mixar/:id/week/share  { to: 'zas' | 'story', audience?: 'all' | 'close' } → 201 { to, id }  (email confirmado)
+```
+
+```ts
+type Topic = { topic: string; label: string };
+type MixarTopics = {
+  mine: (Topic & { mode: 'less' | 'off' })[];  // as minhas escolhas neste Mixar
+  theirsOff: Topic[];                          // o que o outro tirou (sai para os dois)
+  lessAuthors: number;                         // de quantos autores pedi menos aqui
+  all: Topic[];                                // o catálogo dos temas (por nome)
+};
+type MixarWeek = {
+  from: string; to: string; label: string;     // 'YYYY-MM-DD' e «10 a 16 nov»
+  recapDay: boolean;                           // hoje é segunda-feira (dia do Mixar)
+  top: { post: FeedPost; mine: ReactionId | null; theirs: ReactionId | null } | null; // o mais reagido pelos dois (sem «nah»)
+  challenge: { offered: number; played: number; matches: number };                     // «3 de 5» = matches de played
+  streak: number;
+  topics: Topic[];                             // até 5, sem privados nem tirados
+  videos: number;                              // vídeos da semana vistos por pelo menos um
+  together: number;                            // vistos pelos dois
+};
+```
+
+A exportação (`/me/export`) traz `mixarTopicPrefs`, `mixarAuthorLess` e `mixarPrivateTopics`; eliminar a conta apaga-os.

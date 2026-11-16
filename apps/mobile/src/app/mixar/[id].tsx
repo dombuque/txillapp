@@ -16,6 +16,10 @@ import { ChallengePage, DiscoverySheet, EndPage } from '@/components/mixar/Mixar
 import { HereChip, MixarCommentsSheet, MixarRailButtons, MoreButton, ReactionBurst, SavedByChip, SavedEndPage, SavedHeaderButton, TogetherBanner } from '@/components/mixar/MixarSocial';
 import { useMixarSocial } from '@/components/mixar/useMixarSocial';
 import { mixarSocialApi, mixarSocialKeys, type MixarSavedItem } from '@/lib/api.mixarSocial';
+import { MixarItemMenu, MixarTopicsSheet } from '@/components/mixar/MixarControloSheets';
+import { WeekPage, WeekSheet } from '@/components/mixar/MixarWeekCard';
+import { mixarControloApi, mixarControloKeys, previewControloApi } from '@/lib/api.mixarControlo';
+import { isMonday, lessToast, withWeekPage } from '@/lib/mixarControlo';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { mixarApi, mixarKeys, type Mixar, type MixarChallenge, type MixarFeedPage, type MixarItem, type MixarReactionId } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
@@ -35,8 +39,10 @@ const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
 type Who = { name: string; username?: string };
 type Api = typeof previewMixarApi;
-/** Uma página do feed: a seleção do dia ou os Guardados (MixarSavedItem estende MixarItem). */
-type Page = Pick<MixarFeedPage, 'items' | 'nextCursor'>;
+/** Uma página do feed vinda da API: a seleção do dia ou os Guardados (MixarSavedItem estende MixarItem). */
+type FeedPage = Pick<MixarFeedPage, 'items' | 'nextCursor'> & { day?: string };
+/** As páginas da lista, com o cartão da semana à segunda-feira (lib/mixarControlo; nunca nos Guardados). */
+type Page = MixarPage | { kind: 'week'; key: 'week' };
 
 /**
  * O Mixar aberto: um feed vertical a dois, um item por ecrã, como as tchekas (o mesmo leitor e o mesmo cartão: Reel).
@@ -54,6 +60,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const preview = isMixarPreview(id);
   const mx: Api = preview ? previewMixarApi : mixarApi;
+  const cx = preview ? previewControloApi : mixarControloApi;
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -64,8 +71,13 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
   activeRef.current = active;
-  const list = useRef<FlatList<MixarPage>>(null);
+  const list = useRef<FlatList<Page>>(null);
   const [discover, setDiscover] = useState(false);
+  // Controlo e resumo (0172): o menu do item, os temas do Mixar e o resumo da semana.
+  const [itemMenu, setItemMenu] = useState<MixarItem | null>(null);
+  const [topicsOpen, setTopicsOpen] = useState(false);
+  const [weekOpen, setWeekOpen] = useState(false);
+  const covered = discover || !!itemMenu || topicsOpen || weekOpen;
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [hover, setHover] = useState(false);
@@ -86,9 +98,9 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   const feedKey = saved ? mixarSocialKeys.saved(id) : mixarKeys.feed(id);
   const feed = useInfiniteQuery({
     queryKey: feedKey,
-    queryFn: ({ pageParam }): Promise<Page> => (saved ? mixarSocialApi.saved(id, pageParam) : mx.feed(id, pageParam)),
+    queryFn: ({ pageParam }): Promise<FeedPage> => (saved ? mixarSocialApi.saved(id, pageParam) : mx.feed(id, pageParam)),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (l: Page) => l.nextCursor ?? undefined,
+    getNextPageParam: (l: FeedPage) => l.nextCursor ?? undefined,
     enabled: live,
   });
   const ch = useQuery({ queryKey: mixarKeys.challenge(id), queryFn: () => mx.challenge(id), enabled: live && !saved, retry: 1 });
@@ -102,7 +114,11 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
 
   const items = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data]);
   // O desafio só entra depois de se saber se há (para a lista não saltar uma página quando ele chega).
-  const pages = useMemo(() => (feed.isPending || (!saved && ch.isPending) ? [] : buildPages(saved ? null : ch.data ?? null, items, !!feed.hasNextPage)), [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage, saved]);
+  const day = feed.data?.pages[0]?.day;
+  const pages: Page[] = useMemo(
+    () => (feed.isPending || (!saved && ch.isPending) ? [] : saved ? buildPages(null, items, !!feed.hasNextPage) : withWeekPage(buildPages(ch.data ?? null, items, !!feed.hasNextPage), isMonday(day))),
+    [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage, saved, day],
+  );
 
   const partner: Who = mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined } : { name: '' };
   const me: Who = { name: firstName(user?.displayName), username: user?.username };
@@ -125,7 +141,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
 
   /* ---------- Mudar o feed na cache ---------- */
   const patchItem = useCallback((postId: string, f: (it: MixarItem) => MixarItem) => {
-    qc.setQueryData<InfiniteData<Page>>(feedKey, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((it) => (it.post.id === postId ? f(it) : it)) })) });
+    qc.setQueryData<InfiniteData<FeedPage>>(feedKey, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((it) => (it.post.id === postId ? f(it) : it)) })) });
   }, [qc, feedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const react = useCallback(async (it: MixarItem, tapped: MixarReactionId) => {
     const before = it.mine;
@@ -177,6 +193,27 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     }
   }
   const openPost = (p: Post) => router.push((isTcheka(p) ? `/r/${p.id}` : `/p/${p.code || p.id}`) as never);
+
+  /* ---------- Controlo: «Menos disto» e tirar um tema (só neste Mixar) ---------- */
+  async function lessOf(it: MixarItem) {
+    try {
+      const r = await cx.less(id, it.post.id);
+      qc.setQueryData(mixarControloKeys.topics(id), r.topics);
+      say(lessToast(r));
+      goNext(activeRef.current);
+    } catch (e) {
+      say(mixarErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+    }
+  }
+  async function offTopic(topic: string) {
+    try {
+      qc.setQueryData(mixarControloKeys.topics(id), await cx.setTopic(id, topic, 'off'));
+      say('Tirado do vosso Mixar');
+      void qc.invalidateQueries({ queryKey: mixarKeys.one(id) });
+    } catch (e) {
+      say(mixarErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+    }
+  }
 
   /* ---------- Convite pendente / sair ---------- */
   const [answering, setAnswering] = useState<null | 'accept' | 'decline' | 'leave'>(null);
@@ -254,12 +291,13 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   }, [pages.length, feed]);
   const goNext = useCallback((index: number) => goTo(index + 1), [goTo]);
   // Computador: ↑/↓, ←/→ e a roda mudam de item (um de cada vez); espaço pausa a tcheka em cena.
-  const desk = useDeskReels(focused && !discover, () => activeRef.current, goTo, { arrowsStep: true });
+  const desk = useDeskReels(focused && !covered, () => activeRef.current, goTo, { arrowsStep: true });
 
   const colW = desktop && height > 0 ? Math.min(576, Math.round((height * 9) / 16)) : undefined;
   const topPad = Math.max(insets.top, 12);
 
-  const renderPage = ({ item: pg, index }: { item: MixarPage; index: number }) => {
+  const renderPage = ({ item: pg, index }: { item: Page; index: number }) => {
+    if (pg.kind === 'week') return mixar ? <WeekPage height={height} mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} topInset={topPad + 104} /> : <View style={{ height }} />;
     if (pg.kind === 'challenge') {
       const c = ch.data;
       return c ? <ChallengePage c={c} height={height} me={me} them={partner} busy={picking} onPick={(pid) => void pick(c, pid)} onOpen={openPost} topInset={topPad + 64} /> : <View style={{ height }} />;
@@ -301,13 +339,19 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       />
       </>
     );
+    const rail = (
+      <>
+        {send}
+        <RailButton icon={<View style={railStyles.circle}><Icon name="more" size={24} color="#fff" /></View>} onPress={() => setItemMenu(it)} accessibilityLabel="Mais opções deste item no Mixar" />
+      </>
+    );
     const bottomInset = desktop ? Math.max(insets.bottom, 16) : insets.bottom;
     if (isTcheka(p)) {
       return reelMounted(index, active)
-        ? <Reel post={p} active={index === active} onScreen={focused && !discover} height={height} me={user?.id} onMore={() => goNext(index)} bottomInset={bottomInset} pauseSignal={desk.pauseSignal} seekSignal={desk.seekSignal} onChange={(c) => patchItem(p.id, (x) => ({ ...x, post: { ...x.post, ...c } }))} infoExtra={extra} extraActions={send} onWatch={(w) => onWatch(p.id, w)} />
+        ? <Reel post={p} active={index === active} onScreen={focused && !covered} height={height} me={user?.id} onMore={() => goNext(index)} bottomInset={bottomInset} pauseSignal={desk.pauseSignal} seekSignal={desk.seekSignal} onChange={(c) => patchItem(p.id, (x) => ({ ...x, post: { ...x.post, ...c } }))} infoExtra={extra} extraActions={rail} onWatch={(w) => onWatch(p.id, w)} />
         : <PosterPage post={p} height={height} />;
     }
-    return <PhotoPage post={p} height={height} active={index === active} extra={extra} send={send} bottomInset={bottomInset} onOpen={() => openPost(p)} onWatch={(w) => onWatch(p.id, w)} />;
+    return <PhotoPage post={p} height={height} active={index === active} extra={extra} send={rail} bottomInset={bottomInset} onOpen={() => openPost(p)} onWatch={(w) => onWatch(p.id, w)} />;
   };
 
   /* ---------- Estados ---------- */
@@ -349,7 +393,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
               ref={list}
               style={[{ flex: 1 }, isWeb ? ({ scrollSnapType: 'y mandatory', overscrollBehavior: 'contain' } as object) : null]}
               data={pages}
-              extraData={`${height}|${active}|${focused}|${discover}|${JSON.stringify(sent)}|${soc.socialVersion}|${soc.partner.here}|${soc.partner.postId}|${soc.burst?.seq ?? 0}|${soc.moreBusy}|${soc.moreLeft}|${soc.moreNote}`}
+              extraData={`${height}|${active}|${focused}|${covered}|${JSON.stringify(sent)}|${soc.socialVersion}|${soc.partner.here}|${soc.partner.postId}|${soc.burst?.seq ?? 0}|${soc.moreBusy}|${soc.moreLeft}|${soc.moreNote}`}
               keyExtractor={(p) => p.key}
               pagingEnabled
               snapToInterval={height}
@@ -387,12 +431,22 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       <MixarHeader
         mixar={mixar} me={me} them={partner} top={topPad} onBack={close} onOpen={mixar && live && !saved ? () => setDiscover(true) : undefined}
         saved={saved}
-        right={mixar && live && !saved && !preview ? <SavedHeaderButton onPress={() => router.push(`/mixar/guardados/${id}` as never)} /> : undefined}
+        right={mixar && live && !saved ? (
+          <View style={st.headActions}>
+            {preview ? null : <SavedHeaderButton onPress={() => router.push(`/mixar/guardados/${id}` as never)} />}
+            <Pressable onPress={() => setWeekOpen(true)} style={({ pressed }) => [st.weekBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Resumo da semana">
+              <Icon name="calendar" size={22} color="#fff" />
+            </Pressable>
+          </View>
+        ) : undefined}
         below={mixar && live && !saved ? <TogetherBanner partner={partnerFull} presence={soc.partner} myPostId={activeKey} known={items.map((x) => x.post.id)} onJump={(pid) => { const k = pages.findIndex((x) => x.kind === 'item' && x.item.post.id === pid); if (k >= 0) goTo(k); }} /> : undefined}
       />
       {toast ? <View style={st.toastWrap} pointerEvents="none" accessibilityRole="alert"><Text style={st.toast}>{toast}</Text></View> : null}
       {talk && mixar ? <MixarCommentsSheet mixarId={id} postId={talk} partner={partnerFull} onClose={() => setTalk(null)} /> : null}
-      {discover && mixar ? <DiscoverySheet mixar={mixar} me={me} them={partner} onClose={() => setDiscover(false)} onLeave={leave} /> : null}
+      {discover && mixar ? <DiscoverySheet mixar={mixar} me={me} them={partner} onClose={() => setDiscover(false)} onLeave={leave} onTopics={() => { setDiscover(false); setTopicsOpen(true); }} onPrivate={() => { setDiscover(false); router.push('/settings/mixar-temas' as never); }} /> : null}
+      {itemMenu ? <MixarItemMenu item={itemMenu} onClose={() => setItemMenu(null)} onLess={() => void lessOf(itemMenu)} onOff={(t) => void offTopic(t)} /> : null}
+      {topicsOpen && mixar ? <MixarTopicsSheet mixar={mixar} partner={partner.name} api={cx} onClose={() => setTopicsOpen(false)} onPrivate={() => { setTopicsOpen(false); router.push('/settings/mixar-temas' as never); }} /> : null}
+      {weekOpen && mixar ? <WeekSheet mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} onClose={() => setWeekOpen(false)} /> : null}
     </View>
   );
 }
@@ -523,6 +577,8 @@ const st = StyleSheet.create({
   head: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48 },
   headName: { color: '#fff', fontSize: 17, fontWeight: '800', ...SHADOW },
   headMatch: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '700', ...SHADOW },
+  weekBtn: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
+  headActions: { flexDirection: 'row', alignItems: 'center' },
   topChips: { alignSelf: 'center', marginTop: 2, paddingHorizontal: 16 },
   extra: { gap: 8, marginBottom: 10 },
   reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
