@@ -31,6 +31,8 @@ import { onPostsViewable } from '@/lib/visiblePosts';
 import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
 
+const WEB = Platform.OS === 'web';
+
 /** Topo do Início: sino à esquerda, logótipo ao centro, pesquisa à direita (como no site). */
 function Header() {
   const router = useRouter();
@@ -243,27 +245,27 @@ function Feed() {
           <>
             {q.isSuccess && posts.length === 0 && (slots.get(null) ?? []).map((s) => <SponsoredCard key={s.campaignId} slot={s} me={user?.id} />)}
             {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
-            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : q.isFetchNextPageError ? (
+            {q.isFetchNextPageError && !q.isFetchingNextPage ? (
               // Falhou ao pedir mais (sem rede): o que já estava fica, e dá para tentar outra vez aqui em baixo.
               <View style={{ alignItems: 'center', marginBottom: 24 }} accessibilityRole="alert">
                 <Pressable onPress={() => void q.fetchNextPage()} style={styles.ghost} accessibilityRole="button">
                   <Text style={styles.ghostText}>Tentar outra vez</Text>
                 </Pressable>
               </View>
-            ) : q.hasNextPage ? <LoadMore onLoad={onEnd} /> : <View style={{ height: 8 }} />}
+            ) : q.hasNextPage ? <LoadMore onLoad={onEnd} loading={q.isFetchingNextPage} /> : <View style={{ height: 8 }} />}
           </>
         }
         onEndReached={onEnd}
         onEndReachedThreshold={1.5}
         refreshControl={pull.control}
         showsVerticalScrollIndicator={false}
-        windowSize={7}
-        initialNumToRender={3}
-        maxToRenderPerBatch={4}
-        // Na web (sobretudo no PWA do iPhone) quem desliza às vezes é a página e não a lista: a FlatList não recebe o scroll,
-        // fica nas 3 primeiras e nunca desenha as outras. Na web desenham-se todas as que já vieram (10 de cada vez; o resto
-        // chega pelo LoadMore no fim).
-        disableVirtualization={Platform.OS === 'web'}
+        // Na web (sobretudo no PWA do iPhone) a FlatList nem sempre recebe o scroll (o puxar para atualizar e os gestos ficam
+        // com o toque): ficava nas 3 primeiras e nunca desenhava as outras. Na web desenham-se logo todas as que já vieram
+        // (10 de cada vez; o resto chega pelo LoadMore no fim).
+        windowSize={WEB ? 201 : 7}
+        initialNumToRender={WEB ? 100 : 3}
+        maxToRenderPerBatch={WEB ? 30 : 4}
+        disableVirtualization={WEB}
       />
       </PullView>
     </View>
