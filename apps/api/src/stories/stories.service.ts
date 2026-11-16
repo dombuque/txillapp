@@ -18,9 +18,9 @@ import { liveOf, txilladaBanned, txilladaVisible } from '../txillada/txillada-vi
 export const audienceOk = (a = 's', v = '$1') =>
   `(${a}.audience = 'all' OR ${a}.author_id = ${v} OR EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${a}.author_id AND cf.friend_id = ${v}))`;
 
-/** Um story partilhado só existe enquanto a publicação original existir e o ficheiro estiver disponível. */
+/** Um story partilhado só existe enquanto a publicação original existir (e não estiver oculta pelo autor, 0169) e o ficheiro estiver disponível. */
 const sharedOk = (s = 's') =>
-  `(${s}.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.shared_post_id AND sp.removed_at IS NULL))
+  `(${s}.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.shared_post_id AND sp.removed_at IS NULL AND sp.hidden_at IS NULL))
    AND EXISTS (SELECT 1 FROM content.media_assets sma WHERE sma.id = ${s}.media_id AND sma.status = 'ready')`;
 
 /**
@@ -385,7 +385,7 @@ export class StoriesService {
     const { rows } = await this.pool.query(
       `SELECT (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets m ON m.id = pm.media_id
                 WHERE pm.post_id = p.id AND m.status = 'ready' ORDER BY pm.position LIMIT 1) AS media_id
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
         WHERE p.id = $2 AND p.kind = 'post' AND (p.author_id = $1 OR NOT u.is_private) AND ${canView('u')}`,
       [userId, postId],
     );

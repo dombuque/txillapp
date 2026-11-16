@@ -215,7 +215,7 @@ export class NearbyService implements OnModuleInit {
              JOIN LATERAL (SELECT pm.media_id, ma.mime FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                             WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) fm ON true
             -- Só publicações normais (sem reposts nem presentes) e nunca as minhas: aqui vê-se o que os outros publicam à volta.
-            WHERE p.removed_at IS NULL AND p.kind = 'post' AND p.created_at > now() - interval '48 hours' AND p.author_id <> $1
+            WHERE p.removed_at IS NULL AND p.hidden_at IS NULL AND p.kind = 'post' AND p.created_at > now() - interval '48 hours' AND p.author_id <> $1
               AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL AND ${inBox('p.location_lat', 'p.location_lng', '$4')}
               AND ${ADULT_SQL('u')}
               AND ${canView('u')}

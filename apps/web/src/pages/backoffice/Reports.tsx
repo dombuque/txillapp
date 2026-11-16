@@ -116,6 +116,7 @@ function Detail({ item, status, onAct, onBack }: { item: ModQueueItem; status: S
         </p>
       )}
       {item.removed && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">{REMOVED[item.removed]}</p>}
+      {!item.removed && item.hiddenByAuthor && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">Oculta pelo autor: só ele e a equipa a veem</p>}
       {status !== 'open' && item.resolution && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           <b>{RESOLUTION[item.resolution] ?? item.resolution}</b>{item.decidedBy ? ` por ${item.decidedBy}` : ''}{item.resolvedAt ? ` · ${when(item.resolvedAt)}` : ''}{item.resolutionNote ? ` — ${item.resolutionNote}` : ''}

@@ -1,8 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { blockedBetween, canView, sameCountry } from '../social/visibility';
+import { shownPost } from './hidden';
 
 /**
- * Feed por relevância (como nas redes sociais). Em vez de "o mais recente primeiro", cada publicação recebe uma pontuação:
+ * Feed por relevância (como nas redes sociais). As publicações ocultas pelo autor (0169, posts/hidden.ts) não entram, nem no
+ * feed do próprio autor (ficam no separador «Ocultas» do perfil). Em vez de "o mais recente primeiro", cada publicação recebe uma pontuação:
  *
  *   frescura (cai a meio a cada ~12 h)
  * + quem é o autor para ti (quem segues pesa muito; quem tens brindado/comentado nos últimos 30 dias, também)
@@ -68,7 +70,7 @@ const VIDEO_POST = tchekaPost();
  */
 export const OLDER_SQL = `
   SELECT p.id FROM content.posts p
-   WHERE p.removed_at IS NULL AND p.created_at <= $2::timestamptz - interval '10 days'
+   WHERE ${shownPost('p')} AND p.created_at <= $2::timestamptz - interval '10 days'
      AND ($3::uuid IS NULL OR p.id < $3::uuid)
      AND (p.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
           OR (p.venue_id IS NOT NULL AND EXISTS (SELECT 1 FROM content.venue_follows vf WHERE vf.user_id = $1 AND vf.venue_id = p.venue_id)))
@@ -78,7 +80,7 @@ export const RANKED_SQL = `
   WITH net AS (
     -- Rede: as minhas publicações, as de quem sigo e as dos locais que sigo (últimos 10 dias).
     SELECT p.id FROM content.posts p
-     WHERE p.removed_at IS NULL AND p.created_at > $2::timestamptz - interval '10 days' AND p.created_at <= $2::timestamptz
+     WHERE ${shownPost('p')} AND p.created_at > $2::timestamptz - interval '10 days' AND p.created_at <= $2::timestamptz
        AND (p.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
             OR (p.venue_id IS NOT NULL AND EXISTS (SELECT 1 FROM content.venue_follows vf WHERE vf.user_id = $1 AND vf.venue_id = p.venue_id)))
        AND (NOT $7::boolean OR ${VIDEO_POST})
@@ -86,7 +88,7 @@ export const RANKED_SQL = `
   ), pool AS (
     -- Sugestões: as publicações públicas mais recentes de outras contas (últimos 3 dias).
     SELECT p.id FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-     WHERE p.removed_at IS NULL AND p.kind = 'post' AND NOT u.is_private AND u.status = 'active'
+     WHERE ${shownPost('p')} AND p.kind = 'post' AND NOT u.is_private AND u.status = 'active'
        AND p.created_at > $2::timestamptz - interval '3 days' AND p.created_at <= $2::timestamptz
        AND p.author_id <> $1 AND NOT ${blockedBetween('p.author_id', '$1')}
        AND ${sameCountry('p.country')}
@@ -118,7 +120,7 @@ export const RANKED_SQL = `
            COALESCE(a.n, 0) AS affinity,
            ((SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)
             + 2 * (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)
-            + 3 * (SELECT count(*) FROM content.posts rp WHERE rp.repost_of = p.id AND rp.kind = 'repost' AND rp.removed_at IS NULL)
+            + 3 * (SELECT count(*) FROM content.posts rp WHERE rp.repost_of = p.id AND rp.kind = 'repost' AND ${shownPost('rp')})
             + 2 * (SELECT count(*) FROM content.gifts g WHERE g.post_id = p.id))::float AS engagement,
            EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id) AS has_media,
            EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.user_id = $1 AND i.post_id = p.id AND i.seen_at < $2::timestamptz) AS seen,

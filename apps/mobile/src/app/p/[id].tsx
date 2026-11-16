@@ -45,8 +45,8 @@ export default function PostPage() {
         {gone && (
           <View style={styles.gone}>
             <Icon name="search" size={44} color={colors.zinc300} />
-            <Text style={styles.goneTitle}>Esta publicação já não está disponível</Text>
-            <Text style={styles.goneText}>Pode ter sido apagada, ou a conta passou a privada.</Text>
+            <Text style={styles.goneTitle}>Esta publicação não está disponível</Text>
+            <Text style={styles.goneText}>Pode ter sido apagada ou ocultada, ou a conta passou a privada.</Text>
           </View>
         )}
         {q.isError && !gone && (

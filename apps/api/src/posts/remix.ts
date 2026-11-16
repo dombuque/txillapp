@@ -52,7 +52,7 @@ export async function checkRemix(pool: Pool | PoolClient, userId: string, r: Rem
   const o = (
     await pool.query(
       `SELECT p.author_id, p.kind, p.venue_id, p.music, p.sound_id, ${tchekaPost()} AS tcheka, ${remixAllowed()} AS allowed
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
         WHERE p.id = $2 AND ${canView()}`,
       [userId, r.postId],
     )
@@ -118,7 +118,7 @@ export async function remixLinks(pool: Pool, viewerId: string, rows: Record<stri
   for (const o of (
     await pool.query(
       `SELECT p.id, p.short_code, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = ANY($2::uuid[]) AND ${canView()}`,
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL WHERE p.id = ANY($2::uuid[]) AND ${canView()}`,
       [viewerId, origIds],
     )
   ).rows) orig.set(o.id as string, o);

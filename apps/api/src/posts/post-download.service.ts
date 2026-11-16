@@ -57,7 +57,7 @@ export const DOWNLOADS_ALLOWED = (u = 'u') =>
  */
 export const DUET_SOURCE_OK = (p = 'p') =>
   `NOT EXISTS (SELECT 1 FROM content.post_remixes dx
-      LEFT JOIN content.posts dop ON dop.id = dx.original_id AND dop.removed_at IS NULL
+      LEFT JOIN content.posts dop ON dop.id = dx.original_id AND dop.removed_at IS NULL AND (dop.hidden_at IS NULL OR dop.author_id = $1)
       LEFT JOIN identity.users dou ON dou.id = dop.author_id AND dou.status = 'active'
      WHERE dx.post_id = ${p}.id AND dx.kind = 'duet'
        AND ((dou.id = $1 OR (${DOWNLOADS_ALLOWED('dou')} AND NOT ${blockedBetween('dou.id', '$1')})) IS NOT TRUE))`;
@@ -146,7 +146,7 @@ export class PostDownloadService {
                     WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%' AND ma.status = 'ready' AND ma.purpose = 'public' ORDER BY pm.position LIMIT 1) AS media_id,
                   pmb.status AS bake_status, CASE WHEN ${BAKE_PLAYABLE('p')} THEN pmb.media_id END AS bake_media, pmb.source_media_id AS bake_source,
                   ${POST_SOUND_REMOVED_SQL('p')} AS sound_removed, ${CAN_DOWNLOAD_SQL('p', 'u')} AS can_download
-             FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+             FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND (p.hidden_at IS NULL OR p.author_id = $1)
              LEFT JOIN content.venues v ON v.id = p.venue_id
              LEFT JOIN content.post_music_bakes pmb ON pmb.post_id = p.id
             WHERE p.id = $2 AND ${canView()}`,

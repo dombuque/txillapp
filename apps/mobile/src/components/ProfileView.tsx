@@ -41,6 +41,7 @@ import { LINK_LABELS } from '@/lib/artists';
 import { useTabPress } from '@/lib/tabPress';
 import { goBack } from '@/lib/nav';
 import { livePrice } from '@/lib/txillada';
+import { setPostHidden } from '@/lib/hidePostAction';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -49,12 +50,14 @@ const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
   { id: 'reposts', label: 'Reposts', icon: 'repeat' },
   { id: 'gifts', label: 'Presentes', icon: 'gift' },
   { id: 'saved', label: 'Guardados', icon: 'bookmark' },
+  { id: 'hidden', label: 'Ocultas', icon: 'eye-off' },
 ];
 const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
   reels: { me: 'Ainda não publicaste na Tcheka.', other: 'Ainda sem nada na Tcheka.' },
   reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
   gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
   saved: { me: 'Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.', other: '' },
+  hidden: { me: 'As publicações que ocultares ficam aqui. Só tu as vês.', other: '' },
 };
 
 /** Os botões da fila do perfil têm 36 de altura: com 4 em cima e em baixo o toque chega aos 44. */
@@ -71,7 +74,7 @@ function QrGlyph() {
   );
 }
 
-function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => void; width: number }) {
+function Grid({ posts, onOpen, width, onUnhide }: { posts: Post[]; onOpen: (p: Post) => void; width: number; /** O separador «Ocultas»: cada quadrado leva «Voltar a mostrar». */ onUnhide?: (p: Post) => void }) {
   const gap = 6;
   // Computador: mais colunas quando a coluna é larga (3 no telemóvel).
   const desktop = useDesktop();
@@ -82,7 +85,7 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
       {posts.map((post) => {
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
-        return (
+        const tile = (
           <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
@@ -112,6 +115,16 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
             {post.kind === 'gift' && <View style={[styles.corner, { backgroundColor: 'rgba(255,255,255,0.9)' }]}><Icon name="gift" size={12} color={colors.brand} /></View>}
             {post.kind === 'repost' && <View style={[styles.corner, { backgroundColor: 'rgba(0,0,0,0.55)' }]}><Icon name="repeat" size={12} color="#fff" /></View>}
           </Pressable>
+        );
+        // O separador «Ocultas»: por baixo de cada quadrado, «Voltar a mostrar».
+        if (!onUnhide) return tile;
+        return (
+          <View key={post.id} style={{ width: size, gap: 6 }}>
+            {tile}
+            <Pressable onPress={() => onUnhide(post)} style={(s) => [styles.unhide, (s as { pressed: boolean; hovered?: boolean }).pressed && { opacity: 0.75 }, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={`Voltar a mostrar: ${post.body || shown.body || 'publicação'}`}>
+              <Text style={styles.unhideText} numberOfLines={1}>Voltar a mostrar</Text>
+            </Pressable>
+          </View>
         );
       })}
     </View>
@@ -162,7 +175,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
   const isMine = username === user?.username;
-  const shownIds = useMemo(() => visibleProfileTabs(isMine), [isMine]);
+  // «Ocultas» (0169): só no meu perfil, quando tenho publicações ocultas (ou já estou nesse separador).
+  const hasHidden = isMine && ((p?.hiddenPosts ?? 0) > 0 || tab === 'hidden');
+  const shownIds = useMemo(() => visibleProfileTabs(isMine, hasHidden), [isMine, hasHidden]);
   const tabs = TABS.filter((x) => shownIds.includes(x.id));
 
   // Separadores: um toque ou um deslize grande para os lados no conteúdo (components/SwipePager, como nas Mensagens).
@@ -194,7 +209,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
-    queryFn: ({ pageParam }) => (tab === 'saved' ? api.savedPosts(pageParam) : api.userPosts(username, pageParam, tab)),
+    queryFn: ({ pageParam }) => (tab === 'saved' ? api.savedPosts(pageParam) : tab === 'hidden' ? api.hiddenPosts(pageParam) : api.userPosts(username, pageParam, tab)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     enabled: !!p?.canView,
@@ -421,6 +436,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           </View>
           <Reanimated.View style={[{ minHeight: height * 0.4 }, fade.style]}>
           {posts.isLoading && <Text style={styles.loading}>A carregar…</Text>}
+          {tab === 'hidden' && items.length > 0 ? <Text style={styles.hiddenNote}>Só tu vês estas publicações. Ao voltares a mostrar uma, volta ao mesmo sítio, com os brindes e os comentários.</Text> : null}
           {posts.isSuccess && items.length === 0 && tab !== 'all' && <Text style={styles.emptyText}>{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</Text>}
           {posts.isSuccess && items.length === 0 && tab === 'all' && (
             <View style={{ marginTop: 32, alignItems: 'center' }}>
@@ -429,7 +445,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {p.isMe && <Text style={styles.first} onPress={() => router.push('/new' as never)}>Faz a primeira!</Text>}
             </View>
           )}
-          <Grid posts={items} onOpen={openPost} width={gridW || Math.min(width, 576)} />
+          <Grid posts={items} onOpen={openPost} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
           {posts.hasNextPage && (
             <Pressable onPress={() => void posts.fetchNextPage()} disabled={posts.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginTop: 16 }]}>
               {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}
@@ -533,6 +549,9 @@ const styles = StyleSheet.create({
   tabBar: { bottom: 0, height: 2, borderRadius: 0 },
   loading: { paddingVertical: 32, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
   emptyText: { marginTop: 32, textAlign: 'center', color: colors.zinc600 },
+  hiddenNote: { marginBottom: 12, fontSize: 13, lineHeight: 18, textAlign: 'center', color: colors.zinc600 },
+  unhide: { height: 34, borderRadius: 10, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  unhideText: { fontSize: 12.5, fontWeight: '700', color: colors.zinc900 },
   noPosts: { marginTop: 8, fontWeight: '600', color: colors.zinc600 },
   first: { marginTop: 12, fontWeight: '600', color: colors.brand, textDecorationLine: 'underline' },
   gift: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8 },

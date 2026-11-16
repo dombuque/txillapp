@@ -340,7 +340,7 @@ export class GeleiraService {
     let itemName: string;
     if ('postId' in from) {
       const { rows } = await this.pool.query(
-        `SELECT p.author_id, p.geleira FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+        `SELECT p.author_id, p.geleira FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
           WHERE p.id = $2 AND p.geleira IS NOT NULL AND ${canView()}`,
         [viewerId, from.postId],
       );

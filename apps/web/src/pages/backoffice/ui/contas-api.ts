@@ -44,7 +44,7 @@ export interface AccountSheet {
     posts: number; posts_removed: number; stories: number; comments: number; followers: number; following: number; messages: number;
     sessions: number; last_seen: string | null; last_active: string | null; txills: string;
   };
-  recentPosts: { id: string; body: string; created_at: string; removed_at: string | null; removed_by: string | null; kind: string; media: number }[];
+  recentPosts: { id: string; body: string; created_at: string; removed_at: string | null; removed_by: string | null; hidden_at?: string | null; kind: string; media: number }[];
   reportsAgainst: { target_type: string; target_id: string; reason: string; status: string; resolution: string | null; resolution_note: string | null; created_at: string; reporter: string | null }[];
   reportsMade: { target_type: string; target_id: string; reason: string; status: string; created_at: string; target_owner: string | null }[];
   reportCounts: { against: number; against_open: number; made: number };

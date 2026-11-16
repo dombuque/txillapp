@@ -37,6 +37,8 @@ export interface ModQueueItem {
   venueSlug: string | null;
   /** null = à vista; 'moderation' = removido pela equipa; 'author' = apagado pelo autor; 'expired' (mimo); 'gone' = já não existe. */
   removed: null | 'moderation' | 'author' | 'expired' | 'gone';
+  /** Publicação oculta pelo autor (0169): os outros não a veem; a equipa sim. */
+  hiddenByAuthor?: boolean;
   reported: ModMessageCopy | null;
   current: (Omit<ModMessageCopy, 'gifUrl'> & { kind: string | null; deleted: boolean }) | null;
 }
@@ -64,6 +66,8 @@ export interface ModContentItem {
   openReports: number;
   state: 'visible' | 'removed' | 'deleted' | 'expired';
   removal: { reason: string; at: string; by: string | null } | null;
+  /** Publicação oculta pelo autor (0169): os outros não a veem; a equipa sim. */
+  hiddenByAuthor?: boolean;
 }
 export interface ModContentFilter { type?: string; q?: string; author?: string; tag?: string; from?: string; to?: string; state?: string; flag?: string }
 

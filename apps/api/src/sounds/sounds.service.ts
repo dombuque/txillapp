@@ -21,6 +21,7 @@ import { MUSIC_SOURCES, type PickerTrack } from '../music/catalog/track';
 import type { MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { canView, inMyNetwork } from '../social/visibility';
+import { shownPost, shownPostTo } from '../posts/hidden';
 
 const run = promisify(execFile);
 const FFMPEG = (ffmpegPath as unknown as string | null) ?? 'ffmpeg';
@@ -106,10 +107,11 @@ export const REUSABLE = (u = 'ou') =>
 
 /**
  * O som existe para quem está a ver ($1): não foi tirado e, num som original, a conta está ativa, quem vê pode ver a conta
- * (canView: sem bloqueio, pública ou seguidor) e a tcheka de onde saiu ainda existe. `s` = content.sounds, `ou` = o autor.
+ * (canView: sem bloqueio, pública ou seguidor) e a tcheka de onde saiu ainda existe (e não está oculta pelo autor, 0169: aí só
+ * ele vê o som). `s` = content.sounds, `ou` = o autor.
  */
 export const SOUND_VISIBLE = (s = 's', ou = 'ou') =>
-  `(${s}.removed_at IS NULL AND (${s}.kind <> 'original' OR (${canView(ou)} AND EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.source_post_id AND sp.removed_at IS NULL))))`;
+  `(${s}.removed_at IS NULL AND (${s}.kind <> 'original' OR (${canView(ou)} AND EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.source_post_id AND ${shownPostTo('sp')}))))`;
 
 /**
  * O `sound` de cada publicação (FEED_SQL, com $1 = quem vê): só quando o som existe para quem vê. O título de um som original
@@ -393,7 +395,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     return this.pool
       .query(
         `SELECT count(*)::int AS n FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND u.status = 'active'
-          WHERE p.sound_id = $1 AND p.removed_at IS NULL`,
+          WHERE p.sound_id = $1 AND ${shownPost('p')}`,
         [id],
       )
       .then((r) => r.rows[0].n as number);
@@ -502,10 +504,10 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     const { rows } = await this.pool.query(
       `WITH u AS (
          SELECT p.sound_id, count(*)::int AS n FROM content.posts p JOIN identity.users pu ON pu.id = p.author_id AND pu.status = 'active'
-          WHERE p.sound_id IS NOT NULL AND p.removed_at IS NULL AND p.created_at > now() - interval '7 days'
+          WHERE p.sound_id IS NOT NULL AND ${shownPost('p')} AND p.created_at > now() - interval '7 days'
           GROUP BY p.sound_id ORDER BY count(*) DESC LIMIT 200)
        SELECT s.*, u.n AS uses7d,
-              (SELECT count(*) FROM content.posts ap JOIN identity.users au ON au.id = ap.author_id AND au.status = 'active' WHERE ap.sound_id = s.id AND ap.removed_at IS NULL)::int AS uses,
+              (SELECT count(*) FROM content.posts ap JOIN identity.users au ON au.id = ap.author_id AND au.status = 'active' WHERE ap.sound_id = s.id AND ${shownPost('ap')})::int AS uses,
               ou.username AS a_username, ou.display_name AS a_display_name, ou.verified AS a_verified, ou.verified_tier AS a_tier, ou.status AS a_status
          FROM u JOIN content.sounds s ON s.id = u.sound_id LEFT JOIN identity.users ou ON ou.id = s.owner_id
         WHERE s.hold_at IS NULL AND ${SOUND_VISIBLE()}

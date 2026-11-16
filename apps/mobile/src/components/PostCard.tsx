@@ -46,6 +46,8 @@ import { useDesktop } from '@/lib/desktop';
 import { anchorOf, finePointer, isTypingTarget, overlayOpen, type Rect } from '@/lib/desktopKeys';
 import { DEFAULT_TEXT_FONT, normTextFont, postFontSize } from '@/lib/textLayers';
 import { useTextFontStyle } from '@/lib/useTextFonts';
+import { HIDDEN_BANNER } from '@/lib/hidePost';
+import { setPostHidden } from '@/lib/hidePostAction';
 
 /**
  * A letra de uma publicação só com texto (`textFont`, lib/textLayers): o tamanho acertado à fonte (as de cartaz são
@@ -169,7 +171,7 @@ export interface SponsoredInfo {
   onOpen?: () => void;
 }
 
-function PostCardBase({ post, me, detail, openComments, highlightComment, sponsored }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string; /** Destaque pago do Bombar (com a etiqueta "Patrocinado"). */ sponsored?: SponsoredInfo }) {
+function PostCardBase({ post, me, detail, openComments, highlightComment, sponsored, myRepost }: { post: Post; me?: string; /** O meu repost simples que mostra esta publicação: no menu dá para o ocultar (0169). */ myRepost?: Pick<Post, 'id' | 'hidden'> | null; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string; /** Destaque pago do Bombar (com a etiqueta "Patrocinado"). */ sponsored?: SponsoredInfo }) {
   const router = useRouter();
   // A música do post toca enquanto ele está à vista neste ecrã (e o ecrã está à frente); pára ao sair.
   const inList = useIsPostVisible(post.id);
@@ -194,20 +196,21 @@ function PostCardBase({ post, me, detail, openComments, highlightComment, sponso
               : <NameWithBadge name={post.author.displayName} who={post.author} style={styles.repostText}><Text style={[styles.repostText, { flexShrink: 0 }]}>repostou</Text></NameWithBadge>}
           </Pressable>
         </View>
-        <PostCard post={post.repostOf} me={me} />
+        <PostCard post={post.repostOf} me={me} myRepost={post.author.id === me ? post : null} />
       </View>
     );
   }
-  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} musicOn={musicOn} sponsored={sponsored} />;
+  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} musicOn={musicOn} sponsored={sponsored} myRepost={myRepost} />;
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null } };
 
-function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false, sponsored }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean; sponsored?: SponsoredInfo }) {
+function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false, sponsored, myRepost = null }: { myRepost?: Pick<Post, 'id' | 'hidden'> | null; post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean; sponsored?: SponsoredInfo }) {
   // No computador a app vive numa coluna de 576 ao centro: as medidas saem dela, não da janela.
   const width = Math.min(useWindowDimensions().width, 576);
   const router = useRouter();
+  const qc = useQueryClient();
   const patch = usePatch(post.id);
   const { burst, brindar, celebrate } = useBrindar(post, patch);
   const tapText = useTap(() => void brindar());
@@ -284,6 +287,16 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         <View style={styles.sponsored} accessible accessibilityRole="text" accessibilityLabel={sponsored.a11y}>
           <Icon name="flame" size={14} color={colors.brand} />
           <Text style={styles.sponsoredText}>{sponsored.label}</Text>
+        </View>
+      ) : null}
+      {post.hidden && mine ? (
+        // Oculta (0169): só o autor a vê assim; um toque volta a mostrá-la (no mesmo sítio, com tudo o que tinha).
+        <View style={styles.hiddenBar} accessibilityRole="text">
+          <Icon name="eye-off" size={16} color={colors.zinc600} />
+          <Text style={styles.hiddenText} numberOfLines={2}>{HIDDEN_BANNER}</Text>
+          <Pressable onPress={() => void setPostHidden(qc, post, false)} hitSlop={8} style={(s) => [styles.hiddenBtn, (s as Hover).pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Voltar a mostrar a publicação">
+            <Text style={styles.hiddenBtnText}>Voltar a mostrar</Text>
+          </Pressable>
         </View>
       ) : null}
       {g ? (
@@ -420,7 +433,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           }
         />
       )}
-      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} anchor={desktop ? menuAt : null} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
+      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} anchor={desktop ? menuAt : null} myRepost={myRepost} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
       {sheet === 'share' && <ShareSheet post={post} onClose={() => setSheet(null)} />}
       {sheet === 'comments' && (
         <CommentsSheet
@@ -866,6 +879,10 @@ const styles = StyleSheet.create({
   barBtnHover: { backgroundColor: colors.zinc100, borderRadius: 14 },
   sponsored: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 10, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 10, paddingVertical: 4 },
   sponsoredText: { fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.2 },
+  hiddenBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, borderRadius: 14, backgroundColor: colors.zinc100, paddingLeft: 12, paddingRight: 6, paddingVertical: 6 },
+  hiddenText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.zinc700 },
+  hiddenBtn: { borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 12, paddingVertical: 7 },
+  hiddenBtnText: { fontSize: 13, fontWeight: '700', color: colors.zinc900 },
   repostBar: { flexDirection: 'row', alignItems: 'center', gap: THREAD_GAP, marginRight: 24, marginBottom: 6 },
   repostText: { fontSize: 14, fontWeight: '600', color: colors.zinc500, lineHeight: 20 },
   // Quem citou, por baixo da original no fio: avatar de 36, nome e @ · tempo, e o comentário em letra maior.

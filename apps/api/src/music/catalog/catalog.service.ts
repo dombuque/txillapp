@@ -244,7 +244,7 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
       this.pool.query(
         `WITH used AS (
            SELECT p.music->>'id' AS id, p.created_at FROM content.posts p
-            WHERE p.music IS NOT NULL AND p.removed_at IS NULL AND p.music->>'kind' IS DISTINCT FROM 'clip' AND p.created_at > now() - interval '30 days'
+            WHERE p.music IS NOT NULL AND p.removed_at IS NULL AND p.hidden_at IS NULL AND p.music->>'kind' IS DISTINCT FROM 'clip' AND p.created_at > now() - interval '30 days'
            UNION ALL
            SELECT s.music->>'id', s.created_at FROM content.stories s
             WHERE s.music IS NOT NULL AND s.music->>'kind' IS DISTINCT FROM 'clip' AND s.created_at > now() - interval '30 days')
@@ -271,7 +271,7 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
     if (this.totals && Date.now() - this.totals.at < TOTALS_TTL_MS) return this.totals.map;
     const { rows } = await this.pool.query(
       `SELECT id, count(*)::int AS n FROM (
-         SELECT p.music->>'id' AS id FROM content.posts p WHERE p.music IS NOT NULL AND p.removed_at IS NULL AND p.music->>'kind' IS DISTINCT FROM 'clip'
+         SELECT p.music->>'id' AS id FROM content.posts p WHERE p.music IS NOT NULL AND p.removed_at IS NULL AND p.hidden_at IS NULL AND p.music->>'kind' IS DISTINCT FROM 'clip'
          UNION ALL
          SELECT s.music->>'id' FROM content.stories s WHERE s.music IS NOT NULL AND s.music->>'kind' IS DISTINCT FROM 'clip') u
         WHERE id IS NOT NULL GROUP BY id`,

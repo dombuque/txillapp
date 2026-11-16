@@ -112,10 +112,10 @@ export class ModerationService implements OnModuleInit {
     let sql: string;
     switch (type) {
       case 'post':
-        sql = `SELECT p.author_id AS owner FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`;
+        sql = `SELECT p.author_id AS owner FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL WHERE p.id = $2 AND ${canView()}`;
         break;
       case 'comment':
-        sql = `SELECT c.author_id AS owner FROM content.comments c JOIN content.posts p ON p.id = c.post_id AND p.removed_at IS NULL
+        sql = `SELECT c.author_id AS owner FROM content.comments c JOIN content.posts p ON p.id = c.post_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
                  JOIN identity.users u ON u.id = p.author_id WHERE c.id = $2 AND ${canView()}`;
         break;
       case 'story':

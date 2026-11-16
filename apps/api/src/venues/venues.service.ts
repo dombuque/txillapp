@@ -136,7 +136,7 @@ export class VenuesService {
            (SELECT count(*) FROM content.checkins c WHERE c.venue_id = v.id) AS checkins,
            (SELECT count(*) FROM content.checkins c WHERE c.venue_id = v.id AND c.created_at > now() - interval '24 hours') AS checkins_today,
            (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = v.id) AS followers,
-           (SELECT count(*) FROM content.posts p WHERE p.venue_id = v.id AND p.removed_at IS NULL) AS posts,
+           (SELECT count(*) FROM content.posts p WHERE p.venue_id = v.id AND p.removed_at IS NULL AND p.hidden_at IS NULL) AS posts,
            EXISTS (SELECT 1 FROM content.venue_follows f WHERE f.venue_id = v.id AND f.user_id = $1) AS following,
            (SELECT m.role FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $1 AND m.status = 'active') AS role,
            (SELECT m.role FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $1 AND m.status = 'pending') AS invite_role,
@@ -406,10 +406,10 @@ export class VenuesService {
               (SELECT count(*) FROM content.checkins c WHERE c.venue_id = $1)::int AS checkins,
               (SELECT count(*) FROM content.checkins c WHERE c.venue_id = $1 AND c.created_at > now() - interval '7 days')::int AS checkins_week,
               (SELECT count(DISTINCT c.user_id) FROM content.checkins c WHERE c.venue_id = $1 AND c.created_at > now() - interval '30 days')::int AS people_month,
-              (SELECT count(*) FROM content.posts p WHERE p.venue_id = $1 AND p.removed_at IS NULL)::int AS posts,
+              (SELECT count(*) FROM content.posts p WHERE p.venue_id = $1 AND p.removed_at IS NULL AND p.hidden_at IS NULL)::int AS posts,
               (SELECT count(*) FROM content.cheers ch JOIN content.posts p ON p.id = ch.post_id WHERE p.venue_id = $1)::int AS cheers,
               (SELECT count(*) FROM content.comments cm JOIN content.posts p ON p.id = cm.post_id WHERE p.venue_id = $1)::int AS comments,
-              (SELECT count(*) FROM content.posts p WHERE p.location_label IS NOT NULL AND lower(p.location_label) = lower((SELECT name FROM content.venues WHERE id = $1)) AND p.removed_at IS NULL)::int AS mentions`,
+              (SELECT count(*) FROM content.posts p WHERE p.location_label IS NOT NULL AND lower(p.location_label) = lower((SELECT name FROM content.venues WHERE id = $1)) AND p.removed_at IS NULL AND p.hidden_at IS NULL)::int AS mentions`,
       [v.id],
     )).rows[0];
     return {

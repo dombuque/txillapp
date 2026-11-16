@@ -466,7 +466,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
                 ${remixAllowed()} AS allowed,
                 (SELECT ma.id FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.status = 'ready' LIMIT 1) AS media_id,
                 (SELECT ma.duration_ms FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id LIMIT 1) AS duration_ms
-           FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+           FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
           WHERE p.id = $2 AND ${canView()}`,
         [userId, postId],
       )

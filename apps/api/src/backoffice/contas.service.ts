@@ -199,7 +199,7 @@ export class ContasService {
     if (!u) throw new NotFoundException('Conta não encontrada');
     const [recentPosts, reportsAgainst, reportsMade, invite, notes, history] = await Promise.all([
       this.pool.query(
-        `SELECT p.id, left(p.body, 160) AS body, p.created_at, p.removed_at, p.removed_by, p.kind, (SELECT count(*) FROM content.post_media pm WHERE pm.post_id = p.id)::int AS media
+        `SELECT p.id, left(p.body, 160) AS body, p.created_at, p.removed_at, p.removed_by, p.hidden_at, p.kind, (SELECT count(*) FROM content.post_media pm WHERE pm.post_id = p.id)::int AS media
            FROM content.posts p WHERE p.author_id = $1 ORDER BY p.id DESC LIMIT 10`,
         [id],
       ),
