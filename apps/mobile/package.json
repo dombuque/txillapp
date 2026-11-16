@@ -66,5 +66,14 @@
     "lint": "expo lint",
     "sync-icons": "node -e \"require('fs').copyFileSync('../web/src/icons/tx.ts','src/icons/tx.ts')\""
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-image-picker"
+        ]
+      }
+    }
+  }
 }
