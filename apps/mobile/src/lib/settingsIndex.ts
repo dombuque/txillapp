@@ -42,7 +42,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** Os tipos de aviso (as categorias que o servidor manda em /notifications/settings): título e explicação curta. */
 export const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), capturas dos teus Zás e o Mixar (convites, convites aceites e resultado do desafio). Desligado, os pedidos para entrar continuam na lista, sem aviso'],
+  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -62,10 +62,12 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada ou te convida para transmitir'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
+  // O Mixar, o feed a dois (API: src/mixar, 0150 e 0170). Ligado por omissão; a seleção do dia no máximo uma vez por dia.
+  mixar: ['Mixar', 'Convites e convites aceites, a seleção de cada dia (se ainda não abriste o Mixar) e o Mixa Challenge: quando o outro já escolheu e o resultado'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
-  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos', 'mixar', 'desafio'],
+  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos'],
   follows: ['novos seguidores', 'pedidos para seguir'],
   comments: ['respostas', 'comentar'],
   mentions: ['@', 'identificar', 'marcar'],
@@ -80,6 +82,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
   txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir'],
   zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
+  mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar'],
 };
 
 /** Notificações: a âncora de cada categoria. */

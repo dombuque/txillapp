@@ -304,7 +304,7 @@ describe('Mixar: o feed a dois (integração)', () => {
     expect(res).toMatchObject({ myPick: opt, theirPicked: true, theirPick: opt, match: true });
     expect((await api().get(`/api/v1/mixar/${mx}/challenge`).set(auth(dom)).expect(200)).body).toMatchObject({ myPick: opt, theirPick: opt, match: true });
     await waitFor(() => pushesTo(dom).length === before + 1);
-    expect(pushesTo(dom)[before].payload).toMatchObject({ body: 'Escolheram o mesmo!', url: `/mixar/${mx}` });
+    expect(pushesTo(dom)[before].payload).toMatchObject({ body: 'Acertaram no mesmo', url: `/mixar/${mx}` });
     expect(mixarEvents(dom, mx).map((e) => e.what)).toContain('result');
     expect(mixarEvents(ana, mx)).toContainEqual({ type: 'mixar', id: mx, what: 'result', self: true });
     // Depois de revelado já não se muda.
@@ -341,7 +341,7 @@ describe('Mixar: o feed a dois (integração)', () => {
     expect(ids(await feed(dom, mx, '?limit=24'))).not.toContain(P.casa7);
   });
 
-  it('a tarefa diária: às 05:00 de Maputo gera a seleção de amanhã (sem repetir), o desafio e o evento, sem aviso no telemóvel', async () => {
+  it('a tarefa diária: às 05:00 de Maputo gera a seleção de amanhã (sem repetir), o desafio e o evento (no telemóvel, só o aviso da seleção: mixar-avisos.e2e.spec.ts)', async () => {
     const { dom, ana } = u;
     const today = mixarDay();
     // Ainda «hoje»: nada para gerar neste Mixar.
@@ -360,7 +360,7 @@ describe('Mixar: o feed a dois (integração)', () => {
     expect(emitted.slice(n0).filter((e) => e.e.type === 'mixar' && (e.e as { id: string }).id === mx && (e.e as { what: string }).what === 'daily').map((e) => e.to).sort()).toEqual([dom.id, ana.id].sort());
     expect(await svc.runDaily({ now: tomorrowNow })).toBe(0);
     await new Promise((res) => setTimeout(res, 100));
-    expect(sent.length).toBe(pushesBefore);
+    expect(sent.slice(pushesBefore).filter((s) => !String(s.payload.tag ?? '').endsWith(':daily'))).toEqual([]);
     // Só os ativos: um pendente não tem seleção.
     const p = await invite(u.rui, u.eva).expect(201);
     await svc.runDaily({ now: tomorrowNow });

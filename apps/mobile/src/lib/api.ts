@@ -134,14 +134,17 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // «Convidar por @» (0168): o anfitrião convidou-me para transmitir na Txillada dele (data.txilladaId, data.title).
   | 'txillada_invite'
   // O resumo semanal dos Zás está pronto (data.recapId, data.label «8 a 15 nov», data.count; o ator é o Txillapp, staff).
-  | 'zas_recap';
+  | 'zas_recap'
+  // Mixar (0170): a seleção de hoje está pronta (ator = o outro), o outro já escolheu no Mixa Challenge e falta eu (ator = quem
+  // escolheu) e o resultado para quem escolheu primeiro (ator = quem escolheu depois). data.mixarId, data.name, data.match.
+  | 'mixar_daily' | 'mixar_pick' | 'mixar_result';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number; /** Mixar (0170). */ mixarId?: string; name?: string; challengeId?: string; match?: boolean };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */

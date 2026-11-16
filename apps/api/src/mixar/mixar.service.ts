@@ -13,6 +13,7 @@ import { PushService } from '../push/push.service';
 import { Scheduler } from '../realtime/scheduler';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { blockedBetween, canView, inMyNetwork, notReportedBy } from '../social/visibility';
+import { MixarAvisosService } from './mixar-avisos.service';
 import { MIXAR_CARD_TEXT } from './mixar-cards';
 import { pushFor } from '../chat/hidden-push';
 import {
@@ -53,6 +54,8 @@ export interface MixarSummary {
   newToday: number;
   challengePending: boolean;
   updatedAt: string;
+  /** A última vez que abri este Mixar (POST /mixar/:id/open, 0170), ou null. */
+  openedAt: string | null;
 }
 export interface MixarDto extends MixarSummary {
   createdAt: string;
@@ -139,6 +142,7 @@ export class MixarService implements OnModuleInit {
     private readonly posts: PostsService,
     private readonly scheduler: Scheduler,
     @Inject(RATE_STORE) private readonly store: RateStore,
+    private readonly avisos: MixarAvisosService,
   ) {}
 
   onModuleInit() {
@@ -214,7 +218,7 @@ export class MixarService implements OnModuleInit {
     const myName = await this.displayName(me);
     // O convite é um cartão na conversa: se a outra pessoa a escondeu (0160), o aviso vai sem pré-visualização.
     const hidden = await this.chat.hiddenBy(other.id as string, me);
-    void this.push.send(other.id as string, pushFor({ title: 'Mixar', body: `${myName} convidou-te para um Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'messages' }, hidden));
+    void this.push.send(other.id as string, pushFor({ title: 'Mixar', body: `${myName} convidou-te para um Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'mixar' }, hidden));
     return this.get(me, id);
   }
 
@@ -230,7 +234,7 @@ export class MixarService implements OnModuleInit {
     // A primeira seleção logo (quem convidou abre o Mixar pelo aviso).
     await this.ensureDay({ ...m, status: 'active' }, mixarDay()).catch((e) => this.log.warn(`seleção de ${id}: ${(e as Error).message}`));
     this.notify(m.other_id, me, id, 'accepted');
-    void this.push.send(m.other_id, { title: 'Mixar', body: `${m.my_name} aceitou o vosso Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'messages' });
+    void this.push.send(m.other_id, { title: 'Mixar', body: `${m.my_name} aceitou o vosso Mixar`, url: `/mixar/${id}`, tag: `mixar:${id}`, category: 'mixar' });
     return this.get(me, id);
   }
 
@@ -420,11 +424,9 @@ export class MixarService implements OnModuleInit {
       client.release();
     }
     const dto = await this.challengeDto(me, m, ch);
-    if (both) {
-      this.notify(m.other_id, me, id, 'result');
-      const body = dto.match ? 'Escolheram o mesmo!' : `Vê o que ${m.my_first} escolheu`;
-      void this.push.send(m.other_id, { title: `${m.their_first} + ${m.my_first}`, body, url: `/mixar/${id}`, tag: `mixar:${id}:challenge`, category: 'messages' });
-    } else this.notify(m.other_id, me, id, 'pick');
+    this.notify(m.other_id, me, id, both ? 'result' : 'pick');
+    // Os avisos (lista e telemóvel, 0170): «falta tu» ao outro, ou o resultado a quem escolheu primeiro. Uma vez por desafio.
+    await this.avisos.picked({ mixarId: id, me, other: m.other_id, myFirst: m.my_first, theirFirst: m.their_first, challengeId: ch.id as string, both, match: dto.match });
     return dto;
   }
 
@@ -454,8 +456,9 @@ export class MixarService implements OnModuleInit {
 
   /**
    * A tarefa `mixar.daily` (no worker, de 15 em 15 minutos): gera a seleção de hoje de cada Mixar ativo que ainda não a tem.
-   * O dia muda às 05:00 de Maputo, por isso a primeira volta depois disso trata de todos. Avisa os dois (evento 'daily', sem
-   * aviso no telemóvel). Nos testes chama-se à mão, com `now`.
+   * O dia muda às 05:00 de Maputo, por isso a primeira volta depois disso trata de todos. Avisa os dois (evento 'daily') e, no
+   * fim, manda os avisos da seleção de hoje (lista e telemóvel, MixarAvisosService.dailyNotices, 0170). Nos testes chama-se
+   * à mão, com `now`.
    */
   async runDaily(opts: { now?: Date; limit?: number } = {}): Promise<number> {
     const day = mixarDay(opts.now);
@@ -483,6 +486,8 @@ export class MixarService implements OnModuleInit {
       }
       if (rows.length < limit) break;
     }
+    // Os avisos da seleção de hoje (0170): uma vez por Mixar e por pessoa, só a quem ainda não abriu e entre as 08:00 e as 21:00.
+    await this.avisos.dailyNotices({ now: opts.now }).catch((e) => this.log.warn(`avisos da seleção: ${(e as Error).message}`));
     return total;
   }
 
@@ -682,7 +687,8 @@ export class MixarService implements OnModuleInit {
                 WHERE i.mixar_id = x.id AND i.day = $2::date
                   AND NOT EXISTS (SELECT 1 FROM social.mixar_views v WHERE v.mixar_id = x.id AND v.post_id = i.post_id AND v.user_id = $1))::int AS new_today,
               EXISTS (SELECT 1 FROM social.mixar_challenges ch WHERE ch.mixar_id = x.id AND ch.day = $2::date
-                         AND NOT EXISTS (SELECT 1 FROM social.mixar_picks k WHERE k.challenge_id = ch.id AND k.user_id = $1)) AS challenge_pending
+                         AND NOT EXISTS (SELECT 1 FROM social.mixar_picks k WHERE k.challenge_id = ch.id AND k.user_id = $1)) AS challenge_pending,
+              (SELECT mo.opened_at FROM social.mixar_opens mo WHERE mo.mixar_id = x.id AND mo.user_id = $1) AS opened_at
          FROM social.mixars x
          JOIN identity.users mu ON mu.id = $1
          JOIN identity.users o ON o.id = CASE WHEN x.user_a = $1 THEN x.user_b ELSE x.user_a END
@@ -701,6 +707,7 @@ export class MixarService implements OnModuleInit {
       newToday: r.status === 'active' ? (r.new_today as number) : 0,
       challengePending: r.status === 'active' && !!r.challenge_pending,
       updatedAt: (r.updated_at as Date).toISOString(),
+      openedAt: r.opened_at ? (r.opened_at as Date).toISOString() : null,
     }));
   }
 }

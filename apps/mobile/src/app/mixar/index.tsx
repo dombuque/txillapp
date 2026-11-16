@@ -9,6 +9,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { MixarBadge, MixarDot, PairAvatars } from '@/components/mixar/MixarBits';
 import { useMixarList } from '@/components/mixar/MixarEntry';
+import { MixarSuggestions } from '@/components/mixar/MixarSuggestions';
 import { mixarApi, mixarKeys, type MixarSummary } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
 import { firstName, mixarErrorText, mixarShowDot, sortSummaries, summaryLine } from '@/lib/mixar';
@@ -112,6 +113,8 @@ export default function MixarList() {
             <Pressable onPress={() => router.navigate('/messages' as never)} style={[st.btn, st.primary, { marginTop: 16, paddingHorizontal: 24 }]} accessibilityRole="button"><Text style={st.primaryText}>Ir às mensagens</Text></Pressable>
           </View>
         ) : null}
+        {/* «Faz um Mixar com…» (0170): quem fala muito comigo e tem gostos parecidos (também quando ainda não há nenhum Mixar). */}
+        {q.isError ? null : <MixarSuggestions />}
         {/* Só em desenvolvimento: o Mixar de exemplo (lib/mixarPreview), para ver os ecrãs sem a API. */}
         {isMixarPreview(MIXAR_PREVIEW_ID) ? (
           <Pressable onPress={() => router.push(`/mixar/${MIXAR_PREVIEW_ID}` as never)} style={st.dev} accessibilityRole="button">

@@ -63,7 +63,13 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'txillada_invite'
   // Resumo semanal dos Zás (0164): o meu resumo da semana está pronto (domingo à noite). Ator = a própria pessoa; a lista
   // mostra-o como Txillapp, com a miniatura do resumo enquanto ele existe. data: { recapId, label, count }. Ver notifyZasRecap.
-  | 'zas_recap';
+  | 'zas_recap'
+  // Mixar (0170, docs/mixar-contrato.md «Avisos e descoberta»), criados por src/mixar/mixar-avisos.service.ts (que trata também
+  // do telemóvel e de nunca repetir). data: { mixarId, name (o nome do Mixar visto por quem recebe) } e mais:
+  // mixar_daily: a vossa seleção de hoje está pronta (ator = o outro; + day);
+  // mixar_pick: o outro já escolheu no Mixa Challenge e falta eu (ator = quem escolheu; + challengeId);
+  // mixar_result: os dois escolheram, para quem escolheu primeiro (ator = quem escolheu depois; + challengeId, match).
+  | 'mixar_daily' | 'mixar_pick' | 'mixar_result';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
@@ -88,6 +94,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
   txillada_live: 'txilladas', txillada_invite: 'txilladas',
   zas_recap: 'zas',
+  mixar_daily: 'mixar', mixar_pick: 'mixar', mixar_result: 'mixar',
 };
 
 /** O que se brindou: uma publicação (ou tcheka), um comentário, ou um comentário num mimo (`storyAuthor`: o @ de quem fez o mimo). */

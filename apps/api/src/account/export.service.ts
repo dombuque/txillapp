@@ -199,6 +199,11 @@ export class ExportService {
         `SELECT ch.mixar_id AS "mixarId", ch.day::text AS day, ch.kind, k.post_id AS "postId", k.created_at AS "createdAt"
            FROM social.mixar_picks k JOIN social.mixar_challenges ch ON ch.id = k.challenge_id WHERE k.user_id = $1 ORDER BY k.created_at`,
       ).catch(() => []),
+      // Avisos e descoberta do Mixar (0170): quando abri cada Mixar e quem dispensei das sugestões («Agora não», até quando).
+      mixarOpens: await q(`SELECT mixar_id AS "mixarId", opened_at AS "openedAt" FROM social.mixar_opens WHERE user_id = $1 ORDER BY opened_at`).catch(() => []),
+      mixarSuggestionsDismissed: await q(
+        `SELECT o.username, sd.until FROM social.mixar_suggestion_dismissals sd JOIN identity.users o ON o.id = sd.person_id WHERE sd.user_id = $1 ORDER BY sd.until`,
+      ).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
       // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
       txilladas: await q(

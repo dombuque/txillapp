@@ -138,3 +138,75 @@ type Challenge = {
 - Entradas: cartão no chat; menu da conversa («Mixar com Fulano»); menu «+» do chat; e um acesso nas Mensagens (por
   exemplo uma linha ou um botão «Mixar» por cima da lista).
 - Web/PWA e computador também (com rato e teclado), como o resto da app.
+
+## Avisos e descoberta (0170)
+
+Esta secção acrescenta e, onde diz, substitui o que está em «Tempo real e notificações». API em
+`apps/api/src/mixar/mixar-avisos.service.ts` e `mixar-avisos.controller.ts`; app em `lib/mixarAvisos.ts`,
+`lib/api.mixarAvisos.ts`, `lib/mixarOpen.ts` e `components/mixar/MixarSuggestions.tsx`.
+
+### Categoria «Mixar»
+
+- Categoria nova nas notificações: `'mixar'` (`NOTIFY_CATEGORIES`, uma só opção «Mixar» nas definições). **Todos** os
+  avisos do Mixar passam a ser desta categoria (o convite e o «aceitou» deixam de ser `'messages'`). Desligada: nem na
+  lista nem no telemóvel.
+- O resultado do desafio já não diz «Escolheram o mesmo!» / «Vê o que Fulano escolheu»: ver «Mixa Challenge» abaixo.
+- A seleção diária **passa a avisar** (substitui «A seleção diária não manda push»).
+
+### Avisos novos (lista e telemóvel)
+
+Tipos novos em `social.notifications` (`data` leva sempre `mixarId` e `name`, o nome do Mixar visto por quem recebe,
+«Ana + Zeca»). Tocar abre `/mixar/:id`. O aviso no telemóvel vai discreto se a conversa com o outro está oculta (0160).
+
+| kind | quando | ator | telemóvel (título · texto) | extra em `data` |
+|---|---|---|---|---|
+| `mixar_daily` | a tarefa diária fez a seleção de hoje (com itens) | o outro | «Ana + Zeca» · «A vossa seleção de hoje está pronta» | `day` |
+| `mixar_pick` | o outro escolheu no desafio e eu ainda não | quem escolheu | «Ana + Zeca» · «Zeca já escolheu no Mixa Challenge, falta tu» | `challengeId` |
+| `mixar_result` | os dois escolheram (vai para quem escolheu primeiro) | quem escolheu depois | «Ana + Zeca» · «Acertaram no mesmo» / «Escolheram diferente» | `challengeId`, `match` |
+
+- **Seleção do dia:** no fim de cada volta de `runDaily` (de 15 em 15 minutos), uma vez por Mixar, por pessoa e por dia
+  (`social.mixar_notices`). Não vai a quem já abriu o Mixar nesse dia (desde as 05:00), nem num Mixar aceite já depois das
+  05:00 desse dia, nem com bloqueio, conta inativa ou a categoria desligada. Só sai **entre as 08:00 e as 21:00 de
+  Maputo** (a seleção é gerada às 05:00: o aviso sai na primeira volta depois das 08:00).
+- **Mixa Challenge:** `mixar_pick` uma vez por desafio (mudar de ideias não volta a avisar). Quando o segundo escolhe, o
+  primeiro recebe `mixar_result` (uma vez) e o `mixar_pick` do segundo fica lido. O nome vai sem artigo («Zeca já
+  escolheu…»), como no resto do Mixar.
+- Abrir o Mixar (`POST /mixar/:id/open`) dá por lidos os avisos desse Mixar na lista.
+
+### Abertura sincronizada (a bolinha azul)
+
+```
+POST /mixar/:id/open      → 200 { openedAt: string }   (idempotente; 404 se não é meu ou já acabou; 403 com bloqueio)
+```
+
+- Guarda a minha última abertura (`social.mixar_opens`, uma linha por Mixar e por pessoa), nunca antes do `updatedAt` do
+  Mixar. Um convite pendente também se abre (quem foi convidado, ao abrir a conversa com o cartão).
+- `MixarSummary` (e portanto `Mixar`) ganha `openedAt: string | null` (a minha última abertura, em qualquer aparelho).
+- App: `mixarShowDot(s, seenAt)` usa o mais recente entre `s.openedAt` e o `seenAt` deste aparelho (lib/mixarSeen fica
+  de reserva para servidores sem `openedAt`). A app chama `/open` ao abrir `/mixar/[id]` (depois do `GET`) e ao abrir a
+  conversa com um convite recebido.
+- Mensagens: a linha do Mixar (`MixarEntry`) por cima dos separadores só aparece quando algum Mixar tem a bolinha azul
+  (convite recebido por responder, itens de hoje por ver ou o desafio, ainda não aberto desde que mudou). Sem novidades,
+  nada.
+
+### Sugestões «Faz um Mixar com…»
+
+```
+GET    /mixar/suggestions                     → { items: MixarSuggestion[] }   (até 3)
+POST   /mixar/suggestions/:username/dismiss   → 204   («Agora não»: some 30 dias; 404 se a conta não existe)
+```
+
+```ts
+type MixarSuggestion = { username: string; displayName: string; hasAvatar: boolean; match: number /* 0 a 100 */;
+  common: { topic: string; label: string }[] /* até 3 */ } & Badged;
+```
+
+- Quem entra: com quem falei muito nos últimos 30 dias (pelo menos 10 mensagens na conversa a dois, 3 de cada lado), que
+  me segue e eu sigo, conta ativa, sem bloqueio, a quem posso mandar mensagens, sem Mixar ativo ou pendente entre nós,
+  com menos de 20 Mixar ativos, que eu não dispensei nos últimos 30 dias e com `match` de pelo menos 40 (o mesmo perfil de
+  temas do Explorar e o mesmo cálculo do `match` do Mixar). Ordem: `match` mais as mensagens (até +30). Com 20 Mixar
+  ativos, nenhuma.
+- «Agora não» fica no servidor (`social.mixar_suggestion_dismissals`, até `until`), apaga-se com a conta de qualquer um
+  dos dois e entra na exportação (`mixarSuggestionsDismissed`, com `mixarOpens`).
+- App: cartão discreto «Sugestões» na lista `/mixar` (também quando não há nenhum Mixar), com «Convidar» (`useOpenMixar`)
+  e «Agora não».

@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { mixarApi, mixarKeys } from '@/lib/api.mixar';
-import { inboxEntry } from '@/lib/mixar';
+import { inboxEntry, mixarsWithDot } from '@/lib/mixar';
+import { useMixarSeen } from '@/lib/mixarSeen';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
@@ -14,25 +15,19 @@ export function useMixarList(enabled = true) {
 }
 
 /**
- * O acesso ao Mixar nas Mensagens (por cima dos separadores): com Mixar ou convites, uma linha discreta com o selo, o que
- * há de novo e os avatares; sem nenhum, só uma dica pequena. Sem servidor do Mixar (ou a carregar), nada.
+ * O acesso ao Mixar nas Mensagens (por cima dos separadores), só quando há novidades: aparece se algum Mixar tem a bolinha
+ * azul (um convite por responder, sugestões de hoje por ver ou o desafio, e ainda não o abri desde que mudou: mixarShowDot),
+ * com o selo, o que há de novo, os avatares e a bolinha. Sem novidades (ou sem servidor do Mixar, ou a carregar), nada.
  */
 export function MixarEntry() {
   const router = useRouter();
   const q = useMixarList();
-  if (!q.data) return null;
-  const items = q.data.items ?? [];
-  const e = inboxEntry(items);
+  const seen = useMixarSeen();
+  const fresh = mixarsWithDot(q.data?.items, seen);
+  if (!fresh.length) return null;
+  const e = inboxEntry(fresh);
   const go = () => router.push('/mixar' as never);
-  if (!e.show) {
-    return (
-      <Pressable onPress={go} style={({ pressed }) => [st.hint, pressed && { opacity: 0.6 }]} accessibilityRole="link" accessibilityLabel={`Mixar. ${e.line}`}>
-        <Icon name="mixar" size={15} color={colors.brand} strokeWidth={2.2} />
-        <Text style={st.hintText} numberOfLines={2}><Text style={{ fontWeight: '700', color: colors.zinc700 }}>Mixar · </Text>{e.line}</Text>
-      </Pressable>
-    );
-  }
-  const faces = items.slice(0, 3).map((s) => s.partner);
+  const faces = fresh.slice(0, 3).map((s) => s.partner);
   return (
     <Pressable onPress={go} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`Mixar: ${e.line}. Abrir os teus Mixar`}>
       <MixarBadge size={36} />
@@ -47,7 +42,7 @@ export function MixarEntry() {
           </View>
         ))}
       </View>
-      {e.hot ? <MixarDot inline label="Há novidades" /> : null}
+      <MixarDot inline label="Há novidades" />
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );
@@ -60,6 +55,4 @@ const st = StyleSheet.create({
   subHot: { color: colors.brand, fontWeight: '700' },
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { borderRadius: 15, borderWidth: 2, borderColor: '#fff' },
-  hint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 6, marginBottom: 2, minHeight: 32 },
-  hintText: { flex: 1, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
 });

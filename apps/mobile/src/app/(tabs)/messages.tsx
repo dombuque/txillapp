@@ -48,7 +48,7 @@ import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { mixarPreview, mixarShowDot } from '@/lib/mixar';
 import { useMixarSeen } from '@/lib/mixarSeen';
-import { useMixarList } from '@/components/mixar/MixarEntry';
+import { MixarEntry, useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
 import { ChatMenuSheet } from '@/components/ChatHeader';
@@ -439,7 +439,8 @@ export default function Messages() {
         <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
-      {/* Mixar: uma linha discreta com os teus Mixar e convites (ou só uma dica pequena), por cima dos separadores. */}
+      {/* Mixar: uma linha discreta por cima dos separadores, só quando algum Mixar tem novidades (a bolinha azul); sem novidades, nada. */}
+      {!term && view !== 'requests' ? <MixarEntry /> : null}
       <View style={styles.tabs} accessibilityRole="tablist">
         {searching ? (
           <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>

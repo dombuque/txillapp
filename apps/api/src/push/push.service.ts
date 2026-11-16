@@ -13,7 +13,9 @@ import { FcmSender, type FcmPush } from './fcm';
 // `gelada`: a «Sexta da gelada», o aviso de sexta à tarde (ver src/gelada/gelada-friday.service.ts); também não entra na lista.
 // `txilladas`: alguém que sigo abriu uma Txillada (o live, 0158).
 // `zas`: o meu resumo semanal dos Zás está pronto (domingo à noite, 0164).
-export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues', 'comeback', 'remixes', 'gelada', 'txilladas', 'zas'] as const;
+// `mixar`: todos os avisos do Mixar (0150/0170): convite, convite aceite, a seleção do dia e o Mixa Challenge (o outro já
+// escolheu, o resultado). Ver src/mixar/mixar-avisos.service.ts.
+export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues', 'comeback', 'remixes', 'gelada', 'txilladas', 'zas', 'mixar'] as const;
 export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
 
 export interface PushPayload extends FcmPush {
