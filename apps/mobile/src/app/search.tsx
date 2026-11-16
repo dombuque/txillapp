@@ -298,13 +298,22 @@ export default function Search() {
 
         {searching && (
           <>
-            <View style={styles.tabs} accessibilityRole="tablist">
-              {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['venues', `Locais${q.data ? ` (${foundVenues.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`], ['mentions', `Menções${mq.data ? ` (${mentions.length})` : ''}`]] as const).map(([k, label]) => (
-                <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} style={[styles.tabBtn, { backgroundColor: tab === k ? colors.zinc900 : colors.zinc100 }]}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: tab === k ? '#fff' : colors.zinc700 }}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* Separadores numa linha que desliza (nunca partem em duas linhas); o número vai numa bolinha ao lado do nome. */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs} accessibilityRole="tablist">
+              {([['people', 'Pessoas', q.data ? people.length : null], ['venues', 'Locais', q.data ? foundVenues.length : null], ['tags', '#Tags', q.data ? tags.length : null], ['posts', 'Publicações', q.data ? posts.length : null], ['mentions', 'Menções', mq.data ? mentions.length : null]] as const).map(([k, label, n]) => {
+                const on = tab === k;
+                return (
+                  <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={n == null ? label : `${label}, ${n}`} style={[chipBase, { backgroundColor: on ? colors.zinc900 : colors.zinc100 }]}>
+                    <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '700', color: on ? '#fff' : colors.zinc800 }}>{label}</Text>
+                    {n != null && (
+                      <View style={[styles.tabCount, { backgroundColor: on ? 'rgba(255,255,255,0.18)' : n > 0 ? colors.white : 'transparent' }]}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : n > 0 ? colors.zinc700 : colors.zinc500 }}>{n > 99 ? '99+' : n}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 40 }} />}
             {q.isError && (
               <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
@@ -396,8 +405,9 @@ const styles = StyleSheet.create({
   recent: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 8 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20 },
   recentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  tabs: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tabBtn: { flex: 1, borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
+  tabsScroll: { flexGrow: 0, marginBottom: 8 },
+  tabs: { paddingHorizontal: 16, gap: 8 },
+  tabCount: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   pName: { fontSize: 16, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   pHandle: { fontSize: 14, color: colors.zinc600 },

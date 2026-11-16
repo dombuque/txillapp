@@ -60,6 +60,8 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
   txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada'],
+  // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
+  zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
@@ -77,6 +79,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
   txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir'],
+  zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
 };
 
 /** Notificações: a âncora de cada categoria. */
@@ -110,6 +113,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'storyReplies', group: 'privacidade', title: 'Quem pode responder aos mimos', keywords: ['mimos', 'stories', 'histórias', 'respostas', 'reações aos mimos'] },
   { id: 'closeFriends', group: 'privacidade', title: 'Amigos próximos', keywords: ['melhores amigos', 'close friends', 'lista de amigos', 'mimos'] },
   { id: 'hiddenStory', group: 'privacidade', title: 'Esconder mimo de…', keywords: ['esconder', 'ocultar', 'mimos', 'stories', 'não mostrar'] },
+  { id: 'zasKeep', group: 'privacidade', title: 'Guardar os meus Zás para o resumo semanal', keywords: ['zás', 'zas', 'resumo', 'resumo semanal', 'resumo da semana', 'resumo dos zás', 'guardar zás', 'guardar os zás', '7 dias', 'sete dias', 'arquivo', 'os meus zás', 'recap', 'instants', 'apagar às 24 horas'] },
   { id: 'findByContacts', group: 'privacidade', title: 'Deixar que me encontrem pelos contactos', keywords: ['contactos', 'agenda', 'encontrar-me'] },
   { id: 'analytics', group: 'privacidade', title: 'Ajudar a melhorar o Txillapp', keywords: ['estatísticas de uso', 'analytics', 'dados de uso', 'telemetria', 'rastreio', 'melhorar'] },
   // Notificações

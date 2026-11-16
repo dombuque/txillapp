@@ -213,6 +213,8 @@ function Gate() {
       <Stack.Screen name="call/[id]" options={{ animation: 'fade' }} />
       {/* A Txillada (o live): o anfitrião não sai com o gesto por engano (termina com «Terminar»). */}
       <Stack.Screen name="txillada/[id]" options={{ animation: 'fade', gestureEnabled: false }} />
+      {/* O resumo semanal dos Zás (o push e a notificação abrem aqui): escuro, como o Zás. */}
+      <Stack.Screen name="zas-resumo" options={{ animation: 'fade', contentStyle: { backgroundColor: '#08080b' } }} />
     </Stack>
   );
   return (

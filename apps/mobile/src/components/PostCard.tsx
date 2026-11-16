@@ -36,7 +36,7 @@ import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
 import { CheeredByLine, CheeredFriends } from './CheeredBy';
-import { cheeredByView, closeCheerers } from '@/lib/cheeredBy';
+import { cheeredByView, floatingCheerers } from '@/lib/cheeredBy';
 import { GeleiraPostCard } from './GeleiraPostCard';
 import { GeladaPostCard } from './gelada/GeladaPostCard';
 import { RemixesLink, RemixTag, ReplyStickerOverlay } from './remix/RemixParts';
@@ -599,7 +599,7 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
 function mediaOverlay(post: Post, musicOn: boolean, openCheers: () => void): ReactNode {
   const music = post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} play={musicPlayback(post).apart} soundTo={soundHref(post as { sound?: unknown })} /> : null;
   const above = !!music || !!soundRemovedText(post.soundRemoved);
-  const friends = closeCheerers(post).length ? <CheeredFriends post={post} onOpen={openCheers} style={above ? { bottom: 12 + 34 + 10 } : undefined} /> : null;
+  const friends = floatingCheerers(post).users.length ? <CheeredFriends post={post} onOpen={openCheers} style={above ? { bottom: 12 + 34 + 10 } : undefined} /> : null;
   if (!music && !friends) return undefined;
   return <>{music}{friends}</>;
 }

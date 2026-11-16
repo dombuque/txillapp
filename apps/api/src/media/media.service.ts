@@ -462,14 +462,19 @@ export class MediaService implements OnModuleInit {
     return { assetId: id, uploadUrl: `/api/v1/media/${id}/upload?exp=${exp}&sig=${this.sign(id, exp)}` };
   }
 
-  /** Guarda um ficheiro gerado no servidor (o trecho de uma música), já pronto. */
-  async storeDerived(ownerId: string, bytes: Buffer, mime: string, purpose: 'music', durationMs: number | null = null): Promise<string> {
+  /**
+   * Guarda um ficheiro gerado no servidor, já pronto: o trecho de uma música, o resumo semanal dos Zás (privado, 'chat') ou a
+   * cópia pública desse resumo publicada num mimo ('public', já com a assinatura: `signed`). Fotos públicas na nuvem
+   * levam logo as larguras leves, como as enviadas pela app.
+   */
+  async storeDerived(ownerId: string, bytes: Buffer, mime: string, purpose: 'music' | 'chat' | 'public', durationMs: number | null = null, o: { signed?: boolean; width?: number; height?: number } = {}): Promise<string> {
     const id = uuidv7();
     if (this.s3) await this.s3.put(id, bytes, mime, this.scopeOf(purpose), bytes.length);
     else await writeFile(join(this.dir, id), bytes);
+    if (this.s3 && purpose === 'public' && mime.startsWith('image/')) await this.publishVariants(id, bytes);
     await this.pool.query(
-      `INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose, status, duration_ms) VALUES ($1, $2, $3, $4, $5, $6, 'ready', $7)`,
-      [id, ownerId, mime, bytes.length, id, purpose, durationMs],
+      `INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose, status, duration_ms, signed, width, height) VALUES ($1, $2, $3, $4, $5, $6, 'ready', $7, $8, $9, $10)`,
+      [id, ownerId, mime, bytes.length, id, purpose, durationMs, !!o.signed, o.width ?? null, o.height ?? null],
     );
     return id;
   }

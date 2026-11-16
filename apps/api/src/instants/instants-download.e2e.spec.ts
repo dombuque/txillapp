@@ -145,6 +145,11 @@ describe('guardar um Zás: só o dono, com a assinatura e a legenda (integraçã
 
     const old = await makeZas(u.zsa, 'ontem');
     await pool.query(`UPDATE social.instants SET expires_at = now() - interval '1 minute' WHERE id = $1`, [old]);
+    // Passadas as 24 h: o dono ainda o guarda enquanto o tem guardado para o resumo (7 dias, 0164); os outros não.
+    await get(u.zsa, old).expect(200);
+    await get(u.zsb, old).expect(404);
+    // Passados os 7 dias (ou com «Guardar os meus Zás para o resumo semanal» desligada): já não existe.
+    await pool.query(`UPDATE social.instants SET keep_until = now() - interval '1 minute' WHERE id = $1`, [old]);
     await get(u.zsa, old).expect(404);
 
     await get(u.zsa, '00000000-0000-4000-8000-000000000000').expect(404);

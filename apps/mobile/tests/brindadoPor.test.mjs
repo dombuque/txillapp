@@ -71,3 +71,16 @@ test('o cartão troca o «🍻 N» pela linha e põe os amigos sobre a foto (aci
   assert.match(comp, /InlineBadge who=\{u\}/); // o selo de verificado ao lado do nome
   assert.match(comp, /function MiniMug/); // a caneca pequenina como selo
 });
+
+test('a flutuar: amigos próximos primeiro; sem eles, quem sigo', () => {
+  const v = (name, close, following) => ({ username: name, displayName: name, avatarUrl: null, close, following });
+  const both = { cheeredBy: { users: [v('rui', false, true), v('ana', true, true)], total: 2 } };
+  assert.deepEqual(cb.floatingCheerers(both), { kind: 'close', users: [both.cheeredBy.users[1]] });
+  const follow = { cheeredBy: { users: [v('rui', false, true), v('zé', false, false), v('eva', false, true)], total: 9 } };
+  const f = cb.floatingCheerers(follow);
+  assert.equal(f.kind, 'following');
+  assert.deepEqual(f.users.map((x) => x.username), ['rui', 'eva']);
+  // Servidor antigo (sem `following`) e dono que não deixa ver: ninguém flutua.
+  assert.deepEqual(cb.floatingCheerers({ cheeredBy: { users: [{ username: 'a', displayName: 'a', avatarUrl: null, close: false }], total: 1 } }).users, []);
+  assert.deepEqual(cb.floatingCheerers({ cheeredBy: null }).users, []);
+});

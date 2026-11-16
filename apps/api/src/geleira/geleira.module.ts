@@ -10,6 +10,6 @@ import { GeleiraService } from './geleira.service';
   imports: [AuthModule],
   controllers: [GeleiraController, GeleiraAdminController],
   providers: [GeleiraService, GeleiraAdminService, GeleiraLevelService],
-  exports: [GeleiraLevelService],
+  exports: [GeleiraLevelService, GeleiraService],
 })
 export class GeleiraModule {}

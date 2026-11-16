@@ -9,7 +9,9 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
 import { BlockedSheet, HiddenSheet } from '@/components/settings/sheets';
 import { usePrivacy } from '@/components/settings/usePrivacy';
 import { ApiError, api } from '@/lib/api';
+import { instantsApi, type ZasSettings } from '@/lib/api.geleira';
 import { nearbyApi, type NearbyVisibility } from '@/lib/api.nearby';
+import { KEEP_OFF_PROMPT } from '@/components/zas/zasRecapLogic';
 
 type SheetName = null | 'type' | 'connections' | 'nearby' | 'blocked' | 'comments' | 'mentions' | 'gifts' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'storyReplies' | 'closeFriends' | 'hidden';
 
@@ -33,6 +35,31 @@ export default function PrivacySettingsScreen() {
     } catch (e) {
       Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
+  }
+
+  // Zás: «Guardar os meus Zás para o resumo semanal» (ligada por omissão). Servidor antigo (404): a secção não aparece.
+  const zas = useQuery({ queryKey: ['zas-settings'], queryFn: instantsApi.settings, retry: false });
+  async function saveZasKeep(on: boolean) {
+    const before = zas.data;
+    qc.setQueryData<ZasSettings>(['zas-settings'], { keepForRecap: on });
+    try {
+      const r = await instantsApi.setSettings(on);
+      qc.setQueryData<ZasSettings>(['zas-settings'], { keepForRecap: r?.keepForRecap ?? on });
+      void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
+      qc.removeQueries({ queryKey: ['zas-recap'] });
+      if (!on && r?.removed) Alert.alert('Feito', r.removed === 1 ? 'Apagámos 1 Zás guardado.' : `Apagámos ${r.removed} Zás guardados.`);
+    } catch (e) {
+      qc.setQueryData(['zas-settings'], before);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
+  function toggleZasKeep(on: boolean) {
+    // Desligar apaga logo os Zás guardados e o resumo por partilhar: pergunta antes.
+    if (on) return void saveZasKeep(true);
+    Alert.alert(KEEP_OFF_PROMPT.title, KEEP_OFF_PROMPT.message, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: KEEP_OFF_PROMPT.confirm, style: 'destructive', onPress: () => void saveZasKeep(false) },
+    ]);
   }
 
   async function saveStoryReplies(v: Parameters<typeof api.setStoryReplies>[0]) {
@@ -72,6 +99,12 @@ export default function PrivacySettingsScreen() {
         <SettingRow anchor="hiddenStory" icon="eye-off" title="Esconder mimo de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onPress={() => setSheet('hidden')} />
       </SettingsSection>
 
+      {zas.data ? (
+        <SettingsSection title="Zás">
+          <SettingRow anchor="zasKeep" icon="bolt" title="Guardar os meus Zás para o resumo semanal" description="Os outros veem os teus Zás 24 horas; para ti ficam 7 dias em «Os meus Zás» e, ao domingo à noite, fazemos o resumo da semana (com 3 Zás ou mais). Só tu os vês, até partilhares o resumo nos mimos. Desligado, os Zás apagam-se às 24 horas e não há resumo." toggle={{ on: zas.data.keepForRecap, onChange: toggleZasKeep }} />
+        </SettingsSection>
+      ) : null}
+
       <SettingsSection title="Contactos e dados">
         {p ? <SettingRow anchor="findByContacts" icon="search" title="Deixar que me encontrem pelos contactos" description="Quem tem o teu email nos contactos pode sugerir-te a seguir. Só vê que estás no Txillapp." toggle={{ on: p.findByContacts, onChange: (v) => void save({ findByContacts: v }) }} /> : null}
         {p ? <SettingRow anchor="analytics" icon="info" title="Ajudar a melhorar o Txillapp" description="Estatísticas de uso só nossas, sem terceiros: aberturas, ecrãs, erros e o que fazes (publicar, brindar, seguir, enviar mensagens…). Nunca o conteúdo nem a posição. Desligado, o que estava à espera é apagado." toggle={{ on: p.shareAnalytics, onChange: (v) => void save({ shareAnalytics: v }) }} /> : null}
@@ -87,7 +120,7 @@ export default function PrivacySettingsScreen() {
       {sheet === 'comments' && p && <ChoiceSheet title="Quem pode comentar" intro="Aplica-se às tuas publicações e às tuas Txilladas. Os comentários que já existem mantêm-se." options={WHO} value={p.commentsAllowed} onPick={(v) => void save({ commentsAllowed: v })} onClose={close} />}
       {sheet === 'mentions' && p && <ChoiceSheet title="Quem pode mencionar-me" intro="Quem escreve @o-teu-nome e te faz aparecer nas sugestões. Quem eu sigo mantém-se sempre disponível para mim; contas privadas só são mencionadas por quem as segue." options={WHO} value={p.mentionsAllowed} onPick={(v) => void save({ mentionsAllowed: v })} onClose={close} />}
       {sheet === 'repostsVisible' && p && <ChoiceSheet title="Quem vê quem repostou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.repostsVisible} onPick={(v) => void save({ repostsVisible: v })} onClose={close} />}
-      {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.cheersVisible} onPick={(v) => void save({ cheersVisible: v })} onClose={close} />}
+      {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda quem pode ver os nomes, na lista e na publicação («Brindado por @fulano»)." options={VIEWERS} value={p.cheersVisible} onPick={(v) => void save({ cheersVisible: v })} onClose={close} />}
       {sheet === 'giftsVisible' && p && <ChoiceSheet title="Quem vê quem presenteou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes (nunca os valores)." options={VIEWERS} value={p.giftsVisible} onPick={(v) => void save({ giftsVisible: v })} onClose={close} />}
       {sheet === 'nearby' && nearby.data && <ChoiceSheet title="Aparecer em À tua volta" intro="Quem te pode ver no mapa. Só aparece a zona aproximada (cerca de 1,5 km), nunca o sítio exato, e só enquanto tens o mapa aberto com a localização do telemóvel (com uma cidade escolhida, não apareces). Some ao fim de 3 horas, ou logo que escolhes uma cidade, terminas a sessão ou desligas isto." options={NEARBY} value={nearby.data.visibility} onPick={(v) => void saveNearby(v)} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void save({ giftsAllowed: v })} onClose={close} />}

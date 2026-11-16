@@ -9,5 +9,38 @@ live.txillapp.com {
   respond /robots.txt "User-agent: *
 Disallow: /
 " 200
-  reverse_proxy 127.0.0.1:7880
+
+  # O modelo do SuperTxill (Ollama, em 127.0.0.1:11434), em live.txillapp.com/llm (sem DNS à parte). Só a API do Txillapp
+  # entra: com o token (OLLAMA_TOKEN) e só no /llm/api/chat (e /llm/api/version para ver se está vivo). Sem token, com
+  # outro, ou sem OLLAMA_TOKEN no .env: 401. Nada de /api/pull, /api/delete, etc. de fora (os modelos puxam-se dentro do
+  # contentor). Na API: OLLAMA_URL=https://live.txillapp.com/llm.
+  @llmAutorizado {
+    method GET POST
+    path /llm/api/chat /llm/api/version
+    header Authorization "Bearer {$OLLAMA_TOKEN}"
+    not header Authorization "Bearer"
+    not header Authorization "Bearer "
+  }
+  handle @llmAutorizado {
+    uri strip_prefix /llm
+    request_body {
+      max_size 256KB
+    }
+    reverse_proxy 127.0.0.1:11434 {
+      header_up -Authorization
+      # O Ollama só aceita pedidos com Host local (proteção contra DNS rebinding): o Caddy passa-lhe o endereço dele.
+      header_up Host 127.0.0.1:11434
+      transport http {
+        read_timeout 250s
+      }
+    }
+  }
+  handle /llm* {
+    respond "Sem autorização" 401
+  }
+
+  # O resto é o LiveKit (a Txillada).
+  handle {
+    reverse_proxy 127.0.0.1:7880
+  }
 }

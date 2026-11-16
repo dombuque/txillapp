@@ -15,6 +15,33 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    # O token que o Caddy exige em live.txillapp.com/llm (o mesmo OLLAMA_TOKEN do .env da API). Sem ele, /llm dá sempre 401.
+    environment:
+      OLLAMA_TOKEN: ${OLLAMA_TOKEN:-}
+    logging: *logging
+  # O modelo do SuperTxill (só texto, em CPU). Os lives têm prioridade: no máximo 5 CPUs (fica sempre 1 livre) e 6 GB, peso de CPU baixo
+  # (com a máquina apertada o LiveKit passa à frente) e é o primeiro a sair se faltar memória. Só ouve em 127.0.0.1:
+  # de fora chega-se só pelo Caddy, com o token.
+  ollama:
+    image: ollama/ollama:0.40.16
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      OLLAMA_HOST: 127.0.0.1:11434
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_MAX_QUEUE: "8"
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_NOPRUNE: "1"
+    volumes: ["ollama_models:/root/.ollama"]
+    # O teto tem de ficar acima dos fios do modelo (OLLAMA_NUM_THREAD=3 na API): com 3 fios num teto de 3 CPUs o Linux
+    # trava-o a cada instante e gera a 1–2 palavras por segundo.
+    cpus: 5
+    cpu_shares: 256
+    mem_limit: 6g
+    memswap_limit: 6g
+    oom_score_adj: 500
     logging: *logging
   coturn:
     image: coturn/coturn:4.6.2
@@ -45,3 +72,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  ollama_models:

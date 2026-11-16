@@ -23,11 +23,11 @@ export class InstantsDownloadService {
     const { rows } = await this.pool.query(
       `SELECT i.author_id, i.media_id, i.caption, i.caption_font, i.created_at, u.username, u.verified, u.verified_tier
          FROM social.instants i JOIN identity.users u ON u.id = i.author_id JOIN content.media_assets m ON m.id = i.media_id
-        WHERE i.id = $1 AND i.expires_at > now() AND m.status = 'ready'`,
-      [id],
+        WHERE i.id = $1 AND (i.expires_at > now() OR (i.author_id = $2 AND i.keep_until > now())) AND m.status = 'ready'`,
+      [id, me],
     );
     const r = rows[0];
-    // Apagado, passado das 24 h ou sem a foto: já não existe.
+    // Apagado, passado das 24 h (para o dono, dos 7 dias em que o guarda para o resumo) ou sem a foto: já não existe.
     if (!r) throw new NotFoundException('Zás não encontrado');
     // Como nos mimos: só se guardam os próprios.
     if (r.author_id !== me) throw new ForbiddenException('Só podes guardar os teus Zás');

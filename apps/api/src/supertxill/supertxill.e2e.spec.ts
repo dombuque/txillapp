@@ -46,7 +46,7 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
   beforeAll(async () => {
     await migrate(DB);
     pool = new Pool({ connectionString: DB });
-    app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'e'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', ANTHROPIC_API_KEY: 'x'.repeat(30), SUPERTXILL_DAILY_LIMIT: '3' }));
+    app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'e'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', ANTHROPIC_API_KEY: 'x'.repeat(30), SUPERTXILL_PROVIDER: 'anthropic', SUPERTXILL_DAILY_LIMIT: '3' }));
     await app.init();
     bot = app.get(SuperTxillService);
   }, 60_000);

@@ -59,7 +59,8 @@ export class ExportService {
         `SELECT comments_allowed AS "commentsAllowed", gifts_allowed AS "giftsAllowed", mentions_allowed AS "mentionsAllowed", dms_allowed AS "dmsAllowed", calls_allowed AS "callsAllowed",
                 reposts_visible AS "repostsVisible", cheers_visible AS "cheersVisible", gifts_visible AS "giftsVisible",
                 show_connections AS "showConnections", suggestable, story_replies AS "storyReplies", remix_allowed AS "remixAllowed",
-                geleira_visibility AS "geleiraVisibility", geleira_cheers_public AS "geleiraCheersPublic", gelada_book_public AS "geladaBookPublic"
+                geleira_visibility AS "geleiraVisibility", geleira_cheers_public AS "geleiraCheersPublic", gelada_book_public AS "geladaBookPublic",
+                zas_keep AS "zasKeepForRecap"
            FROM identity.users WHERE id = $1`,
       )
     )[0];
@@ -76,6 +77,25 @@ export class ExportService {
       ),
       comments: await q(`SELECT c.id, c.post_id AS "postId", c.body, c.gif, c.created_at AS "createdAt" FROM content.comments c WHERE c.author_id = $1 ORDER BY c.id`),
       stories: await q(`SELECT s.id, s.caption, s.audience, s.music, s.stickers, s.created_at AS "createdAt", s.expires_at AS "expiresAt" FROM content.stories s WHERE s.author_id = $1 ORDER BY s.id`),
+      // Os meus Zás que ainda existem (os das 24 h e os guardados 7 dias para o resumo, 0164), com um endereço temporário
+      // da foto, e os resumos semanais (publicado: o mimo onde está).
+      zas: (
+        await q(
+          `SELECT i.id, i.caption, i.audience, i.created_at AS "createdAt", i.expires_at AS "visibleToOthersUntil", i.keep_until AS "keptForMeUntil",
+                  CASE WHEN m.status = 'ready' THEN i.media_id END AS media_id
+             FROM social.instants i LEFT JOIN content.media_assets m ON m.id = i.media_id
+            WHERE i.author_id = $1 AND coalesce(i.keep_until, i.expires_at) > now() ORDER BY i.created_at`,
+        )
+      ).map(({ media_id, ...r }) => ({ ...r, photo: media_id ? this.media.chatUrl(media_id as string) : null })),
+      zasRecaps: (
+        await q(
+          `SELECT z.id, to_char(z.week_start, 'YYYY-MM-DD') AS "weekStart", to_char(z.week_end, 'YYYY-MM-DD') AS "weekEnd", z.instant_count AS "zasCount",
+                  z.photo_count AS "photoCount", z.created_at AS "createdAt", z.expires_at AS "deletedAfter", z.story_id AS "storyId",
+                  z.published_audience AS "publishedAudience", z.published_at AS "publishedAt", CASE WHEN m.status = 'ready' THEN z.media_id END AS media_id
+             FROM social.zas_recaps z LEFT JOIN content.media_assets m ON m.id = z.media_id
+            WHERE z.user_id = $1 ORDER BY z.week_end`,
+        )
+      ).map(({ media_id, ...r }) => ({ ...r, image: media_id ? this.media.chatUrl(media_id as string) : null })),
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
       commentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
@@ -234,6 +254,8 @@ export class ExportService {
       soundReuse: ((await q(`SELECT sound_reuse FROM identity.users WHERE id = $1`).catch(() => []))[0]?.sound_reuse as boolean | undefined) ?? null,
       // «Deixar guardar as minhas tchekas» (0153): se os outros podem guardar as minhas tchekas (privada ou menor: nunca).
       allowDownloads: ((await q(`SELECT allow_downloads FROM identity.users WHERE id = $1`).catch(() => []))[0]?.allow_downloads as boolean | undefined) ?? null,
+      // A conversa com o SuperTxill (as últimas 60 mensagens que ficam guardadas na conta).
+      superTxill: await q(`SELECT role, body, created_at AS "createdAt" FROM social.ai_messages WHERE user_id = $1 ORDER BY id`).catch(() => []),
       // «Deixar repostar as minhas publicações» (0156): se os outros podem repostar (e citar) as minhas publicações.
       allowReposts: ((await q(`SELECT allow_reposts FROM identity.users WHERE id = $1`).catch(() => []))[0]?.allow_reposts as boolean | undefined) ?? null,
       sounds: await q(

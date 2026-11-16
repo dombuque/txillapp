@@ -56,10 +56,11 @@ export const INTROS: Record<string, Intro> = {
     icon: 'sparkles',
     title: 'SuperTxill',
     points: [
+      { icon: 'sparkles', title: 'Pergunta o que quiseres', text: 'Onde anda a malta, sítios e eventos perto, Txilladas, planos e legendas. Pode demorar umas dezenas de segundos a pensar.' },
+      { icon: 'shield', title: 'Fica no Txillapp', text: 'Corre no nosso servidor e só usa o que já podes ver na app. Nunca pede o GPS. Pode errar: confirma o que for importante.' },
       { icon: 'users', title: 'Malta para ti', text: 'Pessoas com gostos parecidos com os teus, escolhidas pelo Txillapp.' },
-      { icon: 'shield', title: 'Só com dados do Txillapp', text: 'Quem segues e a tua geleira. Nada sai para fora.' },
     ],
-    note: 'Podes desligar o uso da geleira nas Definições.',
+    note: 'Guarda as últimas 60 mensagens, só para ti. Apagas a conversa quando quiseres.',
   },
 };
 

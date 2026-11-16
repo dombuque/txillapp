@@ -11,7 +11,7 @@ import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
-import { instantsApi, type FeedInstant, type InstantAuthor, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
+import { instantsApi, type FeedInstant, type InstantAuthor, type InstantItem, type InstantViewer as Viewer, type ZasRecap } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
 import { claimSwipe, releaseSwipe } from '@/lib/swipeClaim';
 import { useOverlay } from '@/lib/overlays';
@@ -42,6 +42,8 @@ import { DECK_MS, deckCount, deckHeadroom, deckSlots, prefetchTargets, swipeStep
 import { ZasDeckCard } from './zas/ZasDeckCard';
 import { zasPrefetcher } from './zas/zasPrefetch';
 import { saveZas, shareZas } from './zas/zasImage';
+import { ZasRecapView } from './zas/ZasRecap';
+import { RECAP_HINT, deleteTexts, emptyText, gridBadge, introDuration, isKept, keptViewerLine, recapLine, recapSlot, shortDay } from './zas/zasRecapLogic';
 import { allowCapture, blockCapture, captureNative, onScreenshot, sendScreenshotNotice, ZAS_CAPTURE_KEY } from '@/lib/screenCapture';
 import { screenshotKey } from '@/lib/screenshotNotice';
 import { FontChips } from './FontChips';
@@ -77,7 +79,8 @@ const SNOOZE_KEY = 'tx_zas_snooze';
 const FONT_KEY = 'tx_zas_font';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-const hoursLeft = (iso: string) => `${Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000))}h`;
+/** «Guardar os meus Zás para o resumo semanal» (a mesma cache das Definições → Privacidade). Servidor antigo: sem ela. */
+const useZasSettings = (enabled = true) => useQuery({ queryKey: ['zas-settings'], queryFn: instantsApi.settings, retry: false, staleTime: 60_000, enabled });
 const leftLabel = (iso: string) => {
   const h = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000));
   return h <= 1 ? 'acaba daqui a pouco' : `acaba daqui a ${h} h`;
@@ -359,6 +362,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   };
   const [viewing, setViewing] = useState(false);
   const others = tray.data?.others ?? [];
+  // A introdução diz quanto tempo o Zás fica (para ti, 7 dias com o resumo semanal ligado).
+  const zasSettings = useZasSettings(intro);
 
   useEffect(() => {
     void remember(INTRO_KEY).then((v) => setIntro(v !== '1'));
@@ -557,7 +562,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                   ['camera', 'Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.'],
                   ['send', 'O botão tira e envia logo.'],
                   ['eye', 'Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.'],
-                  ['clock', 'Dura 24 horas.'],
+                  ['clock', introDuration(zasSettings.data?.keepForRecap)],
                   ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
                 ] as const).map(([ic, text]) => (
                   <View key={ic} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -596,10 +601,20 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Os meus Zás ativos em grelha de 3 (duram 24 h). Tocar abre-o; manter premido apaga. */
+/**
+ * Os meus Zás em grelha de 3: os ativos (os outros veem-nos 24 h) e, com o resumo semanal ligado, os guardados só para mim
+ * (7 dias, com a marca «Só tu · N dias»). Em cima, o cartão do resumo da semana quando há um (abre o ecrã do resumo por
+ * cima) ou, sem resumo, «O teu resumo chega ao domingo à noite». Tocar abre o Zás; manter premido abre o menu.
+ */
 function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: { username: string; displayName?: string; hasAvatar?: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const qc = useQueryClient();
+  const settings = useZasSettings();
+  const recaps = useQuery({ queryKey: ['zas-recaps'], queryFn: instantsApi.recaps, retry: false });
+  const recap = recaps.data?.[0] ?? null;
+  const slot = recapSlot(settings.data?.keepForRecap, recap);
+  const [recapOpen, setRecapOpen] = useState<ZasRecap | null>(null);
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
@@ -608,7 +623,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
   const [menu, setMenu] = useState<InstantItem | null>(null);
   /** Computador: onde abre o menu do Zás (junto ao rato, no botão direito). */
   const [menuAt, setMenuAt] = useState<Rect | null>(null);
-  const load = useCallback(() => instantsApi.of(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
+  const load = useCallback(() => instantsApi.archive(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -634,14 +649,42 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
         </View>
         {err ? <Text accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingBottom: 8, textAlign: 'center', fontSize: 14, color: '#f87171' }}>{err}</Text> : null}
         <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 112, alignSelf: 'center', width: '100%', maxWidth: 576 }}>
+          {/* O resumo da semana: o cartão (abre o ecrã do resumo) ou, sem resumo e com a definição ligada, quando chega. */}
+          {slot === 'card' && recap ? (
+            <Pressable
+              onPress={() => setRecapOpen(recap)}
+              accessibilityRole="button"
+              accessibilityLabel={`Resumo da semana, ${recapLine(recap)}`}
+              style={({ pressed }) => [st.recapCard, pressed && { backgroundColor: 'rgba(255,255,255,0.16)' }]}
+            >
+              <View style={st.recapThumb}>
+                <Image source={{ uri: zasPhotoUrl(abs(recap.url) ?? recap.url, 180) }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="bolt" size={14} solid color={colors.brand} />
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>Resumo da semana</Text>
+                </View>
+                <Text style={{ marginTop: 2, fontSize: 14, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{recapLine(recap)}</Text>
+                <Text style={{ marginTop: 6, fontSize: 13, fontWeight: '700', color: recap.published ? '#6ee7b7' : colors.brandWarm }} numberOfLines={1}>{recap.published ? 'Nos teus mimos' : 'Só tu vês · partilha nos mimos'}</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          ) : slot === 'hint' ? (
+            <View style={st.recapHint}>
+              <Icon name="sparkles" size={14} color="rgba(255,255,255,0.55)" />
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{RECAP_HINT}</Text>
+            </View>
+          ) : null}
           {items === null ? (
             <Text style={st.dim}>A carregar…</Text>
           ) : items.length === 0 ? (
-            <Text style={[st.dim, { paddingHorizontal: 32, color: 'rgba(255,255,255,0.7)' }]}>Não tens Zás ativos. Os Zás duram 24 h.</Text>
+            <Text style={[st.dim, { paddingHorizontal: 32, color: 'rgba(255,255,255,0.7)' }]}>{emptyText(settings.data?.keepForRecap)}</Text>
           ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {items.map((it) => {
                 const top = it.reactions?.[0];
+                const kept = isKept(it);
                 return (
                   <Pressable
                     key={it.id}
@@ -650,7 +693,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                     delayLongPress={450}
                     {...(Platform.OS === 'web' ? ({ onContextMenu: (e: { preventDefault: () => void; nativeEvent?: { clientX?: number; clientY?: number } }) => { e.preventDefault(); setMenuAt(e.nativeEvent?.clientX != null ? { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY ?? 0, w: 0, h: 0 } : null); setMenu(it); } } as object) : null)}
                     accessibilityRole="button"
-                    accessibilityLabel={it.caption || 'Zás'}
+                    accessibilityLabel={`${it.caption || 'Zás'}${kept ? `, guardado, ${gridBadge(it)}` : ''}`}
                     style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
                   >
                     <Image source={{ uri: zasPhotoUrl(abs(it.url) ?? it.url, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
@@ -667,7 +710,16 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                         </>
                       )}
                     </Pressable>
-                    <View style={st.left}><Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>{hoursLeft(it.expiresAt)}</Text></View>
+                    {kept ? (
+                      <View style={st.kept} pointerEvents="none">
+                        <View style={st.keptPill}>
+                          <Icon name="lock" size={10} color="#fff" />
+                          <Text style={{ flexShrink: 1, fontSize: 11, fontWeight: '700', color: '#fff' }} numberOfLines={1}>{gridBadge(it)}</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={st.left}><Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>{gridBadge(it)}</Text></View>
+                    )}
                   </Pressable>
                 );
               })}
@@ -687,12 +739,12 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                     ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
                     ['download', 'Descarregar', 'O Zás como na app, em JPG, com a assinatura.', () => void saveZas(menu, 'file'), false],
                     ['share', 'Partilhar', 'Manda o Zás a quem quiseres.', () => void shareZas(menu), false],
-                    ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
+                    ['trash', 'Apagar', deleteTexts(menu).menu, () => setDel(menu), true],
                   ] as const)
                 : ([
                     ['image', 'Guardar na galeria', 'O Zás, como na app, fica nas fotos do telemóvel.', () => void saveZas(menu), false],
                     ['share', 'Partilhar', 'Manda o Zás a quem quiseres (ou guarda-o).', () => void shareZas(menu), false],
-                    ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
+                    ['trash', 'Apagar', deleteTexts(menu).menu, () => setDel(menu), true],
                   ] as const)
               ).map(([ic, label, text, run, danger]) => (
                 <Pressable
@@ -714,9 +766,9 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
           </Sheet>
         )}
         {del && (
-          <Sheet title="Apagar o Zás?" onClose={() => setDel(null)}>
+          <Sheet title={deleteTexts(del).title} onClose={() => setDel(null)}>
             <View style={{ paddingHorizontal: 24 }}>
-              <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>Desaparece para toda a gente e não dá para o recuperar.</Text>
+              <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>{deleteTexts(del).body}</Text>
               <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: '#b91c1c' }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Apagar</Text></Pressable>
               <Pressable onPress={() => setDel(null)} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}><Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>Cancelar</Text></Pressable>
             </View>
@@ -731,6 +783,12 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
           startId={open}
           onClose={() => { setOpen(null); void load(); }}
         />
+      )}
+      {/* O resumo da semana por cima (esta grelha já é um Modal). */}
+      {recapOpen && (
+        <Modal visible animationType="fade" onRequestClose={() => setRecapOpen(null)} statusBarTranslucent>
+          <ZasRecapView initial={recapOpen} onClose={() => { setRecapOpen(null); void qc.invalidateQueries({ queryKey: ['zas-recaps'] }); }} />
+        </Modal>
       )}
     </Modal>
   );
@@ -1089,7 +1147,10 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
         <View style={st.info}>
           <Avatar name={who?.displayName || who?.username || ''} username={who?.hasAvatar ? who.username : undefined} size={30} />
           <NameWithBadge name={own ? 'Os teus Zás' : `@${who?.username ?? ''}`} who={own ? null : who ?? null} style={{ fontSize: 14, fontWeight: '700', color: '#fff' }} containerStyle={{ maxWidth: '45%' }} />
-          {cur && (
+          {cur && own && isKept(cur) ? (
+            // Guardado (já passou das 24 h): só eu o vejo, até ao fim dos 7 dias.
+            <Text style={{ flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.65)' }} numberOfLines={1}>{`${shortDay(cur.at)} · ${keptViewerLine(cur)}`}</Text>
+          ) : cur && (
             <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? colors.brandWarm : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
               {own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}
             </Text>
@@ -1195,6 +1256,12 @@ const st = StyleSheet.create({
   views: { position: 'absolute', right: '10%', top: '6%', minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 6 },
   viewsText: { fontSize: 13, fontWeight: '700', color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.9)' } as never,
   left: { position: 'absolute', bottom: '9%', right: '13%', borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 2 },
+  /** A marca de um Zás guardado (só eu o vejo): ao meio, por baixo, com o cadeado. */
+  kept: { position: 'absolute', left: 0, right: 0, bottom: '8%', alignItems: 'center' },
+  keptPill: { maxWidth: '86%', flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: 'rgba(24,24,27,0.78)', paddingHorizontal: 7, paddingVertical: 2 },
+  recapCard: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14, borderRadius: 22, padding: 10, paddingRight: 14, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,92,92,0.35)' },
+  recapThumb: { width: 54, height: 96, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.zinc800 },
+  recapHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
   floating: { position: 'absolute', alignSelf: 'center', height: 56, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 28, boxShadow: '0 6px 24px rgba(0,0,0,0.5)' },
   big: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   vTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },

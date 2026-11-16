@@ -28,8 +28,35 @@ export interface PostGeleira { level: number; total: number; items: PostGeleiraI
 export interface ItemCheer { itemId: string; cheered: boolean; cheers: number }
 export interface GeleiraSettings { matching: boolean; visibility: TasteVisibility; cheersPublic: boolean }
 
-/** `captionFont`: a letra da legenda (lib/textLayers; null ou desconhecida: a clássica). Servidores antigos não mandam. */
-export interface InstantItem { id: string; url: string; caption: string; captionFont?: string | null; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
+/**
+ * `captionFont`: a letra da legenda (lib/textLayers; null ou desconhecida: a clássica). Servidores antigos não mandam.
+ * Só nos meus (`GET /instants/archive`): `active` (ainda dentro das 24 h, os outros veem-no; `false` = guardado, só eu o
+ * vejo) e `keepUntil` (até quando fica guardado para mim; null quando não fica).
+ */
+export interface InstantItem { id: string; url: string; caption: string; captionFont?: string | null; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[]; active?: boolean; keepUntil?: string | null }
+/** Um Zás meu do arquivo «Os meus Zás» (os últimos 7 dias, do mais antigo para o mais recente). */
+export interface ArchivedInstant extends InstantItem { active: boolean; keepUntil: string | null }
+/** «Guardar os meus Zás para o resumo semanal» (Definições → Privacidade → Zás). Ligada por omissão. */
+export interface ZasSettings { keepForRecap: boolean }
+/** Para quem vai o resumo publicado nos mimos: `all` = Amigos (quem vê os meus mimos), `close_friends` = Amigos próximos. */
+export type RecapAudience = 'all' | 'close_friends';
+/**
+ * O resumo semanal dos Zás: uma imagem 1080×1920 desenhada no servidor ao domingo à noite (hora de Moçambique) para quem
+ * teve 3 Zás ou mais na semana. Só o dono a vê até a publicar nos mimos. `url`: endereço assinado (relativo, aceita &w=).
+ * `label`: «8 a 15 nov». `count`: Zás na semana; `photos`: quantas fotos entraram na imagem.
+ */
+export interface ZasRecap {
+  id: string;
+  url: string;
+  weekStart: string;
+  weekEnd: string;
+  label: string;
+  count: number;
+  photos: number;
+  createdAt: string;
+  expiresAt: string;
+  published: { storyId: string | null; audience: RecapAudience; at: string } | null;
+}
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
   others: ({ username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null } & Badged)[];
@@ -85,4 +112,36 @@ export const instantsApi = {
   remove: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
   /** Fiz uma captura do Zás de outra pessoa (iPhone, ou Android 14+ quando o sistema avisa): o dono fica a saber. */
   screenshot: (id: string): Promise<unknown> => raw(`/instants/${id}/screenshot`, post({})),
+  /** A definição do resumo semanal. Servidor antigo: 404 (sem resumo nem arquivo). */
+  settings: (): Promise<ZasSettings> => raw('/instants/settings'),
+  /** Mudar a definição. Ao desligar, `removed` diz quantos Zás guardados (já fora das 24 h) se apagaram logo. */
+  setSettings: (keepForRecap: boolean): Promise<ZasSettings & { removed: number }> => raw('/instants/settings', { method: 'PUT', body: JSON.stringify({ keepForRecap }) }),
+  /**
+   * «Os meus Zás»: os dos últimos 7 dias (os ativos e os guardados só para mim), do mais antigo para o mais recente.
+   * Servidor antigo (404): os ativos, como antes (`/instants/of/<o meu @>`).
+   */
+  async archive(username: string): Promise<ArchivedInstant[]> {
+    try {
+      return (await raw('/instants/archive')) as ArchivedInstant[];
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+      const list = (await raw(`/instants/of/${encodeURIComponent(username)}`)) as InstantItem[];
+      return list.map((it) => ({ ...it, active: true, keepUntil: null }));
+    }
+  },
+  /** Os meus resumos (o mais recente primeiro; normalmente 0 ou 1). Servidor antigo (404): nenhum. */
+  async recaps(): Promise<ZasRecap[]> {
+    try {
+      return ((await raw('/instants/recaps')) as ZasRecap[] | undefined) ?? [];
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return [];
+      throw e;
+    }
+  },
+  /** Um resumo (404 quando já não existe). */
+  recap: (id: string): Promise<ZasRecap> => raw(`/instants/recaps/${encodeURIComponent(id)}`),
+  /** Publicar o resumo nos mimos (409 se já está num mimo que ainda existe). */
+  publishRecap: (id: string, audience: RecapAudience): Promise<{ storyId: string; recap: ZasRecap }> => raw(`/instants/recaps/${encodeURIComponent(id)}/publish`, post({ audience })),
+  /** Descartar o resumo (204). */
+  removeRecap: (id: string): Promise<void> => raw(`/instants/recaps/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };

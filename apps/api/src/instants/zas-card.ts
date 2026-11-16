@@ -16,10 +16,10 @@ import { zasCaptionGlyphs } from './zas-caption';
 export const ZAS_OUT = { W: 1080, H: 1920 } as const;
 
 /** O raio do ícone «bolt» da app (apps/mobile/src/icons/tx.ts), numa caixa de 24×24. */
-const BOLT = 'M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z';
-const BRAND = '#d6334f';
-const BG = '#08080b';
-const ZINC900 = '#18181b';
+export const BOLT = 'M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z';
+export const BRAND = '#d6334f';
+export const BG = '#08080b';
+export const ZINC900 = '#18181b';
 /** O expoente da superelipse da moldura (apps/mobile/src/components/zas/squircle.ts). */
 const SQ_N = 3.4;
 const sup = (c: number) => Math.sign(c) * Math.abs(c) ** (2 / SQ_N);
@@ -29,7 +29,7 @@ const REF_H = 520;
 const FONT_FILES = [resolve(__dirname, '../../assets/fonts/DejaVuSans-Bold.ttf'), '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'];
 const FAMILY = 'TxZasCard';
 let fontOk: boolean | null = null;
-function baseFont(): string {
+export function baseFont(): string {
   if (fontOk === null) {
     const f = FONT_FILES.find((p) => existsSync(p));
     fontOk = !!f && !!GlobalFonts.registerFromPath(f, FAMILY);
@@ -49,7 +49,7 @@ export function zasCardLayout(W: number = ZAS_OUT.W, H: number = ZAS_OUT.H) {
 }
 
 /** A forma squircle (superelipse) do cartão, como o clip-path do site. */
-function squirclePath(x: number, y: number, w: number, h: number, steps = 180): Path2D {
+export function squirclePath(x: number, y: number, w: number, h: number, steps = 180): Path2D {
   const p = new Path2D();
   for (let i = 0; i < steps; i++) {
     const t = (i / steps) * 2 * Math.PI;
@@ -109,6 +109,34 @@ function drawCaption(g: SKRSContext2D, w: number, h: number, text: string, font:
   }
 }
 
+/** A marca do Zás (o raio coral e «Zás» em itálico, como no topo do ecrã), centrada em `cx`, com o meio da linha em `y`. */
+export function drawZasMark(g: SKRSContext2D, cx: number, y: number, size: number) {
+  g.font = `bold ${size}px ${baseFont()}`;
+  const word = 'Zás';
+  const tw = g.measureText(word).width;
+  const bolt = size * 0.95, gap = size * 0.28;
+  const hx = cx - (bolt + gap + tw) / 2;
+  g.save();
+  g.translate(hx, y - bolt / 2);
+  g.scale(bolt / 24, bolt / 24);
+  g.fillStyle = BRAND;
+  g.strokeStyle = BRAND;
+  g.lineWidth = 1.6;
+  g.lineJoin = 'round';
+  const bp = new Path2D(BOLT);
+  g.fill(bp);
+  g.stroke(bp);
+  g.restore();
+  g.save();
+  g.translate(hx + bolt + gap, y + size * 0.36);
+  g.transform(1, 0, -0.2, 1, 0, 0);
+  g.fillStyle = '#ffffff';
+  g.textAlign = 'left';
+  g.textBaseline = 'alphabetic';
+  g.fillText(word, 0, 0);
+  g.restore();
+}
+
 /** O Zás desenhado como na app, em JPEG 1080×1920. */
 export async function renderZasCard(o: ZasCardInput): Promise<Buffer> {
   const { W, H } = ZAS_OUT;
@@ -127,30 +155,7 @@ export async function renderZasCard(o: ZasCardInput): Promise<Buffer> {
 
   // A marca do Zás (o raio coral e «Zás» em itálico, como no topo do ecrã), ao meio.
   const font = baseFont();
-  g.font = `bold ${L.headSize}px ${font}`;
-  const word = 'Zás';
-  const tw = g.measureText(word).width;
-  const bolt = L.headSize * 0.95, gap = L.headSize * 0.28;
-  const hx = (W - (bolt + gap + tw)) / 2;
-  g.save();
-  g.translate(hx, L.headY - bolt / 2);
-  g.scale(bolt / 24, bolt / 24);
-  g.fillStyle = BRAND;
-  g.strokeStyle = BRAND;
-  g.lineWidth = 1.6;
-  g.lineJoin = 'round';
-  const bp = new Path2D(BOLT);
-  g.fill(bp);
-  g.stroke(bp);
-  g.restore();
-  g.save();
-  g.translate(hx + bolt + gap, L.headY + L.headSize * 0.36);
-  g.transform(1, 0, -0.2, 1, 0, 0);
-  g.fillStyle = '#ffffff';
-  g.textAlign = 'left';
-  g.textBaseline = 'alphabetic';
-  g.fillText(word, 0, 0);
-  g.restore();
+  drawZasMark(g, W / 2, L.headY, L.headSize);
 
   // O cartão: a sombra por fora (drop-shadow 0 14 28 da app) e a moldura squircle.
   const shape = squirclePath(L.x, L.y, L.cardW, L.cardH);
