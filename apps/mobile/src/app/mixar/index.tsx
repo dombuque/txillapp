@@ -7,11 +7,11 @@ import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
-import { MixarBadge, PairAvatars } from '@/components/mixar/MixarBits';
+import { MixarBadge, MixarDot, PairAvatars } from '@/components/mixar/MixarBits';
 import { useMixarList } from '@/components/mixar/MixarEntry';
 import { mixarApi, mixarKeys, type MixarSummary } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
-import { firstName, mixarErrorText, newTodayLabel, sortSummaries, summaryLine } from '@/lib/mixar';
+import { firstName, mixarErrorText, mixarHasNew, sortSummaries, summaryLine } from '@/lib/mixar';
 import { MIXAR_PREVIEW_ID, isMixarPreview } from '@/lib/mixarPreview';
 import { colors } from '@/lib/theme';
 
@@ -52,6 +52,7 @@ export default function MixarList() {
   const row = (s: MixarSummary, kind: 'active' | 'received' | 'sent') => {
     const partner = { name: firstName(s.partner.displayName), username: s.partner.hasAvatar ? s.partner.username : undefined };
     const hot = kind === 'active' && (s.newToday > 0 || s.challengePending);
+    const fresh = mixarHasNew(s);
     return (
       <View key={s.id} style={st.card}>
         <Pressable onPress={() => router.push(`/mixar/${s.id}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`${s.name}. ${summaryLine(s, partner.name)}`}>
@@ -60,8 +61,8 @@ export default function MixarList() {
             {kind === 'active' ? <Text style={st.name} numberOfLines={1}>{s.name}</Text> : <NameWithBadge name={s.partner.displayName} who={s.partner} style={st.name} />}
             <Text style={[st.sub, hot && st.subHot]} numberOfLines={1}>{summaryLine(s, partner.name)}</Text>
           </View>
-          {kind === 'active' && s.newToday > 0 ? <View style={st.count} accessibilityLabel={newTodayLabel(s.newToday)}><Text style={st.countText}>{s.newToday > 24 ? '24+' : s.newToday}</Text></View> : null}
           {kind === 'active' && s.challengePending ? <Icon name="sparkles" size={18} color={colors.brand} /> : null}
+          {fresh ? <MixarDot inline label="Há novidades" /> : null}
           <Icon name="chevron-right" size={16} color={colors.zinc500} />
         </Pressable>
         {kind === 'received' ? (
@@ -130,8 +131,6 @@ const st = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
   sub: { marginTop: 2, fontSize: 14, color: colors.zinc500 },
   subHot: { color: colors.brand, fontWeight: '700' },
-  count: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  countText: { fontSize: 12, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] },
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
   btn: { flex: 1, minHeight: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   primary: { backgroundColor: colors.brand },

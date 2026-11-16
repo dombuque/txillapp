@@ -39,6 +39,9 @@ import { blockingError, threadErrorText } from '@/lib/chatErrors';
 import { clearPending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
+import { useMixarList } from '@/components/mixar/MixarEntry';
+import { MixarDot } from '@/components/mixar/MixarBits';
+import { mixarHasNew } from '@/lib/mixar';
 import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
 
@@ -68,6 +71,9 @@ export default function Thread() {
   const [ttlOpen, setTtlOpen] = useState(false);
   const [raised, setRaised] = useState(false);
   const mixar = useOpenMixar();
+  // A bolinha azul no ícone do Mixar quando o Mixar com esta pessoa tem sugestões novas, o desafio ou um convite (como no Instagram).
+  const mixarList = useMixarList(!!username);
+  const mixarNew = mixarHasNew(mixarList.data?.items?.find((s) => s.partner.username === username));
   const hiding = useChatHiding();
   const typing = useTyping(username);
   const typingSent = useRef(0);
@@ -282,7 +288,7 @@ export default function Thread() {
           <>
             {person && !first?.blocked ? (
               <>
-                {!request ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><Icon name="mixar" size={23} color={colors.zinc800} /></HeaderButton> : null}
+                {!request ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><View><Icon name="mixar" size={23} color={colors.zinc800} />{mixarNew ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
                 <HeaderButton label={`Ligar a ${person.displayName}`} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
                 <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton>
               </>

@@ -298,6 +298,16 @@ export function sortSummaries<T extends Pick<MixarSummary, 'status' | 'invitedBy
  * O acesso nas Mensagens: só aparece com Mixar ou convites (senão fica uma dica pequena). `line` diz o mais importante
  * primeiro: convites por responder, desafio, novos de hoje; senão quantos há.
  */
+/**
+ * Há novidade neste Mixar para mim (a bolinha azul, como no Instagram): um convite que recebi por responder, sugestões de
+ * hoje que ainda não vi ou o desafio de hoje à espera da minha escolha. Some quando vejo (o servidor baixa o newToday).
+ */
+export function mixarHasNew(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'> | null | undefined): boolean {
+  if (!s) return false;
+  if (s.status === 'pending') return !s.invitedByMe;
+  return s.status === 'active' && ((s.newToday || 0) > 0 || !!s.challengePending);
+}
+
 export function inboxEntry(items: readonly Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'>[] | null | undefined): { show: boolean; line: string; hot: boolean } {
   const list = items ?? [];
   if (!list.length) return { show: false, line: 'Junta os teus gostos com alguém: abre uma conversa e toca em «Mixar».', hot: false };

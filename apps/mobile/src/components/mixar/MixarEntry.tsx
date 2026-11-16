@@ -6,7 +6,7 @@ import { inboxEntry } from '@/lib/mixar';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
-import { MixarBadge } from './MixarBits';
+import { MixarBadge, MixarDot } from './MixarBits';
 
 /** A lista dos meus Mixar (a mesma query do ecrã /mixar). Falhar não incomoda ninguém: o acesso simplesmente não aparece. */
 export function useMixarList(enabled = true) {
@@ -47,7 +47,7 @@ export function MixarEntry() {
           </View>
         ))}
       </View>
-      {e.hot ? <View style={st.dot} /> : null}
+      {e.hot ? <MixarDot inline label="Há novidades" /> : null}
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );
@@ -60,7 +60,6 @@ const st = StyleSheet.create({
   subHot: { color: colors.brand, fontWeight: '700' },
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { borderRadius: 15, borderWidth: 2, borderColor: '#fff' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 6, marginBottom: 2, minHeight: 32 },
   hintText: { flex: 1, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
 });

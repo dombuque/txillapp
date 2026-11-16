@@ -121,6 +121,18 @@ export function TopicChips({ topics, tone = 'light', max, accent = false }: { to
 }
 
 /** O selo redondo do Mixar (o gradiente com as faíscas), para as listas e o cartão do chat. */
+/** A bolinha azul de «há sugestões novas» (como no Instagram). Por omissão fica no canto de cima, à direita, de quem a contém. */
+export function MixarDot({ size = 10, inline = false, label }: { size?: number; inline?: boolean; label?: string }) {
+  return (
+    <View
+      accessibilityLabel={label}
+      accessibilityElementsHidden={!label}
+      importantForAccessibility={label ? 'yes' : 'no-hide-descendants'}
+      style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.sky }, !inline && { position: 'absolute', top: -1, right: -1, borderWidth: 2, borderColor: '#fff', width: size + 4, height: size + 4, borderRadius: (size + 4) / 2 }]}
+    />
+  );
+}
+
 export function MixarBadge({ size = 44 }: { size?: number }) {
   return (
     <LinearGradient colors={MIXAR_GRADIENT} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}>

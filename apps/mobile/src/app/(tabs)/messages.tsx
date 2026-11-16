@@ -46,7 +46,9 @@ import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 import { usePagerPan } from '@/components/SwipePager';
 import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
-import { mixarPreview } from '@/lib/mixar';
+import { mixarHasNew, mixarPreview } from '@/lib/mixar';
+import { useMixarList } from '@/components/mixar/MixarEntry';
+import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
 import { ChatMenuSheet } from '@/components/ChatHeader';
 import { HIDDEN_PATH, HIDDEN_TITLE } from '@/lib/chatHidden';
@@ -240,6 +242,9 @@ export default function Messages() {
   }
   const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request, mixar: !r.g, name: r.name });
   const mixar = useOpenMixar();
+  // Mixar com novidades (sugestões de hoje por ver, o desafio ou um convite): o ícone com a bolinha azul na linha da conversa.
+  const mixarList = useMixarList();
+  const mixarNew = new Set((mixarList.data?.items ?? []).filter(mixarHasNew).map((s) => s.partner.username));
   // Esconder a conversa (sai da lista e do contador; fica em «Conversas ocultas», no "⋯" de cima).
   const hiding = useChatHiding();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -520,6 +525,9 @@ export default function Messages() {
               </View>
               <View style={styles.line}>
                 <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
+                {!r.g && r.username && mixarNew.has(r.username) ? (
+                  <View style={styles.mixarNew} accessibilityLabel="Mixar com novidades"><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
+                ) : null}
                 {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>
             </View>
@@ -671,6 +679,7 @@ const styles = StyleSheet.create({
   count: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 12, lineHeight: 15, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] },
   dot: { width: 12, height: 12, borderRadius: 6, marginRight: 5, backgroundColor: colors.brand },
+  mixarNew: { marginLeft: 6, marginRight: 2 },
 
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },

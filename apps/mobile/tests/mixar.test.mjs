@@ -358,3 +358,18 @@ test('desafio: as miniaturas têm largura e altura em px (no telemóvel, «33%»
   const cs = pages.slice(pages.indexOf('const cs = StyleSheet.create'));
   assert.doesNotMatch(cs.slice(0, cs.indexOf('optMine')), /aspectRatio/);
 });
+
+test('bolinha azul: só com convite recebido, sugestões novas ou desafio; aparece no acesso, na lista e no ícone do chat', () => {
+  assert.equal(x.mixarHasNew(null), false);
+  assert.equal(x.mixarHasNew(summary({ status: 'pending', invitedByMe: false })), true);
+  assert.equal(x.mixarHasNew(summary({ status: 'pending', invitedByMe: true })), false);
+  assert.equal(x.mixarHasNew(summary({ status: 'active', newToday: 2, challengePending: false })), true);
+  assert.equal(x.mixarHasNew(summary({ status: 'active', newToday: 0, challengePending: true })), true);
+  assert.equal(x.mixarHasNew(summary({ status: 'active', newToday: 0, challengePending: false })), false);
+  const bits = read('components', 'mixar', 'MixarBits.tsx');
+  assert.match(bits, /export function MixarDot[\s\S]*?colors\.sky/);
+  assert.match(read('components', 'mixar', 'MixarEntry.tsx'), /<MixarDot inline/);
+  assert.match(read('app', 'mixar', 'index.tsx'), /mixarHasNew\(s\)[\s\S]*<MixarDot inline/);
+  assert.match(read('app', '(tabs)', 'messages.tsx'), /filter\(mixarHasNew\)[\s\S]*mixarNew\.has\(r\.username\)[\s\S]*<MixarDot/);
+  assert.match(read('app', 'messages', '[username].tsx'), /mixarHasNew\(mixarList\.data\?\.items\?\.find[\s\S]*\{mixarNew \? <MixarDot/);
+});
