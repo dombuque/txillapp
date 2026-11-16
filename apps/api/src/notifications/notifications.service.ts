@@ -57,6 +57,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // Txillada (0158): alguém que sigo abriu uma Txillada (no máximo um aviso por anfitrião por hora). Ator = o anfitrião.
   // data: { txilladaId, title }. A lista junta `txillada: { status }` (para dizer logo se já acabou).
   | 'txillada_live'
+  // «Convidar por @» (0168): o anfitrião convidou-me para transmitir na Txillada dele (também sem eu estar a ver). Ator = o
+  // anfitrião. data: { txilladaId, title }. Abre a Txillada (numa privada, entro sem pagar). A lista junta `txillada: { status }`.
+  | 'txillada_invite'
   // Resumo semanal dos Zás (0164): o meu resumo da semana está pronto (domingo à noite). Ator = a própria pessoa; a lista
   // mostra-o como Txillapp, com a miniatura do resumo enquanto ele existe. data: { recapId, label, count }. Ver notifyZasRecap.
   | 'zas_recap';
@@ -82,7 +85,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   remix: 'remixes',
   // O pedido publicado é uma identificação: desliga-se com as menções. «Já paguei» vai com as mensagens (é entre os dois).
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
-  txillada_live: 'txilladas',
+  txillada_live: 'txilladas', txillada_invite: 'txilladas',
   zas_recap: 'zas',
 };
 
@@ -202,6 +205,7 @@ export class NotificationsService {
     const who = STAFF_KINDS.has(n.kind) ? 'Txillapp' : ((a?.display_name as string | undefined) ?? 'Alguém');
     const postId = n.data?.postId as string | undefined;
     const commentId = n.data?.commentId as string | undefined;
+    const txUrl = typeof n.data?.txilladaId === 'string' ? `/txillada/${encodeURIComponent(n.data.txilladaId)}` : '/notifications';
     const groupUrl = typeof n.data?.groupId === 'string' ? `/messages/g/${n.data.groupId}` : '/notifications';
     const atComment = postId ? `/p/${postId}?comments=1${commentId ? `&c=${commentId}` : ''}` : '/notifications';
     const t: Partial<Record<NotificationKind, { body: string; url: string }>> = {
@@ -232,6 +236,8 @@ export class NotificationsService {
       group_admin_granted: { body: `fez-te administrador de ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl === '/notifications' ? groupUrl : `${groupUrl}?info=1` },
       // Abre o meu perfil, onde está a geleira (e quem a brindou).
       geleira_cheer: { body: 'brindou a tua geleira', url: '/profile' },
+      // «Convidar por @» (0168): abre a Txillada, onde está o cartão do convite (numa privada, sem pagar).
+      txillada_invite: { body: `@${(a?.username as string | undefined) ?? 'alguém'} convidou-te para transmitir na Txillada`, url: txUrl },
       // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
       invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
       // Moderação: o texto no telemóvel não leva o motivo (o ecrã de bloqueio é público); o motivo está na lista.
@@ -506,7 +512,7 @@ export class NotificationsService {
                 WHERE n.kind = 'cheer' AND n.data->>'target' = 'story_comment' AND (n.data->>'storyId') ~ '^[0-9a-f-]{36}$'
                   AND st.id = (n.data->>'storyId')::uuid AND st.expires_at > now() AND ma.status = 'ready') AS story_thumb,
               (SELECT tx.status FROM content.txilladas tx
-                WHERE n.kind = 'txillada_live' AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status,
+                WHERE n.kind IN ('txillada_live', 'txillada_invite') AND (n.data->>'txilladaId') ~ '^[0-9a-f-]{36}$' AND tx.id = (n.data->>'txilladaId')::uuid) AS tx_status,
               -- O resumo dos Zás (0164): a imagem, enquanto o resumo existe (é só meu).
               (SELECT zr.media_id FROM social.zas_recaps zr
                 WHERE n.kind = 'zas_recap' AND (n.data->>'recapId') ~ '^[0-9a-f-]{36}$' AND zr.id = (n.data->>'recapId')::uuid
@@ -537,7 +543,7 @@ export class NotificationsService {
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
         ...(r.kind === 'cheer' ? { cheer: cheers.get(r.id as string) ?? { count: 0, actors: [] } } : {}),
         // Txillada: ainda está a decorrer? ('live' entra; 'ended'/'cut', ou null se já não existe, diz que acabou).
-        ...(r.kind === 'txillada_live' ? { txillada: { status: (r.tx_status as string | null) ?? null } } : {}),
+        ...(r.kind === 'txillada_live' || r.kind === 'txillada_invite' ? { txillada: { status: (r.tx_status as string | null) ?? null } } : {}),
       })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };

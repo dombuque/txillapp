@@ -59,7 +59,7 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
-  txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada'],
+  txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada ou te convida para transmitir'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
 };

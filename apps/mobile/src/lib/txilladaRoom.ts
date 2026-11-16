@@ -23,7 +23,7 @@ import {
 } from '@/lib/txillada';
 import type { GiftResult } from '@/lib/api.txillada';
 import {
-  guestNotice, guestsInit, guestsReduce, parseGuestEvent, stageIds, stageLayout, stagePeople, tileQuality, type GuestState,
+  guestNotice, guestsInit, guestsReduce, inviteErrorText, parseGuestEvent, stageIds, stageLayout, stagePeople, tileQuality, type GuestState,
 } from '@/lib/txilladaGuests';
 import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
@@ -536,6 +536,21 @@ export function useTxillada(id: string) {
     }
   }
 
+  /**
+   * «Convidar por @» (0168): o anfitrião convida alguém que pode ainda não estar a ver (recebe um aviso que abre a Txillada).
+   * As listas mudam logo; devolve a mensagem de erro em palavras claras, ou null.
+   */
+  async function inviteByAt(username: string): Promise<string | null> {
+    try {
+      const r = await txilladaApi.guestInvite(id, username);
+      if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
+      return null;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      return inviteErrorText(e instanceof ApiError ? { status: e.status, code: e.code, message: e.message, extra: e.extra } : null, username);
+    }
+  }
+
   // Os quadrados: o anfitrião e os convidados, cada um com a sua faixa (a minha câmara, se transmito, sem passar pela rede).
   const tiles: StageTile[] = people.map((p) => {
     const local = !!myId && p.id === myId;
@@ -699,6 +714,6 @@ export function useTxillada(id: string) {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
     toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, pay, gift, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
     // Convidados (0165).
-    guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest,
+    guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest, inviteByAt,
   };
 }
