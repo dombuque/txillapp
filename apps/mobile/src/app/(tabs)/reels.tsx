@@ -629,7 +629,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
       {/* Em baixo: o @ com o selo, a legenda (expande ao tocar), as hashtags, o local e o letreiro do som. */}
       <Animated.View style={[st.info, { bottom: infoBottom, opacity: chrome }]} pointerEvents={scrubbing || comments ? 'none' : 'box-none'} onLayout={(e) => setInfoW(Math.round(e.nativeEvent.layout.width))}>
         {/* Os meus amigos próximos que brindaram, a flutuar por cima do @, da legenda e do letreiro do som (abre «Quem brindou»). */}
-        <CheeredFriends post={post} onOpen={() => setPeople('cheers')} size={42} style={st.friends} />
+        <CheeredFriends post={post} onOpen={() => setPeople('cheers')} size={34} style={st.friends} />
         {infoExtra}
         {/* «Dueto com @x» / «Resposta a @y»: leva ao original. */}
         {post.remixOf ? <View style={{ marginBottom: 8 }}><RemixTag remix={post.remixOf} /></View> : null}
