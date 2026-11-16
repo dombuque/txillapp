@@ -46,8 +46,8 @@ import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
  * A Txillada não se grava (nem as reações): quando acaba, já não se pode ver («A Txillada acabou»); o anfitrião vê o resumo.
  *
  * Convidados (0165): até 3 pessoas transmitem com o anfitrião. Quem vê toca em «Pedir para entrar» (ou aceita o convite do
- * anfitrião, que convida da lista «A ver agora»); o anfitrião aceita, recusa e tira na lista dos convidados (o botão das
- * pessoas, com o número de pedidos). O ecrã reparte-se: 1 = inteiro; 2 = uma em cima da outra; 3 = uma grande em cima e duas
+ * anfitrião, que convida da lista «A ver agora» ou por @ na lista dos convidados, 0168: também quem ainda não entrou, que
+ * recebe um aviso); o anfitrião aceita, recusa e tira na lista dos convidados (o botão das pessoas, com o número de pedidos). O ecrã reparte-se: 1 = inteiro; 2 = uma em cima da outra; 3 = uma grande em cima e duas
  * em baixo; 4 = grelha 2×2 (components/txillada/TxilladaGuests `TxilladaStage`). Os comentários, as reações, o fixado e a
  * barra ficam por cima, como sempre.
  *
@@ -524,6 +524,8 @@ export default function TxilladaScreen() {
           <Panel title="Convidados" onClose={() => setPanel(null)}>
             <GuestsPanel
               s={tx.guests}
+              paid={paid}
+              onInvite={tx.inviteByAt}
               onAccept={(u) => hostGuest('accept', u)}
               onDecline={(u) => hostGuest('decline', u)}
               onRemove={(u) => hostGuest('remove', u)}

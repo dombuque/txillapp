@@ -1,12 +1,18 @@
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { TxilladaVideo } from '@/components/txillada/TxilladaVideo';
+import { api } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import type { TxilladaPerson } from '@/lib/txillada';
-import { GUESTS_MAX, labelOffset, stageLayout, type GuestPending, type GuestsState } from '@/lib/txilladaGuests';
+import {
+  GUESTS_MAX, inviteHandle, inviteInput, inviteRow, inviteSentText, labelOffset, stageLayout, type GuestPending, type GuestsState,
+} from '@/lib/txilladaGuests';
 import type { StageTile } from '@/lib/txilladaRoom';
 
 /**
@@ -79,7 +85,7 @@ export function InviteCard({ inviter, busy, onAccept, onDecline }: { inviter: { 
 }
 
 /** Uma fila da lista dos convidados (no painel branco). */
-function Row({ p, children }: { p: GuestPending | { user: TxilladaPerson }; children: React.ReactNode }) {
+function Row({ p, children }: { p: GuestPending | { user: Pick<TxilladaPerson, 'username' | 'displayName' | 'avatarUrl' | 'verified' | 'verifiedTier'> }; children: React.ReactNode }) {
   const u = p.user;
   return (
     <View style={st.row}>
@@ -101,14 +107,94 @@ function Small({ label, kind = 'ghost', onPress, disabled }: { label: string; ki
   );
 }
 
+const SUGGEST_MS = 180;
+
 /**
- * O anfitrião: quem transmite (tirar), os pedidos para entrar (aceitar até 3, recusar) e os convites à espera (retirar).
- * Convidar faz-se em «A ver agora».
+ * «Convidar por @» (0168): o anfitrião escreve o @ (com as sugestões das pessoas mais próximas, com o selo) e convida. Também
+ * quem ainda não entrou: a pessoa recebe um aviso que abre a Txillada (numa privada, entra sem pagar). Os erros vêm em
+ * palavras claras (lib/txilladaGuests `inviteErrorText`): já convidado, já a transmitir, sem lugar, não encontrado.
  */
-export function GuestsPanel({ s, onAccept, onDecline, onRemove, onOpenViewers }: { s: GuestsState; onAccept: (u: string) => void; onDecline: (u: string) => void; onRemove: (u: string) => void; onOpenViewers: () => void }) {
+export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boolean; onInvite: (username: string) => Promise<string | null> }) {
+  const [text, setText] = useState('');
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => setQ(text), SUGGEST_MS);
+    return () => clearTimeout(t);
+  }, [text]);
+  const res = useQuery({
+    queryKey: ['txillada-invite-suggest', q],
+    queryFn: () => api.mentionSuggest(q),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+  const items = (res.data?.items ?? []).slice(0, 6);
+  const handle = inviteHandle(text);
+  const full = s.guests.length >= GUESTS_MAX;
+  async function send(username: string) {
+    if (busy) return;
+    setBusy(username);
+    setMsg(null);
+    const e = await onInvite(username);
+    setBusy(null);
+    setMsg(e ? { ok: false, text: e } : { ok: true, text: inviteSentText(username) });
+    if (!e) setText('');
+  }
+  return (
+    <View>
+      <Text style={st.section}>Convidar por @</Text>
+      <View style={st.atField}>
+        <Text style={st.atSign}>@</Text>
+        <TextInput
+          value={text}
+          onChangeText={(t) => { setText(inviteInput(t)); if (msg) setMsg(null); }}
+          placeholder="nome de utilizador"
+          placeholderTextColor={colors.zinc500}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          returnKeyType="send"
+          onSubmitEditing={() => { if (handle) void send(handle); }}
+          style={st.atInput}
+          maxLength={30}
+          accessibilityLabel="Convidar por @: o nome de utilizador"
+        />
+        <Small label={busy && busy === handle ? 'A convidar…' : 'Convidar'} kind="brand" disabled={!handle || !!busy || full} onPress={() => { if (handle) void send(handle); }} />
+      </View>
+      <Text style={[st.hint, { marginTop: 6 }]}>
+        {full ? `Já há ${GUESTS_MAX} a transmitir contigo: tira alguém para convidares outra pessoa.` : `Também quem ainda não entrou: recebe um aviso para entrar${paid ? ' sem pagar' : ''}.`}
+      </Text>
+      {msg ? <Text style={[st.atMsg, msg.ok ? st.atOk : st.atErr]} accessibilityRole="alert">{msg.text}</Text> : null}
+      {res.isFetching && !items.length ? <View style={{ paddingVertical: 10 }}><ActivityIndicator color={colors.brand} /></View> : null}
+      {items.map((p) => {
+        const row = inviteRow(s, p.username);
+        const user = { username: p.username, displayName: p.displayName, avatarUrl: p.hasAvatar ? `/api/v1/avatars/${encodeURIComponent(p.username)}` : null, verified: p.verified, verifiedTier: p.verifiedTier };
+        return (
+          <Row key={p.username} p={{ user }}>
+            {row.can
+              ? <Small label={busy === p.username ? 'A convidar…' : row.label} kind="brand" disabled={!!busy} onPress={() => void send(p.username)} />
+              : <Text style={st.rowState}>{row.label}</Text>}
+          </Row>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * O anfitrião: «Convidar por @» (0168), quem transmite (tirar), os pedidos para entrar (aceitar até 3, recusar) e os
+ * convites à espera (retirar). Também se convida em «A ver agora».
+ */
+export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, onOpenViewers }: {
+  s: GuestsState; paid?: boolean; onAccept: (u: string) => void; onDecline: (u: string) => void; onRemove: (u: string) => void;
+  onInvite: (u: string) => Promise<string | null>; onOpenViewers: () => void;
+}) {
   const full = s.guests.length >= GUESTS_MAX;
   return (
-    <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: 8 }}>
+    <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
+      <InviteByAt s={s} paid={paid} onInvite={onInvite} />
       <Text style={st.section}>A transmitir contigo · {s.guests.length}/{GUESTS_MAX}</Text>
       {s.guests.length ? s.guests.map((g) => (
         <Row key={g.user.id} p={g}><Small label="Tirar" kind="danger" onPress={() => onRemove(g.user.username)} /></Row>
@@ -167,4 +253,11 @@ const st = StyleSheet.create({
   smallText: { color: colors.zinc900, fontSize: 14, fontWeight: '700' },
   viewersLink: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
   viewersLinkText: { color: colors.brand, fontSize: 15, fontWeight: '700' },
+  atField: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, marginTop: 4, paddingLeft: 14, paddingRight: 6, borderRadius: 23, backgroundColor: colors.zinc100 },
+  atSign: { color: colors.zinc500, fontSize: 16, fontWeight: '700' },
+  atInput: { flex: 1, minWidth: 0, height: 44, color: colors.zinc900, fontSize: 16, outlineStyle: 'none' as never },
+  atMsg: { marginHorizontal: 4, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', fontSize: 14, fontWeight: '600' },
+  atOk: { color: colors.zinc900, backgroundColor: colors.zinc100 },
+  atErr: { color: colors.red600, backgroundColor: 'rgba(220,38,38,0.08)' },
+  rowState: { color: colors.zinc500, fontSize: 13.5, fontWeight: '700', paddingHorizontal: 6 },
 });

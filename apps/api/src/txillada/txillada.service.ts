@@ -1099,38 +1099,45 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   }
 
   /**
-   * O anfitrião convida alguém que está a ver (da lista «A ver agora»): conta ativa, 18 anos ou mais, sem bloqueio, não
-   * expulso. Quem já pediu para entrar fica logo aceite. Com 3 a transmitir: 409. A pessoa recebe `txillada.invite`.
+   * O anfitrião convida alguém para transmitir: da lista «A ver agora» ou pelo @ (0168, «Convidar por @»: também quem ainda
+   * não entrou, em qualquer tipo, desde que possa ver a Txillada). Conta ativa, 18 anos ou mais, sem bloqueio, não expulso.
+   * Quem já pediu para entrar fica logo aceite. Com 3 a transmitir: 409. A pessoa recebe `txillada.invite` e, se não está a
+   * ver, o aviso 'txillada_invite' (lista e telemóvel; no máximo um por Txillada a cada 10 min), que abre a Txillada. Numa
+   * privada, quem é convidado entra sem pagar (txilladaTicket).
    */
   async invite(me: string, id: string, username: string) {
     const r = await this.hostLive(me, id);
     if ((await this.rates.hit(`tx:invite:${me}`, 60_000)) > INVITES_PER_MIN) throw new HttpException('Calma! Muitos convites seguidos.', HttpStatus.TOO_MANY_REQUESTS);
     const t = await this.guestTarget(me, username);
     const banned = (await this.pool.query('SELECT 1 FROM content.txillada_bans WHERE txillada_id = $1 AND user_id = $2', [id, t.id])).rowCount;
-    // Numa paga (0167), o anfitrião pode convidar quem ainda não entrou (pelo @): quem é convidado entra de graça. Tem de a
-    // poder ver (o perfil do anfitrião), como toda a gente.
-    const paidInvite = r.audience === 'paid' && !banned && !!(await this.pool.query(
+    if (banned) throw new ConflictException(`Tiraste @${t.username} desta Txillada: já não pode voltar a entrar.`);
+    // Pelo @ (0168): quem ainda não entrou também, em qualquer tipo, se a pode ver (o público escolhido, como toda a gente).
+    const watching = await this.watching(id, t.id);
+    const canSee = watching || !!(await this.pool.query(
       `SELECT 1 FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $1 AND ${txilladaVisible('t', 'h', '$2::uuid')}`,
       [id, t.id],
     )).rowCount;
-    if (banned || (!paidInvite && !(await this.watching(id, t.id)))) {
-      throw new ConflictException(r.audience === 'paid' ? `@${t.username} não pode ver a tua Txillada.` : `Só podes convidar quem está a ver a tua Txillada.`);
-    }
+    if (!canSee) throw new ConflictException(`@${t.username} não pode ver a tua Txillada.`);
     // Sem dizer porquê (a idade de outra pessoa não se mostra).
     if (!(await this.canBroadcast(t.id))) throw new ForbiddenException(`Não podes convidar @${t.username} para transmitir.`);
     const g = await this.guestRow(id, t.id);
     if (g?.status === 'accepted') throw new ConflictException(`@${t.username} já está a transmitir.`);
     if (g?.status === 'pending' && g.kind === 'request') return this.acceptRequest(me, id, t.username);
-    if (g?.status !== 'pending') {
-      const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [id])).rows[0].n as number;
-      if (n >= GUESTS_MAX) throw new ConflictException(GUESTS_FULL);
-      await this.pool.query(
-        `INSERT INTO content.txillada_guests (txillada_id, user_id, kind, status) VALUES ($1, $2, 'invite', 'pending')
-         ON CONFLICT (txillada_id, user_id) DO UPDATE SET kind = 'invite', status = 'pending', since = NULL, updated_at = now()
-          WHERE content.txillada_guests.status NOT IN ('pending', 'accepted')`,
-        [id, t.id],
-      );
+    if (g?.status === 'pending') throw new ConflictException({ message: `Já convidaste @${t.username}. Espera pela resposta.`, code: 'already_invited' });
+    const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [id])).rows[0].n as number;
+    if (n >= GUESTS_MAX) throw new ConflictException({ message: GUESTS_FULL, code: 'guests_full' });
+    const ins = await this.pool.query(
+      `INSERT INTO content.txillada_guests (txillada_id, user_id, kind, status) VALUES ($1, $2, 'invite', 'pending')
+       ON CONFLICT (txillada_id, user_id) DO UPDATE SET kind = 'invite', status = 'pending', since = NULL, updated_at = now()
+        WHERE content.txillada_guests.status NOT IN ('pending', 'accepted')`,
+      [id, t.id],
+    );
+    if (ins.rowCount) {
       this.bus.publish(t.id, { type: 'txillada.invite', txilladaId: id, host: publicPerson(r, 'h_') });
+      // Quem não está a ver não tem o cartão do convite à vista: o aviso leva-o à Txillada (no máximo um a cada 10 min).
+      if (!watching && (await this.bus.claimOnce(`tx:invnote:${id}:${t.id}`, 10 * 60_000))) {
+        await this.notifications.notify({ userId: t.id, actorId: me, kind: 'txillada_invite', data: { txilladaId: id, title: r.title as string } });
+      }
     }
     return this.sendLists(id, me);
   }

@@ -54,6 +54,8 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
   A exportação junta `txilladaTickets` (as entradas que paguei: anfitrião, preço, horas, `refundedAt`), `txilladaGiftsGiven`
   (as ofertas que fiz), `txilladaTicketsSold` e `txilladaGiftsReceived` (nas minhas, com o @ de quem pagou, como no histórico
   da carteira); `txilladas` passa a levar `price`, `goal`, `goalPurpose`, `raised` e `tickets`.
+- **0168_txillada_convite_aviso.sql:** `social.notifications.kind` ganha `'txillada_invite'` (o aviso de «Convidar por @»;
+  ver a secção dela).
 - **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários,
   expulsões e convidados (0165), menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia
   aberta (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
@@ -95,10 +97,11 @@ da conta; os nomes vêm dos DTO da API (o token do convidado não leva nome nem 
 - **Pedir para entrar:** quem vê (conta ativa, 18 anos ou mais, não expulso, sem bloqueio com o anfitrião) pede; o anfitrião
   recebe `txillada.request` e vê o pedido em `requests` (aceitar ou recusar). Um pedido à espera não se repete; depois de
   recusado (ou de desistir), 1 pedido a cada 20 s (429). Com um convite à espera, pedir aceita-o.
-- **Convidar:** o anfitrião convida quem está a ver (a lista «A ver agora»: fez `join` e não saiu; senão 409); conta ativa,
-  18 anos ou mais (senão 403 «Não podes convidar @x para transmitir.», sem dizer porquê), sem bloqueio (404), não expulso
-  (409); 20 convites por minuto. A pessoa recebe `txillada.invite` (com quem convidou e o selo) e aceita ou recusa. Convidar
-  quem pediu aceita o pedido.
+- **Convidar:** o anfitrião convida quem está a ver (a lista «A ver agora») ou, desde a 0168, pelo @ quem ainda não entrou
+  (ver «Convidar por @ (0168)»); conta ativa, 18 anos ou mais (senão 403 «Não podes convidar @x para transmitir.», sem dizer
+  porquê), sem bloqueio (404), que pode ver a Txillada (409 «@x não pode ver a tua Txillada.»), não expulso (409); 20
+  convites por minuto. A pessoa recebe `txillada.invite` (com quem convidou e o selo) e aceita ou recusa. Convidar quem pediu
+  aceita o pedido; convidar outra vez quem já tem um convite à espera dá 409 `already_invited`.
 - **Aceitar:** com a linha da Txillada trancada, conta os que transmitem — **no máximo 3 (409 «Já há 3 convidados a
   transmitir…»)**; a pessoa tem de estar a ver. A API muda a permissão no LiveKit sem voltar a entrar
   (`RoomService.updateParticipant`, `canPublish: true`; o `LiveKitRooms.setCanPublish` injetável) e a sala recebe
@@ -115,7 +118,7 @@ da conta; os nomes vêm dos DTO da API (o token do convidado não leva nome nem 
 | Rota (prefixo /api/v1, com sessão) | Quem | Resposta |
 |---|---|---|
 | `POST /txilladas/:id/guests/request` | quem vê | `{ state: 'requested' }` (ou `{ state: 'guest', guests }` com um convite à espera) — 400 anfitrião, 403 menor/expulso, 404, 409 já transmite/acabada, 429 |
-| `POST /txilladas/:id/guests/invite` `{ username }` | anfitrião | `{ guests, requests, invites }` — 403/404/409/429 como acima |
+| `POST /txilladas/:id/guests/invite` `{ username }` (com ou sem o @) | anfitrião | `{ guests, requests, invites }` — 403/404/409/429 como acima; 409 `{ code: 'already_invited' }` com um convite à espera, 409 `{ code: 'guests_full' }` com 3 a transmitir |
 | `POST /txilladas/:id/guests/accept` | quem foi convidado | `{ state: 'guest', guests }` — 404 sem convite, 409 com 3 ou sem estar a ver |
 | `POST /txilladas/:id/guests/decline` | quem foi convidado | `{ state: 'none' }`; o anfitrião recebe `txillada.invite_declined` |
 | `POST /txilladas/:id/guests/leave` | convidado, quem pediu ou foi convidado | `{ state: 'none' }` (sair do ecrã, desistir do pedido, recusar o convite) |
@@ -140,6 +143,34 @@ microfone calado e um contorno coral em quem fala (`ActiveSpeakersChanged`); nos
 cartão do convite (aceitar abre a câmara antes de dizer que sim); a transmitir: microfone, virar e «Sair do ecrã». O
 anfitrião: o botão das pessoas com o número de pedidos (a lista: tirar, aceitar, recusar, retirar) e «Convidar para
 transmitir» em «A ver agora». Todos recebem as faixas de quem transmite (o anfitrião também: as dos convidados).
+
+### Convidar por @ (0168)
+
+O anfitrião convida para transmitir **pelo @**, também quem ainda não entrou, em qualquer tipo (Pública, Para amigos,
+Privada), desde que essa pessoa possa ver a Txillada (`txilladaVisible`: o público escolhido, bloqueios, conta privada). A
+mesma rota (`POST /txilladas/:id/guests/invite` `{ username }`) e as mesmas regras (18+, sem bloqueio: 404, não expulso,
+no máximo 3 a transmitir). O convite fica à espera (`txillada_guests`, `kind: 'invite'`, `status: 'pending'`) até a pessoa
+entrar e aceitar (aceitar continua a pedir que esteja a ver: 409 «Entra na Txillada para aceitares o convite.»).
+
+- **O aviso** (`social.notifications.kind = 'txillada_invite'`, migração **0168_txillada_convite_aviso.sql**, que junta o
+  tipo ao `notifications_kind_check`): ator = o anfitrião, `data: { txilladaId, title }`. Só a quem **não está a ver**
+  (quem está a ver recebe o cartão do convite pelo `txillada.invite`), no máximo **um por pessoa e Txillada a cada 10 min**
+  (retirar e voltar a convidar não repete). Categoria **«Txilladas»** (desligada: nem lista nem telemóvel). No telemóvel:
+  título = o nome do anfitrião, texto «@anfitrião convidou-te para transmitir na Txillada» (sem o título, o ecrã de bloqueio
+  é público), `url: /txillada/<id>`. Bloqueios: não se convida quem tem um bloqueio com o anfitrião (404), e um bloqueio
+  depois do aviso esconde-o da lista e retira o convite. A lista (`GET /notifications`) junta `txillada: { status }`, como
+  no `txillada_live`.
+- **Numa privada** quem é convidado entra **sem pagar** (`txilladaTicket`: um convite à espera, a transmitir, ou já
+  transmitiu e saiu pelo próprio pé): o `GET` dá `locked: false`, `hasTicket: true`, e o `join` não pede a entrada.
+
+**App:** em `GuestsPanel` (o botão das pessoas do anfitrião), no topo, «Convidar por @» (`InviteByAt`): o campo com o @,
+as sugestões das pessoas mais próximas (`GET /mentions/suggest`, com o selo), o botão de cada uma (`inviteRow`: Convidar,
+Aceitar quem pediu, Convidado, A transmitir, Sem lugar) e os erros em palavras claras (`inviteErrorText`: já convidado, já a
+transmitir, sem lugar, não encontrado, não pode ver). Lógica em `lib/txilladaGuests.ts` (`inviteHandle`, `inviteInput`,
+`inviteRow`, `inviteErrorText`), o pedido em `useTxillada().inviteByAt`. A lista das notificações mostra «@x convidou-te para
+transmitir na Txillada: <título>» (com o selo; «Entra e aceita o convite» ou «Já acabou» por baixo) e abre a Txillada
+(`lib/txillada.ts` `inviteNoticeText`, `inviteNoticeSub`). Testes: `apps/api/src/txillada/txillada-convidar.e2e.spec.ts`,
+`apps/mobile/tests/txilladaConvidar.test.mjs`.
 
 ## Tipos e Angariação (0167)
 

@@ -630,6 +630,16 @@ export function noticeSub(tx: { status?: unknown } | null | undefined): string |
   if (!tx || typeof tx !== 'object') return undefined;
   return tx.status === 'live' ? undefined : 'Já acabou';
 }
+/** A notificação `txillada_invite` (0168): «convidou-te para transmitir na Txillada: <título>» (o @ e o selo vêm antes). */
+export function inviteNoticeText(data: { title?: unknown } | null | undefined): string {
+  const t = typeof data?.title === 'string' ? data.title.trim() : '';
+  return t ? `convidou-te para transmitir na Txillada: ${t}` : 'convidou-te para transmitir na Txillada';
+}
+/** Por baixo: a decorrer, «Entra e aceita o convite»; acabada, «Já acabou»; sem o estado (servidor antigo), nada. */
+export function inviteNoticeSub(tx: { status?: unknown } | null | undefined): string | undefined {
+  if (!tx || typeof tx !== 'object') return undefined;
+  return tx.status === 'live' ? 'Entra e aceita o convite' : 'Já acabou';
+}
 
 // ─── Os balões a flutuar ───────────────────────────────────────────────────────────────────────────────────────────────
 

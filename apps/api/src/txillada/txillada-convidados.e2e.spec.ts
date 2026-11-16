@@ -170,7 +170,10 @@ describe('Txillada: convidados a transmitir (integração)', () => {
     // Só o anfitrião convida; quem não está a ver, não; quem tem bloqueio não existe para ele; um menor, sem dizer porquê.
     await api().post(`/api/v1/txilladas/${id}/guests/invite`).set(auth(eva)).send({ username: lia.username }).expect(403);
     const inv = (x: string) => api().post(`/api/v1/txilladas/${id}/guests/invite`).set(auth(host)).send({ username: x });
-    expect((await inv(out.username).expect(409)).body.message).toBe('Só podes convidar quem está a ver a tua Txillada.');
+    // Quem ainda não está a ver também se convida pelo @ (0168; txillada-convidar.e2e.spec.ts); aqui retira-se logo.
+    expect(names((await inv(out.username).expect(200)).body.invites)).toEqual([out.username]);
+    expect((await inv(out.username).expect(409)).body).toMatchObject({ code: 'already_invited' });
+    await g(host, id, `${out.username}/remove`).expect(200);
     await inv(blk.username).expect(404);
     expect((await inv(minor.username).expect(403)).body.message).toBe(`Não podes convidar @${minor.username} para transmitir.`);
     await inv(host.username).expect(400);

@@ -217,6 +217,58 @@ export function viewerGuestAction(s: GuestsState, username: string): 'invite' | 
   return s.guests.length >= GUESTS_MAX ? 'full' : 'invite';
 }
 
+// ─── Convidar por @ (0168) ────────────────────────────────────────────────────────────────────────────────────────────
+
+/** O @ escrito em «Convidar por @»: sem o @ e sem espaços. Null se não é um @ possível (3 a 30: letras, números, _ e .). */
+export function inviteHandle(text: string): string | null {
+  const t = String(text ?? '').trim().replace(/^@+/, '').trim();
+  return /^[A-Za-z0-9_.]{3,30}$/.test(t) ? t : null;
+}
+
+/** O que se escreve no campo: só o que cabe num @ (o @ do princípio fica de fora, o campo já o mostra). */
+export function inviteInput(text: string): string {
+  return String(text ?? '').replace(/^\s*@+/, '').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 30);
+}
+
+/**
+ * Cada sugestão em «Convidar por @»: o botão à direita. `can`: dá para convidar (senão o rótulo diz porquê). Sem lugar
+ * (3 a transmitir) não se convida ninguém novo; quem pediu para entrar aceita-se com o mesmo toque.
+ */
+export function inviteRow(s: GuestsState, username: string): { label: string; can: boolean } {
+  const u = username.toLowerCase();
+  const has = (list: readonly { user: { username: string } }[]) => list.some((g) => g.user.username.toLowerCase() === u);
+  if (has(s.guests)) return { label: 'A transmitir', can: false };
+  if (has(s.invites)) return { label: 'Convidado', can: false };
+  if (s.guests.length >= GUESTS_MAX) return { label: 'Sem lugar', can: false };
+  if (has(s.requests)) return { label: 'Aceitar', can: true };
+  return { label: 'Convidar', can: true };
+}
+
+/** O aviso depois de convidar: a pessoa recebe o convite no ecrã (se está a ver) ou um aviso que abre a Txillada. */
+export function inviteSentText(username: string): string {
+  return `Convite enviado a @${username}`;
+}
+
+/**
+ * Convidar pelo @ não deu: em palavras claras. A mensagem do servidor vale mais (já convidado, já a transmitir, não pode ver,
+ * expulso), menos no 404: quem não existe e quem tem um bloqueio contigo respondem o mesmo (não se diz qual).
+ */
+export function inviteErrorText(e: { status?: number; code?: string; message?: string; extra?: Record<string, unknown> } | null | undefined, username: string): string {
+  const code = e?.code ?? (typeof e?.extra?.code === 'string' ? e.extra.code : undefined);
+  const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
+  switch (e?.status) {
+    case 404: return `Não encontrámos @${username}. Confirma o @ e tenta outra vez.`;
+    case 409:
+      if (code === 'already_invited') return `Já convidaste @${username}. Espera pela resposta.`;
+      if (code === 'guests_full' || /Já há \d/.test(m)) return `Já há ${GUESTS_MAX} a transmitir contigo. Tira alguém para convidares outra pessoa.`;
+      return m || `Não deu para convidar @${username}.`;
+    case 403: return m || `Não podes convidar @${username} para transmitir.`;
+    case 400: return m || `Não deu para convidar @${username}.`;
+    case 429: return 'Calma! Muitos convites seguidos. Espera um bocadinho.';
+    default: return m || 'Não consegui enviar o convite. Verifica a internet e tenta outra vez.';
+  }
+}
+
 // ─── O ecrã ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface Rect { x: number; y: number; w: number; h: number }

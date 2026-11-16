@@ -30,7 +30,10 @@ import { timeAgo } from '@/lib/time';
 import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
-import { noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget, noticeText as txilladaNoticeText } from '@/lib/txillada';
+import {
+  inviteNoticeSub as txilladaInviteSub, inviteNoticeText as txilladaInviteText, noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget,
+  noticeText as txilladaNoticeText,
+} from '@/lib/txillada';
 import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
@@ -129,6 +132,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
     case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
+    // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar).
+    case 'txillada_invite': return { text: txilladaInviteText(n.data), sub: txilladaInviteSub(n.txillada) };
     // O resumo semanal dos Zás (do Txillapp; a linha não leva o nome do ator à frente): «8 a 15 nov · 12 Zás».
     case 'zas_recap': return { text: RECAP_NOTICE, sub: recapNoticeSub(n.data) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
@@ -170,7 +175,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'gelada_answer':
     case 'gelada_paid': return geladaNoticeTarget(n.kind, n.data);
     // Entra na Txillada (se já acabou, o ecrã diz «A Txillada acabou»).
-    case 'txillada_live': return txilladaNoticeTarget(n.data);
+    case 'txillada_live':
+    case 'txillada_invite': return txilladaNoticeTarget(n.data);
     // O ecrã do resumo (se já não existe, diz «Este resumo já não existe»).
     case 'zas_recap': return recapNoticeTarget(n.data);
     case 'group_join_request':
@@ -271,8 +277,9 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const go = (t: string | null) => t && router.push(t as never);
   const zasRecap = n.kind === 'zas_recap';
   // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
-  const txLive = n.kind === 'txillada_live' && (!n.txillada || n.txillada.status === 'live');
-  const right = n.kind === 'txillada_live' ? (
+  const txKind = n.kind === 'txillada_live' || n.kind === 'txillada_invite';
+  const txLive = txKind && (!n.txillada || n.txillada.status === 'live');
+  const right = txKind ? (
     <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? 'Txillada ao vivo' : 'A Txillada já acabou'}>
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
     </View>

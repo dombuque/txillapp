@@ -126,6 +126,8 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'sound_review' | 'remix_takedown'
   // Txillada (o live): alguém que sigo abriu uma (data.txilladaId, data.title). No máximo uma por anfitrião por hora.
   | 'txillada_live'
+  // «Convidar por @» (0168): o anfitrião convidou-me para transmitir na Txillada dele (data.txilladaId, data.title).
+  | 'txillada_invite'
   // O resumo semanal dos Zás está pronto (data.recapId, data.label «8 a 15 nov», data.count; o ator é o Txillapp, staff).
   | 'zas_recap';
 export interface AppNotification {
@@ -142,7 +144,7 @@ export interface AppNotification {
   thumb?: { url: string; video: boolean } | null;
   /** Só nos brindes (`cheer`): quantos ainda estão postos nesta linha e os dois últimos a brindar. */
   cheer?: { count: number; actors: ({ username: string; displayName: string } & Badged)[] };
-  /** Só em `txillada_live`: o estado de agora da Txillada ('live' ainda a decorrer; null se já não existe). */
+  /** Só em `txillada_live` e `txillada_invite`: o estado de agora da Txillada ('live' ainda a decorrer; null se já não existe). */
   txillada?: { status: 'live' | 'ended' | 'cut' | null };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';

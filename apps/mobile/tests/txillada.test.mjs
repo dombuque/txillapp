@@ -333,7 +333,7 @@ test('notificação txillada_live: «abriu uma Txillada: <título>» e tocar ent
   assert.equal(t.noticeSub(undefined), undefined);
   const n = read('src/app/notifications.tsx');
   assert.match(n, /case 'txillada_live': return \{ text: txilladaNoticeText\(n\.data\), sub: txilladaNoticeSub\(n\.txillada\) \};/);
-  assert.match(n, /case 'txillada_live': return txilladaNoticeTarget\(n\.data\);/);
+  assert.match(n, /case 'txillada_live':\s+case 'txillada_invite': return txilladaNoticeTarget\(n\.data\);/);
 });
 
 test('roda AO VIVO: só com live.id; na fila e no perfil, tocar abre /txillada/<id> (e só com a Txillada ligada)', () => {
