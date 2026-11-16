@@ -4,7 +4,7 @@ Feito a partir do que a app e a API recolhem de facto (ramo `loja-dados`, novemb
 
 Notas de leitura:
 - **Recolhido** quer dizer que sai do aparelho para o nosso servidor.
-- **Partilhado** quer dizer que vai para outra empresa. Segundo a Google, **não conta como partilha**: o que vai para fornecedores que tratam os dados por nossa conta (Cloudflare, Google FCM, Anthropic, Zoho), o que a pessoa envia de propósito a outras pessoas (mensagens, publicações) e os dados anonimizados.
+- **Partilhado** quer dizer que vai para outra empresa. Segundo a Google, **não conta como partilha**: o que vai para fornecedores que tratam os dados por nossa conta (Cloudflare, Google FCM, Zoho), o que a pessoa envia de propósito a outras pessoas (mensagens, publicações) e os dados anonimizados.
 - **Opcional** é o que a pessoa pode não dar, ou que só existe se usar uma funcionalidade que não é obrigatória.
 
 ## Secção 1: perguntas gerais
@@ -112,7 +112,7 @@ São quem segues, quem te segue, os amigos próximos e os bloqueios. A app Andro
 ## Secção 3: partilha
 
 **Nenhum dado é «partilhado»** no sentido da Google:
-- Cloudflare (rede e armazenamento), Google FCM (notificações), Anthropic (SuperTxill, sem nome nem id), Zoho (email) e as cópias de segurança cifradas são **fornecedores** que tratam os dados por nossa conta.
+- Cloudflare (rede e armazenamento), Google FCM (notificações), Zoho (email) e as cópias de segurança cifradas são **fornecedores** que tratam os dados por nossa conta.
 - OpenStreetMap, GIPHY e Openverse recebem pelo nosso servidor só o texto pesquisado e posições arredondadas, sem identificação: são dados anónimos e processados só de passagem.
 - As mensagens, as publicações e as localizações enviadas a outras pessoas são **transferências que a pessoa pede**.
 - Os locais que bombam só veem totais (dados agregados).

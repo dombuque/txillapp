@@ -11,7 +11,7 @@ Regra da Apple: «recolher» é enviar para fora do aparelho e guardar mais temp
 | Recolhes dados desta app? | **Sim** |
 | URL da política de privacidade | https://txillapp.com/privacidade |
 | Os dados são usados para **rastrear** (tracking)? | **Não.** Não há SDK de anúncios, de atribuição ou de estatísticas de terceiros, nem IDFA, e não se partilham dados com corretores de dados. Os destaques do Bombar são escolhidos no nosso servidor, só pela zona e pela idade, sem dados de outras empresas. Por isso **não é preciso o pedido de ATT** (`NSUserTrackingUsageDescription`). |
-| Parceiros terceiros recolhem dados na app? | Só fornecedores que trabalham para nós: Cloudflare (rede e R2), Google FCM (notificações), Anthropic (SuperTxill, sem identificação), Zoho (email) e OpenStreetMap (sítios, pelo nosso servidor). Nenhum usa os dados para si. As imagens do GIPHY e os servidores STUN da Google veem o endereço de rede de quem os usa (ver a política, pontos 1 e 11). |
+| Parceiros terceiros recolhem dados na app? | Só fornecedores que trabalham para nós: Cloudflare (rede e R2), Google FCM (notificações), Zoho (email) e OpenStreetMap (sítios, pelo nosso servidor). Nenhum usa os dados para si. As imagens do GIPHY e os servidores STUN da Google veem o endereço de rede de quem os usa (ver a política, pontos 1 e 11). |
 
 Para cada tipo de dado: **Ligado à identidade? / Rastreio? / Finalidades**. «Funcionalidade» = App Functionality; «Análise» = Analytics; «Personalização» = Product Personalization; «Publicidade de terceiros» = Third-Party Advertising.
 
