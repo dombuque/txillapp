@@ -107,3 +107,8 @@ export function useTxilladaEnabled(): boolean {
   const q = useQuery({ queryKey: TXILLADA_CONFIG_KEY, queryFn: txilladaApi.config, staleTime: 5 * 60_000, retry: false });
   return txilladaEnabled(q.data);
 }
+/** A configuração já chegou (ou falhou)? Até lá não se sabe se a Txillada está desligada: não se sai do modo escolhido. */
+export function useTxilladaConfigKnown(): boolean {
+  const q = useQuery({ queryKey: TXILLADA_CONFIG_KEY, queryFn: txilladaApi.config, staleTime: 5 * 60_000, retry: false });
+  return q.data !== undefined || q.isError;
+}
