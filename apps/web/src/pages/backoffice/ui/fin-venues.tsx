@@ -24,7 +24,7 @@ export function VenueWalletsPanel({ days, onAccount }: { days: number; onAccount
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi label="Saldo nos locais" value={<Txl v={d.totals.balance} />} icon="store" hint={`${fmt(d.totals.wallets)} carteiras`} />
-        <Kpi label={`Recebido em ${days} dias`} value={<Txl v={d.totals.received} />} icon="download" hint="Pagamentos com Txills (pessoas e cofres)" />
+        <Kpi label={`Recebido em ${days} dias`} value={<Txl v={d.totals.received} />} icon="download" hint="Pagamentos com vibes (pessoas e cofres)" />
         <Kpi label={`Gasto no Bombar em ${days} dias`} value={<Txl v={d.totals.boostSpent} />} icon="flame" hint="Já descontadas as devoluções" />
       </div>
       <Panel title="Carteiras dos locais" pad={false} right={<input value={text} onChange={(e) => setText(e.target.value)} placeholder="Procurar local" aria-label="Procurar local" className="h-9 w-full rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900 sm:w-56" />}>
@@ -37,7 +37,7 @@ export function VenueWalletsPanel({ days, onAccount }: { days: number; onAccount
                 <span className="block text-xs text-zinc-500">{r.venue?.slug ?? r.accountId.slice(0, 8)}{r.payments ? ` · ${r.payments} pagamentos` : ''}</span>
               </td>
               <td className={tdc}>
-                {!r.venue ? <Status tone="neutral">apagado</Status> : r.venue.reviewStatus === 'approved' ? (r.venue.acceptsTxills ? <Status tone="good">aceita Txills</Status> : <Status tone="neutral">aprovado</Status>) : r.venue.reviewStatus === 'pending' ? <Status tone="warn">por aprovar</Status> : <Status tone="bad">recusado</Status>}
+                {!r.venue ? <Status tone="neutral">apagado</Status> : r.venue.reviewStatus === 'approved' ? (r.venue.acceptsTxills ? <Status tone="good">aceita vibes</Status> : <Status tone="neutral">aprovado</Status>) : r.venue.reviewStatus === 'pending' ? <Status tone="warn">por aprovar</Status> : <Status tone="bad">recusado</Status>}
               </td>
               <td className={`${tdn} font-semibold`}>{fmt(r.balance)}</td>
               <td className={tdn}>{r.received ? fmt(r.received) : <span className="text-zinc-300">0</span>}</td>

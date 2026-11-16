@@ -15,12 +15,12 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'resumo', label: 'Resumo' },
   { id: 'movimentos', label: 'Movimentos' },
   { id: 'locais', label: 'Carteiras dos locais' },
-  { id: 'compras', label: 'Compras de Txills' },
+  { id: 'compras', label: 'Compras de vibes' },
   { id: 'loja', label: 'Compras na loja' },
 ];
 const PERIODS = [7, 30, 90];
 
-/** Finanças (wallet.view): Txills em circulação, livro de movimentos, carteiras dos locais e compras. Só leitura (o Bombar tem página própria). */
+/** Finanças (wallet.view): vibes em circulação, livro de movimentos, carteiras dos locais e compras. Só leitura (o Bombar tem página própria). */
 export default function Finance() {
   const [sp, setSp] = useSearchParams();
   const [tx, setTx] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function Finance() {
 
   return (
     <>
-      <PageHeader title="Finanças" description="Txills em circulação, movimentos, carteiras dos locais, compras de Txills e compras na loja (verificação paga e Bombar). Só leitura."
+      <PageHeader title="Finanças" description="Vibes em circulação, movimentos, carteiras dos locais, compras de vibes e compras na loja (verificação paga e Bombar). Só leitura."
         actions={tab !== 'movimentos' && tab !== 'loja' ? <PeriodPicker value={days} onChange={(d) => update({ days: String(d) })} options={PERIODS} /> : undefined} />
       <Tabs value={tab} onChange={(t) => update({ tab: t === 'resumo' ? '' : t })} items={TABS} />
       {tab === 'resumo' && <FinOverviewPanel days={days} onAccount={(account) => goLedger({ account })} onType={(type) => goLedger({ type })} />}

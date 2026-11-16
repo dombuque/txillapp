@@ -13,7 +13,7 @@ const DECISIONS: Record<RiskDecision, { title: string; help: string; confirm: st
   },
   limit: {
     title: 'Limitar durante 7 dias',
-    help: 'Sem mensagens a quem não a segue, poucos «seguir» e pedidos de gelada, e sem enviar Txills. Os convites ficam à espera.',
+    help: 'Sem mensagens a quem não a segue, poucos «seguir» e pedidos de gelada, e sem enviar vibes. Os convites ficam à espera.',
     confirm: 'Limitar 7 dias',
   },
   suspend: {
@@ -59,7 +59,7 @@ export default function BackofficeSuspects() {
     <>
       <PageHeader
         title="Contas suspeitas"
-        description="Contas novas com pontuação de risco alta (de 0 a 100). Ficam 24 horas sem escrever a desconhecidos nem enviar Txills, à espera de uma decisão. Cada decisão fica no registo."
+        description="Contas novas com pontuação de risco alta (de 0 a 100). Ficam 24 horas sem escrever a desconhecidos nem enviar vibes, à espera de uma decisão. Cada decisão fica no registo."
       />
       <ContasTabs
         tabs={RISK_TABS.map((t) => ({ ...t, count: counts?.[t.id] }))}

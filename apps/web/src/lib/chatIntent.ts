@@ -31,7 +31,7 @@ export function detectPaymentAsk(text: string, name: string): Intent | null {
   return {
     key: t,
     title: drink || food ? `${name} pediu ${what}` : `${name} pediu para pagares`,
-    hint: 'Presenteia com Txills e resolve já aqui.',
+    hint: 'Presenteia com vibes e resolve já aqui.',
     amount: food ? 50 : 10,
     note: drink ? 'Uma bebida por minha conta' : food ? 'Esta refeição é por minha conta' : 'Por minha conta',
   };
@@ -53,7 +53,7 @@ export function detectIntent(messages: Pick<ChatMessage, 'id' | 'fromMe' | 'body
       return {
         key: m.id,
         title: drink || food ? `${name} pediu ${what}` : `${name} pediu para pagares`,
-        hint: 'Presenteia com Txills e resolve já aqui, sem sair da conversa.',
+        hint: 'Presenteia com vibes e resolve já aqui, sem sair da conversa.',
         amount: food ? 50 : 10,
         note: drink ? 'Uma bebida por minha conta' : food ? 'Esta refeição é por minha conta' : 'Por minha conta',
       };
@@ -62,7 +62,7 @@ export function detectIntent(messages: Pick<ChatMessage, 'id' | 'fromMe' | 'body
       return {
         key: m.id,
         title: 'Disseste que pagavas',
-        hint: `Cumpre a promessa: manda Txills a ${name} agora.`,
+        hint: `Cumpre a promessa: manda vibes a ${name} agora.`,
         amount: food ? 50 : 10,
         note: drink ? 'Prometido é devido: a bebida é minha' : 'Prometido é devido',
       };

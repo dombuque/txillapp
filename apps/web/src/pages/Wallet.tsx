@@ -8,8 +8,9 @@ import GiftSheet from '../components/GiftSheet';
 import { Page, btnPrimary, timeAgo } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { vibesWord } from '../lib/vibes';
 
-const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Txills oferecidos', gift: 'Presente', invite: 'Convite', topup: 'Txills recarregados' };
+const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Vibes oferecidas', gift: 'Presente', invite: 'Convite', topup: 'Vibes recarregadas' };
 
 export default function Wallet() {
   const { user } = useAuth();
@@ -39,7 +40,7 @@ export default function Wallet() {
       <section className="rounded-[28px] bg-gradient-to-br from-brand to-brand-light p-6 text-white shadow-[0_10px_30px_rgba(214,51,79,0.35)]">
         <p className="font-light">{tr('Tens')}</p>
         <p className="text-5xl font-extrabold tracking-tight">
-          {data.balance.toLocaleString(locale)} <span className="text-2xl font-bold">{tr('TXL')}</span>
+          {data.balance.toLocaleString(locale)} <span className="text-2xl font-bold">{vibesWord(data.balance)}</span>
         </p>
       </section>
 
@@ -60,7 +61,7 @@ export default function Wallet() {
           {data.history.map((h) => (
             <li key={h.id} className="flex items-center justify-between py-4">
               <div className="min-w-0">
-                <p className="truncate font-medium">{labels[h.type] ?? h.type}{h.counterparty ? ` · ${h.counterparty.displayName}` : ''}</p>
+                <p className="truncate font-medium">{labels[h.type] ? tr(labels[h.type]) : h.type}{h.counterparty ? ` · ${h.counterparty.displayName}` : ''}</p>
                 <p className="truncate text-sm text-zinc-500">{timeAgo(h.createdAt)}</p>
                 {h.note && <p className="mt-0.5 line-clamp-2 break-words text-sm text-zinc-700"><span aria-hidden></span> {h.note}</p>}
               </div>

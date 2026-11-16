@@ -25,6 +25,7 @@ import CommentsSheet from './CommentsSheet';
 import GiftSheet from './GiftSheet';
 import { CommentIcon, GiftIcon, PencilIcon, RepostIcon, UndoIcon } from './icons';
 import { Avatar, Sheet, btnGhost, btnPrimary, fieldInput, timeAgo } from './ui';
+import { formatVibes, vibesWord } from '../lib/vibes';
 
 type Feed = InfiniteData<Page<Post>>;
 
@@ -187,7 +188,7 @@ export function OnlineDot({ username, className = '' }: { username: string; clas
 }
 
 /**
- * O cartão de um presente: as duas fotos cruzadas ao centro com o símbolo do presente, "X presenteou Y", o valor em Txills
+ * O cartão de um presente: as duas fotos cruzadas ao centro com o símbolo do presente, "X presenteou Y", o valor em vibes
  * e a mensagem num balão, tudo num bilhete a degradê. Em cima, só a hora e o menu.
  */
 function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void }) {
@@ -225,7 +226,7 @@ function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post[
           {g.recipient.verified && <> <VerifiedBadge size={15} tier={g.recipient.verifiedTier} /></>}
         </p>
         <p className="mt-2 text-[40px] font-black leading-none tracking-tight">{g.amount.toLocaleString(locale)}</p>
-        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/85">{tr('Txills')}</p>
+        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/85">{vibesWord(g.amount)}</p>
         {post.body && (
           <p className="relative mx-auto mt-4 max-w-[92%] break-words rounded-2xl bg-white/20 px-4 py-2.5 text-[16px] leading-snug backdrop-blur-sm">
             <span aria-hidden className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white/20" />
@@ -363,7 +364,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
           </Link>
           <span className="shrink-0 text-sm text-zinc-500">· {timeAgo(original.createdAt)}</span>
         </div>
-        {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString(locale)} {tr('Txills')}</p>}
+        {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {formatVibes(original.gift.amount)}</p>}
         {original.body && <p className="line-clamp-4 whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</p>}
         {original.media[0]?.kind === 'video' ? (
           <Link to={`/r/${original.code ?? original.id}`} aria-label={tr('Ver o vídeo')} className="relative mt-2 block h-64 w-full bg-zinc-900">

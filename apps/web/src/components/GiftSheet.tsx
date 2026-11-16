@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ApiError, api, type GiftVisibility } from '../lib/api';
 import { Sheet, btnGhost, btnPrimary, fieldInput } from './ui';
+import { formatVibes } from '../lib/vibes';
 
 const AMOUNTS = [5, 10, 50, 100];
 
@@ -51,7 +52,7 @@ export default function GiftSheet({
   async function send() {
     const n = custom ? Number(custom) : amount;
     if (!target) return setErr(tr('Diz-me para quem'));
-    if (!Number.isInteger(n) || n < 1) return setErr(tr('O número de Txills tem de ser inteiro'));
+    if (!Number.isInteger(n) || n < 1) return setErr(tr('O número de vibes tem de ser inteiro'));
     setBusy(true);
     setErr('');
     try {
@@ -88,7 +89,7 @@ export default function GiftSheet({
   if (sent) {
     return (
       <Sheet title={tr('Presente enviado')} onClose={onClose} layer={layer}>
-        <p className="py-3 text-center text-lg">{tr('Mandaste')} {custom || amount} {tr('Txills a')} {name}{tr('! Que generoso')}</p>
+        <p className="py-3 text-center text-lg">{tr('Mandaste {v0} a {v1}! Que generoso', { v0: formatVibes(Number(custom || amount)), v1: name })}</p>
         {sent.published ? (
           <p role="status" className="pb-2 text-center text-green-700">{tr('Já está no feed.')}</p>
         ) : (
@@ -110,7 +111,7 @@ export default function GiftSheet({
         )}
 
         <div>
-          <div className="flex gap-2" role="radiogroup" aria-label={tr('Quantidade de Txills')}>
+          <div className="flex gap-2" role="radiogroup" aria-label={tr('Quantidade de vibes')}>
             {AMOUNTS.map((v) => (
               <button
                 key={v}
@@ -156,7 +157,7 @@ export default function GiftSheet({
 
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy} onClick={send} className={`${btnPrimary} w-full py-4 text-lg`}>
-          {busy ? tr('A enviar…') : `Mandar ${custom || amount} Txills`}
+          {busy ? tr('A enviar…') : tr('Mandar {v0}', { v0: formatVibes(Number(custom || amount)) })}
         </button>
       </div>
     </Sheet>

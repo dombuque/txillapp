@@ -6,7 +6,7 @@ import StackPage from '../components/StackPage';
 import { api } from '../lib/api';
 import { tr } from '../lib/i18n';
 
-/** Convida a tua malta: o teu código e ligação, quantos entraram e o que já ganhaste. Os dois ganham Txills quando a pessoa fica ativa. */
+/** Convida a tua malta: o teu código e ligação, quantos entraram e o que já ganhaste. Os dois ganham vibes quando a pessoa fica ativa. */
 export default function Invites() {
   const q = useQuery({ queryKey: ['invites'], queryFn: api.invites, staleTime: 30_000 });
   const [copied, setCopied] = useState(false);
@@ -14,7 +14,7 @@ export default function Invites() {
 
   async function share() {
     if (!d) return;
-    const text = tr('Entra no Txillapp com o meu convite e ganhamos Txills os dois:');
+    const text = tr('Entra no Txillapp com o meu convite e ganhamos vibes os dois:');
     try {
       if (navigator.share) return void (await navigator.share({ title: 'Txillapp', text, url: d.link }));
     } catch {
@@ -51,7 +51,7 @@ export default function Invites() {
               <p className="text-[15px] font-semibold opacity-90">{tr('O teu código')}</p>
               <p className="mt-1 text-[38px] font-black tracking-[0.18em]">{d.code}</p>
               <p className="mx-auto mt-2 max-w-xs text-[15px] leading-snug opacity-95">
-                {tr('Quando quem convidas ficar ativo, os dois ganham {v0} Txills.', { v0: d.rules.reward })}
+                {tr('Quando quem convidas ficar ativo, os dois ganham {v0} vibes.', { v0: d.rules.reward })}
               </p>
               <div className="mt-4 flex gap-2">
                 <button type="button" onClick={() => void share()} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-white font-bold text-brand active:scale-[0.98]"><Icon name="share" size={20} /> {tr('Convidar')}</button>
@@ -64,17 +64,17 @@ export default function Invites() {
             <div className="mt-5 grid grid-cols-3 gap-2">
               {stat(d.stats.invited, tr('Entraram'))}
               {stat(d.stats.active, tr('Ficaram ativos'))}
-              {stat(d.stats.earned, tr('Txills ganhos'))}
+              {stat(d.stats.earned, tr('Vibes ganhas'))}
             </div>
             {d.stats.pending > 0 && <p className="mt-2 text-center text-[13px] text-zinc-500">{tr('{n} em espera: o teu prémio chega {d} dias depois de a pessoa ficar ativa.', { n: d.stats.pending, d: d.rules.holdDays })}</p>}
 
             <h2 className="mb-2 mt-7 text-lg font-extrabold">{tr('Como funciona')}</h2>
             <ul className="space-y-2 text-[15px] leading-snug text-zinc-700">
               <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('A pessoa entra pela tua ligação ou com o teu código.')}</li>
-              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Ela ganha {v0} Txills quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.', { v0: d.rules.reward })}</li>
-              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Tu ganhas {v0} Txills passados {d} dias, se ela continuar por cá.', { v0: d.rules.reward, d: d.rules.holdDays })}</li>
-              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Até {a} convites por dia e {b} no total. Depois disso o convite continua a funcionar, mas sem Txills.', { a: d.rules.perDay, b: d.rules.maxPaid })}</li>
-              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}</li>
+              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Ela ganha {v0} vibes quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.', { v0: d.rules.reward })}</li>
+              <li className="flex gap-2"><Icon name="check-circle" size={18} className="mt-0.5 shrink-0 text-emerald-600" /> {tr('Tu ganhas {v0} vibes passados {d} dias, se ela continuar por cá.', { v0: d.rules.reward, d: d.rules.holdDays })}</li>
+              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Até {a} convites por dia e {b} no total. Depois disso o convite continua a funcionar, mas sem vibes.', { a: d.rules.perDay, b: d.rules.maxPaid })}</li>
+              <li className="flex gap-2"><Icon name="info" size={18} className="mt-0.5 shrink-0 text-zinc-500" /> {tr('Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. As vibes são pontos da app.')}</li>
             </ul>
           </>
         )}

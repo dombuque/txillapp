@@ -125,7 +125,7 @@ export function Loading({ error }: { error?: unknown }) {
   );
 }
 
-/** Txills com a unidade. */
+/** Vibes com a unidade curta («50 vib»). */
 export const Txl = ({ v, sign }: { v: number; sign?: boolean }) => (
-  <span className="tabular-nums">{sign && v > 0 ? '+' : ''}{fmt(v)}<span className="ml-0.5 text-[0.8em] font-semibold text-zinc-400"> TXL</span></span>
+  <span className="tabular-nums">{sign && v > 0 ? '+' : ''}{fmt(v)}<span className="ml-0.5 text-[0.8em] font-semibold text-zinc-400"> vib</span></span>
 );

@@ -1,8 +1,9 @@
 import type { Post } from './api';
+import { vibesWord } from './vibes';
 
 /**
  * O cartão de um presente como imagem de story (9:16): o mesmo bilhete a degradê do post, com as duas fotos cruzadas,
- * "X presenteou Y", o valor em Txills e a mensagem num balão.
+ * "X presenteou Y", o valor em vibes e a mensagem num balão.
  */
 function loadAvatar(username: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -113,7 +114,7 @@ export async function renderGiftCard(post: Post): Promise<Blob> {
   g.font = `800 52px ${FONT}`;
   g.fillStyle = 'rgba(255,255,255,0.88)';
   (g as unknown as { letterSpacing: string }).letterSpacing = '14px';
-  g.fillText('TXILLS', W / 2, ay + 90);
+  g.fillText(vibesWord(g0.amount).toUpperCase(), W / 2, ay + 90);
   (g as unknown as { letterSpacing: string }).letterSpacing = '0px';
 
   if (post.body) {

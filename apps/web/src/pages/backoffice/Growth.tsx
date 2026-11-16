@@ -39,8 +39,8 @@ export default function Growth() {
                 { label: 'Ficaram ativas', values: g.series.map((s) => s.qualified), color: SERIES[2] },
               ]} />
             </Panel>
-            <Panel title="Orçamento dos prémios (este mês)" help={`Teto de ${fmt(g.budget.monthly)} Txills por mês, para quem entra e quem convida (${g.rules.REWARD} cada).`}>
-              <Meter label={`${fmt(g.budget.used)} de ${fmt(g.budget.monthly)} Txills`} value={g.budget.used} max={g.budget.monthly} hint={`${fmt(g.budget.rewards)} prémios pagos · faltam ${fmt(g.budget.left)} Txills`} />
+            <Panel title="Orçamento dos prémios (este mês)" help={`Teto de ${fmt(g.budget.monthly)} vibes por mês, para quem entra e quem convida (${g.rules.REWARD} cada).`}>
+              <Meter label={`${fmt(g.budget.used)} de ${fmt(g.budget.monthly)} vibes`} value={g.budget.used} max={g.budget.monthly} hint={`${fmt(g.budget.rewards)} prémios pagos · faltam ${fmt(g.budget.left)} vibes`} />
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-zinc-100 pt-3 text-sm">
                 <dt className="text-zinc-500">Prémios por dia</dt><dd className="text-right tabular-nums">{g.rules.PER_DAY} por pessoa</dd>
                 <dt className="text-zinc-500">Teto por pessoa</dt><dd className="text-right tabular-nums">{g.rules.MAX_PAID} convites</dd>
@@ -90,7 +90,7 @@ export default function Growth() {
                     <td className={tdn}>{fmt(t.active)}</td>
                     <td className={tdn}>{fmt(t.paid)}</td>
                     <td className={tdn}>{t.blocked ? (flagged ? <Status tone="bad">{fmt(t.blocked)}</Status> : fmt(t.blocked)) : <span className="text-zinc-300">0</span>}</td>
-                    <td className={tdn}>{fmt(t.earned)} TXL</td>
+                    <td className={tdn}>{fmt(t.earned)} vib</td>
                   </tr>
                 );
               })}
