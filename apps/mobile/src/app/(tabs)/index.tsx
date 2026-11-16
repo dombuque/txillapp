@@ -10,6 +10,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
+import { LoadMore } from '@/components/LoadMore';
 import { SponsoredCard } from '@/components/boost/SponsoredCard';
 import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
@@ -249,7 +250,7 @@ function Feed() {
                   <Text style={styles.ghostText}>Tentar outra vez</Text>
                 </Pressable>
               </View>
-            ) : <View style={{ height: 8 }} />}
+            ) : q.hasNextPage ? <LoadMore onLoad={onEnd} /> : <View style={{ height: 8 }} />}
           </>
         }
         onEndReached={onEnd}
