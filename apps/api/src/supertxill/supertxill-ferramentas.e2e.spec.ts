@@ -606,7 +606,7 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
       expect(partials.length).toBeGreaterThan(0);
       for (const p of partials) {
         expect(p.length).toBeGreaterThan(0);
-        expect(p.length).toBeLessThan(final.length);
+        expect(p.length).toBeLessThanOrEqual(final.length); // igual quando só falta o emoji que se tira no fim
         expect(final.startsWith(p)).toBe(true);
       }
       expect(new Set(partials).size).toBeGreaterThanOrEqual(2); // vai crescendo (de ~1 em ~1 s)

@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, HttpException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -207,6 +207,10 @@ export class WalletService {
         return { transactionId: dup.rows[0].id, replayed: true };
       }
 
+      // Só uma conta ativa paga ou oferece: o token de acesso dura uns minutos depois de apagar ou suspender a conta, e
+      // não pode servir para mexer no saldo (presentes, entradas e ofertas da Txillada, transferências).
+      const who = await c.query('SELECT status FROM identity.users WHERE id = $1', [p.fromUserId]);
+      if (who.rows[0]?.status !== 'active') throw new ForbiddenException('Esta conta não pode fazer pagamentos.');
       const accs = await c.query(
         'SELECT id, user_id FROM ledger.accounts WHERE user_id = ANY($1) ORDER BY id',
         [[p.fromUserId, p.toUserId]],
