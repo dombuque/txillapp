@@ -31,7 +31,7 @@ Disallow: /
       # O Ollama só aceita pedidos com Host local (proteção contra DNS rebinding): o Caddy passa-lhe o endereço dele.
       header_up Host 127.0.0.1:11434
       transport http {
-        read_timeout 150s
+        read_timeout 250s
       }
     }
   }

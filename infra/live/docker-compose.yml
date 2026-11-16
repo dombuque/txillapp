@@ -19,7 +19,7 @@ services:
     environment:
       OLLAMA_TOKEN: ${OLLAMA_TOKEN:-}
     logging: *logging
-  # O modelo do SuperTxill (só texto, em CPU). Os lives têm prioridade: no máximo 3 CPUs e 6 GB, peso de CPU baixo
+  # O modelo do SuperTxill (só texto, em CPU). Os lives têm prioridade: no máximo 5 CPUs (fica sempre 1 livre) e 6 GB, peso de CPU baixo
   # (com a máquina apertada o LiveKit passa à frente) e é o primeiro a sair se faltar memória. Só ouve em 127.0.0.1:
   # de fora chega-se só pelo Caddy, com o token.
   ollama:
@@ -35,7 +35,9 @@ services:
       OLLAMA_CONTEXT_LENGTH: "8192"
       OLLAMA_NOPRUNE: "1"
     volumes: ["ollama_models:/root/.ollama"]
-    cpus: 3
+    # O teto tem de ficar acima dos fios do modelo (OLLAMA_NUM_THREAD=3 na API): com 3 fios num teto de 3 CPUs o Linux
+    # trava-o a cada instante e gera a 1–2 palavras por segundo.
+    cpus: 5
     cpu_shares: 256
     mem_limit: 6g
     memswap_limit: 6g
