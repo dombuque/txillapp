@@ -9,7 +9,8 @@ export interface AiSuggestion extends Badged {
   followsYou: boolean;
   reason: string;
 }
-export interface AiMessage { id: string; role: 'user' | 'assistant'; body: string; at: string }
+/** `writing`: a resposta que o SuperTxill ainda está a escrever (o texto vai crescendo a cada pedido). */
+export interface AiMessage { id: string; role: 'user' | 'assistant'; body: string; at: string; writing?: boolean }
 export interface AiThread { messages: AiMessage[]; pending: boolean; enabled: boolean }
 
 /** O SuperTxill: pessoas para ti, e a conversa (perguntar, histórico, apagar). */
