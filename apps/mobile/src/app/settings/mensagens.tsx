@@ -26,9 +26,12 @@ export default function MessagesSettings() {
         {/* Só informa: a API não tem opção para desligar os avisos de captura (POST .../screenshot). */}
         <SettingRow anchor="screenshots" icon="camera" title="Capturas de ecrã" description="Na app, no iPhone e no Android 14 ou mais recente, uma captura numa conversa deixa o aviso «Fulano fez uma captura de ecrã.» e avisa os outros. Não se desliga. O Zás dos outros não se captura na app." />
       </SettingsSection>
-      {/* Mixar (API: src/mixar, 0150): não tem opções próprias na API. Quem te convida segue «Quem pode enviar-me mensagens»; a linha explica e leva aos teus Mixar. */}
+      {/* Mixar (API: src/mixar, 0150, 0170 a 0172): quem te convida segue «Quem pode enviar-me mensagens»; a linha explica e leva aos
+          teus Mixar. As opções do Mixar estão noutros ecrãs: os avisos em Notificações («Mixar», 0170) e os temas privados em
+          Privacidade (0172, /settings/mixar-temas). */}
       <SettingsSection title="Mixar">
-        <SettingRow anchor="mixar" icon="mixar" title="Os meus Mixar" description="Os feeds a dois que tens e os convites. Só te convida quem te pode enviar mensagens. Para sair, abre o Mixar, toca no nome em cima e em «Sair do Mixar»." to="/mixar" />
+        <SettingRow anchor="mixar" icon="mixar" title="Os meus Mixar" description="Os feeds a dois que tens e os convites. Só te convida quem te pode enviar mensagens. Para sair, abre o Mixar, toca no nome em cima e em «Sair do Mixar». Os avisos desligam-se em Notificações, «Mixar»." to="/mixar" />
+        <SettingRow icon="lock" title="Temas privados no Mixar" description="Temas que nunca aparecem nos teus Mixar, nem na compatibilidade, nos temas em comum, nas sugestões ou no resumo da semana. Também em Privacidade." to="/settings/mixar-temas" />
       </SettingsSection>
       <SettingsSection title="Chamadas">
         <SettingRow anchor="calls" icon="phone" title="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />
