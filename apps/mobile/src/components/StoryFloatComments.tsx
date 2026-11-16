@@ -15,6 +15,8 @@ import { FLOAT_EVERY_MS, FLOAT_FIRST_MS, floatDone, floatName, floatOffsets, flo
 
 /** O vidro escuro dos balões (o mesmo tom dos botões do visor). */
 const GLASS = 'rgba(14,14,18,0.44)';
+/** O vidro das ofertas de Txills na Txillada (a cor da marca). */
+const GIFT_GLASS = 'rgba(214,51,79,0.88)';
 const glassWeb = Platform.OS === 'web' ? ({ backdropFilter: 'blur(12px) saturate(150%)', WebkitBackdropFilter: 'blur(12px) saturate(150%)' } as object) : null;
 
 /**
@@ -97,7 +99,8 @@ export const DOUBLE_MS = 250;
  * `onDoubleTap`: dois toques brindam (os copos saltam do balão e o telemóvel vibra). `cheers`: a pastilha «🍻 N» ao lado,
  * que salta quando a contagem sobe; com a contagem a subir por outra pessoa (a sala da Txillada) também saltam os copos.
  */
-export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários' }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string }) {
+/** `gift`: a linha destacada «@x ofereceu N Txills» da Txillada (0167): o vidro na cor da marca, com o presente. */
+export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários', gift = false }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string; gift?: boolean }) {
   const ty = useSharedValue(reduce ? -y : 22);
   const scale = useSharedValue(reduce ? 1 : 0.9);
   const op = useSharedValue(0);
@@ -163,8 +166,8 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         <View style={st.ring}>
           <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={26} />
         </View>
-        <View style={[st.glass, glassWeb]}>
-          <Text style={st.text} numberOfLines={2}>
+        <View style={[st.glass, glassWeb, gift && st.giftGlass]}>
+          <Text style={[st.text, gift && st.giftText]} numberOfLines={2}>
             <Text style={st.name}>{name}</Text>
             {/* Contas verificadas com o selo em todo o lado, também nos balões. */}
             {c.author.verified ? <InlineBadge who={c.author} fontSize={14} /> : null}
@@ -174,7 +177,7 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         </View>
         {/* O rabinho do balão, no canto de baixo à esquerda, virado para a foto de quem comentou. */}
         <Svg width={7} height={11} viewBox="0 0 7 11" style={st.tail} pointerEvents="none">
-          <Path d="M7 0 C7 5 5 9 0 11 L7 11 Z" fill={GLASS} />
+          <Path d="M7 0 C7 5 5 9 0 11 L7 11 Z" fill={gift ? GIFT_GLASS : GLASS} />
         </Svg>
         {pillText ? (
           <Animated.View style={[st.pill, glassWeb, pillStyle]} pointerEvents="none">
@@ -197,6 +200,8 @@ const st = StyleSheet.create({
   // A roda tem 31 px (26 + 1 de folga + 1,5 de anel de cada lado) e o espaço 7: o rabinho encosta ao vidro (meio px por baixo dele).
   tail: { position: 'absolute', left: 31.5, bottom: 0 },
   name: { fontWeight: '800', color: '#fff', letterSpacing: -0.1 },
+  giftGlass: { backgroundColor: GIFT_GLASS, borderWidth: 1, borderColor: 'rgba(255,154,91,0.75)' },
+  giftText: { color: '#fff', fontWeight: '700' },
   text: { color: 'rgba(255,255,255,0.94)', fontSize: 13.5, lineHeight: 18, fontWeight: '500' },
   // «🍻 N» encostada ao fim do balão, em baixo (o mesmo vidro).
   pill: { alignSelf: 'flex-end', flexShrink: 0, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },

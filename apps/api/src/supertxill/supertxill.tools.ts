@@ -315,7 +315,7 @@ export class SuperTxillTools {
   private async txilladas(userId: string) {
     const { items } = await this.txillada.live(userId);
     return {
-      txilladas: items.slice(0, 8).map((t) => ({ titulo: t.title, anfitriao: t.host.displayName, username: t.host.username, aVer: t.viewers, desdeMin: Math.max(0, Math.round((Date.now() - new Date(t.startedAt).getTime()) / 60_000)) })),
+      txilladas: items.slice(0, 8).map((t) => ({ titulo: t.title, anfitriao: t.host.displayName, username: t.host.username, aVer: t.viewers, privadaPreco: t.kind === 'paid' ? t.price : null, desdeMin: Math.max(0, Math.round((Date.now() - new Date(t.startedAt).getTime()) / 60_000)) })),
     };
   }
 

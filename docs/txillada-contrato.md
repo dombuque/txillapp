@@ -23,7 +23,7 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 ## Base de dados (migração 0158_txillada.sql)
 
 - `content.txilladas`: `id uuid PK`, `host_id uuid` (identity.users), `title text` (0–80, opcional desde a 0159; limpo pelo filtro de palavras),
-  `audience text` ('everyone' | 'followers' | 'close'), `status text` ('live' | 'ended' | 'cut'), `room text UNIQUE`
+  `audience text` ('everyone' | 'followers' | 'close'; desde a 0167 também 'friends' e 'paid'), `status text` ('live' | 'ended' | 'cut'), `room text UNIQUE`
   (`tx-<id>`), `started_at`, `ended_at`, `viewers int` (agora), `peak_viewers int`, `cheers int`, `comments int`,
   `cut_reason text`, `cut_by uuid`. Índice parcial em `status = 'live'`. **No máximo uma `live` por anfitrião.**
 - `content.txillada_comments`: `id`, `txillada_id`, `author_id`, `body` (1–300, filtro), `created_at`, `removed_at`.
@@ -40,6 +40,20 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
   'removed'), `created_at`, `updated_at`, `since` (quando passou a transmitir). Uma linha por pessoa e Txillada, que muda de
   estado. Apagar a conta apaga as linhas da pessoa (e as das suas Txilladas pelo CASCADE); a exportação junta
   `txilladaGuests` (as Txilladas dos outros em que pedi, fui convidado ou transmiti: anfitrião, `kind`, `status`, horas).
+- **0167_txillada_tipos_angariacao.sql:** `content.txilladas` ganha `price int` (5–5000, só e sempre nas 'paid':
+  `txilladas_paid_price`), `goal int` (10–1 000 000, a meta da Angariação, null sem ela), `goal_purpose text` (0–80, ''),
+  `raised bigint` (a soma das ofertas) e `tickets int` (entradas pagas). `ledger.transactions.type` ganha
+  'txillada_ticket', 'txillada_gift' e 'txillada_refund' (a migração lê a lista atual nos dois formatos, junta a conhecida e
+  os tipos que já existem). Tabelas novas (dinheiro: **a limpeza dos 7 dias não lhes toca** e apagar a conta não as apaga, a
+  conta fica anonimizada; se a Txillada sair com a conta do anfitrião, `txillada_id` fica a NULL pela FK):
+  - `content.txillada_tickets`: `id`, `txillada_id` (UNIQUE com `user_id`; FK `ON DELETE SET NULL`), `host_id`,
+    `user_id`, `price`, `transaction_id` (UNIQUE, o movimento quem vê → anfitrião), `created_at`, `refunded_at`,
+    `refund_transaction_id` (a devolução quando a moderação corta).
+  - `content.txillada_gifts`: `id`, `txillada_id` (FK `ON DELETE SET NULL`), `host_id`, `giver_id`, `amount` (1–5000),
+    `transaction_id` (UNIQUE), `created_at`.
+  A exportação junta `txilladaTickets` (as entradas que paguei: anfitrião, preço, horas, `refundedAt`), `txilladaGiftsGiven`
+  (as ofertas que fiz), `txilladaTicketsSold` e `txilladaGiftsReceived` (nas minhas, com o @ de quem pagou, como no histórico
+  da carteira); `txilladas` passa a levar `price`, `goal`, `goalPurpose`, `raised` e `tickets`.
 - **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários,
   expulsões e convidados (0165), menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia
   aberta (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
@@ -49,14 +63,16 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 - **Quem pode abrir:** conta ativa, 18 anos ou mais (`birth_date <= current_date - 18 anos`; sem data = não), sem
   suspensão. Senão 403 com a razão.
 - **Quem pode ver:** as regras de `canView()` (bloqueios, conta privada → só seguidores) e o público escolhido:
-  'everyone' (quem pode ver o perfil), 'followers' (quem segue), 'close' (amigos próximos do anfitrião — a mesma lista
-  dos mimos). Expulsos: 403. Fora disto: 404.
+  'everyone' (Pública: quem pode ver o perfil), 'friends' (Para amigos, 0167: quem o anfitrião segue **e** o segue a ele),
+  'close' (Para amigos com «Só amigos próximos»: a lista dos mimos), 'paid' (Privada, 0167: quem pode ver o perfil vê que
+  existe; para entrar paga) e o antigo 'followers' (quem segue; as apps antigas ainda o mandam). Expulsos: 403. Fora disto:
+  404. Ver «Tipos e Angariação» em baixo.
 - **Comentar:** quem vê, com as regras de «quem comenta» do anfitrião (`comments_allowed`/`allowedBy`), 1 comentário por
   2 s por pessoa (429 com mensagem).
 - **Brindar:** quem vê; conta a quantidade (`count`), sem limite por pessoa mas no máximo 5 por segundo.
 - **Quem está a ver é visível:** os tokens dos espectadores deixam de ser `hidden` (quem está na sala vê o nome e o @
-  dos outros) e há a lista `GET /txilladas/:id/viewers`. Nas futuras Txilladas pagas, quem vê volta a ficar escondido
-  (`roomToken(..., { hidden: true })`).
+  dos outros) e há a lista `GET /txilladas/:id/viewers`. Nas Txilladas pagas (0167), quem vê entra escondido
+  (`roomToken(..., { hidden: true })`, menos os convidados a transmitir), a lista é só do anfitrião e «entrou» só lhe chega a ele.
 - **Reagir:** quem vê (as regras do brinde: 404/403/409) manda 👋 `hello`, 🍻 `cheers`, 🔥 `fire`, 😂 `laugh`, ❤️ `heart`.
   **As reações não se guardam** (só o 🍻 conta como brinde, igual ao `POST /cheer`, com o limite de 5 por segundo). No
   máximo 8 reações por segundo por pessoa (429 «Calma! Muitas reações seguidas.»); o 👋 de quem vê, 1 a cada 4 s (429).
@@ -125,6 +141,72 @@ cartão do convite (aceitar abre a câmara antes de dizer que sim); a transmitir
 anfitrião: o botão das pessoas com o número de pedidos (a lista: tirar, aceitar, recusar, retirar) e «Convidar para
 transmitir» em «A ver agora». Todos recebem as faixas de quem transmite (o anfitrião também: as dos convidados).
 
+## Tipos e Angariação (0167)
+
+**Os três tipos** (escolhem-se ao preparar e ficam fixos: não há rota para os mudar):
+
+1. **Pública** (`audience: 'everyone'`): quem pode ver o perfil do anfitrião.
+2. **Para amigos** (`'friends'`): quem o anfitrião segue e o segue a ele. Com «Só amigos próximos» (`'close'`): só a lista
+   dos mimos do anfitrião.
+3. **Privada (paga)** (`'paid'`, com `price` de 5 a 5000 Txills): quem pode ver o perfil vê que existe, com o cadeado e o
+   preço, e paga uma vez para entrar. **Todos pagam** (também os amigos próximos e quem segue), menos o anfitrião e quem ele
+   convida para transmitir (um convite à espera, a transmitir, ou já transmitiu e saiu pelo próprio pé). A moderação vê pelo
+   backoffice (`GET /admin/txilladas`), não entra de graça na app.
+
+**Antes de pagar, nada da sala:** `GET /txilladas/:id` (e a lista `GET /txilladas/live`) dá o cartão (`locked: true`): o
+anfitrião, o título, `price` e `status`; os números (`viewers`, `peakViewers`, `cheers`, `comments`) a 0, `pinned` null,
+`guests` [], `goal` null, `raised` 0, `topGivers` [] e `canComment` false. Tudo o resto (`join`, os comentários, comentar,
+brindar, reagir, `viewers`, pedir para entrar, oferecer…) responde **402** `{ code: 'ticket_required', price, message: 'Esta
+Txillada é privada: paga a entrada para entrar.' }`: sem token do LiveKit, sem entrar no conjunto da sala e por isso sem
+eventos. O webhook tira da sala quem lá entrar sem a entrada. Denunciar o cartão não precisa de entrada. O `live` do perfil
+e da fila dos mimos passa a `{ id, price }` numa privada que eu ainda não paguei (`{ id }` nas outras).
+
+**Pagar** (`POST /txilladas/:id/ticket`): uma transferência na carteira quem vê → anfitrião (tipo 'txillada_ticket', chave
+`txillada_ticket:<id da Txillada>` da pessoa), na mesma transação que grava a entrada (`txillada_tickets`); as carteiras
+trancam-se primeiro e a linha da Txillada no fim (`UPDATE … WHERE status = 'live'`: cortada entretanto, tudo volta atrás).
+Pagar outra vez, ou vários pedidos ao mesmo tempo, nunca cobra duas vezes; voltar a entrar depois de sair é grátis. Sem saldo:
+**422** `{ code: 'insufficient_funds', amount, balance, message: 'Não tens Txills suficientes: a entrada custa N Txills e tens
+M.' }` (a app aponta para a carteira; os Txills não se compram aqui nem se levantam). **Corte da moderação** (`cut`, pelo
+backoffice ou pela fila de queixas): cada entrada volta a quem pagou, uma vez só (tipo 'txillada_refund', chave
+`txillada_refund:<id da entrada>` do anfitrião); sai da carteira do anfitrião e, se ele já gastou parte, a diferença sai da
+emissão (quem pagou recebe sempre tudo). A tarefa de 20 em 20 s volta a tentar as que falharem. O anfitrião terminar (ou o
+fim sem vídeo, as 4 h, o webhook) não devolve.
+
+**Angariação** (qualquer tipo): ao abrir, `goal` (10 a 1 000 000 Txills) e `purpose` (0 a 80, pelo filtro de palavras, como
+o título). **Ofertas** (`POST /txilladas/:id/gifts` `{ amount: 1..5000, key }`, com ou sem meta): quem vê (com a entrada,
+numa privada), não o anfitrião, só a decorrer; transferência quem vê → anfitrião (tipo 'txillada_gift', chave
+`txillada_gift:<id>:<key>`, `key` da app com 8 a 64 letras, números, _ ou -), a linha em `txillada_gifts` e `raised` sobem
+na mesma transação. A mesma `key` devolve a mesma oferta (`replayed: true`) sem cobrar. No máximo 5 ofertas a cada 10 s por
+pessoa (429). Sem saldo: 422 `insufficient_funds`. As ofertas não se devolvem (nem no corte).
+
+| Rota (prefixo /api/v1, com sessão) | Quem | Resposta |
+|---|---|---|
+| `POST /txilladas` `{ title, audience: 'everyone'\|'friends'\|'close'\|'paid'\|'followers', price?, goal?, purpose? }` | anfitrião | como antes; 400 `price` em falta ou fora de 5–5000 numa 'paid' (ignorado nas outras), `goal` fora de 10–1 000 000, `purpose` com mais de 80; 422 palavras proibidas |
+| `POST /txilladas/:id/ticket` | quem pode ver | 200 `{ hasTicket: true, charged, balance, txillada: TxilladaDto }` (`charged`: se cobrou agora) — 400 não é paga, 409 acabada, 422 `insufficient_funds` |
+| `POST /txilladas/:id/gifts` `{ amount, key }` | quem pode ver (com a entrada) | 200 `{ gift, raised, goal, topGivers, balance, replayed }` — 400 anfitrião ou valor/chave inválidos, 402, 409 acabada, 422 `insufficient_funds`, 429 |
+| `GET /txilladas/:id/viewers` | quem pode ver | passa a levar `hidden`: numa paga, quem não é o anfitrião recebe `{ items: [], total: 0, hidden: true }` |
+
+`TxilladaDto` ganha: `kind` ('public' | 'friends' | 'paid'; 'followers' conta como 'public'), `closeOnly` (o 'close'),
+`price` (null fora das pagas), `hasTicket` (o anfitrião, quem pagou, os convidados; nas outras sempre true), `locked` (paga e
+sem a entrada), `viewersHidden` (paga e não sou o anfitrião), `goal` (null sem Angariação), `goalPurpose` (''), `raised`,
+`topGivers: [{ username, displayName, avatarUrl, verified, verifiedTier, total }]` (os 3 que mais ofereceram, sem quem tem
+bloqueio comigo; empate: quem ofereceu primeiro) e, só para o anfitrião de uma paga, `tickets`.
+
+Uma oferta (`gift`): `{ id, from: { username, displayName, avatarUrl, verified, verifiedTier }, amount, createdAt }`.
+
+Tempo real: `{ type: 'txillada.gift', txilladaId, gift, raised, goal, topGivers }` à sala e a quem ofereceu, menos quem tem
+bloqueio com quem ofereceu (o `topGivers` de cada pessoa sem quem tem bloqueio com ela). A app mostra a linha destacada «@x
+ofereceu 50 Txills» (com o selo) no meio dos comentários, sobe a barra «X de Y Txills» e troca o top 3.
+
+Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na tua Txillada», «Oferta na Txillada de @x» /
+«Oferta de @x na tua Txillada» e «Devolução da entrada na Txillada de @x» / «Devolução da entrada de @x».
+
+**App:** `lib/txillada.ts` (os tipos, `prepAudience`, os limites, `goalProgress`, `giftLine`, o estado com `raised`, `goal`,
+`topGivers` e `viewKind` 'locked'; testes em `tests/txilladaTipos.test.mjs`), `components/txillada/TxilladaMoney.tsx`
+(`LockedView`: o cadeado e «Entrar por N Txills» com confirmação e o saldo; `GoalBar`, `TopGivers`, `GiftSheet`: 5, 10, 50,
+100 ou outro valor). Preparar: os três cartões, «Só amigos próximos», a entrada, «Angariação» com a meta e para quê. A roda
+«AO VIVO» mostra o cadeado e o preço numa privada que ainda não paguei.
+
 ## API (prefixo /api/v1, com sessão)
 
 | Rota | Quem | Resposta |
@@ -141,7 +223,7 @@ transmitir» em «A ver agora». Todos recebem as faixas de quem transmite (o an
 | `POST /txilladas/:id/comments/:commentId/cheer` | quem pode ver (sem bloqueio com o autor) | 200 `{ cheered, cheers }` — brindar outra vez tira; 404 (apagado, bloqueio), 403 (expulso), 409 (acabada), 429 (mais de 5/s). Sem aviso ao autor; manda `txillada.comment_cheer` (0161) |
 | `POST /txilladas/:id/cheer` | quem pode ver | `{ cheers }` |
 | `POST /txilladas/:id/react` `{ kind: 'hello'\|'cheers'\|'fire'\|'laugh'\|'heart', to?: username }` | quem pode ver (`to` só o anfitrião, só com `hello`) | 200 `{ sent }` (com `cheers` quando `kind` é 'cheers') — 404/403/409 como o brinde; 400 (anfitrião com 'cheers', `to` fora das regras); 404 (`to` que não existe ou com bloqueio); 429 (mais de 8/s, ou o 👋 de quem vê antes de 4 s). Não se guarda nada (o 🍻 conta como brinde) |
-| `GET /txilladas/:id/viewers` | quem pode ver | `{ items: [{ username, displayName, avatarUrl, verified, verifiedTier }], total }` — quem está a ver agora (fez `join` e não saiu), sem o anfitrião, só contas ativas, sem expulsos e sem quem tem bloqueio com quem pede; quem eu sigo primeiro, depois pelo @ (máx. 200; `total` = `items.length`) |
+| `GET /txilladas/:id/viewers` | quem pode ver | `{ items: [{ username, displayName, avatarUrl, verified, verifiedTier }], total, hidden }` (0167: `hidden: true` e vazia numa paga, para quem não é o anfitrião) — quem está a ver agora (fez `join` e não saiu), sem o anfitrião, só contas ativas, sem expulsos e sem quem tem bloqueio com quem pede; quem eu sigo primeiro, depois pelo @ (máx. 200; `total` = `items.length`) |
 | `POST /txilladas/:id/ban/:username` | anfitrião | 204 — tira-o da sala no LiveKit e não volta a entrar |
 | `POST /txilladas/:id/comments/:commentId/report` `{ reason, note? }` | quem pode ver | 204 (fila de denúncias, `target_type = 'txillada_comment'`; 30 por hora) — deixa de aparecer a quem denunciou (lista, balões e fixado); fica guardado até à decisão; 404 se já foi apagado |
 | `POST /txilladas/:id/pin` `{ commentId: uuid \| null }` | anfitrião | 200 `{ pinned: TxilladaComment \| null }` — fixa (troca o que estava) ou tira com null; só a decorrer (409), só um comentário desta Txillada que ainda se vê (404), 403 a quem não é anfitrião; 60 por minuto. Manda `txillada.pinned` se mudou |
@@ -151,7 +233,9 @@ transmitir» em «A ver agora». Todos recebem as faixas de quem transmite (o an
 | `POST /admin/txilladas/:id/cut` `{ reason }` | backoffice | 204 — apaga a sala no LiveKit, status 'cut' |
 
 `TxilladaDto`: `{ id, host: { id, username, displayName, avatarUrl, verified, verifiedTier }, title, audience, status,
-startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment, pinned }` (`pinned`: o comentário fixado
+startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment, pinned }` (e, desde a 0167, `kind`, `closeOnly`,
+`price`, `hasTicket`, `locked`, `viewersHidden`, `goal`, `goalPurpose`, `raised`, `topGivers`, `tickets`: ver «Tipos e
+Angariação») (`pinned`: o comentário fixado
 como eu o vejo, `TxilladaComment | null`; null se não há, se o apagaram, se a conta do autor não está ativa, se há bloqueio
 entre mim e o autor ou se o denunciei).
 
@@ -214,7 +298,7 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
 ## App (fase 1)
 
 - Entrada: em Criar, o modo **TXILLADA** (ao lado de MIMO, TCHEKA, PUBLICAÇÃO, ZÁS) quando `config.enabled`: câmara,
-  título, público, «Começar Txillada».
+  título, o tipo (Pública, Para amigos, Privada com o preço; 0167), a Angariação (opcional), «Começar Txillada».
 - Anfitrião: a câmara a transmitir (virar, calar o microfone), «AO VIVO» e o tempo, quantos estão a ver, os
   comentários a flutuar (o estilo dos balões dos mimos), os brindes com os copos, terminar (com confirmação), expulsar e
   apagar comentários, fixar um (o menu do comentário, com um toque ou o toque longo).

@@ -18,7 +18,7 @@ import { useTxilladaEnabled } from '@/lib/api.txillada';
  * Toque longo: foto em grande, nítida (1080), com zoom de dois dedos e duplo toque; um toque a 1× fecha. Como no site.
  * Ao vivo (`liveId`, a Txillada a decorrer): a roda coral «AO VIVO» e tocar entra no live.
  */
-export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96, liveId }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number; liveId?: string | null }) {
+export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96, liveId, livePrice }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number; liveId?: string | null; /** Uma Txillada privada que ainda não paguei (0167): o cadeado e o preço. */ livePrice?: number | null }) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [show, setShow] = useState(false);
@@ -64,7 +64,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
           style={{ width: box, height: box }}
         >
           <View style={{ position: 'absolute', left: (box - 72) / 2, top: (box - 72) / 2, width: 72, height: 72, transform: [{ scale: box / 72 }] }}>
-            <LiveRing><Avatar name={avatarName} username={hasAvatar ? username : undefined} size={56} /></LiveRing>
+            <LiveRing price={livePrice}><Avatar name={avatarName} username={hasAvatar ? username : undefined} size={56} /></LiveRing>
           </View>
         </Pressable>
         {preview}

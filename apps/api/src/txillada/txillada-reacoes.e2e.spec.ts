@@ -242,7 +242,7 @@ describe('Txillada: reações, quem está a ver e «entrou» (integração)', ()
   it('viewers: quem está a ver agora (sem o anfitrião, sem bloqueios com quem pede, sem expulsos), quem sigo primeiro', async () => {
     const { rhost, rana, rblk, rrui, rzed, rout } = u;
     const id = await open(rhost, 'Quem vê');
-    expect((await viewers(rana, id).expect(200)).body).toEqual({ items: [], total: 0 });
+    expect((await viewers(rana, id).expect(200)).body).toEqual({ items: [], total: 0, hidden: false });
     await join(rhost, id);
     for (const x of [rrui, rblk, rana, rzed]) await join(x, id);
     const names = (b: { items: { username: string }[] }) => b.items.map((x) => x.username);

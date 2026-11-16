@@ -4,7 +4,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { post, raw } from '@/lib/api';
-import { txilladaEnabled, type TxilladaAudience, type TxilladaComment, type TxilladaDto } from '@/lib/txillada';
+import { txilladaEnabled, type TxilladaAudience, type TxilladaComment, type TxilladaDto, type TxilladaGift, type TxilladaGiver } from '@/lib/txillada';
 import type { FxPerson, ReactionKind } from '@/lib/txilladaFx';
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 
@@ -14,6 +14,11 @@ export type { TxilladaAudience, TxilladaComment, TxilladaDto } from '@/lib/txill
 export interface TxilladaAccess { token: string; url: string }
 
 const id = (s: string) => encodeURIComponent(s);
+
+/** O que se escolhe ao preparar (0167): o preço de uma privada e a Angariação (meta e motivo). */
+export interface StartOptions { price?: number | null; goal?: number | null; purpose?: string }
+/** A resposta a uma oferta (a mesma chave devolve a mesma oferta, sem cobrar outra vez). */
+export interface GiftResult { gift: TxilladaGift; raised: number; goal: number | null; topGivers: TxilladaGiver[]; balance: number }
 
 /** O que o anfitrião vê depois de mexer nos convidados: quem transmite, os pedidos e os convites à espera. */
 export interface GuestLists { guests: TxilladaGuest[]; requests: GuestPending[]; invites: GuestPending[] }
@@ -29,7 +34,25 @@ export const txilladaApi = {
     }
   },
   /** Abrir uma Txillada (409 se já tenho uma a decorrer; 403 com a razão se não posso; 503 se não está disponível). */
-  start: (title: string, audience: TxilladaAudience): Promise<{ txillada: TxilladaDto } & TxilladaAccess> => raw('/txilladas', post({ title, audience })),
+  start: (title: string, audience: TxilladaAudience, opts: StartOptions = {}): Promise<{ txillada: TxilladaDto } & TxilladaAccess> =>
+    raw('/txilladas', post({
+      title, audience,
+      ...(audience === 'paid' && opts.price != null ? { price: opts.price } : {}),
+      ...(opts.goal != null ? { goal: opts.goal, purpose: opts.purpose ?? '' } : {}),
+    })),
+  /** Pagar a entrada de uma Txillada privada (uma vez só; pagar outra vez não cobra). 422 `insufficient_funds` sem saldo. */
+  pay: (txilladaId: string): Promise<{ hasTicket: boolean; charged: boolean; balance: number; txillada: TxilladaDto }> => raw(`/txilladas/${id(txilladaId)}/ticket`, post({})),
+  /** Oferecer Txills durante o live (`key`: a mesma ao repetir o pedido). 422 `insufficient_funds` sem saldo; 429 depressa demais. */
+  gift: (txilladaId: string, amount: number, key: string): Promise<GiftResult> => raw(`/txilladas/${id(txilladaId)}/gifts`, post({ amount, key })),
+  /** O saldo da carteira (os Txills ficam na app; não há compras aqui). */
+  balance: async (): Promise<number | null> => {
+    try {
+      const r = (await raw('/wallet')) as { balance?: unknown } | undefined;
+      return typeof r?.balance === 'number' ? r.balance : null;
+    } catch {
+      return null;
+    }
+  },
   /** As que estão a decorrer e posso ver (de quem sigo primeiro). */
   live: (): Promise<{ items: TxilladaDto[] }> => raw('/txilladas/live'),
   get: (txilladaId: string): Promise<TxilladaDto> => raw(`/txilladas/${id(txilladaId)}`),
@@ -58,7 +81,7 @@ export const txilladaApi = {
   react: (txilladaId: string, kind: ReactionKind, to?: string): Promise<{ sent: boolean; cheers?: number }> =>
     raw(`/txilladas/${id(txilladaId)}/react`, post(to ? { kind, to } : { kind })),
   /** Quem está a ver agora (sem quem tem um bloqueio comigo). */
-  viewers: (txilladaId: string): Promise<{ items: FxPerson[]; total: number }> => raw(`/txilladas/${id(txilladaId)}/viewers`),
+  viewers: (txilladaId: string): Promise<{ items: FxPerson[]; total: number; hidden?: boolean }> => raw(`/txilladas/${id(txilladaId)}/viewers`),
 
   // Convidados (0165): até 3 a transmitir com o anfitrião.
   /** Pedir para entrar (com um convite à espera, aceita-o: `state: 'guest'`). 403 sem 18 anos; 429 a pedir outra vez cedo de mais. */

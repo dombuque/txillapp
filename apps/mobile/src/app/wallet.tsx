@@ -19,7 +19,7 @@ import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Txills oferecidos', gift: 'Presente', invite: 'Convite', topup: 'Txills recarregados' };
-const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo' };
+const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo', txillada_ticket: 'lock', txillada_gift: 'present', txillada_refund: 'undo' };
 
 type Mov = WalletView['history'][number] & WalletTxExtra;
 

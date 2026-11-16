@@ -13,7 +13,7 @@ import { Ring } from './StoryRing';
 import { NameWithBadge } from './NameWithBadge';
 import { navTap } from '@/lib/tapGuard';
 import { useTxilladaEnabled } from '@/lib/api.txillada';
-import { trayOthers, trayWithoutLive } from '@/lib/txillada';
+import { livePrice, trayOthers, trayWithoutLive } from '@/lib/txillada';
 import { LiveRing } from './txillada/TxilladaParts';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
@@ -71,7 +71,7 @@ export function StoriesTray() {
           return (
           <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} onLongPress={live && u.count > 0 ? () => view(u.username) : undefined} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? `${u.displayName} está ao vivo: ver a Txillada` : `Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             {live ? (
-              <LiveRing><Avatar name={u.displayName} username={u.username} size={56} /></LiveRing>
+              <LiveRing price={livePrice(u)}><Avatar name={u.displayName} username={u.username} size={56} /></LiveRing>
             ) : (
             <View style={{ opacity: u.seen ? 0.6 : 1 }}>
               <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}>
