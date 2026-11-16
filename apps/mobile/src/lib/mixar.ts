@@ -308,13 +308,28 @@ export function mixarHasNew(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'ne
   return s.status === 'active' && ((s.newToday || 0) > 0 || !!s.challengePending);
 }
 
+/** O mais recente de dois instantes ISO (ou null sem nenhum). */
+export function latestIso(a?: string | null, b?: string | null): string | null {
+  if (!a) return b || null;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
 /**
- * A bolinha azul a sério: há novidade (mixarHasNew) e ainda não abri o Mixar desde que mudou. `seenAt` é o updatedAt que vi
- * da última vez (lib/mixarSeen); depois de abrir some, e só volta com a seleção nova ou um convite novo.
+ * A bolinha azul a sério: há novidade (mixarHasNew) e ainda não abri o Mixar desde que mudou. Conta a última abertura que o
+ * servidor guardou (`openedAt`, igual em todos os aparelhos, 0170) ou, se for mais recente, a deste aparelho (`seenAt`, o
+ * updatedAt que vi da última vez em lib/mixarSeen, que fica de reserva para servidores antigos). Depois de abrir some, e só
+ * volta com a seleção nova ou um convite novo.
  */
-export function mixarShowDot(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending' | 'updatedAt'> | null | undefined, seenAt?: string | null): boolean {
+export function mixarShowDot(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending' | 'updatedAt' | 'openedAt'> | null | undefined, seenAt?: string | null): boolean {
   if (!mixarHasNew(s)) return false;
-  return !seenAt || !s!.updatedAt || seenAt < s!.updatedAt;
+  const seen = latestIso(s!.openedAt, seenAt);
+  return !seen || !s!.updatedAt || seen < s!.updatedAt;
+}
+
+/** Os Mixar com a bolinha azul (para a linha do Mixar nas Mensagens, que só aparece com novidades). */
+export function mixarsWithDot<T extends Pick<MixarSummary, 'id' | 'status' | 'invitedByMe' | 'newToday' | 'challengePending' | 'updatedAt' | 'openedAt'>>(items: readonly T[] | null | undefined, seen: Record<string, string> = {}): T[] {
+  return (items ?? []).filter((s) => mixarShowDot(s, seen[s.id]));
 }
 
 export function inboxEntry(items: readonly Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'>[] | null | undefined): { show: boolean; line: string; hot: boolean } {

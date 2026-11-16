@@ -25,6 +25,8 @@ export interface MixarSummary {
   /** Há desafio de hoje à espera da minha escolha. */
   challengePending: boolean;
   updatedAt: string;
+  /** A última vez que abri este Mixar (em qualquer aparelho; POST /mixar/:id/open, 0170). Servidores antigos não o mandam. */
+  openedAt?: string | null;
 }
 
 export interface Mixar extends MixarSummary {
