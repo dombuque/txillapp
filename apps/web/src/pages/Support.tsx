@@ -78,7 +78,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: tr('O que são as vibes?'), a: tr('São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.') },
   { q: tr('Como funcionam os brindes?'), a: tr('Tocas em "Brindar" num post ou reel para mostrar que gostaste. É grátis e a pessoa é avisada.') },
   { q: tr('Como presenteio alguém?'), a: tr('Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.') },
-  { q: tr('O que é a geleira?'), a: tr('A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.') },
+  { q: tr('O que é a geleira?'), a: tr('A tua vitrine de gostos: ambientes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.') },
   { q: tr('O que é a visualização única?'), a: tr('Fotos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat.') },
   { q: tr('Como bloqueio ou denuncio alguém?'), a: tr('No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.') },
   { q: tr('Como pedir o selo de verificado?'), a: tr('Em Definições, Verificação. A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.') },

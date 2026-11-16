@@ -2,7 +2,7 @@ import type { IconName } from '../components/Icon';
 import { locale, tr } from './i18n';
 import type { TasteKind } from './api';
 
-export const KIND_LABEL: Record<TasteKind, string> = { vibe: tr('Vibes'), bebida: tr('Bebidas'), comida: tr('Comidas'), sitio: tr('Sítios') };
+export const KIND_LABEL: Record<TasteKind, string> = { vibe: tr('Ambientes'), bebida: tr('Bebidas'), comida: tr('Comidas'), sitio: tr('Sítios') };
 export const KIND_ICON: Record<TasteKind, IconName> = { vibe: 'sparkles', bebida: 'cheers', comida: 'utensils', sitio: 'map-pin' };
 export const KINDS: TasteKind[] = ['vibe', 'bebida', 'comida', 'sitio'];
 

@@ -570,7 +570,7 @@ export const EN: Record<string, string> = {
   'Verificar': 'Verify',
   'Verificação': 'Verification',
   'Vibe?': 'Vibe?',
-  'Vibes, bebidas, comidas e sítios de que gostas.': 'Vibes, drinks, food and places you like.',
+  'Ambientes, bebidas, comidas e sítios de que gostas.': 'Moods, drinks, food and places you like.',
   'Virar câmara': 'Flip camera',
   'Visita guiada': 'Guided tour',
   'Visualização única': 'View once',
@@ -692,7 +692,7 @@ export const EN: Record<string, string> = {
   'Voltam no dia 7': 'Come back on day 7',
 
   // Listas e opções (terceira passagem)
-  'A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.': 'Your showcase of tastes: vibes, drinks, food and places. Edit it in Edit profile. The more partying you put in, the higher it levels up.',
+  'A tua vitrine de gostos: ambientes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.': 'Your showcase of tastes: moods, drinks, food and places. Edit it in Edit profile. The more partying you put in, the higher it levels up.',
   'Ainda não publicaste reels.': 'You have not posted any reels yet.',
   'Ainda não repostaste nada.': 'You have not reposted anything yet.',
   'Ainda sem presentes publicados.': 'No gifts posted yet.',
@@ -1368,6 +1368,7 @@ export const EN: Record<string, string> = {
   'Fechar a geleira': 'Close the geleira',
   'Abrir a geleira': 'Open the geleira',
   'Vibes': 'Vibes',
+  'Ambientes': 'Moods',
   'Bebidas': 'Drinks',
   'Comidas': 'Food',
   'Sítios': 'Places',

@@ -221,7 +221,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><Icon name="snowflake" size={22} /></span>
             <span className="min-w-0 flex-1">
               <span className="block font-bold">{tr('Escolher os meus gostos')}</span>
-              <span className="block text-sm text-zinc-600">{tr('Vibes, bebidas, comidas e sítios de que gostas.')}</span>
+              <span className="block text-sm text-zinc-600">{tr('Ambientes, bebidas, comidas e sítios de que gostas.')}</span>
             </span>
             <Icon name="chevron-right" size={20} className="shrink-0 text-zinc-500" />
           </button>

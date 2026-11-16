@@ -147,7 +147,7 @@ export const TOOLS: OllamaTool[] = [
     type: 'function',
     function: {
       name: 'geleira',
-      description: 'Gostos da geleira (bebidas, comidas, vibes, sítios). Sem username: a minha. Com username: a de outra pessoa, se ela me deixa ver.',
+      description: 'Gostos da geleira (bebidas, comidas, ambientes, sítios). Sem username: a minha. Com username: a de outra pessoa, se ela me deixa ver.',
       parameters: { type: 'object', properties: { username: { type: 'string', description: 'O @ da pessoa (opcional).' } } },
     },
   },

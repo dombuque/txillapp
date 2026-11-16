@@ -19,7 +19,7 @@ const STEPS: Step[] = [
   { icon: 'send', title: 'Mensagens', text: 'Conversas, TxillGroups e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.' },
   { icon: 'film', title: 'Tchekas', text: 'Vídeos curtos a tocar sem parar. Brinda, comenta e presenteia sem sair do vídeo.' },
   { icon: 'user', title: 'O teu perfil', text: 'Aqui moram as tuas publicações, as definições e a tua geleira.' },
-  { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas vibes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
+  { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
 ];
 
 /** Visita guiada para quem acabou de registar: cartão passo a passo sobre o Início. Só aparece uma vez (o servidor guarda). */

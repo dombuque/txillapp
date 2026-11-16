@@ -90,7 +90,7 @@ export default function BackofficeCatalog() {
     <>
       <PageHeader
         title="Catálogo da Geleira"
-        description="O que a malta pode pôr na geleira: vibes, bebidas, comidas e sítios. As sugestões só aparecem a quem as fez até serem aprovadas."
+        description="O que a malta pode pôr na geleira: ambientes, bebidas, comidas e sítios. As sugestões só aparecem a quem as fez até serem aprovadas."
         actions={can ? <button type="button" onClick={() => setEditing('new')} className={btnPrimary}><Icon name="plus" size={16} className="mr-1.5" />Novo item</button> : undefined}
       />
       <div role="tablist" aria-label="Estado" className="mb-4 flex flex-wrap gap-2">

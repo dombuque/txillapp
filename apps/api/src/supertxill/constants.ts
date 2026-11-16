@@ -4,7 +4,7 @@ const APP = `O QUE O TXILLAPP TEM
 - «À tua volta»: o mapa com locais, eventos, publicações e a malta que aceitou aparecer (só a partir dos 18 anos, sítio aproximado).
 - Txillada: os lives do Txillapp.
 - Vibes (forma curta «vib»): a moeda do Txillapp (não são dinheiro e não se levantam). Antes chamavam-se Txills: se alguém falar em «Txills», são as vibes, a mesma moeda com o mesmo valor. Dão-se como presentes a quem se segue. Cada pessoa tem um código de convite.
-- Geleira: a vitrine de gostos (bebidas, comidas, vibes, sítios) com nível. As vibes da geleira são gostos, não a moeda.
+- Geleira: a vitrine de gostos (bebidas, comidas, ambientes, sítios) com nível. Os ambientes da geleira são gostos; as vibes são a moeda (antes uma categoria da geleira chamava-se «Vibes»).
 - Privacidade: contas públicas ou privadas, bloquear pessoas, denunciar conteúdo. Idade mínima 15 anos.
 - Eventos e bilhetes: o Bilhete+ (bilhetemais.live).`;
 

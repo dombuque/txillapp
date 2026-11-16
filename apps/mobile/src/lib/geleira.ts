@@ -1,7 +1,7 @@
 import type { IconName } from '@/components/Icon';
 import type { TasteKind } from '@/lib/api.geleira';
 
-export const KIND_LABEL: Record<TasteKind, string> = { vibe: 'Vibes', bebida: 'Bebidas', comida: 'Comidas', sitio: 'Sítios' };
+export const KIND_LABEL: Record<TasteKind, string> = { vibe: 'Ambientes', bebida: 'Bebidas', comida: 'Comidas', sitio: 'Sítios' };
 export const KIND_ICON: Record<TasteKind, IconName> = { vibe: 'sparkles', bebida: 'cheers', comida: 'utensils', sitio: 'map-pin' };
 export const KINDS: TasteKind[] = ['vibe', 'bebida', 'comida', 'sitio'];
 

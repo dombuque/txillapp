@@ -207,7 +207,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
             <View style={st.gicon}><Icon name="snowflake" size={22} color="#fff" /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Escolher os meus gostos</Text>
-              <Text style={{ fontSize: 14, color: colors.zinc600 }}>Vibes, bebidas, comidas e sítios de que gostas.</Text>
+              <Text style={{ fontSize: 14, color: colors.zinc600 }}>Ambientes, bebidas, comidas e sítios de que gostas.</Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.zinc500} />
           </Pressable>

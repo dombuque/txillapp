@@ -22,7 +22,7 @@ const STEPS: Step[] = [
   { target: 'messages', icon: 'send', title: 'Mensagens', text: 'Conversas, grupos e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.' },
   { target: 'reels', icon: 'film', title: 'Reels', text: 'Vídeos curtos a tocar sem parar. Brinda, comenta e presenteia sem sair do vídeo.' },
   { target: 'profile', icon: 'user', title: 'O teu perfil', text: 'Aqui moram as tuas publicações, as definições e a tua geleira.' },
-  { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas vibes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
+  { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
 ];
 
 interface Box { top: number; left: number; width: number; height: number }
