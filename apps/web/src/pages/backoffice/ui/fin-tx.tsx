@@ -57,14 +57,14 @@ export function TxDialog({ id, onClose }: { id: string; onClose: () => void }) {
 
               {t.order && (
                 <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm">
-                  <p className="font-semibold">Compra de Txills</p>
+                  <p className="font-semibold">Compra de vibes</p>
                   <p className="mt-1 text-zinc-600">Pacote {t.order.packageId} · {money(t.order.amountMinor, t.order.currency)} · {t.order.provider === 'sandbox' ? 'pagamento de teste' : t.order.provider} · {t.order.status}</p>
                 </div>
               )}
               {t.campaign && (
                 <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm">
                   <p className="font-semibold">Campanha Bombar de {t.campaign.venue.name}</p>
-                  <p className="mt-1 text-zinc-600">Pacote {t.campaign.package} · {when(t.campaign.startsAt)} → {when(t.campaign.endsAt)} · preço <Txl v={t.campaign.price} />{t.campaign.refunded ? <> · devolvidos <Txl v={t.campaign.refunded} /></> : null} · {t.campaign.status}</p>
+                  <p className="mt-1 text-zinc-600">Pacote {t.campaign.package} · {when(t.campaign.startsAt)} → {when(t.campaign.endsAt)} · preço <Txl v={t.campaign.price} />{t.campaign.refunded ? <> · devolvidas <Txl v={t.campaign.refunded} /></> : null} · {t.campaign.status}</p>
                 </div>
               )}
 

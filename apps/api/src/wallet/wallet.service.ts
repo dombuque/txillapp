@@ -53,7 +53,7 @@ export function historyLabel(type: LedgerType, amount: number, x: { who: string 
   const out = amount < 0;
   switch (type) {
     case 'welcome_bonus': return 'Bónus de boas-vindas';
-    case 'topup': return 'Carregamento de Txills';
+    case 'topup': return 'Carregamento de vibes';
     case 'invite': return 'Prémio por convite';
     case 'gift': return out ? `Presente para ${x.who ?? 'alguém'}` : `Presente de ${x.who ?? 'alguém'}`;
     case 'transfer': return out ? `Enviaste a ${x.who ?? 'alguém'}` : `Recebeste de ${x.who ?? 'alguém'}`;

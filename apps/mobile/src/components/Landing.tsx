@@ -12,7 +12,7 @@ const FEATURES: { icon: IconName; title: string; text: string }[] = [
   { icon: 'camera', title: 'Mimos', text: 'Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.' },
   { icon: 'film', title: 'Tchekas', text: 'Vídeos curtos a rolar, um a seguir ao outro. Bora criar a tua.' },
   { icon: 'comment', title: 'Chat em tempo real', text: 'Conversa com quem segues, manda fotos e vídeos. Só entra quem tu deixares.' },
-  { icon: 'gift', title: 'Txills', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
+  { icon: 'gift', title: 'Vibes', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
   { icon: 'shield', title: 'Privacidade a sério', text: 'Contas privadas, bloquear, silenciar, escolher quem te vê. Tu decides.' },
 ];
 
@@ -248,7 +248,7 @@ function Montage() {
       <View style={[dk.float, { right: 30, bottom: 60, flexDirection: 'row', alignItems: 'center', gap: 10, transform: [{ rotate: '-3deg' }] }]}>
         <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' }}><Icon name="gift" size={20} color={colors.brand} /></View>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '800', color: colors.zinc900 }}>+50 Txills</Text>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: colors.zinc900 }}>+50 vibes</Text>
           <Text style={{ fontSize: 12, color: colors.zinc500 }}>Presente da malta</Text>
         </View>
       </View>

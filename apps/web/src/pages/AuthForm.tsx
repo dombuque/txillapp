@@ -460,7 +460,7 @@ export function Register() {
       </div>
 
       <form onSubmit={next} className="mt-12 flex flex-1 flex-col" noValidate>
-        {invite && i === 0 && <p className="mb-4 rounded-2xl bg-emerald-50 px-4 py-2.5 text-center text-[15px] font-semibold text-emerald-800">{tr('Convite de {v0}: os dois ganham Txills quando entrares a sério.', { v0: invite.displayName })}</p>}
+        {invite && i === 0 && <p className="mb-4 rounded-2xl bg-emerald-50 px-4 py-2.5 text-center text-[15px] font-semibold text-emerald-800">{tr('Convite de {v0}: os dois ganham vibes quando entrares a sério.', { v0: invite.displayName })}</p>}
         <h1 className="text-4xl font-light leading-tight">{step.title}</h1>
         <p className="mt-3 text-xl font-light text-zinc-600">{step.sub}</p>
         <div className="mt-8">

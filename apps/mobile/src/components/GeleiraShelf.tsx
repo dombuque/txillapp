@@ -64,7 +64,7 @@ function HowSheet({ onClose, level, top, steps, onHowUp }: { onClose: () => void
         </View>
         <View style={{ gap: 8 }}>
           <Text style={st.howTitle}>O nível da geleira</Text>
-          <Text style={st.howText}>Mede o que se vive com a malta nos últimos 90 dias: geladas pagas, brindes de amigos, check-ins em sítios e rodadas. Os gostos contam pouco (no máximo 8 pontos). O álcool e os Txills não contam.</Text>
+          <Text style={st.howText}>Mede o que se vive com a malta nos últimos 90 dias: geladas pagas, brindes de amigos, check-ins em sítios e rodadas. Os gostos contam pouco (no máximo 8 pontos). O álcool e as vibes da carteira não contam.</Text>
           {labels.map((l, n) => (
             <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={[st.lvDot, n === level && { backgroundColor: colors.brand }]}>{n === level && <Icon name="check" size={10} strokeWidth={3} color="#fff" />}</View>

@@ -1,6 +1,7 @@
 import { buzz } from '../lib/haptics';
 import { track } from '../lib/analytics';
 import { tr, locale } from '../lib/i18n';
+import { formatVibes } from '../lib/vibes';
 import { sized } from '../lib/media';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
@@ -226,7 +227,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/25"><Icon name="gift" size={24} /></span>
             <span className="min-w-0">
               <span className="block text-[13px] font-semibold opacity-90">{mine ? tr('Enviaste um presente') : tr('Enviou-te um presente')}</span>
-              <span className="block text-[24px] font-extrabold leading-tight">{(m.giftAmount ?? 0).toLocaleString(locale)} {tr('Txills')}</span>
+              <span className="block text-[24px] font-extrabold leading-tight">{formatVibes(m.giftAmount ?? 0)}</span>
             </span>
           </div>
           <p className="px-4 pb-3 pt-1 text-[15px] leading-snug">{m.body || ' '}</p>

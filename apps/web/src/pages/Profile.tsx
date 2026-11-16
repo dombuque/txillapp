@@ -1,5 +1,6 @@
 import { sized } from '../lib/media';
 import { tr, locale } from '../lib/i18n';
+import { vibesWord } from '../lib/vibes';
 import { profileShare, shareNow } from '../lib/share';
 import ExploreViewer from '../components/ExploreViewer';
 import Suggestions from '../components/Suggestions';
@@ -63,7 +64,7 @@ export default function ProfilePage() {
   async function inviteCrew() {
     try {
       const d = await api.invites();
-      const text = tr('Entra no Txillapp com o meu convite e ganhamos Txills os dois:');
+      const text = tr('Entra no Txillapp com o meu convite e ganhamos vibes os dois:');
       if (navigator.share) return void (await navigator.share({ title: 'Txillapp', text, url: d.link }));
       window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${d.link}`)}`, '_blank', 'noopener');
     } catch (e) {
@@ -228,7 +229,7 @@ export default function ProfilePage() {
                     ['pencil', tr('Editar perfil'), () => setSheet('edit')],
                     ['qr', tr('Partilhar perfil'), () => setSheet('qr')],
                     ['user-plus', tr('Convidar a malta'), () => void inviteCrew()],
-                    ['wallet', tr('Carteira de Txills'), () => navigate('/wallet')],
+                    ['wallet', tr('Carteira de vibes'), () => navigate('/wallet')],
                   ] as const).map(([icon, label, go]) => (
                     <button key={label} onClick={go} aria-label={label} title={label} className={`${btnSmall} flex-1 !px-0`}>
                       {icon === 'qr' ? <QrGlyph /> : <Icon name={icon} size={20} className="mx-auto" />}
@@ -350,14 +351,14 @@ export default function ProfilePage() {
                 return (
                   <button key={post.id} onClick={() => setOpenPost(post)} aria-label={tr('Abrir publicação: {v0}', { v0: post.body || shown.body || 'foto' })} className="relative aspect-square overflow-hidden rounded-xl bg-rose-50 text-left active:opacity-80">
                     {post.kind === 'gift' && post.gift ? (
-                      // Presente: o mesmo bilhete do post, em ponto pequeno (fotos cruzadas, valor e Txills).
+                      // Presente: o mesmo bilhete do post, em ponto pequeno (fotos cruzadas, valor e vibes).
                       <span className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-2 text-white">
                         <span className="relative h-7 w-[46px]">
                           <span className="absolute right-0 top-0 rounded-full ring-2 ring-white/90"><Avatar name={post.gift.recipient.displayName} username={post.gift.recipient.hasAvatar ? post.gift.recipient.username : undefined} size={26} ring={false} /></span>
                           <span className="absolute left-0 top-0 z-10 rounded-full ring-2 ring-white/90"><Avatar name={post.author.displayName} username={post.author.username} size={26} ring={false} /></span>
                         </span>
                         <span className="text-[22px] font-black leading-none">{post.gift.amount.toLocaleString(locale)}</span>
-                        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/85">{tr('Txills')}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/85">{vibesWord(post.gift.amount)}</span>
                       </span>
                     ) : shown.media[0] ? (
                       <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />

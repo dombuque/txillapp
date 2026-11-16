@@ -34,7 +34,7 @@ export default function BackofficeHome() {
     { key: 'verifications', show: can('verification.decide'), label: 'Verificações por decidir', value: d.verificationsPending, icon: 'shield', to: '/backoffice/verifications', tone: busy(d.verificationsPending) },
     { key: 'venues', show: can('catalog.manage'), label: 'Locais por aprovar', value: d.venuesPending, icon: 'map-pin', to: '/backoffice/venues', tone: busy(d.venuesPending) },
     { key: 'music', show: canMusic, label: 'Música por decidir', value: musicN, icon: 'music', to: '/backoffice/music?tab=artists', tone: busy(musicN), hint: music.data ? `${music.data.artists} pedidos · ${music.data.tracks} faixas · ${music.data.claims} denúncias` : undefined },
-    { key: 'alerts', show: canWallet, label: 'Alertas de Txills', value: alertN, icon: 'alert', to: '/backoffice/finance', tone: alerts.data?.items.some((x) => x.level === 'critical') ? 'bad' : busy(alertN), hint: alertN ? 'Presentes fora do normal e outros' : 'Tudo normal' },
+    { key: 'alerts', show: canWallet, label: 'Alertas de vibes', value: alertN, icon: 'alert', to: '/backoffice/finance', tone: alerts.data?.items.some((x) => x.level === 'critical') ? 'bad' : busy(alertN), hint: alertN ? 'Presentes fora do normal e outros' : 'Tudo normal' },
     { key: 'suspended', show: can('users.view'), label: 'Contas suspensas', value: o?.suspended, icon: 'lock', to: '/backoffice/users?status=suspended' },
   ];
   const now: Tile[] = [
@@ -42,7 +42,7 @@ export default function BackofficeHome() {
     { key: 'signups', show: can('stats.view') || can('users.view') || can('invites.view'), label: 'Registos hoje', value: d.signupsToday, hint: d.signupsYesterday !== undefined ? `${fmt(d.signupsYesterday)} ontem` : undefined, icon: 'user-plus', to: signupsTo },
     { key: 'invites', show: can('invites.view'), label: 'Entraram por convite hoje', value: d.invitesToday, icon: 'gift', to: '/backoffice/growth' },
     { key: 'boosts', show: canWallet || can('catalog.manage'), label: 'Campanhas Bombar ativas', value: d.boostsActive, icon: 'flame', to: canWallet ? '/backoffice/bombar' : '/backoffice/venues' },
-    { key: 'txills', show: canWallet, label: 'Txills movimentados hoje', value: d.txillsToday, hint: d.movesToday !== undefined ? `${fmt(d.movesToday)} movimentos` : undefined, icon: 'wallet', to: `/backoffice/finance?tab=movimentos&from=${today}&to=${today}` },
+    { key: 'txills', show: canWallet, label: 'Vibes movimentadas hoje', value: d.txillsToday, hint: d.movesToday !== undefined ? `${fmt(d.movesToday)} movimentos` : undefined, icon: 'wallet', to: `/backoffice/finance?tab=movimentos&from=${today}&to=${today}` },
   ];
   const tiles = (list: Tile[]) => list.filter((t) => t.show).map((t) => (
     <Kpi key={t.key} label={t.label} value={t.key === 'txills' ? compact(t.value) : fmt(t.value)} hint={t.hint} icon={t.icon} to={t.to} tone={t.tone} loading={t.value === undefined && (s.isLoading || ov.isLoading || alerts.isLoading || music.isLoading)} />

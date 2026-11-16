@@ -9,10 +9,10 @@ Rascunho de trabalho, feito a partir das App Review Guidelines (verificar a vers
 | Tema | Estado |
 |---|---|
 | App nativa (Capacitor) | **Por fazer.** Só existe a PWA; a Apple recusa sites embrulhados. Precisa de funcionalidades nativas reais (push, câmara, contactos). |
-| Compra de Txills (regra 3.1.1) | **Decisão pendente.** Moeda virtual dentro da app iOS tem de usar a compra da Apple. M-Pesa, e-Mola e cartão não podem ser o método dentro do iPhone. |
+| Compra de vibes (regra 3.1.1) | **Decisão pendente.** Moeda virtual dentro da app iOS tem de usar a compra da Apple. M-Pesa, e-Mola e cartão não podem ser o método dentro do iPhone. |
 | Iniciar sessão com a Apple (4.8) | **Por fazer.** Há login com a Google, logo é obrigatório. |
 | Conteúdo de utilizadores (1.2) | **Parcial.** Há denúncia, bloqueio e filtro de fotos. Falta filtro de texto, compromisso de resposta e backoffice. |
-| Funcionalidades "em breve" | **Por limpar** na versão para revisão (Comprar Txills, Français, Traduzir publicações). |
+| Funcionalidades "em breve" | **Por limpar** na versão para revisão (Comprar vibes, Français, Traduzir publicações). |
 | Eliminar conta (5.1.1(v)) | **OK** (Definições → Eliminar conta, com descarregar dados). |
 | Política de privacidade e termos | **OK** (públicos em `/privacy` e `/terms`, e dentro da app em Definições → Sobre). |
 | Idade mínima | **OK** (13 anos, validada no servidor). |
@@ -41,7 +41,7 @@ Respostas propostas, com o resultado provável **17+**:
 | Conteúdo de utilizadores / redes sociais | **Sim** | Publicações, comentários, mensagens, mimos. |
 | Conteúdo sexual ou nudez | Nenhum | Fotos verificadas automaticamente; recusa e fila de moderação. |
 | Violência | Nenhuma / rara | Proibida nos termos. |
-| Jogos de azar | Nenhum | Txills são pontos virtuais, sem prémios. |
+| Jogos de azar | Nenhum | As vibes são pontos virtuais, sem prémios. |
 | Acesso livre à web | Não | Só abre ligações para partilha. |
 | Conteúdo gerado por IA | Não | |
 
@@ -88,7 +88,7 @@ Texto proposto para preencher na submissão (ajustar a conta de teste):
 > **Conta de teste:** `<email>` / `<senha>` (email já confirmado).
 > **Moderação de conteúdo:** cada publicação, comentário, mensagem e perfil tem "Denunciar" no menu (…); "Bloquear" está no perfil; a eliminação da conta está em Definições → Eliminar conta. As fotos são verificadas automaticamente antes de ficarem visíveis. Os termos têm tolerância zero a conteúdo abusivo e as denúncias são analisadas pela nossa equipa de moderação.
 > **Álcool:** a "geleira" (gostos do perfil) inclui bebidas alcoólicas, visíveis só a maiores de 18 anos.
-> **Txills:** pontos virtuais para presentear quem se segue. Na versão iOS são comprados com a compra dentro da app da Apple. Não têm valor monetário e não se trocam por dinheiro.
+> **Vibes:** pontos virtuais para presentear quem se segue. Na versão iOS são compradas com a compra dentro da app da Apple. Não têm valor monetário e não se trocam por dinheiro.
 > **Contactos:** o acesso aos contactos é opcional e só envia um resumo cifrado dos emails para encontrar amigos; não se guarda nada.
 > **Contacto:** suporte@txillapp.com
 
@@ -99,7 +99,7 @@ Criar na produção **só com autorização do dono** (são dados reais no servi
 1. Registar uma conta normal (por exemplo `revisao`) e confirmar o email.
 2. Preencher perfil (foto, bio) e a geleira (alguns gostos).
 3. Publicar 3 fotos/vídeos e 1 tcheka; seguir 3 a 5 contas de exemplo que sigam de volta; deixar 1 mimo e 1 nota ativos.
-4. Garantir saldo de Txills (o bónus de boas-vindas basta).
+4. Garantir saldo de vibes (o bónus de boas-vindas basta).
 5. Anotar email e senha na ficha da submissão e **mudar a senha depois da revisão**.
 
 ## 8. Checklist de submissão
@@ -107,7 +107,7 @@ Criar na produção **só com autorização do dono** (são dados reais no servi
 - [ ] Conta de programador da Apple (cerca de 99 USD por ano) e acesso a um Mac (ou serviço de compilação na nuvem).
 - [ ] App nativa (Capacitor) com push nativas (APNs), câmara, contactos.
 - [ ] Iniciar sessão com a Apple (servidor e app).
-- [ ] Compra dentro da app para os Txills (StoreKit); esconder M-Pesa, e-Mola e cartão no iPhone.
+- [ ] Compra dentro da app para as vibes (StoreKit); esconder M-Pesa, e-Mola e cartão no iPhone.
 - [ ] Filtro de texto, compromisso de resposta às denúncias e backoffice da equipa.
 - [ ] Remover "em breve" da versão de revisão.
 - [ ] Decidir a classificação etária (17+).

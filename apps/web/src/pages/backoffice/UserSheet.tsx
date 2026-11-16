@@ -156,9 +156,9 @@ function Summary({ s }: { s: AccountSheet }) {
             ['Último login', ago(u.last_seen)],
           ]} />
         </Card>
-        <Card title="Txills e convites">
+        <Card title="Vibes e convites">
           <ContasFacts rows={[
-            ['Saldo de Txills', Number(u.txills).toLocaleString('pt-PT')],
+            ['Saldo de vibes', Number(u.txills).toLocaleString('pt-PT')],
             ['Convidou', s.invite.invited],
             ['Convites com prémio', s.invite.paid],
             ['Veio por convite de', s.invite.came_from ? <span key="c">@{s.invite.came_from.inviter} <Badge tone={s.invite.came_from.status === 'blocked' ? 'red' : 'zinc'}>{s.invite.came_from.status}{s.invite.came_from.reason ? `: ${s.invite.came_from.reason}` : ''}</Badge></span> : '—'],

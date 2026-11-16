@@ -11,6 +11,7 @@ import { locaisApi, type Venue, type VenuePayment } from '@/lib/api.locais';
 import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { formatVibes, vibesWord } from '@/lib/vibes';
 
 const fmt = (n: number) => n.toLocaleString('pt-PT');
 
@@ -40,7 +41,7 @@ export function VenueTxills({ v }: { v: Venue }) {
     try {
       const nv = await locaisApi.updateVenue(v.slug, { acceptsTxills: on });
       qc.setQueryData(['venue', v.slug], nv);
-      setMsg(on ? 'Pronto: o local já aceita Txills.' : 'Os pagamentos em Txills ficaram desligados.');
+      setMsg(on ? 'Pronto: o local já aceita vibes.' : 'Os pagamentos em vibes ficaram desligados.');
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -51,18 +52,18 @@ export function VenueTxills({ v }: { v: Venue }) {
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
       <View style={st.balance}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>Saldo do local</Text>
-        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -1, color: '#fff' }}>{fmt(balance)} <Text style={{ fontSize: 20, fontWeight: '700' }}>Txills</Text></Text>
-        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>Converter Txills em dinheiro ainda não está disponível. Por agora os Txills recebidos ficam no saldo do local.</Text>
+        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -1, color: '#fff' }}>{fmt(balance)} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(balance)}</Text></Text>
+        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>Converter vibes em dinheiro ainda não está disponível. Por agora as vibes recebidas ficam no saldo do local.</Text>
       </View>
 
       <View style={st.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.title}>Aceitar pagamentos em Txills</Text>
-            <Text style={st.hint}>{v.acceptsTxills ? 'A página mostra "Aceita Txills" e o botão Pagar com Txills.' : 'Liga para a malta poder pagar aqui com Txills.'}</Text>
+            <Text style={st.title}>Aceitar pagamentos em vibes</Text>
+            <Text style={st.hint}>{v.acceptsTxills ? 'A página mostra "Aceita vibes" e o botão Pagar com vibes.' : 'Liga para a malta poder pagar aqui com vibes.'}</Text>
           </View>
           {v.canEdit ? (
-            <Switch value={v.acceptsTxills} disabled={busy} onValueChange={(on) => void toggle(on)} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Aceitar pagamentos em Txills" />
+            <Switch value={v.acceptsTxills} disabled={busy} onValueChange={(on) => void toggle(on)} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Aceitar pagamentos em vibes" />
           ) : (
             <Text style={{ fontSize: 14, fontWeight: '700', color: v.acceptsTxills ? colors.green700 : colors.zinc500 }}>{v.acceptsTxills ? 'Ligado' : 'Desligado'}</Text>
           )}
@@ -87,7 +88,7 @@ export function VenueTxills({ v }: { v: Venue }) {
             <Pressable onPress={() => void pays.refetch()} style={[st.ghost, { marginTop: 8 }]}><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
           </View>
         ) : null}
-        {pays.isSuccess && items.length === 0 ? <Text style={[st.hint, { paddingVertical: 12 }]}>Ainda ninguém pagou com Txills. Põe o QR de receber no balcão.</Text> : null}
+        {pays.isSuccess && items.length === 0 ? <Text style={[st.hint, { paddingVertical: 12 }]}>Ainda ninguém pagou com vibes. Põe o QR de receber no balcão.</Text> : null}
         {items.map((p, i) => <PaymentRow key={`${p.at}-${i}`} p={p} first={i === 0} />)}
         {pays.hasNextPage ? (
           <Pressable onPress={() => void pays.fetchNextPage()} disabled={pays.isFetchingNextPage} style={[st.ghost, { marginTop: 8 }]} accessibilityRole="button">
@@ -135,29 +136,29 @@ function ReceiveQr({ v }: { v: Venue }) {
       return;
     }
     try {
-      await Share.share(linkShare(`Paga com Txills no Txillapp: ${v.name}${n >= 1 ? ` (${fmt(n)} Txills)` : ''}`, url));
+      await Share.share(linkShare(`Paga com vibes no Txillapp: ${v.name}${n >= 1 ? ` (${formatVibes(n)})` : ''}`, url));
     } catch {
       /* cancelado */
     }
   }
 
   return (
-    <View style={st.card} accessibilityLabel="QR para receber Txills">
+    <View style={st.card} accessibilityLabel="QR para receber vibes">
       <Text style={st.title}>QR para receber</Text>
       <Text style={st.hint}>Quem o ler abre logo o pagamento ao teu local. Deixa o valor em branco para a pessoa escolher, ou fixa um valor (por exemplo, para uma conta).</Text>
       <TextInput
         value={valor}
         onChangeText={(t) => setValor(t.replace(/\D/g, '').replace(/^0+/, '').slice(0, 7))}
         keyboardType="number-pad"
-        placeholder="Valor fixo em Txills (opcional)"
+        placeholder="Valor fixo em vibes (opcional)"
         placeholderTextColor={colors.zinc500}
         style={st.input}
-        accessibilityLabel="Valor fixo em Txills"
+        accessibilityLabel="Valor fixo em vibes"
       />
       <View style={{ marginTop: 12, alignSelf: 'center', width: '100%', maxWidth: 240, aspectRatio: 1 }}>
         <QrSvg text={url} size={240} />
       </View>
-      <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{n >= 1 ? `Pagar ${fmt(n)} Txills` : 'Pagar com Txills'}</Text>
+      <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{n >= 1 ? `Pagar ${formatVibes(n)}` : 'Pagar com vibes'}</Text>
       <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }} numberOfLines={1} selectable>{url.replace(/^https?:\/\//, '')}</Text>
       <Pressable onPress={() => void save()} style={[st.dark, { marginTop: 12 }]} accessibilityRole="button">
         <Icon name="download" size={18} color="#fff" />

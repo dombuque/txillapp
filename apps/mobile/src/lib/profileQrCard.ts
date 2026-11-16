@@ -102,7 +102,7 @@ export function qrCardLayout(matrix: readonly (readonly boolean[])[], username: 
 
 /** O texto que acompanha a imagem (sem a ligação: quem partilha junta-a). Com convite, fala do convite. */
 export function qrShareText(username: string, invite: boolean): string {
-  return invite ? `Segue-me no Txillapp (@${username}) e entra com o meu convite: ganhamos Txills os dois.` : `Segue @${username} no Txillapp, a rede da malta:`;
+  return invite ? `Segue-me no Txillapp (@${username}) e entra com o meu convite: ganhamos vibes os dois.` : `Segue @${username} no Txillapp, a rede da malta:`;
 }
 
 /** O nome do ficheiro: só letras, números, ponto, traço e sublinhado. */

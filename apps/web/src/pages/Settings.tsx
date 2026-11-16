@@ -155,7 +155,7 @@ const NOTIFY_LABELS: Record<string, [string, string]> = {
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus stories'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
   reposts: ['Reposts', 'Quando repostam uma publicação tua'],
-  gifts: ['Brindes', 'Quando te oferecem Txills'],
+  gifts: ['Brindes', 'Quando te oferecem vibes'],
   reactions: ['Reações', 'Nas tuas notas e nos teus Zás'],
   invites: ['Convites', 'Quando alguém entra com o teu convite'],
 };
@@ -304,7 +304,7 @@ export default function Settings() {
       <Section title={tr('Carteira')}>
         <Link to="/wallet" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="wallet" /></span>
-          <span className="flex-1 font-semibold">{tr('Txills e presentes')}</span>
+          <span className="flex-1 font-semibold">{tr('Vibes e presentes')}</span>
           <span className="text-xl text-zinc-400" aria-hidden>›</span>
         </Link>
       </Section>
@@ -595,7 +595,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
           <li>{tr('O teu nome, @, bio, foto e email são apagados.')}</li>
           <li>{tr('As tuas publicações deixam de aparecer.')}</li>
           <li>{tr('Seguidores, stories e notificações são removidos.')}</li>
-          <li>{tr('Os movimentos de Txills ficam registados sem dados pessoais.')}</li>
+          <li>{tr('Os movimentos de vibes ficam registados sem dados pessoais.')}</li>
         </ul>
       </div>
       <form onSubmit={submit} className="space-y-3" noValidate>

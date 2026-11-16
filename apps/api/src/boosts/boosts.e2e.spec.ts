@@ -158,7 +158,7 @@ describe('Bombar: destaques pagos dos locais (integração)', () => {
   it('sem saldo dá erro e não cria nada; meticais ainda desligados', async () => {
     const ev = (await api().post('/api/v1/events').set(auth(dono)).send({ venueSlug: pobre.slug, title: `Jogo no ecrã ${run}`, startsAt: new Date(Date.now() + 3_600_000).toISOString() }).expect(201)).body.id;
     const r = await create(dono, pobre.slug, { target: { kind: 'event', id: ev }, package: '1d', radiusKm: 3 }).expect(422);
-    expect(r.body.message).toMatch(/Txills suficientes/);
+    expect(r.body.message).toBe('O local não tem vibes suficientes: este pacote custa 1500 vibes.');
     expect(Number((await pool.query('SELECT count(*) FROM content.boost_campaigns WHERE venue_id = $1', [pobre.id])).rows[0].count)).toBe(0);
     expect(await balance(pobre.id)).toBe(0);
     const m = await create(dono, venue.slug, { target: { kind: 'event', id: eventId }, package: '1d', radiusKm: 3, payment: 'mzn' }).expect(422);

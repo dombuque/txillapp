@@ -224,7 +224,7 @@ describe('Txillada: tipos e Angariação (integração)', () => {
     const e0 = await balance(eva);
     const no = await pay(eva, big).expect(422);
     expect(no.body).toMatchObject({ code: 'insufficient_funds', amount: 5000, balance: e0 });
-    expect(no.body.message).toMatch(/Não tens Txills suficientes/);
+    expect(no.body.message).toBe(`Não tens vibes suficientes: a entrada custa 5000 vibes e tens ${e0}.`);
     expect(await balance(eva)).toBe(e0);
     expect((await pool.query('SELECT count(*)::int AS n FROM content.txillada_tickets WHERE txillada_id = $1', [big])).rows[0].n).toBe(0);
     // Pagar uma que não é paga: 400; uma que já acabou: 409.

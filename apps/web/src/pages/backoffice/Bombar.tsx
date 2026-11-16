@@ -3,12 +3,12 @@ import { PageHeader } from './bo';
 import { BoostsPanel } from './ui/fin-boosts';
 import { PeriodPicker } from './ui/fin-ui';
 
-/** Bombar: as campanhas de todos os locais (ativas e passadas), resultados e Txills gastos. */
+/** Bombar: as campanhas de todos os locais (ativas e passadas), resultados e vibes gastas. */
 export default function Bombar() {
   const [days, setDays] = useState(30);
   return (
     <>
-      <PageHeader title="Bombar" description="Destaques pagos com os Txills dos locais: o que está a bombar, resultados e quanto se gastou." actions={<PeriodPicker value={days} onChange={setDays} />} />
+      <PageHeader title="Bombar" description="Destaques pagos com as vibes dos locais: o que está a bombar, resultados e quanto se gastou." actions={<PeriodPicker value={days} onChange={setDays} />} />
       <BoostsPanel days={days} />
     </>
   );

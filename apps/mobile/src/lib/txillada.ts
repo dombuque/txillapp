@@ -12,6 +12,7 @@
  */
 
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
+import { fmtVibesNumber, formatVibes } from '@/lib/vibes';
 
 /**
  * Quem pode ver (0167): 'everyone' (Pública), 'friends' (Para amigos: quem segues e te segue), 'close' (Para amigos com «Só
@@ -73,7 +74,7 @@ export interface TxilladaGift { id: string; from: Omit<TxilladaPerson, 'id'>; am
 
 /**
  * `cheers`: quantos brindaram o comentário; `cheered`: se eu brindei (0161; servidores antigos não mandam). `gift`: não é um
- * comentário, é a linha destacada «@x ofereceu N Txills» (0167; o id começa por `gift:`, nunca vai para a API).
+ * comentário, é a linha destacada «@x ofereceu N vibes» (0167; o id começa por `gift:`, nunca vai para a API).
  */
 export interface TxilladaComment { id: string; author: TxilladaPerson; body: string; createdAt: string; cheers?: number; cheered?: boolean; gift?: { amount: number } }
 
@@ -112,7 +113,7 @@ export const AUDIENCES: { id: TxilladaAudience; label: string; hint: string }[] 
 export const KINDS: { id: TxilladaKind; label: string; hint: string; icon: 'globe' | 'users' | 'lock' }[] = [
   { id: 'public', label: 'Pública', hint: 'Quem pode ver o teu perfil', icon: 'globe' },
   { id: 'friends', label: 'Para amigos', hint: 'Quem segues e te segue de volta', icon: 'users' },
-  { id: 'paid', label: 'Privada', hint: 'Quem quiser entrar paga uma vez a entrada em Txills', icon: 'lock' },
+  { id: 'paid', label: 'Privada', hint: 'Quem quiser entrar paga uma vez a entrada em vibes', icon: 'lock' },
 ];
 /** A entrada de uma Txillada privada, a meta e o motivo da Angariação, e as ofertas (os mesmos limites do servidor). */
 export const PRICE_MIN = 5;
@@ -148,31 +149,27 @@ export function parseAmount(s: string): number | null {
   return Number(t);
 }
 export function priceError(n: number | null): string | null {
-  if (n == null) return `Escreve o preço da entrada (de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} Txills).`;
-  if (n < PRICE_MIN || n > PRICE_MAX) return `A entrada vai de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} Txills.`;
+  if (n == null) return `Escreve o preço da entrada (de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} vibes).`;
+  if (n < PRICE_MIN || n > PRICE_MAX) return `A entrada vai de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} vibes.`;
   return null;
 }
 export function goalError(n: number | null): string | null {
-  if (n == null) return `Escreve a meta da angariação (de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} Txills).`;
-  if (n < GOAL_MIN || n > GOAL_MAX) return `A meta vai de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} Txills.`;
+  if (n == null) return `Escreve a meta da angariação (de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} vibes).`;
+  if (n < GOAL_MIN || n > GOAL_MAX) return `A meta vai de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} vibes.`;
   return null;
 }
 /** Uma oferta: de 1 a 5000 e, se se sabe o saldo, não mais do que ele. */
 export function giftError(n: number | null, balance?: number | null): string | null {
-  if (n == null || n < 1) return 'Escolhe quantos Txills queres oferecer.';
-  if (n > GIFT_MAX) return `Podes oferecer até ${fmtTxills(GIFT_MAX)} Txills de cada vez.`;
-  if (typeof balance === 'number' && n > balance) return `Não tens Txills suficientes (tens ${fmtTxills(balance)}).`;
+  if (n == null || n < 1) return 'Escolhe quantas vibes queres oferecer.';
+  if (n > GIFT_MAX) return `Podes oferecer até ${fmtTxills(GIFT_MAX)} vibes de cada vez.`;
+  if (typeof balance === 'number' && n > balance) return `Não tens vibes suficientes (tens ${fmtTxills(balance)}).`;
   return null;
 }
-/** «50», «1000», «12 500» (como em pt: o espaço só a partir de 5 algarismos). */
-export function fmtTxills(n: number): string {
-  const v = Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
-  const s = String(v);
-  return s.length < 5 ? s : s.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
-}
-/** «50 Txills» (e «1 Txill»). */
-export const txillsLabel = (n: number): string => `${fmtTxills(n)} ${Math.round(n) === 1 ? 'Txill' : 'Txills'}`;
-/** A barra da Angariação: quanto falta, em 0..1 (pode passar da meta: a barra fica cheia), e «X de Y Txills». */
+/** «50», «1000», «12 500» (como em pt: o espaço só a partir de 5 algarismos). O nome antigo de `fmtVibesNumber` (lib/vibes). */
+export const fmtTxills = fmtVibesNumber;
+/** «50 vibes» (e «1 vibe»). O nome antigo de `formatVibes` (lib/vibes). */
+export const txillsLabel = (n: number): string => formatVibes(n);
+/** A barra da Angariação: quanto falta, em 0..1 (pode passar da meta: a barra fica cheia), e «X de Y vibes». */
 export function goalProgress(raised: number, goal: number | null | undefined): { pct: number; label: string; done: boolean } | null {
   if (goal == null || !(goal > 0)) return null;
   const r = Math.max(0, Math.round(raised || 0));
@@ -182,7 +179,7 @@ export function goalProgress(raised: number, goal: number | null | undefined): {
 export function giftKey(now = Date.now(), rnd = Math.random): string {
   return `g${now.toString(36)}${Math.floor(rnd() * 36 ** 8).toString(36).padStart(8, '0')}`;
 }
-/** A linha destacada «@x ofereceu N Txills» no meio dos comentários. */
+/** A linha destacada «@x ofereceu N vibes» no meio dos comentários. */
 export function giftLine(g: TxilladaGift): TxilladaComment {
   return {
     id: `gift:${g.id}`,

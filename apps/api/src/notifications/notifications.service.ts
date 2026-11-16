@@ -7,6 +7,7 @@ import { MediaService } from '../media/media.service';
 import { PushService, type NotifyCategory } from '../push/push.service';
 import { allowedBy, blockedBetween, canView } from '../social/visibility';
 import { badge, type Badge } from '../common/badge';
+import { vibes } from '../common/vibes';
 import { txilladaVisible } from '../txillada/txillada-visibility';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
@@ -222,8 +223,8 @@ export class NotificationsService {
       verified: { body: 'agora tem a conta verificada', url: profile },
       venue_invite: { body: 'convidou-te para gerir um local', url: '/notifications' },
       missed_call: { body: n.data?.video ? 'Videochamada perdida' : 'Chamada perdida', url: '/calls' },
-      // Pagamento com Txills a um local que a pessoa gere (direto ou do cofre de um TxillGroup).
-      // Abre a secção Txills de Gerir, como a notificação dentro da app.
+      // Pagamento com vibes a um local que a pessoa gere (direto ou do cofre de um TxillGroup).
+      // Abre a secção Vibes de Gerir, como a notificação dentro da app.
       venue_review: {
         body: n.data?.decision === 'approved' ? `aprovou ${String(n.data?.venueName ?? 'o teu local')}: já está à vista de todos` : `não aprovou ${String(n.data?.venueName ?? 'o teu local')}. Vê o motivo e corrige`,
         url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}` : '/notifications',
@@ -272,7 +273,7 @@ export class NotificationsService {
         url: postId ? `/p/${postId}` : '/geladas',
       },
       gelada_paid: { body: n.data?.step === 'claimed' ? 'diz que já te pagou. Confirmas?' : 'confirmou que pagaste 🙌', url: '/geladas' },
-      venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
+      venue_payment: { body: `pagou ${vibes(Number(n.data?.amount ?? 0))} ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
     // Chamada perdida: a mesma etiqueta da chamada que tocava (substitui-a) e, no Android, só dados, como o toque.

@@ -8,6 +8,7 @@ import StackPage from '../components/StackPage';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { api, type PaymentOrder } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { formatVibes, vibesWord } from '../lib/vibes';
 
 const SUPPORT = 'suporte@txillapp.com';
 
@@ -67,14 +68,14 @@ export function About() {
         <Line icon="mail" label={tr('Contactar-nos')} value={SUPPORT} href={`mailto:${SUPPORT}`} />
       </Group>
       <p className="mx-6 mt-6 text-center text-sm text-zinc-500">
-        {tr('O Txillapp é a rede da malta: fotos, vídeos, stories, reels e chat, com Txills para brindar e presentear.')} {user && ver.data?.verified && <VerifiedBadge size={14} tier={ver.data.tier} />}
+        {tr('O Txillapp é a rede da malta: fotos, vídeos, stories, reels e chat, com vibes para brindar e presentear.')} {user && ver.data?.verified && <VerifiedBadge size={14} tier={ver.data.tier} />}
       </p>
     </StackPage>
   );
 }
 
 const FAQ: { q: string; a: string }[] = [
-  { q: tr('O que são os Txills?'), a: tr('São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.') },
+  { q: tr('O que são as vibes?'), a: tr('São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.') },
   { q: tr('Como funcionam os brindes?'), a: tr('Tocas em "Brindar" num post ou reel para mostrar que gostaste. É grátis e a pessoa é avisada.') },
   { q: tr('Como presenteio alguém?'), a: tr('Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.') },
   { q: tr('O que é a geleira?'), a: tr('A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.') },
@@ -133,7 +134,7 @@ const STATUS: Record<PaymentOrder['status'], { label: string; tone: string }> = 
   expired: { label: tr('Expirou'), tone: 'bg-zinc-100 text-zinc-600' },
 };
 
-/** Pedidos e pagamentos: o saldo, recarregar Txills e o histórico de pedidos. */
+/** Pedidos e pagamentos: o saldo, recarregar vibes e o histórico de pedidos. */
 export function Orders() {
   const qc = useQueryClient();
   const w = useQuery({ queryKey: ['wallet'], queryFn: api.wallet });
@@ -209,21 +210,21 @@ export function Orders() {
     <StackPage title={tr('Pedidos e pagamentos')}>
       <div className="mx-4 mt-4 rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-5 text-white shadow-[0_6px_18px_rgba(214,51,79,0.3)]">
         <p className="text-sm font-semibold text-white/85">{tr('O teu saldo')}</p>
-        <p className="mt-1 text-[38px] font-black leading-none">{w.data ? w.data.balance.toLocaleString(locale) : '…'} <span className="text-xl font-bold">{tr('Txills')}</span></p>
+        <p className="mt-1 text-[38px] font-black leading-none">{w.data ? w.data.balance.toLocaleString(locale) : '…'} <span className="text-xl font-bold">{w.data ? vibesWord(w.data.balance) : 'vibes'}</span></p>
         <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">{tr('Ver movimentos e presentes')}</Link>
       </div>
 
       {(!STORE_BUILD || providers.length > 0) && (
-      <Group title={tr('Recarregar Txills')}>
+      <Group title={tr('Recarregar vibes')}>
         {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">{tr('A carregar…')}</p>}
-        {cfg.data && providers.length === 0 && !STORE_BUILD && <Line icon="wallet" label={tr('Comprar Txills')} value="Em breve: M-Pesa, e-Mola e cartão" />}
+        {cfg.data && providers.length === 0 && !STORE_BUILD && <Line icon="wallet" label={tr('Comprar vibes')} value="Em breve: M-Pesa, e-Mola e cartão" />}
         {cfg.data && providers.length > 0 && !current && (
           <div className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-2.5">
               {cfg.data.packages.map((p) => (
                 <button key={p.id} type="button" onClick={() => setPkg(p.id)} aria-pressed={pkg === p.id} className={`rounded-2xl border-2 px-3 py-3 text-left transition active:scale-[0.98] ${pkg === p.id ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>
                   <span className="block text-[22px] font-black leading-none">{p.txills.toLocaleString(locale)}</span>
-                  <span className="block text-[12px] font-bold uppercase tracking-wider text-zinc-500">{tr('Txills')}</span>
+                  <span className="block text-[12px] font-bold uppercase tracking-wider text-zinc-500">{vibesWord(p.txills)}</span>
                   <span className="mt-1.5 block text-[15px] font-semibold text-brand">{money(p.priceMinor, p.currency)}</span>
                 </button>
               ))}
@@ -257,7 +258,7 @@ export function Orders() {
             )}
             {current.status === 'paid' && (
               <>
-                <p className="text-lg font-extrabold text-emerald-700">{tr('Pago! +')}{current.txills.toLocaleString(locale)} {tr('Txills')}</p>
+                <p className="text-lg font-extrabold text-emerald-700">{tr('Pago! +')}{formatVibes(current.txills)}</p>
                 <button type="button" onClick={() => setCurrent(null)} className="h-11 w-full rounded-full bg-zinc-100 font-semibold active:scale-[0.98]">{tr('Fechar')}</button>
               </>
             )}
@@ -277,14 +278,14 @@ export function Orders() {
         {orders.data?.map((o) => (
           <div key={o.id} className="flex min-h-14 items-center gap-3 px-4 py-3">
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">{o.txills.toLocaleString(locale)} {tr('Txills')}</span>
+              <span className="block font-semibold">{formatVibes(o.txills)}</span>
               <span className="block text-sm text-zinc-500">{money(o.amountMinor, o.currency)} · {new Date(o.createdAt).toLocaleDateString(locale)}</span>
             </span>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS[o.status].tone}`}>{STATUS[o.status].label}</span>
           </div>
         ))}
       </Group>
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('Os Txills comprados entram na carteira e usam-se como os outros: para presentear quem segues. Não se trocam por dinheiro.')}</p>
+      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('As vibes compradas entram na carteira e usam-se como as outras: para presentear quem segues. Não se trocam por dinheiro.')}</p>
     </StackPage>
   );
 }

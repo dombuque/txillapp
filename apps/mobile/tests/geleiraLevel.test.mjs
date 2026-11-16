@@ -60,9 +60,9 @@ test('stepNeeds e needsText', () => {
   assert.equal(L.needsText({ points: 1, people: 0, weeks: 0 }), 'Falta 1 ponto');
 });
 
-test('a regra diz que o álcool e os Txills não contam', () => {
+test('a regra diz que o álcool e as vibes da carteira não contam', () => {
   assert.match(L.LEVEL_RULES, /álcool não conta/);
-  assert.match(L.LEVEL_RULES, /Txills também não/);
+  assert.match(L.LEVEL_RULES, /vibes da carteira também não/);
   assert.match(L.LEVEL_RULES, /90 dias/);
 });
 

@@ -82,7 +82,7 @@ export function BoostsPanel({ days }: { days: number }) {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="A bombar agora" value={fmt(t.live)} icon="flame" hint={`${fmt(t.scheduled)} agendadas · ${fmt(t.suspended)} suspensas (${days} dias)`} />
-        <Kpi label={`Txills gastos em ${days} dias`} value={<Txl v={t.spent} />} icon="wallet" hint={`${fmt(t.campaigns)} campanhas de ${fmt(t.venues)} locais · devolvidos ${fmt(t.refunded)}`} />
+        <Kpi label={`Vibes gastas em ${days} dias`} value={<Txl v={t.spent} />} icon="wallet" hint={`${fmt(t.campaigns)} campanhas de ${fmt(t.venues)} locais · devolvidas ${fmt(t.refunded)}`} />
         <Kpi label="Impressões" value={fmt(t.impressions)} icon="eye" hint={`${fmt(t.people)} pessoas diferentes`} />
         <Kpi label="Toques" value={fmt(t.taps)} icon="bolt" hint={`${pct(t.tapRate)} das impressões`} />
       </div>
@@ -92,7 +92,7 @@ export function BoostsPanel({ days }: { days: number }) {
         </Panel>
         <Panel title="Locais que mais gastam" help={`Campanhas criadas em ${days} dias.`}>
           {b.topVenues.length === 0 ? <p className="text-sm text-zinc-500">Ainda sem campanhas neste período.</p> : (
-            <HBars color={SERIES[1]} unit=" TXL" rows={b.topVenues.map((v) => ({ key: v.slug, label: v.name, value: v.spent, hint: `${v.campaigns} · ${fmt(v.impressions)} imp. · ${fmt(v.taps)} toques` }))} />
+            <HBars color={SERIES[1]} unit=" vib" rows={b.topVenues.map((v) => ({ key: v.slug, label: v.name, value: v.spent, hint: `${v.campaigns} · ${fmt(v.impressions)} imp. · ${fmt(v.taps)} toques` }))} />
           )}
         </Panel>
       </div>
@@ -106,7 +106,7 @@ export function BoostsPanel({ days }: { days: number }) {
           </div>
         }>
         {err && <p role="alert" className="mx-5 mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{err}</p>}
-        <Table label="Campanhas" head={[{ label: 'Local' }, { label: 'Alvo' }, { label: 'Quando' }, { label: 'Txills', right: true }, { label: 'Impressões', right: true }, { label: 'Toques', right: true }, { label: 'Estado' }, ...(canManage ? [{ label: '' }] : [])]}
+        <Table label="Campanhas" head={[{ label: 'Local' }, { label: 'Alvo' }, { label: 'Quando' }, { label: 'Vibes', right: true }, { label: 'Impressões', right: true }, { label: 'Toques', right: true }, { label: 'Estado' }, ...(canManage ? [{ label: '' }] : [])]}
           empty={b.campaigns.length === 0 ? <p className="px-5 py-10 text-center text-sm text-zinc-500">{filter === 'live' ? 'Nenhuma campanha a decorrer.' : 'Ainda não há campanhas.'}</p> : null}>
           {b.campaigns.map((c) => {
             const [tone, label] = STATE[c.state] ?? STATE.active;

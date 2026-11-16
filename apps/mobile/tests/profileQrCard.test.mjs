@@ -79,7 +79,7 @@ test('o desenho não tem letras (o @ pinta-se à parte) e é sempre o mesmo para
 });
 
 test('o texto da partilha: com convite fala do convite; sem convite, o convite para seguir', () => {
-  assert.equal(c.qrShareText('malta', true), 'Segue-me no Txillapp (@malta) e entra com o meu convite: ganhamos Txills os dois.');
+  assert.equal(c.qrShareText('malta', true), 'Segue-me no Txillapp (@malta) e entra com o meu convite: ganhamos vibes os dois.');
   assert.equal(c.qrShareText('malta', false), 'Segue @malta no Txillapp, a rede da malta:');
   assert.ok(!c.qrShareText('malta', true).includes('http'), 'a ligação vai à parte');
 });

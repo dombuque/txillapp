@@ -52,7 +52,7 @@ export function pickCardItems<T extends GeleiraItemIn>(items: readonly T[] | nul
 export function inviteShareText(p: { link: string; code: string; reward: number; phrase?: number }): string {
   const phrase = INVITE_PHRASES[((Math.trunc(p.phrase ?? 0) % INVITE_PHRASES.length) + INVITE_PHRASES.length) % INVITE_PHRASES.length];
   const reward = Math.max(0, Math.trunc(Number(p.reward) || 0));
-  const gift = reward > 0 ? ` e ganhas ${reward} Txills logo à entrada` : '';
+  const gift = reward > 0 ? ` e ganhas ${reward} vibes logo à entrada` : '';
   return `${phrase} Entra com o meu convite${gift}. Código: ${p.code}\n${p.link}`;
 }
 
@@ -64,9 +64,9 @@ export function inviteProgress(stats: { invited?: number; paid?: number } | null
   const n = Math.max(0, Math.trunc(Number(stats?.invited) || 0));
   const paid = Math.min(n, Math.max(0, Math.trunc(Number(stats?.paid) || 0)));
   if (n === 0) return 'Ainda ninguém entrou com o teu convite';
-  if (n === 1) return paid ? 'Entrou 1 e já te deu Txills' : 'Entrou 1, ainda não te deu Txills';
-  if (paid === 0) return `Entraram ${n}, ainda nenhum te deu Txills`;
-  return `Entraram ${n}, ${paid} já ${paid === 1 ? 'te deu' : 'te deram'} Txills`;
+  if (n === 1) return paid ? 'Entrou 1 e já te deu vibes' : 'Entrou 1, ainda não te deu vibes';
+  if (paid === 0) return `Entraram ${n}, ainda nenhum te deu vibes`;
+  return `Entraram ${n}, ${paid} já ${paid === 1 ? 'te deu' : 'te deram'} vibes`;
 }
 
 /** Corta um texto em `max` letras (conta acentos e emojis como uma), com reticências. */
@@ -275,7 +275,7 @@ export function cardLayout(p: CardInput): CardLayout {
   const reward = Math.max(0, Math.trunc(Number(p.reward) || 0));
   texts.push({ text: 'Entra com o meu código', x: left, y: g.panY + g.panH * 0.27, size: g.smallS, weight: 400, color: '#52525b', align: 'left', maxWidth: textW });
   texts.push({ text: p.code, x: left, y: g.panY + g.panH * 0.27 + g.codeS * 1.05, size: g.codeS, weight: 800, color: BRAND, align: 'left', spacing: Math.round(g.codeS * 0.08), maxWidth: textW });
-  texts.push({ text: reward ? `+${reward} Txills para ti · txillapp.com` : 'txillapp.com', x: left, y: g.panY + g.panH * 0.84, size: g.smallS, weight: 700, color: '#3f3f46', align: 'left', maxWidth: textW });
+  texts.push({ text: reward ? `+${reward} vibes para ti · txillapp.com` : 'txillapp.com', x: left, y: g.panY + g.panH * 0.84, size: g.smallS, weight: 700, color: '#3f3f46', align: 'left', maxWidth: textW });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
   const label = `Cartão de convite de ${name}: ${phrase}${items.length ? ` Na geleira: ${items.join(', ')}.` : ''} Código ${p.code}.`;

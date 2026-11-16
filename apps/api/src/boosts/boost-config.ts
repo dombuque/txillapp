@@ -21,7 +21,7 @@ export const BOOST_RADIUS = { min: 1, max: 10, included: 3, extraPerKm: 0.1, def
  * só para promoção no Txillapp"). O pagamento em meticais fica preparado e desligado até haver fornecedor.
  */
 export const BOOST_PAYMENTS = {
-  txills: { enabled: true, label: 'Txills do local' },
+  txills: { enabled: true, label: 'Vibes do local' },
   mzn: { enabled: false, label: 'Meticais (M-Pesa / e-Mola)' },
 } as const;
 export type BoostPayment = keyof typeof BOOST_PAYMENTS;

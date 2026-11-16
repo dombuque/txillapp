@@ -192,7 +192,7 @@ export function VenueBoost({ v }: { v: Venue }) {
           <View style={{ gap: 6 }}>
             <View style={[st.option, st.optionOn]}>
               <Icon name="wallet" size={18} color={colors.zinc900} />
-              <Text style={[st.optTitle, { flex: 1 }]}>Txills do local</Text>
+              <Text style={[st.optTitle, { flex: 1 }]}>Vibes do local</Text>
               <Text style={st.optSub}>Saldo: {txills(o.balance)}</Text>
             </View>
             {mzn && !mzn.enabled ? (

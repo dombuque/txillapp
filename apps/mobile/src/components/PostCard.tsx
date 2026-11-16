@@ -46,6 +46,7 @@ import { useDesktop } from '@/lib/desktop';
 import { anchorOf, finePointer, isTypingTarget, overlayOpen, type Rect } from '@/lib/desktopKeys';
 import { DEFAULT_TEXT_FONT, normTextFont, postFontSize } from '@/lib/textLayers';
 import { useTextFontStyle } from '@/lib/useTextFonts';
+import { vibesWord } from '@/lib/vibes';
 
 /**
  * A letra de uma publicação só com texto (`textFont`, lib/textLayers): o tamanho acertado à fonte (as de cartaz são
@@ -536,7 +537,7 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
         {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
       </View>
       <Text style={[styles.giftAmount, compact && { fontSize: 30, lineHeight: 32 }]}>{g.amount.toLocaleString('pt-PT')}</Text>
-      <Text style={styles.giftUnit}>TXILLS</Text>
+      <Text style={styles.giftUnit}>{vibesWord(g.amount).toUpperCase()}</Text>
       {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
     </Pressable>
   );

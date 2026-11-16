@@ -120,7 +120,7 @@ export function hiddenSettingsFor(rules: PurchaseRules): string[] {
   return rules.buyTxills ? [] : ['orders'];
 }
 
-/** A linha do grupo «Txills e pagamentos» no início das Definições. */
+/** A linha do grupo «Vibes e pagamentos» no início das Definições. */
 export function paymentsSubtitleFor(rules: PurchaseRules, base: string): string {
   return rules.buyTxills ? base : 'Carteira e presentes';
 }
@@ -135,7 +135,7 @@ export function helpFaqFor<T extends { q: string; a: string }>(rules: PurchaseRu
     .filter((f) => rules.buyBoosts || rules.storeBoosts || !/\bbombo\b|\bbombar\b/i.test(f.q))
     .filter((f) => rules.storeVerification || !/\bsubscrição\b/i.test(f.q))
     .map((f) => (!rules.buyBoosts && rules.storeBoosts && /\bbombo\b|\bbombar\b/i.test(f.q)
-      ? { ...f, a: f.a.replace(/,?\s*e paga com os Txills da carteira do local\./i, '. Pagas pela loja (App Store ou Google Play), com o preço que a loja mostra.').replace(/\s*Se parares, voltam à carteira[^.]*\./i, '') }
+      ? { ...f, a: f.a.replace(/,?\s*e paga com as vibes da carteira do local\./i, '. Pagas pela loja (App Store ou Google Play), com o preço que a loja mostra.').replace(/\s*Se parares, voltam à carteira[^.]*\./i, '') }
       : f))
     .map((f) => (rules.buyTxills ? f : { ...f, a: f.a.replace(/\s*Também podes recarregar[^.]*\./i, '').trim() }));
 }

@@ -47,7 +47,7 @@ test('preparar: Pública, Para amigos (com «Só amigos próximos») e Privada d
   assert.equal(t.prepAudience('paid', true), 'paid');
   assert.match(t.kindHint('friends', false), /segues e te segue/);
   assert.match(t.kindHint('friends', true), /amigos próximos/);
-  assert.match(t.kindHint('paid', false), /entrada em Txills/);
+  assert.match(t.kindHint('paid', false), /entrada em vibes/);
 });
 
 test('o tipo de uma Txillada: o do servidor, ou do público (servidores antigos)', () => {
@@ -75,20 +75,20 @@ test('valores: só inteiros; o preço de 5 a 5000, a meta de 10 a 1 000 000, a o
   assert.match(t.goalError(null), /meta/);
   assert.match(t.giftError(0), /Escolhe/);
   assert.match(t.giftError(5001), /até 5000/);
-  assert.match(t.giftError(60, 50), /Não tens Txills suficientes \(tens 50\)/);
+  assert.match(t.giftError(60, 50), /Não tens vibes suficientes \(tens 50\)/);
   assert.equal(t.giftError(50, 50), null);
   assert.equal(t.giftError(50), null, 'sem saber o saldo, o servidor decide');
   assert.deepEqual([...t.GIFT_PRESETS], [5, 10, 50, 100]);
 });
 
-test('números: «50 Txills», «1 Txill», «12 500»; a barra «X de Y Txills» (cheia quando passa da meta)', () => {
-  assert.equal(t.txillsLabel(50), '50 Txills');
-  assert.equal(t.txillsLabel(1), '1 Txill');
+test('números: «50 vibes», «1 vibe», «12 500»; a barra «X de Y vibes» (cheia quando passa da meta)', () => {
+  assert.equal(t.txillsLabel(50), '50 vibes');
+  assert.equal(t.txillsLabel(1), '1 vibe');
   assert.equal(t.fmtTxills(1000), '1000');
   assert.equal(t.fmtTxills(12500), '12 500');
   assert.equal(t.goalProgress(10, null), null);
-  assert.deepEqual(t.goalProgress(25, 100), { pct: 0.25, label: '25 de 100 Txills', done: false });
-  assert.deepEqual(t.goalProgress(150, 100), { pct: 1, label: '150 de 100 Txills', done: true });
+  assert.deepEqual(t.goalProgress(25, 100), { pct: 0.25, label: '25 de 100 vibes', done: false });
+  assert.deepEqual(t.goalProgress(150, 100), { pct: 1, label: '150 de 100 vibes', done: true });
   assert.equal(t.goalProgress(-3, 100).pct, 0);
 });
 
@@ -119,7 +119,7 @@ test('estado: uma oferta põe a linha destacada na conversa, sobe a barra e o to
   assert.deepEqual(s.topGivers.map((x) => x.username), ['ana']);
   const line = s.comments.at(-1);
   assert.equal(line.id, 'gift:g1');
-  assert.equal(line.body, 'ofereceu 50 Txills');
+  assert.equal(line.body, 'ofereceu 50 vibes');
   assert.deepEqual(line.gift, { amount: 50 });
   assert.equal(line.author.username, 'ana');
   assert.equal(line.author.verified, true, 'o selo vai com o nome');
@@ -170,7 +170,7 @@ test('a roda «AO VIVO»: numa privada que ainda não paguei, o preço; nas outr
   assert.match(read('src/components/ProfileView.tsx'), /livePrice=\{livePrice\(p\)\}/);
 });
 
-test('resumo do anfitrião: as entradas pagas (numa privada) e os Txills oferecidos', () => {
+test('resumo do anfitrião: as entradas pagas (numa privada) e as vibes oferecidas', () => {
   const s = t.applyEvent(t.initialLive(), giftEv(gift('g1', 'ana', 30), 30));
   const sum = t.liveSummary(dto({ kind: 'paid', status: 'ended', endedAt: '2026-11-16T10:30:00.000Z', tickets: 4, raised: 10, isHost: true }), s, Date.now());
   assert.equal(sum.raised, 30);
@@ -214,7 +214,7 @@ test('o ecrã: preparar com os três tipos e a Angariação; o cadeado antes de 
   assert.match(screen, /noViewers: !!dto\?\.viewersHidden && !host/);
   assert.match(screen, /router\.push\('\/wallet' as never\)/);
   const money = read('src/components/txillada/TxilladaMoney.tsx');
-  assert.match(money, /Entrar por \{txillsLabel\(price\)\}/);
+  assert.match(money, /Entrar por \{formatVibes\(price, \{ short: true \}\)\}/);
   assert.match(money, /Ver a carteira/);
   // Sem compras: os Txills vêm da carteira (nada de IAP aqui).
   assert.doesNotMatch(money + prep, /comprar|purchase|iap/i);

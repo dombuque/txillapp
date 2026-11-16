@@ -73,7 +73,7 @@ export default function VenueScreen() {
     if (!v || linkUsed.current || pagar !== '1') return;
     linkUsed.current = true;
     if (v.mine) return;
-    if (!v.acceptsTxills) { setMsg('Este local ainda não aceita pagamentos em Txills.'); return; }
+    if (!v.acceptsTxills) { setMsg('Este local ainda não aceita pagamentos em vibes.'); return; }
     const n = Math.floor(Number(valor));
     setPaying({ preset: Number.isFinite(n) && n >= 1 ? n : undefined });
   }, [v, pagar, valor]);
@@ -133,9 +133,9 @@ export default function VenueScreen() {
         </View>
         <Text style={st.sub}>{KIND_LABEL[v.kind] ?? 'Outro'}{v.city ? ` · ${v.city}` : ''}</Text>
         {v.acceptsTxills ? (
-          <View style={st.txBadge} accessibilityLabel="Este local aceita pagamentos em Txills">
+          <View style={st.txBadge} accessibilityLabel="Este local aceita pagamentos em vibes">
             <Icon name="wallet" size={14} color={colors.green700} />
-            <Text style={st.txBadgeText}>Aceita Txills</Text>
+            <Text style={st.txBadgeText}>Aceita vibes</Text>
           </View>
         ) : null}
         <View style={{ marginTop: 10, flexDirection: 'row', gap: 20 }}>
@@ -168,7 +168,7 @@ export default function VenueScreen() {
         {canPay ? (
           <Pressable onPress={() => setPaying({})} style={({ pressed }) => [st.cta, { backgroundColor: colors.brand }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
             <Icon name="wallet" size={20} color="#fff" />
-            <Text style={st.ctaText}>Pagar com Txills</Text>
+            <Text style={st.ctaText}>Pagar com vibes</Text>
           </Pressable>
         ) : null}
 

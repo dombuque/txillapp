@@ -454,7 +454,7 @@ export default function Messages() {
           <View style={styles.newGroupIcon}><Icon name="plus" size={22} color={colors.brand} /></View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.name} numberOfLines={1}>Novo TxillGroup</Text>
-            <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e Txills</Text>
+            <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e vibes</Text>
           </View>
           <Icon name="chevron-right" size={18} color={colors.zinc500} />
         </Pressable>
@@ -546,7 +546,7 @@ export default function Messages() {
               <Text style={styles.emptySub}>
                 {term ? 'Tenta outro nome ou começa uma conversa nova.'
                   : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
-                  : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e Txills.'
+                  : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
                   : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
               </Text>
               {!term && view === 'chats' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}

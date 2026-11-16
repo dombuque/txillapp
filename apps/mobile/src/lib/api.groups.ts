@@ -7,6 +7,7 @@ import { newKey } from '@/lib/api.extra';
 import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
 import type { GroupVisibility, JoinMode, JoinState, MapPlace } from '@/lib/groupAccess';
+import { formatVibes } from '@/lib/vibes';
 
 export type GroupKind = 'viagem' | 'festa' | 'fim_de_semana' | 'outro';
 export type Rsvp = 'going' | 'maybe' | 'not_going';
@@ -203,7 +204,7 @@ export function parseMzn(text: string): number | null {
   return v > 0 ? v : null;
 }
 
-export const txills = (n: number) => `${n.toLocaleString('pt-PT')} Txills`;
+export const txills = (n: number) => formatVibes(n);
 
 /** "31 dez" ou "31 dez · 2 jan" (as datas vêm como AAAA-MM-DD). */
 export function dayOf(iso: string): Date {

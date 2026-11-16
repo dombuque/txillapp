@@ -19,13 +19,13 @@ type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({
   title: z.string().trim().max(80).optional().default(''),
   audience: z.enum(['everyone', 'friends', 'close', 'paid', 'followers']).default('everyone'),
-  price: z.number().int().min(PRICE_MIN, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`).max(PRICE_MAX, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`).nullable().optional(),
-  goal: z.number().int().min(GOAL_MIN, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`).max(GOAL_MAX, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`).nullable().optional(),
+  price: z.number().int().min(PRICE_MIN, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`).max(PRICE_MAX, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`).nullable().optional(),
+  goal: z.number().int().min(GOAL_MIN, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`).max(GOAL_MAX, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`).nullable().optional(),
   purpose: z.string().trim().max(PURPOSE_MAX).optional().default(''),
 });
 /** Uma oferta: o valor e a chave de idempotência da app (repetir o pedido não cobra outra vez). */
 const giftSchema = z.object({
-  amount: z.number().int().min(1).max(GIFT_MAX, `Podes oferecer até ${GIFT_MAX} Txills de cada vez.`),
+  amount: z.number().int().min(1).max(GIFT_MAX, `Podes oferecer até ${GIFT_MAX} vibes de cada vez.`),
   key: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, 'Chave inválida'),
 });
 const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });

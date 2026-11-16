@@ -428,7 +428,7 @@ test('o ecrã do selo azul mostra o preço e o período da loja, as condições 
 test('a Ajuda explica como cancelar a subscrição só quando o selo azul está à venda', () => {
   const faq = [
     { q: 'Como cancelo a subscrição do selo azul?', a: 'Nas definições da loja.' },
-    { q: 'Como bombo o meu local?', a: 'Em Gerir, Bombar. Escolhe o pacote, e paga com os Txills da carteira do local. Se parares, voltam à carteira os dias inteiros que faltam, ou tudo se ainda não começou. Fim.' },
+    { q: 'Como bombo o meu local?', a: 'Em Gerir, Bombar. Escolhe o pacote, e paga com as vibes da carteira do local. Se parares, voltam à carteira os dias inteiros que faltam, ou tudo se ainda não começou. Fim.' },
   ];
   assert.deepEqual(helpFaqFor(purchaseRulesFor('appstore', { iap: true }), faq).map((f) => f.q), []);
   const on = helpFaqFor(purchaseRulesFor('play', { iap: true }, false, true), faq);
@@ -437,7 +437,7 @@ test('a Ajuda explica como cancelar a subscrição só quando o selo azul está 
   assert.deepEqual(helpFaqFor(purchaseRulesFor('web'), faq).map((f) => f.q), ['Como bombo o meu local?']);
   const help = read('app', 'help.tsx');
   assert.match(help, /q: 'Como cancelo a subscrição do selo azul\?'/);
-  assert.match(help, /e paga com os Txills da carteira do local\. Se parares, voltam à carteira/);
+  assert.match(help, /e paga com as vibes da carteira do local\. Se parares, voltam à carteira/);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

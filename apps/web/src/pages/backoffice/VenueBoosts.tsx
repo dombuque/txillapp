@@ -45,7 +45,7 @@ export function VenueBoosts() {
   return (
     <div className="mt-10">
       <h2 className="mb-1 text-lg font-bold text-zinc-900">Bombar</h2>
-      <p className="mb-3 text-sm text-zinc-600">Destaques pagos com os Txills do local. Ficam ativos logo (o local já foi aprovado); suspende os que violem as regras.</p>
+      <p className="mb-3 text-sm text-zinc-600">Destaques pagos com as vibes do local. Ficam ativos logo (o local já foi aprovado); suspende os que violem as regras.</p>
       <div className="mb-4 flex flex-wrap gap-2">
         {([['live', 'A decorrer'], ['all', 'Todas']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setFilter(k)} className={`${btnGhost} ${filter === k ? '!bg-zinc-900 !text-white' : ''}`}>{label}</button>
@@ -67,7 +67,7 @@ export function VenueBoosts() {
                     <td className={td}><span className="font-semibold">{b.venue.name}</span><span className="block text-xs text-zinc-500">{b.venue.slug}</span></td>
                     <td className={td}>{b.target.kind === 'event' ? 'Evento' : 'Publicação'}: <span className="text-zinc-700">{b.target.title}</span></td>
                     <td className={`${td} text-xs`}>{when(b.startsAt)} → {when(b.stoppedAt ?? b.endsAt)}<span className="block text-zinc-500">{b.radiusKm} km</span></td>
-                    <td className={td}>{b.price} Txills{b.refunded ? <span className="block text-xs text-zinc-500">devolvidos {b.refunded}</span> : null}</td>
+                    <td className={td}>{b.price} vib{b.refunded ? <span className="block text-xs text-zinc-500">devolvidas {b.refunded}</span> : null}</td>
                     <td className={`${td} text-xs`}>{b.report.impressions} vezes · {b.report.people} pessoas · {b.report.taps} toques</td>
                     <td className={td}><Badge tone={tone}>{label}</Badge>{b.note ? <span className="mt-1 block text-xs text-red-700">{b.note}</span> : null}</td>
                     <td className={`${td} text-right`}>

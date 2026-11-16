@@ -37,7 +37,7 @@ export function StorePurchasesPanel() {
   return (
     <div className="space-y-4">
       <Panel title="Compras na loja" right={<Status tone={mode[0]}>{mode[1]}</Status>}
-        help="Só a verificação paga e o Bombar se vendem na App Store e no Google Play (os Txills não). Na Google, os valores são os preços de referência da configuração; na Apple, o que a Apple diz.">
+        help="Só a verificação paga e o Bombar se vendem na App Store e no Google Play (as vibes não). Na Google, os valores são os preços de referência da configuração; na Apple, o que a Apple diz.">
         <ul className="grid gap-2 sm:grid-cols-2">
           {(['apple', 'google'] as const).map((s) => (
             <li key={s} className="flex items-center justify-between rounded-xl px-3 py-2.5 ring-1 ring-zinc-200">

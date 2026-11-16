@@ -5,7 +5,7 @@ Texto em português (Moçambique/Portugal). Idioma principal da ficha: **Portugu
 > Regras para todas as versões da ficha:
 > - não falar de «beta», de testes nem de outras plataformas (Android, iPhone, site);
 > - não prometer o que a app não faz;
-> - não falar de comprar Txills enquanto os pagamentos não estiverem ligados e aprovados. Na Apple, a moeda virtual comprada com dinheiro tem de passar pela compra integrada (3.1.1): isso é com a equipa dos pagamentos.
+> - não falar de comprar vibes enquanto os pagamentos não estiverem ligados e aprovados. Na Apple, a moeda virtual comprada com dinheiro tem de passar pela compra integrada (3.1.1): isso é com a equipa dos pagamentos.
 
 ---
 
@@ -56,7 +56,7 @@ LOCAIS E EVENTOS
 
 GELEIRA E TXILLS
 • A geleira mostra os teus gostos: vibes, comidas e sítios.
-• Os Txills são a moeda do Txillapp: recebes Txills de boas-vindas, ganhas com convites e presenteias quem segues. Não são dinheiro.
+• As vibes são a moeda do Txillapp: recebes vibes de boas-vindas, ganhas com convites e presenteias quem segues. Não são dinheiro.
 
 SUPERTXILL
 • Um assistente que te ajuda a descobrir pessoas, locais e o que fazer.
@@ -124,7 +124,7 @@ A Apple mudou a escala em 2025: agora é **4+, 9+, 13+, 16+ e 18+**, e o questio
 | Armas | Nenhum | |
 | Informação médica ou de tratamento / bem-estar | Nenhum | |
 | Concursos | Nenhum | |
-| Jogos de azar simulados / reais | Nenhum | Os Txills não se trocam por dinheiro e não há apostas. |
+| Jogos de azar simulados / reais | Nenhum | As vibes não se trocam por dinheiro e não há apostas. |
 | Caixas de recompensa (loot boxes) | Não | |
 
 A Apple pede ainda as regras da 1.2 (conteúdo gerado pelos utilizadores): filtrar, denunciar, bloquear e um contacto. Isso é com a equipa de pagamentos e UGC. O contacto público está em https://txillapp.com/suporte.

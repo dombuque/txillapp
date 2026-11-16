@@ -53,9 +53,9 @@ export function feedNear(saved: string | null, cities: CityLike[], device: { lat
   return null;
 }
 
-/** "1 500 Txills". */
+/** "1500 vibes" (e "1 vibe"; as mesmas palavras de lib/vibes, que este ficheiro não importa: os testes leem-no sozinho). */
 export function txills(n: number): string {
-  return `${Math.round(n).toLocaleString('pt-PT')} Txills`;
+  return `${Math.round(n).toLocaleString('pt-PT')} ${Math.round(n) === 1 ? 'vibe' : 'vibes'}`;
 }
 
 /** O preço do pacote num raio (o servidor manda a tabela; sem ela, nada). */

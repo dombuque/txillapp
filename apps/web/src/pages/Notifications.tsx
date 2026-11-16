@@ -1,5 +1,6 @@
 import { Reaction } from '../lib/stickers';
 import { tr, locale } from '../lib/i18n';
+import { formatVibes } from '../lib/vibes';
 import { RowsSkeleton } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -46,7 +47,7 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
     case 'request_accepted':
       return { text: <>{tr('aceitou o teu pedido para seguir')}</> };
     case 'gift':
-      return { text: <>{tr('presenteou-te com')} <b>{(n.data.amount ?? 0).toLocaleString(locale)} {tr('Txills')}</b></>, sub: n.data.note ? `${n.data.note}` : undefined };
+      return { text: <>{tr('presenteou-te com')} <b>{formatVibes(n.data.amount ?? 0)}</b></>, sub: n.data.note ? `${n.data.note}` : undefined };
     case 'comment':
       return { text: <>{tr('comentou a tua publicação')}</>, sub: quote };
     case 'reply':

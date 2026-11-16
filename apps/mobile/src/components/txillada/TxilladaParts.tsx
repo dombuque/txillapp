@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
 import { fmtTxills, txillsLabel, viewersLabel } from '@/lib/txillada';
+import { formatVibes } from '@/lib/vibes';
 
 /** O coral do «AO VIVO» (a cor da marca) e o tom mais claro do gradiente da roda. */
 export const LIVE = colors.brand;
@@ -71,7 +72,7 @@ export function LiveRing({ children, price }: { children: React.ReactNode; price
       <View style={st.ringInner}>{children}</View>
       <View style={st.ringBadge} pointerEvents="none" accessibilityLabel={price ? `Ao vivo, privada: ${txillsLabel(price)}` : undefined}>
         <Icon name={price ? 'lock' : 'txillada'} size={9} color="#fff" strokeWidth={2.6} />
-        <Text style={st.ringBadgeText}>{price ? `${fmtTxills(price)} TXL` : 'AO VIVO'}</Text>
+        <Text style={st.ringBadgeText}>{price ? formatVibes(price, { short: true }) : 'AO VIVO'}</Text>
       </View>
     </View>
   );
@@ -100,7 +101,7 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
     { label: 'Comentários', value: String(comments) },
     // Txillada privada e Angariação (0167): as entradas pagas e os Txills oferecidos (já estão na carteira).
     ...(tickets != null ? [{ label: cut ? 'Entradas (devolvidas)' : 'Entradas pagas', value: String(tickets) }] : []),
-    ...(raised > 0 ? [{ label: 'Txills oferecidos', value: fmtTxills(raised) }] : []),
+    ...(raised > 0 ? [{ label: 'Vibes oferecidas', value: fmtTxills(raised) }] : []),
   ];
   return (
     <View style={st.center}>

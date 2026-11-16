@@ -45,7 +45,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'chat', label: 'Conversa', icon: 'messages' },
   { id: 'plan', label: 'Plano', icon: 'calendar' },
   { id: 'album', label: 'Álbum', icon: 'images' },
-  { id: 'pot', label: 'Txills', icon: 'wallet' },
+  { id: 'pot', label: 'Vibes', icon: 'wallet' },
 ];
 
 /**

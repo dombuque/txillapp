@@ -12,7 +12,7 @@ export function AlertsPanel({ onAccount }: { onAccount: (q: string) => void }) {
   const q = useQuery({ queryKey: ['fin-alerts'], queryFn: finApi.alerts, staleTime: 60_000 });
   const a = q.data;
   return (
-    <Panel title="Alertas" help={a ? `Presentes dos últimos ${a.rules.DAYS} dias: o normal (mediana) é ${fmt(a.medianReceived)} Txills por pessoa, em ${fmt(a.receivers)} pessoas que receberam.` : undefined}
+    <Panel title="Alertas" help={a ? `Presentes dos últimos ${a.rules.DAYS} dias: o normal (mediana) é ${fmt(a.medianReceived)} vibes por pessoa, em ${fmt(a.receivers)} pessoas que receberam.` : undefined}
       right={a && <Status tone={a.items.some((x) => x.level === 'critical') ? 'bad' : a.items.length ? 'warn' : 'good'}>{a.items.length ? `${a.items.length} por ver` : 'Tudo normal'}</Status>}>
       {!a && <Loading error={q.error} />}
       {a && a.items.length === 0 && <p className="text-sm text-zinc-500">Sem nada fora do normal. O livro bate certo.</p>}
@@ -42,7 +42,7 @@ export function AlertsPanel({ onAccount }: { onAccount: (q: string) => void }) {
   );
 }
 
-/** Txills em circulação, emitidos e resgatados, por tipo e por dia. */
+/** Vibes em circulação, emitidas e resgatadas, por tipo e por dia. */
 export function FinOverviewPanel({ days, onAccount, onType }: { days: number; onAccount: (q: string) => void; onType: (t: string) => void }) {
   const q = useQuery({ queryKey: ['fin-overview', days], queryFn: () => finApi.overview(days) });
   const o = q.data;
@@ -52,7 +52,7 @@ export function FinOverviewPanel({ days, onAccount, onType }: { days: number; on
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Txills em circulação" value={compact(c.total)} icon="wallet" tone={c.balanced ? 'neutral' : 'bad'}
+        <Kpi label="Vibes em circulação" value={compact(c.total)} icon="wallet" tone={c.balanced ? 'neutral' : 'bad'}
           hint={c.balanced ? <>Emitidos {compact(c.issuedEver)} − resgatados {compact(c.redeemedEver)}</> : 'O livro não bate certo: vê os alertas'} />
         <Kpi label={`Emitidos em ${days} dias`} value={compact(o.period.issued)} icon="sparkles" hint="Bónus, convites, compras e devoluções do Bombar" />
         <Kpi label={`Resgatados pelo Bombar em ${days} dias`} value={compact(o.period.redeemed)} icon="flame" hint="Voltaram à emissão" />
@@ -95,7 +95,7 @@ export function FinOverviewPanel({ days, onAccount, onType }: { days: number; on
       </Panel>
 
       <AlertsPanel onAccount={onAccount} />
-      <p className="flex items-center gap-1.5 text-xs text-zinc-500"><Icon name="info" size={14} /> Os Txills são fictícios nesta fase. Os dias contam em UTC.</p>
+      <p className="flex items-center gap-1.5 text-xs text-zinc-500"><Icon name="info" size={14} /> As vibes são fictícias nesta fase. Os dias contam em UTC.</p>
     </div>
   );
 }

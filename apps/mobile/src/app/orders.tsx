@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { extraApi, newKey, type PaymentOrder } from '@/lib/api.extra';
 import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
+import { vibesWord } from '@/lib/vibes';
 
 /** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra nada de "em breve". */
 const NATIVE = Platform.OS !== 'web';
@@ -120,7 +121,7 @@ function OrdersScreen() {
         <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.balance}>
           <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>O teu saldo</Text>
           <Text style={{ marginTop: 4, fontSize: 38, fontWeight: '900', lineHeight: 38, color: '#fff' }}>
-            {w.data ? n(w.data.balance) : '…'} <Text style={{ fontSize: 20, fontWeight: '700' }}>Txills</Text>
+            {w.data ? n(w.data.balance) : '…'} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(w.data?.balance ?? 0)}</Text>
           </Text>
           <Pressable onPress={() => router.push('/wallet' as never)} accessibilityRole="button" style={({ pressed }) => [st.balBtn, pressed && { transform: [{ scale: 0.95 }] }]}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Ver movimentos e presentes</Text>
@@ -128,16 +129,16 @@ function OrdersScreen() {
         </LinearGradient>
 
         {(!NATIVE || providers.length > 0) && (
-          <Group title="Recarregar Txills">
+          <Group title="Recarregar vibes">
             {cfg.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar Txills" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
+            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar vibes" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
             {cfg.data && providers.length > 0 && !current ? (
               <View style={{ padding: 16, gap: 16 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                   {cfg.data.packages.map((p) => (
                     <Pressable key={p.id} onPress={() => setPkg(p.id)} accessibilityRole="button" accessibilityState={{ selected: pkg === p.id }} style={({ pressed }) => [st.pkg, pkg === p.id && { borderColor: colors.brand, backgroundColor: colors.rose50 }, pressed && { transform: [{ scale: 0.98 }] }]}>
                       <Text style={{ fontSize: 22, fontWeight: '900', lineHeight: 22, color: colors.zinc900 }}>{n(p.txills)}</Text>
-                      <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.zinc500 }}>Txills</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.zinc500 }}>{vibesWord(p.txills)}</Text>
                       <Text style={{ marginTop: 6, fontSize: 15, fontWeight: '600', color: colors.brand }}>{money(p.priceMinor, p.currency)}</Text>
                     </Pressable>
                   ))}
@@ -177,7 +178,7 @@ function OrdersScreen() {
                 )}
                 {current.status === 'paid' && (
                   <>
-                    <Text style={[st.stateTitle, { color: colors.green700 }]}>Pago! +{n(current.txills)} Txills</Text>
+                    <Text style={[st.stateTitle, { color: colors.green700 }]}>Pago! +{n(current.txills)} {vibesWord(current.txills)}</Text>
                     <Pressable onPress={() => setCurrent(null)} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={{ fontWeight: '600', color: colors.zinc900 }}>Fechar</Text></Pressable>
                   </>
                 )}
@@ -204,7 +205,7 @@ function OrdersScreen() {
           {orders.data?.map((o) => (
             <View key={o.id} style={st.order}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{n(o.txills)} Txills</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{n(o.txills)} {vibesWord(o.txills)}</Text>
                 <Text style={{ fontSize: 14, color: colors.zinc500 }}>{money(o.amountMinor, o.currency)} · {date(o.createdAt)}</Text>
               </View>
               <View style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2, backgroundColor: STATUS[o.status].bg }}>
@@ -214,7 +215,7 @@ function OrdersScreen() {
           ))}
         </Group>
         <Text style={{ marginHorizontal: 24, marginTop: 20, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>
-          Os Txills comprados entram na carteira e usam-se como os outros: para presentear quem segues. Não se trocam por dinheiro.
+          As vibes compradas entram na carteira e usam-se como as outras: para presentear quem segues. Não se trocam por dinheiro.
         </Text>
       </ScrollView>
     </StackPage>

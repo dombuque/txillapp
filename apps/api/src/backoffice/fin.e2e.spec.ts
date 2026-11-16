@@ -107,7 +107,7 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     for (const k of ['dau', 'wau', 'mau', 'signupsToday', 'reportsOpen', 'verificationsPending', 'venuesPending', 'boostsActive', 'txillsToday', 'invitesToday']) expect(a).toHaveProperty(k);
   });
 
-  it('Txills em circulação: somas por tipo, emitidos, resgatados pelo Bombar, livro com filtros, páginas e detalhe', async () => {
+  it('vibes em circulação: somas por tipo, emitidos, resgatados pelo Bombar, livro com filtros, páginas e detalhe', async () => {
     const day0 = utcDay();
     const before = await get('/admin/fin/overview?days=7');
     const todayBefore = (await get('/admin/summary')).txillsToday as number;
@@ -217,7 +217,7 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     expect((al.items as Body[]).some((x) => x.id === 'ledger')).toBe(false); // o livro bate certo
   });
 
-  it('compras de Txills: fornecedor de teste, pacotes e pedidos', async () => {
+  it('compras de vibes: fornecedor de teste, pacotes e pedidos', async () => {
     const before = await get('/admin/fin/purchases?days=7');
     expect(before.mode).toBe('sandbox');
     expect(before.providers.find((p: Body) => p.id === 'sandbox')).toMatchObject({ enabled: true });

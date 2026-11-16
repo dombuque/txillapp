@@ -18,7 +18,7 @@ export default defineConfig({
       manifest: {
         name: 'Txillapp',
         short_name: 'Txillapp',
-        description: 'Rede social, showoff e Txills',
+        description: 'Rede social, showoff e vibes',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',

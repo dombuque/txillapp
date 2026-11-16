@@ -41,6 +41,7 @@ import { LINK_LABELS } from '@/lib/artists';
 import { useTabPress } from '@/lib/tabPress';
 import { goBack } from '@/lib/nav';
 import { livePrice } from '@/lib/txillada';
+import { vibesWord } from '@/lib/vibes';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -91,7 +92,7 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
                   <View style={[styles.giftAv, { left: 0, zIndex: 2 }]}><Avatar name={post.author.displayName} username={post.author.username} size={26} /></View>
                 </View>
                 <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString('pt-PT')}</Text>
-                <Text style={styles.giftLabel}>TXILLS</Text>
+                <Text style={styles.giftLabel}>{vibesWord(post.gift.amount).toUpperCase()}</Text>
               </LinearGradient>
             ) : shown.gelada ? (
               // O «Paga-me uma» publicado: a garrafa e quem já pagou, como no post.
@@ -359,7 +360,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                 <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
                 <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar o perfil (com o teu convite)"><QrGlyph /></Pressable>
                 <Pressable onPress={() => router.push('/supertxill?tab=malta' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Malta para ti: sugestões de amigos"><Icon name="user-plus" size={20} /></Pressable>
-                <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
+                <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de vibes"><Icon name="wallet" size={20} /></Pressable>
                 <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>
             ) : (

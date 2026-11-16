@@ -10,7 +10,7 @@ const FEATURES = [
   { icon: 'camera', title: 'Stories', text: 'Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.' },
   { icon: 'film', title: 'Reels', text: 'Vídeos curtos a rolar, um a seguir ao outro. Bora criar o teu.' },
   { icon: 'comment', title: 'Chat em tempo real', text: 'Conversa com quem segues, manda fotos e vídeos. Só entra quem tu deixares.' },
-  { icon: 'gift', title: 'Txills', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
+  { icon: 'gift', title: 'Vibes', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
   { icon: 'shield', title: 'Privacidade a sério', text: 'Contas privadas, bloquear, silenciar, escolher quem te vê. Tu decides.' },
 ] as const;
 

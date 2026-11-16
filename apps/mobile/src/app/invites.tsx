@@ -16,6 +16,7 @@ import { forgetCard, renderInviteCard, saveCard, shareCard, shareOnWhatsApp, typ
 import { qrMatrix } from '@/lib/qr';
 import { stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
+import { formatVibes } from '@/lib/vibes';
 
 /** Verde do WhatsApp, escurecido para o texto branco ter contraste suficiente (≥ 4,5:1). */
 const WHATSAPP = '#128c4a';
@@ -166,7 +167,7 @@ export default function Invites() {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               {stat(d.stats.invited, 'Entraram')}
               {stat(d.stats.active, 'Ficaram ativos')}
-              {stat(d.stats.earned, 'Txills ganhos')}
+              {stat(d.stats.earned, 'Vibes ganhas')}
             </View>
             {d.stats.pending > 0 && <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: colors.zinc500 }}>{d.stats.pending} em espera: o teu prémio chega {d.rules.holdDays} dias depois de a pessoa ficar ativa.</Text>}
             {d.note ? <Text style={st.note}>{d.note}</Text> : null}
@@ -217,10 +218,10 @@ export default function Invites() {
             <Text style={st.h2} accessibilityRole="header">Como funciona</Text>
             <View style={{ gap: 8 }}>
               {li('check-circle', '#059669', 'A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.')}
-              {li('check-circle', '#059669', `Ela ganha ${d.rules.reward} Txills quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
-              {li('check-circle', '#059669', `Tu ganhas ${d.rules.reward} Txills quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
-              {li('info', colors.zinc500, `Até ${d.rules.perDay} convites premiados por dia e ${d.rules.maxPaid} no total. Depois disso o convite continua a funcionar, mas sem Txills.`)}
-              {li('info', colors.zinc500, 'Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}
+              {li('check-circle', '#059669', `Ela ganha ${formatVibes(d.rules.reward)} quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
+              {li('check-circle', '#059669', `Tu ganhas ${formatVibes(d.rules.reward)} quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
+              {li('info', colors.zinc500, `Até ${d.rules.perDay} convites premiados por dia e ${d.rules.maxPaid} no total. Depois disso o convite continua a funcionar, mas sem vibes.`)}
+              {li('info', colors.zinc500, 'Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. As vibes são pontos da app.')}
               {li('info', colors.zinc500, 'O cartão é feito no teu aparelho. Leva o teu nome, a tua foto e, se a tua Geleira estiver à vista de todos, alguns itens dela.')}
             </View>
           </>

@@ -678,7 +678,7 @@ export const api = {
   cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
 
-  /** Presentear alguém com Txills (demonstração), de onde quer que seja. */
+  /** Presentear alguém com vibes (demonstração), de onde quer que seja. */
   giftUser: (b: { toUsername: string; amount: number; note?: string; visibility: GiftVisibility }, key: string): Promise<{ transactionId: string; replayed: boolean; post: Post | null }> =>
     raw('/gifts', post(b, { 'Idempotency-Key': key })),
   /** Decidir publicar DEPOIS de ter enviado o presente. */

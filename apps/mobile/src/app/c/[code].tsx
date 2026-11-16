@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { INVITE_PHRASES, PHRASE_STICKERS, phraseIndexOf } from '@/lib/inviteCard';
 import { stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
+import { formatVibes } from '@/lib/vibes';
 
 /**
  * A página do convite (txillapp.com/c/CÓDIGO): o que vê quem abre a ligação. «{Nome} convidou-te para o Txillapp», a foto,
@@ -84,7 +85,7 @@ export default function InviteLanding() {
                 </View>
               </View>
             ) : null}
-            {p.reward ? <Text style={st.gift}>Entra com o convite e ganhas {p.reward} Txills logo à entrada.</Text> : null}
+            {p.reward ? <Text style={st.gift}>Entra com o convite e ganhas {formatVibes(p.reward)} logo à entrada.</Text> : null}
             <Text style={st.code} accessibilityLabel={`Código do convite: ${code.split('').join(' ')}`}>Código {code}</Text>
           </View>
         )}

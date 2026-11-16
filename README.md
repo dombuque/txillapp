@@ -1,10 +1,10 @@
 # Txillapp
 
-Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moeda virtual de **demonstração** (sem valor real) — criada por Erasmo Buque (dombuque).
+Plataforma social mobile-first (PWA) com feed, showoff e **vibes** (uma moeda virtual de **demonstração**, sem valor real), criada por Erasmo Buque (dombuque).
 
-> **Estado: MVP.** Os Txills são fictícios. Recargas e pagamentos reais só serão activados após validação regulamentar. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+> **Estado: MVP.** As vibes são fictícias. Recargas e pagamentos reais só serão activados após validação regulamentar. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**Vocabulário do Txillapp** (os nomes no código são os genéricos): **Mimo** = story (24 h), **Tcheka** = reel (vídeo curto), **Zás** = instant (foto na hora, vista uma vez), **Geleira** = os gostos do perfil. Nos textos visíveis nunca se diz story nem reel.
+**Vocabulário do Txillapp** (os nomes no código são os genéricos): **Mimo** = story (24 h), **Tcheka** = reel (vídeo curto), **Zás** = instant (foto na hora, vista uma vez), **Geleira** = os gostos do perfil, **vibes** (curta: **vib**) = a moeda da app, antes «Txills» (no código, na base de dados e na API continua `txills`/`TXL`, para as apps antigas não partirem). Nos textos visíveis nunca se diz story nem reel, nem Txills.
 
 **As personagens** (os stickers do chat são sempre uma delas, em `apps/web/src/lib/stickers.tsx`): **Txilla** (a caneca com espuma), **Gelinho** (a geleira), **Zazá** (o raio), **Mimo** (o coração), **Txeka** (o ecrã dos tchekas) e **Super** (a estrela do SuperTxill). Regenerar o pacote: `npm run export-stickers` em apps/web.
 
@@ -15,7 +15,7 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 - Sessão persistente e deslizante (rotação do refresh token, dura enquanto usar a app): só o logout leva ao login
 - Feed com publicações e **várias fotografias** (carrossel), paginação por cursor
 - **Brindar**, **Comentar** (com respostas, brindes nos comentários e menções, ao estilo Instagram) e **Presentear**
-- **Presentear alguém** com Txills, com post opcional "X presenteou Y" no feed
+- **Presentear alguém** com vibes, com post opcional "X presenteou Y" no feed
 - **Mimos** (stories) de 24 h, com quem viu (só o autor), apagar e bandeja com "não vistos"
 - **Onde estás?**: localização do dispositivo com sugestões de sítios próximos; só o nome escolhido é guardado, nunca o GPS
 - **Perfil** com foto (recorte quadrado), bio, público ou privado (pedidos para seguir), seguidores, bloqueios ao estilo do X com aviso à pessoa bloqueada

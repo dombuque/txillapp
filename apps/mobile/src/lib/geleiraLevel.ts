@@ -72,4 +72,4 @@ export function needsText(needs: LevelDetail['needs']): string | null {
 
 /** A regra, para quem pergunta (a mesma dos Termos e da Ajuda). */
 export const LEVEL_RULES =
-  'Contam os últimos 90 dias: geladas pagas e confirmadas, brindes de amigos, check-ins em sítios e rodadas no TxillGroup, e um pouco dos teus gostos. O álcool não conta (um refresco vale o mesmo) e os Txills também não. A mesma pessoa vale no máximo 6 pontos por semana. Se deixares de sair, o nível desce devagar: no máximo um por semana.';
+  'Contam os últimos 90 dias: geladas pagas e confirmadas, brindes de amigos, check-ins em sítios e rodadas no TxillGroup, e um pouco dos teus gostos. O álcool não conta (um refresco vale o mesmo) e as vibes da carteira também não. A mesma pessoa vale no máximo 6 pontos por semana. Se deixares de sair, o nível desce devagar: no máximo um por semana.';

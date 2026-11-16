@@ -96,7 +96,7 @@ export function ChatAttachMenu({
               {item('camera', 'Câmara', onCamera, 'Tirar foto ou vídeo com a câmara')}
               {item('image', 'Foto e vídeo', onLibrary, 'Enviar foto ou vídeo da galeria')}
               {item('map-pin', 'Localização', onPlace, 'Localização: escolher o que enviar')}
-              {canGift ? item('gift', 'Presente', onGift, `Oferecer Txills${firstName ? ` a ${firstName}` : ''}`) : null}
+              {canGift ? item('gift', 'Presente', onGift, `Oferecer vibes${firstName ? ` a ${firstName}` : ''}`) : null}
               {onGelada ? item('cheers', 'Pede uma gelada', onGelada, `Pede uma gelada${firstName ? ` a ${firstName}` : ''}: «Paga-me uma»`) : null}
               {onMixar ? item('mixar', 'Mixar', onMixar, `Mixar${firstName ? ` com ${firstName}` : ''}: um feed a dois`) : null}
               {item('once', 'Ver uma vez', onToggleOnce, undefined, once)}

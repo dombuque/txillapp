@@ -91,7 +91,7 @@ Valores monetários: inteiros (`bigint`), nunca float. Dados financeiros: sem ca
 
 ## 5. Fluxos críticos
 
-**5.1 Transferência de Txills**
+**5.1 Transferência de vibes** (a moeda chamava-se «Txills»; no código e na base de dados continua `txills`)
 1. `POST /transfers` com cabeçalho `Idempotency-Key`; utilizador autenticado, MFA/step-up acima de limiar.
 2. Transacção PG `SERIALIZABLE` ou `READ COMMITTED` + `SELECT … FOR UPDATE` nas duas contas, **ordenadas por id** (evita deadlocks).
 3. Valida: saldo, limites diários, bloqueios, contas activas.
@@ -169,12 +169,12 @@ SLOs iniciais: disponibilidade API 99,9 %; p95 leitura < 300 ms; RPO ≤ 15 min;
 | 1 Fundação | monorepo, CI, Docker compose, auth (registo/login/refresh/MFA), PG+migrações, design system, health/readiness, OTel básico | CI verde; stack sobe com um comando; testes de auth + migrações; sem segredos no repo |
 | 2 Rede social | perfis, posts+media, comentários, follows, Showoff, Stories, feed por cursor | upload directo funcional com processamento assíncrono; testes de privacidade/bloqueio/IDOR; PWA instalável |
 | 3 Descoberta/comunicação | FTS, recomendações, mensagens WS, notificações | mensagens sem perda com reconexão; 2 instâncias API a entregar entre si; sem exposição de localização exacta |
-| 4 Txills (demo) | ledger, carteiras, transferências, idempotência | teste de concorrência: 1.000 transferências paralelas, invariante soma=0 e sem saldo negativo; replay idempotente; reconciliação a zero divergências |
+| 4 Vibes (demo) | ledger, carteiras, transferências, idempotência | teste de concorrência: 1.000 transferências paralelas, invariante soma=0 e sem saldo negativo; replay idempotente; reconciliação a zero divergências |
 | 5 Comerciantes | merchants, QR dinâmico, cobranças, comprovativos, reembolsos | intent expirado/duplicado rejeitado; QR sem dados sensíveis; pagamentos concorrentes correctos |
 | 6 Produção | segurança, k6 100/500/1.000 VUs, dashboards/alertas, backups + restauro testado, IaC, runbooks | relatório de carga publicado; restauro testado com RPO/RTO medidos; pentest/ASVS checklist |
 | 7 Expansão | pagamentos reais, NFC/USSD, apps nativas | **só** após parecer regulamentar, prestadores autorizados, auditoria externa |
 
-Txills no MVP são **fictícios e rotulados como tal** na UI e nos comprovativos.
+As vibes no MVP são **fictícias e rotuladas como tal** na UI e nos comprovativos.
 
 ## 10. Decisões em aberto (precisam de si)
 
@@ -182,7 +182,7 @@ Txills no MVP são **fictícios e rotulados como tal** na UI e nos comprovativos
 2. **Idioma da UI**: pt-PT/pt-MZ apenas, ou com i18n desde o início (inglês)?
 3. **Ambição desta sessão**: implemento já a **Fase 1 completa** (monorepo, auth, BD, CI, design system), ou prefere ajustar primeiro este documento?
 4. **Notificações push na PWA** (iOS exige instalação na ecrã inicial): aceitável como limitação do MVP?
-5. **Enquadramento legal**: confirmar que o MVP com Txills fictícios, sem conversão em dinheiro, é o âmbito até ter parecer regulamentar.
+5. **Enquadramento legal**: confirmar que o MVP com vibes fictícias, sem conversão em dinheiro, é o âmbito até ter parecer regulamentar.
 
 ## 11. Desvios face ao master prompt
 

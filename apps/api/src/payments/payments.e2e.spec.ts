@@ -13,7 +13,7 @@ const SECRET = 'segredo-de-teste-dos-pagamentos';
 
 interface U { token: string; id: string; username: string }
 
-describe('recarregar Txills: pacotes, pedidos, idempotência, crédito e avisos assinados (integração)', () => {
+describe('recarregar vibes: pacotes, pedidos, idempotência, crédito e avisos assinados (integração)', () => {
   let app: INestApplication;
   let pool: Pool;
   const run = Date.now().toString(36);

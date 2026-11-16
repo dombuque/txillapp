@@ -680,7 +680,7 @@ export function useTxillada(id: string) {
     }
   }
   /**
-   * Oferecer Txills (0167): a linha «ofereceu N Txills», a barra e o top mudam logo com a resposta (o evento da sala chega
+   * Oferecer Txills (0167): a linha «ofereceu N vibes», a barra e o top mudam logo com a resposta (o evento da sala chega
    * depois e não repete). A chave é a mesma se o pedido se perder pelo caminho (uma segunda tentativa não cobra outra vez).
    */
   async function gift(amount: number): Promise<{ balance: number | null; error?: string; insufficient?: boolean }> {
