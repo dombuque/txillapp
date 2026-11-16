@@ -18,6 +18,8 @@ RUN npm run build -w @txillapp/shared && npm run build -w @txillapp/web
 FROM node:22-bookworm-slim AS mobileweb
 WORKDIR /m
 COPY apps/mobile/package.json apps/mobile/package-lock.json ./
+# O postinstall corre scripts/patch-native.mjs (correções a módulos nativos): tem de estar cá antes do npm ci.
+COPY apps/mobile/scripts/patch-native.mjs scripts/patch-native.mjs
 RUN npm ci
 COPY apps/mobile/ ./
 RUN CI=1 npx expo export --platform web --output-dir dist && node scripts/post-export-web.mjs dist ""

@@ -1,6 +1,6 @@
 {
   "name": "@txillapp/mobile",
-  "version": "1.53.0",
+  "version": "1.54.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@livekit/react-native": "3.1.0",
@@ -57,6 +57,8 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-native.mjs",
+    "patch-native": "node scripts/patch-native.mjs --strict",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
