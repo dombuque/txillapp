@@ -20,7 +20,7 @@ const REASONS: { value: ReportReason; label: string; text: string }[] = [
 
 /** O que se está a denunciar, para o título da folha. */
 const WHAT: Record<ReportType | 'txillada' | 'txillada_comment', string> = {
-  txillada: 'esta Txillada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
+  txillada: 'esta Txillada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local', mixar_comment: 'este comentário',
 };
 
 /**

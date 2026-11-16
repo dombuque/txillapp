@@ -13,6 +13,9 @@ import { RichText } from '@/components/RichText';
 import { RailButton, railStyles } from '@/components/reel/ReelExtraActions';
 import { MixarBadge, PairAvatars, ReactionBar, ReasonChip, SeenBy, TopicChips } from '@/components/mixar/MixarBits';
 import { ChallengePage, DiscoverySheet, EndPage } from '@/components/mixar/MixarPages';
+import { HereChip, MixarCommentsSheet, MixarRailButtons, MoreButton, ReactionBurst, SavedByChip, SavedEndPage, SavedHeaderButton, TogetherBanner } from '@/components/mixar/MixarSocial';
+import { useMixarSocial } from '@/components/mixar/useMixarSocial';
+import { mixarSocialApi, mixarSocialKeys, type MixarSavedItem } from '@/lib/api.mixarSocial';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { mixarApi, mixarKeys, type Mixar, type MixarChallenge, type MixarFeedPage, type MixarItem, type MixarReactionId } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +34,8 @@ const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
 type Who = { name: string; username?: string };
 type Api = typeof previewMixarApi;
+/** Uma página do feed: a seleção do dia ou os Guardados (MixarSavedItem estende MixarItem). */
+type Page = Pick<MixarFeedPage, 'items' | 'nextCursor'>;
 
 /**
  * O Mixar aberto: um feed vertical a dois, um item por ecrã, como as tchekas (o mesmo leitor e o mesmo cartão: Reel).
@@ -39,8 +44,11 @@ type Api = typeof previewMixarApi;
  * Em cada item: a razão, a barra das reações exclusivas (a minha e a do outro), «Mandar» (para o chat da outra pessoa) e
  * «Visto por Ana». Ao sair de cada item (ou quando o vídeo acaba) manda um /seen, no máximo um por visita (lib/mixar).
  * Computador: ↑/↓ e ←/→ (e a roda do rato) mudam de item; espaço pausa; ao passar o rato aparecem os botões.
+ * Social e guardados (components/mixar/MixarSocial, useMixarSocial): a conversa e o marcador no carril, «está a ver contigo»,
+ * a reação do outro a subir e o «Mais 5» no fim. Com `saved` (rota /mixar/guardados/[id]) o mesmo feed mostra os Guardados.
  */
-export default function MixarScreen() {
+export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = {}) {
+  const saved = savedMode === true;
   useEffect(() => { enterImmersive(); return () => leaveImmersive(); }, []);
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const preview = isMixarPreview(id);
@@ -70,14 +78,16 @@ export default function MixarScreen() {
     if (mixar) markMixarSeen(mixar.id, mixar.updatedAt);
   }, [mixar?.id, mixar?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const live = mixar?.status === 'active';
+  // Os Guardados usam o mesmo feed (outra lista, sem o desafio).
+  const feedKey = saved ? mixarSocialKeys.saved(id) : mixarKeys.feed(id);
   const feed = useInfiniteQuery({
-    queryKey: mixarKeys.feed(id),
-    queryFn: ({ pageParam }) => mx.feed(id, pageParam),
+    queryKey: feedKey,
+    queryFn: ({ pageParam }): Promise<Page> => (saved ? mixarSocialApi.saved(id, pageParam) : mx.feed(id, pageParam)),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (l: MixarFeedPage) => l.nextCursor ?? undefined,
+    getNextPageParam: (l: Page) => l.nextCursor ?? undefined,
     enabled: live,
   });
-  const ch = useQuery({ queryKey: mixarKeys.challenge(id), queryFn: () => mx.challenge(id), enabled: live, retry: 1 });
+  const ch = useQuery({ queryKey: mixarKeys.challenge(id), queryFn: () => mx.challenge(id), enabled: live && !saved, retry: 1 });
   // À espera da escolha do outro: o tempo real avisa ('pick'/'result'); isto é só a rede de segurança (e a pré-visualização).
   const waiting = !!ch.data?.myPick && ch.data.match == null;
   useEffect(() => {
@@ -88,7 +98,7 @@ export default function MixarScreen() {
 
   const items = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data]);
   // O desafio só entra depois de se saber se há (para a lista não saltar uma página quando ele chega).
-  const pages = useMemo(() => (feed.isPending || ch.isPending ? [] : buildPages(ch.data ?? null, items, !!feed.hasNextPage)), [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage]);
+  const pages = useMemo(() => (feed.isPending || (!saved && ch.isPending) ? [] : buildPages(saved ? null : ch.data ?? null, items, !!feed.hasNextPage)), [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage, saved]);
 
   const partner: Who = mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined } : { name: '' };
   const me: Who = { name: firstName(user?.displayName), username: user?.username };
@@ -104,10 +114,15 @@ export default function MixarScreen() {
   // Ao sair do ecrã, os «novos hoje» da lista ficam em dia.
   useEffect(() => () => void qc.invalidateQueries({ queryKey: mixarKeys.list() }), [qc]);
 
+  /* ---------- Social e guardados ---------- */
+  const soc = useMixarSocial({ id, enabled: live && !preview, items, activePostId: activeKey, presenceOn: focused && !saved, say });
+  const [talk, setTalk] = useState<string | null>(null);
+  const partnerFull = mixar ? { ...partner, displayName: mixar.partner.displayName, verified: mixar.partner.verified, verifiedTier: mixar.partner.verifiedTier ?? null } : { ...partner, displayName: partner.name };
+
   /* ---------- Mudar o feed na cache ---------- */
   const patchItem = useCallback((postId: string, f: (it: MixarItem) => MixarItem) => {
-    qc.setQueryData<InfiniteData<MixarFeedPage>>(mixarKeys.feed(id), (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((it) => (it.post.id === postId ? f(it) : it)) })) });
-  }, [qc, id]);
+    qc.setQueryData<InfiniteData<Page>>(feedKey, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((it) => (it.post.id === postId ? f(it) : it)) })) });
+  }, [qc, feedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const react = useCallback(async (it: MixarItem, tapped: MixarReactionId) => {
     const before = it.mine;
     const next = nextReaction(before, tapped);
@@ -115,11 +130,12 @@ export default function MixarScreen() {
     try {
       const r = await mx.react(id, it.post.id, next);
       patchItem(it.post.id, (x) => ({ ...x, mine: r.mine, theirs: r.theirs }));
+      soc.afterReact(it.post.id, r.mine, r.theirs);
     } catch {
       patchItem(it.post.id, (x) => ({ ...x, mine: before }));
       say('Não consegui reagir. Tenta outra vez.');
     }
-  }, [patchItem, mx, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [patchItem, mx, id, soc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- Mandar para o chat ---------- */
   const [sent, setSent] = useState<Record<string, 'sending' | 'sent'>>({});
@@ -244,20 +260,34 @@ export default function MixarScreen() {
       const c = ch.data;
       return c ? <ChallengePage c={c} height={height} me={me} them={partner} busy={picking} onPick={(pid) => void pick(c, pid)} onOpen={openPost} topInset={topPad + 64} /> : <View style={{ height }} />;
     }
-    if (pg.kind === 'end') return <EndPage height={height} me={me} them={partner} empty={items.length === 0} onDiscover={() => setDiscover(true)} onBack={close} />;
+    if (pg.kind === 'end') {
+      if (saved) return <SavedEndPage height={height} partner={partner.name} empty={items.length === 0} onBack={() => router.replace(`/mixar/${id}` as never)} />;
+      return (
+        <EndPage height={height} me={me} them={partner} empty={items.length === 0} onDiscover={() => setDiscover(true)} onBack={close}>
+          {preview ? null : <MoreButton left={soc.moreLeft} busy={soc.moreBusy} note={soc.moreNote} onPress={() => void soc.more(() => feed.refetch())} />}
+        </EndPage>
+      );
+    }
     const it = pg.item;
     const p = it.post;
+    const so = soc.socialOf(p.id);
+    const by = (it as Partial<MixarSavedItem>).savedBy;
     const extra = (
       <View style={st.extra} pointerEvents="box-none">
         <View style={st.reasonRow} pointerEvents="box-none">
-          <ReasonChip from={it.from} topic={it.topic} partner={partner.name} />
-          {it.seenByThem ? <SeenBy partner={partner} /> : null}
+          {saved && by ? <SavedByChip by={by} partner={partner.name} /> : <ReasonChip from={it.from} topic={it.topic} partner={partner.name} />}
+          {soc.partner.here && soc.partner.postId === p.id ? <HereChip partner={partnerFull} /> : it.seenByThem ? <SeenBy partner={partner} /> : null}
         </View>
-        <ReactionBar mine={it.mine} theirs={it.theirs} partner={partner} onPick={(r) => void react(it, r)} />
+        <View pointerEvents="box-none">
+          <ReactionBar mine={it.mine} theirs={it.theirs} partner={partner} onPick={(r) => void react(it, r)} />
+          {soc.burst?.postId === p.id ? <ReactionBurst reaction={soc.burst.reaction} seq={soc.burst.seq} partner={partner} /> : null}
+        </View>
       </View>
     );
     const sendState = sent[p.id];
     const send = (
+      <>
+      {preview ? null : <MixarRailButtons comments={so.comments} saved={so.saved} partner={partner.name} onComments={() => setTalk(p.id)} onToggleSave={() => void soc.toggleSave(p.id)} />}
       <RailButton
         icon={<View style={[railStyles.circle, sendState === 'sent' && { backgroundColor: 'rgba(16,185,129,0.9)' }]}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name={sendState === 'sent' ? 'check' : 'send'} size={24} color="#fff" />}</View>}
         label={sendState === 'sent' ? 'Enviado' : 'Mandar'}
@@ -265,6 +295,7 @@ export default function MixarScreen() {
         selected={sendState === 'sent'}
         accessibilityLabel={sendState === 'sent' ? `Enviado a ${partner.name}` : `Mandar para o chat de ${partner.name}`}
       />
+      </>
     );
     const bottomInset = desktop ? Math.max(insets.bottom, 16) : insets.bottom;
     if (isTcheka(p)) {
@@ -295,7 +326,7 @@ export default function MixarScreen() {
     body = (
       <View style={st.center} accessibilityRole="alert">
         <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={st.title}>A seleção de hoje não carregou</Text>
+        <Text style={st.title}>{saved ? 'Os Guardados não carregaram' : 'A seleção de hoje não carregou'}</Text>
         <Text style={st.sub}>Verifica a ligação e tenta outra vez.</Text>
         <Pressable onPress={() => void feed.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
       </View>
@@ -314,7 +345,7 @@ export default function MixarScreen() {
               ref={list}
               style={[{ flex: 1 }, isWeb ? ({ scrollSnapType: 'y mandatory', overscrollBehavior: 'contain' } as object) : null]}
               data={pages}
-              extraData={`${height}|${active}|${focused}|${discover}|${JSON.stringify(sent)}`}
+              extraData={`${height}|${active}|${focused}|${discover}|${JSON.stringify(sent)}|${soc.socialVersion}|${soc.partner.here}|${soc.partner.postId}|${soc.burst?.seq ?? 0}|${soc.moreBusy}|${soc.moreLeft}|${soc.moreNote}`}
               keyExtractor={(p) => p.key}
               pagingEnabled
               snapToInterval={height}
@@ -349,15 +380,21 @@ export default function MixarScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {body}
-      <MixarHeader mixar={mixar} me={me} them={partner} top={topPad} onBack={close} onOpen={mixar && live ? () => setDiscover(true) : undefined} />
+      <MixarHeader
+        mixar={mixar} me={me} them={partner} top={topPad} onBack={close} onOpen={mixar && live && !saved ? () => setDiscover(true) : undefined}
+        saved={saved}
+        right={mixar && live && !saved && !preview ? <SavedHeaderButton onPress={() => router.push(`/mixar/guardados/${id}` as never)} /> : undefined}
+        below={mixar && live && !saved ? <TogetherBanner partner={partnerFull} presence={soc.partner} myPostId={activeKey} known={items.map((x) => x.post.id)} onJump={(pid) => { const k = pages.findIndex((x) => x.kind === 'item' && x.item.post.id === pid); if (k >= 0) goTo(k); }} /> : undefined}
+      />
       {toast ? <View style={st.toastWrap} pointerEvents="none" accessibilityRole="alert"><Text style={st.toast}>{toast}</Text></View> : null}
+      {talk && mixar ? <MixarCommentsSheet mixarId={id} postId={talk} partner={partnerFull} onClose={() => setTalk(null)} /> : null}
       {discover && mixar ? <DiscoverySheet mixar={mixar} me={me} them={partner} onClose={() => setDiscover(false)} onLeave={leave} /> : null}
     </View>
   );
 }
 
 /** O topo: voltar e, ao centro, «Dom + Ana» com os avatares, o match e os temas em comum (tocar abre a Descoberta). */
-function MixarHeader({ mixar, me, them, top, onBack, onOpen }: { mixar?: Mixar; me: Who; them: Who; top: number; onBack: () => void; onOpen?: () => void }) {
+function MixarHeader({ mixar, me, them, top, onBack, onOpen, saved = false, right, below }: { mixar?: Mixar; me: Who; them: Who; top: number; onBack: () => void; onOpen?: () => void; /** Nos Guardados: «Os vossos Guardados» em vez do match. */ saved?: boolean; /** À direita (o botão «Guardados»). */ right?: React.ReactNode; /** Por baixo (o «está a ver contigo»). */ below?: React.ReactNode }) {
   return (
     <View style={[st.top, { paddingTop: top }]} pointerEvents="box-none">
       <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -368,18 +405,19 @@ function MixarHeader({ mixar, me, them, top, onBack, onOpen }: { mixar?: Mixar; 
             <PairAvatars me={me} them={them} size={30} ring="rgba(255,255,255,0.9)" />
             <View style={{ flexShrink: 1, minWidth: 0 }}>
               <Text style={st.headName} numberOfLines={1}>{mixar.name}</Text>
-              {mixar.status === 'active' ? <Text style={st.headMatch} numberOfLines={1}>{matchLabel(mixar.match)}</Text> : null}
+              {mixar.status === 'active' ? <Text style={st.headMatch} numberOfLines={1}>{saved ? 'Os vossos Guardados' : matchLabel(mixar.match)}</Text> : null}
             </View>
             {onOpen ? <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.8)" strokeWidth={2.4} /> : null}
           </Pressable>
         ) : <View style={{ flex: 1 }} />}
-        <View style={{ width: 48 }} />
+        {right ?? <View style={{ width: 48 }} />}
       </View>
-      {mixar?.status === 'active' && mixar.common.length ? (
+      {mixar?.status === 'active' && mixar.common.length && !saved ? (
         <Pressable onPress={onOpen} style={st.topChips} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <TopicChips topics={mixar.common} tone="dark" max={3} />
         </Pressable>
       ) : null}
+      {below}
     </View>
   );
 }
