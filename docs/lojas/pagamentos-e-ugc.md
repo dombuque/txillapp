@@ -21,6 +21,8 @@ O canal vem de `src/lib/distribution.ts` (`CHANNEL`). O que se compra em cada ca
 | **Histórico de pedidos de recarga** | `/orders` | Mostra compras feitas fora (preços em MT) | Idem | **Escondido**, com o ecrã |
 | **Levantar Txills / converter em dinheiro** | Não existe (os Txills não se trocam por dinheiro) | Sem levantar, um presente não é «dinheiro» que chega a quem recebe (3.2.1(vii)) | Idem (um «peer-to-peer payment» é dinheiro entre pessoas) | **É o que falta** para a recarga local ser aceitável (secção 4) |
 | **Presentes / brindes com Txills** (publicações, perfil, chat «Presentes», carteira «Presentear alguém») | `GiftSheet`, carteira, chat | 3.2.1(vii): sem IAP só se o presente for opcional, 100% para quem recebe e não estiver ligado a conteúdo ou serviços digitais | FAQ: gorjeta 100% para o criador, sem desbloquear nada digital, conta como pagamento entre pessoas | **Fica.** O código não tira comissão: o movimento tem duas pernas, −N para quem dá e +N para quem recebe (`WalletService.transfer`). O presente não desbloqueia nada. Hoje usa só o saldo que já existe (boas-vindas, convites, presentes recebidos) |
+| **Entrada de uma Txillada privada** (0167: 5 a 5000 Txills, uma vez por Txillada) | Txillada › cartão com o cadeado, «Entrar por N Txills» (`LockedView`) | 3.1.1: desbloquear conteúdo digital com moeda virtual comprada pede IAP. Hoje paga-se só com Txills ganhos (nas lojas não se compram) | Conteúdo digital vendido por dinheiro pede o Play Billing; pontos ganhos, não | **Ativo em todos os canais.** Sem comissão (vai inteira para o anfitrião) e devolvida quando a moderação corta. É um ganho digital pago com Txills: com recarga, os Txills carregados não a podem pagar (secção 4). **Decisão do dono por confirmar** |
+| **Ofertas na Txillada / Angariação** (0167: 1 a 5000 Txills de cada vez) | Txillada › botão do presente | 3.2.1(vii): presente opcional, 100% para quem recebe, sem desbloquear nada | Gorjeta ao criador, sem desbloquear nada | **Ativo.** 100% para o anfitrião e não desbloqueia nada. Mas a linha «@x ofereceu N Txills» e o top 3 da sala dão **destaque e posição** a quem oferece, o que choca com o ponto 4 da secção 4 se a recarga vier. **Decisão do dono por confirmar** |
 | **Bombar** (destacar um evento ou uma publicação de um local; publicidade dentro da app) | Gerir › Bombar (`VenueBoost`) | 3.1.3(g): os «boosts» numa rede social têm de usar IAP | Funcionalidade digital: Play Billing | **Criar campanhas: tirado** (só no site, sem ligações nem chamadas para lá). Na app veem-se as campanhas do local, com o relatório, e podem parar-se. Sai da Ajuda a pergunta «Como bombo o meu local?». **Ver destaques fica** (mostrar anúncios é permitido) |
 | **Pagar com Txills nos locais** (bens e serviços físicos: bebidas, comida, entrada) | Página do local › «Pagar com Txills» (`VenuePaySheet`) | 3.1.3(e): bens e serviços físicos **têm** de usar outro meio que não o IAP | Bens e serviços físicos: o Play Billing não se usa | **Fica.** Sem comissão (o local recebe tudo). O local também não consegue levantar (secção 4) |
 | **Cofre dos TxillGroups** (pôr Txills, pagar a um local, devolver) | Grupo › Cofre (`PotPanel`) | Entre pessoas, e para pagar bens físicos | Pagamento entre pessoas | **Fica.** Já não diz «Carrega a carteira primeiro» |
@@ -102,6 +104,7 @@ O canal vem de `src/lib/distribution.ts` (`CHANNEL`). O que se compra em cada ca
 - **Ganhos digitais pagos com Txills:**
   - o Bombar (já fora das lojas);
   - o nível da geleira, que conta o saldo;
+  - a entrada das Txilladas privadas (0167), que abre o vídeo ao vivo;
   - os Termos prometem que os Txills «em breve vão servir também para pagar vibes».
 
   A verificação e o SuperTxill não custam Txills.
@@ -154,7 +157,7 @@ build that is submitted.
 
 **For this build (top-up hidden; `STORE_TOPUP_READY = false`):**
 
-> Txillapp is a social network for Mozambique. The app has no in-app purchases and sells nothing digital. "Txills" are
+> Txillapp is a social network for Mozambique. The app has no in-app purchases and sells nothing for money. "Txills" are
 > free reward points: every new account gets 500, and users earn more by inviting friends. Txills cannot be bought,
 > topped up or cashed out in this version of the app, and the app has no links or buttons that send users to buy
 > anything elsewhere.
@@ -162,7 +165,10 @@ build that is submitted.
 > Users can optionally send Txills they already have to people they follow, as a gift. 100% of the gift goes to the
 > receiver: there is no commission, and a gift unlocks no content or features. Users can also spend Txills at
 > participating physical venues (bars, restaurants, events) for goods and services consumed in the real world, or pool
-> them in a group fund to pay a venue.
+> them in a group fund to pay a venue. A host of a live video ("Txillada") can make it private, with an entry price in
+> Txills: viewers spend Txills they already have (earned, never bought) to watch that live, and the full amount goes to
+> the host; entries are refunded if our moderation ends the live. Viewers can also send Txills to the host during a live,
+> as a gift (100% to the host, no commission, nothing unlocked).
 >
 > Paid promotion of venues ("Bombar") cannot be bought in the app. Sponsored posts are only displayed, always labelled
 > "Bombado · Patrocinado", and only to users aged 18 or over.
