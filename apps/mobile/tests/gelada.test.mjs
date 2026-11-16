@@ -98,7 +98,7 @@ test('ligações: o ecrã do livro existe e a folha do pedido tem a assinatura c
   assert.match(read('app', 'geladas.tsx'), /pedir === '1'/);
   assert.match(read('components', 'gelada', 'AskSheet.tsx'), /export function AskSheet\(\{ to, itemId, lockTo = false, defaultChannel = 'chat', onClose \}/);
   assert.match(read('components', 'GeleiraShelf.tsx'), /GeladaSection/);
-  assert.match(read('components', 'ProfileView.tsx'), /setSheet\('gelada'\)[\s\S]*?>Paga-me uma<\/Text>/);
+  assert.match(read('components', 'ProfileView.tsx'), /setSheet\('gelada'\)[\s\S]*?<Icon name="ask-drink"/);
   assert.match(read('components', 'ProfileView.tsx'), /sheet === 'menu'[\s\S]*?setSheet\('qr'\)[\s\S]*?Partilhar o perfil/);
 });
 

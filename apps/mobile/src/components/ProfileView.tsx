@@ -388,11 +388,11 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                   </Pressable>
                 )}
                 <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
-                {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). Com o
-                    nome escrito: só o ícone das canecas parecia «brindar com a pessoa». O «Partilhar perfil» passou para o «⋯». */}
-                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.askDrink]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
-                  {rowW > 340 ? <Icon name="beer" size={17} /> : null}
-                  <Text style={styles.askDrinkText} numberOfLines={1}>Paga-me uma</Text>
+                {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). O
+                    ícone é uma mão com a caneca e um «?» (um pedido): as duas canecas pareciam «brindar com a pessoa». O
+                    «Partilhar perfil» passou para o «⋯». */}
+                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
+                  <Icon name="ask-drink" size={21} />
                 </Pressable>
                 {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
               </>
@@ -546,8 +546,6 @@ const styles = StyleSheet.create({
   tip: { position: 'absolute', top: 6, zIndex: 10, width: 0, height: 0, borderLeftWidth: 11, borderRightWidth: 11, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.zinc300 },
   btnRow: { marginTop: 16, flexDirection: 'row', gap: 6 },
   small: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  askDrink: { flexDirection: 'row', gap: 5, paddingHorizontal: 12, flexShrink: 1, minWidth: 44 },
-  askDrinkText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   smallText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   requests: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, backgroundColor: colors.rose50, paddingHorizontal: 16, paddingVertical: 12 },
   requestsText: { fontWeight: '600', color: colors.brand },
