@@ -351,3 +351,14 @@ type MixarWeek = {
 ```
 
 A exportação (`/me/export`) traz `mixarTopicPrefs`, `mixarAuthorLess` e `mixarPrivateTopics`; eliminar a conta apaga-os.
+
+## Como as três partes encaixam
+
+- Carril de cada item (`/mixar/[id]`): por baixo das ações da tcheka, a Conversa e o Guardar do Mixar (MixarSocial) e o
+  «Mais» do item (MixarControloSheets). O «Mais» abre com «Mandar a Ana» (para a vossa conversa) e depois «Menos disto» e
+  «Não quero «Tema» no nosso Mixar»: com as seis ações da tcheka não cabia mais um botão num ecrã de 390 x 844.
+- Cabeçalho: voltar, «Ana + Zeca» (abre a Descoberta, com «Afinar os temas do Mixar» e «Temas privados») e, à direita,
+  «Guardados» e o Resumo da semana (calendário). Por baixo, «está a ver contigo».
+- O «Mais 5» usa o mesmo controlo da seleção do dia: sem os temas tirados, com o «Menos disto» (temas e autores) a pesar
+  menos e sem os temas privados de cada um. Nos Guardados, a razão fica sem tema se for privado de um dos dois ou tirado.
+- As sugestões «Faz um Mixar com…» calculam o match e os temas em comum sem os temas privados de cada pessoa.

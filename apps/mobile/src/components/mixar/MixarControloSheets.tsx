@@ -14,12 +14,29 @@ type Api = typeof mixarControloApi;
 /**
  * O menu de um item do Mixar (o botão «Mais» nas ações do lado): «Menos disto» (o tema e o autor pesam menos neste Mixar)
  * e «Não quero «Tema» no nosso Mixar» (sai do feed dos dois). Só vale neste Mixar; o feed normal não muda.
+ * Com `send`, em primeiro lugar «Mandar a Ana» (para a vossa conversa): o carril já tem a Conversa e o Guardar do Mixar
+ * (MixarSocial) por baixo das ações da tcheka e não cabia mais um botão num telemóvel.
  */
-export function MixarItemMenu({ item, onLess, onOff, onClose }: { item: MixarItem; onLess: () => void; onOff: (topic: string) => void; onClose: () => void }) {
+export function MixarItemMenu({ item, onLess, onOff, onClose, send }: {
+  item: MixarItem;
+  onLess: () => void;
+  onOff: (topic: string) => void;
+  onClose: () => void;
+  /** «Mandar» para o chat da outra pessoa (`done`: já foi). */
+  send?: { partner: string; done: boolean; onPress: () => void };
+}) {
   const t = item.topic;
   return (
     <Sheet title="Neste Mixar" onClose={onClose} variant="menu">
       <View style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
+        {send ? (
+          <MenuRow
+            icon={send.done ? 'check' : 'send'}
+            title={send.done ? `Enviado a ${send.partner}` : `Mandar a ${send.partner}`}
+            line={send.done ? 'Já está na vossa conversa.' : 'Vai para a vossa conversa, como qualquer publicação partilhada.'}
+            onPress={() => { onClose(); if (!send.done) send.onPress(); }}
+          />
+        ) : null}
         <MenuRow icon="sliders" title="Menos disto" line={`Menos ${t ? `de ${t.label} e ` : ''}de @${item.post.author.username} neste Mixar`} onPress={() => { onClose(); onLess(); }} />
         {t ? <MenuRow icon="eye-off" title={offActionText(t.label)} line="Sai do vosso feed a dois. Podes voltar a pôr nos temas do Mixar." onPress={() => { onClose(); onOff(t.topic); }} /> : null}
       </View>

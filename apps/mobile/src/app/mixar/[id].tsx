@@ -48,8 +48,9 @@ type Page = MixarPage | { kind: 'week'; key: 'week' };
  * O Mixar aberto: um feed vertical a dois, um item por ecrã, como as tchekas (o mesmo leitor e o mesmo cartão: Reel).
  * Em cima, «Dom + Ana» com os dois avatares, o match e os temas em comum (tocar abre a Descoberta de interesses). Primeiro
  * o Mixa Challenge do dia (se houver), depois a seleção e, no fim, «Volta amanhã para mais».
- * Em cada item: a razão, a barra das reações exclusivas (a minha e a do outro), «Mandar» (para o chat da outra pessoa) e
- * «Visto por Ana». Ao sair de cada item (ou quando o vídeo acaba) manda um /seen, no máximo um por visita (lib/mixar).
+ * Em cada item: a razão, a barra das reações exclusivas (a minha e a do outro) e «Visto por Ana»; no carril, a Conversa e o
+ * Guardar do Mixar e o «Mais» (com «Mandar» para o chat da outra pessoa, «Menos disto» e tirar o tema).
+ * Ao sair de cada item (ou quando o vídeo acaba) manda um /seen, no máximo um por visita (lib/mixar).
  * Computador: ↑/↓ e ←/→ (e a roda do rato) mudam de item; espaço pausa; ao passar o rato aparecem os botões.
  * Social e guardados (components/mixar/MixarSocial, useMixarSocial): a conversa e o marcador no carril, «está a ver contigo»,
  * a reação do outro a subir e o «Mais 5» no fim. Com `saved` (rota /mixar/guardados/[id]) o mesmo feed mostra os Guardados.
@@ -295,12 +296,14 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
 
   const colW = desktop && height > 0 ? Math.min(576, Math.round((height * 9) / 16)) : undefined;
   const topPad = Math.max(insets.top, 12);
+  // O «está a ver contigo» (MixarSocial) fica por baixo do cabeçalho: o desafio e o cartão da semana descem para não ficarem tapados.
+  const bannerH = mixar && live && !saved && soc.partner.here ? 52 : 0;
 
   const renderPage = ({ item: pg, index }: { item: Page; index: number }) => {
-    if (pg.kind === 'week') return mixar ? <WeekPage height={height} mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} topInset={topPad + 104} /> : <View style={{ height }} />;
+    if (pg.kind === 'week') return mixar ? <WeekPage height={height} mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} topInset={topPad + 104 + bannerH} /> : <View style={{ height }} />;
     if (pg.kind === 'challenge') {
       const c = ch.data;
-      return c ? <ChallengePage c={c} height={height} me={me} them={partner} busy={picking} onPick={(pid) => void pick(c, pid)} onOpen={openPost} topInset={topPad + 64} /> : <View style={{ height }} />;
+      return c ? <ChallengePage c={c} height={height} me={me} them={partner} busy={picking} onPick={(pid) => void pick(c, pid)} onOpen={openPost} topInset={topPad + 64 + bannerH} /> : <View style={{ height }} />;
     }
     if (pg.kind === 'end') {
       if (saved) return <SavedEndPage height={height} partner={partner.name} empty={items.length === 0} onBack={() => router.replace(`/mixar/${id}` as never)} />;
@@ -326,23 +329,17 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         </View>
       </View>
     );
+    // O carril: a Conversa e o Guardar do Mixar (MixarSocial) e o «Mais» do item (MixarControloSheets), que também tem o
+    // «Mandar» (numa tcheka, por baixo das seis ações dela, não cabia mais um botão num ecrã de 390 x 844).
     const sendState = sent[p.id];
-    const send = (
-      <>
-      {preview ? null : <MixarRailButtons comments={so.comments} saved={so.saved} partner={partner.name} onComments={() => setTalk(p.id)} onToggleSave={() => void soc.toggleSave(p.id)} />}
-      <RailButton
-        icon={<View style={[railStyles.circle, sendState === 'sent' && { backgroundColor: 'rgba(16,185,129,0.9)' }]}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name={sendState === 'sent' ? 'check' : 'send'} size={24} color="#fff" />}</View>}
-        label={sendState === 'sent' ? 'Enviado' : 'Mandar'}
-        onPress={() => void sendToChat(p)}
-        selected={sendState === 'sent'}
-        accessibilityLabel={sendState === 'sent' ? `Enviado a ${partner.name}` : `Mandar para o chat de ${partner.name}`}
-      />
-      </>
-    );
     const rail = (
       <>
-        {send}
-        <RailButton icon={<View style={railStyles.circle}><Icon name="more" size={24} color="#fff" /></View>} onPress={() => setItemMenu(it)} accessibilityLabel="Mais opções deste item no Mixar" />
+        {preview ? null : <MixarRailButtons comments={so.comments} saved={so.saved} partner={partner.name} onComments={() => setTalk(p.id)} onToggleSave={() => void soc.toggleSave(p.id)} />}
+        <RailButton
+          icon={<View style={railStyles.circle}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name="more" size={24} color="#fff" />}</View>}
+          onPress={() => setItemMenu(it)}
+          accessibilityLabel={sendState === 'sent' ? `Mais opções deste item no Mixar (enviado a ${partner.name})` : 'Mais opções deste item no Mixar'}
+        />
       </>
     );
     const bottomInset = desktop ? Math.max(insets.bottom, 16) : insets.bottom;
@@ -444,7 +441,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       {toast ? <View style={st.toastWrap} pointerEvents="none" accessibilityRole="alert"><Text style={st.toast}>{toast}</Text></View> : null}
       {talk && mixar ? <MixarCommentsSheet mixarId={id} postId={talk} partner={partnerFull} onClose={() => setTalk(null)} /> : null}
       {discover && mixar ? <DiscoverySheet mixar={mixar} me={me} them={partner} onClose={() => setDiscover(false)} onLeave={leave} onTopics={() => { setDiscover(false); setTopicsOpen(true); }} onPrivate={() => { setDiscover(false); router.push('/settings/mixar-temas' as never); }} /> : null}
-      {itemMenu ? <MixarItemMenu item={itemMenu} onClose={() => setItemMenu(null)} onLess={() => void lessOf(itemMenu)} onOff={(t) => void offTopic(t)} /> : null}
+      {itemMenu ? <MixarItemMenu item={itemMenu} onClose={() => setItemMenu(null)} onLess={() => void lessOf(itemMenu)} onOff={(t) => void offTopic(t)} send={mixar ? { partner: partner.name, done: sent[itemMenu.post.id] === 'sent', onPress: () => void sendToChat(itemMenu.post) } : undefined} /> : null}
       {topicsOpen && mixar ? <MixarTopicsSheet mixar={mixar} partner={partner.name} api={cx} onClose={() => setTopicsOpen(false)} onPrivate={() => { setTopicsOpen(false); router.push('/settings/mixar-temas' as never); }} /> : null}
       {weekOpen && mixar ? <WeekSheet mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} onClose={() => setWeekOpen(false)} /> : null}
     </View>
@@ -462,7 +459,7 @@ function MixarHeader({ mixar, me, them, top, onBack, onOpen, saved = false, righ
           <Pressable onPress={onOpen} disabled={!onOpen} style={({ pressed }) => [st.head, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${mixar.name}. ${matchLabel(mixar.match)}${mixar.common.length ? `. Em comum: ${mixar.common.slice(0, 3).map((t) => t.label).join(', ')}` : ''}. Toca para ver a Descoberta de interesses`}>
             <PairAvatars me={me} them={them} size={30} ring="rgba(255,255,255,0.9)" />
             <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text style={st.headName} numberOfLines={1}>{mixar.name}</Text>
+              <NameWithBadge name={mixar.name} who={mixar.partner} style={st.headName} />
               {mixar.status === 'active' ? <Text style={st.headMatch} numberOfLines={1}>{saved ? 'Os vossos Guardados' : matchLabel(mixar.match)}</Text> : null}
             </View>
             {onOpen ? <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.8)" strokeWidth={2.4} /> : null}

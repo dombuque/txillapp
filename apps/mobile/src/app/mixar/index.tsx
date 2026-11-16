@@ -61,7 +61,7 @@ export default function MixarList() {
         <Pressable onPress={() => router.push(`/mixar/${s.id}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`${s.name}. ${summaryLine(s, partner.name)}`}>
           {kind === 'active' ? <PairAvatars me={me} them={partner} size={40} /> : <Avatar name={s.partner.displayName} username={partner.username} size={48} />}
           <View style={{ flex: 1, minWidth: 0 }}>
-            {kind === 'active' ? <Text style={st.name} numberOfLines={1}>{s.name}</Text> : <NameWithBadge name={s.partner.displayName} who={s.partner} style={st.name} />}
+            <NameWithBadge name={kind === 'active' ? s.name : s.partner.displayName} who={s.partner} style={st.name} />
             <Text style={[st.sub, hot && st.subHot]} numberOfLines={1}>{summaryLine(s, partner.name)}</Text>
           </View>
           {kind === 'active' && s.challengePending ? <Icon name="sparkles" size={18} color={colors.brand} /> : null}

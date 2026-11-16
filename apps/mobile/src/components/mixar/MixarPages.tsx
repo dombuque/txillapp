@@ -9,6 +9,7 @@ import { CHALLENGE_GAP, canPick, challengeCols, challengeQuestion, challengeTile
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
+import { NameWithBadge } from '../NameWithBadge';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { MIXAR_GRADIENT, PairAvatars, TopicChips } from './MixarBits';
@@ -27,7 +28,7 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, on
       <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 12 }}>
         <View style={{ alignItems: 'center', marginBottom: 18 }}>
           <PairAvatars me={me} them={them} size={56} />
-          <Text style={ds.name}>{mixar.name}</Text>
+          <NameWithBadge name={mixar.name} who={mixar.partner} style={ds.name} center numberOfLines={2} />
           <View style={ds.meter} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: p }} accessibilityLabel={`${p}% de match`}>
             <LinearGradient colors={MIXAR_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[ds.meterFill, { width: `${Math.max(4, p)}%` }]} />
           </View>
