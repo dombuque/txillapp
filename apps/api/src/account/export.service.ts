@@ -199,6 +199,13 @@ export class ExportService {
         `SELECT ch.mixar_id AS "mixarId", ch.day::text AS day, ch.kind, k.post_id AS "postId", k.created_at AS "createdAt"
            FROM social.mixar_picks k JOIN social.mixar_challenges ch ON ch.id = k.challenge_id WHERE k.user_id = $1 ORDER BY k.created_at`,
       ).catch(() => []),
+      // Mixar, controlo (0172): os temas que afinei em cada Mixar («menos» ou tirados), os autores de que pedi menos e os
+      // meus temas privados (valem para todos os meus Mixar).
+      mixarTopicPrefs: await q(`SELECT mixar_id AS "mixarId", topic, mode, created_at AS "createdAt" FROM social.mixar_topic_prefs WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      mixarAuthorLess: await q(
+        `SELECT l.mixar_id AS "mixarId", a.username AS author, l.created_at AS "createdAt" FROM social.mixar_author_less l JOIN identity.users a ON a.id = l.author_id WHERE l.user_id = $1 ORDER BY l.created_at`,
+      ).catch(() => []),
+      mixarPrivateTopics: await q(`SELECT topic, created_at AS "createdAt" FROM social.mixar_private_topics WHERE user_id = $1 ORDER BY topic`).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
       // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
       txilladas: await q(

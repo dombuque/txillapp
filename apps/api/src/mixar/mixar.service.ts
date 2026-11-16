@@ -14,6 +14,7 @@ import { Scheduler } from '../realtime/scheduler';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { blockedBetween, canView, inMyNetwork, notReportedBy } from '../social/visibility';
 import { MIXAR_CARD_TEXT } from './mixar-cards';
+import { controlCandidates, dropTopics, loadControl, maskTopic, mixarOffTopics, notOffSql, privateTopicsOf, privateTopicsOfAll } from './mixar-controlo';
 import { pushFor } from '../chat/hidden-push';
 import {
   CHALLENGE_QUESTION, commonTopics, matchScore, MAX_ITEMS, mixarDay, onlyOf, pickChallenge, pickDaily, streakOf,
@@ -85,7 +86,7 @@ export interface ChallengeDto {
 }
 
 /** Uma linha do Mixar vista por `me`. */
-interface Row {
+export interface Row {
   id: string;
   user_a: string;
   user_b: string;
@@ -267,7 +268,8 @@ export class MixarService implements OnModuleInit {
     if (m.status === 'active') await this.ensureDay(m, day);
     const [summary] = await this.summaries(me, day, id);
     if (!summary) throw new NotFoundException('Mixar não encontrado');
-    const [pa, pb] = await Promise.all([this.profile(me), this.profile(m.other_id)]);
+    // Os temas privados já saem em profile(); os que um dos dois tirou deste Mixar (0172) também saem daqui.
+    const [pa, pb] = await this.headerProfiles(id, me, m.other_id);
     const games = await this.pool.query(
       `SELECT ch.day::text AS day, count(DISTINCT k.post_id)::int AS distinct_picks
          FROM social.mixar_challenges ch JOIN social.mixar_picks k ON k.challenge_id = ch.id
@@ -316,13 +318,15 @@ export class MixarService implements OnModuleInit {
               (SELECT r.reaction FROM social.mixar_reactions r WHERE r.mixar_id = i.mixar_id AND r.post_id = i.post_id AND r.user_id = $2) AS theirs,
               EXISTS (SELECT 1 FROM social.mixar_views v WHERE v.mixar_id = i.mixar_id AND v.post_id = i.post_id AND v.user_id = $2) AS seen_by_them
          FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id JOIN identity.users u ON u.id = p.author_id
-        WHERE i.mixar_id = $3 AND i.day = $4::date AND ${bothSee('$1', '$2')}
+        WHERE i.mixar_id = $3 AND i.day = $4::date AND ${bothSee('$1', '$2')} AND ${notOffSql('i.mixar_id')}
         ORDER BY i.position OFFSET $5 LIMIT $6`,
       [me, m.other_id, id, day, offset, limit + 1],
     );
     const page = rows.slice(0, limit);
     const posts = new Map((await this.posts.feedPosts(me, page.map((r) => r.post_id as string))).map((p) => [p.id as string, p]));
     const meIsA = m.user_a === me;
+    // 0172: uma razão guardada com um tema privado de um dos dois fica sem tema.
+    const hidden = await privateTopicsOfAll(this.pool, [me, m.other_id]);
     const items: MixarItem[] = [];
     for (const r of page) {
       const post = posts.get(r.post_id as string);
@@ -330,7 +334,7 @@ export class MixarService implements OnModuleInit {
       items.push({
         post,
         from: this.fromFor(r.source as From, meIsA),
-        topic: r.topic ? { topic: r.topic as string, label: topicLabel(r.topic as string) } : null,
+        topic: maskTopic(r.topic as string | null, hidden) ? { topic: r.topic as string, label: topicLabel(r.topic as string) } : null,
         mine: (r.mine as ReactionId | null) ?? null,
         theirs: (r.theirs as ReactionId | null) ?? null,
         seenByThem: !!r.seen_by_them,
@@ -510,14 +514,16 @@ export class MixarService implements OnModuleInit {
       }
       if (d) await client.query('DELETE FROM social.mixar_days WHERE mixar_id = $1 AND day = $2::date', [id, day]);
 
-      const [pa, pb, pm, cands, before] = await Promise.all([
+      const [pa, pb, pm, cands, before, ctl] = await Promise.all([
         this.profile(a),
         this.profile(b),
         this.mixarProfile(id, day),
         this.candidates(a, b),
         this.pool.query('SELECT DISTINCT post_id FROM social.mixar_items WHERE mixar_id = $1 AND day < $2::date', [id, day]),
+        loadControl(this.pool, id, a, b),
       ]);
-      const picked = pickDaily({ a: pa, b: pb, mixar: pm, candidates: cands, exclude: before.rows.map((r) => r.post_id as string), max: MAX_ITEMS, seed: `${id}:${day}` });
+      // 0172: sem os temas 'off' dos dois; os 'less' e os autores 'less' pesam menos (mixar-controlo.ts).
+      const picked = pickDaily({ a: dropTopics(pa, ctl.off), b: dropTopics(pb, ctl.off), mixar: dropTopics(pm, ctl.off), candidates: controlCandidates(cands, ctl), exclude: before.rows.map((r) => r.post_id as string), max: MAX_ITEMS, seed: `${id}:${day}` });
       for (const [i, p] of picked.entries()) {
         await client.query(
           'INSERT INTO social.mixar_items (mixar_id, day, post_id, position, source, topic, score) VALUES ($1, $2::date, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING',
@@ -544,10 +550,16 @@ export class MixarService implements OnModuleInit {
     }
   }
 
-  /** O perfil de temas de uma pessoa (o mesmo do Explorar, com as preferências por tema). */
+  /** O perfil de temas de uma pessoa (o mesmo do Explorar, com as preferências por tema), sem os temas privados dela (0172). */
   private async profile(userId: string): Promise<Weights> {
-    const { rows } = await this.pool.query(interestSql('$1'), [userId]);
-    return Object.fromEntries(rows.map((r) => [r.topic as string, Number(r.wt)]));
+    const [{ rows }, priv] = await Promise.all([this.pool.query(interestSql('$1'), [userId]), privateTopicsOf(this.pool, userId)]);
+    return dropTopics(Object.fromEntries(rows.map((r) => [r.topic as string, Number(r.wt)])), priv);
+  }
+
+  /** Os dois perfis para o cabeçalho (match e temas): sem os privados de cada um nem os que tiraram deste Mixar (0172). */
+  private async headerProfiles(id: string, me: string, other: string): Promise<[Weights, Weights]> {
+    const [pa, pb, off] = await Promise.all([this.profile(me), this.profile(other), mixarOffTopics(this.pool, id)]);
+    return [dropTopics(pa, off), dropTopics(pb, off)];
   }
 
   /**
@@ -655,7 +667,8 @@ export class MixarService implements OnModuleInit {
     return r as Row;
   }
 
-  private async active(me: string, id: string): Promise<Row> {
+  /** O Mixar ativo `id`, se for meu (409 pendente; 404 terminado). Também o usa mixar-controlo.service.ts. */
+  async active(me: string, id: string): Promise<Row> {
     const m = await this.row(me, id);
     if (m.status === 'pending') throw new ConflictException('O Mixar ainda não foi aceite');
     if (m.status !== 'active') throw new NotFoundException('Mixar não encontrado');
