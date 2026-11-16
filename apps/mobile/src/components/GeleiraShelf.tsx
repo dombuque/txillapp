@@ -349,9 +349,10 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
       accessibilityLabel={geleiraToggleLabel(open, n)}
-      style={[st.toggle, { backgroundColor: open ? colors.zinc900 : colors.zinc100 }, icon ? (grow ? { flex: 1 } : { width: 44, paddingHorizontal: 0 }) : { flex: 1 }]}
+      style={[st.toggle, { backgroundColor: open ? colors.zinc900 : colors.zinc100 }, icon ? (grow ? { flex: 1, minWidth: 44, paddingHorizontal: 0 } : { width: 44, paddingHorizontal: 0 }) : { flex: 1 }]}
     >
-      <FridgeArt count={shown.length} level={lv.data?.level ?? geleiraLevel(geleiraPoints(shown.filter((i) => !i.pending)))} open={open} size={24} />
+      {/* Na fila de ações (só ícone) o frigorífico é um ícone de traço como os outros; o desenho com o nível fica no botão largo e na prateleira. */}
+      {icon ? <Icon name="fridge" size={19} color={fg} /> : <FridgeArt count={shown.length} level={lv.data?.level ?? geleiraLevel(geleiraPoints(shown.filter((i) => !i.pending)))} open={open} size={24} />}
       {!icon && <Text style={{ fontSize: 14, fontWeight: '700', color: fg }}>Geleira</Text>}
       {inline && (
         <View style={st.inlineCheers}>
@@ -669,5 +670,5 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   handle: { fontSize: 14, color: colors.zinc500 },
-  toggle: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingHorizontal: 12 },
+  toggle: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingHorizontal: 12 },
 });
