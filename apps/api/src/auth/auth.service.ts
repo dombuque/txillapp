@@ -680,6 +680,8 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM content.txillada_comments WHERE author_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_cheers WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM content.txillada_bans WHERE user_id = $1', [userId]);
+      // As entradas pagas e as ofertas de Txills (0167; content.txillada_tickets/txillada_gifts) ficam: são dinheiro, como o
+      // ledger (a conta fica anonimizada; as das suas Txilladas ficam sem a Txillada, txillada_id a NULL pela FK).
       // Os pedidos, os convites e as vezes que transmitiu nas Txilladas dos outros (0165; as das suas saem com elas).
       await client.query('DELETE FROM content.txillada_guests WHERE user_id = $1', [userId]);
       // Brindes aos comentários (0161) que deu nos mimos e nas Txilladas dos outros (os dos seus comentários saem com eles).

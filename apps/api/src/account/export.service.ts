@@ -200,8 +200,27 @@ export class ExportService {
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
       // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
       txilladas: await q(
-        `SELECT id, title, audience, status, started_at AS "startedAt", ended_at AS "endedAt", peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason"
+        `SELECT id, title, audience, price, goal, goal_purpose AS "goalPurpose", raised, tickets, status, started_at AS "startedAt", ended_at AS "endedAt",
+                peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason"
            FROM content.txilladas WHERE host_id = $1 ORDER BY started_at`,
+      ).catch(() => []),
+      // Txillada paga e Angariação (0167): as entradas que paguei e as ofertas que fiz nas Txilladas dos outros, e as entradas e
+      // ofertas que recebi nas minhas (com o @ de quem pagou, como no histórico da carteira). São registos de dinheiro: ficam.
+      txilladaTickets: await q(
+        `SELECT k.txillada_id AS "txilladaId", h.username AS host, k.price, k.created_at AS "createdAt", k.refunded_at AS "refundedAt"
+           FROM content.txillada_tickets k JOIN identity.users h ON h.id = k.host_id WHERE k.user_id = $1 ORDER BY k.created_at`,
+      ).catch(() => []),
+      txilladaGiftsGiven: await q(
+        `SELECT g.txillada_id AS "txilladaId", h.username AS host, g.amount, g.created_at AS "createdAt"
+           FROM content.txillada_gifts g JOIN identity.users h ON h.id = g.host_id WHERE g.giver_id = $1 ORDER BY g.created_at`,
+      ).catch(() => []),
+      txilladaTicketsSold: await q(
+        `SELECT k.txillada_id AS "txilladaId", u.username AS "from", k.price, k.created_at AS "createdAt", k.refunded_at AS "refundedAt"
+           FROM content.txillada_tickets k JOIN identity.users u ON u.id = k.user_id WHERE k.host_id = $1 ORDER BY k.created_at`,
+      ).catch(() => []),
+      txilladaGiftsReceived: await q(
+        `SELECT g.txillada_id AS "txilladaId", u.username AS "from", g.amount, g.created_at AS "createdAt"
+           FROM content.txillada_gifts g JOIN identity.users u ON u.id = g.giver_id WHERE g.host_id = $1 ORDER BY g.created_at`,
       ).catch(() => []),
       txilladaComments: await q(
         `SELECT c.id, c.txillada_id AS "txilladaId", c.body, c.created_at AS "createdAt", c.removed_at AS "removedAt"

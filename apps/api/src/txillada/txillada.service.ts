@@ -1,6 +1,6 @@
 import {
   BadRequestException, ConflictException, ForbiddenException, GoneException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException,
-  OnModuleInit, ServiceUnavailableException, UnauthorizedException,
+  OnModuleInit, ServiceUnavailableException, UnauthorizedException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { Pool } from 'pg';
 import { badge } from '../common/badge';
@@ -17,7 +17,8 @@ import { allowedBy, blockedBetween, notReportedBy, sameCountry } from '../social
 import type { TxilladaEvent, TxilladaReaction } from '../chat/chat.events';
 import { LIVEKIT_ROOMS, TrackType, livekitEnabled, roomToken, webhookReceiver, type LiveKitRooms, type WebhookEvent } from './livekit';
 import type { TxilladaHooks } from './txillada-tokens';
-import { txilladaBanned, txilladaVisible } from './txillada-visibility';
+import { txilladaBanned, txilladaTicket, txilladaVisible } from './txillada-visibility';
+import { ISSUANCE_ACCOUNT, WalletService } from '../wallet/wallet.service';
 
 /**
  * A Txillada (os lives), fase 1 — docs/txillada-contrato.md. O vídeo passa só pelo LiveKit (nada se grava); aqui ficam os
@@ -28,7 +29,24 @@ import { txilladaBanned, txilladaVisible } from './txillada-visibility';
  * `join` ou entrou na sala (webhook), e de onde sai quem saiu da sala (webhook participant_left). Quantos estão na sala
  * (`viewers`): outro conjunto (`tx:in:<id>`), só com o que o webhook diz.
  */
-export type TxAudience = 'everyone' | 'followers' | 'close';
+export type TxAudience = 'everyone' | 'followers' | 'close' | 'friends' | 'paid';
+/** Os três tipos (0167): Pública ('everyone' e o antigo 'followers'), Para amigos ('friends' e 'close') e Privada paga ('paid'). */
+export type TxKind = 'public' | 'friends' | 'paid';
+export const txKind = (a: string): TxKind => (a === 'paid' ? 'paid' : a === 'friends' || a === 'close' ? 'friends' : 'public');
+
+/** A entrada de uma Txillada paga (0167), em Txills inteiros. */
+export const PRICE_MIN = 5;
+export const PRICE_MAX = 5000;
+/** A meta da Angariação (0167) e o motivo. */
+export const GOAL_MIN = 10;
+export const GOAL_MAX = 1_000_000;
+export const PURPOSE_MAX = 80;
+/** Uma oferta de Txills durante o live (0167): de 1 a 5000; no máximo 5 ofertas a cada 10 s por pessoa. */
+export const GIFT_MAX = 5000;
+const GIFTS_PER_10S = 5;
+/** Quantos aparecem em «quem mais ofereceu». */
+export const TOP_GIVERS = 3;
+const TICKET_REQUIRED = 'Esta Txillada é privada: paga a entrada para entrar.';
 export type TxStatus = 'live' | 'ended' | 'cut';
 
 /** Uma Txillada dura no máximo isto (limite de segurança; a tarefa acaba as mais antigas). */
@@ -103,7 +121,8 @@ type GuestDto = { user: ReturnType<typeof person>; since: string };
 /** As colunas do anfitrião (`h`) com o prefixo h_. */
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
                    h.verified AS h_verified, h.verified_tier AS h_verified_tier`;
-const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments, t.pinned_comment_id`;
+const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments, t.pinned_comment_id,
+                 t.price, t.goal, t.goal_purpose, t.raised, t.tickets`;
 /** As colunas de um comentário com o autor (`c` = txillada_comments, `a` = identity.users) para o commentDto. */
 const COMMENT_COLS = `c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
                       (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier`;
@@ -121,6 +140,22 @@ const pinnedSql = (t = 't', v = '$1') =>
      WHERE pc.id = ${t}.pinned_comment_id AND pc.removed_at IS NULL AND NOT ${blockedBetween('pa.id', v)}
        AND ${notReportedBy('txillada_comment', 'pc.id', v)})`;
 
+/** As colunas de quem ofereceu (`gu` = identity.users) para o publicPerson. */
+const GIVER_COLS = `gu.id, gu.username, gu.display_name, (gu.avatar_media_id IS NOT NULL) AS has_avatar, gu.verified, gu.verified_tier`;
+/**
+ * Quem mais ofereceu em `t` (0167), como o espectador `v` o vê: só contas ativas e sem bloqueio com ele; o maior total
+ * primeiro (empate: quem ofereceu primeiro). No máximo `n`. `v` null: todos (com o id, para filtrar a cada pessoa).
+ */
+const topGiversSql = (t = 't', v: string | null = '$1', n = TOP_GIVERS) =>
+  `(SELECT COALESCE(json_agg(x ORDER BY x.total DESC, x.first_at, x.id), '[]'::json) FROM (
+      SELECT ${GIVER_COLS}, sum(gg.amount)::int AS total, min(gg.created_at) AS first_at
+        FROM content.txillada_gifts gg JOIN identity.users gu ON gu.id = gg.giver_id AND gu.status = 'active'
+       WHERE gg.txillada_id = ${t}.id${v ? ` AND NOT ${blockedBetween('gu.id', v)}` : ''}
+       GROUP BY gu.id ORDER BY total DESC, first_at, gu.id LIMIT ${n}) x)`;
+/** Um de «quem mais ofereceu» (sem o id interno; com o selo, como em todo o lado). */
+export type Giver = { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null; total: number };
+const giverDto = (g: Record<string, any>): Giver => ({ ...publicPerson(g), total: Number(g.total) });
+
 @Injectable()
 export class TxilladaService implements OnModuleInit, TxilladaHooks {
   private readonly log = new Logger('Txillada');
@@ -136,6 +171,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     private readonly filter: TextFilter,
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
+    private readonly wallet: WalletService,
   ) {
     this.receive = webhookReceiver(config);
   }
@@ -156,26 +192,53 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /* ───────────── leitura ───────────── */
 
+  /**
+   * A Txillada como `me` a vê. Numa paga (0167) sem a entrada (`locked`), só o anfitrião, o título, o preço e o estado:
+   * os números, o fixado, os convidados e a Angariação ficam a zero/vazios até pagar.
+   */
   private dto(r: Record<string, any>, me: string) {
     const isHost = r.host_id === me;
+    const kind = txKind(r.audience);
+    const hasTicket = isHost || r.has_ticket !== false;
+    const locked = kind === 'paid' && !hasTicket;
+    const goal = r.goal == null ? null : Number(r.goal);
     return {
       id: r.id as string,
       host: person(r, 'h_'),
       title: r.title as string,
       audience: r.audience as TxAudience,
+      /** Pública, Para amigos ou Privada (paga), 0167. */
+      kind,
+      /** Para amigos com «Só amigos próximos» (o antigo 'close'). */
+      closeOnly: r.audience === 'close',
+      /** O preço da entrada (só nas pagas). */
+      price: kind === 'paid' ? Number(r.price) : null,
+      /** Posso entrar (anfitrião, entrada paga, convidado; nas outras, sempre). */
+      hasTicket,
+      /** Paga e sem entrada: só se vê o cartão com o cadeado e o preço. */
+      locked,
+      /** Nas pagas, quem está a ver não aparece aos outros (só ao anfitrião). */
+      viewersHidden: kind === 'paid' && !isHost,
       status: r.status as TxStatus,
       startedAt: r.started_at as string,
       endedAt: (r.ended_at as string | null) ?? null,
-      viewers: r.viewers as number,
-      peakViewers: r.peak_viewers as number,
-      cheers: r.cheers as number,
-      comments: r.comments as number,
+      viewers: locked ? 0 : (r.viewers as number),
+      peakViewers: locked ? 0 : (r.peak_viewers as number),
+      cheers: locked ? 0 : (r.cheers as number),
+      comments: locked ? 0 : (r.comments as number),
+      /** A Angariação (0167): a meta (null sem Angariação), o motivo, quanto já se ofereceu e quem mais ofereceu (top 3). */
+      goal: locked ? null : goal,
+      goalPurpose: locked || goal == null ? '' : ((r.goal_purpose as string | null) ?? ''),
+      raised: locked ? 0 : Number(r.raised ?? 0),
+      topGivers: locked ? [] : ((r.top_givers as Record<string, any>[] | null) ?? []).map(giverDto),
+      /** Só o anfitrião: quantas entradas se pagaram. */
+      ...(isHost && kind === 'paid' ? { tickets: Number(r.tickets ?? 0) } : {}),
       isHost,
-      canComment: r.status === 'live' && (isHost || (!!r.comment_ok && !r.banned)),
+      canComment: !locked && r.status === 'live' && (isHost || (!!r.comment_ok && !r.banned)),
       /** O comentário fixado pelo anfitrião (0162), como eu o vejo; null sem nenhum (ou se não o posso ver). */
-      pinned: r.pinned ? this.commentDto(r.pinned) : null,
+      pinned: r.pinned && !locked ? this.commentDto(r.pinned) : null,
       /** Quem está a transmitir com o anfitrião (0165), por ordem de entrada, como eu os vejo. */
-      guests: this.guestList(r.guests),
+      guests: locked ? [] : this.guestList(r.guests),
       guestsMax: GUESTS_MAX,
       /** O meu lugar: só a ver, pedi para entrar, fui convidado, ou estou a transmitir. */
       guestState: (isHost ? 'none' : (r.my_guest ?? 'none')) as GuestState,
@@ -192,10 +255,14 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     return ((v as Record<string, any>[] | null) ?? []).map((g) => ({ user: person(g), at: iso(g.at) }));
   }
 
-  /** A Txillada como `me` a vê: 404 se não a pode ver, 403 se foi expulso. */
-  private async access(me: string, id: string) {
+  /**
+   * A Txillada como `me` a vê: 404 se não a pode ver, 403 se foi expulso e, numa paga sem a entrada (0167), 402 com o
+   * preço (`ticket: false`: o cartão com o cadeado, o pagar e o denunciar, que não precisam dela).
+   */
+  private async access(me: string, id: string, opts: { ticket?: boolean } = {}) {
     const { rows } = await this.pool.query(
       `SELECT ${TX_COLS}, ${HOST_COLS}, ${txilladaVisible('t', 'h', '$1')} AS visible, ${txilladaBanned('t', '$1')} AS banned,
+              ${txilladaTicket('t', '$1')} AS has_ticket, ${topGiversSql('t', '$1')} AS top_givers,
               ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned,
               ${guestsSql('t', '$1')} AS guests, ${myGuestSql('t', '$1')} AS my_guest,
               ${pendingSql('t', '$1', 'request')} AS requests, ${pendingSql('t', '$1', 'invite')} AS invites
@@ -205,6 +272,9 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const r = rows[0];
     if (!r || !r.visible) throw new NotFoundException('Txillada não encontrada');
     if (r.banned && r.host_id !== me) throw new ForbiddenException('O anfitrião tirou-te desta Txillada.');
+    if (opts.ticket !== false && !r.has_ticket) {
+      throw new HttpException({ message: TICKET_REQUIRED, code: 'ticket_required', price: Number(r.price) }, HttpStatus.PAYMENT_REQUIRED);
+    }
     return r;
   }
 
@@ -213,7 +283,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   }
 
   async get(me: string, id: string) {
-    return this.dto(await this.access(me, id), me);
+    return this.dto(await this.access(me, id, { ticket: false }), me);
   }
 
   /** As que estão a decorrer e posso ver: de quem sigo primeiro, depois as mais vistas do meu país (máx. 30). */
@@ -221,6 +291,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const { rows } = await this.pool.query(
       `SELECT ${TX_COLS}, ${HOST_COLS}, false AS banned, ${allowedBy('h', 'comments_allowed', '$1')} AS comment_ok, ${pinnedSql('t', '$1')} AS pinned,
               ${guestsSql('t', '$1')} AS guests, ${myGuestSql('t', '$1')} AS my_guest,
+              ${txilladaTicket('t', '$1')} AS has_ticket, ${topGiversSql('t', '$1')} AS top_givers,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = t.host_id) AS followed
          FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
         WHERE t.status = 'live' AND t.host_id <> $1 AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
@@ -235,8 +306,21 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   /* ───────────── abrir, entrar e terminar ───────────── */
 
-  async create(me: string, title: string, audience: TxAudience) {
+  /**
+   * Abrir uma Txillada. `price`: a entrada de uma paga (obrigatória com 'paid', ignorada nas outras). `goal`/`purpose`: a
+   * Angariação (opcional em qualquer tipo; o motivo passa pelo filtro de palavras, como o título). O tipo fica fixo.
+   */
+  async create(me: string, title: string, audience: TxAudience, opts: { price?: number | null; goal?: number | null; purpose?: string } = {}) {
     this.assertEnabled();
+    const price = audience === 'paid' ? (opts.price ?? null) : null;
+    if (audience === 'paid' && (price == null || !Number.isInteger(price) || price < PRICE_MIN || price > PRICE_MAX)) {
+      throw new BadRequestException(`Numa Txillada privada, a entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`);
+    }
+    const goal = opts.goal ?? null;
+    if (goal != null && (!Number.isInteger(goal) || goal < GOAL_MIN || goal > GOAL_MAX)) {
+      throw new BadRequestException(`A meta da angariação vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`);
+    }
+    const purpose = goal == null ? '' : (opts.purpose ?? '').replace(/\s+/g, ' ').trim().slice(0, PURPOSE_MAX);
     const u = (
       await this.pool.query(
         `SELECT status, username, display_name, birth_date IS NOT NULL AS has_birth,
@@ -249,13 +333,14 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     if (!u.has_birth) throw new ForbiddenException('A Txillada é só para maiores de 18 anos e a tua conta não tem a data de nascimento. Escreve para suporte@txillapp.com para a acrescentares.');
     if (!u.adult) throw new ForbiddenException('A Txillada é só para maiores de 18 anos.');
     this.filter.assertClean(title);
+    if (purpose) this.filter.assertClean(purpose);
     const running = (await this.pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [me])).rows[0];
     if (running) throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.', id: running.id });
     const id = uuidv7();
     try {
       await this.pool.query(
-        `INSERT INTO content.txilladas (id, host_id, title, audience, room, video_at) VALUES ($1, $2, $3, $4, $5, now())`,
-        [id, me, title, audience, `tx-${id}`],
+        `INSERT INTO content.txilladas (id, host_id, title, audience, room, video_at, price, goal, goal_purpose) VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8)`,
+        [id, me, title, audience, `tx-${id}`, price, goal, purpose],
       );
     } catch (e) {
       if ((e as { code?: string }).code === '23505') throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.' });
@@ -290,15 +375,20 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     ).rows[0];
     // O nome e o @ só no token do anfitrião: o de quem vê chega a todos na sala (também a quem tem bloqueio com essa pessoa).
     // Um convidado aceite (0165) que volta a entrar já pode publicar.
+    // Numa paga (0167), quem vê entra escondido (os outros na sala não o veem; o anfitrião vê-o na lista da API).
+    const paid = r.audience === 'paid';
     const token = await roomToken(this.config, isHost
       ? { room: r.room, identity: me, name: u.display_name, username: u.username, host: true }
-      : { room: r.room, identity: me, host: false, publish: r.my_guest === 'guest' });
+      : { room: r.room, identity: me, host: false, publish: r.my_guest === 'guest', hidden: paid && r.my_guest !== 'guest' });
     if (!isHost) {
       await this.bus.touch(toKey(id), me, SET_MS);
       // «@fulano entrou»: daqui (o webhook pode não estar ligado), uma vez por pessoa a cada 60 s (as religações não repetem).
       if (await this.bus.claimOnce(`tx:joined:${id}:${me}`, 60_000)) {
         const user = publicPerson(u);
-        const to = (await this.withoutBlocks(me, await this.audience(id, r.host_id))).filter((x) => x !== me);
+        // Numa paga, só o anfitrião sabe quem entrou.
+        const to = paid
+          ? (await this.withoutBlocks(me, [r.host_id as string]))
+          : (await this.withoutBlocks(me, await this.audience(id, r.host_id))).filter((x) => x !== me);
         this.emit(to, { type: 'txillada.joined', txilladaId: id, user });
       }
     }
@@ -336,6 +426,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     this.emit(to, { type: 'txillada.ended', txilladaId: r.id, status: r.status });
     for (const k of [toKey(r.id), inKey(r.id)]) for (const m of await this.bus.recent(k, SET_MS)) await this.bus.untouch(k, m);
     if (this.rooms) await this.rooms.deleteRoom(r.room).catch((e) => this.log.warn(`não consegui fechar a sala ${r.room}: ${(e as Error).message}`));
+    // Cortada pela moderação (0167): as entradas pagas voltam a quem pagou (a tarefa volta a tentar as que falharem).
+    if (r.status === 'cut') await this.refundTickets(r.id).catch((e) => this.log.warn(`não consegui devolver as entradas da Txillada ${r.id}: ${(e as Error).message}`));
   }
 
   /** Gancho da moderação (TXILLADA_HOOKS): a linha já está 'cut'. */
@@ -586,6 +678,232 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     return cheers;
   }
 
+  /* ───────────── Txillada paga e Angariação (0167) ───────────── */
+
+  private async balance(userId: string) {
+    const r = (await this.pool.query('SELECT balance FROM ledger.accounts WHERE user_id = $1', [userId])).rows[0];
+    return r ? Number(r.balance) : 0;
+  }
+
+  /** O «Saldo insuficiente» da carteira em palavras para quem paga, com o valor e o saldo (a app aponta para a carteira). */
+  private async moneyError(e: unknown, me: string, amount: number, what: 'ticket' | 'gift') {
+    if (e instanceof UnprocessableEntityException && /saldo insuficiente/i.test(e.message)) {
+      const balance = await this.balance(me);
+      return new UnprocessableEntityException({
+        message: what === 'ticket'
+          ? `Não tens Txills suficientes: a entrada custa ${amount} Txills e tens ${balance}.`
+          : `Não tens Txills suficientes para oferecer ${amount} (tens ${balance}).`,
+        code: 'insufficient_funds',
+        amount,
+        balance,
+      });
+    }
+    return e;
+  }
+
+  /**
+   * Pagar a entrada de uma Txillada paga (uma vez só): quem vê → anfitrião na carteira, com a chave de idempotência da pessoa
+   * e da Txillada, na mesma transação que grava a entrada. Pagar outra vez (ou dois pedidos ao mesmo tempo) não cobra outra
+   * vez; voltar a entrar depois de sair é grátis. O anfitrião e os convidados para transmitir não pagam (já têm `hasTicket`).
+   * Sem saldo: 422 `insufficient_funds` com o preço e o saldo. Devolve `{ hasTicket, charged, balance, txillada }`.
+   */
+  async pay(me: string, id: string) {
+    const r = await this.access(me, id, { ticket: false });
+    if (r.audience !== 'paid') throw new BadRequestException('Esta Txillada não é paga.');
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.has_ticket) return { hasTicket: true, charged: false, balance: await this.balance(me), txillada: this.dto(r, me) };
+    const price = Number(r.price);
+    await this.wallet.ensureWallet(me);
+    await this.wallet.ensureWallet(r.host_id as string);
+    let charged = false;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Primeiro as carteiras (trancadas pela transferência), depois a linha da Txillada (o UPDATE no fim): sempre por esta
+      // ordem, sem deadlocks. Se a cortaram entretanto, o UPDATE não apanha nada e tudo volta atrás.
+      const tr = await this.wallet.transfer({
+        actorId: me, fromUserId: me, toUserId: r.host_id as string, amount: price, type: 'txillada_ticket',
+        idempotencyKey: `txillada_ticket:${id}`, metadata: { txilladaId: id, price },
+      }, client);
+      const ins = await client.query(
+        `INSERT INTO content.txillada_tickets (id, txillada_id, host_id, user_id, price, transaction_id) VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT DO NOTHING`,
+        [uuidv7(), id, r.host_id, me, price, tr.transactionId],
+      );
+      const live = await client.query(`UPDATE content.txilladas SET tickets = tickets + $2 WHERE id = $1 AND status = 'live'`, [id, ins.rowCount ? 1 : 0]);
+      if (!live.rowCount) throw new ConflictException('A Txillada já acabou.');
+      charged = !tr.replayed && !!ins.rowCount;
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      // Dois pedidos ao mesmo tempo (a mesma chave na carteira): o outro pagou; esta entrada já existe.
+      const raced = (e as { code?: string }).code === '23505'
+        && !!(await this.pool.query('SELECT 1 FROM content.txillada_tickets WHERE txillada_id = $1 AND user_id = $2', [id, me])).rowCount;
+      if (!raced) throw await this.moneyError(e, me, price, 'ticket');
+    } finally {
+      client.release();
+    }
+    return { hasTicket: true, charged, balance: await this.balance(me), txillada: await this.get(me, id) };
+  }
+
+  /**
+   * Devolve as entradas de uma Txillada cortada pela moderação (0167), cada uma uma vez só (a chave na carteira é a da
+   * entrada). Sai da carteira do anfitrião; se ele já gastou parte, a diferença sai da emissão (quem pagou recebe sempre
+   * tudo). Devolve quantas voltaram agora.
+   */
+  async refundTickets(id: string) {
+    const { rows } = await this.pool.query('SELECT id FROM content.txillada_tickets WHERE txillada_id = $1 AND refunded_at IS NULL ORDER BY id', [id]);
+    let n = 0;
+    for (const k of rows) if (await this.refundTicket(k.id as string)) n++;
+    return n;
+  }
+
+  private async refundTicket(ticketId: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const k = (await client.query(
+        'SELECT id, txillada_id, host_id, user_id, price FROM content.txillada_tickets WHERE id = $1 AND refunded_at IS NULL FOR UPDATE',
+        [ticketId],
+      )).rows[0];
+      if (!k) {
+        await client.query('COMMIT');
+        return false;
+      }
+      const price = Number(k.price);
+      const key = `txillada_refund:${k.id}`;
+      let txId = (await client.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [k.host_id, key])).rows[0]?.id as string | undefined;
+      if (!txId) {
+        // As duas carteiras trancadas por ordem de id (como nas transferências: sem deadlocks).
+        const accs = (await client.query('SELECT id, user_id, balance FROM ledger.accounts WHERE user_id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [[k.host_id, k.user_id]])).rows;
+        const h = accs.find((a) => a.user_id === k.host_id);
+        const v = accs.find((a) => a.user_id === k.user_id);
+        if (!v) throw new Error(`carteira de ${k.user_id} em falta`);
+        const fromHost = Math.min(Math.max(0, Number(h?.balance ?? 0)), price);
+        const legs: [string, number][] = [[v.id as string, price]];
+        if (fromHost > 0) legs.push([h.id as string, -fromHost]);
+        if (price - fromHost > 0) legs.push([ISSUANCE_ACCOUNT, -(price - fromHost)]);
+        txId = await this.wallet.postIn(client, {
+          type: 'txillada_refund', actorId: k.host_id as string, key, legs,
+          metadata: { txilladaId: k.txillada_id, ticketId: k.id, price, fromHost },
+        });
+      }
+      await client.query('UPDATE content.txillada_tickets SET refunded_at = now(), refund_transaction_id = $2 WHERE id = $1', [k.id, txId]);
+      await client.query('COMMIT');
+      return true;
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Uma oferta como a sala a vê (o selo vai sempre com o nome). */
+  private giftDto(g: Record<string, any>, from: ReturnType<typeof publicPerson>) {
+    return { id: g.id as string, from, amount: Number(g.amount), createdAt: iso(g.created_at) };
+  }
+
+  /**
+   * Oferecer Txills durante o live (com ou sem Angariação): quem vê → anfitrião na carteira, com a chave de idempotência da
+   * app (`key`: repetir o pedido devolve a mesma oferta sem cobrar outra vez). Quem pode ver (numa paga, com a entrada), não
+   * o anfitrião, só a decorrer; no máximo 5 ofertas a cada 10 s. A sala recebe `txillada.gift` (a linha «@x ofereceu N
+   * Txills», quanto já se juntou e quem mais ofereceu), menos quem tem um bloqueio com quem ofereceu.
+   */
+  async gift(me: string, id: string, amount: number, key: string) {
+    const r = await this.access(me, id);
+    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.host_id === me) throw new BadRequestException('Não podes oferecer Txills na tua própria Txillada.');
+    if (!Number.isInteger(amount) || amount < 1 || amount > GIFT_MAX) throw new BadRequestException(`Podes oferecer de 1 a ${GIFT_MAX} Txills de cada vez.`);
+    const lkey = `txillada_gift:${id}:${key}`;
+    const u = (await this.pool.query(
+      'SELECT id, username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar, verified, verified_tier FROM identity.users WHERE id = $1',
+      [me],
+    )).rows[0];
+    const from = publicPerson(u);
+    const replay = async () => {
+      const g = (await this.pool.query(
+        `SELECT g.id, g.amount, g.created_at FROM ledger.transactions x JOIN content.txillada_gifts g ON g.transaction_id = x.id
+          WHERE x.actor_id = $1 AND x.idempotency_key = $2`,
+        [me, lkey],
+      )).rows[0];
+      if (!g) return null;
+      const s = (await this.pool.query(`SELECT t.raised, t.goal, ${topGiversSql('t', '$2')} AS top FROM content.txilladas t WHERE t.id = $1`, [id, me])).rows[0];
+      return {
+        gift: this.giftDto(g, from), raised: Number(s.raised), goal: s.goal == null ? null : Number(s.goal),
+        topGivers: ((s.top as Record<string, any>[] | null) ?? []).map(giverDto), balance: await this.balance(me), replayed: true,
+      };
+    };
+    const again = await replay();
+    if (again) return again;
+    if ((await this.rates.hit(`tx:gift:${me}`, 10_000)) > GIFTS_PER_10S) {
+      throw new HttpException('Calma! Espera um bocadinho antes de ofereceres outra vez.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    await this.wallet.ensureWallet(me);
+    await this.wallet.ensureWallet(r.host_id as string);
+    const gid = uuidv7();
+    let row: { created_at: string; raised: string; goal: number | null };
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Como no pagamento: as carteiras primeiro, a linha da Txillada no fim (só se ainda está a decorrer).
+      const tr = await this.wallet.transfer({
+        actorId: me, fromUserId: me, toUserId: r.host_id as string, amount, type: 'txillada_gift', idempotencyKey: lkey,
+        metadata: { txilladaId: id, giftId: gid },
+      }, client);
+      if (tr.replayed) {
+        await client.query('ROLLBACK');
+        const g = await replay();
+        if (g) return g;
+        throw new ConflictException('Esta oferta já foi feita.');
+      }
+      const g = (await client.query(
+        `INSERT INTO content.txillada_gifts (id, txillada_id, host_id, giver_id, amount, transaction_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`,
+        [gid, id, r.host_id, me, amount, tr.transactionId],
+      )).rows[0];
+      const s = (await client.query(`UPDATE content.txilladas SET raised = raised + $2 WHERE id = $1 AND status = 'live' RETURNING raised, goal`, [id, amount])).rows[0];
+      if (!s) throw new ConflictException('A Txillada já acabou.');
+      await client.query('COMMIT');
+      row = { created_at: g.created_at, raised: s.raised, goal: s.goal };
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((e as { code?: string }).code === '23505') {
+        const g = await replay();
+        if (g) return g;
+      }
+      throw await this.moneyError(e, me, amount, 'gift');
+    } finally {
+      client.release();
+    }
+    const gift = this.giftDto({ id: gid, amount, created_at: row.created_at }, from);
+    const raised = Number(row.raised);
+    const goal = row.goal == null ? null : Number(row.goal);
+    const top = await this.sendGift(id, r.host_id as string, me, gift, raised, goal);
+    return { gift, raised, goal, topGivers: top, balance: await this.balance(me), replayed: false };
+  }
+
+  /**
+   * `txillada.gift` à sala (e a quem ofereceu), menos a quem tem um bloqueio com quem ofereceu. «Quem mais ofereceu» vai a
+   * cada pessoa sem quem tem um bloqueio com ela (como no DTO). Devolve o top como quem ofereceu o vê.
+   */
+  private async sendGift(id: string, hostId: string, giver: string, gift: ReturnType<TxilladaService['giftDto']>, raised: number, goal: number | null) {
+    const to = [...new Set([giver, ...(await this.withoutBlocks(giver, await this.audience(id, hostId)))])];
+    const top = ((await this.pool.query(`SELECT ${topGiversSql('t', null, 12)} AS top FROM content.txilladas t WHERE t.id = $1`, [id])).rows[0]?.top ?? []) as Record<string, any>[];
+    const ids = top.map((g) => g.id as string);
+    const blocked = new Set<string>();
+    if (ids.length) {
+      const { rows } = await this.pool.query(
+        `SELECT blocker_id, blocked_id FROM social.blocks
+          WHERE (blocker_id = ANY($1::uuid[]) AND blocked_id = ANY($2::uuid[])) OR (blocked_id = ANY($1::uuid[]) AND blocker_id = ANY($2::uuid[]))`,
+        [ids, to],
+      );
+      for (const b of rows) { blocked.add(`${b.blocker_id}:${b.blocked_id}`); blocked.add(`${b.blocked_id}:${b.blocker_id}`); }
+    }
+    const topFor = (u: string) => top.filter((g) => !blocked.has(`${u}:${g.id}`)).slice(0, TOP_GIVERS).map(giverDto);
+    for (const u of to) this.bus.publish(u, { type: 'txillada.gift', txilladaId: id, gift, raised, goal, topGivers: topFor(u) });
+    return topFor(giver);
+  }
+
   /* ───────────── reações e quem está a ver ───────────── */
 
   /**
@@ -641,8 +959,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async viewers(me: string, id: string) {
     const r = await this.access(me, id);
+    // Numa paga (0167), a lista é só do anfitrião: os outros recebem-na vazia (`hidden: true`).
+    const hidden = r.audience === 'paid' && r.host_id !== me;
+    if (hidden) return { items: [], total: 0, hidden };
     const ids = (await this.bus.recent(toKey(id), SET_MS)).filter((v) => v !== r.host_id && UUID_RE.test(v));
-    if (!ids.length) return { items: [], total: 0 };
+    if (!ids.length) return { items: [], total: 0, hidden };
     const { rows } = await this.pool.query(
       `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id) AS followed
@@ -655,7 +976,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       [ids, me, id],
     );
     const items = rows.map((x) => publicPerson(x));
-    return { items, total: items.length };
+    return { items, total: items.length, hidden };
   }
 
   /* ───────────── expulsar e denunciar ───────────── */
@@ -674,7 +995,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   }
 
   async report(me: string, id: string, reason: ReportReason, note?: string) {
-    await this.access(me, id);
+    // O cartão de uma paga (o título) também se pode denunciar sem pagar.
+    await this.access(me, id, { ticket: false });
     await this.moderation.report(me, 'txillada', id, reason, note);
   }
 
@@ -785,7 +1107,15 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     if ((await this.rates.hit(`tx:invite:${me}`, 60_000)) > INVITES_PER_MIN) throw new HttpException('Calma! Muitos convites seguidos.', HttpStatus.TOO_MANY_REQUESTS);
     const t = await this.guestTarget(me, username);
     const banned = (await this.pool.query('SELECT 1 FROM content.txillada_bans WHERE txillada_id = $1 AND user_id = $2', [id, t.id])).rowCount;
-    if (banned || !(await this.watching(id, t.id))) throw new ConflictException(`Só podes convidar quem está a ver a tua Txillada.`);
+    // Numa paga (0167), o anfitrião pode convidar quem ainda não entrou (pelo @): quem é convidado entra de graça. Tem de a
+    // poder ver (o perfil do anfitrião), como toda a gente.
+    const paidInvite = r.audience === 'paid' && !banned && !!(await this.pool.query(
+      `SELECT 1 FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id WHERE t.id = $1 AND ${txilladaVisible('t', 'h', '$2::uuid')}`,
+      [id, t.id],
+    )).rowCount;
+    if (banned || (!paidInvite && !(await this.watching(id, t.id)))) {
+      throw new ConflictException(r.audience === 'paid' ? `@${t.username} não pode ver a tua Txillada.` : `Só podes convidar quem está a ver a tua Txillada.`);
+    }
     // Sem dizer porquê (a idade de outra pessoa não se mostra).
     if (!(await this.canBroadcast(t.id))) throw new ForbiddenException(`Não podes convidar @${t.username} para transmitir.`);
     const g = await this.guestRow(id, t.id);
@@ -1002,7 +1332,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         // (Uma identidade que não é das nossas — os tokens dão sempre o id da conta — também sai.)
         const banned = !isHost && (!/^[0-9a-f-]{36}$/i.test(who) || !(await this.pool.query(
           `SELECT 1 FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
-            WHERE t.id = $1 AND ${txilladaVisible('t', 'h', '$2::uuid')} AND NOT ${txilladaBanned('t', '$2::uuid')}`,
+            WHERE t.id = $1 AND ${txilladaVisible('t', 'h', '$2::uuid')} AND NOT ${txilladaBanned('t', '$2::uuid')} AND ${txilladaTicket('t', '$2::uuid')}`,
           [t.id, who],
         )).rowCount);
         if (t.status !== 'live' || banned) {
@@ -1054,6 +1384,12 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async sweep(now = new Date()) {
     let n = 0;
+    // As entradas de uma Txillada cortada que ainda não voltaram (o afterEnd falhou a meio, ou pagou-se enquanto se cortava).
+    const owed = await this.pool.query(
+      `SELECT DISTINCT k.txillada_id AS id FROM content.txillada_tickets k JOIN content.txilladas t ON t.id = k.txillada_id
+        WHERE k.refunded_at IS NULL AND t.status = 'cut' LIMIT 20`,
+    );
+    for (const r of owed.rows) await this.refundTickets(r.id).catch((e) => this.log.warn(`não consegui devolver as entradas da Txillada ${r.id}: ${(e as Error).message}`));
     // As de mais de 4 h e as de um anfitrião que deixou de estar ativo (suspenso a meio: o LiveKit não o sabe e continuava a transmitir).
     const old = await this.pool.query(
       `SELECT t.id FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
@@ -1122,7 +1458,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /** As que estão a decorrer, com as denúncias por decidir e os últimos comentários (as denunciadas primeiro). */
   async adminList() {
     const { rows } = await this.pool.query(
-      `SELECT ${TX_COLS}, ${HOST_COLS}, h.status AS h_status, ${guestsSql('t', null)} AS guests,
+      `SELECT ${TX_COLS}, ${HOST_COLS}, h.status AS h_status, ${guestsSql('t', null)} AS guests, ${topGiversSql('t', null)} AS top_givers,
               (SELECT count(*) FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open')::int AS open_reports,
               (SELECT array_agg(DISTINCT r.reason) FROM social.reports r WHERE r.target_type = 'txillada' AND r.target_id = t.id AND r.status = 'open') AS reasons,
               (SELECT json_agg(x ORDER BY x.id) FROM (
@@ -1134,7 +1470,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     );
     return {
       items: rows.map((r) => ({
-        ...this.dto({ ...r, comment_ok: false }, ''),
+        ...this.dto({ ...r, comment_ok: false, has_ticket: true }, ''),
         reports: { open: r.open_reports as number, reasons: ((r.reasons as string[] | null) ?? []) as ReportReason[] },
         lastComments: (r.last_comments as { id: string; body: string; createdAt: string; username: string }[] | null) ?? [],
       })),

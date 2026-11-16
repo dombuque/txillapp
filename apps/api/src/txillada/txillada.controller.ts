@@ -8,13 +8,25 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { REPORT_REASONS } from '../moderation/moderation.service';
 import { Needs, StaffGuard } from '../staff/staff.guard';
 import { TXILLADA_REACTIONS } from '../chat/chat.events';
-import { TxilladaService } from './txillada.service';
+import { GIFT_MAX, GOAL_MAX, GOAL_MIN, PRICE_MAX, PRICE_MIN, PURPOSE_MAX, TxilladaService } from './txillada.service';
 
 type AuthedReq = Request & { userId?: string };
 
+/**
+ * Os três tipos (0167): 'everyone' (Pública), 'friends' (Para amigos; 'close' com «Só amigos próximos») e 'paid' (Privada,
+ * com `price`). 'followers' continua a valer para as apps antigas. A Angariação: `goal` (e `purpose`), em qualquer tipo.
+ */
 const createSchema = z.object({
   title: z.string().trim().max(80).optional().default(''),
-  audience: z.enum(['everyone', 'followers', 'close']).default('everyone'),
+  audience: z.enum(['everyone', 'friends', 'close', 'paid', 'followers']).default('everyone'),
+  price: z.number().int().min(PRICE_MIN, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`).max(PRICE_MAX, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`).nullable().optional(),
+  goal: z.number().int().min(GOAL_MIN, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`).max(GOAL_MAX, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`).nullable().optional(),
+  purpose: z.string().trim().max(PURPOSE_MAX).optional().default(''),
+});
+/** Uma oferta: o valor e a chave de idempotência da app (repetir o pedido não cobra outra vez). */
+const giftSchema = z.object({
+  amount: z.number().int().min(1).max(GIFT_MAX, `Podes oferecer até ${GIFT_MAX} Txills de cada vez.`),
+  key: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, 'Chave inválida'),
 });
 const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });
 const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
@@ -51,7 +63,7 @@ export class TxilladaController {
   @Post()
   @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.tx.create(req.userId!, b.title, b.audience);
+    return this.tx.create(req.userId!, b.title, b.audience, { price: b.price ?? null, goal: b.goal ?? null, purpose: b.purpose });
   }
 
   @Get(':id')
@@ -64,6 +76,24 @@ export class TxilladaController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   join(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.tx.join(req.userId!, id);
+  }
+
+  /** Pagar a entrada de uma Txillada privada (0167): uma vez só; pagar outra vez não cobra. */
+  @NeedsVerifiedEmail()
+  @Post(':id/ticket')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  pay(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.pay(req.userId!, id);
+  }
+
+  /** Oferecer Txills durante o live (0167). No máximo 5 a cada 10 s por pessoa (no serviço); aqui o teto por minuto. */
+  @NeedsVerifiedEmail()
+  @Post(':id/gifts')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
+  gift(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(giftSchema)) b: z.infer<typeof giftSchema>) {
+    return this.tx.gift(req.userId!, id, b.amount, b.key);
   }
 
   @Post(':id/end')

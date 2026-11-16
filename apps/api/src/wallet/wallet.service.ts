@@ -13,7 +13,8 @@ export interface TransferParams {
   fromUserId: string;
   toUserId: string;
   amount: number;
-  type: 'transfer' | 'gift';
+  /** 'txillada_ticket' e 'txillada_gift' (0167): a entrada de uma Txillada paga e as ofertas durante o live. */
+  type: 'transfer' | 'gift' | 'txillada_ticket' | 'txillada_gift';
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
 }
@@ -24,7 +25,11 @@ export interface TransferResult {
 }
 
 /** Tipos de movimento do ledger (iguais ao CHECK de ledger.transactions). */
-export type LedgerType = 'welcome_bonus' | 'transfer' | 'gift' | 'topup' | 'invite' | 'group_contribution' | 'venue_payment' | 'group_refund' | 'boost' | 'boost_refund';
+export type LedgerType = 'welcome_bonus' | 'transfer' | 'gift' | 'topup' | 'invite' | 'group_contribution' | 'venue_payment' | 'group_refund' | 'boost' | 'boost_refund'
+  | 'txillada_ticket' | 'txillada_gift' | 'txillada_refund';
+
+/** Os movimentos com outra pessoa do outro lado (o histórico mostra quem). */
+const PERSON_TYPES = ['transfer', 'gift', 'txillada_ticket', 'txillada_gift', 'txillada_refund'];
 
 /**
  * Movimento entre contas quaisquer (carteiras, cofres de grupo, carteiras de locais).
@@ -56,6 +61,10 @@ export function historyLabel(type: LedgerType, amount: number, x: { who: string 
     case 'group_refund': return `Devolução do cofre de ${x.group ?? 'um grupo'}`;
     case 'boost': return `Bombar ${x.venue ?? 'o local'}`;
     case 'boost_refund': return `Devolução do Bombar de ${x.venue ?? 'um local'}`;
+    // Txillada (0167): a entrada paga, as ofertas durante o live e a devolução da entrada (quando a moderação corta).
+    case 'txillada_ticket': return out ? `Entrada na Txillada de ${x.who ?? 'alguém'}` : `Entrada de ${x.who ?? 'alguém'} na tua Txillada`;
+    case 'txillada_gift': return out ? `Oferta na Txillada de ${x.who ?? 'alguém'}` : `Oferta de ${x.who ?? 'alguém'} na tua Txillada`;
+    case 'txillada_refund': return out ? `Devolução da entrada de ${x.who ?? 'alguém'}` : `Devolução da entrada na Txillada${x.who ? ` de ${x.who}` : ''}`;
     case 'venue_payment':
       if (!out) return x.who ? `Pagamento de ${x.who}` : `Pagamento do cofre de ${x.group ?? 'um grupo'}`;
       return x.group ? `Pago em ${x.venue ?? 'um local'} com o cofre de ${x.group}` : `Pagaste em ${x.venue ?? 'um local'}`;
@@ -130,13 +139,13 @@ export class WalletService {
            SELECT u.username, u.display_name, u.verified, u.verified_tier
              FROM ledger.entries e2 JOIN ledger.accounts a2 ON a2.id = e2.account_id
              JOIN identity.users u ON u.id = a2.user_id
-            WHERE e2.transaction_id = e.transaction_id AND e2.account_id <> e.account_id AND t.type IN ('transfer', 'gift') LIMIT 1
+            WHERE e2.transaction_id = e.transaction_id AND e2.account_id <> e.account_id AND t.type = ANY($2::text[]) LIMIT 1
          ) cp ON true
          LEFT JOIN content.venues v ON t.type = 'venue_payment' AND v.id::text = t.metadata->>'venueId'
          LEFT JOIN social.groups g ON t.type IN ('group_contribution', 'group_refund', 'venue_payment') AND g.id::text = t.metadata->>'groupId'
          LEFT JOIN identity.users pu ON t.type = 'venue_payment' AND e.amount > 0 AND pu.id::text = t.metadata->>'payerId'
         WHERE e.account_id = $1 ORDER BY e.id DESC LIMIT 30`,
-      [acc.id],
+      [acc.id, PERSON_TYPES],
     );
     return {
       currency: 'TXL',
