@@ -12,6 +12,8 @@ import { ApiError, api } from '@/lib/api';
 import { instantsApi, type ZasSettings } from '@/lib/api.geleira';
 import { nearbyApi, type NearbyVisibility } from '@/lib/api.nearby';
 import { KEEP_OFF_PROMPT } from '@/components/zas/zasRecapLogic';
+import { mixarControloApi, mixarControloKeys } from '@/lib/api.mixarControlo';
+import { privateCountLabel } from '@/lib/mixarControlo';
 
 type SheetName = null | 'type' | 'connections' | 'nearby' | 'blocked' | 'comments' | 'mentions' | 'gifts' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'storyReplies' | 'closeFriends' | 'hidden';
 
@@ -24,6 +26,8 @@ export default function PrivacySettingsScreen() {
   const stories = useQuery({ queryKey: ['story-settings'], queryFn: api.storySettings });
   const closeFriends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const blocked = useQuery({ queryKey: ['blocked'], queryFn: api.blocked });
+  // Mixar (0172): os temas privados. Servidor antigo (404): a linha não aparece.
+  const mixarPrivate = useQuery({ queryKey: mixarControloKeys.privateTopics(), queryFn: mixarControloApi.privateTopics, retry: false });
   // Aparecer em À tua volta: a mesma chave de cache do mapa, para os dois ecrãs ficarem iguais.
   const nearby = useQuery({ queryKey: ['nearby-settings'], queryFn: nearbyApi.settings, staleTime: 5 * 60_000, retry: false });
   async function saveNearby(v: NearbyVisibility) {
@@ -102,6 +106,12 @@ export default function PrivacySettingsScreen() {
       {zas.data ? (
         <SettingsSection title="Zás">
           <SettingRow anchor="zasKeep" icon="bolt" title="Guardar os meus Zás para o resumo semanal" description="Os outros veem os teus Zás 24 horas; para ti ficam 7 dias em «Os meus Zás» e, ao domingo à noite, fazemos o resumo da semana (com 3 Zás ou mais). Só tu os vês, até partilhares o resumo nos mimos. Desligado, os Zás apagam-se às 24 horas e não há resumo." toggle={{ on: zas.data.keepForRecap, onChange: toggleZasKeep }} />
+        </SettingsSection>
+      ) : null}
+
+      {mixarPrivate.data ? (
+        <SettingsSection title="Mixar">
+          <SettingRow anchor="mixarPrivateTopics" icon="mixar" title="Temas privados no Mixar" description="Temas que nunca aparecem nos teus Mixar nem nos temas em comum." value={privateCountLabel(mixarPrivate.data.topics.length)} to="/settings/mixar-temas" />
         </SettingsSection>
       ) : null}
 
