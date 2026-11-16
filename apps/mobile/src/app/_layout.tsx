@@ -10,6 +10,7 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ActivateSheet } from '@/components/ActivateSheet';
 import { AlertHost } from '@/components/AlertHost';
+import { ToastHost } from '@/components/ToastHost';
 import { AppUpdate } from '@/components/AppUpdate';
 import { CallOverlay } from '@/components/calls/CallOverlay';
 import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
@@ -243,6 +244,7 @@ export default function RootLayout() {
             <Gate />
             <ActivateSheet />
             <AlertHost />
+            <ToastHost />
           </AuthProvider>
         </QueryClientProvider>
         </WebTopInset>

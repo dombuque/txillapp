@@ -148,7 +148,7 @@ export class ModerationDeskService {
                        CASE WHEN r.target_type = 'media' THEN max(r.note) END,
                        CASE WHEN r.target_type = 'venue' THEN max(v.name) || coalesce(' · ' || max(v.about), '') END,
                        CASE WHEN r.target_type = 'user' THEN max(tu.display_name) END, '') AS preview,
-              p.removed_at AS post_removed_at, p.removed_by AS post_removed_by, c.post_id AS comment_post_id,
+              p.removed_at AS post_removed_at, p.removed_by AS post_removed_by, (p.hidden_at IS NOT NULL) AS post_hidden, c.post_id AS comment_post_id,
               s.expires_at AS story_expires_at, max(v.slug) AS venue_slug,
               bool_or(sc.id IS NOT NULL) AS story_comment_exists, max(ins.expires_at) AS instant_expires_at, max(ins.media_id::text) AS instant_media_id,
               (SELECT ima.nsfw_score FROM content.media_assets ima WHERE ima.id = max(ins.media_id::text)::uuid) AS instant_nsfw,
@@ -172,7 +172,7 @@ export class ModerationDeskService {
         WHERE r.status = $1 AND ($2::text[] IS NULL OR r.target_type = ANY($2::text[]))
           AND ($4::text IS NULL OR tu.username ILIKE $4 ESCAPE '\\' OR tu.display_name ILIKE $4 ESCAPE '\\')
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption,
-                 p.removed_at, p.removed_by, c.post_id, s.expires_at
+                 p.removed_at, p.removed_by, p.hidden_at, c.post_id, s.expires_at
        HAVING ($3::text IS NULL OR $3 = ANY(array_agg(r.reason)))
         ORDER BY ${order} LIMIT 200`,
       [f.status, f.types?.length ? f.types : null, f.reason ?? null, q ? like(q) : null],
@@ -236,6 +236,8 @@ export class ModerationDeskService {
       postId: type === 'post' ? (r.target_id as string) : type === 'comment' ? ((r.comment_post_id as string | null) ?? null) : null,
       venueSlug: (r.venue_slug as string | null) ?? null,
       removed,
+      /** Oculta pelo autor (0169): os outros não a veem, mas a equipa sim; o autor pode voltar a mostrá-la. */
+      hiddenByAuthor: type === 'post' && !!r.post_hidden,
       reported: proof.reported,
       current: proof.current,
     };
@@ -386,7 +388,7 @@ export class ModerationDeskService {
     if (f.type === 'all' || f.type === 'post' || f.type === 'tcheka') {
       const maxNsfw = `(SELECT max(ma.nsfw_score) FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id)`;
       parts.push(`SELECT 'post'::text AS type, p.id, p.author_id, p.body, p.created_at, p.removed_at, p.removed_by, NULL::uuid AS post_id, ${maxNsfw} AS nsfw,
-                         ${tchekaPost()} AS tcheka, NULL::timestamptz AS expires_at, p.kind
+                         ${tchekaPost()} AS tcheka, NULL::timestamptz AS expires_at, p.kind, (p.hidden_at IS NOT NULL) AS hidden
                     FROM content.posts p
                     ${where([
                       ...common('p.body', 'p.created_at', 'p.author_id'),
@@ -399,7 +401,7 @@ export class ModerationDeskService {
     if (f.type === 'all' || f.type === 'story') {
       const rm = `(SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = 'story' AND mr.target_id = s.id AND mr.restored_at IS NULL)`;
       parts.push(`SELECT 'story'::text AS type, s.id, s.author_id, coalesce(s.caption, '') AS body, s.created_at, ${rm} AS removed_at, CASE WHEN ${rm} IS NOT NULL THEN 'moderation' END AS removed_by,
-                         NULL::uuid AS post_id, ma.nsfw_score AS nsfw, false AS tcheka, s.expires_at, NULL::text AS kind
+                         NULL::uuid AS post_id, ma.nsfw_score AS nsfw, false AS tcheka, s.expires_at, NULL::text AS kind, false AS hidden
                     FROM content.stories s LEFT JOIN content.media_assets ma ON ma.id = s.media_id
                     ${where([
                       ...common('s.caption', 's.created_at', 's.author_id'),
@@ -411,14 +413,14 @@ export class ModerationDeskService {
     if ((f.type === 'all' || f.type === 'comment') && !nsfw) {
       if (f.state !== 'removed') {
         parts.push(`SELECT 'comment'::text AS type, c.id, c.author_id, c.body, c.created_at, NULL::timestamptz AS removed_at, NULL::text AS removed_by, c.post_id,
-                             NULL::real AS nsfw, false AS tcheka, NULL::timestamptz AS expires_at, NULL::text AS kind
+                             NULL::real AS nsfw, false AS tcheka, NULL::timestamptz AS expires_at, NULL::text AS kind, false AS hidden
                       FROM content.comments c
                       ${where([...common('c.body', 'c.created_at', 'c.author_id'), tagRe ? `${folded('c.body')} ~ ${tagRe}` : null])}`);
       }
       if (f.state !== 'visible') {
         const created = `coalesce((mr.snapshot->'rows'->0->>'created_at')::timestamptz, mr.removed_at)`;
         parts.push(`SELECT 'comment'::text AS type, mr.target_id AS id, mr.author_id, coalesce(mr.body, '') AS body, ${created} AS created_at, mr.removed_at, 'moderation'::text AS removed_by,
-                             mr.post_id, NULL::real AS nsfw, false AS tcheka, NULL::timestamptz AS expires_at, NULL::text AS kind
+                             mr.post_id, NULL::real AS nsfw, false AS tcheka, NULL::timestamptz AS expires_at, NULL::text AS kind, false AS hidden
                       FROM content.moderation_removals mr
                       ${where([`mr.target_type = 'comment'`, 'mr.restored_at IS NULL', ...common('mr.body', created, 'mr.author_id'), tagRe ? `${folded('mr.body')} ~ ${tagRe}` : null])}`);
       }
@@ -472,6 +474,8 @@ export class ModerationDeskService {
           openReports: reports.get(k) ?? 0,
           state: r.removed_by === 'moderation' ? 'removed' : r.removed_by === 'author' || r.removed_by === 'original' ? 'deleted' : r.type === 'story' && r.expires_at && new Date(r.expires_at) <= new Date() ? 'expired' : 'visible',
           removal: removals.get(k) ?? null,
+          /** Publicação oculta pelo autor (0169): só ele e a equipa a veem. */
+          hiddenByAuthor: !!r.hidden,
         };
       }),
       nextCursor: rows.length > limit ? new Date(page[page.length - 1].created_at).toISOString() : null,

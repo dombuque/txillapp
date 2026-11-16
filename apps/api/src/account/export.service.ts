@@ -71,6 +71,8 @@ export class ExportService {
       settings,
       posts: await q(
         `SELECT p.id, p.kind, p.body, p.text_font AS "textFont", p.location_label AS "locationLabel", p.music, (SELECT v.slug FROM content.venues v WHERE v.id = p.venue_id) AS "postedAsVenue", p.created_at AS "createdAt", p.removed_at AS "removedAt",
+                -- Oculta por mim (0169): a publicação vem na mesma, com a marca e desde quando.
+                (p.hidden_at IS NOT NULL) AS hidden, p.hidden_at AS "hiddenAt",
                 (SELECT COALESCE(json_agg('/api/v1/media/' || pm.media_id ORDER BY pm.position), '[]'::json) FROM content.post_media pm WHERE pm.post_id = p.id) AS photos,
                 (SELECT json_build_object('postId', rx.original_id, 'kind', rx.kind, 'commentId', rx.comment_id) FROM content.post_remixes rx WHERE rx.post_id = p.id) AS "remixOf"
            FROM content.posts p WHERE p.author_id = $1 ORDER BY p.id`,

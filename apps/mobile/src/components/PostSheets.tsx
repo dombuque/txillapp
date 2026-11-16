@@ -23,6 +23,8 @@ import { takedownText, takedownTitle } from '@/lib/remix';
 import { normTextFont, type TextFontId } from '@/lib/textLayers';
 import { formatVibes } from '@/lib/vibes';
 import { FontChips } from './FontChips';
+import { hideMenuRow } from '@/lib/hidePost';
+import { setPostHidden } from '@/lib/hidePostAction';
 
 const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
@@ -212,8 +214,12 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
   );
 }
 
-/** ⋯ da publicação: partilhar, guardar, copiar ligação, editar, apagar (as minhas), não me interessa e denunciar (de outras pessoas). */
-export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = null }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void; onShare?: () => void; /** Computador: abre como menu pendente junto a este sítio (o «⋯» ou o rato, no botão direito). */ anchor?: Rect | null }) {
+/**
+ * ⋯ da publicação: partilhar, guardar, copiar ligação, editar, ocultar e apagar (as minhas), não me interessa e denunciar (de
+ * outras pessoas). `myRepost`: a publicação está à vista dentro do meu repost simples (o menu é o do original, mas posso ocultar
+ * o meu repost).
+ */
+export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = null, myRepost = null }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void; onShare?: () => void; /** Computador: abre como menu pendente junto a este sítio (o «⋯» ou o rato, no botão direito). */ anchor?: Rect | null; myRepost?: Pick<Post, 'id' | 'hidden'> | null }) {
   const qc = useQueryClient();
   const [view, setView] = useState<'menu' | 'edit' | 'report'>('menu');
   const [draft, setDraft] = useState(post.body);
@@ -277,6 +283,11 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
     onClose();
     await refresh(['feed', 'profile-posts', 'post', 'reels']);
   }
+  // «Ocultar publicação» / «Voltar a mostrar» (0169): sem pergunta; o aviso no fundo tem «Desfazer» (lib/hidePostAction).
+  async function toggleHidden(target: Pick<Post, 'id' | 'hidden'>, repost: boolean) {
+    onClose();
+    await setPostHidden(qc, target, !target.hidden, repost);
+  }
   function confirmDelete() {
     Alert.alert('Apagar a publicação?', 'Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.', [
       { text: 'Cancelar', style: 'cancel' },
@@ -335,6 +346,8 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
         {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
         {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" size={22} />} title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}
         {mine && <MenuRow icon={<Icon name="comment" size={22} />} title={post.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} text={post.commentsOff ? 'Voltam a poder comentar.' : 'Ninguém pode comentar esta publicação.'} onPress={() => void toggleComments()} />}
+        {mine && !(post.kind === 'repost' && !post.body) ? <MenuRow icon={<Icon name={post.hidden ? 'eye' : 'eye-off'} size={22} />} {...hideMenuRow(post)} onPress={() => void toggleHidden(post, false)} /> : null}
+        {!mine && myRepost ? <MenuRow icon={<Icon name={myRepost.hidden ? 'eye' : 'eye-off'} size={22} />} {...hideMenuRow(myRepost, true)} onPress={() => void toggleHidden(myRepost, true)} /> : null}
         {mine ? (
           <MenuRow icon={<Icon name="trash" size={22} />} title="Apagar" text="Some para toda a gente." onPress={confirmDelete} />
         ) : (

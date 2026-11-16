@@ -73,7 +73,7 @@ export class MentionSuggestService {
     if (context && id) {
       if (context === 'post') {
         const r = await this.pool.query(
-          `SELECT p.author_id FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND p.removed_at IS NULL AND ${canView('u', '$1')}`,
+          `SELECT p.author_id FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND p.removed_at IS NULL AND p.hidden_at IS NULL AND ${canView('u', '$1')}`,
           [me, id],
         );
         if (r.rows[0]) {

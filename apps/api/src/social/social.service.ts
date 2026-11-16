@@ -14,6 +14,7 @@ import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens'
 import { ModuleRef } from '@nestjs/core';
 import { dropDownloadCopies } from '../posts/download-copies';
 import { PostDownloadService } from '../posts/post-download.service';
+import { shownPost } from '../posts/hidden';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -71,7 +72,9 @@ export class SocialService {
       `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,
               u.gender, u.show_gender, u.verified, u.verified_tier,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
-              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL AND p.kind <> 'repost' AND (p.venue_id IS NULL OR u.id = $1))::int AS posts,
+              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND ${shownPost('p')} AND p.kind <> 'repost' AND (p.venue_id IS NULL OR u.id = $1))::int AS posts,
+              -- O separador «Ocultas» (0169): quantas publicações ocultei (só no meu perfil; não contam nas publicações).
+              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND u.id = $1 AND p.removed_at IS NULL AND p.hidden_at IS NOT NULL)::int AS hidden_posts,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers,
               (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id)::int AS following,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS i_follow,
@@ -124,6 +127,8 @@ export class SocialService {
       /** Txillada (0158): a que a pessoa tem a decorrer, se a posso ver (a roda fica vermelha com «AO VIVO»). */
       live: (r.live as { id: string } | null) ?? null,
       counts: { posts: r.posts, followers: r.followers, following: r.following },
+      /** Só no meu perfil (0169): quantas publicações ocultei (o separador «Ocultas»). Nos outros, 0. */
+      hiddenPosts: isMe ? ((r.hidden_posts as number | undefined) ?? 0) : 0,
     };
   }
 

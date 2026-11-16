@@ -1,17 +1,22 @@
 /**
- * Separadores do perfil (Tudo, Tcheka, Reposts, Presentes e, no meu, Guardados): quais se veem e para onde vai um deslize.
+ * Separadores do perfil (Tudo, Tcheka, Reposts, Presentes e, no meu, Guardados e Ocultas): quais se veem e para onde vai um
+ * deslize.
  * Lógica pura, sem React, para se poder testar (tests/profileTabs.test.mjs). Os ícones e os nomes ficam no ProfileView.
  */
 
 /** O mesmo que `ProfileTab` de lib/api (aqui sem importar a API, para os testes). */
-export type ProfileTabId = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
+export type ProfileTabId = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved' | 'hidden';
 
 /** Todos os separadores, pela ordem do ecrã (é por esta ordem que um deslize passa de um para o outro). */
-export const PROFILE_TAB_ORDER: ProfileTabId[] = ['all', 'reels', 'reposts', 'gifts', 'saved'];
+export const PROFILE_TAB_ORDER: ProfileTabId[] = ['all', 'reels', 'reposts', 'gifts', 'saved', 'hidden'];
 
-/** Os separadores que esta pessoa tem: "Guardados" só no meu perfil (só eu vejo o que guardei). */
-export function visibleProfileTabs(isMe: boolean): ProfileTabId[] {
-  return PROFILE_TAB_ORDER.filter((t) => t !== 'saved' || isMe);
+/**
+ * Os separadores que esta pessoa tem: "Guardados" só no meu perfil (só eu vejo o que guardei). "Ocultas" (0169) também só no
+ * meu, e só quando tenho publicações ocultas (`hidden`) ou já estou nele (ao voltar a mostrar a última, não desaparece debaixo
+ * do dedo).
+ */
+export function visibleProfileTabs(isMe: boolean, hidden = false): ProfileTabId[] {
+  return PROFILE_TAB_ORDER.filter((t) => (t !== 'saved' && t !== 'hidden') || (isMe && (t === 'saved' || hidden)));
 }
 
 /**

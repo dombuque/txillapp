@@ -6,12 +6,13 @@ import { SearchIndexer } from './search-index';
 import { isValidTag, normalizeTag } from '../common/hashtags';
 import { blockedBetween, canView, inMyNetwork } from '../social/visibility';
 import { VenuesService } from '../venues/venues.service';
+import { shownPost } from '../posts/hidden';
 
 /** Escapa % _ \ para usar o texto da pesquisa em ILIKE sem que vire padrão. */
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 
-/** Contas e publicações que qualquer pessoa pode ver (para tendências): públicas, ativas, sem remoção. */
-const PUBLIC_POST = `p.removed_at IS NULL AND p.kind IN ('post', 'repost') AND u.status = 'active' AND NOT u.is_private`;
+/** Contas e publicações que qualquer pessoa pode ver (para tendências): públicas, ativas, sem remoção nem ocultas (0169). */
+const PUBLIC_POST = `${shownPost('p')} AND p.kind IN ('post', 'repost') AND u.status = 'active' AND NOT u.is_private`;
 
 @Injectable()
 export class SearchService {
@@ -154,7 +155,7 @@ export class SearchService {
     const { rows } = await this.pool.query(
       `SELECT count(DISTINCT p.id)::int AS posts, count(DISTINCT p.author_id)::int AS authors
          FROM content.post_tags t JOIN content.posts p ON p.id = t.post_id JOIN identity.users u ON u.id = p.author_id
-        WHERE t.tag = $1 AND p.removed_at IS NULL AND p.kind IN ('post', 'repost') AND ${canView('u', '$2')} AND ${inMyNetwork('p.author_id', 'p.country', '$2')}`,
+        WHERE t.tag = $1 AND ${shownPost('p')} AND p.kind IN ('post', 'repost') AND ${canView('u', '$2')} AND ${inMyNetwork('p.author_id', 'p.country', '$2')}`,
       [t, viewerId],
     );
     return { tag: t, posts: rows[0].posts as number, authors: rows[0].authors as number };

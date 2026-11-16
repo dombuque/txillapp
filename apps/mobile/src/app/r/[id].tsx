@@ -129,8 +129,8 @@ export default function ReelPage() {
       {q.isError && isGone(q.error) && (
         <View style={st.center}>
           <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-          <Text style={st.title}>Esta tcheka já não está disponível</Text>
-          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Pode ter sido apagada, ou a conta passou a privada.</Text>
+          <Text style={st.title}>Esta tcheka não está disponível</Text>
+          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Pode ter sido apagada ou ocultada, ou a conta passou a privada.</Text>
           <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outras tchekas</Text></Pressable>
         </View>
       )}

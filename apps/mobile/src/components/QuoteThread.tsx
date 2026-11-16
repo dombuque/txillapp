@@ -62,10 +62,10 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
   const [open, setOpen] = useState(false);
   if (!original) {
     return (
-      <View style={styles.row} accessibilityRole="text" accessibilityLabel="Esta publicação já não está disponível">
+      <View style={styles.row} accessibilityRole="text" accessibilityLabel="Esta publicação não está disponível">
         <Rail avatar={<View style={styles.goneDot}><Icon name="eye-off" size={18} color={colors.zinc500} /></View>} />
         <View style={styles.goneBox}>
-          <Text style={styles.goneText}>Esta publicação já não está disponível</Text>
+          <Text style={styles.goneText}>Esta publicação não está disponível</Text>
         </View>
       </View>
     );

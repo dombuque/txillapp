@@ -118,7 +118,7 @@ export class BoostsService {
            FROM content.posts p
            LEFT JOIN LATERAL (SELECT pm.media_id, ma.mime FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                                WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) fm ON true
-          WHERE p.venue_id = $1 AND p.removed_at IS NULL AND p.kind = 'post' ORDER BY p.created_at DESC LIMIT 20`,
+          WHERE p.venue_id = $1 AND p.removed_at IS NULL AND p.hidden_at IS NULL AND p.kind = 'post' ORDER BY p.created_at DESC LIMIT 20`,
         [v.id],
       ),
     ]);
@@ -225,7 +225,7 @@ export class BoostsService {
       if (ends <= now || startsAt.getTime() >= ends) throw new UnprocessableEntityException('Este evento já terá acabado quando a campanha começar');
       if (endsAt.getTime() > ends + EVENT_GRACE_HOURS * 3_600_000) throw new UnprocessableEntityException('O evento acaba antes da campanha: escolhe um pacote mais curto.');
     } else {
-      const p = (await this.pool.query(`SELECT 1 FROM content.posts p WHERE p.id = $1 AND p.venue_id = $2 AND p.removed_at IS NULL AND p.kind = 'post'`, [b.target.id, venueId])).rowCount;
+      const p = (await this.pool.query(`SELECT 1 FROM content.posts p WHERE p.id = $1 AND p.venue_id = $2 AND p.removed_at IS NULL AND p.hidden_at IS NULL AND p.kind = 'post'`, [b.target.id, venueId])).rowCount;
       if (!p) throw new NotFoundException('Publicação do local não encontrada');
     }
     return { startsAt, endsAt };
@@ -485,7 +485,7 @@ export class BoostsService {
          AND NOT ${blockedBetween('v.owner_id', '$1')}
          AND NOT EXISTS (SELECT 1 FROM content.boost_hidden h WHERE h.user_id = $1 AND h.venue_id = v.id)
          AND (c.target_kind <> 'event' OR EXISTS (SELECT 1 FROM content.venue_events e WHERE e.id = c.event_id AND e.cancelled_at IS NULL AND ${eventEnd('e')} > now()))
-         AND (c.target_kind <> 'post' OR EXISTS (SELECT 1 FROM content.posts p WHERE p.id = c.post_id AND p.removed_at IS NULL
+         AND (c.target_kind <> 'post' OR EXISTS (SELECT 1 FROM content.posts p WHERE p.id = c.post_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
                 AND NOT EXISTS (SELECT 1 FROM content.feed_impressions fh WHERE fh.user_id = $1 AND fh.post_id = p.id AND fh.hidden)))
          ${extra}`;
   }

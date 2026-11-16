@@ -27,7 +27,7 @@ export class ShareController {
     if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException();
     const { rows } = await this.pool.query(
       `SELECT p.geleira, u.display_name, u.is_private FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-        WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND p.geleira IS NOT NULL`,
+        WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND p.geleira IS NOT NULL`,
       [code],
     );
     const snap = readSnapshot(rows[0]?.geleira);
@@ -55,7 +55,7 @@ export class ShareController {
                    FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id
                   WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS media
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-          WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND p.kind IN ('post', 'repost')`,
+          WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND p.kind IN ('post', 'repost')`,
         [code],
       );
       const r = rows[0];
@@ -124,7 +124,7 @@ export class PublicPostController {
                   (SELECT coalesce(json_agg(json_build_object('id', a.id, 'video', a.mime LIKE 'video/%', 'width', a.width, 'height', a.height) ORDER BY pm.position), '[]'::json)
                      FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id WHERE pm.post_id = p.id) AS media
              FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-            WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.kind IN ('post', 'repost', 'gift')`,
+            WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.kind IN ('post', 'repost', 'gift')`,
           [key],
         )
       ).rows[0];

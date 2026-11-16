@@ -193,6 +193,7 @@ function Activity({ s }: { s: AccountSheet }) {
                     {when(p.created_at)}
                     {p.kind === 'gift' && <Badge>brinde</Badge>}
                     {p.removed_at && <Badge tone="red">{p.removed_by === 'moderation' ? 'removida pela moderação' : 'apagada pela pessoa'}</Badge>}
+                    {!p.removed_at && p.hidden_at && <Badge tone="zinc">oculta pelo autor</Badge>}
                   </p>
                 </div>
                 {!p.removed_at && <a href={appUrl(`/p/${p.id}`)} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-zinc-600 underline hover:text-zinc-900">Abrir</a>}

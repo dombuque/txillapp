@@ -57,6 +57,11 @@ export interface Post {
   cheeredBy?: import('./cheeredBy').CheeredBy | null;
   feed?: { source: 'following' | 'self' | 'discover'; seen: boolean };
   kind: 'post' | 'gift' | 'repost';
+  /**
+   * Oculta pelo autor (0169, «Ocultar publicação»): só o próprio autor a recebe assim (no link e no separador «Ocultas»); para os
+   * outros é como uma apagada. Servidores antigos não mandam.
+   */
+  hidden?: boolean;
   repostOf?: Post | null;
   gift: { amount: number; recipient: { username: string; displayName: string } & Badged } | null;
   /** Remix (0134): de que tcheka é dueto, ou a que comentário responde. Servidores antigos não mandam. */
@@ -147,7 +152,7 @@ export interface AppNotification {
   /** Só em `txillada_live` e `txillada_invite`: o estado de agora da Txillada ('live' ainda a decorrer; null se já não existe). */
   txillada?: { status: 'live' | 'ended' | 'cut' | null };
 }
-export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
+export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved' | 'hidden';
 export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
 export interface MentionSuggestion extends Badged { username: string; displayName: string; hasAvatar: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
 export interface Person extends Badged { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean }
@@ -258,6 +263,8 @@ export interface Profile {
   pendingRequests: number;
   activeStories: number;
   counts: { posts: number; followers: number; following: number };
+  /** Só no meu perfil (0169): quantas publicações ocultei (o separador «Ocultas»). Servidores antigos não mandam. */
+  hiddenPosts?: number;
   /** Txillada (o live) a decorrer: a roda da foto fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */
   live?: { id: string; /** Privada que ainda não paguei (0167): o preço da entrada. */ price?: number } | null;
 }
@@ -916,6 +923,12 @@ export const api = {
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
   report: (type: ReportType, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
+  /** «Ocultar publicação» (0169): só o autor; 409 com o Bombar a decorrer. Devolve a publicação com `hidden: true`. */
+  hidePost: (id: string): Promise<Post> => raw(`/posts/${id}/hide`, post({})),
+  /** «Voltar a mostrar» (0169): volta ao mesmo sítio, com os brindes e os comentários. */
+  unhidePost: (id: string): Promise<Post> => raw(`/posts/${id}/unhide`, post({})),
+  /** O separador «Ocultas» do meu perfil (só eu o vejo). */
+  hiddenPosts: (cursor?: string): Promise<Page<Post>> => raw(`/me/posts/hidden?limit=18${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   /** O autor da tcheka original retira um dueto feito com ela (fica escondido para todos; o dono é avisado). */
   takeDownDuet: (id: string): Promise<void> => raw(`/posts/${id}/duet-takedown`, post({})),
   hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),

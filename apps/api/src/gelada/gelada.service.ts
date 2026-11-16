@@ -324,7 +324,7 @@ export class GeladaService {
       row = (
         await client.query(
           `SELECT r.*, rq.username AS requester_username, rq.status AS requester_status, ${blockedBetween('r.requester_id', 'r.recipient_id')} AS blocked,
-                  (SELECT p.removed_at IS NULL FROM content.posts p WHERE p.id = r.post_id) AS post_ok
+                  (SELECT p.removed_at IS NULL AND p.hidden_at IS NULL FROM content.posts p WHERE p.id = r.post_id) AS post_ok
              FROM taste.gelada_requests r JOIN identity.users rq ON rq.id = r.requester_id
             WHERE r.id = $1 AND r.recipient_id = $2 FOR UPDATE OF r`,
           [id, me],

@@ -26,6 +26,7 @@ import { BAKE_COLS, BAKE_JOIN, bakedMediaId, musicBakedOf } from './music-bake';
 import { MusicBakeService } from './music-bake.service';
 import { CAN_DOWNLOAD_SQL } from './post-download.service';
 import { cheeredByOf } from './cheered-by';
+import { ACTIVE_BOOST_SQL, HIDE_BOOSTED, shownPost, shownPostTo } from './hidden';
 
 export const MAX_PHOTOS = 10;
 
@@ -60,18 +61,21 @@ const isQuote = (r: { kind?: unknown; body?: unknown }) => r.kind === 'repost' &
 
 const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
 
-const FEED_SQL = `
+/** `shown`: que publicações entram (shownPost: as que estão à vista de todos; shownPostTo: também as ocultas de quem vê). */
+const feedSql = (shown: string) => `
   SELECT p.id, p.short_code, p.body, p.text_font, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, ${postGeo('lat', 'p', 'pv', '$1')} AS location_lat, ${postGeo('lng', 'p', 'pv', '$1')} AS location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          (p.author_id = $1) AS by_viewer,
+         -- Oculta pelo autor (0169, posts/hidden.ts): só chega aqui para o próprio autor (FEED_SQL_MINE).
+         (p.hidden_at IS NOT NULL) AS hidden,
          pv.slug AS venue_slug, pv.name AS venue_name, pv.kind AS venue_kind, pv.verified AS venue_verified, pv.avatar_media_id AS venue_avatar,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS can_comment,
          ${allowedBy('u', 'gifts_allowed')} AS can_gift,
          ${listVisibleTo('u', 'reposts_visible')} AS reposts_list, ${listVisibleTo('u', 'cheers_visible')} AS cheers_list, ${listVisibleTo('u', 'gifts_visible')} AS gifts_list,
          EXISTS (SELECT 1 FROM social.follows af2 WHERE af2.follower_id = $1 AND af2.followee_id = u.id) AS author_followed,
-         (SELECT count(*) FROM content.posts rp WHERE rp.repost_of = p.id AND rp.kind = 'repost' AND rp.removed_at IS NULL)::int AS reposts,
-         EXISTS (SELECT 1 FROM content.posts rp WHERE rp.repost_of = p.id AND rp.author_id = $1 AND rp.kind = 'repost' AND rp.body = '' AND rp.removed_at IS NULL) AS reposted,
+         (SELECT count(*) FROM content.posts rp WHERE rp.repost_of = p.id AND rp.kind = 'repost' AND ${shownPost('rp')})::int AS reposts,
+         EXISTS (SELECT 1 FROM content.posts rp WHERE rp.repost_of = p.id AND rp.author_id = $1 AND rp.kind = 'repost' AND rp.body = '' AND ${shownPost('rp')}) AS reposted,
          (SELECT COALESCE(json_agg(json_build_object('id', pm.media_id, 'video', (ma.mime LIKE 'video/%'), 'durationMs', ma.duration_ms, 'w', ma.width, 'h', ma.height, 'tags',
                   (SELECT COALESCE(json_agg(json_build_object('username', tu.username, 'displayName', tu.display_name, 'verified', tu.verified, 'verifiedTier', tu.verified_tier, 'x', t.x, 'y', t.y)), '[]'::json)
                      FROM content.photo_tags t JOIN identity.users tu ON tu.id = t.tagged_id
@@ -98,14 +102,19 @@ const FEED_SQL = `
          -- «Deixar repostar as minhas publicações» (0156): quem vê pode repostar (só a coluna do autor; numa citação, hydrate
          -- junta a regra do original citado).
          ${CAN_REPOST_SQL('p', 'u')} AS can_repost,
-         (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes,
+         (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND ${shownPost('rrp')} WHERE rr.original_id = p.id)::int AS remixes,
          -- A música gravada no vídeo (0152, posts/music-bake.ts): o vídeo com ela, enquanto se puder ouvir.
          ${BAKE_COLS('p')}
-    FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+    FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shown}
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
     LEFT JOIN content.venues pv ON pv.id = p.venue_id
     LEFT JOIN content.post_remixes rx ON rx.post_id = p.id
     ${BAKE_JOIN('p')}`;
+
+/** O que todos podem ver (o feed, o perfil, a pesquisa, as hashtags, os sítios, os sons, os reposts…). */
+const FEED_SQL = feedSql(shownPost('p'));
+/** Também as ocultas de quem vê ($1): só a publicação aberta pelo link (getOne) e o separador «Ocultas». */
+const FEED_SQL_MINE = feedSql(shownPostTo('p'));
 
 export interface PhotoTag {
   username: string;
@@ -272,14 +281,14 @@ export class PostsService implements OnModuleInit {
   async people(viewerId: string, postId: string, kind: 'reposts' | 'cheers' | 'gifts') {
     const col = { reposts: 'reposts_visible', cheers: 'cheers_visible', gifts: 'gifts_visible' }[kind];
     const post = await this.pool.query(
-      `SELECT ${listVisibleTo('u', col)} AS allowed FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+      `SELECT ${listVisibleTo('u', col)} AS allowed FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPostTo('p')}
         WHERE p.id = $2 AND ${canView('u')}`,
       [viewerId, postId],
     );
     if (!post.rows[0]) throw new NotFoundException('Publicação não encontrada');
     if (!post.rows[0].allowed) throw new ForbiddenException('O dono desta publicação não mostra esta lista');
     const source = {
-      reposts: `SELECT rp.author_id AS who, rp.created_at AS at FROM content.posts rp WHERE rp.repost_of = $2 AND rp.kind = 'repost' AND rp.removed_at IS NULL`,
+      reposts: `SELECT rp.author_id AS who, rp.created_at AS at FROM content.posts rp WHERE rp.repost_of = $2 AND rp.kind = 'repost' AND ${shownPost('rp')}`,
       cheers: `SELECT c.user_id AS who, c.created_at AS at FROM content.cheers c WHERE c.post_id = $2`,
       gifts: `SELECT g.sender_id AS who, max(g.created_at) AS at FROM content.gifts g WHERE g.post_id = $2 GROUP BY g.sender_id`,
     }[kind];
@@ -399,6 +408,44 @@ export class PostsService implements OnModuleInit {
     return this.getOne(userId, postId);
   }
 
+  /**
+   * «Ocultar publicação» / «Voltar a mostrar» (0169, posts/hidden.ts): só o autor, em qualquer publicação sua (fotos, texto,
+   * tcheka, repost, presente), as vezes que quiser; repetir não faz nada (idempotente). Enquanto oculta só o autor a vê
+   * (separador «Ocultas» e o link); os brindes, os comentários e os presentes ficam. Ao voltar a mostrar fica no mesmo sítio
+   * (a data é a de sempre) e não se avisa ninguém outra vez. Com o Bombar a decorrer (ou marcado) nesta publicação não se
+   * oculta (409, HIDE_BOOSTED). Devolve a publicação (com `hidden`).
+   */
+  async setHidden(userId: string, postId: string, hidden: boolean) {
+    const cur = (
+      await this.pool.query(
+        `SELECT p.hidden_at IS NOT NULL AS hidden, ${ACTIVE_BOOST_SQL('p')} AS boosted FROM content.posts p WHERE p.id = $1 AND p.author_id = $2 AND p.removed_at IS NULL`,
+        [postId, userId],
+      )
+    ).rows[0];
+    if (!cur) throw new NotFoundException('Publicação não encontrada');
+    if (hidden && !cur.hidden && cur.boosted) throw new ConflictException(HIDE_BOOSTED);
+    if (hidden !== cur.hidden) {
+      await this.pool.query(
+        hidden ? 'UPDATE content.posts SET hidden_at = now() WHERE id = $1 AND hidden_at IS NULL' : 'UPDATE content.posts SET hidden_at = NULL WHERE id = $1',
+        [postId],
+      );
+      // A pesquisa (Elasticsearch) tira-a ou volta a pô-la (search-index.ts lê o hidden_at).
+      this.indexer.postChanged(postId);
+    }
+    return this.getOne(userId, postId);
+  }
+
+  /** O separador «Ocultas» do meu perfil: as minhas publicações ocultas, das mais recentes para as mais antigas (pela data de sempre). */
+  async listHidden(userId: string, cursor: string | undefined, limit: number) {
+    if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    const { rows } = await this.pool.query(
+      `${FEED_SQL_MINE} WHERE p.author_id = $1 AND p.hidden_at IS NOT NULL AND ($2::uuid IS NULL OR p.id < $2) ORDER BY p.id DESC LIMIT $3`,
+      [userId, cursor ?? null, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    return { items: await this.hydrate(userId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
+  }
+
   async removeOwn(userId: string, postId: string) {
     const r = await this.pool.query(
       `UPDATE content.posts SET removed_at = now(), removed_by = 'author' WHERE id = $1 AND author_id = $2 AND removed_at IS NULL`,
@@ -488,7 +535,7 @@ export class PostsService implements OnModuleInit {
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS n, (array_agg(p.id ORDER BY p.id DESC))[1] AS latest
          FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-        WHERE p.author_id = $2 AND p.removed_at IS NULL AND p.repost_of IS NULL AND p.venue_id IS NULL
+        WHERE p.author_id = $2 AND ${shownPost('p')} AND p.repost_of IS NULL AND p.venue_id IS NULL
           AND p.created_at > now() - interval '7 days'
           AND ${canView()}
           AND NOT EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.user_id = $1 AND i.post_id = p.id)`,
@@ -604,7 +651,7 @@ export class PostsService implements OnModuleInit {
     this.filter.assertClean(body);
     const { rows } = await this.pool.query(
       `SELECT p.author_id, p.kind, p.body, p.repost_of, ${CAN_REPOST_SQL('p', 'u')} AS can_repost
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')}
         WHERE p.id = $2 AND ${canView()}`,
       [userId, postId],
     );
@@ -619,7 +666,7 @@ export class PostsService implements OnModuleInit {
       below = (
         await this.pool.query(
           `SELECT p.kind, p.body, p.repost_of, ${CAN_REPOST_SQL('p', 'u')} AS can_repost
-             FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND p.removed_at IS NULL`,
+             FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${shownPost('p')}`,
           [userId, below.repost_of],
         )
       ).rows[0];
@@ -629,10 +676,14 @@ export class PostsService implements OnModuleInit {
     const text = body.trim().slice(0, 500);
     if (!text) {
       const existing = await this.pool.query(
-        `SELECT id FROM content.posts WHERE author_id = $1 AND repost_of = $2 AND kind = 'repost' AND body = '' AND removed_at IS NULL`,
+        `SELECT id, (hidden_at IS NOT NULL) AS hidden FROM content.posts WHERE author_id = $1 AND repost_of = $2 AND kind = 'repost' AND body = '' AND removed_at IS NULL`,
         [userId, postId],
       );
-      if (existing.rows[0]) return this.getOne(userId, existing.rows[0].id);
+      if (existing.rows[0]) {
+        // Repostar outra vez o repost simples que ocultaste (0169): volta a mostrá-lo (só há um por publicação).
+        if (existing.rows[0].hidden) await this.pool.query('UPDATE content.posts SET hidden_at = NULL WHERE id = $1', [existing.rows[0].id]);
+        return this.getOne(userId, existing.rows[0].id);
+      }
     }
     const id = uuidv7();
     // Uma citação (com texto) pode levar a letra; o repost simples não.
@@ -662,7 +713,7 @@ export class PostsService implements OnModuleInit {
   /** Desfaz o repost simples que fizeste desta publicação. */
   async unrepost(userId: string, postId: string) {
     await this.pool.query(`DELETE FROM content.posts WHERE author_id = $1 AND repost_of = $2 AND kind = 'repost' AND body = ''`, [userId, postId]);
-    const c = await this.pool.query(`SELECT count(*)::int AS n FROM content.posts WHERE repost_of = $1 AND kind = 'repost' AND removed_at IS NULL`, [postId]);
+    const c = await this.pool.query(`SELECT count(*)::int AS n FROM content.posts WHERE repost_of = $1 AND kind = 'repost' AND removed_at IS NULL AND hidden_at IS NULL`, [postId]);
     return { reposted: false, reposts: c.rows[0].n as number };
   }
 
@@ -774,7 +825,7 @@ export class PostsService implements OnModuleInit {
     // Só com publicações que ESTE espectador pode ver e de adultos; a mediana impede que alguém desloque o sítio com posições falsas.
     const c = (await this.pool.query(
       `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lat) AS lat, percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lng) AS lng
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')}
         WHERE lower(p.location_label) = lower($2) AND p.location_lat IS NOT NULL AND ${notHiddenVenuePost()} AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}`,
       [viewerId, name],
     )).rows[0];
@@ -855,13 +906,13 @@ export class PostsService implements OnModuleInit {
          SELECT p.id, p.author_id, p.topics, p.created_at,
                 (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::float AS cheers,
                 (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)::float AS comments,
-                (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.removed_at IS NULL)::float AS reposts,
+                (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND ${shownPost('r')})::float AS reposts,
                 (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id)::float AS reach,
                 EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.post_id = p.id AND i.user_id = $1) AS seen,
                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id) AS followed,
                 EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%') AS isvid,
                 EXISTS (SELECT 1 FROM social.explore_people ep WHERE ep.user_id = $1 AND ep.person_id = p.author_id AND ep.pref = 1) AS boosted
-           FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+           FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')}
           WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id)
             AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}
@@ -982,7 +1033,7 @@ export class PostsService implements OnModuleInit {
            UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
          ) x GROUP BY topic),
        vis AS (
-         SELECT unnest(p.topics) AS topic FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         SELECT unnest(p.topics) AS topic FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')}
           WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1 AND p.topics IS NOT NULL
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id) AND ${ADULT} AND ${canView()} AND ${inMyNetwork()})
        SELECT vis.topic, count(*)::int AS n, COALESCE(max(w.wt), 0) AS mine FROM vis LEFT JOIN w ON w.topic = vis.topic GROUP BY vis.topic
@@ -1000,8 +1051,12 @@ export class PostsService implements OnModuleInit {
     return this.getOne(userId, rows[0].id as string);
   }
 
-  async getOne(userId: string, postId: string) {
-    const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = $2 AND ${canView()}`, [userId, postId]);
+  /**
+   * Uma publicação, como no feed. O autor também abre as suas ocultas (0169: vêm com `hidden: true`); para os outros uma
+   * oculta é como uma apagada (404). `ownHidden: false`: nem para o autor (partilhar numa conversa, por exemplo).
+   */
+  async getOne(userId: string, postId: string, { ownHidden = true }: { ownHidden?: boolean } = {}) {
+    const { rows } = await this.pool.query(`${ownHidden ? FEED_SQL_MINE : FEED_SQL} WHERE p.id = $2 AND ${canView()}`, [userId, postId]);
     const [post] = rows[0] ? await this.hydrate(userId, [rows[0]]) : [];
     if (!post) throw new NotFoundException('Publicação não encontrada');
     return post;
@@ -1042,7 +1097,7 @@ export class PostsService implements OnModuleInit {
     const { rows } = await this.pool.query(
       `SELECT p.author_id, ${allowedBy('u', 'gifts_allowed')} AS allowed,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')} WHERE p.id = $2 AND ${canView()}`,
       [userId, postId],
     );
     if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
@@ -1156,7 +1211,7 @@ export class PostsService implements OnModuleInit {
 
   private async assertPost(viewerId: string, postId: string) {
     const r = await this.pool.query(
-      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
+      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')} WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );
     if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
@@ -1201,7 +1256,7 @@ export class PostsService implements OnModuleInit {
     }
     const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
     const { rows: ids } = await this.pool.query(
-      `SELECT p.id FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+      `SELECT p.id FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')}
          LEFT JOIN content.sounds snd ON snd.id = p.sound_id
         WHERE ${where}
         ORDER BY (snd.source_post_id = p.id) DESC NULLS LAST, (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id) DESC, p.id DESC
@@ -1282,6 +1337,8 @@ export class PostsService implements OnModuleInit {
     /** O dono deixa este espectador ver QUEM repostou / brindou / presenteou? (os números são sempre públicos) */
     lists: { reposts: r.reposts_list as boolean, cheers: r.cheers_list as boolean, gifts: r.gifts_list as boolean },
     kind: r.kind as 'post' | 'gift' | 'repost',
+    /** Oculta pelo autor (0169): só o próprio autor a recebe assim (no link e no separador «Ocultas»); os outros não a veem. */
+    hidden: r.hidden === true,
     /** O dono deixa este espectador fazer dueto (tchekas) ou responder com tcheka aos comentários (ver posts/remix.ts). */
     canRemix: r.remix_ok === true,
     /** Quantos duetos e respostas com tcheka tem (GET /posts/:id/remixes). */

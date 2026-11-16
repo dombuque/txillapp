@@ -729,9 +729,9 @@ export class ChatService {
       // O título (vem do GIPHY, só para o leitor de ecrã) não pode ser usado para passar o que o filtro barra: sai.
       if (msg.gif.title && this.filter.check(msg.gif.title)) msg.gif = { ...msg.gif, title: undefined };
     } else if (msg.kind === 'post') {
-      // Só se partilha o que quem envia pode ver (e que ainda existe).
+      // Só se partilha o que quem envia pode ver (e que ainda existe). Uma publicação oculta (0169) não se partilha, nem pelo autor.
       if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Publicação inválida');
-      await this.posts.getOne(me, msg.body);
+      await this.posts.getOne(me, msg.body, { ownHidden: false });
     } else if (msg.kind === 'location') {
       if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') throw new BadRequestException('Falta a localização');
       this.filter.assertClean(msg.body, msg.name ?? '', msg.address ?? '');

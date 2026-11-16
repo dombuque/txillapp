@@ -11,7 +11,7 @@ import { GiftsController } from './gifts.controller';
 import { MusicBakeService } from './music-bake.service';
 import { PostDownloadController } from './post-download.controller';
 import { PostDownloadService } from './post-download.service';
-import { FeedController, PostsController } from './posts.controller';
+import { FeedController, MyPostsController, PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
 import { PublicPostController, ShareController } from './share.controller';
 
@@ -21,7 +21,7 @@ import { PublicPostController, ShareController } from './share.controller';
   // O fim de tcheka: a música gravada no vídeo (MusicBakeService, posts/music-bake.ts) e a cópia guardada com o cartão do
   // fim (GET /posts/:id/download, PostDownloadService).
   imports: [AuthModule, WalletModule, MusicModule, BoostsModule, NearbyModule, SoundsModule, MediaModule],
-  controllers: [FeedController, PostsController, GiftsController, ShareController, PublicPostController, SoundsController, PostDownloadController],
+  controllers: [FeedController, PostsController, MyPostsController, GiftsController, ShareController, PublicPostController, SoundsController, PostDownloadController],
   providers: [PostsService, MusicBakeService, PostDownloadService],
   exports: [PostsService, PostDownloadService],
 })

@@ -506,6 +506,8 @@ export class NotificationsService {
               (SELECT json_build_object('id', pm.media_id, 'video', ma.mime LIKE 'video/%')
                  FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                 WHERE n.data ? 'postId' AND (n.data->>'postId') ~ '^[0-9a-f-]{36}$' AND pm.post_id = (n.data->>'postId')::uuid AND ma.status = 'ready'
+                  -- Publicação oculta pelo autor (0169): sem miniatura, a não ser para o próprio autor.
+                  AND NOT EXISTS (SELECT 1 FROM content.posts hp WHERE hp.id = pm.post_id AND hp.hidden_at IS NOT NULL AND hp.author_id <> $1)
                 ORDER BY pm.position LIMIT 1) AS thumb,
               -- Brinde a um comentário num mimo: a miniatura do mimo, enquanto o mimo ainda está à vista.
               (SELECT json_build_object('id', st.media_id, 'video', ma.mime LIKE 'video/%')

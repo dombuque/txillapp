@@ -40,6 +40,7 @@ function Card({ it, canAct, onAct }: { it: ModContentItem; canAct: boolean; onAc
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <Badge tone="blue">{label(it)}</Badge>
         <Badge tone={STATE[it.state].tone}>{STATE[it.state].text}</Badge>
+        {it.hiddenByAuthor && <Badge tone="zinc">Oculta pelo autor</Badge>}
         {it.openReports > 0 && <Link to="/backoffice/reports"><Badge tone="amber">{it.openReports} {it.openReports === 1 ? 'denúncia' : 'denúncias'}</Badge></Link>}
         <span className="ml-auto text-zinc-400" title={when(it.createdAt)}>{ago(it.createdAt)}</span>
       </div>

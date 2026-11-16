@@ -204,7 +204,7 @@ export class ComebackReminderService implements OnModuleInit {
                 (array_agg(u.username ORDER BY p.id DESC))[1] AS username,
                 (array_agg(CASE WHEN u.show_gender THEN u.gender END ORDER BY p.id DESC))[1] AS gender
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-          WHERE p.created_at > $2 AND p.removed_at IS NULL AND p.author_id <> $1
+          WHERE p.created_at > $2 AND p.removed_at IS NULL AND p.hidden_at IS NULL AND p.author_id <> $1
             AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
             AND ${canView('u', '$1')}`,
         [userId, since],
@@ -219,7 +219,7 @@ export class ComebackReminderService implements OnModuleInit {
             AND ${canView('u', '$1')} AND ${audienceOk('s', '$1')}
             AND NOT EXISTS (SELECT 1 FROM social.story_hidden h WHERE h.owner_id = s.author_id AND h.hidden_id = $1)
             AND EXISTS (SELECT 1 FROM content.media_assets m WHERE m.id = s.media_id AND m.status = 'ready')
-            AND (s.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = s.shared_post_id AND sp.removed_at IS NULL))`,
+            AND (s.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = s.shared_post_id AND sp.removed_at IS NULL AND sp.hidden_at IS NULL))`,
         [userId, since, now],
       )
     ).rows[0];

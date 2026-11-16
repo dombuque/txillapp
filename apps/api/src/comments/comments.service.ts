@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { allowedBy, blockedBetween, canView, notReportedBy } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
 import { remixAllowed } from '../posts/remix';
+import { shownPost, shownPostTo } from '../posts/hidden';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -22,7 +23,7 @@ const SELECT = `
             WHERE rpo.id = c.post_id AND rpo.kind = 'post' AND rpo.venue_id IS NULL AND ${remixAllowed('rpu')})) AS remix_ok,
          -- …e as tchekas que já lhe responderam e que este espectador vê: quantas e a mais recente («Respondeu com uma tcheka»).
          (SELECT json_build_object('count', count(*), 'postId', (array_agg(rxp.id ORDER BY rxp.id DESC))[1])
-            FROM content.post_remixes rxr JOIN content.posts rxp ON rxp.id = rxr.post_id AND rxp.removed_at IS NULL
+            FROM content.post_remixes rxr JOIN content.posts rxp ON rxp.id = rxr.post_id AND ${shownPost('rxp')}
             JOIN identity.users ru ON ru.id = rxp.author_id
            WHERE rxr.comment_id = c.id AND ${canView('ru')}) AS tcheka_replies
     FROM content.comments c JOIN identity.users u ON u.id = c.author_id`;
@@ -50,7 +51,7 @@ export class CommentsService {
   /** Respostas a um comentário, da mais antiga para a mais recente. */
   async replies(userId: string, commentId: string, cursor: string | undefined, limit: number) {
     this.assertCursor(cursor);
-    await this.assertComment(userId, commentId);
+    await this.assertComment(userId, commentId, true);
     const { rows } = await this.pool.query(
       `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) AND ${notReportedBy('comment', 'c.id')} ORDER BY c.id ASC LIMIT $4`,
       [userId, commentId, cursor ?? null, limit + 1],
@@ -139,10 +140,13 @@ export class CommentsService {
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
   }
 
-  /** A publicação existe e é visível para este espectador (perfis privados só para seguidores). */
+  /**
+   * A publicação existe e é visível para este espectador (perfis privados só para seguidores). Numa publicação oculta (0169)
+   * só o autor lê os comentários; ninguém comenta.
+   */
   private async assertPost(viewerId: string, postId: string) {
     const r = await this.pool.query(
-      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
+      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPostTo('p')} WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );
     if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
@@ -152,7 +156,7 @@ export class CommentsService {
   private async assertCanComment(viewerId: string, postId: string): Promise<string> {
     const r = await this.pool.query(
       `SELECT u.id AS author_id, (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS allowed
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND ${shownPost('p')} WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );
     if (!r.rows[0]) throw new NotFoundException('Publicação não encontrada');
@@ -160,9 +164,10 @@ export class CommentsService {
     return r.rows[0].author_id as string;
   }
 
-  private async assertComment(viewerId: string, id: string) {
+  /** `read`: só ler (as respostas); numa publicação oculta (0169) só o autor lê, e ninguém brinda nem edita. */
+  private async assertComment(viewerId: string, id: string, read = false) {
     const r = await this.pool.query(
-      `SELECT 1 FROM content.comments c JOIN content.posts p ON p.id = c.post_id JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+      `SELECT 1 FROM content.comments c JOIN content.posts p ON p.id = c.post_id JOIN identity.users u ON u.id = p.author_id AND ${read ? shownPostTo('p') : shownPost('p')}
         WHERE c.id = $2 AND ${canView()}`,
       [viewerId, id],
     );

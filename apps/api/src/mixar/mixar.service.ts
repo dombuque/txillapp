@@ -117,8 +117,8 @@ const seesFor = (viewer: string) => `(${canView('u', viewer)}
   AND NOT EXISTS (SELECT 1 FROM social.explore_people mep WHERE mep.user_id = ${viewer} AND mep.person_id = p.author_id AND mep.pref < 0)
   AND ${notReportedBy('post', 'p.id', viewer)})`;
 
-/** Os dois podem ver, a publicação não foi removida e não é de nenhum dos dois. Reavaliado em cada leitura. */
-export const bothSee = (a: string, b: string) => `(p.removed_at IS NULL AND p.author_id <> ${a} AND p.author_id <> ${b} AND ${seesFor(a)} AND ${seesFor(b)})`;
+/** Os dois podem ver, a publicação não foi removida nem ocultada pelo autor (0169) e não é de nenhum dos dois. Reavaliado em cada leitura. */
+export const bothSee = (a: string, b: string) => `(p.removed_at IS NULL AND p.hidden_at IS NULL AND p.author_id <> ${a} AND p.author_id <> ${b} AND ${seesFor(a)} AND ${seesFor(b)})`;
 
 /**
  * Mixar (0150, docs/mixar-contrato.md): um feed a dois. O convite vai como um cartão no chat (kind 'mixar'); aceite, os dois
@@ -583,7 +583,7 @@ export class MixarService implements OnModuleInit {
     const { rows } = await this.pool.query(
       `SELECT p.id, p.author_id, COALESCE(p.topics, '{}') AS topics, ${tchekaPost()} AS video,
               ((SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id) + 2 * (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)
-                + 3 * (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.removed_at IS NULL) + 1)::float
+                + 3 * (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.removed_at IS NULL AND r.hidden_at IS NULL) + 1)::float
                 / ((SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id) + 20) AS eng,
               extract(epoch FROM (now() - p.created_at)) / 3600 AS age_h,
               (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id AND i.user_id IN ($1, $2))::int AS seen
@@ -678,7 +678,7 @@ export class MixarService implements OnModuleInit {
       `SELECT x.id, x.status, x.invited_by, x.updated_at,
               o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.verified, o.verified_tier,
               split_part(mu.display_name, ' ', 1) AS my_first, split_part(o.display_name, ' ', 1) AS their_first,
-              (SELECT count(*) FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id AND p.removed_at IS NULL
+              (SELECT count(*) FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
                 WHERE i.mixar_id = x.id AND i.day = $2::date
                   AND NOT EXISTS (SELECT 1 FROM social.mixar_views v WHERE v.mixar_id = x.id AND v.post_id = i.post_id AND v.user_id = $1))::int AS new_today,
               EXISTS (SELECT 1 FROM social.mixar_challenges ch WHERE ch.mixar_id = x.id AND ch.day = $2::date

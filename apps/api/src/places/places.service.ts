@@ -86,7 +86,7 @@ export class PlacesService {
     if (!this.pool) return [];
     const { rows } = await this.pool.query(
       `SELECT min(p.location_label) AS name, count(*)::int AS posts
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL AND p.hidden_at IS NULL
         WHERE p.kind = 'post' AND p.location_label IS NOT NULL AND u.status = 'active' AND NOT u.is_private
           AND p.created_at > now() - interval '48 hours'
         GROUP BY lower(trim(p.location_label))

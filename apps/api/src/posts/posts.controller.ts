@@ -55,6 +55,19 @@ const giftSchema = z.object({
 const seenSchema = z.object({ ids: z.array(z.string().uuid()).max(40) });
 const hideSchema = z.object({ postId: z.string().uuid() });
 
+/** As minhas publicações: o separador «Ocultas» do perfil (0169), só para o próprio. */
+@Controller('me/posts')
+@UseGuards(JwtAuthGuard)
+export class MyPostsController {
+  constructor(private readonly posts: PostsService) {}
+
+  @Get('hidden')
+  hidden(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const n = Math.min(Math.max(parseInt(limit ?? '18', 10) || 18, 1), 50);
+    return this.posts.listHidden(req.userId!, cursor, n);
+  }
+}
+
 /** Feed por relevância: o que aparece primeiro depende de ti, não só da hora. */
 @Controller('feed')
 @UseGuards(JwtAuthGuard)
@@ -256,6 +269,25 @@ export class PostsController {
   @Patch(':id')
   update(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
     return this.posts.update(req.userId!, id, b);
+  }
+
+  /**
+   * «Ocultar publicação» (0169): só o autor; repetir não faz nada. Com o Bombar a decorrer nesta publicação: 409. Devolve a
+   * publicação (`hidden: true`). Para os outros passa a ser como uma apagada.
+   */
+  @Post(':id/hide')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 3_600_000 } })
+  hidePost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.posts.setHidden(req.userId!, id, true);
+  }
+
+  /** «Voltar a mostrar» (0169): volta ao mesmo sítio (a data de sempre), com os brindes e comentários; não avisa ninguém. */
+  @Post(':id/unhide')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 3_600_000 } })
+  unhidePost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.posts.setHidden(req.userId!, id, false);
   }
 
   @Delete(':id')

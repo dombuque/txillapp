@@ -114,13 +114,14 @@ export class SearchIndexer implements OnModuleInit {
   postChanged(id: string) {
     this.enqueue(`post:${id}`, async () => {
       const { rows } = await this.pool.query(
-        `SELECT p.id, p.body, p.location_label, p.created_at, p.author_id, p.removed_at, p.kind, u.status,
+        `SELECT p.id, p.body, p.location_label, p.created_at, p.author_id, p.removed_at, p.hidden_at, p.kind, u.status,
                 COALESCE((SELECT array_agg(t.tag) FROM content.post_tags t WHERE t.post_id = p.id), '{}') AS tags
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $1`,
         [id],
       );
       const r = rows[0];
-      if (!r || r.removed_at || r.status !== 'active' || r.kind === 'gift') return void (await this.client!.delete({ index: this.posts, id }, { ignore: [404] }));
+      // Oculta pelo autor (0169): sai da pesquisa até voltar a ser mostrada.
+      if (!r || r.removed_at || r.hidden_at || r.status !== 'active' || r.kind === 'gift') return void (await this.client!.delete({ index: this.posts, id }, { ignore: [404] }));
       await this.client!.index({ index: this.posts, id, document: { body: r.body, location: r.location_label ?? '', tags: r.tags, author_id: r.author_id, created_at: r.created_at } });
     });
   }
@@ -160,7 +161,7 @@ export class SearchIndexer implements OnModuleInit {
         `SELECT p.id, p.body, p.location_label, p.created_at, p.author_id,
                 COALESCE((SELECT array_agg(t.tag) FROM content.post_tags t WHERE t.post_id = p.id), '{}') AS tags
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-          WHERE p.removed_at IS NULL AND u.status = 'active' AND p.kind <> 'gift' AND p.id > $1 ORDER BY p.id LIMIT 500`,
+          WHERE p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND p.kind <> 'gift' AND p.id > $1 ORDER BY p.id LIMIT 500`,
         [last],
       );
       if (!rows.length) break;
