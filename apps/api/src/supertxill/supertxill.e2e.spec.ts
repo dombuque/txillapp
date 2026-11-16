@@ -83,6 +83,32 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect((await thread(a)).length).toBe(0);
   });
 
+  it('a escrever: o GET devolve a resposta a meio (writing, pending) antes do fim, e no fim só a final, pronta', async () => {
+    const a = await signup('stw');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    bot.llm = async (_h, ctx) => {
+      ctx.onText?.('Bora ao');
+      await new Promise((r) => setTimeout(r, 1200));
+      ctx.onText?.('Bora ao café, malta');
+      await gate;
+      return 'Bora ao café, malta! É já ali.';
+    };
+    await api().post('/api/v1/supertxill/ask').set(auth(a)).send({ text: 'Onde vou?' }).expect(201);
+    const get = async () => (await api().get('/api/v1/supertxill').set(auth(a)).expect(200)).body as { pending: boolean; messages: { role: string; body: string; writing: boolean }[] };
+    let g = await get();
+    for (let i = 0; i < 40 && g.messages.length < 2; i++) g = await (async () => { await new Promise((r) => setTimeout(r, 50)); return get(); })();
+    expect(g.pending).toBe(true);
+    expect(g.messages[1]).toMatchObject({ role: 'assistant', body: 'Bora ao', writing: true });
+    for (let i = 0; i < 40 && g.messages[1].body !== 'Bora ao café, malta'; i++) g = await (async () => { await new Promise((r) => setTimeout(r, 100)); return get(); })();
+    expect(g.messages[1]).toMatchObject({ body: 'Bora ao café, malta', writing: true });
+    expect(g.pending).toBe(true);
+    release();
+    for (let i = 0; i < 40 && g.pending; i++) g = await (async () => { await new Promise((r) => setTimeout(r, 100)); return get(); })();
+    expect(g.pending).toBe(false);
+    expect(g.messages.map((m) => [m.role, m.body, m.writing])).toEqual([['user', 'Onde vou?', false], ['assistant', 'Bora ao café, malta! É já ali.', false]]);
+  });
+
   it('limite diário (resposta simpática, sem chamar a IA); o texto ofensivo não entra; o resultado da IA passa pelo filtro; se falhar, mensagem segura', async () => {
     const a = await signup('stc');
     let calls = 0;

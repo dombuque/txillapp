@@ -12,6 +12,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { aiApi } from '@/lib/api.ai';
+import { liveState } from '@/lib/superTxillLive';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 
@@ -60,7 +61,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
             <BotAvatar size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.title}>SuperTxill</Text>
-              <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
+              <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.live === 'writing' ? 'está a escrever…' : tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
             </View>
             {tab === 'conversa' && chat.messages.length > 0 && (
               <Pressable onPress={() => Alert.alert('Apagar a conversa?', 'As mensagens com o SuperTxill saem da tua conta e não voltam.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: chat.clear }])} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
@@ -198,12 +199,13 @@ export function useSuperTxillThread() {
   const clear = () => {
     void aiApi.clear().catch(() => undefined).then(() => qc.invalidateQueries({ queryKey: ['supertxill'] }));
   };
-  return { messages, pending: sending || !!q.data?.pending, loaded: q.isSuccess, failed: q.isError && !q.data, error, ask, clear };
+  const pending = sending || !!q.data?.pending;
+  return { messages, pending, live: liveState(messages, pending), loaded: q.isSuccess, failed: q.isError && !q.data, error, ask, clear };
 }
 type Chat = ReturnType<typeof useSuperTxillThread>;
 
-/** «SuperTxill está a pensar…»: três pontos a acender um a seguir ao outro, devagar. */
-export function Thinking() {
+/** Três pontos a acender um a seguir ao outro, devagar (a pensar, e no fim do texto enquanto escreve). */
+function Dots() {
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.timing(a, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }));
@@ -219,13 +221,32 @@ export function Thinking() {
     };
   };
   return (
+    <View style={{ flexDirection: 'row', gap: 4 }}>
+      {[0, 1, 2].map((i) => <Animated.View key={i} style={[s.dot, dot(i)]} />)}
+    </View>
+  );
+}
+
+/** «SuperTxill está a pensar…»: antes de chegar o primeiro bocado de texto. */
+export function Thinking() {
+  return (
     <View style={s.thinkRow} accessibilityLiveRegion="polite" accessibilityLabel="SuperTxill está a pensar…">
       <BotAvatar size={28} />
       <View style={s.thinkBubble}>
         <Text style={s.thinkText}>SuperTxill está a pensar…</Text>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          {[0, 1, 2].map((i) => <Animated.View key={i} style={[s.dot, dot(i)]} />)}
-        </View>
+        <Dots />
+      </View>
+    </View>
+  );
+}
+
+/** A resposta enquanto o SuperTxill a escreve: a bolha cresce com o texto e tem os três pontinhos no fim. */
+function Writing({ body }: { body: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'flex-start' }} accessibilityLiveRegion="polite">
+      <View style={[s.writeBubble, s.theirs]}>
+        <Text style={s.writeText}>{body}</Text>
+        <View style={s.writeDots} accessibilityLabel="SuperTxill está a escrever…"><Dots /></View>
       </View>
     </View>
   );
@@ -253,12 +274,16 @@ function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
             </View>
           </View>
         )}
-        {chat.messages.map((m) => (
-          <View key={m.id} style={{ flexDirection: 'row', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <Text selectable style={[s.bubble, m.role === 'user' ? s.mine : s.theirs]}>{m.body}</Text>
-          </View>
-        ))}
-        {chat.pending && <Thinking />}
+        {chat.messages.map((m) =>
+          m.writing ? (
+            <Writing key={m.id} body={m.body} />
+          ) : (
+            <View key={m.id} style={{ flexDirection: 'row', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <Text selectable style={[s.bubble, m.role === 'user' ? s.mine : s.theirs]}>{m.body}</Text>
+            </View>
+          ),
+        )}
+        {chat.live === 'thinking' && <Thinking />}
       </ScrollView>
       <View style={[s.composer, { paddingBottom: bottom }]}>
         {!!chat.error && <Text accessibilityRole="alert" style={s.err}>{chat.error}</Text>}
@@ -309,6 +334,9 @@ const s = StyleSheet.create({
   thinkBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20, borderBottomLeftRadius: 6, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 11 },
   thinkText: { fontSize: 15, color: colors.zinc600 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand },
+  writeBubble: { maxWidth: '84%', borderRadius: 20, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 },
+  writeText: { fontSize: 16, lineHeight: 21, color: colors.zinc900 },
+  writeDots: { marginTop: 6, height: 8, justifyContent: 'center' },
   composer: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 8 },
   err: { textAlign: 'center', color: '#dc2626', fontSize: 14, paddingBottom: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderRadius: 24, backgroundColor: colors.zinc100, padding: 4 },

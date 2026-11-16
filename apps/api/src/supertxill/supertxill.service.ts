@@ -8,7 +8,7 @@ import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween, sameCountry } from '../social/visibility';
 import { badge } from '../common/badge';
 import { MSG, SYSTEM_PROMPT, systemPrompt } from './constants';
-import { OllamaChat, OllamaError, OllamaMessage, noEmoji, ollamaClient, stripThinking, toolArgs } from './ollama';
+import { OllamaChat, OllamaError, OllamaMessage, noEmoji, ollamaClient, stripThinking, toolArgs, visiblePartial } from './ollama';
 import { SuperTxillTools, TOOLS, guessTools } from './supertxill.tools';
 
 export type Turn = { role: 'user' | 'assistant'; content: string };
@@ -16,7 +16,14 @@ export type Provider = 'ollama' | 'anthropic' | 'off';
 export interface LlmCtx {
   userId: string;
   signal: AbortSignal;
+  /** O texto que o modelo já escreveu (todo, já sem raciocínio nem emojis), enquanto escreve. */
+  onText?: (soFar: string) => void;
 }
+
+/** De quanto em quanto tempo se guarda o texto a meio (a app pergunta de 1,5 em 1,5 s). */
+export const LIVE_MS = 1000;
+/** Quantos tokens escreve a resposta, no máximo (em CPU são ~3 por segundo: respostas curtas chegam mais depressa). */
+export const NUM_PREDICT = 220;
 
 /** Uma resposta presa há mais do que isto conta como falhada (o servidor reiniciou a meio, por exemplo). Tem de passar a fila e o tempo máximo. */
 const STALE_MS = 6 * 60_000;
@@ -139,12 +146,22 @@ export class SuperTxillService {
     }));
   }
 
-  /** O histórico da pessoa (do mais antigo para o mais recente) e se há uma resposta a caminho. */
+  /**
+   * O histórico da pessoa (do mais antigo para o mais recente) e se há uma resposta a caminho. A resposta que o modelo
+   * ainda está a escrever já vem na lista, com o texto que houver e `writing: true`.
+   */
   async thread(userId: string) {
-    const { rows } = await this.pool.query('SELECT id, role, body, created_at FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT 40', [userId]);
-    const messages = rows.reverse().map((r) => ({ id: r.id as string, role: r.role as 'user' | 'assistant', body: r.body as string, at: r.created_at as string }));
+    const { rows } = await this.pool.query('SELECT id, role, body, writing, created_at FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT 40', [userId]);
+    const fresh = (at: string) => Date.now() - new Date(at).getTime() < STALE_MS;
+    const messages = rows.reverse().map((r) => ({
+      id: r.id as string,
+      role: r.role as 'user' | 'assistant',
+      body: r.body as string,
+      at: r.created_at as string,
+      writing: !!r.writing && fresh(r.created_at as string),
+    }));
     const last = messages[messages.length - 1];
-    const pending = !!last && last.role === 'user' && Date.now() - new Date(last.at).getTime() < STALE_MS;
+    const pending = !!last && ((last.role === 'user' && fresh(last.at)) || last.writing);
     return { messages, pending, enabled: this.enabled };
   }
 
@@ -152,9 +169,9 @@ export class SuperTxillService {
     await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1', [userId]);
   }
 
-  private async save(userId: string, role: 'user' | 'assistant', body: string) {
+  private async save(userId: string, role: 'user' | 'assistant', body: string, writing = false) {
     const id = uuidv7();
-    await this.pool.query('INSERT INTO social.ai_messages (id, user_id, role, body) VALUES ($1, $2, $3, $4)', [id, userId, role, body.slice(0, 4000)]);
+    await this.pool.query('INSERT INTO social.ai_messages (id, user_id, role, body, writing) VALUES ($1, $2, $3, $4, $5)', [id, userId, role, body.slice(0, 4000), writing]);
     // Guarda só as últimas mensagens.
     await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1 AND id < (SELECT id FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC OFFSET $2 LIMIT 1)', [userId, KEEP - 1]);
     return id;
@@ -235,6 +252,8 @@ export class SuperTxillService {
     const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt({ tools: true }) }, ...turns];
     let calls = 0;
     let nudged = false;
+    // Todas as voltas vão em stream: se o modelo escrever texto em vez de pedir ferramentas, a pessoa já o vê a aparecer.
+    const onText = ctx.onText ? (t: string) => ctx.onText!(visiblePartial(t)) : undefined;
     // O que a pergunta pede de certeza (por palavras) corre já, e o modelo recebe os resultados como se os tivesse pedido.
     const last = history[history.length - 1];
     const guessed = last?.role === 'user' ? guessTools(last.content) : [];
@@ -247,7 +266,7 @@ export class SuperTxillService {
       }
     }
     for (let round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
-      const res = await this.ollama(messages, true, ctx.signal);
+      const res = await this.ollama(messages, true, ctx.signal, onText);
       const m = res.message;
       const wanted = calls < MAX_TOOL_CALLS ? (m.tool_calls ?? []) : [];
       if (!wanted.length) {
@@ -268,10 +287,10 @@ export class SuperTxillService {
       }
     }
     // Último recurso: sem ferramentas nenhumas (o modelo já não as pode pedir).
-    return noEmoji(stripThinking((await this.ollama(messages, false, ctx.signal)).message.content ?? ''));
+    return noEmoji(stripThinking((await this.ollama(messages, false, ctx.signal, onText)).message.content ?? ''));
   }
 
-  private async ollama(messages: OllamaMessage[], withTools: boolean, signal: AbortSignal) {
+  private async ollama(messages: OllamaMessage[], withTools: boolean, signal: AbortSignal, onText?: (soFar: string) => void) {
     const req = {
       model: this.config.OLLAMA_MODEL,
       messages,
@@ -282,18 +301,18 @@ export class SuperTxillService {
         temperature: 0.4,
         top_p: 0.9,
         num_ctx: 8192,
-        num_predict: this.think ? 1400 : 500,
+        num_predict: this.think ? 1400 : NUM_PREDICT,
         ...(this.config.OLLAMA_NUM_THREAD ? { num_thread: this.config.OLLAMA_NUM_THREAD } : {}),
       },
     };
     try {
-      return await this.chat(req, signal);
+      return await this.chat(req, signal, onText);
     } catch (e) {
       // Modelo sem raciocínio à parte: desliga e repete.
       if (this.think && e instanceof OllamaError && e.status === 400 && /think/i.test(e.message)) {
         this.think = false;
         this.log.log(`${this.config.OLLAMA_MODEL} não suporta think: sigo sem`);
-        return this.chat({ ...req, think: false, options: { ...req.options, num_predict: 500 } }, signal);
+        return this.chat({ ...req, think: false, options: { ...req.options, num_predict: NUM_PREDICT } }, signal, onText);
       }
       throw e;
     }
@@ -324,7 +343,7 @@ export class SuperTxillService {
   }
 
   /** O pedido ao modelo com tempo máximo (SUPERTXILL_TIMEOUT_MS): passado esse tempo, cancela e responde que demorou. */
-  private async withTimeout(history: Turn[], userId: string): Promise<string | typeof TIMED_OUT> {
+  private async withTimeout(history: Turn[], userId: string, onText: (soFar: string) => void): Promise<string | typeof TIMED_OUT> {
     const ac = new AbortController();
     let timer: NodeJS.Timeout | undefined;
     const late = new Promise<typeof TIMED_OUT>((resolve) => {
@@ -334,7 +353,7 @@ export class SuperTxillService {
       }, this.config.SUPERTXILL_TIMEOUT_MS);
     });
     try {
-      return await Promise.race([this.llm(history, { userId, signal: ac.signal }), late]);
+      return await Promise.race([this.llm(history, { userId, signal: ac.signal, onText }), late]);
     } finally {
       clearTimeout(timer);
     }
@@ -349,22 +368,88 @@ export class SuperTxillService {
     if (!(await this.underMonthlyCap())) return void (await this.save(userId, 'assistant', MSG.monthly));
     let text: string;
     const t0 = Date.now();
+    const live = new LiveReply(this.pool, userId, (t) => !t || !!this.filter.check(t), (body) => this.save(userId, 'assistant', body, true));
+    // O que ficou escrito antes de um corte (tempo máximo ou erro a meio), com uma nota curta.
+    const cut = (note: string, fallback: string) => {
+      const p = live.text;
+      return p && !this.filter.check(p) ? `${clip(p, MAX_REPLY - 60)}\n\n(${note})` : fallback;
+    };
     try {
-      const out = await this.withTimeout(await this.history(userId), userId);
+      const out = await this.withTimeout(await this.history(userId), userId, (t) => live.push(t));
       if (out === TIMED_OUT) {
         this.log.warn(`a IA passou do tempo (${this.config.SUPERTXILL_TIMEOUT_MS} ms)`);
-        text = MSG.timeout;
+        text = cut(MSG.cutTimeout, MSG.timeout);
       } else {
-        text = clip(out);
+        text = clip(noEmoji(out));
         if (!text) text = MSG.error;
         // Nunca devolve conteúdo que as regras da app não deixariam enviar.
         if (this.filter.check(text)) text = MSG.refused;
       }
     } catch (e) {
       this.log.warn(`a IA falhou: ${(e as Error).message}`);
-      text = MSG.error;
+      text = cut(MSG.cutError, MSG.error);
     }
     this.log.debug(`resposta em ${Date.now() - t0} ms`);
-    await this.save(userId, 'assistant', text);
+    if (!(await live.finish(text))) await this.save(userId, 'assistant', text);
+  }
+}
+
+/**
+ * A resposta a ser escrita: com o primeiro texto entra uma linha `assistant` com `writing`, e depois vai sendo atualizada
+ * no máximo de LIVE_MS em LIVE_MS (as escritas nunca se cruzam). No fim fica com o texto final e `writing` desligado.
+ * O que o filtro não deixaria enviar nunca se mostra (fica o último texto limpo).
+ */
+export class LiveReply {
+  private id?: string;
+  private latest = '';
+  private written = '';
+  private lastWrite = 0;
+  private timer?: NodeJS.Timeout;
+  private chain: Promise<void> = Promise.resolve();
+  private closed = false;
+
+  constructor(
+    private readonly pool: Pool,
+    private readonly userId: string,
+    private readonly hide: (text: string) => boolean,
+    private readonly insert: (body: string) => Promise<string>,
+  ) {}
+
+  /** O texto (todo) que o modelo já escreveu. */
+  get text() {
+    return this.latest.trim();
+  }
+
+  push(soFar: string) {
+    if (this.closed) return;
+    this.latest = soFar;
+    if (this.timer) return;
+    this.timer = setTimeout(() => this.flush(), Math.max(0, this.lastWrite + LIVE_MS - Date.now()));
+  }
+
+  private flush() {
+    this.timer = undefined;
+    const body = clip(this.latest);
+    if (!body || body === this.written || this.hide(body)) return;
+    this.chain = this.chain
+      .then(async () => {
+        if (this.closed) return;
+        if (!this.id) this.id = await this.insert(body);
+        else await this.pool.query('UPDATE social.ai_messages SET body = $2 WHERE id = $1 AND user_id = $3 AND writing', [this.id, body, this.userId]);
+        this.written = body;
+        this.lastWrite = Date.now();
+      })
+      .catch(() => undefined);
+  }
+
+  /** Fecha com o texto final. Devolve falso se ainda não havia linha (e então quem chama guarda a resposta). */
+  async finish(text: string): Promise<boolean> {
+    this.closed = true;
+    clearTimeout(this.timer);
+    await this.chain;
+    if (!this.id) return false;
+    // Se a pessoa apagou a conversa entretanto, a linha já não existe e não volta.
+    await this.pool.query('UPDATE social.ai_messages SET body = $2, writing = false WHERE id = $1 AND user_id = $3', [this.id, text.slice(0, 4000), this.userId]);
+    return true;
   }
 }
