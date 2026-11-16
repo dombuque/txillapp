@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import ffmpegPath from 'ffmpeg-static';
 import ffprobe from 'ffprobe-static';
 import sharp from 'sharp';
+import { streamRotation } from '../compose/ffmpeg';
 
 const run = promisify(execFile);
 const FFMPEG = (ffmpegPath as unknown as string | null) ?? 'ffmpeg';
@@ -115,9 +116,11 @@ export async function signVideo(bytes: Buffer, username?: string | null, overlay
   try {
     const src = join(dir, 'in.mp4'), png = join(dir, 'sign.png'), out = join(dir, 'out.mp4');
     await writeFile(src, bytes);
-    const { stdout } = await run(ffprobe.path, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', src], { timeout: 30_000 });
-    const st = (JSON.parse(stdout) as { streams?: { width?: number; height?: number }[] }).streams?.[0];
-    const W = st?.width ?? 1080, H = st?.height ?? 1920;
+    const { stdout } = await run(ffprobe.path, ['-v', 'error', '-select_streams', 'v:0', '-show_streams', '-of', 'json', src], { timeout: 30_000 });
+    const st = (JSON.parse(stdout) as { streams?: { width?: number; height?: number; tags?: { rotate?: string }; side_data_list?: { rotation?: number | string }[] }[] }).streams?.[0];
+    // O tamanho de mostrar: com rotação nos metadados (90°/270°), o ffmpeg roda os frames antes do overlay.
+    const side = [90, 270].includes(streamRotation(st));
+    const W = (side ? st?.height : st?.width) ?? 1080, H = (side ? st?.width : st?.height) ?? 1920;
     const extra = overlay?.(W, H) ?? '';
     if (!withSign && !extra) return bytes;
     await sharp(Buffer.from(signatureSvg(W, H, username, extra, withSign, seal))).png().toFile(png);
