@@ -23,6 +23,18 @@ export function TxilladaVideo({ track, mirror = false, fit = 'auto', box, style 
   const width = box?.w ?? win.width;
   const height = box?.h ?? win.height;
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  // Virar a câmara (restartTrack) troca a faixa e o MediaStream. No Android o RTCView ficava preso à faixa antiga (já
+  // parada): o próprio ecrã ficava preto e não voltava, enquanto quem vê já recebia a câmara nova. Cada «restarted»
+  // monta o vídeo de novo (chave nova), com a faixa nova.
+  const [gen, setGen] = useState(0);
+  useEffect(() => {
+    const t = track as unknown as { on?: (e: string, f: () => void) => void; off?: (e: string, f: () => void) => void } | null;
+    if (!t?.on) return;
+    const bump = () => setGen((n) => n + 1);
+    t.on('restarted', bump);
+    return () => t.off?.('restarted', bump);
+  }, [track]);
+  const key = `${(track as unknown as { mediaStreamTrack?: { id?: string } } | null)?.mediaStreamTrack?.id ?? 'v'}-${gen}`;
   // As medidas da imagem (o WebRTC só as sabe depois das primeiras imagens; podem mudar com a rede): de 1,5 em 1,5 s.
   useEffect(() => {
     if (!track || fit === 'cover') return;
@@ -43,11 +55,11 @@ export function TxilladaVideo({ track, mirror = false, fit = 'auto', box, style 
     <View style={[{ backgroundColor: '#000', overflow: 'hidden' }, style]}>
       {mode === 'contain' ? (
         <>
-          <Native videoTrack={track} objectFit="cover" mirror={mirror} style={StyleSheet.absoluteFill} />
+          <Native key={`b${key}`} videoTrack={track} objectFit="cover" mirror={mirror} style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.62)' }]} />
         </>
       ) : null}
-      <Native videoTrack={track} objectFit={mode} mirror={mirror} style={StyleSheet.absoluteFill} />
+      <Native key={key} videoTrack={track} objectFit={mode} mirror={mirror} style={StyleSheet.absoluteFill} />
     </View>
   );
 }
