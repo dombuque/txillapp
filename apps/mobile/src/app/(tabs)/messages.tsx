@@ -48,6 +48,7 @@ import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { mixarPreview, mixarShowDot } from '@/lib/mixar';
 import { useMixarSeen } from '@/lib/mixarSeen';
+import { groupShowDot } from '@/lib/mixarGrupo';
 import { MixarEntry, useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
@@ -247,6 +248,8 @@ export default function Messages() {
   const mixarList = useMixarList();
   const mixarSeen = useMixarSeen();
   const mixarNew = new Set((mixarList.data?.items ?? []).filter((s) => mixarShowDot(s, mixarSeen[s.id])).map((s) => s.partner.username));
+  // Mixar de grupo (0173): a mesma bolinha na linha do grupo (convite por responder ou novidades de hoje, até abrir).
+  const mixarGroupNew = new Set((mixarList.data?.groups ?? []).filter((s) => groupShowDot(s, mixarSeen[s.id])).map((s) => s.group.groupId));
   // Esconder a conversa (sai da lista e do contador; fica em «Conversas ocultas», no "⋯" de cima).
   const hiding = useChatHiding();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -528,8 +531,8 @@ export default function Messages() {
               </View>
               <View style={styles.line}>
                 <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
-                {!r.g && r.username && mixarNew.has(r.username) ? (
-                  <View style={styles.mixarNew} accessibilityLabel="Mixar com novidades"><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
+                {(!r.g && r.username && mixarNew.has(r.username)) || (r.g && mixarGroupNew.has(r.g.id)) ? (
+                  <View style={styles.mixarNew} accessibilityLabel={r.g ? 'Mixar do grupo com novidades' : 'Mixar com novidades'}><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
                 ) : null}
                 {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>

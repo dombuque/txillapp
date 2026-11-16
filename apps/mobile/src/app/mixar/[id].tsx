@@ -11,7 +11,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { RichText } from '@/components/RichText';
 import { RailButton, railStyles } from '@/components/reel/ReelExtraActions';
-import { MixarBadge, PairAvatars, ReactionBar, ReasonChip, SeenBy, TopicChips } from '@/components/mixar/MixarBits';
+import { GroupAvatars, MixarBadge, PairAvatars, ReactionBar, ReasonChip, SeenBy, TopicChips } from '@/components/mixar/MixarBits';
 import { ChallengePage, DiscoverySheet, EndPage } from '@/components/mixar/MixarPages';
 import { HereChip, MixarCommentsSheet, MixarRailButtons, MoreButton, ReactionBurst, SavedByChip, SavedEndPage, SavedHeaderButton, TogetherBanner } from '@/components/mixar/MixarSocial';
 import { useMixarSocial } from '@/components/mixar/useMixarSocial';
@@ -31,6 +31,8 @@ import { buildPages, createSeenTracker, firstName, matchLabel, mixarErrorText, n
 import { isMixarPreview, previewMixarApi } from '@/lib/mixarPreview';
 import { markMixarSeen } from '@/lib/mixarSeen';
 import { markMixarOpened } from '@/lib/mixarOpen';
+import { groupInviteView, groupLeaveText, groupReasonIcon, groupReasonText, groupSavedByText, groupSeenText, othersOf } from '@/lib/mixarGrupo';
+import { gruposApi } from '@/lib/api.grupos';
 import { colors } from '@/lib/theme';
 import { reelMounted } from '@/lib/videoMemory';
 import { Reel } from '../(tabs)/reels';
@@ -94,7 +96,10 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     markMixarSeen(mixar.id, mixar.updatedAt);
     if (!preview) markMixarOpened(qc, mixar.id);
   }, [mixar?.id, mixar?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  const live = mixar?.status === 'active';
+  // Mixar de grupo (0173): quem ainda não entrou (ou saiu) vê só o convite; o feed, a conversa e os Guardados são de quem está.
+  const grp = mixar?.group ?? null;
+  const joined = !grp || grp.myState === 'in';
+  const live = mixar?.status === 'active' && joined;
   // Os Guardados usam o mesmo feed (outra lista, sem o desafio).
   const feedKey = saved ? mixarSocialKeys.saved(id) : mixarKeys.feed(id);
   const feed = useInfiniteQuery({
@@ -117,12 +122,15 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   // O desafio só entra depois de se saber se há (para a lista não saltar uma página quando ele chega).
   const day = feed.data?.pages[0]?.day;
   const pages: Page[] = useMemo(
-    () => (feed.isPending || (!saved && ch.isPending) ? [] : saved ? buildPages(null, items, !!feed.hasNextPage) : withWeekPage(buildPages(ch.data ?? null, items, !!feed.hasNextPage), isMonday(day))),
-    [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage, saved, day],
+    () => (feed.isPending || (!saved && ch.isPending) ? [] : saved ? buildPages(null, items, !!feed.hasNextPage) : withWeekPage(buildPages(ch.data ?? null, items, !!feed.hasNextPage), !grp && isMonday(day))),
+    [feed.isPending, ch.isPending, ch.data, items, feed.hasNextPage, saved, day, grp],
   );
 
-  const partner: Who = mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined } : { name: '' };
+  const others = grp ? othersOf(grp, user?.username) : [];
+  // No grupo, «partner» é o grupo (os textos de sempre, como «Mandar a…», ficam com o nome do grupo).
+  const partner: Who = grp ? { name: grp.groupName } : mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined } : { name: '' };
   const me: Who = { name: firstName(user?.displayName), username: user?.username };
+  const whoOf = (p: { displayName: string; username: string; hasAvatar: boolean }): Who => ({ name: firstName(p.displayName), username: p.hasAvatar ? p.username : undefined });
 
   /* ---------- Sinais: um /seen por item e por visita ---------- */
   const tracker = useRef(createSeenTracker()).current;
@@ -136,9 +144,9 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   useEffect(() => () => void qc.invalidateQueries({ queryKey: mixarKeys.list() }), [qc]);
 
   /* ---------- Social e guardados ---------- */
-  const soc = useMixarSocial({ id, enabled: live && !preview, items, activePostId: activeKey, presenceOn: focused && !saved, say });
+  const soc = useMixarSocial({ id, enabled: live && !preview, items, activePostId: activeKey, presenceOn: focused && !saved && !grp, say });
   const [talk, setTalk] = useState<string | null>(null);
-  const partnerFull = mixar ? { ...partner, displayName: mixar.partner.displayName, verified: mixar.partner.verified, verifiedTier: mixar.partner.verifiedTier ?? null } : { ...partner, displayName: partner.name };
+  const partnerFull = grp ? { ...partner, displayName: grp.groupName, verified: false, verifiedTier: null } : mixar ? { ...partner, displayName: mixar.partner.displayName, verified: mixar.partner.verified, verifiedTier: mixar.partner.verifiedTier ?? null } : { ...partner, displayName: partner.name };
 
   /* ---------- Mudar o feed na cache ---------- */
   const patchItem = useCallback((postId: string, f: (it: MixarItem) => MixarItem) => {
@@ -150,8 +158,10 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     patchItem(it.post.id, (x) => ({ ...x, mine: next }));
     try {
       const r = await mx.react(id, it.post.id, next);
-      patchItem(it.post.id, (x) => ({ ...x, mine: r.mine, theirs: r.theirs }));
-      soc.afterReact(it.post.id, r.mine, r.theirs);
+      patchItem(it.post.id, (x) => ({ ...x, mine: r.mine, theirs: r.theirs, ...(x.group && r.reactions ? { group: { ...x.group, reactions: r.reactions } } : null) }));
+      // No grupo entra nos Guardados quando a maioria reage (o servidor decide): o marcador põe-se em dia pela API.
+      if (grp) void qc.invalidateQueries({ queryKey: mixarSocialKeys.social(id) });
+      else soc.afterReact(it.post.id, r.mine, r.theirs);
     } catch {
       patchItem(it.post.id, (x) => ({ ...x, mine: before }));
       say('Não consegui reagir. Tenta outra vez.');
@@ -165,12 +175,17 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     setSent((s) => ({ ...s, [p.id]: 'sending' }));
     try {
       if (!preview) {
-        await api.chatSend(mixar.partner.username, { kind: 'post', body: p.id });
-        void qc.invalidateQueries({ queryKey: ['chat-thread', mixar.partner.username] });
+        if (grp) {
+          await gruposApi.send(grp.groupId, { kind: 'post', body: p.id });
+          void qc.invalidateQueries({ queryKey: ['chat-group', grp.groupId] });
+        } else {
+          await api.chatSend(mixar.partner.username, { kind: 'post', body: p.id });
+          void qc.invalidateQueries({ queryKey: ['chat-thread', mixar.partner.username] });
+        }
         void qc.invalidateQueries({ queryKey: ['chat-list'] });
       }
       setSent((s) => ({ ...s, [p.id]: 'sent' }));
-      say(`Enviado a ${firstName(mixar.partner.displayName)}`);
+      say(grp ? 'Enviado para a conversa do grupo' : `Enviado a ${firstName(mixar.partner.displayName)}`);
       void mx.shared(id, p.id).catch(() => undefined);
     } catch (e) {
       setSent((s) => { const n = { ...s }; delete n[p.id]; return n; });
@@ -220,7 +235,8 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   const [answering, setAnswering] = useState<null | 'accept' | 'decline' | 'leave'>(null);
   const afterChange = () => {
     void qc.invalidateQueries({ queryKey: mixarKeys.list() });
-    if (mixar) {
+    if (grp) void qc.invalidateQueries({ queryKey: mixarKeys.ofGroup(grp.groupId) });
+    else if (mixar) {
       void qc.invalidateQueries({ queryKey: mixarKeys.with(mixar.partner.username) });
       void qc.invalidateQueries({ queryKey: ['chat-thread', mixar.partner.username] });
     }
@@ -230,6 +246,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     try {
       const r = await mx.accept(id);
       qc.setQueryData(mixarKeys.one(id), r);
+      if (r.group) void qc.invalidateQueries({ queryKey: ['mixar', id] });
       afterChange();
     } catch (e) {
       Alert.alert('Não deu', mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
@@ -252,9 +269,10 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   function leave() {
     if (!mixar) return;
     const pending = mixar.status === 'pending';
-    Alert.alert(pending ? 'Cancelar o convite?' : 'Sair do Mixar?', pending ? `${partner.name} deixa de ver o convite.` : `O vosso Mixar acaba para os dois. Podes convidar ${partner.name} outra vez quando quiseres.`, [
+    const gl = grp ? groupLeaveText(grp.people.length) : null;
+    Alert.alert(gl ? gl.title : pending ? 'Cancelar o convite?' : 'Sair do Mixar?', gl ? gl.line : pending ? `${partner.name} deixa de ver o convite.` : `O vosso Mixar acaba para os dois. Podes convidar ${partner.name} outra vez quando quiseres.`, [
       { text: 'Ficar', style: 'cancel' },
-      { text: pending ? 'Cancelar convite' : 'Sair', style: 'destructive', onPress: () => void (async () => {
+      { text: gl ? 'Sair' : pending ? 'Cancelar convite' : 'Sair', style: 'destructive', onPress: () => void (async () => {
         setDiscover(false);
         setAnswering('leave');
         try {
@@ -300,13 +318,13 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
   const bannerH = mixar && live && !saved && soc.partner.here ? 52 : 0;
 
   const renderPage = ({ item: pg, index }: { item: Page; index: number }) => {
-    if (pg.kind === 'week') return mixar ? <WeekPage height={height} mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} topInset={topPad + 104 + bannerH} /> : <View style={{ height }} />;
+    if (pg.kind === 'week') return mixar && !grp ? <WeekPage height={height} mixarId={id} api={cx} me={me} them={partner} partner={mixar.partner} onOpenTop={openPost} topInset={topPad + 104 + bannerH} /> : <View style={{ height }} />;
     if (pg.kind === 'challenge') {
       const c = ch.data;
       return c ? <ChallengePage c={c} height={height} me={me} them={partner} busy={picking} onPick={(pid) => void pick(c, pid)} onOpen={openPost} topInset={topPad + 64 + bannerH} /> : <View style={{ height }} />;
     }
     if (pg.kind === 'end') {
-      if (saved) return <SavedEndPage height={height} partner={partner.name} empty={items.length === 0} onBack={() => router.replace(`/mixar/${id}` as never)} />;
+      if (saved) return <SavedEndPage height={height} partner={partner.name} group={!!grp} empty={items.length === 0} onBack={() => router.replace(`/mixar/${id}` as never)} />;
       return (
         <EndPage height={height} me={me} them={partner} empty={items.length === 0} onDiscover={() => setDiscover(true)} onBack={close}>
           {preview ? null : <MoreButton left={soc.moreLeft} busy={soc.moreBusy} note={soc.moreNote} onPress={() => void soc.more(() => feed.refetch())} />}
@@ -317,15 +335,16 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     const p = it.post;
     const so = soc.socialOf(p.id);
     const by = (it as Partial<MixarSavedItem>).savedBy;
+    const seenLine = grp ? groupSeenText(it.group?.seenBy, others.length) : null;
     const extra = (
       <View style={st.extra} pointerEvents="box-none">
         <View style={st.reasonRow} pointerEvents="box-none">
-          {saved && by ? <SavedByChip by={by} partner={partner.name} /> : <ReasonChip from={it.from} topic={it.topic} partner={partner.name} />}
-          {soc.partner.here && soc.partner.postId === p.id ? <HereChip partner={partnerFull} /> : it.seenByThem ? <SeenBy partner={partner} /> : null}
+          {saved && by ? <SavedByChip by={by} partner={partner.name} text={grp ? groupSavedByText(by, (it as Partial<MixarSavedItem>).savedByPerson) : undefined} /> : <ReasonChip from={it.from} topic={it.topic} partner={partner.name} text={grp ? groupReasonText(it.group, it.topic) : undefined} icon={grp ? groupReasonIcon(it.group) : undefined} />}
+          {grp ? (seenLine ? <SeenBy partner={partner} text={seenLine} /> : null) : soc.partner.here && soc.partner.postId === p.id ? <HereChip partner={partnerFull} /> : it.seenByThem ? <SeenBy partner={partner} /> : null}
         </View>
         <View pointerEvents="box-none">
-          <ReactionBar mine={it.mine} theirs={it.theirs} partner={partner} onPick={(r) => void react(it, r)} />
-          {soc.burst?.postId === p.id ? <ReactionBurst reaction={soc.burst.reaction} seq={soc.burst.seq} partner={partner} /> : null}
+          <ReactionBar mine={it.mine} theirs={it.theirs} partner={partner} onPick={(r) => void react(it, r)} others={grp ? (it.group?.reactions ?? []).map((x) => ({ reaction: x.reaction, who: whoOf(x.person) })) : undefined} />
+          {!grp && soc.burst?.postId === p.id ? <ReactionBurst reaction={soc.burst.reaction} seq={soc.burst.seq} partner={partner} /> : null}
         </View>
       </View>
     );
@@ -365,6 +384,8 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         <Pressable onPress={() => router.replace('/mixar' as never)} style={st.link} accessibilityRole="button"><Text style={st.linkText}>Ver os meus Mixar</Text></Pressable>
       </View>
     );
+  } else if (grp && (mixar.status === 'pending' || grp.myState !== 'in')) {
+    body = <GroupJoinView mixar={mixar} busy={answering} onAccept={() => void accept()} onDecline={() => void decline()} onLeave={leave} />;
   } else if (mixar.status === 'pending') {
     body = <PendingView mixar={mixar} me={me} them={partner} busy={answering} onAccept={() => void accept()} onDecline={() => void decline()} onCancel={leave} />;
   } else if (feed.isError && !items.length) {
@@ -431,15 +452,17 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         right={mixar && live && !saved ? (
           <View style={st.headActions}>
             {preview ? null : <SavedHeaderButton onPress={() => router.push(`/mixar/guardados/${id}` as never)} />}
-            <Pressable onPress={() => setWeekOpen(true)} style={({ pressed }) => [st.weekBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Resumo da semana">
-              <Icon name="calendar" size={22} color="#fff" />
-            </Pressable>
+            {grp ? null : (
+              <Pressable onPress={() => setWeekOpen(true)} style={({ pressed }) => [st.weekBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Resumo da semana">
+                <Icon name="calendar" size={22} color="#fff" />
+              </Pressable>
+            )}
           </View>
         ) : undefined}
-        below={mixar && live && !saved ? <TogetherBanner partner={partnerFull} presence={soc.partner} myPostId={activeKey} known={items.map((x) => x.post.id)} onJump={(pid) => { const k = pages.findIndex((x) => x.kind === 'item' && x.item.post.id === pid); if (k >= 0) goTo(k); }} /> : undefined}
+        below={mixar && live && !saved && !grp ? <TogetherBanner partner={partnerFull} presence={soc.partner} myPostId={activeKey} known={items.map((x) => x.post.id)} onJump={(pid) => { const k = pages.findIndex((x) => x.kind === 'item' && x.item.post.id === pid); if (k >= 0) goTo(k); }} /> : undefined}
       />
       {toast ? <View style={st.toastWrap} pointerEvents="none" accessibilityRole="alert"><Text style={st.toast}>{toast}</Text></View> : null}
-      {talk && mixar ? <MixarCommentsSheet mixarId={id} postId={talk} partner={partnerFull} onClose={() => setTalk(null)} /> : null}
+      {talk && mixar ? <MixarCommentsSheet mixarId={id} postId={talk} partner={partnerFull} group={!!grp} onClose={() => setTalk(null)} /> : null}
       {discover && mixar ? <DiscoverySheet mixar={mixar} me={me} them={partner} onClose={() => setDiscover(false)} onLeave={leave} onTopics={() => { setDiscover(false); setTopicsOpen(true); }} onPrivate={() => { setDiscover(false); router.push('/settings/mixar-temas' as never); }} /> : null}
       {itemMenu ? <MixarItemMenu item={itemMenu} onClose={() => setItemMenu(null)} onLess={() => void lessOf(itemMenu)} onOff={(t) => void offTopic(t)} send={mixar ? { partner: partner.name, done: sent[itemMenu.post.id] === 'sent', onPress: () => void sendToChat(itemMenu.post) } : undefined} /> : null}
       {topicsOpen && mixar ? <MixarTopicsSheet mixar={mixar} partner={partner.name} api={cx} onClose={() => setTopicsOpen(false)} onPrivate={() => { setTopicsOpen(false); router.push('/settings/mixar-temas' as never); }} /> : null}
@@ -457,17 +480,17 @@ function MixarHeader({ mixar, me, them, top, onBack, onOpen, saved = false, righ
         <BackButton onPress={onBack} color="#fff" />
         {mixar ? (
           <Pressable onPress={onOpen} disabled={!onOpen} style={({ pressed }) => [st.head, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${mixar.name}. ${matchLabel(mixar.match)}${mixar.common.length ? `. Em comum: ${mixar.common.slice(0, 3).map((t) => t.label).join(', ')}` : ''}. Toca para ver a Descoberta de interesses`}>
-            <PairAvatars me={me} them={them} size={30} ring="rgba(255,255,255,0.9)" />
+            {mixar.group ? <GroupAvatars people={mixar.group.people} size={26} ring="rgba(255,255,255,0.9)" /> : <PairAvatars me={me} them={them} size={30} ring="rgba(255,255,255,0.9)" />}
             <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <NameWithBadge name={mixar.name} who={mixar.partner} style={st.headName} />
-              {mixar.status === 'active' ? <Text style={st.headMatch} numberOfLines={1}>{saved ? 'Os vossos Guardados' : matchLabel(mixar.match)}</Text> : null}
+              {mixar.group ? <Text style={st.headName} numberOfLines={1}>{mixar.group.groupName}</Text> : <NameWithBadge name={mixar.name} who={mixar.partner} style={st.headName} />}
+              {mixar.status === 'active' && (!mixar.group || mixar.group.myState === 'in') ? <Text style={st.headMatch} numberOfLines={1}>{saved ? 'Os vossos Guardados' : mixar.group ? `${mixar.group.people.length} pessoas, ${matchLabel(mixar.match)}` : matchLabel(mixar.match)}</Text> : mixar.group ? <Text style={st.headMatch} numberOfLines={1}>Mixar do grupo</Text> : null}
             </View>
             {onOpen ? <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.8)" strokeWidth={2.4} /> : null}
           </Pressable>
         ) : <View style={{ flex: 1 }} />}
         {right ?? <View style={{ width: 48 }} />}
       </View>
-      {mixar?.status === 'active' && mixar.common.length && !saved ? (
+      {mixar?.status === 'active' && mixar.common.length && !saved && (!mixar.group || mixar.group.myState === 'in') ? (
         <Pressable onPress={onOpen} style={st.topChips} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <TopicChips topics={mixar.common} tone="dark" max={3} />
         </Pressable>
@@ -494,6 +517,40 @@ function PendingView({ mixar, me, them, busy, onAccept, onDecline, onCancel }: {
           <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? 'A recusar…' : 'Agora não'}</Text></Pressable>
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * Mixar de grupo (0173) para quem ainda não está: o convite com quem já entrou e «Entrar» / «Agora não». Para quem está e
+ * o Mixar ainda não começou: quantos faltam e «Sair do Mixar do grupo». Quem não entrou não vê os gostos de ninguém.
+ */
+function GroupJoinView({ mixar, busy, onAccept, onDecline, onLeave }: { mixar: Mixar; busy: null | 'accept' | 'decline' | 'leave'; onAccept: () => void; onDecline: () => void; onLeave: () => void }) {
+  const g = mixar.group!;
+  const v = groupInviteView({ ...mixar, group: g });
+  const faces = g.people.length ? g.people : g.proposedBy ? [g.proposedBy] : [];
+  return (
+    <View style={st.center}>
+      <LinearGradient colors={['rgba(214,51,79,0.35)', 'rgba(0,0,0,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.8 }} style={StyleSheet.absoluteFill} />
+      <MixarBadge size={56} />
+      <View style={{ marginTop: 18 }}><GroupAvatars people={faces} size={56} ring="#000" max={5} /></View>
+      <Text style={st.title}>{v.title}</Text>
+      <Text style={st.sub}>{v.line}</Text>
+      {g.people.length ? (
+        <View style={st.people} accessibilityLabel="Quem está no Mixar do grupo">
+          {g.people.map((p) => <NameWithBadge key={p.username} name={firstName(p.displayName)} who={p} style={st.person} gap={3} />)}
+        </View>
+      ) : null}
+      {v.tone === 'join' ? (
+        <View style={{ marginTop: 24, gap: 10, width: '100%', maxWidth: 300 }}>
+          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? 'A entrar…' : 'Entrar'}</Text></Pressable>
+          {g.myState === null ? (
+            <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? 'A responder…' : 'Agora não'}</Text></Pressable>
+          ) : null}
+        </View>
+      ) : v.tone === 'waiting' ? (
+        <Pressable onPress={onLeave} disabled={!!busy} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.linkText}>{busy === 'leave' ? 'A sair…' : 'Sair do Mixar do grupo'}</Text></Pressable>
+      ) : null}
     </View>
   );
 }
@@ -568,6 +625,8 @@ const st = StyleSheet.create({
   ghost: { minHeight: 48, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
   ghostText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   link: { marginTop: 12, minHeight: 44, justifyContent: 'center' },
+  people: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, maxWidth: 320 },
+  person: { color: '#fff', fontSize: 14, fontWeight: '700' },
   linkText: { color: 'rgba(255,255,255,0.8)', fontWeight: '600', fontSize: 15 },
   top: { position: 'absolute', left: 0, right: 0, top: 0, paddingBottom: 18, zIndex: 20 },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },

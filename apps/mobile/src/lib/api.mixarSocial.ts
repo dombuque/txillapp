@@ -23,6 +23,8 @@ export interface MixarSavedItem extends MixarItem {
   savedAt: string;
   /** Quem guardou: eu, o outro, ou os dois (entrou sozinho porque os dois reagiram). */
   savedBy: 'me' | 'them' | 'both';
+  /** Mixar de grupo (0173): quem guardou à mão, quando foi outra pessoa (null quando entrou sozinho pela maioria). */
+  savedByPerson?: MixarPerson | null;
 }
 export interface MixarSavedPage { items: MixarSavedItem[]; nextCursor: string | null }
 

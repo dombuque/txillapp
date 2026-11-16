@@ -362,3 +362,106 @@ A exportação (`/me/export`) traz `mixarTopicPrefs`, `mixarAuthorLess` e `mixar
 - O «Mais 5» usa o mesmo controlo da seleção do dia: sem os temas tirados, com o «Menos disto» (temas e autores) a pesar
   menos e sem os temas privados de cada um. Nos Guardados, a razão fica sem tema se for privado de um dos dois ou tirado.
 - As sugestões «Faz um Mixar com…» calculam o match e os temas em comum sem os temas privados de cada pessoa.
+
+## Mixar de grupo (0173)
+
+Um TxillGroup com 3 a 5 membros pode ter um Mixar do grupo (um só aberto por grupo). API em
+`apps/api/src/mixar/mixar-grupo.service.ts`, `mixar-grupo.controller.ts` e `mixar-grupo-pick.ts` (o algoritmo de 2 para
+N); app em `lib/mixarGrupo.ts`, `components/mixar/useGroupMixar.ts` e nos ecrãs de sempre. O Mixar a dois não muda.
+
+### Regras
+
+- É a mesma linha de `social.mixars`, com `group_id` e sem par (`user_a` e `user_b` NULL). Tudo o que está pendurado num
+  Mixar (itens, reações, vistos, desafio, escolhas, conversa, Guardados, temas tirados, aberturas, avisos) serve para o
+  grupo sem tabelas novas. Quem está guarda-se em `social.mixar_members` (`state`: `in`, `declined`, `left`).
+- Qualquer membro propõe («Mixar do grupo» no cabeçalho e no menu «⋯» do grupo) e entra logo. Fica **ativo quando 3
+  pessoas** (contando com quem propôs) entraram. Quem disse «Agora não» ou ainda não respondeu não entra: não vê o feed, a
+  conversa, os Guardados, o desafio nem os gostos dos outros (o `GET` dá só o convite, com `match` 0 e `common` vazio), e
+  os gostos dele não contam. Quem entra mais tarde entra (no máximo 5 participantes).
+- Sair do grupo (pelo próprio pé, tirado por um admin ou com a conta eliminada) é sair do Mixar do grupo (gatilho na
+  `social.group_members`). Sair do Mixar (`DELETE /mixar/:id`) deixa a pessoa no grupo e pode voltar a entrar. Com
+  **menos de 3 participantes** um Mixar ativo acaba para todos (`social.mixar_group_settle`); apagar o grupo apaga o Mixar.
+- Grupos com mais de 5 membros (ou menos de 3): a opção não aparece e `POST /mixar/grupo/:groupId` responde 409 «O Mixar
+  de grupo é para grupos de 3 a 5 pessoas». No máximo 3 propostas por pessoa e por grupo em 24 horas (429).
+- Seleção às 05:00 (a mesma tarefa `mixar.daily`), com os gostos de todos os participantes: cada publicação tem os seus
+  fãs (afinidade positiva e pelo menos 40% da mais forte); cerca de 60% partilhado (dois fãs ou mais) e o resto dividido
+  pelo gosto de cada um; no máximo 2 por autor. Um tema que alguém marcou «menos» não aparece a ninguém. A razão guarda-se
+  em `mixar_items.source` (`all` ou `some`) e `mixar_items.fans` (os ids).
+- Reações exclusivas, vistos, conversa de cada item (só participantes), «Mais 5», temas tirados («Menos disto» e «Não
+  quero isto no nosso Mixar»), temas privados: as rotas de sempre, `/mixar/:id/…`. Guardados: entra sozinho quando a
+  **maioria** dos participantes reage sem «nah» (no Mixar a dois continua a ser os dois).
+- Mixa Challenge: cada um escolhe às escondidas; quando **todos** escolheram, abre-se quantos escolheram cada opção (sem
+  dizer quem). O resumo da semana e o «ver juntos» ainda não existem no grupo (o resumo dá 404).
+
+### Endpoints (todos em `/api/v1`, com sessão)
+
+```
+POST   /mixar/grupo/:groupId  → 201 Mixar   (propor; 404 não sou do grupo; 409 tamanho errado, ou já há com { id }; 429)
+GET    /mixar/grupo/:groupId  → Mixar | 404 (o Mixar aberto do grupo, para o cabeçalho do grupo)
+POST   /mixar/:id/accept      → Mixar       (entrar, também mais tarde; 409 se já estou ou o Mixar tem 5)
+POST   /mixar/:id/decline     → { ok }      («Agora não»: conta como aberto, a bolinha some)
+DELETE /mixar/:id             → { ok }      (sair do Mixar do grupo; com menos de 3, acaba para todos)
+GET    /mixar                 → { items: MixarSummary[], groups: MixarGroupSummary[] }   (os de grupo vão à parte)
+```
+
+Num Mixar de grupo em que não estou, o feed, as reações, o desafio, a conversa, os Guardados, o «Mais 5» e os temas dão
+403 «Ainda não entraste neste Mixar do grupo»; quem não é do grupo (ou saiu dele) recebe 404.
+
+### Tipos (o que se acrescenta)
+
+```ts
+interface MixarGroupInfo {
+  groupId: string; groupName: string;
+  people: MixarPerson[];          // os participantes (comigo se eu estiver), pela ordem de entrada, com o selo
+  members: number;                // quantas pessoas tem o grupo
+  myState: 'in' | 'declined' | 'left' | null;
+  canJoin: boolean;               // não estou e há lugar
+  need: number;                   // pendente: quantos faltam para começar
+  proposedBy: MixarPerson | null;
+}
+type MixarGroupSummary = MixarSummary & { group: MixarGroupInfo };   // Mixar também leva `group` no grupo
+// Em cada MixarItem do grupo (feed e Guardados):
+group: { fans: MixarPerson[] /* os outros de quem é o gosto */; mine: boolean; everyone: boolean;
+         reactions: { person: MixarPerson; reaction: ReactionId }[]; seenBy: MixarPerson[] }
+// MixarSavedItem no grupo: savedByPerson: MixarPerson | null (quem guardou à mão; 'both' = entrou pela maioria)
+// MixarChallenge no grupo:
+group: { picked: number; total: number; pickedBy: MixarPerson[]; counts: { postId: string; n: number }[] | null }
+// A resposta de react no grupo traz também reactions (as dos outros).
+```
+
+### Textos (app, lib/mixarGrupo.ts)
+
+- A razão diz de quem é o gosto, sem artigo antes dos nomes: «Música, do gosto de todos», «Do gosto de Ana e Zeca»,
+  «Música, do teu gosto e de Ana», «Do teu gosto». Visto: «Visto por Ana e Zeca», «Visto por todos».
+- Convite: «Zeca propôs um Mixar do grupo» com quem já está, «Entrar» e «Agora não»; à espera: «Falta 1 pessoa para
+  começar»; no desafio: «Já escolheram 2 de 3» e, no fim, «2 escolheram» em cada opção.
+- «Mandar» de um item no grupo vai para a conversa do grupo.
+
+### Avisos
+
+| kind | quando | ator | telemóvel (título · texto) | `data` |
+|---|---|---|---|---|
+| `mixar_group` | alguém propôs (vai aos outros membros do grupo) | quem propôs | «Malta da Costa» · «Zeca propôs um Mixar do grupo» | `mixarId`, `name` (o grupo), `groupId` |
+| `mixar_daily` | a seleção de hoje (participantes que ainda não abriram, 08:00 a 21:00) | outro participante | «Malta da Costa» · «A vossa seleção de hoje está pronta» | `day`, `group: true` |
+| `mixar_pick` | alguém escolheu no desafio e eu ainda não (uma vez) | quem escolheu | «Ana já escolheu no Mixa Challenge, falta tu» | `challengeId`, `group: true` |
+| `mixar_result` | todos escolheram (a quem escolheu antes) | o último | «Escolheram todos o mesmo» / «Já todos escolheram. Vê o resultado» | `challengeId`, `match`, `group: true` |
+
+Mesma opção «Mixar» nas definições; no telemóvel vai discreto se a pessoa escondeu o grupo (0160). Abrir o Mixar dá por
+lidos os avisos dele (também o `mixar_group`). Os registos dos avisos já enviados (`social.mixar_notices`, a dois e de
+grupo) apagam-se ao fim de 30 dias (`MixarService.purge`, de 6 em 6 horas).
+
+### A bolinha azul e a lista
+
+- `groupShowDot`: um convite por responder (ainda não disse nada) ou, se estou, as novidades de hoje (itens por ver ou o
+  desafio), até abrir (`openedAt` do servidor, a mesma regra do Mixar a dois). Aparece no ícone do Mixar no cabeçalho do
+  grupo e na linha do grupo nas Mensagens.
+- `/mixar`: secção «Os vossos Mixar de grupo», com «Entrar» e «Agora não» enquanto não respondi.
+
+### Exportação e apagar a conta
+
+- `/me/export` traz `mixarGroups` (os Mixar dos meus grupos em que entrei, recusei ou de que saí: o grupo, o meu estado,
+  se fui eu que propus e as datas) e `mixarNotices` (os avisos do Mixar já enviados, a dois e de grupo). As reações, os
+  vistos, as escolhas, os comentários e o que guardei no grupo vão nas listas de sempre (`mixarReactions`, …).
+- Eliminar a conta: a pessoa sai dos grupos (e, pelo gatilho, dos Mixar deles; com menos de 3, acaba) e apaga-se o que
+  fez lá dentro (estado, reações, vistos, escolhas, comentários, o que guardou à mão, aberturas, avisos e temas). Os Mixar
+  de grupo que ela propôs continuam para os outros.

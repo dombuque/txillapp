@@ -7,10 +7,11 @@ import { firstName, matchPercent } from '@/lib/mixar';
 
 /* ---------- Os avisos na lista de notificações ---------- */
 
-export type MixarNoticeKind = 'mixar_daily' | 'mixar_pick' | 'mixar_result';
-export interface MixarNoticeData { mixarId?: string; name?: string; match?: boolean }
+export type MixarNoticeKind = 'mixar_daily' | 'mixar_pick' | 'mixar_result' | 'mixar_group';
+/** `group`: o aviso é de um Mixar de grupo (0173; `name` é então o nome do grupo). */
+export interface MixarNoticeData { mixarId?: string; name?: string; match?: boolean; group?: boolean; groupId?: string }
 
-export const isMixarNotice = (kind: string): kind is MixarNoticeKind => kind === 'mixar_daily' || kind === 'mixar_pick' || kind === 'mixar_result';
+export const isMixarNotice = (kind: string): kind is MixarNoticeKind => kind === 'mixar_daily' || kind === 'mixar_pick' || kind === 'mixar_result' || kind === 'mixar_group';
 
 /**
  * O texto depois do @ de quem (a lista põe o nome e o selo à frente): «e tu: a vossa seleção de hoje está pronta»,
@@ -18,7 +19,15 @@ export const isMixarNotice = (kind: string): kind is MixarNoticeKind => kind ===
  * nome do Mixar («Mixar Dom + Ana»).
  */
 export function mixarNoticeText(kind: MixarNoticeKind, data: MixarNoticeData | null | undefined): { text: string; sub?: string } {
-  const sub = data?.name ? `Mixar ${data.name}` : undefined;
+  // Mixar de grupo (0173): «propôs um Mixar do grupo», «e o resto do grupo: …», «também escolheu: já todos escolheram».
+  const group = kind === 'mixar_group' || data?.group === true;
+  const sub = data?.name ? (group ? `Mixar do grupo ${data.name}` : `Mixar ${data.name}`) : undefined;
+  if (kind === 'mixar_group') return { text: 'propôs um Mixar do grupo', sub };
+  if (group) {
+    if (kind === 'mixar_daily') return { text: 'e o resto do grupo: a vossa seleção de hoje está pronta', sub };
+    if (kind === 'mixar_pick') return { text: 'já escolheu no Mixa Challenge, falta tu', sub };
+    return { text: data?.match ? 'também escolheu: escolheram todos o mesmo' : 'também escolheu: já todos escolheram', sub };
+  }
   if (kind === 'mixar_daily') return { text: 'e tu: a vossa seleção de hoje está pronta', sub };
   if (kind === 'mixar_pick') return { text: 'já escolheu no Mixa Challenge, falta tu', sub };
   return { text: data?.match ? 'também escolheu: acertaram no mesmo' : 'também escolheu: escolheram diferente', sub };

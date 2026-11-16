@@ -87,12 +87,13 @@ test('os avisos na lista: textos, o nome do Mixar por baixo e para onde levam', 
   assert.equal(a.isMixarNotice('mixar_pick'), true);
   assert.equal(a.isMixarNotice('txillada_live'), false);
   const screen = read('app/notifications.tsx');
-  assert.match(screen, /case 'mixar_result': return mixarNoticeText\(n\.kind, n\.data\);/);
-  assert.match(screen, /case 'mixar_result': return mixarNoticeTarget\(n\.data\);/);
+  assert.match(screen, /case 'mixar_result':\s*case 'mixar_group': return mixarNoticeText\(n\.kind, n\.data\);/);
+  assert.match(screen, /case 'mixar_result':\s*case 'mixar_group': return mixarNoticeTarget\(n\.data\);/);
   // O nome de quem vem à frente com o selo (Names), como nos outros avisos.
   assert.match(screen, /<Names actors=\{people\.actors\} total=\{people\.total\} \/>/);
   const api = read('lib/api.ts');
-  assert.match(api, /\| 'mixar_daily' \| 'mixar_pick' \| 'mixar_result';/);
+  assert.match(api, /\| 'mixar_daily' \| 'mixar_pick' \| 'mixar_result'\n/);
+  assert.match(api, /\| 'mixar_group';/);
 });
 
 test('definições: uma opção «Mixar» (as mensagens já não falam do Mixar)', () => {

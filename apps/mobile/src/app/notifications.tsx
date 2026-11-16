@@ -143,7 +143,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     // resultado («também escolheu: acertaram no mesmo»), com o nome do Mixar por baixo.
     case 'mixar_daily':
     case 'mixar_pick':
-    case 'mixar_result': return mixarNoticeText(n.kind, n.data);
+    case 'mixar_result':
+    case 'mixar_group': return mixarNoticeText(n.kind, n.data);
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -190,7 +191,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     // Abre o Mixar (o feed do dia, com o desafio).
     case 'mixar_daily':
     case 'mixar_pick':
-    case 'mixar_result': return mixarNoticeTarget(n.data);
+    case 'mixar_result':
+    case 'mixar_group': return mixarNoticeTarget(n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':

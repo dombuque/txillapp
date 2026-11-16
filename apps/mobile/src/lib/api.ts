@@ -137,7 +137,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'zas_recap'
   // Mixar (0170): a seleção de hoje está pronta (ator = o outro), o outro já escolheu no Mixa Challenge e falta eu (ator = quem
   // escolheu) e o resultado para quem escolheu primeiro (ator = quem escolheu depois). data.mixarId, data.name, data.match.
-  | 'mixar_daily' | 'mixar_pick' | 'mixar_result';
+  | 'mixar_daily' | 'mixar_pick' | 'mixar_result'
+  // Mixar de grupo (0173): alguém do grupo propôs um Mixar do grupo (ator = quem propôs; data.mixarId, data.name = o grupo,
+  // data.groupId). No grupo, os três de cima levam data.group = true.
+  | 'mixar_group';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
