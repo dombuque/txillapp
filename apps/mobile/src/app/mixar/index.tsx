@@ -11,7 +11,8 @@ import { MixarBadge, MixarDot, PairAvatars } from '@/components/mixar/MixarBits'
 import { useMixarList } from '@/components/mixar/MixarEntry';
 import { mixarApi, mixarKeys, type MixarSummary } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
-import { firstName, mixarErrorText, mixarHasNew, sortSummaries, summaryLine } from '@/lib/mixar';
+import { firstName, mixarErrorText, mixarShowDot, sortSummaries, summaryLine } from '@/lib/mixar';
+import { useMixarSeen } from '@/lib/mixarSeen';
 import { MIXAR_PREVIEW_ID, isMixarPreview } from '@/lib/mixarPreview';
 import { colors } from '@/lib/theme';
 
@@ -24,6 +25,7 @@ export default function MixarList() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const q = useMixarList();
+  const seen = useMixarSeen();
   const [busy, setBusy] = useState<string | null>(null);
   const groups = sortSummaries(q.data?.items ?? []);
   const empty = !!q.data && !q.data.items.length;
@@ -52,7 +54,7 @@ export default function MixarList() {
   const row = (s: MixarSummary, kind: 'active' | 'received' | 'sent') => {
     const partner = { name: firstName(s.partner.displayName), username: s.partner.hasAvatar ? s.partner.username : undefined };
     const hot = kind === 'active' && (s.newToday > 0 || s.challengePending);
-    const fresh = mixarHasNew(s);
+    const fresh = mixarShowDot(s, seen[s.id]);
     return (
       <View key={s.id} style={st.card}>
         <Pressable onPress={() => router.push(`/mixar/${s.id}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`${s.name}. ${summaryLine(s, partner.name)}`}>

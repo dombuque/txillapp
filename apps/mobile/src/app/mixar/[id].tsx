@@ -22,6 +22,7 @@ import { useDeskReels } from '@/lib/desktopHooks';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { buildPages, createSeenTracker, firstName, matchLabel, mixarErrorText, nextReaction, type MixarPage } from '@/lib/mixar';
 import { isMixarPreview, previewMixarApi } from '@/lib/mixarPreview';
+import { markMixarSeen } from '@/lib/mixarSeen';
 import { colors } from '@/lib/theme';
 import { reelMounted } from '@/lib/videoMemory';
 import { Reel } from '../(tabs)/reels';
@@ -64,6 +65,10 @@ export default function MixarScreen() {
 
   const m = useQuery({ queryKey: mixarKeys.one(id), queryFn: () => mx.get(id), enabled: !!id, retry: (n, e) => (e as { status?: number }).status !== 404 && n < 2 });
   const mixar = m.data;
+  // Abri: a bolinha azul some (lib/mixarSeen; o get já traz o updatedAt da seleção de hoje).
+  useEffect(() => {
+    if (mixar) markMixarSeen(mixar.id, mixar.updatedAt);
+  }, [mixar?.id, mixar?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const live = mixar?.status === 'active';
   const feed = useInfiniteQuery({
     queryKey: mixarKeys.feed(id),

@@ -46,7 +46,8 @@ import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 import { usePagerPan } from '@/components/SwipePager';
 import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
-import { mixarHasNew, mixarPreview } from '@/lib/mixar';
+import { mixarPreview, mixarShowDot } from '@/lib/mixar';
+import { useMixarSeen } from '@/lib/mixarSeen';
 import { useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
@@ -244,7 +245,8 @@ export default function Messages() {
   const mixar = useOpenMixar();
   // Mixar com novidades (sugestões de hoje por ver, o desafio ou um convite): o ícone com a bolinha azul na linha da conversa.
   const mixarList = useMixarList();
-  const mixarNew = new Set((mixarList.data?.items ?? []).filter(mixarHasNew).map((s) => s.partner.username));
+  const mixarSeen = useMixarSeen();
+  const mixarNew = new Set((mixarList.data?.items ?? []).filter((s) => mixarShowDot(s, mixarSeen[s.id])).map((s) => s.partner.username));
   // Esconder a conversa (sai da lista e do contador; fica em «Conversas ocultas», no "⋯" de cima).
   const hiding = useChatHiding();
   const [moreOpen, setMoreOpen] = useState(false);

@@ -369,7 +369,18 @@ test('bolinha azul: só com convite recebido, sugestões novas ou desafio; apare
   const bits = read('components', 'mixar', 'MixarBits.tsx');
   assert.match(bits, /export function MixarDot[\s\S]*?colors\.sky/);
   assert.match(read('components', 'mixar', 'MixarEntry.tsx'), /<MixarDot inline/);
-  assert.match(read('app', 'mixar', 'index.tsx'), /mixarHasNew\(s\)[\s\S]*<MixarDot inline/);
-  assert.match(read('app', '(tabs)', 'messages.tsx'), /filter\(mixarHasNew\)[\s\S]*mixarNew\.has\(r\.username\)[\s\S]*<MixarDot/);
-  assert.match(read('app', 'messages', '[username].tsx'), /mixarHasNew\(mixarList\.data\?\.items\?\.find[\s\S]*\{mixarNew \? <MixarDot/);
+  assert.match(read('app', 'mixar', 'index.tsx'), /mixarShowDot\(s, seen\[s\.id\]\)[\s\S]*<MixarDot inline/);
+  assert.match(read('app', '(tabs)', 'messages.tsx'), /mixarShowDot\(s, mixarSeen\[s\.id\]\)[\s\S]*mixarNew\.has\(r\.username\)[\s\S]*<MixarDot/);
+  assert.match(read('app', 'messages', '[username].tsx'), /mixarShowDot\(mixarHere, [\s\S]*markMixarSeen\(mixarHere\.id, mixarHere\.updatedAt\)[\s\S]*\{mixarNew \? <MixarDot/);
+});
+
+test('bolinha azul: some depois de abrir o Mixar e volta com a seleção nova', () => {
+  const s = summary({ newToday: 3, updatedAt: '2026-11-16T03:00:00.000Z' });
+  assert.equal(x.mixarShowDot(s, undefined), true);
+  assert.equal(x.mixarShowDot(s, '2026-11-16T03:00:00.000Z'), false);
+  assert.equal(x.mixarShowDot({ ...s, updatedAt: '2026-11-17T03:00:00.000Z' }, '2026-11-16T03:00:00.000Z'), true);
+  assert.equal(x.mixarShowDot(summary({ newToday: 0 }), undefined), false);
+  assert.equal(x.mixarShowDot(summary({ status: 'pending', invitedByMe: false, updatedAt: '2026-11-16T10:00:00.000Z' }), '2026-11-16T10:00:00.000Z'), false);
+  assert.match(read('app', 'mixar', '[id].tsx'), /markMixarSeen\(mixar\.id, mixar\.updatedAt\)/);
+  assert.match(read('lib', 'mixarSeen.ts'), /kvSet\(KEY/);
 });

@@ -308,6 +308,15 @@ export function mixarHasNew(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'ne
   return s.status === 'active' && ((s.newToday || 0) > 0 || !!s.challengePending);
 }
 
+/**
+ * A bolinha azul a sério: há novidade (mixarHasNew) e ainda não abri o Mixar desde que mudou. `seenAt` é o updatedAt que vi
+ * da última vez (lib/mixarSeen); depois de abrir some, e só volta com a seleção nova ou um convite novo.
+ */
+export function mixarShowDot(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending' | 'updatedAt'> | null | undefined, seenAt?: string | null): boolean {
+  if (!mixarHasNew(s)) return false;
+  return !seenAt || !s!.updatedAt || seenAt < s!.updatedAt;
+}
+
 export function inboxEntry(items: readonly Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'>[] | null | undefined): { show: boolean; line: string; hot: boolean } {
   const list = items ?? [];
   if (!list.length) return { show: false, line: 'Junta os teus gostos com alguém: abre uma conversa e toca em «Mixar».', hot: false };

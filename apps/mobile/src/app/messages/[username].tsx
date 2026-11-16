@@ -41,7 +41,8 @@ import { colors } from '@/lib/theme';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
-import { mixarHasNew } from '@/lib/mixar';
+import { mixarShowDot } from '@/lib/mixar';
+import { markMixarSeen, useMixarSeen } from '@/lib/mixarSeen';
 import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
 
@@ -73,7 +74,15 @@ export default function Thread() {
   const mixar = useOpenMixar();
   // A bolinha azul no ícone do Mixar quando o Mixar com esta pessoa tem sugestões novas, o desafio ou um convite (como no Instagram).
   const mixarList = useMixarList(!!username);
-  const mixarNew = mixarHasNew(mixarList.data?.items?.find((s) => s.partner.username === username));
+  const mixarSeen = useMixarSeen();
+  const mixarHere = mixarList.data?.items?.find((s) => s.partner.username === username);
+  const mixarNew = mixarShowDot(mixarHere, mixarHere ? mixarSeen[mixarHere.id] : null);
+  // Um convite que recebi aparece como cartão nesta conversa: abrir a conversa já é tê-lo visto.
+  const mixarInviteSeen = mixarHere?.status === 'pending' && !mixarHere.invitedByMe ? mixarHere.id + '|' + mixarHere.updatedAt : '';
+  useEffect(() => {
+    if (mixarInviteSeen && mixarHere) markMixarSeen(mixarHere.id, mixarHere.updatedAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mixarInviteSeen]);
   const hiding = useChatHiding();
   const typing = useTyping(username);
   const typingSent = useRef(0);
