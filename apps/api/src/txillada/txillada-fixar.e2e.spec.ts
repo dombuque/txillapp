@@ -31,7 +31,7 @@ describe('Txillada: fixar e denunciar comentários (integração)', () => {
   const sauth = (s: { token: string }) => ({ Authorization: `Bearer ${s.token}` });
   const u: Record<string, U> = {};
   const events: { to: string; e: any }[] = [];
-  const rooms: LiveKitRooms = { removeParticipant: async () => undefined, deleteRoom: async () => undefined, participants: async () => [] };
+  const rooms: LiveKitRooms = { removeParticipant: async () => undefined, deleteRoom: async () => undefined, participants: async () => [], setCanPublish: async () => undefined };
   let n = 0;
   const net = Math.floor(Math.random() * 256);
 

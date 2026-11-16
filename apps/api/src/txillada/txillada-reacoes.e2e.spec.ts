@@ -36,6 +36,7 @@ describe('Txillada: reações, quem está a ver e «entrou» (integração)', ()
     removeParticipant: async () => undefined,
     deleteRoom: async () => undefined,
     participants: async () => [],
+    setCanPublish: async () => undefined,
   };
   let n = 0;
   const net = Math.floor(Math.random() * 256);

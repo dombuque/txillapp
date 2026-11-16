@@ -21,7 +21,7 @@ describe('Mimos: os amigos ao vivo na fila', () => {
   const run = Date.now().toString(36);
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}`, 'X-Forwarded-For': x.ip });
-  const rooms: LiveKitRooms = { removeParticipant: async () => undefined, deleteRoom: async () => undefined, participants: async () => [] };
+  const rooms: LiveKitRooms = { removeParticipant: async () => undefined, deleteRoom: async () => undefined, participants: async () => [], setCanPublish: async () => undefined };
   const u: Record<string, U> = {};
   let n = 0;
 

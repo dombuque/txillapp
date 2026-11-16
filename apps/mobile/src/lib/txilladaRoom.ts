@@ -11,15 +11,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { LocalAudioTrack, LocalTrack, LocalVideoTrack, Room, VideoTrack } from 'livekit-client';
+import { useWindowDimensions } from 'react-native';
+import type { LocalAudioTrack, LocalTrack, LocalVideoTrack, RemoteTrackPublication, Room, VideoTrack } from 'livekit-client';
 import { ApiError } from '@/lib/api';
 import { txilladaApi, txilladaKey, type TxilladaAccess } from '@/lib/api.txillada';
 import { useAuth } from '@/lib/auth';
 import { onTxilladaEvent } from '@/lib/realtime';
 import {
   applyEvent, cheerGate, commentGate, errorText, initialLive, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withCommentCheer, withComments, withDto,
-  type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent,
+  type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent, type TxilladaPerson,
 } from '@/lib/txillada';
+import {
+  guestNotice, guestsInit, guestsReduce, parseGuestEvent, stageIds, stageLayout, stagePeople, tileQuality, type GuestState,
+} from '@/lib/txilladaGuests';
 import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
@@ -156,6 +160,40 @@ function reduce(s: LiveState, a: Act): LiveState {
 
 export type Conn = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
+type LK = typeof import('livekit-client');
+
+/** Um quadrado do ecrã (0165): a pessoa, a faixa de vídeo, o microfone ligado e se está a falar (o contorno coral). */
+export interface StageTile { person: TxilladaPerson; track: VideoTrack | null; local: boolean; mirror: boolean; mic: boolean; speaking: boolean }
+/** O que se recebe de cada pessoa na sala (pelo identity, o id da conta). */
+type RemoteSeat = { video: VideoTrack | null; pub: RemoteTrackPublication | null; mic: boolean };
+
+/** Quem está na sala e o que publica: a câmara (se a recebo) e o microfone (ligado ou calado). */
+function snapshot(room: Room, lk: LK): Record<string, RemoteSeat> {
+  const out: Record<string, RemoteSeat> = {};
+  room.remoteParticipants.forEach((p) => {
+    const vp = p.getTrackPublication(lk.Track.Source.Camera) as RemoteTrackPublication | undefined;
+    const ap = p.getTrackPublication(lk.Track.Source.Microphone);
+    out[p.identity] = { video: vp?.isSubscribed ? ((vp.videoTrack as VideoTrack | undefined) ?? null) : null, pub: vp ?? null, mic: !!ap && !ap.isMuted };
+  });
+  return out;
+}
+
+/** Espera que o LiveKit me deixe publicar (a API mudou a permissão com o updateParticipant). Devolve se deixou. */
+function waitCanPublish(room: Room, lk: LK, ms: number): Promise<boolean> {
+  const lp = room.localParticipant;
+  if (lp.permissions?.canPublish) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const done = (ok: boolean) => {
+      clearTimeout(t);
+      lp.off(lk.ParticipantEvent.ParticipantPermissionsChanged, check);
+      resolve(ok);
+    };
+    const check = () => { if (lp.permissions?.canPublish) done(true); };
+    const t = setTimeout(() => done(!!lp.permissions?.canPublish), ms);
+    lp.on(lk.ParticipantEvent.ParticipantPermissionsChanged, check);
+  });
+}
+
 /** Só mantém o ecrã aceso (useKeepAwake) enquanto o componente está montado: separado para o poder ligar e desligar. */
 export function KeepAwake(): null {
   useKeepAwake('txillada');
@@ -169,6 +207,8 @@ export function KeepAwake(): null {
 export function useTxillada(id: string) {
   const { user } = useAuth();
   const me = user?.username ?? null;
+  const myId = user?.id ?? null;
+  const { width, height } = useWindowDimensions();
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: txilladaKey(id),
@@ -179,6 +219,8 @@ export function useTxillada(id: string) {
   });
   const dto = q.data ?? null;
   const [live, dispatch] = useReducer(reduce, undefined, () => initialLive());
+  /** Os convidados (0165): quem transmite, os pedidos e convites (o anfitrião) e o meu lugar. */
+  const [gs, gdispatch] = useReducer(guestsReduce, undefined, guestsInit);
   const kind = viewKind(dto, live, !!q.error && !dto);
   const ui = liveUi(dto && kind === 'live' ? dto : null);
   const host = !!dto?.isHost;
@@ -199,12 +241,34 @@ export function useTxillada(id: string) {
   const cheerTimes = useRef<number[]>([]);
   const commentCheerTimes = useRef<number[]>([]);
   const afterRef = useRef<string | null>(null);
+  const lkRef = useRef<LK | null>(null);
+  /** Quem pode aparecer no ecrã (o anfitrião e os convidados que vejo): as faixas dos outros não se recebem. */
+  const allowedRef = useRef<Set<string>>(new Set());
+  /** As faixas abertas ao aceitar um convite (a permissão da câmara pede-se antes de dizer que sim). */
+  const guestTracksRef = useRef<LiveTracks | null>(null);
+  const hostRef = useRef(false);
+  const mineRef = useRef<GuestState>('none');
+  const [remote, setRemote] = useState<Record<string, RemoteSeat>>({});
+  const [speaking, setSpeaking] = useState<string[]>([]);
+  /** A minha câmara quando estou a transmitir como convidado. */
+  const [myVideo, setMyVideo] = useState<VideoTrack | null>(null);
+  /** Um aviso dos convidados («@ana pediu para entrar», «O anfitrião recusou o teu pedido»…); o ecrã mostra-o. */
+  const [notice, setNotice] = useState<{ n: number; text: string } | null>(null);
+  /** Quantas vezes já se voltou a entrar na sala para poder publicar (a permissão não chegou): no máximo uma. */
+  const rejoined = useRef(0);
 
-  useEffect(() => { if (q.data) dispatch({ t: 'dto', dto: q.data }); }, [q.data]);
-  useEffect(() => { afterRef.current = lastCommentId(live); });
+  useEffect(() => { if (q.data) { dispatch({ t: 'dto', dto: q.data }); gdispatch({ t: 'dto', dto: q.data, now: Date.now() }); } }, [q.data]);
+  useEffect(() => { afterRef.current = lastCommentId(live); hostRef.current = host; mineRef.current = gs.mine; });
 
   // Os eventos do canal da app, só os desta Txillada.
   useEffect(() => onTxilladaEvent((raw) => {
+    const gev = parseGuestEvent(raw, id);
+    if (gev) {
+      gdispatch({ t: 'event', ev: gev, me });
+      const text = guestNotice(gev, me, hostRef.current);
+      if (text) setNotice((o) => ({ n: (o?.n ?? 0) + 1, text }));
+      return;
+    }
     const ev = parseTxilladaEvent(raw, id);
     if (!ev) return;
     dispatch({ t: 'event', ev, me });
@@ -244,14 +308,28 @@ export function useTxillada(id: string) {
         undo.push(() => void liveAudio(false, amHost));
         const room = new lk.Room(roomOptions(lk, amHost));
         roomRef.current = room;
-        undo.push(() => { void room.disconnect(); if (roomRef.current === room) roomRef.current = null; });
-        room.on(lk.RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind === lk.Track.Kind.Video) setVideo(track as VideoTrack);
-          else if (track.kind === lk.Track.Kind.Audio) undo.push(attachAudio(track));
+        lkRef.current = lk;
+        undo.push(() => { void room.disconnect(); if (roomRef.current === room) roomRef.current = null; setRemote({}); setSpeaking([]); });
+        // Todos recebem as faixas de quem transmite (o anfitrião também: as dos convidados), menos as de quem não aparece
+        // no meu ecrã (um bloqueio com um convidado, ou quem já saiu): essas deixam-se de receber.
+        const sounds = new Map<string, () => void>();
+        undo.push(() => { sounds.forEach((f) => f()); sounds.clear(); });
+        const refresh = () => setRemote(snapshot(room, lk));
+        room.on(lk.RoomEvent.TrackSubscribed, (track, pub, p) => {
+          if (!allowedRef.current.has(p.identity)) { pub.setSubscribed(false); return; }
+          if (track.kind === lk.Track.Kind.Audio) sounds.set(pub.trackSid, attachAudio(track));
+          refresh();
         });
-        room.on(lk.RoomEvent.TrackUnsubscribed, (track) => {
-          if (track.kind === lk.Track.Kind.Video) setVideo((v) => (v === track ? null : v));
+        room.on(lk.RoomEvent.TrackUnsubscribed, (_track, pub) => {
+          sounds.get(pub.trackSid)?.();
+          sounds.delete(pub.trackSid);
+          refresh();
         });
+        for (const e of [lk.RoomEvent.TrackMuted, lk.RoomEvent.TrackUnmuted, lk.RoomEvent.TrackPublished, lk.RoomEvent.TrackUnpublished, lk.RoomEvent.ParticipantConnected, lk.RoomEvent.ParticipantDisconnected]) {
+          room.on(e, refresh);
+        }
+        // Quem fala fica com o contorno coral (a deteção de fala do LiveKit; também a minha voz).
+        room.on(lk.RoomEvent.ActiveSpeakersChanged, (list) => setSpeaking(list.map((x) => x.identity)));
         room.on(lk.RoomEvent.Reconnecting, () => setConn('reconnecting'));
         room.on(lk.RoomEvent.Reconnected, () => setConn('connected'));
         room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio));
@@ -262,8 +340,9 @@ export function useTxillada(id: string) {
           else setConn('failed');
           void qc.invalidateQueries({ queryKey: txilladaKey(id) });
         });
-        await room.connect(access.url, access.token, { autoSubscribe: !amHost });
+        await room.connect(access.url, access.token, { autoSubscribe: true });
         if (dead) return;
+        refresh();
         if (amHost) {
           const tracks = handed?.tracks ?? (await openTracks(handed?.front ?? true));
           if (dead) { stopTracks(tracks); return; }
@@ -300,6 +379,174 @@ export function useTxillada(id: string) {
       setConn('idle');
     };
   }, [id, isLive, !!dto, dto?.isHost, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Os convidados (0165) ────────────────────────────────────────────────────────────────────────────────────────────
+  const people = dto ? stagePeople(dto.host, gs.guests) : [];
+  const allowedKey = dto ? stageIds(dto.host, gs.guests).join(',') : '';
+  const amGuest = !host && gs.mine === 'guest' && kind === 'live';
+  // Ligado à sala (uma religação curta não desliga a câmara de quem transmite).
+  const linked = conn === 'connected' || conn === 'reconnecting';
+
+  // Recebe só as faixas de quem está no meu ecrã; quem passa a aparecer (um convidado novo) volta a receber-se.
+  useEffect(() => {
+    const allowed = new Set(allowedKey ? allowedKey.split(',') : []);
+    allowedRef.current = allowed;
+    const room = roomRef.current;
+    if (!room || conn !== 'connected') return;
+    room.remoteParticipants.forEach((p) => {
+      const want = allowed.has(p.identity);
+      p.trackPublications.forEach((pub) => {
+        if (want !== pub.isSubscribed) (pub as RemoteTrackPublication).setSubscribed(want);
+      });
+    });
+  }, [allowedKey, conn]);
+
+  // A camada de cada quadrado: 720p nos grandes, 360p nos pequenos (simulcast; o adaptiveStream do site fica por baixo disto).
+  const layoutKey = `${people.length}:${Math.round(width)}x${Math.round(height)}:${people.map((p) => `${remote[p.id]?.pub?.trackSid ?? ''}${remote[p.id]?.video ? '+' : ''}`).join(',')}`;
+  useEffect(() => {
+    const lk = lkRef.current;
+    if (!lk) return;
+    const rects = stageLayout(people.length, width, height);
+    people.forEach((p, i) => {
+      const pub = remote[p.id]?.pub;
+      if (!pub || !pub.isSubscribed || !rects[i]) return;
+      try { pub.setVideoQuality(tileQuality(rects[i], width, height) === 'high' ? lk.VideoQuality.HIGH : lk.VideoQuality.LOW); } catch { /* ainda sem a faixa */ }
+    });
+  }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A transmitir como convidado: abre a câmara e o microfone (como o anfitrião: ao alto, 720p com simulcast), espera pela
+  // permissão do LiveKit e publica. Ao deixar de transmitir (sair, tirado, a Txillada acabou), para tudo e volta a só ver.
+  useEffect(() => {
+    if (!amGuest || !linked) return;
+    const room = roomRef.current;
+    const lk = lkRef.current;
+    if (!room || !lk) return;
+    let dead = false;
+    let mine: LiveTracks | null = null;
+    void (async () => {
+      try {
+        // As do convite (abertas antes do sim), ou abrem-se agora (o pedido aceite pelo anfitrião). Tiram-se do ref já, antes
+        // de esperar: o aviso do canal e a resposta da API chegam por qualquer ordem e a câmara só se abre uma vez.
+        const pre = guestTracksRef.current;
+        guestTracksRef.current = null;
+        const tracks = pre ?? (await openTracks(true));
+        if (dead) { stopTracks(tracks); return; }
+        mine = tracks;
+        tracksRef.current = tracks;
+        setMyVideo(tracks.video);
+        setMic(!tracks.audio.isMuted);
+        setFront(true);
+        await liveAudio(true, true);
+        if (!(await waitCanPublish(room, lk, 8000))) {
+          if (dead) return;
+          // A permissão não chegou (o updateParticipant falhou?): volta-se a entrar, com um token que já publica (uma vez).
+          if (rejoined.current++ < 1) { setAttempt((n) => n + 1); return; }
+          throw new Error('Não consegui começar a transmitir. Tenta outra vez.');
+        }
+        if (dead) return;
+        await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] });
+        await room.localParticipant.publishTrack(tracks.audio, { source: lk.Track.Source.Microphone });
+      } catch (e) {
+        if (dead) return;
+        console.warn('[txillada] guest', e);
+        const msg = e instanceof Error && /^(Sem acesso|A câmara|Não consegui|Não encontrei|Este browser)/.test(e.message) ? e.message : 'Não consegui começar a transmitir. Tenta outra vez.';
+        setNotice((o) => ({ n: (o?.n ?? 0) + 1, text: msg }));
+        gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
+        void txilladaApi.guestLeave(id).catch(() => undefined);
+      }
+    })();
+    return () => {
+      dead = true;
+      const t = mine;
+      if (t) {
+        for (const x of [t.video, t.audio]) void room.localParticipant.unpublishTrack(x, true).catch(() => undefined);
+        stopTracks(t);
+        if (tracksRef.current === t) tracksRef.current = null;
+      }
+      setMyVideo(null);
+      void liveAudio(true, false);
+    };
+  }, [amGuest, linked, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sair do ecrã da Txillada com um pedido, um convite ou a transmitir: deixa de o estar (o webhook também o sabe).
+  useEffect(() => () => {
+    if (!hostRef.current && mineRef.current !== 'none') void txilladaApi.guestLeave(id).catch(() => undefined);
+    stopTracks(guestTracksRef.current);
+    guestTracksRef.current = null;
+  }, [id]);
+
+  const errText = (e: unknown) => (e instanceof ApiError ? errorText(e.status, e.message) : (e as Error)?.message || errorText(undefined));
+
+  /** Quem vê: pedir para entrar. Devolve a mensagem de erro, ou null. */
+  async function requestJoin(): Promise<string | null> {
+    rejoined.current = 0;
+    gdispatch({ t: 'mine', mine: 'requested', now: Date.now() });
+    try {
+      const r = await txilladaApi.guestRequest(id);
+      // Havia um convite à espera: já está a transmitir.
+      gdispatch({ t: 'mine', mine: r?.state === 'guest' ? 'guest' : 'requested', now: Date.now(), guests: r?.guests });
+      return null;
+    } catch (e) {
+      gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
+      return errText(e);
+    }
+  }
+  /** Desistir do pedido, recusar o convite, ou deixar de transmitir (volta a só ver). */
+  async function leaveStage(): Promise<string | null> {
+    const before = gs.mine;
+    gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
+    try {
+      await (before === 'invited' ? txilladaApi.guestDecline(id) : txilladaApi.guestLeave(id));
+      return null;
+    } catch (e) {
+      return errText(e);
+    }
+  }
+  /** Aceitar o convite: primeiro a câmara e o microfone (a permissão), depois o sim à API; o resto faz o efeito de cima. */
+  async function acceptInvite(): Promise<string | null> {
+    rejoined.current = 0;
+    let tracks: LiveTracks | null = null;
+    try {
+      tracks = await openTracks(true);
+      // Antes do sim à API: o `guest_joined` do canal pode chegar antes da resposta, e o efeito de cima usa estas faixas.
+      stopTracks(guestTracksRef.current);
+      guestTracksRef.current = tracks;
+      const r = await txilladaApi.guestAccept(id);
+      gdispatch({ t: 'mine', mine: 'guest', now: Date.now(), guests: r?.guests });
+      return null;
+    } catch (e) {
+      // Só se as faixas ainda não passaram para o efeito (se passaram, é ele que as fecha).
+      if (guestTracksRef.current === tracks) { guestTracksRef.current = null; stopTracks(tracks); }
+      if (e instanceof ApiError && [404, 409].includes(e.status)) gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
+      return errText(e);
+    }
+  }
+  /** O anfitrião: aceitar, recusar, convidar e tirar. As listas novas vêm na resposta. */
+  async function hostGuest(what: 'accept' | 'decline' | 'invite' | 'remove', username: string): Promise<string | null> {
+    try {
+      const fn = { accept: txilladaApi.guestAcceptRequest, decline: txilladaApi.guestDeclineRequest, invite: txilladaApi.guestInvite, remove: txilladaApi.guestRemove }[what];
+      const r = await fn(id, username);
+      if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
+      return null;
+    } catch (e) {
+      void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      return errText(e);
+    }
+  }
+
+  // Os quadrados: o anfitrião e os convidados, cada um com a sua faixa (a minha câmara, se transmito, sem passar pela rede).
+  const tiles: StageTile[] = people.map((p) => {
+    const local = !!myId && p.id === myId;
+    const r = remote[p.id];
+    return {
+      person: p,
+      track: local ? (host ? video : myVideo) : (r?.video ?? null),
+      local,
+      mirror: local && front,
+      mic: local ? mic : (r ? r.mic : true),
+      speaking: speaking.includes(p.id),
+    };
+  });
 
   async function toggleMic() {
     const a = tracksRef.current?.audio;
@@ -416,5 +663,7 @@ export function useTxillada(id: string) {
   return {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
     toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
+    // Convidados (0165).
+    guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest,
   };
 }

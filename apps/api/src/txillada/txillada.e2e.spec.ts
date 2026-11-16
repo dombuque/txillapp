@@ -41,6 +41,7 @@ describe('Txillada: os lives (integração)', () => {
     removeParticipant: async (room, identity) => void roomCalls.push(`remove:${room}:${identity}`),
     deleteRoom: async (room) => void roomCalls.push(`delete:${room}`),
     participants: async (room) => inRoom[room] ?? [],
+    setCanPublish: async (room, identity, on) => void roomCalls.push(`publish:${room}:${identity}:${on}`),
   };
   let n = 0;
 

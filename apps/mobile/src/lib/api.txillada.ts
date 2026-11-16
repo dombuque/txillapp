@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { post, raw } from '@/lib/api';
 import { txilladaEnabled, type TxilladaAudience, type TxilladaComment, type TxilladaDto } from '@/lib/txillada';
 import type { FxPerson, ReactionKind } from '@/lib/txilladaFx';
+import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 
 export type { TxilladaAudience, TxilladaComment, TxilladaDto } from '@/lib/txillada';
 
@@ -13,6 +14,9 @@ export type { TxilladaAudience, TxilladaComment, TxilladaDto } from '@/lib/txill
 export interface TxilladaAccess { token: string; url: string }
 
 const id = (s: string) => encodeURIComponent(s);
+
+/** O que o anfitrião vê depois de mexer nos convidados: quem transmite, os pedidos e os convites à espera. */
+export interface GuestLists { guests: TxilladaGuest[]; requests: GuestPending[]; invites: GuestPending[] }
 
 export const txilladaApi = {
   /** A Txillada está ligada neste servidor? Um servidor antigo (sem a rota) ou sem resposta: não está. */
@@ -55,6 +59,20 @@ export const txilladaApi = {
     raw(`/txilladas/${id(txilladaId)}/react`, post(to ? { kind, to } : { kind })),
   /** Quem está a ver agora (sem quem tem um bloqueio comigo). */
   viewers: (txilladaId: string): Promise<{ items: FxPerson[]; total: number }> => raw(`/txilladas/${id(txilladaId)}/viewers`),
+
+  // Convidados (0165): até 3 a transmitir com o anfitrião.
+  /** Pedir para entrar (com um convite à espera, aceita-o: `state: 'guest'`). 403 sem 18 anos; 429 a pedir outra vez cedo de mais. */
+  guestRequest: (txilladaId: string): Promise<{ state: GuestState; guests?: TxilladaGuest[] }> => raw(`/txilladas/${id(txilladaId)}/guests/request`, post({})),
+  /** Aceitar o convite do anfitrião (passa a transmitir; 409 com 3 a transmitir). */
+  guestAccept: (txilladaId: string): Promise<{ state: GuestState; guests: TxilladaGuest[] }> => raw(`/txilladas/${id(txilladaId)}/guests/accept`, post({})),
+  guestDecline: (txilladaId: string): Promise<{ state: GuestState }> => raw(`/txilladas/${id(txilladaId)}/guests/decline`, post({})),
+  /** Deixar de transmitir (volta a só ver), desistir do pedido ou recusar o convite. */
+  guestLeave: (txilladaId: string): Promise<{ state: GuestState }> => raw(`/txilladas/${id(txilladaId)}/guests/leave`, post({})),
+  /** O anfitrião: convidar quem está a ver, aceitar e recusar pedidos, tirar alguém (ou retirar um convite). */
+  guestInvite: (txilladaId: string, username: string): Promise<GuestLists> => raw(`/txilladas/${id(txilladaId)}/guests/invite`, post({ username })),
+  guestAcceptRequest: (txilladaId: string, username: string): Promise<GuestLists> => raw(`/txilladas/${id(txilladaId)}/guests/${id(username)}/accept`, post({})),
+  guestDeclineRequest: (txilladaId: string, username: string): Promise<GuestLists> => raw(`/txilladas/${id(txilladaId)}/guests/${id(username)}/decline`, post({})),
+  guestRemove: (txilladaId: string, username: string): Promise<GuestLists> => raw(`/txilladas/${id(txilladaId)}/guests/${id(username)}/remove`, post({})),
 };
 
 /** A chave da configuração no React Query (o mesmo valor serve Criar e o resto da app). */

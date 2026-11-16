@@ -15,7 +15,12 @@ import { videoFit, type VideoFit } from '@/lib/txilladaFx';
  *   (`loadedmetadata`/`resize`) e a caixa (ResizeObserver), sem depender do tamanho da janela no primeiro desenho.
  * - `fit = 'cover'` (a câmara do anfitrião): sempre cheia, espelhada na câmara da frente.
  */
-export function TxilladaVideo({ track, mirror = false, fit = 'auto', style }: { track: VideoTrack | null; mirror?: boolean; fit?: 'auto' | 'cover'; style?: StyleProp<ViewStyle> }) {
+export function TxilladaVideo({ track, mirror = false, fit = 'auto', style }: {
+  track: VideoTrack | null; mirror?: boolean; fit?: 'auto' | 'cover';
+  /** O tamanho do quadrado (no site mede-se a caixa; fica para ter as mesmas props que o do telemóvel). */
+  box?: { w: number; h: number };
+  style?: StyleProp<ViewStyle>;
+}) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const bgRef = useRef<HTMLVideoElement | null>(null);
   const [mode, setMode] = useState<VideoFit>('cover');

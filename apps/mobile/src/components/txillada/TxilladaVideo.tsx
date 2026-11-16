@@ -11,10 +11,17 @@ import { videoFit, type VideoFit } from '@/lib/txilladaFx';
  * `fit = 'auto'` (quem vê): cover quando a imagem tem a forma do ecrã; uma imagem deitada (a webcam de um computador) fica
  * inteira, com o próprio vídeo a encher o fundo, escurecido (lib/txilladaFx `videoFit`). `fit = 'cover'`: o anfitrião.
  */
-export function TxilladaVideo({ track, mirror = false, fit = 'auto', style }: { track: VideoTrack | null; mirror?: boolean; fit?: 'auto' | 'cover'; style?: StyleProp<ViewStyle> }) {
+export function TxilladaVideo({ track, mirror = false, fit = 'auto', box, style }: {
+  track: VideoTrack | null; mirror?: boolean; fit?: 'auto' | 'cover';
+  /** O tamanho do quadrado (com convidados, 0165); sem ele, o ecrã inteiro. */
+  box?: { w: number; h: number };
+  style?: StyleProp<ViewStyle>;
+}) {
   // O componente nativo é pedido uma vez, ao montar (o módulo só se carrega quando se entra numa Txillada).
   const [Native] = useState(() => nativeVideoView());
-  const { width, height } = useWindowDimensions();
+  const win = useWindowDimensions();
+  const width = box?.w ?? win.width;
+  const height = box?.h ?? win.height;
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   // As medidas da imagem (o WebRTC só as sabe depois das primeiras imagens; podem mudar com a rede): de 1,5 em 1,5 s.
   useEffect(() => {
