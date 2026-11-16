@@ -69,7 +69,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // mixar_daily: a vossa seleção de hoje está pronta (ator = o outro; + day);
   // mixar_pick: o outro já escolheu no Mixa Challenge e falta eu (ator = quem escolheu; + challengeId);
   // mixar_result: os dois escolheram, para quem escolheu primeiro (ator = quem escolheu depois; + challengeId, match).
-  | 'mixar_daily' | 'mixar_pick' | 'mixar_result';
+  | 'mixar_daily' | 'mixar_pick' | 'mixar_result'
+  // Mixar de grupo (0173, src/mixar/mixar-grupo.service.ts): alguém do grupo propôs um Mixar do grupo (ator = quem propôs).
+  // data: { mixarId, name (o nome do grupo), groupId }. No grupo, mixar_daily/pick/result levam também group: true.
+  | 'mixar_group';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
@@ -94,7 +97,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
   txillada_live: 'txilladas', txillada_invite: 'txilladas',
   zas_recap: 'zas',
-  mixar_daily: 'mixar', mixar_pick: 'mixar', mixar_result: 'mixar',
+  mixar_daily: 'mixar', mixar_pick: 'mixar', mixar_result: 'mixar', mixar_group: 'mixar',
 };
 
 /** O que se brindou: uma publicação (ou tcheka), um comentário, ou um comentário num mimo (`storyAuthor`: o @ de quem fez o mimo). */

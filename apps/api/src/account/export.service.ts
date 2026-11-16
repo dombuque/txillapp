@@ -219,6 +219,19 @@ export class ExportService {
         `SELECT l.mixar_id AS "mixarId", a.username AS author, l.created_at AS "createdAt" FROM social.mixar_author_less l JOIN identity.users a ON a.id = l.author_id WHERE l.user_id = $1 ORDER BY l.created_at`,
       ).catch(() => []),
       mixarPrivateTopics: await q(`SELECT topic, created_at AS "createdAt" FROM social.mixar_private_topics WHERE user_id = $1 ORDER BY topic`).catch(() => []),
+      // Mixar de grupo (0173): os Mixar dos meus grupos em que entrei, recusei ou de que saí (o grupo, o meu estado, quem propôs e
+      // as datas). As reações, os vistos, as escolhas, os comentários e os guardados que fiz lá dentro já vão nas listas de cima.
+      mixarGroups: await q(
+        `SELECT x.id, g.name AS "group", mm.state, (x.invited_by = $1) AS "proposedByMe", x.status, x.created_at AS "createdAt", x.accepted_at AS "startedAt",
+                mm.joined_at AS "joinedAt", mm.updated_at AS "updatedAt", x.ended_at AS "endedAt"
+           FROM social.mixar_members mm JOIN social.mixars x ON x.id = mm.mixar_id LEFT JOIN social.groups g ON g.id = x.group_id
+          WHERE mm.user_id = $1 ORDER BY x.created_at`,
+      ).catch(() => []),
+      // Avisos do Mixar já enviados (0170, também os do Mixar de grupo): que aviso recebi, de que Mixar e quando ('daily' a
+      // seleção do dia, 'pick' falta eu escolher no desafio, 'result' o resultado). Guardam-se 30 dias (MixarService.purge).
+      mixarNotices: await q(
+        `SELECT mixar_id AS "mixarId", kind, ref, created_at AS "createdAt" FROM social.mixar_notices WHERE user_id = $1 ORDER BY created_at`,
+      ).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
       // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
       txilladas: await q(

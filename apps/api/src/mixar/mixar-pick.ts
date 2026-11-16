@@ -83,7 +83,7 @@ export function normalize(w: Weights): Weights {
 }
 
 /** O mesmo, mas pela soma dos valores absolutos (o perfil do Mixar, em que o «nah» conta tanto como as outras reações). */
-function normalizeAbs(w: Weights): Weights {
+export function normalizeAbs(w: Weights): Weights {
   const tot = Object.values(w).reduce((s, v) => s + Math.abs(v), 0);
   const out: Weights = {};
   if (!tot) return out;
@@ -147,7 +147,7 @@ interface Scored extends Picked {
 }
 
 /** A afinidade e o tema mais forte de uma publicação para um perfil. */
-function affinity(w: Weights, topics: string[]) {
+export function affinity(w: Weights, topics: string[]) {
   let sum = 0;
   let best: string | null = null;
   let bestW = 0;

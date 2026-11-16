@@ -12,7 +12,7 @@ import { StoriesService } from '../stories/stories.service';
 import { MAX_PRIVATE, notOffSql, privateTopicsOf, privateTopicsOfAll, mixarOffTopics, type TopicMode } from './mixar-controlo';
 import { mixarDay, prevDay, streakOf } from './mixar-pick';
 import { renderWeekCard, WEEK_OUT } from './mixar-week-card';
-import { bothSee, MixarService, type FeedPost, type ReactionId, type Row } from './mixar.service';
+import { bothSee, MixarService, seeAll, type FeedPost, type ReactionId, type Row } from './mixar.service';
 
 type Topic = { topic: string; label: string };
 const KNOWN = new Set(TOPICS.map((t) => t.id));
@@ -99,15 +99,15 @@ export class MixarControloService {
     const r = (
       await this.pool.query(
         `SELECT p.author_id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier,
-                COALESCE((SELECT i.topic FROM social.mixar_items i WHERE i.mixar_id = $4 AND i.post_id = p.id AND i.topic IS NOT NULL ORDER BY i.day DESC LIMIT 1), p.topics[1]) AS topic
+                COALESCE((SELECT i.topic FROM social.mixar_items i WHERE i.mixar_id = $3 AND i.post_id = p.id AND i.topic IS NOT NULL ORDER BY i.day DESC LIMIT 1), p.topics[1]) AS topic
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-          WHERE p.id = $3 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $4 AND i.post_id = p.id) AND ${bothSee('$1', '$2')}`,
-        [me, m.other_id, postId, id],
+          WHERE p.id = $2 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $3 AND i.post_id = p.id) AND ${seeAll('$1')}`,
+        [[me, ...m.others], postId, id],
       )
     ).rows[0];
     if (!r) throw new NotFoundException('Publicação não encontrada neste Mixar');
     // Um tema privado de um dos dois não se mostra nem se guarda pelo item (a escolha fica só no autor).
-    const hidden = await privateTopicsOfAll(this.pool, [me, m.other_id]);
+    const hidden = await privateTopicsOfAll(this.pool, [me, ...m.others]);
     const topic = r.topic && KNOWN.has(r.topic as string) && !hidden.has(r.topic as string) ? (r.topic as string) : null;
     if (topic) {
       await this.pool.query(
@@ -173,6 +173,7 @@ export class MixarControloService {
 
   async week(me: string, id: string, now: Date = new Date()): Promise<MixarWeekDto> {
     const m = await this.mixar.active(me, id);
+    if (m.group_id) throw new NotFoundException('O resumo da semana ainda não existe no Mixar de grupo');
     const to = mixarDay(now);
     let from = to;
     for (let i = 1; i < WEEK_DAYS; i++) from = prevDay(from);

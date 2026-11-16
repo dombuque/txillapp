@@ -145,9 +145,10 @@ export class ModerationService implements OnModuleInit {
                   AND NOT ${blockedBetween('a.id', '$1')}`;
         break;
       case 'mixar_comment':
-        // Um comentário que ainda se vê, na conversa de um Mixar de que sou um dos dois (0171).
+        // Um comentário que ainda se vê, na conversa de um Mixar de que sou um dos dois (0171) ou participante (grupo, 0173).
         sql = `SELECT c.user_id AS owner FROM social.mixar_comments c JOIN social.mixars x ON x.id = c.mixar_id
-                WHERE c.id = $2 AND c.deleted_at IS NULL AND (x.user_a = $1 OR x.user_b = $1)`;
+                WHERE c.id = $2 AND c.deleted_at IS NULL AND ((x.user_a = $1 OR x.user_b = $1)
+                   OR EXISTS (SELECT 1 FROM social.mixar_members mm WHERE mm.mixar_id = x.id AND mm.user_id = $1 AND mm.state = 'in'))`;
         break;
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
