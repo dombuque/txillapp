@@ -4,6 +4,8 @@ import { ChatModule } from '../chat/chat.module';
 import { PostsModule } from '../posts/posts.module';
 import { MixarAvisosController } from './mixar-avisos.controller';
 import { MixarAvisosService } from './mixar-avisos.service';
+import { MixarSocialController } from './mixar-social.controller';
+import { MixarSocialService } from './mixar-social.service';
 import { MixarController } from './mixar.controller';
 import { MixarService } from './mixar.service';
 
@@ -14,8 +16,9 @@ import { MixarService } from './mixar.service';
  */
 @Module({
   imports: [AuthModule, ChatModule, PostsModule],
-  controllers: [MixarAvisosController, MixarController],
-  providers: [MixarService, MixarAvisosService],
-  exports: [MixarService, MixarAvisosService],
+  controllers: [MixarAvisosController, MixarController, MixarSocialController],
+  // O social e os guardados (0171, mixar-social.*): a conversa de cada item, ver juntos, «Mais 5» e os Guardados.
+  providers: [MixarService, MixarAvisosService, MixarSocialService],
+  exports: [MixarService, MixarAvisosService, MixarSocialService],
 })
 export class MixarModule {}

@@ -204,6 +204,14 @@ export class ExportService {
       mixarSuggestionsDismissed: await q(
         `SELECT o.username, sd.until FROM social.mixar_suggestion_dismissals sd JOIN identity.users o ON o.id = sd.person_id WHERE sd.user_id = $1 ORDER BY sd.until`,
       ).catch(() => []),
+      // Mixar, social e guardados (0171): os comentários que escrevi na conversa dos itens (os que não apaguei) e o que guardei
+      // à mão nos Guardados do Mixar. Os comentários do outro são dados dele: não entram.
+      mixarComments: await q(
+        `SELECT mixar_id AS "mixarId", post_id AS "postId", body, created_at AS "createdAt" FROM social.mixar_comments WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at`,
+      ).catch(() => []),
+      mixarSaves: await q(
+        `SELECT mixar_id AS "mixarId", post_id AS "postId", created_at AS "createdAt", removed_at AS "removedAt" FROM social.mixar_saves WHERE saved_by = $1 ORDER BY created_at`,
+      ).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
       // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
       txilladas: await q(

@@ -208,7 +208,7 @@ const cs = StyleSheet.create({
 /* ---------- Fim da seleção do dia ---------- */
 
 /** «Volta amanhã para mais» e a hora da próxima atualização (05:00). `empty`: ainda não houve nada hoje. */
-export function EndPage({ height, me, them, empty, onDiscover, onBack }: { height: number; me: Who; them: Who; empty: boolean; onDiscover: () => void; onBack: () => void }) {
+export function EndPage({ height, me, them, empty, onDiscover, onBack, children }: { height: number; me: Who; them: Who; empty: boolean; onDiscover: () => void; onBack: () => void; /** Por baixo da hora (o «Mais 5», MixarSocial). */ children?: React.ReactNode }) {
   const e = endOfDay();
   return (
     <View style={[{ height, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#0b0b0c' }, snap]}>
@@ -217,6 +217,7 @@ export function EndPage({ height, me, them, empty, onDiscover, onBack }: { heigh
       <Text style={es.title}>{empty ? 'A seleção de hoje ainda vem a caminho' : e.title}</Text>
       <Text style={es.line}>{empty ? 'Reajam, vejam até ao fim e mandem uns aos outros: o Mixar aprende com os dois.' : e.line}</Text>
       <View style={es.clock}><Icon name="clock" size={16} color="#fff" /><Text style={es.clockText}>Nova seleção às 05:00</Text></View>
+      {children}
       <Pressable onPress={onDiscover} style={({ pressed }) => [es.btn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button">
         <Icon name="sparkles" size={18} color="#fff" />
         <Text style={es.btnText}>O que temos em comum</Text>

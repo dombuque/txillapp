@@ -87,8 +87,8 @@ export interface ChallengeDto {
   match: boolean | null;
 }
 
-/** Uma linha do Mixar vista por `me`. */
-interface Row {
+/** Uma linha do Mixar vista por `me` (também a usa o mixar-social.service.ts, como `row`, `active`, `assertItem`, `ensureDay` e os perfis). */
+export interface Row {
   id: string;
   user_a: string;
   user_b: string;
@@ -492,7 +492,7 @@ export class MixarService implements OnModuleInit {
   }
 
   /** Garante a seleção do dia (gera na hora quando falta; um dia vazio volta a tentar ao fim de uma hora). */
-  private async ensureDay(m: Pick<Row, 'id' | 'user_a' | 'user_b' | 'status'>, day: string) {
+  async ensureDay(m: Pick<Row, 'id' | 'user_a' | 'user_b' | 'status'>, day: string) {
     if (m.status !== 'active') return;
     const d = (await this.pool.query(`SELECT items, generated_at < now() - ${EMPTY_RETRY} AS stale FROM social.mixar_days WHERE mixar_id = $1 AND day = $2::date`, [m.id, day])).rows[0];
     if (d && !(d.items === 0 && d.stale)) return;
@@ -550,7 +550,7 @@ export class MixarService implements OnModuleInit {
   }
 
   /** O perfil de temas de uma pessoa (o mesmo do Explorar, com as preferências por tema). */
-  private async profile(userId: string): Promise<Weights> {
+  async profile(userId: string): Promise<Weights> {
     const { rows } = await this.pool.query(interestSql('$1'), [userId]);
     return Object.fromEntries(rows.map((r) => [r.topic as string, Number(r.wt)]));
   }
@@ -559,7 +559,7 @@ export class MixarService implements OnModuleInit {
    * O perfil do próprio Mixar: o que os dois fizeram lá dentro, com o que é mais antigo a pesar menos (7% por dia).
    * Reações (+1,5; «nah» −2), visto até ao fim (+1), saltado logo (−0,3), mandado para o chat (+2,5) e escolhido no desafio (+2).
    */
-  private async mixarProfile(id: string, day: string): Promise<Weights> {
+  async mixarProfile(id: string, day: string): Promise<Weights> {
     const decay = (col: string) => `power(0.93, GREATEST(0, $2::date - (${col})::date))`;
     const { rows } = await this.pool.query(
       `SELECT topic, sum(wt) AS wt FROM (
@@ -584,7 +584,7 @@ export class MixarService implements OnModuleInit {
    * ou quem segue), que os dois podem ver (bothSee) e que não são de nenhum dos dois. A qualidade junta as reações por
    * alcance (como o Explorar) e a frescura; o que os dois já viram no feed desce.
    */
-  private async candidates(a: string, b: string): Promise<Candidate[]> {
+  async candidates(a: string, b: string): Promise<Candidate[]> {
     const { rows } = await this.pool.query(
       `SELECT p.id, p.author_id, COALESCE(p.topics, '{}') AS topics, ${tchekaPost()} AS video,
               ((SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id) + 2 * (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)
@@ -641,7 +641,7 @@ export class MixarService implements OnModuleInit {
   }
 
   /** O Mixar `id`, se for meu: 404 se não existe ou a outra conta já não existe; 403 com bloqueio entre os dois. */
-  private async row(me: string, id: string): Promise<Row> {
+  async row(me: string, id: string): Promise<Row> {
     const r = (
       await this.pool.query(
         `SELECT x.id, x.user_a, x.user_b, x.invited_by, x.status, x.created_at, x.accepted_at, x.updated_at,
@@ -660,7 +660,7 @@ export class MixarService implements OnModuleInit {
     return r as Row;
   }
 
-  private async active(me: string, id: string): Promise<Row> {
+  async active(me: string, id: string): Promise<Row> {
     const m = await this.row(me, id);
     if (m.status === 'pending') throw new ConflictException('O Mixar ainda não foi aceite');
     if (m.status !== 'active') throw new NotFoundException('Mixar não encontrado');
@@ -668,7 +668,7 @@ export class MixarService implements OnModuleInit {
   }
 
   /** O item tem de ser deste Mixar (de qualquer dia) e os dois têm de o poder ver agora. */
-  private async assertItem(me: string, m: Row, postId: string) {
+  async assertItem(me: string, m: Row, postId: string) {
     const ok = await this.pool.query(
       `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id
         WHERE p.id = $3 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $4 AND i.post_id = p.id) AND ${bothSee('$1', '$2')}`,

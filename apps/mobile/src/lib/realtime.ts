@@ -49,6 +49,15 @@ export function onTxilladaEvent(f: (e: unknown) => void): () => void {
   txilladaSubs.add(f);
   return () => void txilladaSubs.delete(f);
 }
+/**
+ * Mixar, social e guardados ({type:'mixar.live'}, lib/streamEvents → mixarLiveKeys): vão também para quem se inscreve aqui
+ * (o ecrã do Mixar: a presença do outro, «está a ver contigo»).
+ */
+const mixarLiveSubs = new Set<(e: unknown) => void>();
+export function onMixarLive(f: (e: unknown) => void): () => void {
+  mixarLiveSubs.add(f);
+  return () => void mixarLiveSubs.delete(f);
+}
 let held = false;
 const holdSubs = new Set<() => void>();
 /** Mantém o stream ligado em segundo plano (durante uma chamada a sinalização não pode parar). */
@@ -136,6 +145,7 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
         }
         return;
       }
+      if (e.type === 'mixar.live') mixarLiveSubs.forEach((f) => f(e));
       // Eco do que eu fiz (self): só põe os dados em dia; não desliga o "a escrever…" do outro nem chega ao onEvent.
       const plan = planChatEvent(e);
       if (plan.notify) {

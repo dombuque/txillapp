@@ -210,3 +210,78 @@ type MixarSuggestion = { username: string; displayName: string; hasAvatar: boole
   dos dois e entra na exportação (`mixarSuggestionsDismissed`, com `mixarOpens`).
 - App: cartão discreto «Sugestões» na lista `/mixar` (também quando não há nenhum Mixar), com «Convidar» (`useOpenMixar`)
   e «Agora não».
+
+## Social e guardados
+
+Migração `0171_mixar_social.sql`; API em `src/mixar/mixar-social.service.ts` e `mixar-social.controller.ts`; app em
+`lib/api.mixarSocial.ts`, `lib/mixarSocial.ts`, `components/mixar/MixarSocial.tsx` e `components/mixar/useMixarSocial.ts`.
+As regras de acesso são as do resto do Mixar: só os dois, com o Mixar ativo (404 se não é meu ou já acabou, 409 pendente,
+403 com bloqueio) e só com o que os dois podem ver agora (`bothSee`: nada removido, ocultado pelo autor, de conta privada
+que um não segue, bloqueado ou escondido).
+
+### A conversa de cada item
+
+- Comentários que só os dois veem (`social.mixar_comments`, até 500 caracteres). O filtro de texto é o de sempre
+  (`TextFilter.assertClean`: 422 para ameaças, incentivo ao suicídio e ódio). Só com o email confirmado, como os outros
+  comentários. Só quem escreveu apaga (`deleted_at`); a limpeza apaga de vez os apagados há mais de 30 dias que não têm
+  denúncias por decidir.
+- Denunciar: a fila de sempre (`POST /reports { type: 'mixar_comment', id, reason }`). Só um dos dois pode denunciar o
+  comentário do outro; quem denuncia deixa de o ver; a moderação «remover» apaga-o para os dois (aviso «o teu comentário no
+  Mixar»). Os comentários do Mixar não entram na página «Conteúdo» do backoffice (são privados, como as mensagens).
+- Sem aviso no telemóvel por comentário (só o tempo real).
+
+### Ver juntos
+
+- A app repete `POST /mixar/:id/presence { postId }` de 20 em 20 s e quando muda de item; ao sair, ao perder o foco ou com
+  a app em segundo plano manda `{ leave: true }`. A presença vale 45 s (RealtimeBus, sem base de dados).
+- A resposta diz onde está o outro: `{ partner: { here, postId } }`. O outro recebe um evento quando chego, mudo de item ou
+  saio (não a cada repetição). Um `postId` que não é deste Mixar conta como «no Mixar, sem item».
+- Na app: «Zeca está a ver contigo» (com o avatar e o selo) por baixo do cabeçalho; «No mesmo vídeo que tu» ou «Noutro
+  vídeo. Toca para ir»; e «Zeca está aqui» no item em que o outro está. O nome vai sem artigo (a app não sabe se é «o» ou «a»).
+- As reações do outro aparecem na hora: o evento `'reaction'` de sempre põe o feed em dia e a app anima (a reação a subir,
+  com o avatar) a que mudou, de preferência no item que estou a ver.
+
+### «Mais 5»
+
+- `POST /mixar/:id/more` acrescenta até 5 itens novos no fim da seleção de hoje, com o mesmo algoritmo (`pickDaily`), sem
+  nada que já tenha saído neste Mixar (em dia nenhum) e com no máximo 2 do mesmo autor no dia. No máximo 3 vezes por dia
+  por Mixar (`mixar_days.more_rounds`); depois 429 «Já pediram mais 3 vezes hoje. Amanhã às 05:00 há uma seleção nova».
+  Sem nada novo devolve `{ added: 0 }` e não conta. O desafio do dia não muda.
+
+### Guardados
+
+- A coleção dos dois (`social.mixar_saves`). Entra sozinho quando os dois reagem ao item com `amor`, `fogo`, `kkk`, `uau`
+  ou `brinde` (não com `nah`; gatilho na base, `saved_by` NULL = «os dois»), ou quando um guarda à mão (marcador no carril).
+- Qualquer um dos dois tira (`removed_at`): não volta a entrar sozinho quando alguém muda a reação; só à mão.
+- `GET /mixar/:id/saved` do mais recente para o mais antigo, paginado por cursor, sem o que foi removido ou ocultado pelo
+  autor (reavaliado em cada leitura). Na app: o botão «Guardados» no cabeçalho do Mixar abre `/mixar/guardados/[id]`, o
+  mesmo feed vertical do Mixar (sem o desafio), com quem guardou («Guardado por Zeca», «Os dois reagiram»).
+- Exportação dos dados: os meus comentários (não apagados) e o que guardei à mão. Sair do Mixar fecha tudo; apagar o Mixar
+  (limpeza dos 30 dias, eliminação da conta) leva tudo pelo CASCADE.
+
+### Endpoints (todos em `/api/v1`, com sessão)
+
+```
+GET    /mixar/:id/items/:postId/comments?cursor=&limit=  → { items: MixarComment[], nextCursor }  (página mais recente primeiro; cada página da mais antiga para a mais recente; cursor = as mais antigas)
+POST   /mixar/:id/items/:postId/comments  { body }        → 201 MixarComment   (400 vazio ou > 500; 422 filtro de texto)
+DELETE /mixar/:id/comments/:commentId                     → { ok: true }       (só o meu; 404 se não)
+GET    /mixar/:id/social?posts=a,b,c                       → { items: { postId, comments, saved }[] }   (até 50)
+POST   /mixar/:id/saved/:postId                            → { saved: true }
+DELETE /mixar/:id/saved/:postId                            → { saved: false }
+GET    /mixar/:id/saved?cursor=&limit=                     → { items: MixarSavedItem[], nextCursor }
+GET    /mixar/:id/more                                     → { left }
+POST   /mixar/:id/more                                     → { added, left }    (429 depois de 3 vezes no dia)
+POST   /mixar/:id/presence  { postId?: string | null, leave?: boolean } → { partner: { here: boolean, postId: string | null } }
+```
+
+```ts
+type MixarComment = { id: string; body: string; createdAt: string; mine: boolean; author: Person };
+type MixarSavedItem = MixarItem & { savedAt: string; savedBy: 'me' | 'them' | 'both' };
+```
+
+### Tempo real
+
+Evento SSE `{ type: 'mixar.live', id, what: 'comment' | 'saved' | 'more' | 'presence', postId?, here?, saved? }` pelo
+RealtimeBus: para o outro e, como eco (`self`), para os meus outros aparelhos (menos a presença). Na app (lib/streamEvents →
+`mixarLiveKeys`): 'comment' põe em dia a conversa desse item e os contadores; 'saved' os contadores e os Guardados; 'more' o
+feed de hoje; 'presence' vai só para o ecrã aberto (lib/realtime → `onMixarLive`).
