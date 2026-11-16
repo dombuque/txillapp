@@ -4,7 +4,7 @@ Estado a 12 de novembro de 2026, ramo `loja-play`. Feito a partir das políticas
 (confirmar outra vez na véspera de submeter: as regras mudam várias vezes por ano).
 
 Fora deste documento, porque são de outras equipas:
-- pagamentos e UGC (Txills, Bombar, presentes, denúncias, bloqueios);
+- pagamentos e UGC (vibes, Bombar, presentes, denúncias, bloqueios);
 - dados e privacidade (apagar conta, página web de apagar conta, formulário Data safety, textos da ficha).
 
 ## 1. Veredicto
@@ -258,7 +258,7 @@ Na Play Console: Conteúdo da app → Classificação de conteúdo. Respostas, a
 | Os utilizadores podem interagir ou trocar conteúdo? | **Sim** | Chat, comentários, publicações, chamadas. |
 | Partilha de localização com outros utilizadores? | **Sim** | Partilhar a localização numa conversa, e o mapa «Perto» (**só adultos**: `nearby.service.ts`, `ADULT_SQL`). |
 | Partilha de informação pessoal? | Sim | Perfil público, conversas. |
-| Compras digitais? | **Sim** | Txills (as respostas e as regras são da equipa de pagamentos). |
+| Compras digitais? | **Sim** | Vibes (as respostas e as regras são da equipa de pagamentos). |
 | A app é um navegador ou motor de pesquisa? | Não | |
 | A app é sobretudo notícias/educação? | Não | |
 
@@ -313,7 +313,7 @@ Escolhe «Todas ou algumas funcionalidades estão restritas» e dá uma conta as
 - **Com conteúdo:** foto de perfil, 3–5 publicações, um mimo, alguns itens na Geleira. Deve seguir e ser seguida por 2–3
   contas de teste com publicações, para o feed, as mensagens e as notificações não aparecerem vazios. Deve ter uma
   conversa com mensagens e, se der, um grupo.
-- **Txills:** saldo pequeno ou nenhum, conforme a equipa de pagamentos decidir para a revisão.
+- **Vibes:** saldo pequeno ou nenhum, conforme a equipa de pagamentos decidir para a revisão.
 - **Instruções para o revisor** (em inglês, no campo da Play Console):
   - *Log in with the username and password below.*
   - *Calls: open a conversation with @<conta-teste> and tap the phone icon.*

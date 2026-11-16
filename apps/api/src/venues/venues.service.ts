@@ -491,7 +491,7 @@ export class VenuesService {
     )).rows[0];
     if (!v) throw new NotFoundException('Local não encontrado');
     if (v.review_status !== 'approved') throw new UnprocessableEntityException('Este local ainda está em análise pela equipa do Txillapp');
-    if (!v.accepts_txills) throw new UnprocessableEntityException('Este local ainda não aceita Txills');
+    if (!v.accepts_txills) throw new UnprocessableEntityException('Este local ainda não aceita vibes');
     return { id: v.id as string, slug: v.slug as string, name: v.name as string };
   }
 

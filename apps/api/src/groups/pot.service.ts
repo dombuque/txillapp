@@ -141,14 +141,14 @@ export class PotService {
 
   async contribute(me: string, groupId: string, amount: number, key: string) {
     await this.access.needMember(groupId, me);
-    if (!Number.isInteger(amount) || amount < 10 || amount > MAX_AMOUNT) throw new UnprocessableEntityException(`Contribui com um número inteiro de Txills entre 10 e ${MAX_AMOUNT}`);
+    if (!Number.isInteger(amount) || amount < 10 || amount > MAX_AMOUNT) throw new UnprocessableEntityException(`Contribui com um número inteiro de vibes entre 10 e ${MAX_AMOUNT}`);
     const mine = await this.wallet.ensureWallet(me);
     const pot = await this.wallet.ensureGroupPot(groupId);
     const r = await this.wallet.move({
       type: 'group_contribution', actorId: me, idempotencyKey: `group_contribution:${groupId}:${key}`,
       lock: [pot, mine], legs: [[mine, -amount], [pot, amount]],
       metadata: { groupId, groupName: await this.groupName(groupId), contributorId: me, amount },
-      insufficient: 'Não tens Txills suficientes',
+      insufficient: 'Não tens vibes suficientes',
     });
     if (!r.replayed) await this.access.changed(groupId, 'pot');
     return this.get(me, groupId);
@@ -167,7 +167,7 @@ export class PotService {
       type: 'venue_payment', actorId: me, idempotencyKey: `pot_payment:${groupId}:${key}`,
       lock: [pot, to], legs: [[pot, -b.amount], [to, b.amount]],
       metadata: { groupId, groupName, venueId: v.id, venueName: v.name, amount: b.amount, note },
-      insufficient: 'O cofre não tem Txills suficientes',
+      insufficient: 'O cofre não tem vibes suficientes',
     });
     if (!r.replayed) {
       await this.venues.notifyPayment(v.id, me, { venueSlug: v.slug, venueName: v.name, amount: b.amount, note, groupId, groupName });

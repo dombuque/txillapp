@@ -301,7 +301,7 @@ describe('segurança das contas: força bruta, registo em massa, contas falsas, 
     const before = (await risk(spam)).score as number;
     const targets: U[] = [];
     for (let i = 0; i < 5; i++) targets.push(await signup(`spt${i}`));
-    for (const t of targets) await api().post(`/api/v1/chat/with/${t.username}`).set(bearer(spam)).send({ kind: 'text', body: 'Ganha Txills grátis em http://exemplo.test' }).expect(201);
+    for (const t of targets) await api().post(`/api/v1/chat/with/${t.username}`).set(bearer(spam)).send({ kind: 'text', body: 'Ganha vibes grátis em http://exemplo.test' }).expect(201);
     const r = await risk(spam);
     expect(r.signals.mensagens_iguais).toBe(RISK.POINTS.mensagens_iguais);
     expect(r.score).toBeGreaterThan(before);

@@ -4,7 +4,7 @@ Estado a 12 de novembro de 2026, ramo `loja-apple`. Feito a partir das App Store
 
 Substitui as partes técnicas de `docs/APP_STORE.md`, que ainda falava de Capacitor.
 
-**Resposta curta: ainda não podemos submeter.** O que dependia desta equipa e levaria a um chumbo já está corrigido (lista A). Falta o que só o dono pode fazer: a conta Apple, a compilação na nuvem e as notificações no iPhone (lista B). Faltam também as partes das outras equipas: compra dos Txills pela Apple (3.1.1), moderação (1.2) e etiquetas de privacidade.
+**Resposta curta: ainda não podemos submeter.** O que dependia desta equipa e levaria a um chumbo já está corrigido (lista A). Falta o que só o dono pode fazer: a conta Apple, a compilação na nuvem e as notificações no iPhone (lista B). Faltam também as partes das outras equipas: compra das vibes pela Apple (3.1.1), moderação (1.2) e etiquetas de privacidade.
 
 ---
 
@@ -84,7 +84,7 @@ Hoje **não é obrigatório**, porque no iPhone só há email e senha. Ficou pre
 - **Países:** confirmar que Moçambique e Portugal estão na lista de distribuição. Na UE, declarar o estatuto de **comerciante (DSA)**, com morada e contacto públicos.
 
 ### B5. O que depende das outras equipas (sem isto também chumba)
-- **3.1.1:** Txills, Bombar e presentes têm de ser comprados com a compra da Apple (StoreKit), e no iPhone não pode haver M-Pesa, e-Mola, cartão nem ligações para pagar fora. Equipa de pagamentos e UGC.
+- **3.1.1:** vibes, Bombar e presentes têm de ser comprados com a compra da Apple (StoreKit), e no iPhone não pode haver M-Pesa, e-Mola, cartão nem ligações para pagar fora. Equipa de pagamentos e UGC.
 - **1.2:** filtro, denúncia, bloqueio e compromisso de resposta. Equipa de pagamentos e UGC.
 - **5.1.2 e App Privacy:** etiquetas de privacidade, política e página de apagar a conta. Equipa de dados.
 
@@ -94,7 +94,7 @@ Hoje **não é obrigatório**, porque no iPhone só há email e senha. Ficou pre
 
 1. **C1, nunca testado em iOS.** Ver B1.4. Os pontos mais prováveis de falha são a câmara (VisionCamera 5), as chamadas (WebRTC, o áudio em fundo e o altifalante), os mapas (WebView com Leaflet) e o teclado nas conversas.
 2. **C2, textos legais (equipa de dados).** A política diz «se entrares com a Google ou com a Apple», mas no iPhone não há nenhum dos dois. Diz também «Na app Android e no iPhone passam pelo Firebase Cloud Messaging», o que deixa de ser verdade se se seguir o B2. Falar de Android na política é tolerado, mas é melhor dizer «no telemóvel».
-3. **C3, Ajuda (equipa de pagamentos).** «Em breve vão pagar vibes», na pergunta dos Txills, é uma funcionalidade anunciada que ainda não existe. Na versão da loja convém tirar.
+3. **C3, Ajuda (equipa de pagamentos).** «Em breve vão pagar vibes» (texto antigo, de quando a moeda ainda se chamava Txills), na pergunta da moeda, era uma funcionalidade anunciada que ainda não existe. Na versão da loja convém tirar.
 4. **C4, lembrete das notificações desligadas.** Aparece no máximo uma vez por dia, com pausas de 3, 7, 14 e 30 dias, e leva às Definições do iPhone. É aceite, porque não volta a abrir o pedido do sistema, mas um revisor que recuse as notificações pode vê-lo. Não se mudou.
 5. **C5, textos de permissão só em português.** O revisor costuma usar o iPhone em inglês e vê os textos em português. É aceite numa app só em português. Para ajudar, podem juntar-se `locales` com o `InfoPlist.strings` em inglês (os textos já estão no `docs/APP_STORE.md` §5).
 6. **C6, flags remotas nos pagamentos.** O `orders.tsx` mostra os métodos que o servidor devolve. Se algum dia o servidor ligar o M-Pesa para o iOS depois da revisão, é uma funcionalidade escondida (2.3.1) e uma violação da 3.1.1. A equipa de pagamentos deve garantir que o servidor nunca devolve métodos externos à app iOS.
@@ -115,7 +115,7 @@ Hoje **não é obrigatório**, porque no iPhone só há email e senha. Ficou pre
 - [ ] Capturas de iPhone 6,9" (1320×2868 ou 1290×2796). Não são precisas capturas de iPad (`supportsTablet: false`). Têm de mostrar a app real a funcionar, sem molduras de Android.
 - [ ] Ícone: vai no build (o `icon.png` de 1024 sem alfa já está bem).
 - [ ] Classificação etária (B4), App Privacy (equipa de dados), encriptação (B4) e direitos de conteúdo (sim, há conteúdo de terceiros: o dos utilizadores).
-- [ ] Preço: grátis. Compras dentro da app: os produtos dos Txills (equipa de pagamentos), submetidos **junto com** esta versão.
+- [ ] Preço: grátis. Compras dentro da app: os produtos das vibes (equipa de pagamentos), submetidos **junto com** esta versão.
 - [ ] Estatuto DSA (UE) e países.
 
 ### D2. Antes de carregar em «Enviar para revisão»
@@ -139,7 +139,7 @@ Hoje **não é obrigatório**, porque no iPhone só há email e senha. Ficou pre
 - [ ] Nenhum «em breve», «teste», «sandbox», APK, Android nem beta visível no iPhone.
 
 ### D3. Conta de demonstração para o revisor (descrição; **não criar na produção sem autorização do dono**)
-- **Conta A, `revisao.apple`:** email do domínio que o dono controle (ex.: `revisao.apple@txillapp.com`), email **já confirmado** e senha forte só para a revisão. Maior de 18 anos, para a Geleira aparecer inteira como para o público adulto. Foto e bio preenchidas, 3 a 5 publicações (fotos e uma tcheka), um mimo ativo, alguns gostos na Geleira, a seguir 5 contas reais e públicas que tenham conteúdo, e uma conversa já começada com a conta B. Saldo de Txills: o bónus normal, sem pagamentos.
+- **Conta A, `revisao.apple`:** email do domínio que o dono controle (ex.: `revisao.apple@txillapp.com`), email **já confirmado** e senha forte só para a revisão. Maior de 18 anos, para a Geleira aparecer inteira como para o público adulto. Foto e bio preenchidas, 3 a 5 publicações (fotos e uma tcheka), um mimo ativo, alguns gostos na Geleira, a seguir 5 contas reais e públicas que tenham conteúdo, e uma conversa já começada com a conta B. Saldo de vibes: o bónus normal, sem pagamentos.
 - **Conta B, `revisao.apple2`:** igual, mais simples, para o revisor testar mensagens e chamadas entre dois aparelhos (ou para a nossa equipa atender uma chamada durante a revisão).
 - Sem verificação de identidade feita, para o revisor poder ver o ecrã de «Pedir o selo».
 - Na ficha: email e senha da conta A no campo de login. A conta B vai nas notas.
@@ -167,7 +167,7 @@ Hoje **não é obrigatório**, porque no iPhone só há email e senha. Ficou pre
 >
 > Contact: suporte@txillapp.com
 
-(Ajustar «Txills» e as compras dentro da app ao que a equipa de pagamentos fechar.)
+(Ajustar «vibes» e as compras dentro da app ao que a equipa de pagamentos fechar.)
 
 ### D5. Configuração gerada (introspect, para conferir no build)
 - **Info.plist (chaves da app):** `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, `NSLocationTemporaryUsageDescriptionDictionary`, todas em português. Também `UIBackgroundModes = [audio]`, `ITSAppUsesNonExemptEncryption = false` e `NSAppTransportSecurity = { NSAllowsArbitraryLoads: false, NSAllowsLocalNetworking: true }`.

@@ -127,7 +127,7 @@ describe('Txillada: dinheiro (entradas e ofertas sob corrida)', () => {
     await endAll(host);
   });
 
-  it('o saldo nunca fica negativo: oferecer e pagar com o saldo exato passa; mais um Txill dá 422 sem gravar nada', async () => {
+  it('o saldo nunca fica negativo: oferecer e pagar com o saldo exato passa; mais uma vibe dá 422 sem gravar nada', async () => {
     const { host, rui } = u;
     const id = (await open(host, { audience: 'paid', price: 30 }).expect(201)).body.txillada.id as string;
     await drainTo(rui, 35);

@@ -95,7 +95,7 @@ ${wordmark(510, 50, 180)}
 <rect x="480" y="290" width="670" height="84" rx="42" fill="#ffffff"/>
 <text x="815" y="345" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="700" fill="#d6334f">${esc(PHRASES[i])}</text>
 ${geleira}
-<text x="480" y="570" font-family="${FONT}" font-size="30" fill="#ffffff">Código <tspan font-weight="700" letter-spacing="4">${esc(p.code)}</tspan> · +${p.reward} Txills para ti</text>
+<text x="480" y="570" font-family="${FONT}" font-size="30" fill="#ffffff">Código <tspan font-weight="700" letter-spacing="4">${esc(p.code)}</tspan> · +${p.reward} vibes para ti</text>
 </svg>`;
 }
 

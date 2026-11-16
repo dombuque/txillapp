@@ -5,6 +5,8 @@ import { Pool } from 'pg';
 import { createApp } from './main';
 import { migrate } from './db/migrate';
 import { loadConfig } from './config';
+import { vibes, vibesWord } from './common/vibes';
+import { historyLabel } from './wallet/wallet.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -45,9 +47,15 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     await pool.end();
   });
 
-  it('carteira abre com bónus de demonstração e rotula Txills como fictícios', async () => {
+  it('carteira abre com bónus de demonstração e rotula as vibes como fictícias', async () => {
     const w = await api().get('/api/v1/wallet').set(auth(ana)).expect(200);
     expect(w.body).toMatchObject({ balance: 500, currency: 'TXL', demo: true });
+  });
+
+  it('a moeda chama-se «vibes» nos textos (o JSON continua igual): singular, plural e o histórico', () => {
+    expect([vibes(1), vibes(0), vibes(50), vibes(1.2), vibes(Number.NaN)]).toEqual(['1 vibe', '0 vibes', '50 vibes', '1 vibe', '0 vibes']);
+    expect([vibesWord(1), vibesWord(2)]).toEqual(['vibe', 'vibes']);
+    expect(historyLabel('topup', 500, { who: null, venue: null, group: null })).toBe('Carregamento de vibes');
   });
 
   it('exige autenticação e Idempotency-Key', async () => {

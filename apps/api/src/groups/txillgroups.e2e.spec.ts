@@ -32,7 +32,7 @@ describe('contas dos TxillGroups (unidade)', () => {
   });
 });
 
-describe('TxillGroups: plano, sondagens, lista, despesas, cofre e pagar com Txills nos locais (integração)', () => {
+describe('TxillGroups: plano, sondagens, lista, despesas, cofre e pagar com vibes nos locais (integração)', () => {
   let app: INestApplication;
   let pool: Pool;
   const run = Date.now().toString(36);
@@ -240,7 +240,7 @@ describe('TxillGroups: plano, sondagens, lista, despesas, cofre e pagar com Txil
     expect(h).toMatchObject({ type: 'group_contribution', amount: -100, group: { id: groupId, name: 'Bilene em Dezembro' }, label: 'Puseste no cofre de Bilene em Dezembro' });
   });
 
-  it('pagar com o cofre: recusado se o local não aceita Txills ou se não é admin; depois paga e avisa os gestores', async () => {
+  it('pagar com o cofre: recusado se o local não aceita vibes ou se não é admin; depois paga e avisa os gestores', async () => {
     await api().post(g('/pot/pay')).set(auth(ana)).send({ venueSlug, amount: 100, idempotencyKey: key() }).expect(422);
     await api().patch(`/api/v1/venues/${venueSlug}`).set(auth(fora)).send({ acceptsTxills: true }).expect(403);
     const v = (await api().patch(`/api/v1/venues/${venueSlug}`).set(auth(dono)).send({ acceptsTxills: true }).expect(200)).body;

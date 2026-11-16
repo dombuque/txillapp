@@ -32,7 +32,7 @@ Para cada tipo de dado: **Ligado à identidade? / Rastreio? / Finalidades**. «F
 | Dado | Recolhido | Ligado | Rastreio | Finalidades |
 |---|---|---|---|---|
 | Informação de pagamento | **Não** (os dados do pagamento ficam com o fornecedor) | | | |
-| Outra informação financeira | Sim | Sim | Não | Funcionalidade: o saldo e os movimentos de Txills, cofres, pagamentos a locais e, nas Txilladas, as entradas, as ofertas e as devoluções. |
+| Outra informação financeira | Sim | Sim | Não | Funcionalidade: o saldo e os movimentos de vibes, cofres, pagamentos a locais e, nas Txilladas, as entradas, as ofertas e as devoluções. |
 
 ### Localização
 | Dado | Recolhido | Ligado | Rastreio | Finalidades | O que é |
@@ -80,9 +80,9 @@ A app não lê o IDFA nem o IDFV.
 ### Compras
 | Dado | Recolhido | Ligado | Rastreio | Finalidades |
 |---|---|---|---|---|
-| Histórico de compras | Sim | Sim | Não | Funcionalidade (pedidos de recarga de Txills: pacote, valor, estado e datas; as entradas das Txilladas privadas, pagas com Txills: a quem, o preço, a hora e a devolução) |
+| Histórico de compras | Sim | Sim | Não | Funcionalidade (pedidos de recarga de vibes: pacote, valor, estado e datas; as entradas das Txilladas privadas, pagas com vibes: a quem, o preço, a hora e a devolução) |
 
-Hoje os pagamentos em dinheiro só existem em teste; as entradas das Txilladas privadas (0167) já existem, pagas com Txills. Marcar na mesma: a app vai ser revista com eles, e marcar a mais não chumba.
+Hoje os pagamentos em dinheiro só existem em teste; as entradas das Txilladas privadas (0167) já existem, pagas com vibes. Marcar na mesma: a app vai ser revista com eles, e marcar a mais não chumba.
 
 ### Dados de utilização
 | Dado | Recolhido | Ligado | Rastreio | Finalidades | O que é |

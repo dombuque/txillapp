@@ -191,7 +191,7 @@ export class RiskService {
       void this.security.event('risk_limited', null, userId, { action });
       return new ForbiddenException({ code: 'risk_limited', message: msg });
     };
-    if (action === 'transfer' || action === 'gift') throw deny('A tua conta ainda é nova e está em revisão: por agora não pode enviar Txills. Tenta daqui a um dia.');
+    if (action === 'transfer' || action === 'gift') throw deny('A tua conta ainda é nova e está em revisão: por agora não pode enviar vibes. Tenta daqui a um dia.');
     if (action === 'follow' && (await store.hit(`risk:lfollow:${userId}`, 3600_000)) > RISK.LIMITED_FOLLOWS_PER_HOUR) {
       void this.security.event('risk_limited', null, userId, { action });
       throw tooMany('risk_limited', 'Estás a seguir muita gente de seguida. Espera um bocado e tenta outra vez.');

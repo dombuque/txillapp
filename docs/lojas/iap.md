@@ -7,7 +7,7 @@ Pela loja vendem-se **só duas coisas**:
 | Verificação paga (selo azul, nível `paid`) | Subscrição com renovação automática | `txillapp.verificado.mensal`, `txillapp.verificado.anual` |
 | Bombar (destaques dos locais) | Consumível | `txillapp.bombar.1d`, `txillapp.bombar.3d`, `txillapp.bombar.7d` |
 
-Os **Txills não se vendem nas lojas** (continuam só nos pagamentos locais, fora das versões das lojas).
+As **vibes não se vendem nas lojas** (continuam só nos pagamentos locais, fora das versões das lojas).
 
 O código está em `apps/api/src/iap/`. A tabela das compras é `payments.iap_purchases`, os acontecimentos (compras,
 renovações, reembolsos e avisos das lojas) ficam em `payments.iap_events`, e a verificação paga (quem pode subscrever e
@@ -39,10 +39,10 @@ O teste e2e `apps/api/src/iap/iap.e2e.spec.ts` («desligado (IAP_ENABLED por lig
     sozinha passados 3 dias se ninguém aprovar.
 - **Bombar**: a app cria primeiro a campanha em rascunho (`state: 'draft'`, «À espera do pagamento»), depois compra o
   produto do pacote. O servidor liga a compra à campanha e ativa-a. Num reembolso, a campanha é suspensa (e a equipa já
-  não a pode repor). Parar uma campanha paga na loja não devolve Txills (não os gastou).
+  não a pode repor). Parar uma campanha paga na loja não devolve vibes (não as gastou).
   - Os rascunhos por pagar apagam-se passadas **24 horas** e nunca aparecem no feed nem no mapa.
   - Raio fixo por pacote (`IAP_BOOST_RADIUS_KM`, por omissão 3 km nos três): é o raio que o preço base de cada pacote
-    cobre hoje (1500, 4000 e 8000 Txills = 150, 400 e 800 MZN, a 0,10 MZN por Txill).
+    cobre hoje (1500, 4000 e 8000 vibes = 150, 400 e 800 MZN, a 0,10 MZN por vibe).
 
 | Produto | Pacote | Dias | Raio | Preço sugerido na loja |
 |---|---|---|---|---|

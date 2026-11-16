@@ -27,7 +27,7 @@ export interface CardItem { name: string; kind: string; category: string; alcoho
  * (o cartão vai para quem não tem conta). `$2` = false tira as bebidas alcoólicas (quem convida é menor, ou quem vê é desconhecido).
  */
 /** A versão do desenho do cartão (sobe quando ele muda). */
-const CARD_DESIGN = 2;
+const CARD_DESIGN = 3;
 
 const CARD_ITEMS_SQL = `SELECT i.name, i.kind, i.category, i.alcoholic, ui.favorite
    FROM identity.users u JOIN taste.user_items ui ON ui.user_id = u.id JOIN taste.items i ON i.id = ui.item_id
@@ -111,9 +111,9 @@ export class InvitesService implements OnModuleInit {
       )
     ).rows[0];
     if (!u || u.status !== 'active') return { ok: false, reason: 'conta inativa' };
-    if ((await this.pool.query(`SELECT ${underReview('$1::uuid')} AS r`, [userId])).rows[0].r) return { ok: false, reason: 'A tua conta está em revisão: os convites dão Txills quando a revisão acabar.' };
-    if (!u.verified) return { ok: false, reason: 'Confirma o teu email para os convites darem Txills.' };
-    if (!u.old) return { ok: false, reason: `Os convites dão Txills a partir de ${INVITE.MIN_AGE_DAYS} dias de conta.` };
+    if ((await this.pool.query(`SELECT ${underReview('$1::uuid')} AS r`, [userId])).rows[0].r) return { ok: false, reason: 'A tua conta está em revisão: os convites dão vibes quando a revisão acabar.' };
+    if (!u.verified) return { ok: false, reason: 'Confirma o teu email para os convites darem vibes.' };
+    if (!u.old) return { ok: false, reason: `Os convites dão vibes a partir de ${INVITE.MIN_AGE_DAYS} dias de conta.` };
     return { ok: true };
   }
 
@@ -208,7 +208,7 @@ export class InvitesService implements OnModuleInit {
     const url = `${origin}/c/${code}`;
     const title = o ? `${o.displayName} convidou-te para o Txillapp` : 'Txillapp, a rede da malta';
     const description = o
-      ? `${PHRASES[phraseIndexOf(o.code)]} Entra com o código ${o.code} e ganha ${INVITE.REWARD} Txills.`
+      ? `${PHRASES[phraseIndexOf(o.code)]} Entra com o código ${o.code} e ganha ${INVITE.REWARD} vibes.`
       : 'Fotos, vídeos, mimos, tchekas e chat em tempo real com a malta.';
     // `?v=`: muda quando o desenho do cartão muda, para a cache (Cloudflare, WhatsApp) ir buscar o novo.
     const image = o ? `${origin}/api/v1/invites/card/${o.code}.png?v=${CARD_DESIGN}` : `${origin}/icon-512.png`;
@@ -390,7 +390,7 @@ export class InvitesService implements OnModuleInit {
       await this.wallet.credit(d.inviter_id as string, INVITE.REWARD, `invite:out:${d.invitee_id}`, { invite: 'out' }, undefined, 'invite');
       await this.pool.query(`UPDATE social.referrals SET status = 'paid', paid_at = now(), amount = $2 WHERE invitee_id = $1`, [d.invitee_id, INVITE.REWARD]);
       // A entrada já foi avisada no registo (invite_joined); este é o aviso do prémio.
-      void this.push.send(d.inviter_id as string, { title: 'Convite', body: `${d.invitee_name as string} já te deu Txills: +${INVITE.REWARD} pelo convite`, url: '/invites', tag: `invite:${d.invitee_id as string}`, category: 'invites' });
+      void this.push.send(d.inviter_id as string, { title: 'Convite', body: `${d.invitee_name as string} já te deu vibes: +${INVITE.REWARD} pelo convite`, url: '/invites', tag: `invite:${d.invitee_id as string}`, category: 'invites' });
       paid++;
     }
     return { qualified, paid };

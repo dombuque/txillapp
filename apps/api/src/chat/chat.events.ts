@@ -107,7 +107,7 @@ export type TxilladaEvent =
   | { type: 'txillada.guest_joined'; txilladaId: string; guest: { user: TxilladaGuestPerson; since: string } }
   | { type: 'txillada.guest_left'; txilladaId: string; user: TxilladaGuestPerson; reason: 'left' | 'removed' }
   /**
-   * Uma oferta de Txills durante o live (0167): a linha «@x ofereceu N Txills», quanto já se juntou (`raised`), a meta da
+   * Uma oferta de Txills durante o live (0167): a linha «@x ofereceu N vibes», quanto já se juntou (`raised`), a meta da
    * Angariação (`goal`, null sem ela) e quem mais ofereceu (top 3, como quem recebe os vê). À sala, menos quem tem um bloqueio
    * com quem ofereceu.
    */

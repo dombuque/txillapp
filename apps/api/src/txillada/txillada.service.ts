@@ -5,6 +5,7 @@ import {
 import { Pool } from 'pg';
 import { badge } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
+import { vibes } from '../common/vibes';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ModerationService, type ReportReason } from '../moderation/moderation.service';
@@ -314,11 +315,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     this.assertEnabled();
     const price = audience === 'paid' ? (opts.price ?? null) : null;
     if (audience === 'paid' && (price == null || !Number.isInteger(price) || price < PRICE_MIN || price > PRICE_MAX)) {
-      throw new BadRequestException(`Numa Txillada privada, a entrada vai de ${PRICE_MIN} a ${PRICE_MAX} Txills.`);
+      throw new BadRequestException(`Numa Txillada privada, a entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`);
     }
     const goal = opts.goal ?? null;
     if (goal != null && (!Number.isInteger(goal) || goal < GOAL_MIN || goal > GOAL_MAX)) {
-      throw new BadRequestException(`A meta da angariação vai de ${GOAL_MIN} a ${GOAL_MAX} Txills.`);
+      throw new BadRequestException(`A meta da angariação vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`);
     }
     const purpose = goal == null ? '' : (opts.purpose ?? '').replace(/\s+/g, ' ').trim().slice(0, PURPOSE_MAX);
     const u = (
@@ -691,8 +692,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       const balance = await this.balance(me);
       return new UnprocessableEntityException({
         message: what === 'ticket'
-          ? `Não tens Txills suficientes: a entrada custa ${amount} Txills e tens ${balance}.`
-          : `Não tens Txills suficientes para oferecer ${amount} (tens ${balance}).`,
+          ? `Não tens vibes suficientes: a entrada custa ${vibes(amount)} e tens ${balance}.`
+          : `Não tens vibes suficientes para oferecer ${amount} (tens ${balance}).`,
         code: 'insufficient_funds',
         amount,
         balance,
@@ -808,13 +809,13 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    * Oferecer Txills durante o live (com ou sem Angariação): quem vê → anfitrião na carteira, com a chave de idempotência da
    * app (`key`: repetir o pedido devolve a mesma oferta sem cobrar outra vez). Quem pode ver (numa paga, com a entrada), não
    * o anfitrião, só a decorrer; no máximo 5 ofertas a cada 10 s. A sala recebe `txillada.gift` (a linha «@x ofereceu N
-   * Txills», quanto já se juntou e quem mais ofereceu), menos quem tem um bloqueio com quem ofereceu.
+   * vibes», quanto já se juntou e quem mais ofereceu), menos quem tem um bloqueio com quem ofereceu.
    */
   async gift(me: string, id: string, amount: number, key: string) {
     const r = await this.access(me, id);
     if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
-    if (r.host_id === me) throw new BadRequestException('Não podes oferecer Txills na tua própria Txillada.');
-    if (!Number.isInteger(amount) || amount < 1 || amount > GIFT_MAX) throw new BadRequestException(`Podes oferecer de 1 a ${GIFT_MAX} Txills de cada vez.`);
+    if (r.host_id === me) throw new BadRequestException('Não podes oferecer vibes na tua própria Txillada.');
+    if (!Number.isInteger(amount) || amount < 1 || amount > GIFT_MAX) throw new BadRequestException(`Podes oferecer de 1 a ${GIFT_MAX} vibes de cada vez.`);
     const lkey = `txillada_gift:${id}:${key}`;
     const u = (await this.pool.query(
       'SELECT id, username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar, verified, verified_tier FROM identity.users WHERE id = $1',

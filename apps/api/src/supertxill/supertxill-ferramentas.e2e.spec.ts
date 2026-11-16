@@ -208,6 +208,16 @@ describe('SuperTxill com ferramentas: só o que a pessoa vê, limites, fila, tem
     expect([d.OLLAMA_THINK, d.SUPERTXILL_TIMEOUT_MS, d.SUPERTXILL_CONCURRENCY, d.OLLAMA_NUM_THREAD]).toEqual(['off', 90_000, 1, undefined]);
   });
 
+  it('a moeda chama-se «vibes» (curta «vib»); «Txills» é o nome antigo da mesma moeda; as vibes da geleira são gostos', () => {
+    for (const p of [systemPrompt({ tools: true }), systemPrompt({ tools: false })]) {
+      expect(p).toContain('- Vibes (forma curta «vib»): a moeda do Txillapp');
+      expect(p).toMatch(/Antes chamavam-se Txills: se alguém falar em «Txills», são as vibes/);
+      expect(p).toContain('As vibes da geleira são gostos, não a moeda.');
+      expect(p).toContain('Não prometas vibes, selos nem vantagens.');
+      expect(p).not.toMatch(/- Txills:|prometas Txills/);
+    }
+  });
+
   it('ferramentas adivinhadas pelas palavras (no máximo 2), e nunca em pedidos para localizar alguém', () => {
     const names = (t: string) => guessTools(t).map((g) => g.name);
     expect(names('Olá! Estou maningue animado hoje. Onde anda a minha malta?')).toEqual(['malta_perto']);

@@ -17,21 +17,21 @@ O canal vem de `src/lib/distribution.ts` (`CHANNEL`). O que se compra em cada ca
 
 | O que se compra / gasta | Onde na app | Regra da Apple | Regra do Google | O que fizemos (lojas) |
 |---|---|---|---|---|
-| **Comprar / recarregar Txills** (M-Pesa, e-Mola, cartão, teste) | Definições › Txills e pagamentos › «Pedidos e pagamentos» (`/orders`) | 3.1.1: moeda virtual só com IAP. Só escapa como **presente em dinheiro** entre pessoas (3.2.1(vii)) ou como dinheiro para **bens físicos** (3.1.3(e)). Anti-steering: não se pode mandar comprar fora | «Virtual currencies» vendidas na app pedem o Play Billing. Escapam os pagamentos entre pessoas e os bens físicos. Moçambique não tem «user choice billing» | **Escondido**, com dois interruptores para o ligar quando a carteira cumprir as regras (secção 4). `/orders` passa para `/wallet`. Sai a linha das Definições e da pesquisa, e o subtítulo passa a «Carteira e presentes». Na Ajuda e no cofre, nada manda recarregar |
+| **Comprar / recarregar vibes** (M-Pesa, e-Mola, cartão, teste) | Definições › Vibes e pagamentos › «Pedidos e pagamentos» (`/orders`) | 3.1.1: moeda virtual só com IAP. Só escapa como **presente em dinheiro** entre pessoas (3.2.1(vii)) ou como dinheiro para **bens físicos** (3.1.3(e)). Anti-steering: não se pode mandar comprar fora | «Virtual currencies» vendidas na app pedem o Play Billing. Escapam os pagamentos entre pessoas e os bens físicos. Moçambique não tem «user choice billing» | **Escondido**, com dois interruptores para o ligar quando a carteira cumprir as regras (secção 4). `/orders` passa para `/wallet`. Sai a linha das Definições e da pesquisa, e o subtítulo passa a «Carteira e presentes». Na Ajuda e no cofre, nada manda recarregar |
 | **Histórico de pedidos de recarga** | `/orders` | Mostra compras feitas fora (preços em MT) | Idem | **Escondido**, com o ecrã |
-| **Levantar Txills / converter em dinheiro** | Não existe (os Txills não se trocam por dinheiro) | Sem levantar, um presente não é «dinheiro» que chega a quem recebe (3.2.1(vii)) | Idem (um «peer-to-peer payment» é dinheiro entre pessoas) | **É o que falta** para a recarga local ser aceitável (secção 4) |
-| **Presentes / brindes com Txills** (publicações, perfil, chat «Presentes», carteira «Presentear alguém») | `GiftSheet`, carteira, chat | 3.2.1(vii): sem IAP só se o presente for opcional, 100% para quem recebe e não estiver ligado a conteúdo ou serviços digitais | FAQ: gorjeta 100% para o criador, sem desbloquear nada digital, conta como pagamento entre pessoas | **Fica.** O código não tira comissão: o movimento tem duas pernas, −N para quem dá e +N para quem recebe (`WalletService.transfer`). O presente não desbloqueia nada. Hoje usa só o saldo que já existe (boas-vindas, convites, presentes recebidos) |
-| **Entrada de uma Txillada privada** (0167: 5 a 5000 Txills, uma vez por Txillada) | Txillada › cartão com o cadeado, «Entrar por N Txills» (`LockedView`) | 3.1.1: desbloquear conteúdo digital com moeda virtual comprada pede IAP. Hoje paga-se só com Txills ganhos (nas lojas não se compram) | Conteúdo digital vendido por dinheiro pede o Play Billing; pontos ganhos, não | **Ativo em todos os canais.** Sem comissão (vai inteira para o anfitrião) e devolvida quando a moderação corta. É um ganho digital pago com Txills: com recarga, os Txills carregados não a podem pagar (secção 4). **Decisão do dono por confirmar** |
-| **Ofertas na Txillada / Angariação** (0167: 1 a 5000 Txills de cada vez) | Txillada › botão do presente | 3.2.1(vii): presente opcional, 100% para quem recebe, sem desbloquear nada | Gorjeta ao criador, sem desbloquear nada | **Ativo.** 100% para o anfitrião e não desbloqueia nada. Mas a linha «@x ofereceu N Txills» e o top 3 da sala dão **destaque e posição** a quem oferece, o que choca com o ponto 4 da secção 4 se a recarga vier. **Decisão do dono por confirmar** |
+| **Levantar vibes / converter em dinheiro** | Não existe (as vibes não se trocam por dinheiro) | Sem levantar, um presente não é «dinheiro» que chega a quem recebe (3.2.1(vii)) | Idem (um «peer-to-peer payment» é dinheiro entre pessoas) | **É o que falta** para a recarga local ser aceitável (secção 4) |
+| **Presentes / brindes com vibes** (publicações, perfil, chat «Presentes», carteira «Presentear alguém») | `GiftSheet`, carteira, chat | 3.2.1(vii): sem IAP só se o presente for opcional, 100% para quem recebe e não estiver ligado a conteúdo ou serviços digitais | FAQ: gorjeta 100% para o criador, sem desbloquear nada digital, conta como pagamento entre pessoas | **Fica.** O código não tira comissão: o movimento tem duas pernas, −N para quem dá e +N para quem recebe (`WalletService.transfer`). O presente não desbloqueia nada. Hoje usa só o saldo que já existe (boas-vindas, convites, presentes recebidos) |
+| **Entrada de uma Txillada privada** (0167: 5 a 5000 vibes, uma vez por Txillada) | Txillada › cartão com o cadeado, «Entrar por N vib» (`LockedView`) | 3.1.1: desbloquear conteúdo digital com moeda virtual comprada pede IAP. Hoje paga-se só com vibes ganhas (nas lojas não se compram) | Conteúdo digital vendido por dinheiro pede o Play Billing; pontos ganhos, não | **Ativo em todos os canais.** Sem comissão (vai inteira para o anfitrião) e devolvida quando a moderação corta. É um ganho digital pago com vibes: com recarga, as vibes carregadas não a podem pagar (secção 4). **Decisão do dono por confirmar** |
+| **Ofertas na Txillada / Angariação** (0167: 1 a 5000 vibes de cada vez) | Txillada › botão do presente | 3.2.1(vii): presente opcional, 100% para quem recebe, sem desbloquear nada | Gorjeta ao criador, sem desbloquear nada | **Ativo.** 100% para o anfitrião e não desbloqueia nada. Mas a linha «@x ofereceu N vibes» e o top 3 da sala dão **destaque e posição** a quem oferece, o que choca com o ponto 4 da secção 4 se a recarga vier. **Decisão do dono por confirmar** |
 | **Bombar** (destacar um evento ou uma publicação de um local; publicidade dentro da app) | Gerir › Bombar (`VenueBoost`) | 3.1.3(g): os «boosts» numa rede social têm de usar IAP | Funcionalidade digital: Play Billing | **Criar campanhas: tirado** (só no site, sem ligações nem chamadas para lá). Na app veem-se as campanhas do local, com o relatório, e podem parar-se. Sai da Ajuda a pergunta «Como bombo o meu local?». **Ver destaques fica** (mostrar anúncios é permitido) |
-| **Pagar com Txills nos locais** (bens e serviços físicos: bebidas, comida, entrada) | Página do local › «Pagar com Txills» (`VenuePaySheet`) | 3.1.3(e): bens e serviços físicos **têm** de usar outro meio que não o IAP | Bens e serviços físicos: o Play Billing não se usa | **Fica.** Sem comissão (o local recebe tudo). O local também não consegue levantar (secção 4) |
-| **Cofre dos TxillGroups** (pôr Txills, pagar a um local, devolver) | Grupo › Cofre (`PotPanel`) | Entre pessoas, e para pagar bens físicos | Pagamento entre pessoas | **Fica.** Já não diz «Carrega a carteira primeiro» |
+| **Pagar com vibes nos locais** (bens e serviços físicos: bebidas, comida, entrada) | Página do local › «Pagar com vibes» (`VenuePaySheet`) | 3.1.3(e): bens e serviços físicos **têm** de usar outro meio que não o IAP | Bens e serviços físicos: o Play Billing não se usa | **Fica.** Sem comissão (o local recebe tudo). O local também não consegue levantar (secção 4) |
+| **Cofre dos TxillGroups** (pôr vibes, pagar a um local, devolver) | Grupo › Cofre (`PotPanel`) | Entre pessoas, e para pagar bens físicos | Pagamento entre pessoas | **Fica.** Já não diz «Carrega a carteira primeiro» |
 | **Despesas do grupo** (quem pagou o quê, em MT) | Grupo › Plano › Despesas | Só faz as contas; não há pagamento na app | — | **Fica** |
-| **Encomendas (orders)** | É o mesmo `/orders` (pedidos de recarga); não há encomendas de bens | ver «Comprar Txills» | — | **Escondido** |
-| **Verificação (selo)** | Definições › Conta › Verificação | Grátis | — | **Fica** (não custa Txills) |
+| **Encomendas (orders)** | É o mesmo `/orders` (pedidos de recarga); não há encomendas de bens | ver «Comprar vibes» | — | **Escondido** |
+| **Verificação (selo)** | Definições › Conta › Verificação | Grátis | — | **Fica** (não custa vibes) |
 | **SuperTxill (IA)** | Mensagens / Pesquisa | Grátis | — | **Fica** |
-| **Nível da geleira** | Perfil › Geleira | O saldo de Txills dá pontos ao nível (1 por cada 200, até 5): é um ganho digital ligado ao saldo | Idem | Hoje não há problema, porque nas lojas não se carregam Txills. **Com recarga, os Txills carregados não podem contar** (secção 4) |
-| **Convites que dão Txills** | Convites | Recompensas sem compra: permitidas | «Earned or awarded points» sem Play Billing: permitido | **Fica** |
+| **Nível da geleira** | Perfil › Geleira | O saldo de vibes dá pontos ao nível (1 por cada 200, até 5): é um ganho digital ligado ao saldo | Idem | Hoje não há problema, porque nas lojas não se carregam vibes. **Com recarga, as vibes carregadas não podem contar** (secção 4) |
+| **Convites que dão vibes** | Convites | Recompensas sem compra: permitidas | «Earned or awarded points» sem Play Billing: permitido | **Fica** |
 
 ## 2. Conteúdo das pessoas (UGC)
 
@@ -74,7 +74,7 @@ O canal vem de `src/lib/distribution.ts` (`CHANNEL`). O que se compra em cada ca
   content or services must use in-app purchase.»
 - **3.2.1(viii)** e **5.1.1(ix):** as apps de gestão de dinheiro e de serviços financeiros devem ser submetidas pela
   entidade que presta o serviço, com as licenças necessárias em cada sítio onde estão disponíveis.
-- **3.1.5:** só fala de criptomoedas; não se aplica (os Txills não são cripto).
+- **3.1.5:** só fala de criptomoedas; não se aplica (as vibes não são cripto).
 
 **Google Play**
 
@@ -96,20 +96,20 @@ O canal vem de `src/lib/distribution.ts` (`CHANNEL`). O que se compra em cada ca
 
 - **Comissão:** nenhuma. Os presentes, os pagamentos a locais e o cofre são movimentos de duas pernas com o mesmo valor
   (`WalletService.transfer` / `move`), e quem recebe fica com 100%.
-- **Levantar:** não existe. Os Termos dizem «não se trocam por dinheiro, não se levantam», e o Gerir › Txills diz
-  «Converter Txills em dinheiro ainda não está disponível».
-- **Taxa:** não é fixa. Os pacotes (`0050_pagamentos.sql`) são 500 Txills por 50 MT (10 por MT), 1 200 por 100 MT (12),
+- **Levantar:** não existe. Os Termos dizem «não se trocam por dinheiro, não se levantam», e o Gerir › Vibes diz
+  «Converter vibes em dinheiro ainda não está disponível».
+- **Taxa:** não é fixa. Os pacotes (`0050_pagamentos.sql`) são 500 vibes por 50 MT (10 por MT), 1 200 por 100 MT (12),
   3 000 por 230 MT (≈ 13) e 7 500 por 500 MT (15). Os pacotes maiores dão bónus, o que é a forma de uma moeda virtual,
   não de dinheiro.
-- **Ganhos digitais pagos com Txills:**
+- **Ganhos digitais pagos com vibes:**
   - o Bombar (já fora das lojas);
   - o nível da geleira, que conta o saldo;
   - a entrada das Txilladas privadas (0167), que abre o vídeo ao vivo;
-  - os Termos prometem que os Txills «em breve vão servir também para pagar vibes».
+  - os Termos prometiam que os Txills (hoje vibes) «em breve vão servir também para pagar vibes» (texto antigo, já retirado).
 
-  A verificação e o SuperTxill não custam Txills.
+  A verificação e o SuperTxill não custam vibes.
 
-**Conclusão: com o desenho atual, as regras não permitem recarregar nas lojas.** Os Txills são uma moeda virtual que
+**Conclusão: com o desenho atual, as regras não permitem recarregar nas lojas.** As vibes são uma moeda virtual que
 não se levanta. O «dinheiro» que um presente leva nunca chega a quem recebe como dinheiro, por isso falha a condição
 (b) da 3.2.1(vii) e a definição de pagamento entre pessoas do Google. Uma moeda virtual vendida dentro da app pede a
 compra da loja (Apple 3.1.1; Google: «virtual currencies … sold in-app»). Por isso a recarga continua **escondida** nas lojas.
@@ -118,11 +118,11 @@ compra da loja (Apple 3.1.1; Google: «virtual currencies … sold in-app»). Po
 
 1. **Levantar o saldo** para M-Pesa ou e-Mola, para as pessoas e para os locais (que hoje também não recebem dinheiro).
    Quem recebe um presente tem de poder levantar 100% dele.
-2. **1 Txill = 1 MT**, sem pacotes com bónus. A carteira mostra o saldo em MT («saldo» ou «dinheiro»), não uma moeda de
+2. **1 vibe = 1 MT**, sem pacotes com bónus. A carteira mostra o saldo em MT («saldo» ou «dinheiro»), não uma moeda de
    jogo, e qualquer valor pode ser carregado.
 3. **Nada digital pago com dinheiro carregado:**
    - o Bombar continua só no site (ou com um saldo à parte);
-   - o nível da geleira deixa de contar os Txills, ou só conta os Txills ganhos;
+   - o nível da geleira deixa de contar as vibes, ou só conta as vibes ganhas;
    - nada de «vibes» pagas com dinheiro carregado.
 
    O mais simples é separar o saldo **ganho** (boas-vindas, convites: pontos, que podem continuar a pagar coisas
@@ -157,17 +157,17 @@ build that is submitted.
 
 **For this build (top-up hidden; `STORE_TOPUP_READY = false`):**
 
-> Txillapp is a social network for Mozambique. The app has no in-app purchases and sells nothing for money. "Txills" are
-> free reward points: every new account gets 500, and users earn more by inviting friends. Txills cannot be bought,
+> Txillapp is a social network for Mozambique. The app has no in-app purchases and sells nothing for money. "Vibes" (formerly "Txills") are
+> free reward points: every new account gets 500, and users earn more by inviting friends. Vibes cannot be bought,
 > topped up or cashed out in this version of the app, and the app has no links or buttons that send users to buy
 > anything elsewhere.
 >
-> Users can optionally send Txills they already have to people they follow, as a gift. 100% of the gift goes to the
-> receiver: there is no commission, and a gift unlocks no content or features. Users can also spend Txills at
+> Users can optionally send vibes they already have to people they follow, as a gift. 100% of the gift goes to the
+> receiver: there is no commission, and a gift unlocks no content or features. Users can also spend vibes at
 > participating physical venues (bars, restaurants, events) for goods and services consumed in the real world, or pool
 > them in a group fund to pay a venue. A host of a live video ("Txillada") can make it private, with an entry price in
-> Txills: viewers spend Txills they already have (earned, never bought) to watch that live, and the full amount goes to
-> the host; entries are refunded if our moderation ends the live. Viewers can also send Txills to the host during a live,
+> vibes: viewers spend vibes they already have (earned, never bought) to watch that live, and the full amount goes to
+> the host; entries are refunded if our moderation ends the live. Viewers can also send vibes to the host during a live,
 > as a gift (100% to the host, no commission, nothing unlocked).
 >
 > Paid promotion of venues ("Bombar") cannot be bought in the app. Sponsored posts are only displayed, always labelled
@@ -184,7 +184,7 @@ build that is submitted.
 
 **For a future build with local top-up (only after section 4, points 1 to 5):**
 
-> The wallet holds Mozambican meticais (1 Txill = 1 MZN). It is loaded with M-Pesa, e-Mola or card through
+> The wallet holds Mozambican meticais (1 vibe = 1 MZN). It is loaded with M-Pesa, e-Mola or card through
 > <licensed partner>, and the balance can be withdrawn back to M-Pesa or e-Mola at any time. The wallet is used only for:
 > (1) optional monetary gifts between individuals, where 100% of the funds go to the receiver, with no fee and no digital
 > content or feature unlocked (guideline 3.2.1(vii); Google Play peer-to-peer payments); and (2) payments to physical

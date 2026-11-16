@@ -3,6 +3,7 @@ import { Pool, PoolClient } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { IAP_DRAFT_HOURS, iapBoostRadius, iapProducts } from '../iap/iap-config';
 import { uuidv7 } from '../common/uuid7';
+import { vibes } from '../common/vibes';
 import { PG_POOL } from '../db/db.module';
 import { eventEnd } from '../nearby/events.service';
 import { distKm, inBox } from '../nearby/geo-sql';
@@ -147,7 +148,7 @@ export class BoostsService {
     const why = this.blocker(v);
     if (why) throw new UnprocessableEntityException(why);
     const payment: BoostPayment = b.payment ?? 'txills';
-    if (!BOOST_PAYMENTS[payment]?.enabled) throw new UnprocessableEntityException('O pagamento em meticais ainda não está disponível. Por agora paga-se com os Txills do local.');
+    if (!BOOST_PAYMENTS[payment]?.enabled) throw new UnprocessableEntityException('O pagamento em meticais ainda não está disponível. Por agora paga-se com as vibes do local.');
     const pkg = boostPackage(b.package);
     if (!pkg) throw new BadRequestException('Pacote inválido');
     const radius = Math.round(b.radiusKm);
@@ -189,7 +190,7 @@ export class BoostsService {
     } catch (e) {
       await c.query('ROLLBACK').catch(() => undefined);
       const code = (e as { code?: string }).code;
-      if (code === '23514') throw new UnprocessableEntityException(`O local não tem Txills suficientes: este pacote custa ${price} Txills.`);
+      if (code === '23514') throw new UnprocessableEntityException(`O local não tem vibes suficientes: este pacote custa ${vibes(price)}.`);
       if (code === '23505') {
         // Dois pedidos com a mesma chave ao mesmo tempo: devolve a campanha do vencedor.
         const tx = (await this.pool.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [userId, idem])).rows[0];

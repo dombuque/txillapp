@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { vibes } from '../common/vibes';
 import { BoostsService } from '../boosts/boosts.service';
 import { INVITE } from '../invites/rules';
 import type { Permission } from '../staff/staff.service';
@@ -394,7 +395,7 @@ export class FinService {
     for (const r of rec) {
       const amount = n(r.amount);
       const why: string[] = [];
-      if (amount >= A.MIN_AMOUNT && amount >= median * A.TIMES_MEDIAN) why.push(`recebeu ${amount} Txills (o normal é ${median})`);
+      if (amount >= A.MIN_AMOUNT && amount >= median * A.TIMES_MEDIAN) why.push(`recebeu ${vibes(amount)} (o normal é ${median})`);
       if (r.senders >= A.MANY_SENDERS) why.push(`de ${r.senders} pessoas diferentes`);
       if (r.new_senders >= A.NEW_SENDER_MIN && r.new_senders / r.senders >= A.NEW_SENDER_SHARE) why.push(`${r.new_senders} de ${r.senders} com a conta criada há menos de ${A.NEW_SENDER_DAYS} dias`);
       if (!why.length) continue;
@@ -409,7 +410,7 @@ export class FinService {
     }
     // 3) Pedidos de compra presos (pendentes há mais de uma hora).
     const [p] = await this.q(`SELECT count(*)::int AS n FROM payments.orders WHERE status = 'pending' AND created_at < now() - interval '1 hour'`);
-    if (p.n > 0) out.push({ id: 'orders', level: 'info', title: `${p.n} compras de Txills pendentes há mais de uma hora`, detail: 'Pedidos que o fornecedor ainda não confirmou nem recusou.' });
+    if (p.n > 0) out.push({ id: 'orders', level: 'info', title: `${p.n} compras de vibes pendentes há mais de uma hora`, detail: 'Pedidos que o fornecedor ainda não confirmou nem recusou.' });
     const rank = { critical: 0, warning: 1, info: 2 };
     out.sort((x, y) => rank[x.level] - rank[y.level] || (y.amount ?? 0) - (x.amount ?? 0));
     return { rules: A, medianReceived: median, receivers: rec.length, items: out };

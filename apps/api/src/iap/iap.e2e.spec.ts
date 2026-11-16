@@ -329,7 +329,7 @@ describe('compras pela loja: verificação paga e Bombar, com a Apple e a Google
     expect((await pool.query(`SELECT count(*)::int AS n FROM audit.audit_log WHERE action = 'boost.iap_suspended' AND target = $1`, [`boost:${d.id}`])).rows[0].n).toBe(1);
   });
 
-  it('Bombar na Apple: pacote errado é recusado (a compra fica guardada) e liga-se depois; REFUND suspende; parar não devolve Txills', async () => {
+  it('Bombar na Apple: pacote errado é recusado (a compra fica guardada) e liga-se depois; REFUND suspende; parar não devolve vibes', async () => {
     const d1 = await draft('1d');
     const d3 = await draft('3d');
     const { t, jws } = appleConsumable(dono, P.b1);

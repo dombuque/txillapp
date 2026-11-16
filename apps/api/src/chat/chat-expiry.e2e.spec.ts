@@ -130,7 +130,7 @@ describe('limpeza das mensagens temporárias e migração 0123 (integração)', 
   });
 
   it('um presente expirado fica como linha vazia (com o gift_tx), não volta a ser apanhado e não mexe no dinheiro', async () => {
-    const gift = await raw("now() - interval '1 minute'", { kind: 'gift', body: '5 Txills', gift: true });
+    const gift = await raw("now() - interval '1 minute'", { kind: 'gift', body: '5 vibes', gift: true });
     const tx = (await row(gift)).gift_tx as string;
     const money = async () => (await pool.query('SELECT (SELECT count(*) FROM ledger.transactions)::int AS t, (SELECT count(*) FROM ledger.entries)::int AS e')).rows[0];
     const before = await money();

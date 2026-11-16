@@ -179,7 +179,7 @@ transmitir na Txillada: <título>» (com o selo; «Entra e aceita o convite» ou
 1. **Pública** (`audience: 'everyone'`): quem pode ver o perfil do anfitrião.
 2. **Para amigos** (`'friends'`): quem o anfitrião segue e o segue a ele. Com «Só amigos próximos» (`'close'`): só a lista
    dos mimos do anfitrião.
-3. **Privada (paga)** (`'paid'`, com `price` de 5 a 5000 Txills): quem pode ver o perfil vê que existe, com o cadeado e o
+3. **Privada (paga)** (`'paid'`, com `price` de 5 a 5000 vibes): quem pode ver o perfil vê que existe, com o cadeado e o
    preço, e paga uma vez para entrar. **Todos pagam** (também os amigos próximos e quem segue), menos o anfitrião e quem ele
    convida para transmitir (um convite à espera, a transmitir, ou já transmitiu e saiu pelo próprio pé). A moderação vê pelo
    backoffice (`GET /admin/txilladas`), não entra de graça na app.
@@ -196,14 +196,14 @@ e da fila dos mimos passa a `{ id, price }` numa privada que eu ainda não pague
 `txillada_ticket:<id da Txillada>` da pessoa), na mesma transação que grava a entrada (`txillada_tickets`); as carteiras
 trancam-se primeiro e a linha da Txillada no fim (`UPDATE … WHERE status = 'live'`: cortada entretanto, tudo volta atrás).
 Pagar outra vez, ou vários pedidos ao mesmo tempo, nunca cobra duas vezes; voltar a entrar depois de sair é grátis. Sem saldo:
-**422** `{ code: 'insufficient_funds', amount, balance, message: 'Não tens Txills suficientes: a entrada custa N Txills e tens
-M.' }` (a app aponta para a carteira; os Txills não se compram aqui nem se levantam). **Corte da moderação** (`cut`, pelo
+**422** `{ code: 'insufficient_funds', amount, balance, message: 'Não tens vibes suficientes: a entrada custa N vibes e tens
+M.' }` (a app aponta para a carteira; as vibes não se compram aqui nem se levantam). **Corte da moderação** (`cut`, pelo
 backoffice ou pela fila de queixas): cada entrada volta a quem pagou, uma vez só (tipo 'txillada_refund', chave
 `txillada_refund:<id da entrada>` do anfitrião); sai da carteira do anfitrião e, se ele já gastou parte, a diferença sai da
 emissão (quem pagou recebe sempre tudo). A tarefa de 20 em 20 s volta a tentar as que falharem. O anfitrião terminar (ou o
 fim sem vídeo, as 4 h, o webhook) não devolve.
 
-**Angariação** (qualquer tipo): ao abrir, `goal` (10 a 1 000 000 Txills) e `purpose` (0 a 80, pelo filtro de palavras, como
+**Angariação** (qualquer tipo): ao abrir, `goal` (10 a 1 000 000 vibes) e `purpose` (0 a 80, pelo filtro de palavras, como
 o título). **Ofertas** (`POST /txilladas/:id/gifts` `{ amount: 1..5000, key }`, com ou sem meta): quem vê (com a entrada,
 numa privada), não o anfitrião, só a decorrer; transferência quem vê → anfitrião (tipo 'txillada_gift', chave
 `txillada_gift:<id>:<key>`, `key` da app com 8 a 64 letras, números, _ ou -), a linha em `txillada_gifts` e `raised` sobem
@@ -227,14 +227,14 @@ Uma oferta (`gift`): `{ id, from: { username, displayName, avatarUrl, verified, 
 
 Tempo real: `{ type: 'txillada.gift', txilladaId, gift, raised, goal, topGivers }` à sala e a quem ofereceu, menos quem tem
 bloqueio com quem ofereceu (o `topGivers` de cada pessoa sem quem tem bloqueio com ela). A app mostra a linha destacada «@x
-ofereceu 50 Txills» (com o selo) no meio dos comentários, sobe a barra «X de Y Txills» e troca o top 3.
+ofereceu 50 vibes» (com o selo) no meio dos comentários, sobe a barra «X de Y vibes» e troca o top 3.
 
 Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na tua Txillada», «Oferta na Txillada de @x» /
 «Oferta de @x na tua Txillada» e «Devolução da entrada na Txillada de @x» / «Devolução da entrada de @x».
 
 **App:** `lib/txillada.ts` (os tipos, `prepAudience`, os limites, `goalProgress`, `giftLine`, o estado com `raised`, `goal`,
 `topGivers` e `viewKind` 'locked'; testes em `tests/txilladaTipos.test.mjs`), `components/txillada/TxilladaMoney.tsx`
-(`LockedView`: o cadeado e «Entrar por N Txills» com confirmação e o saldo; `GoalBar`, `TopGivers`, `GiftSheet`: 5, 10, 50,
+(`LockedView`: o cadeado e «Entrar por N vib» com confirmação e o saldo; `GoalBar`, `TopGivers`, `GiftSheet`: 5, 10, 50,
 100 ou outro valor). Preparar: os três cartões, «Só amigos próximos», a entrada, «Angariação» com a meta e para quê. A roda
 «AO VIVO» mostra o cadeado e o preço numa privada que ainda não paguei.
 

@@ -45,11 +45,11 @@ Para cada linha: **Recolhido / Partilhado / Processado só de passagem? / Obriga
 | Tipo | Recolhido | Partilhado | Obrig./Opc. | Finalidades |
 |---|---|---|---|---|
 | Informações de pagamento do utilizador | **Não** (ficam com o fornecedor: M-Pesa, e-Mola ou cartão) | | | |
-| Histórico de compras | Sim | Não | Opcional | Funcionalidade, Prevenção de fraudes (pedidos de recarga de Txills; as entradas pagas com Txills das Txilladas privadas: quem pagou, a quem, o preço, a hora e a devolução) |
+| Histórico de compras | Sim | Não | Opcional | Funcionalidade, Prevenção de fraudes (pedidos de recarga de vibes; as entradas pagas com vibes das Txilladas privadas: quem pagou, a quem, o preço, a hora e a devolução) |
 | Classificação de crédito | Não | | | |
-| Outras informações financeiras | Sim | Não | Opcional | Funcionalidade, Prevenção de fraudes (saldo e movimentos de Txills, cofres, pagamentos a locais e, nas Txilladas, as entradas, as ofertas e as devoluções, que ficam ligadas a «Conta eliminada» quando a conta sai) |
+| Outras informações financeiras | Sim | Não | Opcional | Funcionalidade, Prevenção de fraudes (saldo e movimentos de vibes, cofres, pagamentos a locais e, nas Txilladas, as entradas, as ofertas e as devoluções, que ficam ligadas a «Conta eliminada» quando a conta sai) |
 
-Hoje os pagamentos em dinheiro só existem em teste; as entradas e as ofertas das Txilladas (0167) já existem, pagas com Txills. Deixar marcado: a Google aceita que se marque a mais.
+Hoje os pagamentos em dinheiro só existem em teste; as entradas e as ofertas das Txilladas (0167) já existem, pagas com vibes. Deixar marcado: a Google aceita que se marque a mais.
 
 ### Saúde e fitness: **não.**
 
