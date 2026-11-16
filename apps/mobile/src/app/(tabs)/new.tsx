@@ -27,8 +27,9 @@ import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
 import { TxilladaPrep } from '@/components/txillada/TxilladaPrep';
-import { useTxilladaEnabled } from '@/lib/api.txillada';
+import { useTxilladaConfigKnown, useTxilladaEnabled } from '@/lib/api.txillada';
 import { withTxilladaKind } from '@/lib/txillada';
+import { MODE_KEY, decodeMode, dropTxillada, encodeKeep, keepRead, keepWrite, keyFor } from '@/lib/createKeep';
 import { TchekaStudio, type StudioDraftIn } from '@/components/TchekaStudio';
 import { StudioDrafts } from '@/components/studio/StudioDrafts';
 import { MagicButton } from '@/components/studio/MagicButton';
@@ -205,11 +206,25 @@ export default function Compose() {
   // O Zás fica sempre em último (nunca é a primeira coisa da câmara); os outros seguem o uso.
   // A TXILLADA (o live) vem no fim, depois do Zás, e só quando o servidor a liga (GET /txilladas/config).
   const txilladaOn = useTxilladaEnabled();
+  const txilladaKnown = useTxilladaConfigKnown();
   const kinds = withTxilladaKind([...KINDS_BASE.filter((k) => k.id !== 'zas').sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0)), KINDS_BASE.find((k) => k.id === 'zas')!], txilladaOn);
-  // A câmara abre sempre em Mimo (como as stories no Instagram).
-  const [kindSel, setKindSel] = useState('mimo');
-  // A Txillada foi desligada enquanto estava escolhida: volta ao Mimo.
-  useEffect(() => { if (!txilladaOn && kindSel === 'txillada') setKindSel('mimo'); }, [txilladaOn, kindSel]);
+  // A câmara abre em Mimo (como as stories no Instagram). Se a app recarregou há pouco (no iPhone, ao voltar à vista com
+  // uma versão nova, ou porque o sistema a tirou da memória), volta ao modo onde estava (lib/createKeep): antes caía
+  // sempre no Mimo e quem estava a preparar uma Txillada saía dela.
+  const modeKey = keyFor(MODE_KEY, user?.username);
+  const [kindSel, setKindSel] = useState(() => decodeMode(keepRead(modeKey), Date.now()) ?? 'mimo');
+  useEffect(() => {
+    const keep = () => keepWrite(modeKey, encodeKeep(kindSel, Date.now()));
+    keep();
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const away = () => { if (document.visibilityState === 'hidden') keep(); };
+    document.addEventListener('visibilitychange', away);
+    return () => document.removeEventListener('visibilitychange', away);
+  }, [kindSel, modeKey]);
+  // A Txillada foi desligada enquanto estava escolhida: volta ao Mimo (só depois de a configuração chegar).
+  useEffect(() => { if (dropTxillada(kindSel, txilladaOn, txilladaKnown)) setKindSel('mimo'); }, [txilladaOn, txilladaKnown, kindSel]);
+  /** A Txillada guardada, à espera da configuração (logo depois de recarregar): fundo preto, sem abrir outra câmara. */
+  const txilladaWait = kindSel === 'txillada' && !txilladaOn ? <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color="#fff" /></View> : null;
   /** No telemóvel, Publicação abre a galeria; a câmara só a partir do primeiro quadrado. */
   const [postCam, setPostCam] = useState(false);
   const [editUri, setEditUri] = useState<string | null>(null);
@@ -611,6 +626,7 @@ export default function Compose() {
     // Zás: o ecrã do Zás entra no lugar da câmara (fechar volta à câmara em Publicação).
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
     // Txillada: o ecrã de preparar o live (câmara, título, público) entra no lugar da câmara.
+    if (txilladaWait) return txilladaWait;
     if (kindSel === 'txillada') return <TxilladaPrep active={focused} onClose={() => setKindSel('mimo')} kinds={kinds} kind={kindSel} onKind={setKindSel} />;
     if (studio) return studioView;
     return (
@@ -665,6 +681,7 @@ export default function Compose() {
   if (step === 'choose' && !web) {
     const changeKind = (k: string) => { setKindSel(k); setPostCam(false); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } };
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('mimo')} /></View>;
+    if (txilladaWait) return txilladaWait;
     if (kindSel === 'txillada') return <TxilladaPrep active={focused} onClose={() => setKindSel('mimo')} kinds={kinds} kind={kindSel} onKind={changeKind} />;
     if (studio) return studioView;
     // Publicação: a galeria com a primeira foto em grande (como "Nova publicação" no Instagram); uma foto vai ao editor.
