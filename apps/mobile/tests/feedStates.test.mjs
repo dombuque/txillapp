@@ -18,7 +18,9 @@ test('Início: a lista não se esvazia por um erro com dados carregados, e o fun
   const src = read('app', '(tabs)', 'index.tsx');
   assert.doesNotMatch(src, /data=\{q\.isLoading \|\| q\.isError \? \[\] : posts\}/);
   assert.match(src, /\n\s*data=\{posts\}/);
-  assert.match(src, /q\.isFetchNextPageError \? \(/);
+  assert.match(src, /q\.isFetchNextPageError && !q\.isFetchingNextPage \? \(/);
+  // Enquanto houver mais, o fim da lista fica montado (pede quando entra no ecrã e tem o botão «Ver mais»).
+  assert.match(src, /q\.hasNextPage \? <LoadMore onLoad=\{onEnd\} loading=\{q\.isFetchingNextPage\} \/>/);
   assert.match(src, /onPress=\{\(\) => void q\.fetchNextPage\(\)\}/);
 });
 

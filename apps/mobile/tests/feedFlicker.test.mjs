@@ -59,7 +59,9 @@ test('Início: chaves estáveis, cartão memo e a mesma janela de virtualizaçã
   assert.match(feed, /keyExtractor=\{\(p\) => p\.id\}/);
   assert.doesNotMatch(feed, /keyExtractor=\{\([^)]*index/);
   assert.doesNotMatch(feed, /removeClippedSubviews/, 'no web desmontaria ainda mais');
-  assert.match(feed, /windowSize=\{7\}/);
+  // No telemóvel a janela fica em 7; na web desenha tudo o que já veio (o PWA do iPhone ficava nas 3 primeiras).
+  assert.match(feed, /windowSize=\{WEB \? 201 : 7\}/);
+  assert.match(feed, /disableVirtualization=\{WEB\}/);
   // As páginas novas acrescentam-se às que já estavam (sem duplicados), por ordem.
   assert.match(feed, /q\.data\?\.pages\.flatMap\(\(p\) => p\.items\)/);
   assert.match(read('components', 'PostCard.tsx'), /export const PostCard = memo\(PostCardBase\);/);
