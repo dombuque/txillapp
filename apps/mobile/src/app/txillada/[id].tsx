@@ -53,7 +53,7 @@ import { KeepAwake, useNow, useTxillada } from '@/lib/txilladaRoom';
  *
  * Tipos e Angariação (0167): uma Txillada privada mostra primeiro o cartão com o cadeado e «Entrar por N Txills» (sem ligar à
  * sala nem pedir nada dela antes de pagar); lá dentro, quem vê não aparece aos outros (só ao anfitrião). Com Angariação, a
- * barra «X de Y Txills» e quem mais ofereceu ficam por baixo dos números; quem vê oferece Txills (o botão do presente) e
+ * barra «X de Y vibes» e quem mais ofereceu ficam por baixo dos números; quem vê oferece vibes (o botão do presente) e
  * cada oferta aparece na conversa, destacada.
  */
 export default function TxilladaScreen() {
@@ -439,7 +439,7 @@ export default function TxilladaScreen() {
                   {ui.canCheer ? <ReactionBar onReact={react} /> : null}
                   <View style={{ flex: 1 }} />
                   {ui.canGift ? (
-                    <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.barBtn, st.giftBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer Txills a @${dto.host.username}`}>
+                    <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.barBtn, st.giftBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a @${dto.host.username}`}>
                       <Icon name="present" size={21} color="#fff" strokeWidth={2.1} />
                     </Pressable>
                   ) : null}
@@ -490,7 +490,7 @@ export default function TxilladaScreen() {
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={`Txillada de ${dto.host.username}`} onClose={() => setPanel(null)}>
             <Pressable onPress={() => { setPanel(null); void share(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Partilhar</Text></Pressable>
-            {ui.canGift ? <Pressable onPress={() => setPanel('gift')} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Oferecer Txills</Text></Pressable> : null}
+            {ui.canGift ? <Pressable onPress={() => setPanel('gift')} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Oferecer vibes</Text></Pressable> : null}
             {g.canRequest || g.waiting ? <Pressable onPress={() => { setPanel(null); askJoin(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'}</Text></Pressable> : null}
             {g.onStage ? <Pressable onPress={() => { setPanel(null); confirmLeaveStage(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Sair do ecrã</Text></Pressable> : null}
             {ui.canReport ? <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: colors.red600, fontWeight: '600' }]}>Denunciar a Txillada</Text></Pressable> : null}
@@ -508,7 +508,7 @@ export default function TxilladaScreen() {
       ) : null}
       {panel === 'gift' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title="Oferecer Txills" onClose={() => setPanel(null)}>
+          <Panel title="Oferecer vibes" onClose={() => setPanel(null)}>
             <GiftSheet
               host={dto.host.username}
               goal={live.goal}

@@ -172,7 +172,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
           <Icon name="search" size={18} color={colors.zinc500} />
           <TextInput value={q} onChangeText={setQ} autoFocus placeholder="Nome do local ou cidade" placeholderTextColor={colors.zinc500} style={ps.searchInput} accessibilityLabel="Procurar locais" />
         </View>
-        {txillsOnly && <Text style={ps.calHint}>Só aparecem locais que aceitam Txills.</Text>}
+        {txillsOnly && <Text style={ps.calHint}>Só aparecem locais que aceitam vibes.</Text>}
         <FlatList
           data={rows}
           keyExtractor={(v) => v.slug}
@@ -183,7 +183,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
               {v.avatarUrl ? <Image source={{ uri: sized(abs(v.avatarUrl) ?? v.avatarUrl, 120) }} style={{ width: 44, height: 44, borderRadius: 12 }} /> : <View style={[ps.venueIcon]}><Icon name="store" size={20} color={colors.zinc600} /></View>}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={ps.rowName} numberOfLines={1}>{v.name}</Text>
-                <Text style={ps.rowSub} numberOfLines={1}>{[v.city, v.acceptsTxills ? 'Aceita Txills' : null].filter(Boolean).join(' · ') || `@${v.slug}`}</Text>
+                <Text style={ps.rowSub} numberOfLines={1}>{[v.city, v.acceptsTxills ? 'Aceita vibes' : null].filter(Boolean).join(' · ') || `@${v.slug}`}</Text>
               </View>
             </Pressable>
           )}

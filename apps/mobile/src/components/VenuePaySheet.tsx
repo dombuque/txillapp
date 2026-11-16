@@ -10,6 +10,7 @@ import { newKey } from '@/lib/api.extra';
 import { aoLocal, locaisApi, shortTx, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { formatVibes, vibesWord } from '@/lib/vibes';
 
 const QUICK = [50, 100, 200, 500];
 const MAX_DIGITS = 7;
@@ -74,8 +75,8 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
   }, []);
 
   function toConfirm() {
-    if (amount < 1) return setErr('Escolhe quantos Txills queres pagar');
-    if (short) return setErr(`O teu saldo não chega. Tens ${fmt(balance!)} Txills.`);
+    if (amount < 1) return setErr('Escolhe quantas vibes queres pagar');
+    if (short) return setErr(`O teu saldo não chega. Tens ${formatVibes(balance!)}.`);
     setErr('');
     // Chave nova para esta confirmação: repetir o mesmo pedido nunca paga duas vezes.
     key.current = newKey();
@@ -115,14 +116,14 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
         <View style={{ paddingHorizontal: 24 }}>
           <View style={st.confirmBox}>
             <VenueLogo venue={venue} size={56} />
-            <Text style={st.confirmQ} accessibilityRole="header">Pagar {fmt(amount)} Txills {ao} {venue.name}?</Text>
+            <Text style={st.confirmQ} accessibilityRole="header">Pagar {formatVibes(amount)} {ao} {venue.name}?</Text>
             {receiptNote(note.trim())}
-            {balance != null ? <Text style={st.after}>Ficas com {fmt(Math.max(0, balance - amount))} Txills.</Text> : null}
+            {balance != null ? <Text style={st.after}>Ficas com {formatVibes(Math.max(0, balance - amount))}.</Text> : null}
           </View>
           <Text style={st.err} accessibilityRole="alert">{err}</Text>
-          <Pressable onPress={() => void pay()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Confirmar o pagamento de ${amount} Txills`}>
+          <Pressable onPress={() => void pay()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Confirmar o pagamento de ${formatVibes(amount)}`}>
             <Icon name="check-circle" size={20} color="#fff" />
-            <Text style={st.primaryText}>{busy ? 'A pagar…' : `Pagar ${fmt(amount)} Txills`}</Text>
+            <Text style={st.primaryText}>{busy ? 'A pagar…' : `Pagar ${formatVibes(amount)}`}</Text>
           </Pressable>
           <Pressable onPress={() => { setErr(''); setStep('amount'); }} disabled={busy} style={st.ghost} accessibilityRole="button">
             <Text style={st.ghostText}>Voltar e mudar</Text>
@@ -137,12 +138,12 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={st.balanceRow}>
           <Icon name="wallet" size={16} color={colors.zinc600} />
-          <Text style={st.balanceText}>{balance != null ? <>Tens <Text style={{ fontWeight: '800', color: colors.zinc900 }}>{fmt(balance)} Txills</Text></> : wallet.isError ? 'Não consegui ver o teu saldo' : 'A ver o teu saldo…'}</Text>
+          <Text style={st.balanceText}>{balance != null ? <>Tens <Text style={{ fontWeight: '800', color: colors.zinc900 }}>{formatVibes(balance)}</Text></> : wallet.isError ? 'Não consegui ver o teu saldo' : 'A ver o teu saldo…'}</Text>
         </View>
 
-        <View style={st.display} accessibilityLiveRegion="polite" accessibilityLabel={`${amount} Txills`}>
+        <View style={st.display} accessibilityLiveRegion="polite" accessibilityLabel={formatVibes(amount)}>
           <Text style={[st.big, !digits && { color: colors.zinc300 }, short && { color: colors.red600 }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(amount)}</Text>
-          <Text style={st.unit}>Txills</Text>
+          <Text style={st.unit}>{vibesWord(amount)}</Text>
         </View>
         {preset ? <Text style={st.presetHint}>Valor pedido pelo local. Podes mudar se for preciso.</Text> : null}
 
@@ -176,9 +177,9 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
           style={st.field}
           accessibilityLabel="Nota do pagamento"
         />
-        <Text style={st.err} accessibilityRole="alert">{err || (short ? `O teu saldo não chega. Tens ${fmt(balance!)} Txills.` : '')}</Text>
+        <Text style={st.err} accessibilityRole="alert">{err || (short ? `O teu saldo não chega. Tens ${formatVibes(balance!)}.` : '')}</Text>
         <Pressable onPress={toConfirm} disabled={amount < 1 || short} style={[st.primary, (amount < 1 || short) && { opacity: 0.5 }]} accessibilityRole="button">
-          <Text style={st.primaryText}>{amount < 1 ? 'Escolhe o valor' : `Continuar com ${fmt(amount)} Txills`}</Text>
+          <Text style={st.primaryText}>{amount < 1 ? 'Escolhe o valor' : `Continuar com ${formatVibes(amount)}`}</Text>
         </Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
@@ -199,11 +200,11 @@ function ReceiptView({ venue, r, onClose }: { venue: Venue; r: Receipt; onClose:
   return (
     <Sheet onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }}>
-        <View style={st.receipt} accessibilityLabel={`Pagamento feito: ${r.amount} Txills ${aoLocal(venue.kind)} ${venue.name}, recibo ${shortTx(r.transactionId)}`}>
+        <View style={st.receipt} accessibilityLabel={`Pagamento feito: ${formatVibes(r.amount)} ${aoLocal(venue.kind)} ${venue.name}, recibo ${shortTx(r.transactionId)}`}>
           <View style={st.okBadge}><Icon name="check" size={34} strokeWidth={2.6} color="#fff" /></View>
           <Text style={st.okTitle}>Pagamento feito</Text>
           <Text style={st.receiptAmount} numberOfLines={1} adjustsFontSizeToFit>{fmt(r.amount)}</Text>
-          <Text style={st.receiptUnit}>Txills</Text>
+          <Text style={st.receiptUnit}>{vibesWord(r.amount)}</Text>
           <View style={st.receiptVenue}>
             <VenueLogo venue={venue} size={32} />
             <Text style={st.receiptVenueName} numberOfLines={2}>{venue.name}</Text>
@@ -213,7 +214,7 @@ function ReceiptView({ venue, r, onClose }: { venue: Venue; r: Receipt; onClose:
             <Line label="Quando" value={quando(r.at)} />
             <Line label="Recibo" value={shortTx(r.transactionId)} mono />
             {user ? <Line label="Pago por" value={`@${user.username}`} /> : null}
-            <Line label="O teu saldo" value={`${fmt(r.balance)} Txills`} />
+            <Line label="O teu saldo" value={formatVibes(r.balance)} />
           </View>
           <View style={st.live}>
             <View style={st.liveDot} />

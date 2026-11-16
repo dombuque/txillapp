@@ -178,7 +178,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
           {busy ? <ActivityIndicator color="#fff" /> : <Icon name={channel === 'post' ? 'compose' : 'send'} size={18} color="#fff" />}
           <Text style={st.sendText}>{channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Mandar a ${chosen.length}` : 'Mandar'}</Text>
         </Pressable>
-        <Text style={st.fine}>Sem dinheiro nem Txills: é entre amigos. Bebe com moderação 🙌</Text>
+        <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação 🙌</Text>
       </ScrollView>
     </Sheet>
       {picking && (

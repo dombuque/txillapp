@@ -28,11 +28,11 @@ const HOME_DESC = 'Partilha fotos e vídeos, cria Tchekas e Mimos, conversa em t
 const PAGES = {
   'index.html': { path: '/', title: 'Txillapp · A rede social da malta', desc: HOME_DESC, index: true },
   'register.html': { path: '/register', title: 'Criar conta · Txillapp', desc: 'Cria a tua conta no Txillapp em menos de um minuto e junta-te à malta: fotos, vídeos, Tchekas, Mimos e conversas.', index: true },
-  'terms.html': { path: '/terms', title: 'Termos de Utilização · Txillapp', desc: 'As regras do Txillapp: a tua conta, o que publicas, os Txills e o que não é permitido na comunidade.', index: true },
+  'terms.html': { path: '/terms', title: 'Termos de Utilização · Txillapp', desc: 'As regras do Txillapp: a tua conta, o que publicas, as vibes e o que não é permitido na comunidade.', index: true },
   'privacy.html': { path: '/privacy', title: 'Política de Privacidade · Txillapp', desc: 'Que dados o Txillapp recolhe, para que servem, quanto tempo ficam guardados e como controlas a tua privacidade.', index: true },
   'login.html': { path: '/login', title: 'Entrar · Txillapp', desc: 'Entra no Txillapp com o teu utilizador ou email e volta à tua malta.', index: true },
   'forgot-password.html': { path: '/forgot-password', title: 'Recuperar a senha · Txillapp', desc: 'Esqueceste a senha? Recebe um email para criar uma nova e voltar ao Txillapp.', index: true },
-  'help.html': { path: '/help', title: 'Ajuda · Txillapp', desc: 'Respostas sobre a tua conta, privacidade, publicações, Txills e segurança no Txillapp.', index: true },
+  'help.html': { path: '/help', title: 'Ajuda · Txillapp', desc: 'Respostas sobre a tua conta, privacidade, publicações, vibes e segurança no Txillapp.', index: true },
 };
 const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const JSONLD = JSON.stringify({

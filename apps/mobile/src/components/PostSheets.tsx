@@ -21,6 +21,7 @@ import { canDownload } from '@/lib/tchekaDownload';
 import { canRepost, REPOST_BLOCKED } from '@/lib/repost';
 import { takedownText, takedownTitle } from '@/lib/remix';
 import { normTextFont, type TextFontId } from '@/lib/textLayers';
+import { formatVibes } from '@/lib/vibes';
 import { FontChips } from './FontChips';
 
 const AMOUNTS = [5, 10, 50, 100];
@@ -70,7 +71,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
 
   async function send() {
     const n = custom ? Number(custom) : amount;
-    if (!Number.isInteger(n) || n < 1) return setErr('O número de Txills tem de ser inteiro');
+    if (!Number.isInteger(n) || n < 1) return setErr('O número de vibes tem de ser inteiro');
     setBusy(true);
     setErr('');
     try {
@@ -103,7 +104,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
     return (
       <Sheet title="Presente enviado" onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.sentText}>Mandaste {custom || amount} Txills a {name}! Que generoso</Text>
+          <Text style={styles.sentText}>Mandaste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
           {sent.published ? <Text style={[styles.sentText, { color: colors.green700, fontSize: 16 }]}>Já está no feed.</Text> : (
             <Pressable onPress={() => void publishNow()} disabled={publishing} style={styles.ghost}><Text style={styles.ghostText}>{publishing ? 'A publicar…' : 'Publicar no feed agora'}</Text></Pressable>
           )}
@@ -144,7 +145,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
           <TextInput value={note} onChangeText={(t) => { setNote(t); fresh(); }} maxLength={280} multiline placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 16, minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel="Mensagem" />
         )}
         <Text style={styles.err} accessibilityRole="alert">{err}</Text>
-        <Pressable disabled={busy} onPress={() => void send()} style={[styles.primary, { height: 56 }, busy && { opacity: 0.5 }]}><Text style={[styles.primaryText, { fontSize: 18 }]}>{busy ? 'A enviar…' : `Mandar ${custom || amount} Txills`}</Text></Pressable>
+        <Pressable disabled={busy} onPress={() => void send()} style={[styles.primary, { height: 56 }, busy && { opacity: 0.5 }]}><Text style={[styles.primaryText, { fontSize: 18 }]}>{busy ? 'A enviar…' : `Mandar ${formatVibes(Number(custom || amount))}`}</Text></Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
     </Sheet>

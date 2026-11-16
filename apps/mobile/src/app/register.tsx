@@ -199,7 +199,7 @@ export default function Register() {
       </View>
 
       <View style={{ marginTop: 40 }}>
-        {invite && i === 0 && <Text style={st.invite}>Convite de {invite.displayName}<InlineBadge who={invite} fontSize={15} />: os dois ganham Txills quando entrares a sério.</Text>}
+        {invite && i === 0 && <Text style={st.invite}>Convite de {invite.displayName}<InlineBadge who={invite} fontSize={15} />: os dois ganham vibes quando entrares a sério.</Text>}
         <Text style={st.title}>{step.title}</Text>
         <Text style={st.sub}>{step.sub}</Text>
 

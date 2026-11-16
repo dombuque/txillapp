@@ -137,7 +137,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
   for (const v of d.venues ?? [])
     out.push({
       key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null,
-      sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita Txills' : null].filter(Boolean).join(' · '),
+      sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita vibes' : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
     out.push({

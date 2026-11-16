@@ -41,7 +41,7 @@ export default function ManageVenue() {
   const askPin = (what: 'map' | 'search') => { setSection('perfil'); setPinAsk((o) => ({ what, n: (o?.n ?? 0) + 1 })); };
   // A notificação de pagamento abre ?s=txills: se a página já estava aberta, muda de secção.
   useEffect(() => { if (s) setSection(s); }, [s]);
-  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Txills'], ['bombar', 'Bombar'], ['painel', 'Painel']];
+  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Vibes'], ['bombar', 'Bombar'], ['painel', 'Painel']];
   // Puxar para atualizar: o local (saldo, estado) e, na secção Txills, os pagamentos recebidos.
   const pull = usePullToRefresh(() => Promise.all([q.refetch(), section === 'txills' ? qc.invalidateQueries({ queryKey: venuePaymentsKey(slug) }) : section === 'eventos' ? qc.invalidateQueries({ queryKey: ['venue-events', slug] }) : section === 'bombar' ? qc.invalidateQueries({ queryKey: boostKey(slug) }) : null]), q.isRefetching);
 

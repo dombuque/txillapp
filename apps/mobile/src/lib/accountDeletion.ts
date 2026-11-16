@@ -21,7 +21,7 @@ export const DELETION_DELETED: string[] = [
 ];
 
 export const DELETION_KEPT: string[] = [
-  'Os movimentos de Txills e os pedidos de recarga ficam registados sem dados pessoais (ligados a «Conta eliminada»), para as contas baterem certo e para prevenir fraude. Os registos dos convites ficam pela mesma razão.',
+  'Os movimentos de vibes e os pedidos de recarga ficam registados sem dados pessoais (ligados a «Conta eliminada»), para as contas baterem certo e para prevenir fraude. Os registos dos convites ficam pela mesma razão.',
   'O registo de segurança diz que a conta foi eliminada e quando, sem o conteúdo das publicações nem das mensagens.',
   'As denúncias que outras pessoas fizeram sobre o que publicaste seguem os prazos da Política de Privacidade.',
   'O que outras pessoas guardaram, copiaram ou fotografaram nos aparelhos delas fica fora do nosso alcance.',

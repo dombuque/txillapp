@@ -35,6 +35,7 @@ import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
 import { LOVE_BURST_MS, LOVE_TAP_MS, canLove, isDoubleClick, loveFrames } from '@/lib/chatLove';
+import { formatVibes } from '@/lib/vibes';
 import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
@@ -598,7 +599,7 @@ export function Bubble({
           <View style={st.giftIcon}><Icon name="gift" size={24} color="#fff" /></View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{mine ? 'Enviaste um presente' : 'Enviou-te um presente'}</Text>
-            <Text style={{ fontSize: 24, lineHeight: 30, fontWeight: '800', color: '#fff' }}>{(m.giftAmount ?? 0).toLocaleString('pt-PT')} Txills</Text>
+            <Text style={{ fontSize: 24, lineHeight: 30, fontWeight: '800', color: '#fff' }}>{formatVibes(m.giftAmount ?? 0)}</Text>
           </View>
         </View>
         <Text style={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4, fontSize: 15, lineHeight: 20.6, color: '#fff' }}>{m.body || ' '}</Text>

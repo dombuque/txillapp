@@ -17,7 +17,7 @@ function files(dir) {
   });
 }
 
-test('nas lojas não se recarregam Txills nem se paga o Bombar; no site e no APK beta fica tudo', () => {
+test('nas lojas não se recarregam vibes nem se paga o Bombar; no site e no APK beta fica tudo', () => {
   for (const c of ['play', 'appstore']) {
     assert.equal(isStoreChannel(c), true);
     assert.deepEqual(purchaseRulesFor(c), { buyTxills: false, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
@@ -61,13 +61,13 @@ test('nas lojas as Definições escondem «Pedidos e pagamentos» (também na pe
 
 test('a Ajuda nas lojas não manda recarregar nem bombar; no site fica igual', () => {
   const faq = [
-    { q: 'Como ganho Txills?', a: 'Ao criar a conta recebes 500 Txills. Também podes recarregar em Definições, Txills e pagamentos, "Pedidos e pagamentos".' },
+    { q: 'Como ganho vibes?', a: 'Ao criar a conta recebes 500 vibes. Também podes recarregar em Definições, Vibes e pagamentos, "Pedidos e pagamentos".' },
     { q: 'Como bombo o meu local?', a: 'Em Gerir, Bombar.' },
     { q: 'Como presenteio alguém?', a: 'Abre o perfil.' },
   ];
   const store = helpFaqFor(purchaseRulesFor('play'), faq);
-  assert.deepEqual(store.map((f) => f.q), ['Como ganho Txills?', 'Como presenteio alguém?']);
-  assert.equal(store[0].a, 'Ao criar a conta recebes 500 Txills.');
+  assert.deepEqual(store.map((f) => f.q), ['Como ganho vibes?', 'Como presenteio alguém?']);
+  assert.equal(store[0].a, 'Ao criar a conta recebes 500 vibes.');
   assert.deepEqual(helpFaqFor(purchaseRulesFor('web'), faq), faq);
   // A pergunta e a frase verdadeiras da Ajuda são as que o filtro apanha.
   const help = read('app', 'help.tsx');
@@ -84,7 +84,7 @@ test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, 
   const home = read('components', 'settings', 'SettingsHome.tsx');
   assert.match(home, /hiddenSettingsFor\(purchases\)/);
   assert.match(home, /paymentsSubtitleFor\(purchases, g\.subtitle\)/);
-  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens Txills suficientes\. Carrega a carteira primeiro\.' : 'Não tens Txills suficientes\.'/);
+  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens vibes suficientes\. Carrega a carteira primeiro\.' : 'Não tens vibes suficientes\.'/);
   // O Bombar nas lojas: sem campanha nova paga com Txills (só ver e parar as que existem). Pela loja, só com as compras
   // pela loja ligadas (IAP_READY e o catálogo do servidor), num componente à parte: ver tests/iap.test.mjs.
   const boost = read('components', 'boost', 'VenueBoost.tsx');

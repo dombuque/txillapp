@@ -79,12 +79,12 @@ test('pickCardItems: nomes repetidos ou vazios ficam de fora; lista em falta dá
 
 test('inviteShareText: a frase, o prémio, o código e a ligação sozinha na última linha', () => {
   const t = c.inviteShareText({ link: 'https://txillapp.com/c/ABCD2345', code: 'ABCD2345', reward: 50, phrase: 0 });
-  assert.equal(t, 'Bora txilar no Txillapp, malta! Entra com o meu convite e ganhas 50 Txills logo à entrada. Código: ABCD2345\nhttps://txillapp.com/c/ABCD2345');
+  assert.equal(t, 'Bora txilar no Txillapp, malta! Entra com o meu convite e ganhas 50 vibes logo à entrada. Código: ABCD2345\nhttps://txillapp.com/c/ABCD2345');
   assert.equal(t.split('\n').pop(), 'https://txillapp.com/c/ABCD2345');
-  // Sem prémio não promete Txills; frase fora da lista volta à roda.
+  // Sem prémio não promete vibes; frase fora da lista volta à roda.
   const s = c.inviteShareText({ link: 'L', code: 'C', reward: 0, phrase: 4 });
   assert.equal(s, 'A tua malta já cá está Entra com o meu convite. Código: C\nL');
-  assert.ok(!/Txills/.test(c.inviteShareText({ link: 'L', code: 'C', reward: Number.NaN })));
+  assert.ok(!/vibes/.test(c.inviteShareText({ link: 'L', code: 'C', reward: Number.NaN })));
 });
 
 test('whatsappUrl: a app no telemóvel, wa.me no browser, com o texto codificado', () => {
@@ -92,16 +92,16 @@ test('whatsappUrl: a app no telemóvel, wa.me no browser, com o texto codificado
   assert.ok(c.whatsappUrl('a', false).startsWith('https://wa.me/?text='));
 });
 
-test('inviteProgress: «entraram 3, 1 já te deu Txills» e as variantes', () => {
-  assert.equal(c.inviteProgress({ invited: 3, paid: 1 }), 'Entraram 3, 1 já te deu Txills');
-  assert.equal(c.inviteProgress({ invited: 3, paid: 2 }), 'Entraram 3, 2 já te deram Txills');
-  assert.equal(c.inviteProgress({ invited: 3, paid: 0 }), 'Entraram 3, ainda nenhum te deu Txills');
-  assert.equal(c.inviteProgress({ invited: 1, paid: 0 }), 'Entrou 1, ainda não te deu Txills');
-  assert.equal(c.inviteProgress({ invited: 1, paid: 1 }), 'Entrou 1 e já te deu Txills');
+test('inviteProgress: «entraram 3, 1 já te deu vibes» e as variantes', () => {
+  assert.equal(c.inviteProgress({ invited: 3, paid: 1 }), 'Entraram 3, 1 já te deu vibes');
+  assert.equal(c.inviteProgress({ invited: 3, paid: 2 }), 'Entraram 3, 2 já te deram vibes');
+  assert.equal(c.inviteProgress({ invited: 3, paid: 0 }), 'Entraram 3, ainda nenhum te deu vibes');
+  assert.equal(c.inviteProgress({ invited: 1, paid: 0 }), 'Entrou 1, ainda não te deu vibes');
+  assert.equal(c.inviteProgress({ invited: 1, paid: 1 }), 'Entrou 1 e já te deu vibes');
   assert.equal(c.inviteProgress({ invited: 0, paid: 0 }), 'Ainda ninguém entrou com o teu convite');
   assert.equal(c.inviteProgress(undefined), 'Ainda ninguém entrou com o teu convite');
   // Lixo do servidor: nunca «mais pagos do que entraram», nem negativos.
-  assert.equal(c.inviteProgress({ invited: 2, paid: 9 }), 'Entraram 2, 2 já te deram Txills');
+  assert.equal(c.inviteProgress({ invited: 2, paid: 9 }), 'Entraram 2, 2 já te deram vibes');
   assert.equal(c.inviteProgress({ invited: -4, paid: -1 }), 'Ainda ninguém entrou com o teu convite');
 });
 
@@ -146,7 +146,7 @@ test('cardLayout: 1080×1350 para conversas e 1080×1920 para o Status; tudo den
 test('cardLayout: leva o nome, a frase, os itens e o código; o QR e o Gelinho vão no fundo', () => {
   const l = c.cardLayout(input());
   const all = l.texts.map((t) => t.text);
-  for (const s of ['Amélia Mussa', 'convidou-te para o Txillapp', 'Bora txilar no Txillapp, malta!', 'Na geleira', 'Matapa', 'Sumo de manga', 'Praia', 'ABCD2345', '+50 Txills para ti · txillapp.com']) assert.ok(all.includes(s), s);
+  for (const s of ['Amélia Mussa', 'convidou-te para o Txillapp', 'Bora txilar no Txillapp, malta!', 'Na geleira', 'Matapa', 'Sumo de manga', 'Praia', 'ABCD2345', '+50 vibes para ti · txillapp.com']) assert.ok(all.includes(s), s);
   assert.match(l.svg, /#9bd8ff/); // o Gelinho
   assert.match(l.svg, /M\d+ \d+h1v1h-1z/); // o QR
   assert.match(l.label, /Amélia Mussa/);

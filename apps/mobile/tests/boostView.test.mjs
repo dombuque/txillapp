@@ -39,12 +39,13 @@ test('a etiqueta "Patrocinado" é o que o leitor de ecrã diz primeiro, com quem
   assert.match(t, /Publicidade de Bar da Marginal/);
 });
 
-test('preços da tabela do servidor e texto dos Txills', () => {
+test('preços da tabela do servidor e texto das vibes', () => {
   const pk = [{ id: '1d', prices: { 1: 1500, 3: 1500, 10: 2550 } }, { id: '7d', prices: { '3': 8000 } }];
   assert.equal(b.priceFor(pk, '1d', 10), 2550);
   assert.equal(b.priceFor(pk, '7d', 3), 8000);
   assert.equal(b.priceFor(pk, '3d', 3), null);
-  assert.match(b.txills(1500), /^1\s?500 Txills$/);
+  assert.match(b.txills(1500), /^1\s?500 vibes$/);
+  assert.equal(b.txills(1), '1 vibe');
 });
 
 test('devolução ao parar: tudo antes de começar, os dias inteiros que faltam, nada no último dia', () => {

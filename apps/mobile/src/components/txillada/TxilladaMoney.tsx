@@ -6,6 +6,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { txilladaApi } from '@/lib/api.txillada';
 import { colors } from '@/lib/theme';
+import { VIB, formatVibes } from '@/lib/vibes';
 import { GIFT_MAX, GIFT_PRESETS, fmtTxills, giftError, goalProgress, parseAmount, txillsLabel, type TxilladaDto, type TxilladaGiver } from '@/lib/txillada';
 import { GlassButton, LiveBadge } from './TxilladaParts';
 
@@ -66,7 +67,7 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
 
         {err ? (
           <View style={lk.err} accessibilityRole="alert">
-            <Text style={lk.errText}>{err.insufficient ? `${err.error} Os Txills estão na tua carteira.` : err.error}</Text>
+            <Text style={lk.errText}>{err.insufficient ? `${err.error} As vibes estão na tua carteira.` : err.error}</Text>
             {err.insufficient ? (
               <Pressable onPress={onWallet} style={({ pressed }) => [lk.walletBtn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
                 <Icon name="wallet" size={16} color={colors.zinc900} strokeWidth={2.2} />
@@ -79,7 +80,7 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
         {!confirm ? (
           <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [lk.cta, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
             <Icon name="lock" size={18} color="#fff" strokeWidth={2.3} />
-            <Text style={lk.ctaText}>Entrar por {txillsLabel(price)}</Text>
+            <Text style={lk.ctaText}>Entrar por {formatVibes(price, { short: true })}</Text>
           </Pressable>
         ) : (
           <View style={lk.confirm}>
@@ -178,14 +179,14 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
 
   return (
     <View style={gs.wrap}>
-      <Text style={gs.lead}>{goal != null ? `Ajuda @${host} a chegar à meta.` : `Oferece Txills a @${host}.`} Os Txills saem da tua carteira.</Text>
-      <View style={gs.presets} accessibilityRole="radiogroup" accessibilityLabel="Quantos Txills">
+      <Text style={gs.lead}>{goal != null ? `Ajuda @${host} a chegar à meta.` : `Oferece vibes a @${host}.`} As vibes saem da tua carteira.</Text>
+      <View style={gs.presets} accessibilityRole="radiogroup" accessibilityLabel="Quantas vibes">
         {GIFT_PRESETS.map((v) => {
           const on = !custom && pick === v;
           return (
             <Pressable key={v} onPress={() => { setPick(v); setCustom(''); setErr(null); }} style={({ pressed }) => [gs.preset, on && gs.presetOn, pressed && { transform: [{ scale: 0.96 }] }]} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={txillsLabel(v)}>
               <Text style={[gs.presetNum, on && { color: '#fff' }]}>{v}</Text>
-              <Text style={[gs.presetUnit, on && { color: 'rgba(255,255,255,0.85)' }]}>Txills</Text>
+              <Text style={[gs.presetUnit, on && { color: 'rgba(255,255,255,0.85)' }]}>{VIB}</Text>
             </Pressable>
           );
         })}
@@ -200,9 +201,9 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
           placeholderTextColor={colors.zinc500}
           style={gs.customInput}
           maxLength={4}
-          accessibilityLabel={`Outro valor em Txills, até ${GIFT_MAX}`}
+          accessibilityLabel={`Outro valor em vibes, até ${GIFT_MAX}`}
         />
-        <Text style={gs.customUnit}>Txills</Text>
+        <Text style={gs.customUnit}>{VIB}</Text>
       </View>
       <Text style={gs.balance}>{balance == null ? ' ' : `Tens ${txillsLabel(balance)} na carteira.`}</Text>
       {err ? (

@@ -160,16 +160,16 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
                   placeholderTextColor="rgba(255,255,255,0.45)"
                   style={st.amountInput}
                   maxLength={4}
-                  accessibilityLabel={`Preço da entrada em Txills, de ${PRICE_MIN} a ${PRICE_MAX}`}
+                  accessibilityLabel={`Preço da entrada em vibes, de ${PRICE_MIN} a ${PRICE_MAX}`}
                 />
-                <Text style={st.amountUnit}>Txills</Text>
+                <Text style={st.amountUnit}>vib</Text>
               </View>
             </View>
           ) : null}
           <Text style={st.hint}>{txKind === 'paid' ? `${hint}. Tu e quem convidares para transmitir entram sem pagar.` : hint}</Text>
 
           {/* A Angariação: uma meta em Txills e para quê; quem vê oferece Txills e a barra enche-se. */}
-          <Toggle label="Angariação" sub="Uma meta em Txills que quem vê ajuda a encher" icon="present" on={fund} onChange={(v) => { setFund(v); clear(); }} />
+          <Toggle label="Angariação" sub="Uma meta em vibes que quem vê ajuda a encher" icon="present" on={fund} onChange={(v) => { setFund(v); clear(); }} />
           {fund ? (
             <View style={st.fundRow}>
               <View style={[st.amount, { width: 128 }]}>
@@ -182,9 +182,9 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   style={st.amountInput}
                   maxLength={7}
-                  accessibilityLabel="Meta da angariação em Txills"
+                  accessibilityLabel="Meta da angariação em vibes"
                 />
-                <Text style={st.amountUnit}>Txills</Text>
+                <Text style={st.amountUnit}>vib</Text>
               </View>
               <TextInput
                 value={purpose}

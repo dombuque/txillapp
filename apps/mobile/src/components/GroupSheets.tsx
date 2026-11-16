@@ -143,7 +143,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
                 <View style={styles.addIcon}><Icon name="users" size={22} color={colors.brand} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.rowName}>Novo TxillGroup</Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e Txills</Text>
+                  <Text style={styles.rowSub} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e vibes</Text>
                 </View>
                 <Icon name="chevron-right" size={18} color={colors.zinc500} />
               </Pressable>

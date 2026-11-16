@@ -22,7 +22,7 @@ export function detectPaymentAsk(text: string, name: string): Intent | null {
   const what = drink ? 'uma bebida' : food ? 'uma refeição' : '';
   return {
     title: drink || food ? `${name} pediu ${what}` : `${name} pediu para pagares`,
-    hint: 'Presenteia com Txills e resolve já aqui.',
+    hint: 'Presenteia com vibes e resolve já aqui.',
     amount: food ? 50 : 10,
     note: drink ? 'Uma bebida por minha conta' : food ? 'Esta refeição é por minha conta' : 'Por minha conta',
   };

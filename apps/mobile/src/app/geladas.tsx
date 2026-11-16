@@ -145,7 +145,7 @@ export default function GeladasScreen() {
             onMoment={() => setMoment(d)}
           />
         ))}
-        <Text style={st.fine}>Não há dinheiro nem Txills no livro: é palavra entre amigos. Bebe com moderação 🙌</Text>
+        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação 🙌</Text>
       </ScrollView>
       <CheersPour n={burst} size={220} />
       {claiming && <PaidSheet debt={claiming} onClose={() => setClaiming(null)} onClaim={(c) => void claim(claiming, c)} />}

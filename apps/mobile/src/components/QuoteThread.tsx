@@ -7,6 +7,7 @@ import { sized } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { formatVibes } from '@/lib/vibes';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -111,7 +112,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
       disabled={!live}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
       accessibilityRole={live ? 'link' : 'text'}
-      accessibilityLabel={`Publicação de ${name}: ${g ? `presente de ${g.amount} Txills a ${g.recipient.displayName}. ` : ''}${body || (m ? (video ? 'vídeo' : 'foto') : '')}`}
+      accessibilityLabel={`Publicação de ${name}: ${g ? `presente de ${formatVibes(g.amount)} a ${g.recipient.displayName}. ` : ''}${body || (m ? (video ? 'vídeo' : 'foto') : '')}`}
       accessibilityHint={live ? 'Abre a publicação original' : undefined}
     >
       <Rail
@@ -138,7 +139,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
               style={styles.giftText}
               containerStyle={{ flexShrink: 1 }}
             >
-              <Text style={[styles.giftText, { flexShrink: 0 }]}>com {g.amount.toLocaleString('pt-PT')} Txills</Text>
+              <Text style={[styles.giftText, { flexShrink: 0 }]}>com {formatVibes(g.amount)}</Text>
             </NameWithBadge>
           </View>
         ) : null}

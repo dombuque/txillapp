@@ -30,6 +30,7 @@ import { timeAgo } from '@/lib/time';
 import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
+import { formatVibes } from '@/lib/vibes';
 import {
   inviteNoticeSub as txilladaInviteSub, inviteNoticeText as txilladaInviteText, noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget,
   noticeText as txilladaNoticeText,
@@ -82,7 +83,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'follow': return { text: many ? 'começaram a seguir-te' : 'começou a seguir-te' };
     case 'follow_request': return { text: 'pediu para te seguir' };
     case 'request_accepted': return { text: `${v('aceit')} o teu pedido para seguir` };
-    case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text></>, sub: n.data.note || undefined };
+    case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text></>, sub: n.data.note || undefined };
     case 'comment': return { text: `${v('coment')} a tua publicação`, sub: quote };
     case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
     case 'story_reply':
@@ -96,7 +97,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'venue_invite': return { text: <>convidou-te para gerir <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'um local'}</Text> como {n.data.role === 'admin' ? 'administrador' : 'editor'}</> };
     // Para os gestores: alguém pagou ao local com Txills.
     // Pago com o cofre de um TxillGroup: diz de que grupo veio.
-    case 'venue_payment': return { text: <>pagou <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text> ao <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'teu local'}</Text>{n.data.groupName ? <> com o cofre de <Text style={{ fontWeight: '700' }}>{n.data.groupName}</Text></> : null}</>, sub: n.data.note || undefined };
+    case 'venue_payment': return { text: <>pagou <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text> ao <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'teu local'}</Text>{n.data.groupName ? <> com o cofre de <Text style={{ fontWeight: '700' }}>{n.data.groupName}</Text></> : null}</>, sub: n.data.note || undefined };
     case 'missed_call': return { text: n.data.video ? 'tentou fazer-te uma videochamada' : 'tentou ligar-te' };
     // A equipa decidiu sobre um local que criaste.
     case 'venue_review': return n.data.decision === 'approved'
