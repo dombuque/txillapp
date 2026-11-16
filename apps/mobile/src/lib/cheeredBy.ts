@@ -13,6 +13,8 @@ export interface CheeredByUser {
   verifiedTier?: 'verified' | 'official' | 'paid' | null;
   /** Está nos meus amigos próximos (a lista dos mimos). */
   close: boolean;
+  /** Sigo esta pessoa (servidores antigos não mandam: conta como não). */
+  following?: boolean;
 }
 export interface CheeredBy {
   users: CheeredByUser[];
@@ -53,8 +55,19 @@ export function cheeredByA11y(v: CheeredByView, fmt: (n: number) => string = Str
   return `Brindado por ${names.length === 2 && !tail ? `${names[0]} e ${names[1]}` : names.join(', ')}${tail}`;
 }
 
-/** Os amigos próximos que brindaram (até 3), para flutuarem sobre a foto ou o vídeo. Nada se o dono não deixa ver. */
+/** Os amigos próximos que brindaram (até 3). Nada se o dono não deixa ver. */
 export function closeCheerers(p: { cheeredBy?: CheeredBy | null }, max = 3): CheeredByUser[] {
   const users = Array.isArray(p.cheeredBy?.users) ? p.cheeredBy!.users : [];
   return users.filter((u) => u && u.close === true && typeof u.username === 'string').slice(0, max);
+}
+
+/**
+ * Quem flutua sobre a foto ou o vídeo (até 3): os amigos próximos que brindaram; se nenhum brindou, as pessoas que sigo
+ * que brindaram. `kind` diz qual dos dois (para o leitor de ecrã). Vazio se nenhum, ou se o dono não deixa ver.
+ */
+export function floatingCheerers(p: { cheeredBy?: CheeredBy | null }, max = 3): { kind: 'close' | 'following'; users: CheeredByUser[] } {
+  const close = closeCheerers(p, max);
+  if (close.length) return { kind: 'close', users: close };
+  const users = Array.isArray(p.cheeredBy?.users) ? p.cheeredBy!.users : [];
+  return { kind: 'following', users: users.filter((u) => u && u.following === true && typeof u.username === 'string').slice(0, max) };
 }

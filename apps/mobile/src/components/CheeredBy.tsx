@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { cheeredByA11y, cheeredByView, closeCheerers, othersLabel, type CheeredBy, type CheeredByUser } from '@/lib/cheeredBy';
+import { cheeredByA11y, cheeredByView, floatingCheerers, othersLabel, type CheeredBy, type CheeredByUser } from '@/lib/cheeredBy';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { compactCount } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
@@ -161,16 +161,17 @@ function Floating({ u, i, reduce, size }: { u: CheeredByUser; i: number; reduce:
 }
 
 /**
- * Os meus amigos próximos que brindaram, em rodas a flutuar sobre a foto ou o vídeo (no canto de baixo à esquerda; quem
+ * Os meus amigos próximos que brindaram (ou, se nenhum brindou, as pessoas que sigo), em caricas a flutuar sobre a foto ou o vídeo (no canto de baixo à esquerda; quem
  * chama põe-nas acima do selo da música). Nada quando nenhum brindou ou o dono não deixa ver quem brindou.
  */
 export function CheeredFriends({ post, onOpen, style, size = 38 }: { post: { cheeredBy?: CheeredBy | null }; onOpen: () => void; style?: StyleProp<ViewStyle>; size?: number }) {
   const reduce = useReduceMotion();
-  const friends = closeCheerers(post);
+  const { kind, users: friends } = floatingCheerers(post);
   if (!friends.length) return null;
+  const who = kind === 'close' ? 'dos teus amigos próximos' : 'que segues';
   const label = friends.length === 1
-    ? `@${friends[0].username}, dos teus amigos próximos, brindou. Ver quem brindou`
-    : `${friends.map((u) => `@${u.username}`).join(', ')}, dos teus amigos próximos, brindaram. Ver quem brindou`;
+    ? `@${friends[0].username}, ${who}, brindou. Ver quem brindou`
+    : `${friends.map((u) => `@${u.username}`).join(', ')}, ${who}, brindaram. Ver quem brindou`;
   return (
     <Pressable onPress={onOpen} hitSlop={6} style={(st) => [float.row, style, st.pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={label}>
       {friends.map((u, i) => <Floating key={u.username} u={u} i={i} reduce={reduce} size={size} />)}

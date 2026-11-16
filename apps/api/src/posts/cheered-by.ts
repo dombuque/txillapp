@@ -2,12 +2,16 @@ import type { Pool } from 'pg';
 import { badge, type Badge } from '../common/badge';
 import { canView } from '../social/visibility';
 
-/** Uma das (até) três pessoas de «Brindado por @fulano e outras N pessoas». `close`: está nos meus amigos próximos. */
+/**
+ * Uma das (até) três pessoas de «Brindado por @fulano e outras N pessoas». `close`: está nos meus amigos próximos;
+ * `following`: sigo-a (sem amigos próximos que brindaram, flutuam as pessoas que sigo).
+ */
 export interface CheeredByUser extends Badge {
   username: string;
   displayName: string;
   avatarUrl: string | null;
   close: boolean;
+  following: boolean;
 }
 
 /** «Brindado por…» de uma publicação: até 3 pessoas e quantos brindes tem (o mesmo número de `cheers`). */
@@ -69,7 +73,8 @@ export async function cheeredByOf(pool: Pool, viewerId: string, rows: Record<str
   for (let i = 0; i < ids.length; i += CHUNK) {
     const { rows: part } = await pool.query(
       `SELECT pid.id AS post_id, a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar, a.verified, a.verified_tier,
-              EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = $1 AND cf.friend_id = a.id) AS close
+              EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = $1 AND cf.friend_id = a.id) AS close,
+              EXISTS (SELECT 1 FROM social.follows fo WHERE fo.follower_id = $1 AND fo.followee_id = a.id) AS following
          FROM unnest($2::uuid[], $3::int[]) WITH ORDINALITY AS pid(id, cheers, n)
          CROSS JOIN LATERAL (
            SELECT s.who, min(s.rank) AS rank, max(s.at) AS at FROM (
@@ -103,6 +108,7 @@ export async function cheeredByOf(pool: Pool, viewerId: string, rows: Record<str
       avatarUrl: f.has_avatar ? `/api/v1/avatars/${encodeURIComponent(f.username as string)}` : null,
       ...badge(f.verified, f.verified_tier),
       close: f.close === true,
+      following: f.following === true,
     });
   }
   return out;

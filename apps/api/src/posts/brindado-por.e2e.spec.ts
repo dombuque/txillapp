@@ -78,7 +78,7 @@ describe('brindado por (integração)', () => {
     expect(who(p.cheeredBy)).toEqual([c1.username, f1.username, s3.username]);
     expect(p.cheeredBy!.users.map((x) => x.close)).toEqual([true, false, false]);
     const f = p.cheeredBy!.users[1];
-    expect(f).toEqual({ username: f1.username, displayName: 'f1 Teste', avatarUrl: null, verified: true, verifiedTier: 'paid', close: false }); // o selo vai junto
+    expect(f).toEqual({ username: f1.username, displayName: 'f1 Teste', avatarUrl: null, verified: true, verifiedTier: 'paid', close: false, following: expect.any(Boolean) }); // o selo vai junto
   });
 
   it('quem não segue ninguém vê os mais recentes (privadas e desativadas fora; o bloqueio é só entre quem bloqueia)', async () => {
