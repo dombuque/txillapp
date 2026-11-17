@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   camera: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 148, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 20, color: colors.zinc900, outlineStyle: 'none' } as object,
   tools: { flexDirection: 'row', alignItems: 'flex-end' },
-  err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
+  err: { textAlign: 'center', fontSize: 14, color: colors.danger, paddingBottom: 6 },
   busy: { textAlign: 'center', fontSize: 13, color: colors.zinc500, paddingBottom: 6 },
   attach: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
   // Até 84 de largura, mas encolhem para caberem os quatro (com a Galeria) a 320 px.

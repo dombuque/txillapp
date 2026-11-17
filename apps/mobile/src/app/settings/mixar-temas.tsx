@@ -58,5 +58,5 @@ export default function MixarPrivateTopicsScreen() {
 
 const st = StyleSheet.create({
   count: { paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontWeight: '700', color: colors.zinc800 },
-  err: { marginHorizontal: 16, marginTop: 8, fontSize: 14, color: colors.red600 },
+  err: { marginHorizontal: 16, marginTop: 8, fontSize: 14, color: colors.danger },
 });

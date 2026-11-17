@@ -70,7 +70,7 @@ export function SwitchAccountSheet({ others, onPick, onClose }: { others: { user
               <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{a.displayName}</Text>
               <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{a.username}</Text>
             </View>
-            <Icon name="chevron-right" size={18} color="#a1a1aa" />
+            <Icon name="chevron-right" size={18} color={colors.zinc400} />
           </Pressable>
         ))}
         <Text style={{ marginTop: 8, fontSize: 13, color: colors.zinc500, textAlign: 'center' }}>{t('Dica: toca duas vezes no perfil, na barra de baixo, para trocar.')}</Text>

@@ -266,8 +266,8 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       ) : (
         <View style={st.bottom}>
           <ActionsRow desktop={desktop}>
-            {action('square-plus', t('Adicionar ao mimo'), () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
-            {action('heart', t('Amigos próximos'), () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
+            {action('square-plus', t('Adicionar ao mimo'), () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : colors.zinc400)}
+            {action('heart', t('Amigos próximos'), () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : colors.zinc400)}
             {action('messages', 'WhatsApp', () => open(`https://wa.me/?text=${enc(url)}`), EMERALD_DARK, '#fff')}
             {letter(t('Telegram'), 'T', '#0ea5e9', () => open(`https://t.me/share/url?url=${enc(url)}`))}
             {letter('Facebook', 'f', '#2563eb', () => open(`https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`))}
@@ -410,7 +410,7 @@ const st = StyleSheet.create({
   recent: { position: 'absolute', right: 0, bottom: -4, borderRadius: 999, borderWidth: 2, borderColor: '#fff', backgroundColor: '#d1fae5', paddingHorizontal: 6 },
   picked: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 36, backgroundColor: 'rgba(214,51,79,0.7)', alignItems: 'center', justifyContent: 'center' },
   name: { textAlign: 'center', fontSize: 13, fontWeight: '500', lineHeight: 16, color: colors.zinc800 },
-  note: { marginHorizontal: 16, marginBottom: 4, borderRadius: 12, backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc800 },
+  note: { marginHorizontal: 16, marginBottom: 4, borderRadius: 12, backgroundColor: colors.zinc50, paddingHorizontal: 12, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc800 },
   bottom: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 16 },
   msg: { height: 48, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 20, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never, marginHorizontal: 4 },
   send: { marginTop: 12, marginHorizontal: 4, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },

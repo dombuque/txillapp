@@ -13,6 +13,8 @@ import { StackPage } from '@/components/StackPage';
 import { ApiError, type Post } from '@/lib/api';
 import { soundsApi, type SoundSort } from '@/lib/api.sounds';
 import { goBack } from '@/lib/nav';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 import { sized } from '@/lib/config';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { isSoundId, mergePages, RETIRE_SOUND_TEXT, RETIRE_SOUND_TITLE, soundMeta, unavailableText, usesLine, studioHref } from '@/lib/sounds';
@@ -23,6 +25,9 @@ import { t } from '@/lib/i18n';
  * A página de um som (como no TikTok): a capa, o título, o autor com o selo, quantas tchekas o usam, ouvir, o botão grande
  * «Usar este som» (abre o estúdio já com ele) e, por baixo, a grelha das tchekas que o usam (mais vistas ou recentes).
  */
+/** O erro de uma ação que falhou (passageiro: vai para o aviso de baixo, showToast). */
+const failText = (e: unknown) => (e instanceof ApiError && e.message ? e.message : t('Não deu. Tenta outra vez daqui a pouco.'));
+
 export default function SoundScreen() {
   const { id: raw = '' } = useLocalSearchParams<{ id: string }>();
   const id = decodeURIComponent(String(raw));
@@ -66,10 +71,10 @@ export default function SoundScreen() {
       soundsApi
         .report(s.id, reason)
         .then(() => {
-          Alert.alert(t('Obrigado'), t('A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.'));
+          showToast(t('Obrigado. A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.'));
           void sound.refetch();
         })
-        .catch((e) => Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Tenta outra vez daqui a pouco.')));
+        .catch((e) => showToast(failText(e)));
     Alert.alert(t('Denunciar este som'), t('Porquê?'), [
       { text: t('Tem música protegida'), onPress: () => void send('copyright') },
       { text: t('Outro motivo'), onPress: () => void send('other') },
@@ -78,19 +83,17 @@ export default function SoundScreen() {
   }
 
   // «Retirar o som» (só o autor): deixa de tocar em todo o lado e o áudio é apagado. Não se desfaz.
-  function retire() {
+  async function retire() {
     if (!s) return;
-    Alert.alert(RETIRE_SOUND_TITLE(), RETIRE_SOUND_TEXT(), [
-      { text: t('Cancelar'), style: 'cancel' },
-      { text: t('Retirar'), style: 'destructive', onPress: () => void soundsApi.retire(s.id)
-        .then(() => {
-          stopTrack(me.current);
-          void qc.invalidateQueries({ queryKey: ['sounds'] });
-          Alert.alert(t('Som retirado'), t('Deixou de tocar em todo o lado.'));
-          goBack(router, '/settings/sons');
-        })
-        .catch((e) => Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Tenta outra vez daqui a pouco.'))) },
-    ]);
+    if (!(await confirm({ title: RETIRE_SOUND_TITLE(), message: RETIRE_SOUND_TEXT(), confirm: t('Retirar'), danger: true }))) return;
+    soundsApi.retire(s.id)
+      .then(() => {
+        stopTrack(me.current);
+        void qc.invalidateQueries({ queryKey: ['sounds'] });
+        showToast(t('Som retirado. Deixou de tocar em todo o lado.'));
+        goBack(router, '/settings/sons');
+      })
+      .catch((e) => showToast(failText(e)));
   }
 
   const cols = 3;
@@ -124,8 +127,8 @@ export default function SoundScreen() {
       </Pressable>
       {why ? <Text style={st.why}>{why}</Text> : null}
       {s.kind === 'original' && s.mine ? (
-        <Pressable onPress={retire} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
-          <Text style={{ color: colors.red600, fontSize: 13, fontWeight: '700' }}>{t('Retirar o som')}</Text>
+        <Pressable onPress={() => void retire()} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
+          <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '700' }}>{t('Retirar o som')}</Text>
         </Pressable>
       ) : null}
       {s.kind === 'original' && !s.mine ? (

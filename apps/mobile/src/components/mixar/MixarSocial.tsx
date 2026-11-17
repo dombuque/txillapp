@@ -174,7 +174,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
         ListEmptyComponent={
           q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
             <View style={st.emptyBox} accessibilityRole="alert">
-              <Text style={[st.emptyLine, { color: colors.red600 }]}>{t('Ups, não consegui carregar')}</Text>
+              <Text style={[st.emptyLine, { color: colors.danger }]}>{t('Ups, não consegui carregar')}</Text>
               <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
             </View>
           ) : (
@@ -204,7 +204,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
               blurOnSubmit={false}
               onKeyPress={isWeb ? (e) => { const k = e.nativeEvent as unknown as { key: string; shiftKey?: boolean; preventDefault?: () => void }; if (k.key === 'Enter' && !k.shiftKey) { (e as unknown as { preventDefault: () => void }).preventDefault?.(); void send(); } } : undefined}
             />
-            {left.show ? <Text style={[st.left, left.over && { color: colors.red600 }]} accessibilityLabel={t('Faltam {value} caracteres', { value: Math.max(0, left.left) })}>{left.left}</Text> : null}
+            {left.show ? <Text style={[st.left, left.over && { color: colors.danger }]} accessibilityLabel={t('Faltam {value} caracteres', { value: Math.max(0, left.left) })}>{left.left}</Text> : null}
             <Pressable onPress={() => void send()} disabled={!canSend(text, busy)} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Enviar')}>
               {busy ? <ActivityIndicator color={colors.brand} /> : <Text style={[st.publish, !canSend(text) && { opacity: 0.45 }]}>{t('Enviar')}</Text>}
             </Pressable>
@@ -370,7 +370,7 @@ const st = StyleSheet.create({
   retry: { marginTop: 16, height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   retryText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
   bar: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingTop: 8, paddingBottom: 4 },
-  err: { fontSize: 14, color: colors.red600, textAlign: 'center', paddingHorizontal: 16, paddingBottom: 6 },
+  err: { fontSize: 14, color: colors.danger, textAlign: 'center', paddingHorizontal: 16, paddingBottom: 6 },
   compose: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16 },
   field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.zinc300, borderRadius: 22, paddingLeft: 14, paddingRight: 10, minHeight: 44 },
   input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: 15, color: colors.zinc900, maxHeight: 110, outlineStyle: 'none' } as object,

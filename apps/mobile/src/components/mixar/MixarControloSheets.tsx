@@ -114,7 +114,7 @@ export function MixarTopicsSheet({ mixar, partner, api, onClose, onPrivate }: { 
             <Text style={st.menuTitle}>{t('Temas privados')}</Text>
             <Text style={st.menuLine}>{t('Temas que nunca aparecem nos teus Mixar nem nos temas em comum.')}</Text>
           </View>
-          <Icon name="chevron-right" size={18} color="#a1a1aa" />
+          <Icon name="chevron-right" size={18} color={colors.zinc400} />
         </Pressable>
       </ScrollView>
     </Sheet>
@@ -156,7 +156,7 @@ const st = StyleSheet.create({
   menuLine: { marginTop: 1, fontSize: 13, color: colors.zinc500 },
   intro: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   note: { marginTop: 8, fontSize: 13, color: colors.zinc500 },
-  err: { marginTop: 10, fontSize: 14, color: colors.red600 },
+  err: { marginTop: 10, fontSize: 14, color: colors.danger },
   section: { marginBottom: 6, fontSize: 12, fontWeight: '800', letterSpacing: 1, color: colors.zinc500, textTransform: 'uppercase' },
   empty: { fontSize: 14, color: colors.zinc500 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.zinc100 },

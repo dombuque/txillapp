@@ -165,5 +165,5 @@ const st = StyleSheet.create({
   fillText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   ghostBtn: { marginTop: 8, height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   ghostText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
-  err: { marginTop: 16, paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.red600 },
+  err: { marginTop: 16, paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.danger },
 });

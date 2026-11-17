@@ -105,10 +105,10 @@ export default function Calls() {
             <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} onLongPress={() => setHeld(c)} delayLongPress={HOLD_MS} accessibilityHint={t('Segura para mais opções')} accessibilityActions={[{ name: 'more', label: t('Mais opções') }]} onAccessibilityAction={() => setHeld(c)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
               <Avatar name={c.peer.displayName} username={c.peer.hasAvatar ? c.peer.username : undefined} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <NameWithBadge name={c.peer.displayName} who={c.peer} style={[st.name, missed && { color: colors.red600 }]} />
+                <NameWithBadge name={c.peer.displayName} who={c.peer} style={[st.name, missed && { color: colors.danger }]} />
                 <View style={st.subRow}>
-                  <CallIcon name={missed ? 'missed' : c.direction === 'out' ? 'outgoing' : 'incoming'} size={14} color={missed ? colors.red600 : colors.zinc500} />
-                  <Text style={[st.sub, missed && { color: colors.red600 }]} numberOfLines={1}>{subtitle(c)}</Text>
+                  <CallIcon name={missed ? 'missed' : c.direction === 'out' ? 'outgoing' : 'incoming'} size={14} color={missed ? colors.danger : colors.zinc500} />
+                  <Text style={[st.sub, missed && { color: colors.danger }]} numberOfLines={1}>{subtitle(c)}</Text>
                 </View>
               </View>
               <IconButton variant="soft" onPress={() => callBack(c)} label={c.video ? t('Videochamada a {displayName}', { displayName: c.peer.displayName }) : t('Ligar a {displayName}', { displayName: c.peer.displayName })}>

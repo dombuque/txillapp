@@ -406,7 +406,7 @@ const st = StyleSheet.create({
   rowSub: { fontSize: 13, color: colors.zinc500 },
   explain: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: 16, backgroundColor: colors.zinc100, padding: 12 },
   explainText: { fontSize: 14, lineHeight: 20, color: colors.zinc700 },
-  msg: { fontSize: 14, lineHeight: 20, color: colors.red600 },
+  msg: { fontSize: 14, lineHeight: 20, color: colors.danger },
   hintText: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   bigMap: { flex: 1, minHeight: 200, borderRadius: 16, overflow: 'hidden', backgroundColor: '#f2efe9' },
   mapWait: { alignItems: 'center', justifyContent: 'center' },

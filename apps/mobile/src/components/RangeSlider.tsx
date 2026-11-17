@@ -139,7 +139,7 @@ const st = StyleSheet.create({
   hit: { height: HIT + 14, justifyContent: 'center', paddingBottom: 14 },
   track: { height: 6, marginHorizontal: THUMB / 2, borderRadius: 3, backgroundColor: colors.zinc200, overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: colors.brand },
-  mark: { position: 'absolute', top: (HIT - 6) / 2, width: 2, height: 6, borderRadius: 1, backgroundColor: '#a1a1aa' },
+  mark: { position: 'absolute', top: (HIT - 6) / 2, width: 2, height: 6, borderRadius: 1, backgroundColor: colors.zinc400 },
   markText: { position: 'absolute', top: 12, width: 32, textAlign: 'center', fontSize: 11, color: colors.zinc500 },
   thumb: { position: 'absolute', top: (HIT - THUMB) / 2, width: THUMB, height: THUMB, borderRadius: THUMB / 2, backgroundColor: colors.white, borderWidth: 2, borderColor: colors.brand, boxShadow: '0 1px 4px rgba(0,0,0,0.25)' },
   thumbOn: { transform: [{ scale: 1.15 }] },

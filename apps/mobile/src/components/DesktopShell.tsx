@@ -209,7 +209,7 @@ const st = StyleSheet.create({
   hidden: { display: 'none' },
   msgList: { width: 380, borderRightWidth: 1, borderRightColor: colors.zinc100 },
   rail: { width: 320, flexGrow: 0, flexShrink: 0 },
-  rowHover: { backgroundColor: '#fafafa', borderRadius: 12 },
+  rowHover: { backgroundColor: colors.zinc50, borderRadius: 12 },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   meName: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   meHandle: { fontSize: 14, color: colors.zinc500 },

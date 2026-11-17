@@ -19,7 +19,7 @@ export function Line({ icon, label, value, to, href, onPress }: { icon: IconName
     </>
   );
   if (!press) return <View style={st.row}>{inner}</View>;
-  return <Pressable onPress={press} accessibilityRole="button" style={({ pressed }) => [st.row, pressed && { backgroundColor: '#fafafa' }]}>{inner}</Pressable>;
+  return <Pressable onPress={press} accessibilityRole="button" style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc50 }]}>{inner}</Pressable>;
 }
 
 /** Grupo de linhas com título pequeno em maiúsculas e cartão com cantos redondos. */
@@ -42,7 +42,7 @@ const st = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   value: { fontSize: 14, color: colors.zinc500 },
-  chev: { fontSize: 20, color: '#a1a1aa' },
+  chev: { fontSize: 20, color: colors.zinc400 },
   title: { marginBottom: 6, paddingHorizontal: 20, fontSize: 13, fontWeight: '700', letterSpacing: 0.65, textTransform: 'uppercase', color: colors.zinc500 },
   card: { marginHorizontal: 16, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white },
 });

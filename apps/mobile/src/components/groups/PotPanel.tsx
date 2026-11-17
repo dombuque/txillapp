@@ -116,7 +116,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
                 <Text style={st.rowName} numberOfLines={1}>{p.venue?.name ?? t('Local')}</Text>
                 <Text style={st.muted} numberOfLines={1}>{[p.note, p.by ? `por ${p.by.username === me ? 'ti' : p.by.displayName}` : null, timeAgo(p.at)].filter(Boolean).join(' · ')}</Text>
               </View>
-              <Text style={[st.amount, { color: colors.red600 }]}>-{p.amount.toLocaleString(intlLocale())}</Text>
+              <Text style={[st.amount, { color: colors.danger }]}>-{p.amount.toLocaleString(intlLocale())}</Text>
             </View>
           ))}
         </Section>
@@ -237,7 +237,7 @@ function ContributeSheet({ groupId, onClose, onDone }: { groupId: string; onClos
               })}
             </View>
             <Field value={custom} onChangeText={(t) => setCustom(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={7} placeholder={t('Outro valor')} accessibilityLabel={t('Outro valor em vibes')} />
-            {short && <Text style={[st.muted, { color: colors.red600 }]}>{purchases.buyTxills ? t('Não tens vibes suficientes. Carrega a carteira primeiro.') : t('Não tens vibes suficientes.')}</Text>}
+            {short && <Text style={[st.muted, { color: colors.danger }]}>{purchases.buyTxills ? t('Não tens vibes suficientes. Carrega a carteira primeiro.') : t('Não tens vibes suficientes.')}</Text>}
             {tooSmall && <Text style={st.muted}>{t('O mínimo são 10 vibes.')}</Text>}
             <ErrText text={err} />
             <Pill label={value ? t('Meter {txills}', { txills: txills(value) }) : t('Escolhe um valor')} disabled={!value || short || tooSmall || value > 100000} onPress={() => setConfirm(true)} />
@@ -320,7 +320,7 @@ function PaySheet({ groupId, pot, venue, onClose, onDone }: { groupId: string; p
             <Text style={st.muted}>{t('Na vaquinha: {txills}', { txills: txills(pot.balance) })}</Text>
             <Field value={text} onChangeText={(t) => setText(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} placeholder={t('Quantas vibes?')} accessibilityLabel={t('Valor a pagar em vibes')} />
             <Field value={note} onChangeText={setNote} maxLength={120} placeholder={t('Nota · ex.: Mesa de fim de ano')} accessibilityLabel={t('Nota do pagamento')} />
-            {over && <Text style={[st.muted, { color: colors.red600 }]}>{t('A vaquinha não tem tanto.')}</Text>}
+            {over && <Text style={[st.muted, { color: colors.danger }]}>{t('A vaquinha não tem tanto.')}</Text>}
             <ErrText text={err} />
             <Pill label={value ? t('Pagar {txills}', { txills: txills(value) }) : t('Escolhe um valor')} disabled={!value || over} onPress={() => setConfirm(true)} />
           </>

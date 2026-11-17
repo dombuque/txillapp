@@ -143,7 +143,7 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
         </View>
 
         <View style={st.display} accessibilityLiveRegion="polite" accessibilityLabel={formatVibes(amount)}>
-          <Text style={[st.big, !digits && { color: colors.zinc300 }, short && { color: colors.red600 }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(amount)}</Text>
+          <Text style={[st.big, !digits && { color: colors.zinc300 }, short && { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(amount)}</Text>
           <Text style={st.unit}>{vibesWord(amount)}</Text>
         </View>
         {preset ? <Text style={st.presetHint}>{t('Valor pedido pelo local. Podes mudar se for preciso.')}</Text> : null}
@@ -264,7 +264,7 @@ const st = StyleSheet.create({
   key: { width: '32%', height: 56, borderRadius: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontSize: 24, fontWeight: '600', color: colors.zinc900 },
   field: { marginTop: 12, borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
-  err: { minHeight: 20, marginVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.red600 },
+  err: { minHeight: 20, marginVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.danger },
   primary: { height: 56, borderRadius: 999, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryText: { fontSize: 18, fontWeight: '700', color: '#fff' },
   ghost: { marginTop: 10, height: 48, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },

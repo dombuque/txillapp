@@ -131,7 +131,7 @@ const st = StyleSheet.create({
   rowText: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.brand, backgroundColor: colors.brand },
-  err: { marginTop: 8, fontSize: 14, color: colors.red600, textAlign: 'center' },
+  err: { marginTop: 8, fontSize: 14, color: colors.danger, textAlign: 'center' },
   badge: { position: 'absolute', left: -3, bottom: -3, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.white, boxShadow: '0 1px 2px rgba(24,24,27,0.18)' },
   notice: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '86%', marginVertical: 8, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 12, paddingVertical: 5, boxShadow: '0 1px 1px rgba(24,24,27,0.04)' },
   noticeText: { flexShrink: 1, fontSize: 12.5, lineHeight: 17, fontWeight: '600', color: colors.zinc600, textAlign: 'center' },

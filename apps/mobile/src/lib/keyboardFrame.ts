@@ -10,11 +10,13 @@
  *   o teclado está aberto (`heldSize`) e o teclado só conta para pôr a barra (`keyboardCover`).
  * - No Android (Chrome e app) a janela pode encolher sozinha com o teclado: conta-se o que ela encolheu ou a altura do
  *   teclado, a que for maior (nunca as duas somadas).
+ * A conta de até onde se vê com o teclado é a mesma da Txillada (lib/keyboardMath `visibleBottom`).
  */
 
+import { visibleBottom, type VisibleBox } from '@/lib/keyboardMath';
+
+export type { VisibleBox };
 export type Size = { w: number; h: number };
-/** A zona visível na web (visualViewport: `top` = offsetTop, `height`). */
-export type VisibleBox = { top: number; height: number };
 
 /**
  * O tamanho do ecrã para desenhar o visor: enquanto o teclado está aberto (ou se está a escrever) fica o de antes; rodar
@@ -56,18 +58,15 @@ export type CoverIn = {
  * descer o visor (`shift`) para ficar no mesmo sítio quando o iPhone desloca a zona visível para cima (offsetTop).
  */
 export function keyboardCover({ web, vv, rootH, screenH, kb }: CoverIn): { cover: number; shift: number } {
-  const h = rootH || screenH;
-  if (web) {
-    // Sem a zona do teclado: só o que a própria página encolheu (Android).
-    if (!vv) return { cover: Math.max(0, Math.round(screenH - h)), shift: 0 };
+  if (web && vv) {
+    // O iPhone desloca a zona visível para cima (offsetTop): o visor desce o mesmo (`shift`) e o fundo da zona visível
+    // conta-se em px do visor.
     const shift = Math.max(0, Math.round(vv.top));
-    // O fundo da zona visível, em px do visor (que desceu `shift`).
-    const visBottom = Math.min(h - shift, vv.height);
-    return { cover: Math.max(0, Math.round(screenH - visBottom)), shift };
+    const bottom = visibleBottom({ web, vv: { top: shift, height: vv.height }, nowH: rootH, screenH, kb }) - shift;
+    return { cover: Math.max(0, Math.round(screenH - bottom)), shift };
   }
-  // Nativo: o teclado tapa o fundo; se a janela já encolheu com ele (Android), não se conta duas vezes.
-  const shrunk = Math.max(0, screenH - h);
-  return { cover: Math.max(0, Math.round(Math.max(kb, shrunk))), shift: 0 };
+  // Web sem a zona do teclado: só o que a própria página encolheu (Android). Nativo: o teclado ou o que a janela encolheu.
+  return { cover: Math.max(0, Math.round(screenH - visibleBottom({ web, vv: null, nowH: rootH, screenH, kb }))), shift: 0 };
 }
 
 /** A folga entre a barra de escrever e o teclado. */

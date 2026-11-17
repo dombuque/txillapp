@@ -457,8 +457,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {...({ onKeyDown: (e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; preventDefault: () => void }) => { const d = tabArrow(e); if (d && pager.canGo(d)) { e.preventDefault(); pager.go(d); } } } as object)}
           >
             {tabs.map((t) => (
-              <Pressable key={t.id} onPress={() => switchTab(t.id)} onLayout={slider.layout(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} aria-selected={tab === t.id} accessibilityLabel={t.label} style={(s) => [styles.tab, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: '#fafafa' }]} {...(desktop ? ({ dataSet: { tip: t.label } } as object) : null)}>
-                {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : '#a1a1aa'} />}
+              <Pressable key={t.id} onPress={() => switchTab(t.id)} onLayout={slider.layout(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} aria-selected={tab === t.id} accessibilityLabel={t.label} style={(s) => [styles.tab, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc50 }]} {...(desktop ? ({ dataSet: { tip: t.label } } as object) : null)}>
+                {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : colors.zinc400} />}
               </Pressable>
             ))}
             {slider.bar}

@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 14, color: colors.zinc500 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   foot: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingTop: 12 },
-  err: { marginBottom: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { marginBottom: 8, textAlign: 'center', fontSize: 14, color: colors.danger },
   go: { flex: 1, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   goText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   back: { height: 48, borderRadius: 24, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },

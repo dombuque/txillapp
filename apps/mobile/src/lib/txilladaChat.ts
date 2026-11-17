@@ -7,6 +7,8 @@
 // ─── O teclado ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 import { t } from '@/lib/i18n';
+import { visibleBottom } from '@/lib/keyboardMath';
+
 export type KbIn = {
   web: boolean;
   /** A escrever no campo (ou o teclado aberto). */
@@ -27,20 +29,13 @@ export type KbIn = {
 /**
  * Onde fica a barra de comentar: sem teclado, na margem de sempre; com ele, logo acima dele (a contar do fundo do palco,
  * que não encolhe). `visTop`/`visBottom`: a parte do palco que se vê (os comentários a flutuar não sobem acima dela).
+ * A conta de até onde se vê é a mesma dos mimos e dos Zás (lib/keyboardMath `visibleBottom`).
  */
 export function liveKeyboard({ web, typing, stageH, winH, vv, kb, padBottom, gap = 8 }: KbIn): { open: boolean; barBottom: number; visTop: number; visBottom: number } {
   const h = stageH || winH;
-  let top = 0;
-  let bottom = h;
-  if (web) {
-    const vb = vv ? vv.top + vv.height : winH;
-    top = vv ? Math.max(0, vv.top) : 0;
-    bottom = Math.min(h, vb, winH || h);
-  } else {
-    // A janela pode já ter encolhido com o teclado (Android): só falta tirar o que ela não encolheu.
-    const shrunk = Math.max(0, h - winH);
-    bottom = Math.min(h, winH || h) - Math.max(0, kb - shrunk);
-  }
+  const top = web && vv ? Math.max(0, vv.top) : 0;
+  // Web sem a zona visível: o fundo é o da janela de agora. Nativo: o teclado, sem contar duas vezes o que a janela encolheu.
+  const bottom = Math.min(h, visibleBottom({ web, vv: web ? vv ?? { top: 0, height: winH } : null, nowH: winH, screenH: h, kb }));
   const open = typing && bottom < h - 40;
   if (!open) return { open: false, barBottom: padBottom, visTop: 0, visBottom: h };
   return { open: true, barBottom: Math.max(padBottom, Math.ceil(h - bottom) + gap), visTop: top, visBottom: bottom };

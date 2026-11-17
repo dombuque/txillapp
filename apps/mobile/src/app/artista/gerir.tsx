@@ -2,16 +2,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
-import { Ghost, Pill, Primary, ast } from '@/components/ArtistUi';
+import { ScrollView, Text, View } from 'react-native';
+import { Pill, ast } from '@/components/ArtistUi';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { artistsApi, type MyTrack } from '@/lib/api.artists';
 import { mmss, trackStatusLabel, usesLine } from '@/lib/artists';
 import { abs } from '@/lib/config';
+import { confirm } from '@/lib/confirm';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
+import { showToast } from '@/lib/toast';
 import { formatDate, t } from '@/lib/i18n';
 
 /**
@@ -33,15 +37,10 @@ export default function GerirMusicas() {
     const ok = await playTrack(me.current, t.previewUrl, { loop: false, onStop: () => setPlaying(null) });
     if (!ok) setPlaying(null);
   }
-  function withdraw(track: MyTrack) {
-    Alert.alert(t('Retirar «{title}»?', { title: track.title }), t('Deixa de estar disponível para novos mimos e tchekas. Os que já a usam continuam como estão. Não se desfaz: para voltar, carregas outra vez.'), [
-      { text: t('Cancelar'), style: 'cancel' },
-      {
-        text: t('Retirar'),
-        style: 'destructive',
-        onPress: () => void artistsApi.withdrawTrack(track.id).then(() => qc.invalidateQueries({ queryKey: ['artist-tracks'] })).catch((e: Error) => Alert.alert(t('Não deu'), e.message)),
-      },
-    ]);
+  async function withdraw(track: MyTrack) {
+    const ok = await confirm({ title: t('Retirar «{title}»?', { title: track.title }), message: t('Deixa de estar disponível para novos mimos e tchekas. Os que já a usam continuam como estão. Não se desfaz: para voltar, carregas outra vez.'), confirm: t('Retirar'), danger: true });
+    if (!ok) return;
+    artistsApi.withdrawTrack(track.id).then(() => qc.invalidateQueries({ queryKey: ['artist-tracks'] })).catch((e: Error) => showToast(e.message || t('Não deu. Tenta outra vez.')));
   }
 
   const list = q.data ?? [];
@@ -49,9 +48,9 @@ export default function GerirMusicas() {
   return (
     <StackPage title={t('As minhas músicas')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
-        <Primary title={t('Carregar uma música')} onPress={() => router.push('/artista/carregar' as never)} />
+        <Button label={t('Carregar uma música')} onPress={() => router.push('/artista/carregar' as never)} block />
         {q.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 32 }} /> : null}
-        {q.isError ? <Text style={ast.err}>{t('Não consegui carregar as tuas músicas.')}</Text> : null}
+        {q.isError ? <ErrorState what={t('as tuas músicas')} onRetry={() => void q.refetch()} /> : null}
         {q.data && !list.length ? <Text style={[ast.cardSub, { textAlign: 'center', marginTop: 24 }]}>{t('Ainda não carregaste nenhuma música.')}</Text> : null}
         {list.length ? <Text style={[ast.hint, { marginTop: 16 }]}>{t('{count} música · {total} {value} ao todo. Só vês totais: nunca quem usou.', { count: list.length, total, value: total === 1 ? 'uso' : 'usos', other: '{count} músicas · {total} {value} ao todo. Só vês totais: nunca quem usou.' })}</Text> : null}
         {list.map((track2) => {
@@ -69,17 +68,14 @@ export default function GerirMusicas() {
                 </View>
               </View>
               <Text style={[ast.cardSub, { fontWeight: '600', color: colors.zinc900 }]}>{usesLine(track2.uses, track2.people)}</Text>
-              {track2.reason && (track2.status === 'rejected' || track2.status === 'removed') ? <Text style={[ast.cardSub, { color: colors.red600 }]}>{t('Motivo: {reason}', { reason: track2.reason })}</Text> : null}
+              {track2.reason && (track2.status === 'rejected' || track2.status === 'removed') ? <Text style={[ast.cardSub, { color: colors.danger }]}>{t('Motivo: {reason}', { reason: track2.reason })}</Text> : null}
               {track2.onHold ? <Text style={ast.hint}>{t('Alguém denunciou esta música por direitos de autor. Fica escondida enquanto a equipa analisa; podes ser contactado.')}</Text> : null}
               <Text style={ast.hint}>{track2.licenseAcceptedAt ? t('Licença aceite a {date} (versão {licenseVersion}).', { date: formatDate(track2.licenseAcceptedAt), licenseVersion: track2.licenseVersion }) : t('Licença aceite (versão {licenseVersion}).', { licenseVersion: track2.licenseVersion })}</Text>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 {track2.previewUrl ? (
-                  <Pressable onPress={() => void listen(track2)} style={[ast.ghost, { flexDirection: 'row', alignItems: 'center', gap: 6 }]} accessibilityRole="button" accessibilityLabel={playing === track2.id ? t('Parar') : t('Ouvir o trecho')}>
-                    <Icon name={playing === track2.id ? 'pause' : 'play'} size={14} solid color={colors.zinc800} />
-                    <Text style={ast.ghostTxt}>{playing === track2.id ? t('Parar') : t('Ouvir o trecho')}</Text>
-                  </Pressable>
+                  <Button label={playing === track2.id ? t('Parar') : t('Ouvir o trecho')} kind="secondary" size="sm" icon={<Icon name={playing === track2.id ? 'pause' : 'play'} size={14} solid color={colors.zinc900} />} onPress={() => void listen(track2)} style={ast.ghost} />
                 ) : null}
-                {track2.status === 'approved' || track2.status === 'pending' ? <Ghost title={t('Retirar')} danger onPress={() => withdraw(track2)} /> : null}
+                {track2.status === 'approved' || track2.status === 'pending' ? <Button label={t('Retirar')} kind="danger" size="sm" onPress={() => void withdraw(track2)} style={ast.ghost} /> : null}
               </View>
             </View>
           );

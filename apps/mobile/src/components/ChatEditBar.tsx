@@ -101,7 +101,7 @@ const st = StyleSheet.create({
   barTitle: { fontSize: 13, fontWeight: '700', color: colors.brand },
   barText: { fontSize: 13, color: colors.zinc500 },
   x: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  err: { paddingHorizontal: 4, paddingBottom: 6, fontSize: 13, color: colors.red600 },
+  err: { paddingHorizontal: 4, paddingBottom: 6, fontSize: 13, color: colors.danger },
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, minHeight: 44, maxHeight: 140, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, fontSize: 16, lineHeight: 21, color: colors.zinc900 },
   send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },

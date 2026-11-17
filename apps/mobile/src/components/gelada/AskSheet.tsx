@@ -156,7 +156,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
           {chosen.length > 0 && (
             <View style={st.chips}>
               {chosen.map((c) => (
-                <Pressable key={c.username} disabled={lockTo} onPress={() => toggle(c)} style={[st.chip, !lockTo && notMutual.includes(c) && { borderColor: colors.red600 }]} accessibilityRole="button" accessibilityLabel={lockTo ? `@${c.username}` : t('Tirar @{username}', { username: c.username })}>
+                <Pressable key={c.username} disabled={lockTo} onPress={() => toggle(c)} style={[st.chip, !lockTo && notMutual.includes(c) && { borderColor: colors.danger }]} accessibilityRole="button" accessibilityLabel={lockTo ? `@${c.username}` : t('Tirar @{username}', { username: c.username })}>
                   <Avatar name={c.displayName} username={c.username} size={24} />
                   <NameWithBadge name={`@${c.username}`} who={c} style={st.chipText} containerStyle={{ flexShrink: 1 }} />
                   {!lockTo && <Icon name="x" size={14} color={colors.zinc600} />}
@@ -248,7 +248,7 @@ const st = StyleSheet.create({
   personHandle: { fontSize: 13, color: colors.zinc500 },
   tick: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   tickOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  err: { fontSize: 14, lineHeight: 20, color: colors.red600 },
+  err: { fontSize: 14, lineHeight: 20, color: colors.danger },
   done: { fontSize: 15, fontWeight: '700', color: colors.green700, textAlign: 'center' },
 
   fine: { textAlign: 'center', fontSize: 12, color: colors.zinc500 },

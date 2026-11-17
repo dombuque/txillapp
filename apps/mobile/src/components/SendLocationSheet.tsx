@@ -496,7 +496,7 @@ const st = StyleSheet.create({
   chipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.sky },
   chipText: { fontSize: 13, fontWeight: '600', color: colors.zinc800 },
   recenter: { position: 'absolute', right: 12, bottom: 12, width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.22)' } as object,
-  err: { marginHorizontal: 16, marginTop: 10, fontSize: 14, color: colors.red600, textAlign: 'center' },
+  err: { marginHorizontal: 16, marginTop: 10, fontSize: 14, color: colors.danger, textAlign: 'center' },
   hint: { marginHorizontal: 16, marginVertical: 8, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   notice: { flexDirection: 'row', gap: 12, margin: 12, marginBottom: 4, borderRadius: 16, backgroundColor: colors.zinc100, padding: 14 },
   noticeTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },

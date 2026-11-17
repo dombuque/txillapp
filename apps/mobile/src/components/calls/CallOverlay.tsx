@@ -23,7 +23,7 @@ import { TxFrame } from './TxFrame';
 import { t } from '@/lib/i18n';
 
 const GREEN = '#22c55e';
-const RED = '#ef4444';
+const RED = colors.dangerBright;
 const native = Platform.OS !== 'web';
 const QUICK = () => [t('Estou ocupado, já te ligo'), t('Estou numa reunião, ligo depois'), t('Não posso falar agora, manda mensagem')];
 

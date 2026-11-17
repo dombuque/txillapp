@@ -15,6 +15,7 @@ import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
 import { LoadMore } from '@/components/LoadMore';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { SearchField, SearchFieldButton } from '@/components/ui/SearchField';
 import { EmptyState } from '@/components/Empty';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { TrendingSounds } from '@/components/TrendingSounds';
@@ -24,7 +25,7 @@ import { api, isTcheka, type Post } from '@/lib/api';
 import { locaisApi } from '@/lib/api.locais';
 import { VenueRow, VenueTile } from '@/components/VenueCard';
 import { sized } from '@/lib/config';
-import { colors } from '@/lib/theme';
+import { colors, iconSize } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { useDesktop } from '@/lib/desktop';
 import { gridColumns } from '@/lib/desktopKeys';
@@ -189,14 +190,22 @@ export default function Search() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - colW) > 1) setColW(w); }}>
       <View style={styles.bar}>
         <BackButton />
-        <View style={styles.field}>
-          <Icon name="search" size={18} color={colors.zinc600} />
-          <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder={t('Pesquisar')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel={t('Pesquisar')} />
-          {text ? <Pressable onPress={() => setText('')} hitSlop={8} style={{ paddingHorizontal: 6 }} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}><Icon name="x" size={18} color={colors.zinc600} /></Pressable> : null}
-          {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
-          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Ler um QR')}><Icon name="qr-scan" size={18} color={colors.zinc700} /></Pressable>
-          <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Abrir o SuperTxill')}><Bolt size={20} /></Pressable>
-        </View>
+        <SearchField
+          ref={input}
+          value={text}
+          onChangeText={setText}
+          onFocus={() => setFocusMode(true)}
+          onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }}
+          placeholder={t('Pesquisar')}
+          style={styles.field}
+          right={
+            <>
+              {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
+              <SearchFieldButton onPress={() => router.push('/qr' as never)} label={t('Ler um QR')}><Icon name="qr-scan" size={iconSize.field} color={colors.zinc700} /></SearchFieldButton>
+              <SearchFieldButton onPress={() => router.push('/supertxill' as never)} label={t('Abrir o SuperTxill')}><Bolt size={20} /></SearchFieldButton>
+            </>
+          }
+        />
         {focusMode ? (
           <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>{t('Cancelar')}</Text></Pressable>
         ) : (
@@ -408,8 +417,7 @@ const styles = StyleSheet.create({
   perto: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 16, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: colors.rose50 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 8, paddingTop: 8 },
   saved: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
-  field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
-  input: { flex: 1, minWidth: 0, fontSize: 16, padding: 0, color: colors.zinc900, outlineStyle: 'none' } as object,
+  field: { flex: 1, minWidth: 0 },
   tag: { position: 'absolute', right: 6, top: 6 },
   recent: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 8 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20 },

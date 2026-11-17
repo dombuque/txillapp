@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
-import { buttonLook, disabledOpacity, type ButtonKind, type ButtonSize } from '@/lib/theme';
+import { brandGradient, buttonLook, disabledOpacity, type ButtonKind, type ButtonSize } from '@/lib/theme';
 import { Icon, type IconName } from '../Icon';
 import { PontoLoader } from '../PontoLoader';
 
@@ -9,7 +10,7 @@ export type { ButtonKind, ButtonSize } from '@/lib/theme';
 export type ButtonProps = {
   label: string;
   onPress?: () => void;
-  /** `primary` coral (por omissão), `secondary` cinzento, `ghost` só texto, `danger` vermelho claro, `dangerSolid` vermelho cheio (só na caixa de confirmação). */
+  /** `primary` coral (por omissão), `gradient` o degradê coral (entrar, criar conta, apresentação), `secondary` cinzento, `ghost` só texto, `danger` vermelho claro, `dangerSolid` vermelho cheio (só na caixa de confirmação). */
   kind?: ButtonKind;
   /** `lg` 52 (CTA de ecrã e de folha, por omissão), `md` 44 (em cartões e listas), `sm` 36 (chips de ação, com área de toque de 44). */
   size?: ButtonSize;
@@ -32,7 +33,8 @@ export type ButtonProps = {
 
 /**
  * O botão do Txillapp: pílula (raio 999), letra 16/700 (14/700 no `sm`), três alturas e cinco tipos (lib/theme `buttonLook`).
- * Desligado fica a 45%; a carregar mostra o PontoLoader (nunca «Um momento…»).
+ * Desligado fica a 45%; a carregar mostra o PontoLoader (nunca «Um momento…»). Na web, passar o rato clareia os cheios e dá
+ * um fundo um tom acima aos outros (como a apresentação tinha).
  */
 export function Button({ label, onPress, kind = 'primary', size = 'lg', icon, loading = false, disabled = false, dark = false, block = false, style, textStyle, accessibilityLabel, accessibilityHint, testID }: ButtonProps) {
   const look = buttonLook(kind, size, dark);
@@ -48,15 +50,21 @@ export function Button({ label, onPress, kind = 'primary', size = 'lg', icon, lo
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: off, busy: loading }}
       testID={testID}
-      style={({ pressed }) => [
+      style={(s) => {
+        const { pressed } = s;
+        const hovered = !!(s as { hovered?: boolean }).hovered && !off;
+        return [
         st.base,
         { height: look.height, borderRadius: look.radius, backgroundColor: look.bg, paddingHorizontal: look.paddingHorizontal },
         block && st.block,
+        hovered && (look.hoverBg ? { backgroundColor: look.hoverBg } : { opacity: look.hoverOpacity }),
         disabled && !loading && { opacity: disabledOpacity },
         pressed && !off && { opacity: 0.88, transform: [{ scale: 0.98 }] },
         style,
-      ]}
+        ];
+      }}
     >
+      {kind === 'gradient' ? <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={[StyleSheet.absoluteFill, { borderRadius: look.radius }]} pointerEvents="none" /> : null}
       {loading ? (
         <PontoLoader size={size === 'sm' ? 8 : 10} color={look.fg} />
       ) : (

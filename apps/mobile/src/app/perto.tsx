@@ -13,6 +13,7 @@ import { FillView } from '@/components/FillView';
 import { Icon, type IconName } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { AccessBadge, JoinButton, usePublicGroup } from '@/components/groups/GroupJoin';
 import { GroupCover } from '@/components/groups/GroupParts';
@@ -530,8 +531,8 @@ export default function Perto() {
                   {t('Locais, eventos, a malta e o que se está a publicar perto de ti. Para isso o Txillapp precisa de saber onde estás: usamos só para esta procura, arredondada ao bairro, e não guardamos o teu percurso.')}
                 </Text>
                 {problem ? <ProblemNote problem={problem} /> : null}
-                <Pressable onPress={() => void goMine()} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>{problem ? t('Tentar outra vez') : t('Usar a minha localização')}</Text></Pressable>
-                <Pressable onPress={() => setAsk('cities')} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>{t('Prefiro escolher a cidade')}</Text></Pressable>
+                <Button label={problem ? t('Tentar outra vez') : t('Usar a minha localização')} onPress={() => void goMine()} block style={st.primary} />
+                <Button label={t('Prefiro escolher a cidade')} kind="secondary" onPress={() => setAsk('cities')} block />
               </View>
             ) : (
               <>
@@ -539,7 +540,7 @@ export default function Perto() {
                 <Text style={st.explainText}>{t('Sem localização também dá. Mostramos o que há à volta do centro da cidade.')}</Text>
                 {problem ? <ProblemNote problem={problem} /> : null}
                 <CityGrid onPick={pickCity} />
-                <Pressable onPress={() => void goMine()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>{t('Usar a minha localização')}</Text></Pressable>
+                <Button label={t('Usar a minha localização')} kind="secondary" onPress={() => void goMine()} block />
               </>
             )}
           </ScrollView>
@@ -842,17 +843,12 @@ function FadeRow({ children, contentContainerStyle, focus }: { children: React.R
  */
 function EmptyState({ art, title, sub, primary, extras = [], compact = false }: { art: React.ReactNode; title: string; sub: string; primary?: { label: string; onPress: () => void }; extras?: { key: string; label: string; icon: IconName; onPress: () => void }[]; compact?: boolean }) {
   const main = primary ? (
-    <Pressable onPress={primary.onPress} style={({ pressed }) => [st.emptyPrimary, compact && st.emptyPrimaryC, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-      <Text style={st.emptyPrimaryText}>{primary.label}</Text>
-    </Pressable>
+    <Button label={primary.label} onPress={primary.onPress} size={compact ? 'md' : 'lg'} style={compact ? st.emptyPrimaryC : st.emptyPrimary} />
   ) : null;
   const more = (
     <>
       {extras.map((e) => (
-        <Pressable key={e.key} onPress={e.onPress} style={({ pressed }) => [st.extra, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button">
-          <Icon name={e.icon} size={16} color={colors.zinc700} />
-          <Text style={st.extraText}>{e.label}</Text>
-        </Pressable>
+        <Button key={e.key} label={e.label} kind="secondary" size="md" icon={e.icon} onPress={e.onPress} style={st.extra} />
       ))}
     </>
   );
@@ -1227,16 +1223,14 @@ function VisibilityCard({ onOpen, onLater }: { onOpen: () => void; onLater: () =
       </View>
       <Text style={st.visText}>{t('A malta não te vê no mapa. Tu vês tudo na mesma.')}</Text>
       <View style={st.visFoot}>
-        <Pressable
+        <Button
           onPress={onOpen}
-          style={({ pressed }) => [st.visBtn, pressed && { opacity: 0.85 }]}
-          accessibilityRole="button"
+          label={t('Aparecer à malta')}
+          size="md"
+          icon="eye"
           accessibilityLabel={t('Aparecer à malta. Escolher quem te vê')}
           accessibilityHint={t('Mostramos só a zona aproximada, nunca o sítio exato')}
-        >
-          <Icon name="eye" size={16} color={colors.white} />
-          <Text style={st.visBtnText}>{t('Aparecer à malta')}</Text>
-        </Pressable>
+        />
         <View style={st.visSafe} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Icon name="shield" size={14} color={colors.zinc500} />
           <Text style={st.visSafeText} numberOfLines={2}>{t('Só o bairro, nunca o sítio exato')}</Text>
@@ -1287,9 +1281,7 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
           <JoinButton groupId={group.id} mode={joinModeOf(p ?? group)} me={p?.me} onOpen={() => go(`/messages/g/${group.id}`)} />
         )}
         {!gone && (
-          <Pressable onPress={() => go(`/g/${group.id}`)} style={st.secondary} accessibilityRole="link" accessibilityLabel={t('Ver a página de {name}', { name: group.name })}>
-            <Text style={st.secondaryText}>{t('Ver a página do grupo')}</Text>
-          </Pressable>
+          <Button label={t('Ver a página do grupo')} kind="secondary" onPress={() => go(`/g/${group.id}`)} block accessibilityLabel={t('Ver a página de {name}', { name: group.name })} />
         )}
       </View>
     </Sheet>
@@ -1302,11 +1294,11 @@ const st = StyleSheet.create({
   empty: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, paddingBottom: 28, gap: 6 },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, textAlign: 'center', letterSpacing: -0.2, marginTop: 6 },
   emptySub: { fontSize: 14, lineHeight: 20, color: colors.zinc500, textAlign: 'center', maxWidth: 320 },
-  emptyPrimary: { marginTop: 10, minHeight: 46, paddingHorizontal: 24, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(214,51,79,0.28)' },
-  emptyPrimaryText: { fontSize: 15, fontWeight: '800', color: colors.white },
+  /** O botão do vazio (Button lg, 52; no telemóvel md, 44) com a sombra coral. */
+  emptyPrimary: { marginTop: 10, paddingHorizontal: 24, boxShadow: '0 4px 14px rgba(214,51,79,0.28)' },
   extras: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 8 },
-  extra: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.zinc100 },
-  extraText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
+  /** Os outros caminhos do vazio (Button secondary md, 44). */
+  extra: { paddingHorizontal: 14 },
   radarCore: { position: 'absolute', backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.white, boxShadow: '0 4px 12px rgba(214,51,79,0.35)' },
   // Vazio no telemóvel: o desenho ao lado do texto e os botões numa fila.
   emptyC: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 24, gap: 12 },
@@ -1314,7 +1306,7 @@ const st = StyleSheet.create({
   emptyTitleC: { fontSize: 17, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.2 },
   emptySubC: { fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   extrasC: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  emptyPrimaryC: { marginTop: 0, minHeight: 44, paddingHorizontal: 18, boxShadow: '0 3px 10px rgba(214,51,79,0.25)' },
+  emptyPrimaryC: { marginTop: 0, paddingHorizontal: 18, boxShadow: '0 3px 10px rgba(214,51,79,0.25)' },
   errIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
   // A carregar.
   skRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 8, paddingHorizontal: 10, paddingVertical: 10 },
@@ -1325,10 +1317,7 @@ const st = StyleSheet.create({
   explainIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
   explainTitle: { fontSize: 22, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   explainText: { fontSize: 15, lineHeight: 21, color: colors.zinc600, textAlign: 'center' },
-  primary: { alignSelf: 'stretch', height: 50, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
-  primaryText: { color: colors.white, fontSize: 16, fontWeight: '700' },
-  secondary: { alignSelf: 'stretch', height: 48, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  secondaryText: { color: colors.zinc900, fontSize: 15, fontWeight: '700' },
+  primary: { marginTop: 6 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8, paddingRight: 12, paddingVertical: 2, backgroundColor: colors.white },
   headLine: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingBottom: 6 },
   headTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.3 },
@@ -1372,8 +1361,6 @@ const st = StyleSheet.create({
   visX: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: -6, marginVertical: -4 },
   visText: { fontSize: 13, lineHeight: 18, color: colors.zinc600 },
   visFoot: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
-  visBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc900 },
-  visBtnText: { fontSize: 14, fontWeight: '800', color: colors.white },
   visSafe: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 },
   visSafeText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.zinc500 },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100 },

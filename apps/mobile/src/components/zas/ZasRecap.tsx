@@ -256,7 +256,7 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
                 );
               })}
             </View>
-            {err ? <Text accessibilityRole="alert" style={[st.err, { color: colors.red600, marginTop: 12 }]}>{err}</Text> : null}
+            {err ? <Text accessibilityRole="alert" style={[st.err, { color: colors.dangerBright, marginTop: 12 }]}>{err}</Text> : null}
             <Pressable
               onPress={() => void publish()}
               disabled={busy || (audience === 'close_friends' && friends.isSuccess && friends.data.length === 0)}

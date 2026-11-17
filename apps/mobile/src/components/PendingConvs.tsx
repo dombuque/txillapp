@@ -33,8 +33,8 @@ function Row({ c, onPress }: { c: PendingConv; onPress: () => void }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={st.name} numberOfLines={1}>{name}</Text>
         <View style={st.line}>
-          <Icon name={c.failed ? 'alert' : 'clock'} size={13} strokeWidth={2.2} color={c.failed ? colors.red600 : colors.zinc500} />
-          <Text style={[st.preview, c.failed && { color: colors.red600 }]} numberOfLines={1}>{`${status} · ${pendingPreview(c.last)}`}</Text>
+          <Icon name={c.failed ? 'alert' : 'clock'} size={13} strokeWidth={2.2} color={c.failed ? colors.danger : colors.zinc500} />
+          <Text style={[st.preview, c.failed && { color: colors.danger }]} numberOfLines={1}>{`${status} · ${pendingPreview(c.last)}`}</Text>
         </View>
       </View>
     </Pressable>

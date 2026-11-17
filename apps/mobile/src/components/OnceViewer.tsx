@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatVideoPlayer } from '@/components/ChatBubbles';
 import { Icon } from '@/components/Icon';
 import { onceView, type OnceContent } from '@/lib/onceView';
+import { colors } from '@/lib/theme';
 import { t } from '@/lib/i18n';
 
 /**
@@ -60,7 +61,7 @@ function OnceVoice({ url }: { url: string }) {
     <View style={st.voice}>
       <Icon name="mic" size={36} color="#fff" />
       <Pressable onPress={toggle} style={st.play} accessibilityRole="button" accessibilityLabel={status.playing ? t('Pausar') : t('Ouvir')}>
-        <Icon name={status.playing ? 'pause' : 'play'} size={26} solid color="#18181b" />
+        <Icon name={status.playing ? 'pause' : 'play'} size={26} solid color={colors.zinc900} />
       </Pressable>
       <Text style={st.voiceTime}>{status.duration ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : ' '}</Text>
     </View>

@@ -160,7 +160,7 @@ export default function ReelPrefs() {
           <Pressable onPress={() => void addPerson(1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.brand }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('Mais')}</Text></Pressable>
           <Pressable onPress={() => void addPerson(-1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.zinc100 }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: colors.zinc900, fontWeight: '700', fontSize: 14 }}>{t('Menos')}</Text></Pressable>
         </View>
-        {personErr ? <Text style={{ marginTop: 6, fontSize: 14, color: colors.red600 }}>{personErr}</Text> : null}
+        {personErr ? <Text style={{ marginTop: 6, fontSize: 14, color: colors.danger }}>{personErr}</Text> : null}
         <View style={[st.wrap, { marginTop: 12 }]}>
           {(people.data ?? []).map((p) => (
             <View key={p.username} style={[st.chip, { backgroundColor: p.pref > 0 ? colors.rose50 : colors.zinc100 }]}>
@@ -200,7 +200,7 @@ const st = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16 },
   chipText: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
-  all: { marginTop: 16, borderRadius: 24, backgroundColor: '#fafafa', padding: 14 },
+  all: { marginTop: 16, borderRadius: 24, backgroundColor: colors.zinc50, padding: 14 },
   small: { height: 40, justifyContent: 'center', borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 14, borderWidth: 1, borderColor: colors.zinc200 },
   optTitle: { marginBottom: 8, fontSize: 15, fontWeight: '600', color: colors.zinc800 },
   seg: { flexDirection: 'row', borderRadius: 999, backgroundColor: colors.zinc100, padding: 4 },

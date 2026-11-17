@@ -72,9 +72,9 @@ test('vazio: desenho, título, frase curta, o botão que resolve e mais caminhos
   assert.match(perto, /else if \(e === 'venue'\) router\.push\('\/locais' as never\);/);
   const empty = fnBody(perto, 'EmptyState');
   assert.match(empty, /minHeight|st\.extra/);
-  // Toques de pelo menos 44 pt nos botões do vazio.
-  assert.match(perto, /emptyPrimary: \{[^}]*minHeight: 46/);
-  assert.match(perto, /extra: \{[^}]*minHeight: 44/);
+  // Toques de pelo menos 44 pt nos botões do vazio: o Button lg (52) ou md (44) no principal, md (44) nos outros caminhos.
+  assert.match(empty, /<Button label=\{primary\.label\} onPress=\{primary\.onPress\} size=\{compact \? 'md' : 'lg'\}/);
+  assert.match(empty, /<Button key=\{e\.key\} label=\{e\.label\} kind="secondary" size="md"/);
 });
 
 test('a carregar: esqueleto com a forma das linhas (e anunciado ao leitor de ecrã), não uma roda sozinha', () => {
@@ -124,5 +124,5 @@ test('vazio no telemóvel: compacto (desenho ao lado do texto, botões numa fila
   assert.match(body, /if \(wasLow\) snapTo\(snaps\(hRef\.current\)\[2\]\);/);
   const empty = fnBody(perto, 'EmptyState');
   assert.match(empty, /if \(compact\) \{/);
-  assert.match(perto, /emptyPrimaryC: \{[^}]*minHeight: 44/);
+  assert.match(empty, /size=\{compact \? 'md' : 'lg'\} style=\{compact \? st\.emptyPrimaryC : st\.emptyPrimary\}/);
 });

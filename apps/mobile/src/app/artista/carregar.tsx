@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { Check, Chips, Field, Primary, ast } from '@/components/ArtistUi';
+import { Check, Chips, Field, ast } from '@/components/ArtistUi';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
@@ -86,7 +87,7 @@ export default function CarregarMusica() {
           <View style={[ast.card, { marginTop: 0 }]}>
             <Text style={ast.cardTitle}>{t('Só para artistas aprovados')}</Text>
             <Text style={ast.cardSub}>{t('Pede primeiro em «Sou artista». Quando a equipa aprovar, voltas aqui.')}</Text>
-            <Primary title={t('Ir a Sou artista')} onPress={() => router.replace('/artista' as never)} />
+            <Button label={t('Ir a Sou artista')} onPress={() => router.replace('/artista' as never)} block style={ast.primary} />
           </View>
         ) : null}
         {me.data && approved ? (
@@ -145,7 +146,7 @@ export default function CarregarMusica() {
               {t('Li e aceito a {title}: uma autorização não exclusiva, gratuita e revogável para novos usos, para a malta usar o trecho em mimos e tchekas no Txillapp.', { title: me.data.license.title })}
             </Check>
             {err ? <Text style={ast.err}>{err}</Text> : null}
-            <Primary title={busy ?? t('Publicar para revisão')} disabled={!ready} onPress={() => void publish()} />
+            <Button label={busy ?? t('Publicar para revisão')} disabled={!ready} onPress={() => void publish()} block style={ast.primary} />
             <Text style={[ast.hint, { textAlign: 'center' }]}>{t('A equipa do Txillapp revê cada música antes de aparecer nos «Artistas de Moçambique».')}</Text>
           </>
         ) : null}

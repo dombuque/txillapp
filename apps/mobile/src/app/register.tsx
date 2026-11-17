@@ -281,7 +281,7 @@ export default function Register() {
 
       <View style={st.alert} accessibilityRole="alert"><Text style={st.alertText}>{error}</Text></View>
       <View style={{ marginTop: 'auto', paddingBottom: 24 }}>
-        <Button label={step.cta} onPress={() => void next()} loading={busy} disabled={blocked} block style={styles2.cta} />
+        <Button label={step.cta} kind="gradient" onPress={() => void next()} loading={busy} disabled={blocked} block style={styles2.cta} />
       </View>
     </Screen>
     {human.node}

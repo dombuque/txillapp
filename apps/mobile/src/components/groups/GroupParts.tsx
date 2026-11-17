@@ -244,7 +244,7 @@ export const ps = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.zinc900 },
 
   input: { height: 46, borderRadius: 23, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  err: { marginVertical: 6, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { marginVertical: 6, textAlign: 'center', fontSize: 14, color: colors.danger },
   calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   calNav: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.zinc100 },
   calTitle: { fontSize: 16, fontWeight: '800', color: colors.zinc900 },

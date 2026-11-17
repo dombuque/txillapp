@@ -341,10 +341,10 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
   return (
     <Pressable {...hold} onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('{text}. Toca para ligar de volta', { text })}>
       <View style={[st.callIcon, { backgroundColor: missed ? '#fee2e2' : colors.zinc100 }]}>
-        {video ? <Icon name="video" size={18} color={missed ? colors.red600 : colors.zinc800} /> : <CallIcon name={missed ? 'missed' : 'handset'} size={18} color={missed ? colors.red600 : colors.zinc800} />}
+        {video ? <Icon name="video" size={18} color={missed ? colors.danger : colors.zinc800} /> : <CallIcon name={missed ? 'missed' : 'handset'} size={18} color={missed ? colors.danger : colors.zinc800} />}
       </View>
       <View>
-        <Text style={[st.callText, missed && { color: colors.red600 }]}>{text}</Text>
+        <Text style={[st.callText, missed && { color: colors.danger }]}>{text}</Text>
         <Text style={st.callSub}>{t('Tocar para ligar de volta')}</Text>
       </View>
     </Pressable>
@@ -853,8 +853,8 @@ export function Bubble({
       ) : null}
       {m.state === 'failed' ? (
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
-          <Icon name="alert" size={14} color={colors.red600} />
-          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>{t('Não enviada')}</Text>
+          <Icon name="alert" size={14} color={colors.danger} />
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.danger }}>{t('Não enviada')}</Text>
           <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel={t('Tentar enviar outra vez')}><Text style={st.failLink}>{t('Tentar outra vez')}</Text></Pressable>
           {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel={t('Apagar a mensagem que não foi enviada')}><Text style={[st.failLink, { color: colors.zinc600 }]}>{t('Apagar')}</Text></Pressable> : null}
         </View>
@@ -944,7 +944,7 @@ const st = StyleSheet.create({
   time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },
   // «Tentar outra vez» e «Apagar» de uma que falhou: texto pequeno, mas com 32 pt de altura e o hitSlop (passa os 44).
   failBtn: { minHeight: 32, justifyContent: 'center' },
-  failLink: { fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' },
+  failLink: { fontSize: 12, fontWeight: '600', color: colors.danger, textDecorationLine: 'underline' },
   ticks: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: -2.5, paddingRight: 2.5, color: colors.zinc500 },
   caption: { marginBottom: 4, paddingHorizontal: 6, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
   quote: { maxWidth: '78%', marginBottom: 3, flexDirection: 'row', alignItems: 'stretch', gap: 6, paddingHorizontal: 4 },

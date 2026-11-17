@@ -27,6 +27,7 @@ import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
 import { Bolt } from '@/components/SuperTxillPanel';
+import { SearchField, SearchFieldButton } from '@/components/ui/SearchField';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type Badged, type ChatMessage } from '@/lib/api';
@@ -272,7 +273,7 @@ export default function Messages() {
     else if (a === 'hide') hiding.hide({ username: u }, r.name);
     else if (a === 'ttl') setTtlFor({ username: u, ttl: direct.data?.find((c) => c.username === u)?.ttl ?? null });
   }
-  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600, mixar: colors.brand, hide: colors.zinc600, unhide: colors.zinc600 };
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.danger, info: colors.zinc600, leave: colors.danger, ttl: colors.zinc600, clear: colors.danger, mixar: colors.brand, hide: colors.zinc600, unhide: colors.zinc600 };
   const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
     acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */
@@ -421,24 +422,19 @@ export default function Messages() {
         <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções das mensagens')}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
         {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel={t('Atalhos do teclado (?)')}><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
       </View>
-      <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
-        <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput
+      <SearchField
           ref={searchRef}
           value={text}
           onChangeText={setText}
           placeholder={desk ? t('Procurar ({value}K)', { value: isMac() ? '⌘' : t('Ctrl+') }) : t('Procurar pessoas e TxillGroups')}
-          placeholderTextColor={colors.zinc500}
-          style={styles.input}
+          style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}
           accessibilityLabel={t('Procurar conversas')}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           // Computador: Esc sai da pesquisa (limpa e larga a caixa).
           onKeyPress={desk ? (e) => { if ((e.nativeEvent as { key?: string }).key === 'Escape') { e.preventDefault(); setText(''); searchRef.current?.blur(); } } : undefined}
-        />
-        {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel={t('Limpar')}><Icon name="x" size={16} /></Pressable> : null}
-        <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel={t('Abrir o SuperTxill')}><Bolt size={20} /></Pressable>
-      </View>
+          right={<SearchFieldButton onPress={() => router.push('/supertxill' as never)} label={t('Abrir o SuperTxill')}><Bolt size={20} /></SearchFieldButton>}
+      />
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
       {/* Mixar: uma linha discreta por cima dos separadores, só quando algum Mixar tem novidades (a bolinha azul); sem novidades, nada. */}
       {!term && view !== 'requests' ? <MixarEntry /> : null}
@@ -651,9 +647,8 @@ const styles = StyleSheet.create({
   zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },
   compose: { position: 'absolute', right: 0, top: 2, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   handle: { maxWidth: '54%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
+  search: { marginBottom: 8 },
   // 44 de altura (a da caixa) para o toque chegar aos 44 pt.
-  sBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
