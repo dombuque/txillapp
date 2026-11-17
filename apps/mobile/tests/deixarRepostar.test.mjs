@@ -41,7 +41,10 @@ test('a folha de repostar: sem licença não mostra «Repostar» nem «Repostar 
   assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon="repeat" title=\{t\('Repostar'\)\}/);
   assert.match(sheet, /\{allowed \? <MenuRow icon="pencil" title=\{t\('Repostar com comentário'\)\}/);
   assert.match(sheet, /setErr\(\(x as Error\)\.message/);
-  assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\(\)\) onChange\(\{ canRepost: false \}\)/);
+  // A mensagem vem no idioma da pessoa: compara-se o código do erro (repost_blocked), não o texto.
+  assert.match(sheet, /x\.status === 403 && x\.code === REPOST_BLOCKED_CODE\) onChange\(\{ canRepost: false \}\)/);
+  assert.equal(rp.REPOST_BLOCKED_CODE, 'repost_blocked');
+  assert.doesNotMatch(sheet, /x\.message === REPOST_BLOCKED/);
   // O aviso antigo das contas privadas vinha da API; a app não o tem escrito.
   assert.doesNotMatch(sheet, /contas privadas não podem ser repostadas/);
 });

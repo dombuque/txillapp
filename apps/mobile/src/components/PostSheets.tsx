@@ -22,7 +22,7 @@ import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
 import { saveTcheka } from '@/lib/saveTcheka';
 import { canDownload } from '@/lib/tchekaDownload';
-import { canRepost, REPOST_BLOCKED } from '@/lib/repost';
+import { canRepost, REPOST_BLOCKED, REPOST_BLOCKED_CODE } from '@/lib/repost';
 import { takedownText, takedownTitle } from '@/lib/remix';
 import { normTextFont, type TextFontId } from '@/lib/textLayers';
 import { formatVibes } from '@/lib/vibes';
@@ -163,7 +163,7 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
       // A mensagem da API (ex.: «Quem publicou não deixa repostar as suas publicações.»). Numa publicação em cache sem o
       // `canRepost`, a recusa esconde logo a opção.
       setErr((x as Error).message || t('Não consegui repostar agora. Tenta outra vez.'));
-      if (x instanceof ApiError && x.status === 403 && x.message === REPOST_BLOCKED()) onChange({ canRepost: false });
+      if (x instanceof ApiError && x.status === 403 && x.code === REPOST_BLOCKED_CODE) onChange({ canRepost: false });
       setBusy(false);
     }
   }

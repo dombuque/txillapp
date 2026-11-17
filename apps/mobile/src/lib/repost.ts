@@ -22,6 +22,8 @@ export const showRepostButton = (p: RepostablePost | null | undefined) => canRep
 
 /** A mensagem da API (403) quando quem publicou não deixa repostar. */
 export const REPOST_BLOCKED = () => t('Quem publicou não deixa repostar as suas publicações.');
+/** O `code` desse 403 (a mensagem vem no idioma da pessoa, por isso compara-se o código). */
+export const REPOST_BLOCKED_CODE = 'repost_blocked';
 
 /** GET/PUT /posts/me/repost-settings. `private`: a conta é privada (servidores antigos podem não mandar). */
 export interface RepostSettings { allow: boolean; private?: boolean }

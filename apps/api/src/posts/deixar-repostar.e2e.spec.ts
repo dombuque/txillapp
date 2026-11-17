@@ -9,7 +9,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { uuidv7 } from '../common/uuid7';
-import { REPOST_BLOCKED } from './posts.service';
+import { REPOST_BLOCKED, REPOST_BLOCKED_CODE } from './posts.service';
 
 /**
  * «Deixar repostar as minhas publicações» (0156): a definição (GET/PUT /posts/me/repost-settings), o 403 de
@@ -45,6 +45,7 @@ describe('repostar: «Deixar repostar as minhas publicações»', () => {
   const blocked = async (u: U, id: string, body?: string) => {
     const r = await rp(u, id, body).expect(403);
     expect(r.body.message).toBe(REPOST_BLOCKED);
+    expect(r.body.code).toBe(REPOST_BLOCKED_CODE);
   };
 
   async function register(name: string): Promise<U> {
