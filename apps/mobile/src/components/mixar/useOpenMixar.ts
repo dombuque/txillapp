@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 import { ApiError } from '@/lib/api';
 import { mixarApi, mixarKeys } from '@/lib/api.mixar';
 import { existingMixarId, firstName, mixarErrorText } from '@/lib/mixar';
@@ -31,7 +32,7 @@ export function useOpenMixar() {
     } catch (e) {
       const id = existingMixarId(e);
       if (id) return open(id);
-      Alert.alert('Não deu para convidar', mixarErrorText(e));
+      showToast(mixarErrorText(e));
     }
   }
 
@@ -46,12 +47,9 @@ export function useOpenMixar() {
         throw e;
       });
       if (m) return open(m.id);
-      Alert.alert(`Mixar com ${name}?`, `Juntam os gostos dos dois num feed só vosso, com uma seleção nova todos os dias. ${name} recebe o convite nesta conversa.`, [
-        { text: 'Agora não', style: 'cancel' },
-        { text: 'Convidar', onPress: () => void invite(username) },
-      ]);
+      if (await confirm({ title: `Mixar com ${name}?`, message: `Juntam os gostos dos dois num feed só vosso, com uma seleção nova todos os dias. ${name} recebe o convite nesta conversa.`, confirm: 'Convidar', cancel: 'Agora não' })) void invite(username);
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e, 'Não consegui ver o Mixar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, 'Não consegui ver o Mixar agora. Tenta outra vez.'));
     } finally {
       running.current = false;
       setBusy(false);

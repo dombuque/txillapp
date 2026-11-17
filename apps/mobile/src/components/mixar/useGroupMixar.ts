@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useRef } from 'react';
-import { Alert } from 'react-native';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 import { mixarApi, mixarKeys } from '@/lib/api.mixar';
 import { existingMixarId } from '@/lib/mixar';
 import { GROUP_MIN, groupCanMixar, groupProposeError, groupShowDot, mixarOfGroup } from '@/lib/mixarGrupo';
@@ -33,7 +34,7 @@ export function useGroupMixar(groupId: string, members: number | null | undefine
     } catch (e) {
       const id = existingMixarId(e);
       if (id) return open(id);
-      Alert.alert('Não deu para propor', groupProposeError(e));
+      showToast(groupProposeError(e));
     }
   }
 
@@ -41,11 +42,10 @@ export function useGroupMixar(groupId: string, members: number | null | undefine
     if (running.current) return;
     if (here) return open(here.id);
     running.current = true;
-    Alert.alert('Mixar do grupo?', `Um feed do grupo com os gostos de quem entrar, com uma seleção nova todos os dias. Começa quando ${GROUP_MIN} pessoas aceitarem; quem não aceitar não entra.`, [
-      { text: 'Agora não', style: 'cancel', onPress: () => { running.current = false; } },
-      { text: 'Propor', onPress: () => { running.current = false; void propose(); } },
-    ]);
-    setTimeout(() => { running.current = false; }, 800);
+    void confirm({ title: 'Mixar do grupo?', message: `Um feed do grupo com os gostos de quem entrar, com uma seleção nova todos os dias. Começa quando ${GROUP_MIN} pessoas aceitarem; quem não aceitar não entra.`, confirm: 'Propor', cancel: 'Agora não' }).then((ok) => {
+      running.current = false;
+      if (ok) void propose();
+    });
   }
 
   return { show, dot, here, run };

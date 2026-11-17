@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
@@ -21,6 +21,8 @@ import { WeekPage, WeekSheet } from '@/components/mixar/MixarWeekCard';
 import { mixarControloApi, mixarControloKeys, previewControloApi } from '@/lib/api.mixarControlo';
 import { isMonday, lessToast, withWeekPage } from '@/lib/mixarControlo';
 import { api, isTcheka, type Post } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 import { mixarApi, mixarKeys, type Mixar, type MixarChallenge, type MixarFeedPage, type MixarItem, type MixarReactionId } from '@/lib/api.mixar';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
@@ -203,7 +205,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       qc.setQueryData(mixarKeys.challenge(id), r);
       void qc.invalidateQueries({ queryKey: mixarKeys.list() });
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e, 'Não consegui guardar a tua escolha. Tenta outra vez.'));
+      showToast(mixarErrorText(e, 'Não consegui guardar a tua escolha. Tenta outra vez.'));
     } finally {
       setPicking(false);
     }
@@ -249,7 +251,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       if (r.group) void qc.invalidateQueries({ queryKey: ['mixar', id] });
       afterChange();
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
     } finally {
       setAnswering(null);
     }
@@ -261,7 +263,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       afterChange();
       close();
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e));
+      showToast(mixarErrorText(e));
     } finally {
       setAnswering(null);
     }
@@ -270,23 +272,28 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     if (!mixar) return;
     const pending = mixar.status === 'pending';
     const gl = grp ? groupLeaveText(grp.people.length) : null;
-    Alert.alert(gl ? gl.title : pending ? 'Cancelar o convite?' : 'Sair do Mixar?', gl ? gl.line : pending ? `${partner.name} deixa de ver o convite.` : `O vosso Mixar acaba para os dois. Podes convidar ${partner.name} outra vez quando quiseres.`, [
-      { text: 'Ficar', style: 'cancel' },
-      { text: gl ? 'Sair' : pending ? 'Cancelar convite' : 'Sair', style: 'destructive', onPress: () => void (async () => {
-        setDiscover(false);
-        setAnswering('leave');
-        try {
-          await mx.leave(id);
-          qc.removeQueries({ queryKey: mixarKeys.one(id) });
-          afterChange();
-          close();
-        } catch (e) {
-          Alert.alert('Não deu', mixarErrorText(e));
-        } finally {
-          setAnswering(null);
-        }
-      })() },
-    ]);
+    void (async () => {
+      const ok = await confirm({
+        title: gl ? gl.title : pending ? 'Cancelar o convite?' : 'Sair do Mixar?',
+        message: gl ? gl.line : pending ? `${partner.name} deixa de ver o convite.` : `O vosso Mixar acaba para os dois. Podes convidar ${partner.name} outra vez quando quiseres.`,
+        confirm: gl ? 'Sair' : pending ? 'Cancelar convite' : 'Sair',
+        cancel: 'Ficar',
+        danger: true,
+      });
+      if (!ok) return;
+      setDiscover(false);
+      setAnswering('leave');
+      try {
+        await mx.leave(id);
+        qc.removeQueries({ queryKey: mixarKeys.one(id) });
+        afterChange();
+        close();
+      } catch (e) {
+        showToast(mixarErrorText(e));
+      } finally {
+        setAnswering(null);
+      }
+    })();
   }
   const close = () => (router.canGoBack() ? router.back() : router.replace('/messages' as never));
 

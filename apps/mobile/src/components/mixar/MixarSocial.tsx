@@ -1,11 +1,12 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Animated, Easing, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import type { MixarReactionId } from '@/lib/api.mixar';
 import { mixarSocialApi, mixarSocialKeys, type MixarComment, type MixarCommentsPage } from '@/lib/api.mixarSocial';
 import { reactionOf } from '@/lib/mixar';
+import { confirm } from '@/lib/confirm';
 import {
   BURST_MS, canSend, COMMENT_MAX, commentA11y, commentBadge, commentErrorText, commentLeft, commentsEmpty, hereLine, moreLine, saveA11y,
   savedByText, savedEmpty, savedEnd, togetherLine, togetherSub, type Presence,
@@ -122,8 +123,8 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
         setErr('Não consegui apagar. Tenta outra vez.');
       }
     };
-    if (isWeb) { void go(); return; }
-    Alert.alert('Apagar o comentário?', group ? GROUP_COMMENTS.remove : `Deixa de se ver para ti e para ${partner.name}.`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: () => void go() }]);
+    // A caixa da app (lib/confirm), igual no telemóvel e no site.
+    void confirm({ title: 'Apagar o comentário?', message: group ? GROUP_COMMENTS.remove : `Deixa de se ver para ti e para ${partner.name}.`, confirm: 'Apagar', danger: true }).then((ok) => { if (ok) void go(); });
   }
   const hide = (c: MixarComment) => qc.setQueryData<InfiniteData<MixarCommentsPage>>(key, (d) => (d ? { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) } : d));
 
