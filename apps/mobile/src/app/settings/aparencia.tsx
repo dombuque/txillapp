@@ -1,15 +1,16 @@
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { languageName, t } from '@/lib/i18n';
 
-/** Aparência e idioma: o idioma da app e as traduções; o tema (por agora só o claro). */
+/** Aparência e idioma: os idiomas da app (ecrã «Idiomas») e o tema (por agora só o claro). */
 export default function AppearanceSettings() {
   return (
-    <SettingsPage title="Aparência e idioma">
-      <SettingsSection title="Idioma">
-        <SettingRow anchor="language" icon="globe" title="Idioma e traduções" value="Português" to="/language" />
+    <SettingsPage title={t('Aparência e idioma')}>
+      <SettingsSection title={t('Idioma')}>
+        <SettingRow anchor="language" icon="globe" title={t('Idiomas')} value={languageName()} to="/language" />
       </SettingsSection>
-      <SettingsSection title="Aparência">
-        <SettingRow anchor="theme" icon="sun" title="Tema" value="Claro" description="O modo escuro ainda não existe na app." locked />
+      <SettingsSection title={t('Aparência')}>
+        <SettingRow anchor="theme" icon="sun" title={t('Tema')} value={t('Claro')} description={t('O modo escuro ainda não existe na app.')} locked />
       </SettingsSection>
     </SettingsPage>
   );

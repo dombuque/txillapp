@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { tr, locale } from '../lib/i18n';
+import { tr, tk, locale } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import CameraCapture from '../components/CameraCapture';
 import { LoadingBlock } from '../components/Loading';
@@ -10,11 +10,11 @@ import { btnGhost, btnPrimary, fieldInput } from '../components/ui';
 import { api, type DocType } from '../lib/api';
 
 const DOC_TYPES: { value: DocType; label: string }[] = [
-  { value: 'id_card', label: 'BI ou cartão de eleitor' },
-  { value: 'passport', label: 'Passaporte' },
-  { value: 'driver_licence', label: 'Carta de condução' },
-  { value: 'residence', label: 'DIRE (residente)' },
-  { value: 'other', label: 'Outro documento oficial com foto' },
+  { value: 'id_card', label: tk('BI ou cartão de eleitor') },
+  { value: 'passport', label: tk('Passaporte') },
+  { value: 'driver_licence', label: tk('Carta de condução') },
+  { value: 'residence', label: tk('DIRE (residente)') },
+  { value: 'other', label: tk('Outro documento oficial com foto') },
 ];
 
 /** Uma foto a enviar. Com `live`, só se aceita uma foto tirada na hora (câmara); senão também se escolhe da galeria. */
@@ -139,7 +139,7 @@ export default function Verification() {
             {s.eligible && s.request?.status !== 'pending' && s.request?.status !== 'paid_eligible' && !s.retryAfter && (
               <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-6 space-y-5">
                 <div role="radiogroup" aria-label={tr('Tipo de conta')} className="grid grid-cols-2 gap-2">
-                  {([['person', 'Pessoa'], ['business', 'Negócio ou marca']] as const).map(([v, label]) => (
+                  {([['person', tk('Pessoa')], ['business', tk('Negócio ou marca')]] as const).map(([v, label]) => (
                     <button key={v} type="button" role="radio" aria-checked={kind === v} onClick={() => setKind(v)} className={`h-12 rounded-2xl border-2 text-sm font-semibold ${kind === v ? 'border-brand bg-rose-50 text-brand' : 'border-zinc-200 text-zinc-800'}`}>{tr(label)}</button>
                   ))}
                 </div>

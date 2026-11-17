@@ -290,25 +290,18 @@ export function Orders() {
   );
 }
 
-/** Idioma e traduções: o idioma da app (muda e recarrega) e a tradução de publicações. */
+/** Idiomas: a lista de idiomas, cada um com o próprio nome; tocar muda e recarrega. */
 export function Language() {
   return (
-    <StackPage title={tr('Idioma e traduções')}>
+    <StackPage title={tr('Idiomas')}>
       <Group title={tr('Idioma da app')}>
         {LANGS.map((l) => (
-          <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
-            <span className="flex-1 font-semibold">{l.label}</span>
+          <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} lang={l.locale} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
+            <span className="flex-1 font-semibold">{l.native}</span>
             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${lang === l.id ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{lang === l.id && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
-        {!STORE_BUILD && <Line icon="globe" label={tr('Français')} value={tr('em breve')} />}
       </Group>
-      {!STORE_BUILD && (
-      <Group title={tr('Traduções')}>
-        <Line icon="globe" label={tr('Traduzir publicações')} value={tr('Em breve: ver posts e comentários noutro idioma com um toque')} />
-      </Group>
-      )}
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.')}</p>
     </StackPage>
   );
 }
