@@ -15,7 +15,7 @@ import { colors, dark as D } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
 import { TITLE_MAX } from '@/lib/txillada';
 import {
-  WEEK_INITIALS, dayKey, daySlots, defaultStart, fmtWhen, monthGrid, monthRange, monthTitle, moveToDay, offeredDays, dayLabel,
+  WEEK_INITIALS, dayKey, daySlots, defaultStart, fmtFor, fmtWhen, monthGrid, monthRange, monthTitle, moveToDay, offeredDays, dayLabel,
   isNotScheduled, scheduleErrorText, scheduleKindText, withReminded, scheduleGoalText, scheduleShareLink, scheduleShareMessage, scheduledText, shiftMonth, startOfDay, validStart,
   type NextTxillada, type ScheduleInput, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
@@ -117,7 +117,7 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
   return (
     <View style={{ gap: 10 }}>
       <Text style={st.label}>Dia</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.pills} keyboardShouldPersistTaps="handled">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.pillsRow} contentContainerStyle={st.pills} keyboardShouldPersistTaps="handled">
         {pills.map((p) => (
           <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.label === 'Hoje' || p.label === 'Amanhã' ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
         ))}
@@ -186,11 +186,13 @@ function TimeGrid({ day, value, now, onPick }: { day: number; value: number | nu
   const sc = useSheetScroll();
   const ROW = 46;
   const selRow = rows.findIndex((r) => r.some((s) => s.at === value));
-  useEffect(() => {
-    if (selRow < 0) return;
-    const t = setTimeout(() => ref.current?.scrollTo({ y: Math.max(0, selRow - 1) * ROW, animated: false }), 30);
-    return () => clearTimeout(t);
-  }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Abre na hora escolhida: quando a grelha deste dia já tem tamanho (antes disso o scrollTo não faz nada).
+  const placed = useRef<number | null>(null);
+  const place = () => {
+    if (placed.current === day) return;
+    placed.current = day;
+    if (selRow > 0) ref.current?.scrollTo({ y: Math.max(0, selRow - 1) * ROW, animated: false });
+  };
   if (!rows.length) return <Text style={st.sub}>Já não há horas neste dia. Escolhe outro.</Text>;
   return (
     <ScrollView
@@ -201,6 +203,7 @@ function TimeGrid({ day, value, now, onPick }: { day: number; value: number | nu
       onTouchStart={() => { if (sc) sc.top.current = false; }}
       onTouchEnd={() => { if (sc) sc.top.current = true; }}
       accessibilityLabel="Hora"
+      onContentSizeChange={place}
     >
       {rows.map((r) => (
         <View key={r[0].label} style={[st.timeRow, { height: ROW }]}>
@@ -280,7 +283,7 @@ export function ScheduleSheet({ form, onClose, onDone, onProfile }: { form: Sche
       </SheetBody>
       <View style={st.foot}>
         {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
-        <Button label={at != null ? `Agendar para ${fmtWhen(at, now)}` : 'Agendar'} icon="calendar" dark loading={busy} disabled={at == null} onPress={() => void save()} block />
+        <Button label={at != null ? `Agendar para ${fmtFor(at, now)}` : 'Agendar'} icon="calendar" dark loading={busy} disabled={at == null} onPress={() => void save()} block />
       </View>
     </Sheet>
   );
@@ -349,7 +352,9 @@ const st = StyleSheet.create({
   foot: { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
   label: { color: D.text, fontSize: 14, fontWeight: '700' },
   sub: { color: D.sub, fontSize: 14, lineHeight: 20 },
-  pills: { gap: 8, paddingRight: 8 },
+  // A fila dos dias vai até às bordas da folha (rola por baixo do recuo).
+  pillsRow: { marginHorizontal: -20, flexGrow: 0 },
+  pills: { gap: 8, paddingHorizontal: 20 },
   cal: { borderRadius: 18, backgroundColor: D.raised, paddingHorizontal: 8, paddingVertical: 8, gap: 2 },
   calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   calTitle: { color: D.text, fontSize: 15, fontWeight: '700' },

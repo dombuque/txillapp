@@ -178,6 +178,27 @@ export function fmtDay(at: number | string, now: number): string {
   if (diff > 1 && diff <= 6) return `${cap(WEEKDAYS[d.getDay()])} às ${hhmm(d)}`;
   return `${cap(WEEKDAYS[d.getDay()])}, ${d.getDate()} de ${MONTHS[d.getMonth()]} às ${hhmm(d)}`;
 }
+/** Numa frase: «hoje às 20:00», «amanhã às 20:00» ou «sáb., 20:00» (`long`: «sábado, 20:00»). */
+export function fmtFor(at: number | string, now: number, long = false): string {
+  const diff = dayDiff(now, at);
+  if (diff === 0) return `hoje às ${hhmm(at)}`;
+  if (diff === 1) return `amanhã às ${hhmm(at)}`;
+  return fmtWhen(at, now, long);
+}
+/** A linha grande da capa do cartão: «Hoje, 20:00», «Amanhã, 20:00» ou «Sábado, 20:00». */
+export function coverWhen(at: number | string, now: number): string {
+  const diff = dayDiff(now, at);
+  if (diff === 0) return `Hoje, ${hhmm(at)}`;
+  if (diff === 1) return `Amanhã, ${hhmm(at)}`;
+  return cap(fmtWhen(at, now, true));
+}
+/** A contagem só nas últimas 12 h (ou já passada a hora): antes, a capa já diz o dia e a hora. */
+export const showCountdown = (at: number | string, now: number): boolean => ms(at) - now < 12 * 60 * MIN;
+/** «Sem lembretes», «1 lembrete», «12 lembretes» (a lista das minhas). */
+export function remindersShort(n: number | null | undefined): string {
+  const v = Math.max(0, Math.round(n ?? 0));
+  return v === 0 ? 'Sem lembretes' : v === 1 ? '1 lembrete' : `${v.toLocaleString('pt-PT')} lembretes`;
+}
 /** A pastilha do perfil e da fila «Em breve»: «Hoje, 20:00», «Amanhã, 20:00» ou «Sáb., 20:00». */
 export function fmtShort(at: number | string, now: number): string {
   const d = new Date(ms(at));

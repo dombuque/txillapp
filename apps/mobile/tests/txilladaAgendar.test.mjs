@@ -273,6 +273,22 @@ test('diferenças da API: atraso na fila, not_scheduled, lembrete com reminded e
   assert.equal(s.scheduleNoticeText('txillada_scheduled_now', { scheduleId: 's1', reminders: 0 }, TUE_10).sub, 'Toca para começar');
 });
 
+test('frases e capa: «hoje às 11:00», «Amanhã, 20:00», a contagem só nas últimas 12 h, lembretes curtos', () => {
+  assert.equal(s.fmtFor(at(17, 11), TUE_10), 'hoje às 11:00');
+  assert.equal(s.fmtFor(at(18, 20), TUE_10), 'amanhã às 20:00');
+  assert.equal(s.fmtFor(at(21, 20), TUE_10), 'sáb., 20:00');
+  assert.equal(s.fmtFor(at(21, 20), TUE_10, true), 'sábado, 20:00');
+  assert.equal(s.coverWhen(at(17, 12), TUE_10), 'Hoje, 12:00');
+  assert.equal(s.coverWhen(at(18, 11, 45), TUE_10), 'Amanhã, 11:45');
+  assert.equal(s.coverWhen(at(21, 20), TUE_10), 'Sábado, 20:00');
+  assert.equal(s.showCountdown(at(17, 12), TUE_10), true);
+  assert.equal(s.showCountdown(at(18, 11), TUE_10), false);
+  assert.equal(s.showCountdown(at(17, 9), TUE_10), true);
+  assert.equal(s.remindersShort(0), 'Sem lembretes');
+  assert.equal(s.remindersShort(1), '1 lembrete');
+  assert.equal(s.remindersShort(12), '12 lembretes');
+});
+
 test('os textos novos: sem emojis nem travessões', () => {
   const files = ['lib/txilladaSchedule.ts', 'components/txillada/TxilladaSchedule.tsx', 'components/txillada/ScheduleCards.tsx', 'app/txillada/agendada/[id].tsx'];
   for (const f of files) {

@@ -23,7 +23,7 @@ import { colors, dark as D } from '@/lib/theme';
 import { errorText } from '@/lib/txillada';
 import { handOff } from '@/lib/txilladaRoom';
 import {
-  canStartNow, countdown, earliest, errorCode, isNotScheduled, fmtWhen, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
+  canStartNow, countdown, coverWhen, earliest, errorCode, isNotScheduled, fmtFor, showCountdown, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
   scheduleView, viewText, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
 
@@ -80,7 +80,7 @@ export default function ScheduledTxilladaScreen() {
     if (early) {
       const ok = await confirm({
         title: 'Começar agora?',
-        message: `Estava marcada para ${fmtWhen(cur.startsAt, Date.now(), true)}. A hora passa para agora e quem pediu para ser lembrado recebe logo o aviso.`,
+        message: `Está marcada para ${fmtFor(cur.startsAt, Date.now(), true)}. A hora passa para agora e quem pediu para ser lembrado recebe logo o aviso.`,
         confirm: 'Começar agora',
       });
       if (!ok) return;
@@ -126,7 +126,7 @@ export default function ScheduledTxilladaScreen() {
     const ok = await confirm({
       title: 'Cancelar a Txillada?',
       message: cur.reminders ? `${remindersText(cur.reminders)}. Vão receber um aviso de que a cancelaste.` : 'Quem pediu para ser lembrado recebe um aviso de que a cancelaste.',
-      confirm: 'Cancelar a Txillada',
+      confirm: 'Sim, cancelar',
       cancel: 'Manter',
       danger: true,
     });
@@ -179,8 +179,8 @@ export default function ScheduledTxilladaScreen() {
               {goal ? <View style={st.fact}><Icon name="gift" size={15} color="#fff" strokeWidth={2.1} /><Text style={st.factText} numberOfLines={2}>{goal}</Text></View> : null}
             </View>
             <View style={st.when}>
-              <View style={st.whenRow}><Icon name="calendar" size={18} color="#fff" strokeWidth={2.1} /><Text style={st.whenText}>{cap(fmtWhen(s.startsAt, now, true))}</Text></View>
-              {view === 'scheduled' ? <View style={st.whenRow}><Icon name="clock" size={16} color="rgba(255,255,255,0.85)" strokeWidth={2.1} /><Text style={st.countText}>{countdown(s.startsAt, now)}</Text></View> : null}
+              <View style={st.whenRow}><Icon name="calendar" size={18} color="#fff" strokeWidth={2.1} /><Text style={st.whenText}>{coverWhen(s.startsAt, now)}</Text></View>
+              {view === 'scheduled' && showCountdown(s.startsAt, now) ? <View style={st.whenRow}><Icon name="clock" size={16} color="rgba(255,255,255,0.85)" strokeWidth={2.1} /><Text style={st.countText}>{countdown(s.startsAt, now)}</Text></View> : null}
             </View>
           </LinearGradient>
 
@@ -257,7 +257,7 @@ const st = StyleSheet.create({
   whenRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   whenText: { color: '#fff', fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   countText: { color: 'rgba(255,255,255,0.88)', fontSize: 14.5, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  state: { borderRadius: 20, backgroundColor: D.bg, paddingVertical: 14, paddingHorizontal: 16, gap: 4 },
+  state: { borderRadius: 16, borderWidth: 1, borderColor: D.line, paddingVertical: 12, paddingHorizontal: 16, gap: 4 },
   stateText: { color: D.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
   stateSub: { color: D.sub, fontSize: 13.5, lineHeight: 19, textAlign: 'center' },
   actions: { gap: 10 },

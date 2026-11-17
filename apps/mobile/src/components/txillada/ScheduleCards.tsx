@@ -11,7 +11,7 @@ import { UPCOMING_KEY, schedulesKey, txilladaApi, useTxilladaEnabled } from '@/l
 import { useDesktop } from '@/lib/desktop';
 import { navTap } from '@/lib/tapGuard';
 import { colors } from '@/lib/theme';
-import { fmtShort, fmtSoon, remindersText, scheduleRoute, type NextTxillada, type ScheduledTxillada } from '@/lib/txilladaSchedule';
+import { fmtShort, fmtSoon, remindersShort, scheduleRoute, type NextTxillada, type ScheduledTxillada } from '@/lib/txilladaSchedule';
 import { useClock, useRemindToggle } from './TxilladaSchedule';
 
 /**
@@ -46,14 +46,16 @@ export function NextTxilladaCard({ username, isMe, next }: { username: string; i
           {title ? <Text style={st.title} numberOfLines={1}>{title}</Text> : null}
           <Text style={st.when} numberOfLines={1}>{fmtSoon(shown.startsAt, now)}</Text>
         </View>
-        {isMe ? (
-          <Icon name="chevron-right" size={20} color={colors.zinc500} />
-        ) : shown.reminded ? (
-          <Button label="Lembrado" icon="check" kind="secondary" size="sm" onPress={() => void remind(shown.id, false)} accessibilityLabel="Vais ser lembrado. Toca para deixares de ser lembrado" />
-        ) : (
-          <Button label="Lembrar-me" icon="bell" size="sm" onPress={() => void remind(shown.id, true)} />
-        )}
+        {isMe ? <Icon name="chevron-right" size={20} color={colors.zinc500} /> : null}
       </Pressable>
+      {/* Quem vê: «Lembrar-me» por baixo, com a largura toda (ao lado, espremia o título). */}
+      {!isMe ? (
+        <View style={{ marginTop: 8 }}>
+          {shown.reminded
+            ? <Button label="Vais ser lembrado" icon="check" kind="secondary" size="sm" block onPress={() => void remind(shown.id, false)} accessibilityHint="Toca para deixares de ser lembrado" />
+            : <Button label="Lembrar-me" icon="bell" size="sm" block onPress={() => void remind(shown.id, true)} />}
+        </View>
+      ) : null}
       {isMe && items.length > 1 ? (
         <Pressable onPress={() => setAll(true)} hitSlop={8} style={st.all} accessibilityRole="button">
           <Text style={st.allText}>Ver todas ({items.length})</Text>
@@ -67,7 +69,7 @@ export function NextTxilladaCard({ username, isMe, next }: { username: string; i
                 <View style={[st.icon, { width: 40, height: 40, borderRadius: 20 }]}><Icon name="calendar" size={20} color="#fff" strokeWidth={2.1} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={st.title} numberOfLines={1}>{(x.title ?? '').trim() || 'Sem título'}</Text>
-                  <Text style={st.when} numberOfLines={1}>{`${fmtShort(x.startsAt, now)} · ${remindersText(x.reminders)}`}</Text>
+                  <Text style={st.when} numberOfLines={1}>{`${fmtShort(x.startsAt, now)} · ${remindersShort(x.reminders)}`}</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color={colors.zinc500} />
               </Pressable>
@@ -115,8 +117,9 @@ export function UpcomingRow() {
                 <Avatar name={x.host.displayName} username={x.host.avatarUrl ? x.host.username : undefined} size={34} />
                 <NameWithBadge name={x.host.username} who={x.host} style={st.whoName} containerStyle={{ flex: 1, minWidth: 0 }} size={12} />
               </View>
-              <Text style={st.smallWhen} numberOfLines={1}>{fmtSoon(x.startsAt, now)}</Text>
+              <Text style={st.smallWhen} numberOfLines={2}>{fmtSoon(x.startsAt, now)}</Text>
               <Text style={st.smallTitle} numberOfLines={1}>{title || 'Txillada'}</Text>
+              <View style={{ flex: 1 }} />
               {x.reminded
                 ? <Button label="Lembrado" icon="check" kind="secondary" size="sm" block onPress={() => void remind(x.id, false)} accessibilityLabel="Vais ser lembrado. Toca para deixares de ser lembrado" />
                 : <Button label="Lembrar-me" icon="bell" size="sm" block onPress={() => void remind(x.id, true)} />}
@@ -139,7 +142,7 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
   headText: { fontSize: 15, fontWeight: '800', color: colors.zinc900 },
-  rowList: { paddingHorizontal: 16, gap: 10 },
+  rowList: { paddingHorizontal: 16, gap: 10, alignItems: 'stretch' },
   small: { width: 168, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc200, padding: 12, gap: 4 },
   who: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   whoName: { fontSize: 13, fontWeight: '700', color: colors.zinc900 },
