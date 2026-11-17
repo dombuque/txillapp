@@ -4,6 +4,7 @@
  * que continuam a abrir o ecrã certo. Testes em tests/settingsIndex.test.mjs.
  */
 
+import { t } from '@/lib/i18n';
 export type SettingsGroupId = 'conta' | 'privacidade' | 'notificacoes' | 'conteudo' | 'mensagens' | 'pagamentos' | 'aparencia' | 'seguranca' | 'ajuda';
 /** `inicio` é o próprio início das Definições (contas e sair). */
 export type SettingsPlace = SettingsGroupId | 'inicio';
@@ -29,39 +30,39 @@ export interface SettingsEntry {
 }
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: 'conta', title: 'Conta', subtitle: 'Perfil, email, @, dados e eliminar', icon: 'user-circle', keywords: ['account', 'perfil', 'dados pessoais'] },
-  { id: 'privacidade', title: 'Privacidade', subtitle: 'Quem te vê, quem interage, bloqueados', icon: 'lock', keywords: ['privacy', 'interações', 'mimos'] },
-  { id: 'notificacoes', title: 'Notificações', subtitle: 'O que te avisa e este aparelho', icon: 'bell', keywords: ['notifications', 'avisos', 'alertas', 'push'] },
-  { id: 'conteudo', title: 'Conteúdo e o teu algoritmo', subtitle: 'Algoritmo, guardados, tchekas e mais', icon: 'sliders', keywords: ['content', 'feed', 'algoritmo', 'estatísticas', 'convites', 'tchekas', 'sons', 'duetos', 'remix'] },
-  { id: 'mensagens', title: 'Mensagens e chamadas', subtitle: 'Quem te escreve e quem te liga', icon: 'messages', keywords: ['messages', 'chat', 'conversas', 'chamadas', 'calls'] },
-  { id: 'pagamentos', title: 'Vibes e pagamentos', subtitle: 'Carteira, pedidos e recargas', icon: 'wallet', keywords: ['payments', 'carteira', 'dinheiro', 'vibes', 'vib', 'txills', 'presentes'] },
-  { id: 'aparencia', title: 'Idiomas', subtitle: 'O idioma da app', icon: 'globe', keywords: ['idioma', 'idiomas', 'língua', 'language', 'languages', 'português', 'inglês', 'english'] },
-  { id: 'seguranca', title: 'Segurança', subtitle: 'Senha, sessões e aparelhos', icon: 'shield', keywords: ['security', 'senha', 'sessões', 'aparelhos'] },
-  { id: 'ajuda', title: 'Ajuda e sobre', subtitle: 'Ajuda, termos, versão e atualizações', icon: 'info', keywords: ['help', 'suporte', 'sobre', 'versão', 'privacidade'] },
+  { id: 'conta', get title() { return t('Conta'); }, get subtitle() { return t('Perfil, email, @, dados e eliminar'); }, icon: 'user-circle', get keywords() { return ['account', 'perfil', t('dados pessoais')]; } },
+  { id: 'privacidade', get title() { return t('Privacidade'); }, get subtitle() { return t('Quem te vê, quem interage, bloqueados'); }, icon: 'lock', get keywords() { return ['privacy', t('interações'), 'mimos']; } },
+  { id: 'notificacoes', get title() { return t('Notificações'); }, get subtitle() { return t('O que te avisa e este aparelho'); }, icon: 'bell', keywords: ['notifications', 'avisos', 'alertas', 'push'] },
+  { id: 'conteudo', get title() { return t('Conteúdo e o teu algoritmo'); }, get subtitle() { return t('Algoritmo, guardados, tchekas e mais'); }, icon: 'sliders', get keywords() { return [t('content'), 'feed', t('algoritmo'), t('estatísticas'), t('convites'), 'tchekas', t('sons'), t('duetos'), 'remix']; } },
+  { id: 'mensagens', get title() { return t('Mensagens e chamadas'); }, get subtitle() { return t('Quem te escreve e quem te liga'); }, icon: 'messages', keywords: ['messages', 'chat', 'conversas', 'chamadas', 'calls'] },
+  { id: 'pagamentos', get title() { return t('Vibes e pagamentos'); }, get subtitle() { return t('Carteira, pedidos e recargas'); }, icon: 'wallet', keywords: ['payments', 'carteira', 'dinheiro', 'vibes', 'vib', 'txills', 'presentes'] },
+  { id: 'aparencia', get title() { return t('Idiomas'); }, get subtitle() { return t('O idioma da app'); }, icon: 'globe', get keywords() { return [t('idioma'), t('idiomas'), t('língua'), t('language'), t('languages'), t('português'), t('inglês'), t('english')]; } },
+  { id: 'seguranca', get title() { return t('Segurança'); }, get subtitle() { return t('Senha, sessões e aparelhos'); }, icon: 'shield', get keywords() { return [t('security'), t('senha'), t('sessões'), t('aparelhos')]; } },
+  { id: 'ajuda', get title() { return t('Ajuda e sobre'); }, get subtitle() { return t('Ajuda, termos, versão e atualizações'); }, icon: 'info', get keywords() { return ['help', 'suporte', t('sobre'), t('versão'), 'privacidade']; } },
 ];
 
 /** Os tipos de aviso (as categorias que o servidor manda em /notifications/settings): título e explicação curta. */
 export const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso'],
-  follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
-  comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
-  mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
-  reposts: ['Reposts', 'Quando repostam uma publicação tua'],
-  gifts: ['Presentes', 'Quando te oferecem vibes'],
-  reactions: ['Brindes e reações', 'Brindes nas tuas publicações, Tchekas, comentários, notas e geleira, e reações aos teus Zás'],
-  invites: ['Convites', 'Quando alguém entra com o teu convite e quando um convite te dá vibes'],
-  calls: ['Chamadas perdidas', 'Quando te ligam e não atendes (o toque de quem liga não se desliga aqui)'],
-  venues: ['Locais que geres', 'Convites para gerir uma página e pagamentos em vibes recebidas'],
+  get messages() { return [t('Mensagens'), t('Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso')] as [string, string]; },
+  get follows() { return [t('Seguidores'), t('Quem começa a seguir-te e pedidos aceites')] as [string, string]; },
+  get comments() { return [t('Comentários e respostas'), t('Na tua publicação, no teu comentário e nos teus mimos')] as [string, string]; },
+  get mentions() { return [t('Menções e marcações'), t('Quando alguém te menciona ou te identifica')] as [string, string]; },
+  get reposts() { return [t('Reposts'), t('Quando repostam uma publicação tua')] as [string, string]; },
+  get gifts() { return [t('Presentes'), t('Quando te oferecem vibes')] as [string, string]; },
+  get reactions() { return [t('Brindes e reações'), t('Brindes nas tuas publicações, Tchekas, comentários, notas e geleira, e reações aos teus Zás')] as [string, string]; },
+  get invites() { return [t('Convites'), t('Quando alguém entra com o teu convite e quando um convite te dá vibes')] as [string, string]; },
+  get calls() { return [t('Chamadas perdidas'), t('Quando te ligam e não atendes (o toque de quem liga não se desliga aqui)')] as [string, string]; },
+  get venues() { return [t('Locais que geres'), t('Convites para gerir uma página e pagamentos em vibes recebidas')] as [string, string]; },
   // Lembretes de regresso (API: src/reminders/comeback-reminder.service.ts). Ligado por omissão.
-  comeback: ['Lembretes quando não passo por cá', 'Se não abrires o Txillapp há 3 dias ou mais, avisamos-te do que há de novo: no máximo um por semana e só entre as 9h e as 20h. Se a notificação não chegar, vai por email'],
+  get comeback() { return [t('Lembretes quando não passo por cá'), t('Se não abrires o Txillapp há 3 dias ou mais, avisamos-te do que há de novo: no máximo um por semana e só entre as 9h e as 20h. Se a notificação não chegar, vai por email')] as [string, string]; },
   // Remix das tchekas (API: src/posts/remix.ts, 0134).
-  remixes: ['Duetos e respostas', 'Quando fazem um dueto com a tua tcheka ou respondem com uma tcheka a um comentário teu (ou na tua publicação)'],
+  get remixes() { return [t('Duetos e respostas'), t('Quando fazem um dueto com a tua tcheka ou respondem com uma tcheka a um comentário teu (ou na tua publicação)')] as [string, string]; },
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
-  gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
+  get gelada() { return [t('Sexta da gelada'), t('À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta')] as [string, string]; },
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
   // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174) e os avisos da Txillada
   // agendada (0176): o txillada_live a quem pediu lembrete, txillada_scheduled_cancelled e, ao anfitrião, _soon e _now.
-  txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, os convites para transmitir ou para vir ver quando te mencionam, e as Txilladas agendadas: quando começa uma que pediste para lembrar (ou a cancelam, mudam de hora ou a moderação a retira) e os avisos das tuas, 15 min antes e na hora'],
+  get txilladas() { return ['Txilladas', t('Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, os convites para transmitir ou para vir ver quando te mencionam, e as Txilladas agendadas: quando começa uma que pediste para lembrar (ou a cancelam, mudam de hora ou a moderação a retira) e os avisos das tuas, 15 min antes e na hora')] as [string, string]; },
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
   // O Mixar, o feed a dois e o do grupo (API: src/mixar, 0150, 0170 e 0173). Ligado por omissão; a seleção do dia no máximo uma vez por dia.
@@ -69,20 +70,20 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
-  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos'],
-  follows: ['novos seguidores', 'pedidos para seguir'],
+  get messages() { return [t('avisos de mensagens'), 'chat', 'txillgroups', 'grupos']; },
+  get follows() { return [t('novos seguidores'), t('pedidos para seguir')]; },
   comments: ['respostas', 'comentar'],
   mentions: ['@', 'identificar', 'marcar'],
   reposts: ['partilhas'],
-  gifts: ['vibes recebidas', 'txills recebidos', 'oferta'],
-  reactions: ['brindes', 'gostos', 'likes', 'reações', 'zás'],
+  get gifts() { return [t('vibes recebidas'), t('txills recebidos'), 'oferta']; },
+  get reactions() { return ['brindes', 'gostos', t('likes'), t('reações'), 'zás']; },
   invites: ['convidados'],
-  calls: ['chamadas', 'perdidas', 'ligações'],
+  get calls() { return [t('chamadas'), t('perdidas'), t('ligações')]; },
   venues: ['locais', 'bar', 'restaurante'],
-  comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
-  remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
+  get comeback() { return ['lembretes', 'lembrar', t('não passo por cá'), 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', t('lembretes de regresso'), t('deixar de receber'), 'inativo']; },
+  get remixes() { return ['duetos', 'dueto', 'remix', t('responder com tcheka'), t('respostas com tcheka'), 'tchekas']; },
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
-  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir', 'reabrir', 'angariação', 'menção na txillada', 'vem ver', 'agendar', 'agendada', 'txillada agendada', 'lembrar-me', 'em breve'],
+  get txilladas() { return ['txillada', 'live', 'lives', t('ao vivo'), 'direto', t('em direto'), t('transmissão'), 'transmitir', 'reabrir', t('angariação'), t('menção na txillada'), t('vem ver'), 'agendar', 'agendada', t('txillada agendada'), 'lembrar-me', t('em breve')]; },
   zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
   mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar', 'mixar do grupo', 'mixar de grupo', 'propôs um mixar'],
 };
@@ -92,94 +93,94 @@ export const notifyEntryId = (category: string) => `notify-${category}`;
 
 export const SETTINGS_ENTRIES: SettingsEntry[] = [
   // Conta
-  { id: 'editProfile', group: 'conta', title: 'Editar perfil', keywords: ['nome', 'foto', 'fotografia', 'avatar', 'bio', 'biografia', 'cidade', 'site', 'imagem de perfil'] },
-  { id: 'email', group: 'conta', title: 'Email', keywords: ['e-mail', 'correio', 'confirmar email', 'ativar conta', 'endereço'] },
-  { id: 'username', group: 'conta', title: 'Nome de utilizador', keywords: ['@', 'arroba', 'username', 'utilizador', 'handle'] },
-  { id: 'gender', group: 'conta', title: 'Como me identifico', keywords: ['género', 'sexo', 'masculino', 'feminino'] },
-  { id: 'showGender', group: 'conta', title: 'Mostrar no perfil', keywords: ['mostrar género', 'género no perfil'] },
-  { id: 'verification', group: 'conta', title: 'Verificação', keywords: ['selo', 'verificado', 'verificar conta', 'selo vermelho', 'selo azul', 'conta oficial', 'cores do selo'] },
-  { id: 'artist', group: 'conta', title: 'Sou artista', keywords: ['artista', 'músico', 'musico', 'editora', 'carregar música', 'carregar musica', 'as minhas músicas', 'artistas de moçambique', 'direitos de autor'] },
-  { id: 'region', group: 'conta', title: 'A tua região', keywords: ['país', 'rede', 'região', 'moçambique'] },
-  { id: 'exportData', group: 'conta', title: 'Descarregar os meus dados', keywords: ['exportar', 'cópia', 'transferir', 'download', 'rgpd', 'os meus dados', 'backup'] },
-  { id: 'deleteAccount', group: 'conta', title: 'Eliminar conta', keywords: ['apagar conta', 'apagar', 'remover conta', 'fechar conta', 'desativar', 'sair de vez', 'apagar conta pelo site', 'apagar-conta', 'sem a app'] },
+  { id: 'editProfile', group: 'conta', get title() { return t('Editar perfil'); }, get keywords() { return ['nome', 'foto', 'fotografia', 'avatar', 'bio', 'biografia', 'cidade', 'site', t('imagem de perfil')]; } },
+  { id: 'email', group: 'conta', get title() { return t('Email'); }, get keywords() { return ['e-mail', 'correio', t('confirmar email'), t('ativar conta'), t('endereço')]; } },
+  { id: 'username', group: 'conta', get title() { return t('Nome de utilizador'); }, keywords: ['@', 'arroba', 'username', 'utilizador', 'handle'] },
+  { id: 'gender', group: 'conta', get title() { return t('Como me identifico'); }, get keywords() { return [t('género'), t('sexo'), t('masculino'), t('feminino')]; } },
+  { id: 'showGender', group: 'conta', get title() { return t('Mostrar no perfil'); }, get keywords() { return [t('mostrar género'), t('género no perfil')]; } },
+  { id: 'verification', group: 'conta', get title() { return t('Verificação'); }, get keywords() { return ['selo', 'verificado', t('verificar conta'), t('selo vermelho'), t('selo azul'), t('conta oficial'), t('cores do selo')]; } },
+  { id: 'artist', group: 'conta', get title() { return t('Sou artista'); }, get keywords() { return ['artista', t('músico'), 'musico', 'editora', t('carregar música'), t('carregar musica'), t('as minhas músicas'), t('artistas de moçambique'), t('direitos de autor')]; } },
+  { id: 'region', group: 'conta', get title() { return t('A tua região'); }, get keywords() { return [t('país'), 'rede', t('região'), t('moçambique')]; } },
+  { id: 'exportData', group: 'conta', get title() { return t('Descarregar os meus dados'); }, get keywords() { return ['exportar', t('cópia'), 'transferir', 'download', 'rgpd', t('os meus dados'), 'backup']; } },
+  { id: 'deleteAccount', group: 'conta', get title() { return t('Eliminar conta'); }, get keywords() { return [t('apagar conta'), 'apagar', t('remover conta'), t('fechar conta'), 'desativar', t('sair de vez'), t('apagar conta pelo site'), 'apagar-conta', t('sem a app')]; } },
   // Privacidade
-  { id: 'accountType', group: 'privacidade', title: 'Tipo de perfil', keywords: ['privado', 'público', 'conta privada', 'perfil privado', 'perfil público', 'fechar perfil'] },
-  { id: 'connections', group: 'privacidade', title: 'Quem vê seguidores e a quem sigo', keywords: ['seguidores', 'seguindo', 'a seguir', 'listas'] },
-  { id: 'suggestable', group: 'privacidade', title: 'Aparecer nas sugestões', keywords: ['sugestões', 'descobrir', 'sugerido', 'recomendar'] },
-  { id: 'presence', group: 'privacidade', title: 'Mostrar quando estou online', keywords: ['online', 'visto por último', 'visto há', 'presença', 'ativo agora', 'última vez'] },
-  { id: 'nearby', group: 'privacidade', title: 'Aparecer em À tua volta', keywords: ['localização', 'mapa', 'perto', 'à tua volta', 'gps', 'onde estou'] },
-  { id: 'blocked', group: 'privacidade', title: 'Contas bloqueadas', keywords: ['bloquear', 'bloqueados', 'desbloquear', 'block'] },
-  { id: 'comments', group: 'privacidade', title: 'Quem pode comentar', keywords: ['comentários', 'comentar'] },
-  { id: 'mentions', group: 'privacidade', title: 'Quem pode mencionar-me', keywords: ['menções', 'mencionar', '@', 'marcar', 'identificar'] },
-  { id: 'gifts', group: 'privacidade', title: 'Quem pode presentear-me', keywords: ['presentes', 'presentear', 'oferecer', 'vibes', 'txills'] },
-  { id: 'repostsVisible', group: 'privacidade', title: 'Quem vê quem repostou', keywords: ['reposts', 'repostar', 'partilhas'] },
-  { id: 'cheersVisible', group: 'privacidade', title: 'Quem vê quem brindou', keywords: ['brindes', 'brindar', 'gostos', 'likes'] },
-  { id: 'giftsVisible', group: 'privacidade', title: 'Quem vê quem presenteou', keywords: ['presentes', 'quem ofereceu'] },
-  { id: 'storyReplies', group: 'privacidade', title: 'Quem pode responder aos mimos', keywords: ['mimos', 'stories', 'histórias', 'respostas', 'reações aos mimos'] },
-  { id: 'closeFriends', group: 'privacidade', title: 'Amigos próximos', keywords: ['melhores amigos', 'close friends', 'lista de amigos', 'mimos', 'notas', 'quem vê a minha nota'] },
-  { id: 'hiddenStory', group: 'privacidade', title: 'Esconder mimo de…', keywords: ['esconder', 'ocultar', 'mimos', 'stories', 'não mostrar'] },
-  { id: 'zasKeep', group: 'privacidade', title: 'Guardar os meus Zás para o resumo semanal', keywords: ['zás', 'zas', 'resumo', 'resumo semanal', 'resumo da semana', 'resumo dos zás', 'guardar zás', 'guardar os zás', '7 dias', 'sete dias', 'arquivo', 'os meus zás', 'recap', 'instants', 'apagar às 24 horas'] },
-  { id: 'findByContacts', group: 'privacidade', title: 'Deixar que me encontrem pelos contactos', keywords: ['contactos', 'agenda', 'encontrar-me'] },
-  { id: 'analytics', group: 'privacidade', title: 'Ajudar a melhorar o Txillapp', keywords: ['estatísticas de uso', 'analytics', 'dados de uso', 'telemetria', 'rastreio', 'melhorar'] },
+  { id: 'accountType', group: 'privacidade', get title() { return t('Tipo de perfil'); }, get keywords() { return ['privado', t('público'), t('conta privada'), t('perfil privado'), t('perfil público'), t('fechar perfil')]; } },
+  { id: 'connections', group: 'privacidade', get title() { return t('Quem vê seguidores e a quem sigo'); }, keywords: ['seguidores', 'seguindo', 'a seguir', 'listas'] },
+  { id: 'suggestable', group: 'privacidade', get title() { return t('Aparecer nas sugestões'); }, get keywords() { return [t('sugestões'), t('descobrir'), t('sugerido'), t('recomendar')]; } },
+  { id: 'presence', group: 'privacidade', get title() { return t('Mostrar quando estou online'); }, get keywords() { return ['online', t('visto por último'), t('visto há'), t('presença'), t('ativo agora'), t('última vez')]; } },
+  { id: 'nearby', group: 'privacidade', get title() { return t('Aparecer em À tua volta'); }, get keywords() { return [t('localização'), 'mapa', 'perto', t('à tua volta'), 'gps', t('onde estou')]; } },
+  { id: 'blocked', group: 'privacidade', get title() { return t('Contas bloqueadas'); }, keywords: ['bloquear', 'bloqueados', 'desbloquear', 'block'] },
+  { id: 'comments', group: 'privacidade', get title() { return t('Quem pode comentar'); }, get keywords() { return [t('comentários'), t('comentar')]; } },
+  { id: 'mentions', group: 'privacidade', get title() { return t('Quem pode mencionar-me'); }, get keywords() { return [t('menções'), 'mencionar', '@', 'marcar', 'identificar']; } },
+  { id: 'gifts', group: 'privacidade', get title() { return t('Quem pode presentear-me'); }, keywords: ['presentes', 'presentear', 'oferecer', 'vibes', 'txills'] },
+  { id: 'repostsVisible', group: 'privacidade', get title() { return t('Quem vê quem repostou'); }, keywords: ['reposts', 'repostar', 'partilhas'] },
+  { id: 'cheersVisible', group: 'privacidade', get title() { return t('Quem vê quem brindou'); }, keywords: ['brindes', 'brindar', 'gostos', 'likes'] },
+  { id: 'giftsVisible', group: 'privacidade', get title() { return t('Quem vê quem presenteou'); }, get keywords() { return ['presentes', t('quem ofereceu')]; } },
+  { id: 'storyReplies', group: 'privacidade', get title() { return t('Quem pode responder aos mimos'); }, get keywords() { return ['mimos', 'stories', t('histórias'), 'respostas', t('reações aos mimos')]; } },
+  { id: 'closeFriends', group: 'privacidade', get title() { return t('Amigos próximos'); }, get keywords() { return [t('melhores amigos'), t('close friends'), t('lista de amigos'), 'mimos', 'notas', t('quem vê a minha nota')]; } },
+  { id: 'hiddenStory', group: 'privacidade', get title() { return t('Esconder mimo de…'); }, get keywords() { return ['esconder', 'ocultar', 'mimos', 'stories', t('não mostrar')]; } },
+  { id: 'zasKeep', group: 'privacidade', get title() { return t('Guardar os meus Zás para o resumo semanal'); }, get keywords() { return ['zás', 'zas', 'resumo', t('resumo semanal'), t('resumo da semana'), t('resumo dos zás'), t('guardar zás'), t('guardar os zás'), '7 dias', t('sete dias'), 'arquivo', t('os meus zás'), 'recap', 'instants', t('apagar às 24 horas')]; } },
+  { id: 'findByContacts', group: 'privacidade', get title() { return t('Deixar que me encontrem pelos contactos'); }, keywords: ['contactos', 'agenda', 'encontrar-me'] },
+  { id: 'analytics', group: 'privacidade', get title() { return t('Ajudar a melhorar o Txillapp'); }, get keywords() { return [t('estatísticas de uso'), 'analytics', t('dados de uso'), 'telemetria', 'rastreio', 'melhorar']; } },
   // Mixar (0172): os temas que nunca aparecem nos meus Mixar (ecrã próprio; a linha está em Privacidade e em Mensagens e chamadas).
-  { id: 'mixarPrivateTopics', group: 'privacidade', title: 'Temas privados no Mixar', to: '/settings/mixar-temas', keywords: ['temas privados', 'mixar', 'esconder temas', 'gostos privados', 'compatibilidade', 'afinidade', 'temas em comum', 'resumo da semana do mixar', 'faz um mixar com', 'sugestões do mixar'] },
+  { id: 'mixarPrivateTopics', group: 'privacidade', get title() { return t('Temas privados no Mixar'); }, to: '/settings/mixar-temas', get keywords() { return [t('temas privados'), 'mixar', t('esconder temas'), t('gostos privados'), 'compatibilidade', 'afinidade', t('temas em comum'), t('resumo da semana do mixar'), t('faz um mixar com'), t('sugestões do mixar')]; } },
   // Notificações
-  { id: 'deviceNotif', group: 'notificacoes', title: 'Notificações no telemóvel', keywords: ['push', 'alertas', 'avisos', 'ligar notificações', 'desligadas', 'notificação de teste', 'neste aparelho'] },
-  { id: 'installApp', group: 'notificacoes', title: 'Instalar a app', keywords: ['ecrã principal', 'pwa', 'adicionar ao ecrã', 'instalar'] },
-  ...Object.entries(NOTIFY_LABELS).map(([cat, [title]]): SettingsEntry => ({ id: notifyEntryId(cat), group: 'notificacoes', title, keywords: ['notificações', 'avisos', ...(NOTIFY_KEYWORDS[cat] ?? [])] })),
+  { id: 'deviceNotif', group: 'notificacoes', get title() { return t('Notificações no telemóvel'); }, get keywords() { return ['push', 'alertas', 'avisos', t('ligar notificações'), 'desligadas', t('notificação de teste'), t('neste aparelho')]; } },
+  { id: 'installApp', group: 'notificacoes', get title() { return t('Instalar a app'); }, get keywords() { return [t('ecrã principal'), 'pwa', t('adicionar ao ecrã'), 'instalar']; } },
+  ...Object.entries(NOTIFY_LABELS).map(([cat, [title]]): SettingsEntry => ({ id: notifyEntryId(cat), group: 'notificacoes', title, keywords: [t('notificações'), 'avisos', ...(NOTIFY_KEYWORDS[cat] ?? [])] })),
   // Conteúdo e o teu algoritmo
-  { id: 'algorithm', group: 'conteudo', title: 'O teu algoritmo', to: '/reels/filtros', keywords: ['feed', 'tchekas', 'reels', 'interesses', 'tópicos', 'ver mais', 'ver menos', 'filtros', 'explorar', 'recomendações'] },
-  { id: 'saved', group: 'conteudo', title: 'Guardados', to: '/saved', keywords: ['favoritos', 'guardar', 'marcadores', 'coleções'] },
-  { id: 'geleira', group: 'conteudo', title: 'A minha geleira', to: '/geleira', keywords: ['bebidas', 'gostos', 'frigorífico'] },
-  { id: 'geladaBook', group: 'conteudo', title: 'Mostrar o livro das geladas a quem vê a geleira', keywords: ['livro das geladas', 'dívidas', 'deve', 'devo', 'paga-me uma', 'gelada', 'geladas', 'quem me deve'] },
-  { id: 'remix', group: 'conteudo', title: 'Deixar fazer duetos e respostas com as minhas tchekas', keywords: ['dueto', 'duetos', 'remix', 'remisturar', 'responder com tcheka', 'respostas com tcheka', 'resposta em vídeo', 'responder com vídeo', 'lado a lado', 'fazer dueto', 'reutilizar', 'duet', 'stitch', 'tchekas', 'reels'] },
-  { id: 'insights', group: 'conteudo', title: 'Estatísticas do perfil', to: '/insights', keywords: ['visitas', 'alcance', 'números', 'insights', 'estatísticas'] },
-  { id: 'locais', group: 'conteudo', title: 'Tenho um local (bar, restaurante…)', to: '/locais', keywords: ['negócio', 'bar', 'restaurante', 'página', 'empresa', 'local'] },
-  { id: 'allowReposts', group: 'conteudo', title: 'Deixar repostar as minhas publicações', keywords: ['repostar', 'repost', 'reposts', 'repostagem', 'partilhar no perfil', 'partilhar no perfil deles', 'citar', 'citação', 'citações', 'repostar com comentário', 'retweet', 'retuitar', 'quote', 'impedir que repostem', 'não deixar repostar', 'conta privada', 'publicações'] },
-  { id: 'soundReuse', group: 'conteudo', title: 'Deixar usar o meu som', keywords: ['som', 'sons', 'som original', 'usar este som', 'usar o meu som', 'reutilizar', 'sons em alta', 'áudio', 'música', 'direitos', 'tchekas', 'reels', 'sound'] },
-  { id: 'allowDownloads', group: 'conteudo', title: 'Deixar guardar as minhas tchekas', keywords: ['guardar', 'guardar vídeo', 'guardar o vídeo', 'guardar tchekas', 'descarregar', 'descarregar vídeo', 'download', 'baixar', 'transferir', 'galeria', 'copiar vídeo', 'impedir que guardem', 'não deixar guardar', 'tchekas', 'vídeos', 'reels'] },
-  { id: 'mySounds', group: 'conteudo', title: 'Os meus sons', to: '/settings/sons', keywords: ['som', 'sons', 'som original', 'retirar o som', 'retirar o meu som', 'apagar som', 'tirar o som', 'direitos', 'música', 'tchekas', 'sound'] },
-  { id: 'invites', group: 'conteudo', title: 'Convida a tua malta', to: '/invites', keywords: ['convites', 'convidar', 'código de convite', 'amigos'] },
-  { id: 'contacts', group: 'conteudo', title: 'Encontrar amigos nos contactos', keywords: ['contactos', 'amigos', 'agenda', 'procurar amigos'] },
+  { id: 'algorithm', group: 'conteudo', get title() { return t('O teu algoritmo'); }, to: '/reels/filtros', get keywords() { return ['feed', 'tchekas', 'reels', 'interesses', t('tópicos'), t('ver mais'), t('ver menos'), 'filtros', 'explorar', t('recomendações')]; } },
+  { id: 'saved', group: 'conteudo', get title() { return t('Guardados'); }, to: '/saved', get keywords() { return [t('favoritos'), t('guardar'), t('marcadores'), t('coleções')]; } },
+  { id: 'geleira', group: 'conteudo', get title() { return t('A minha geleira'); }, to: '/geleira', get keywords() { return [t('bebidas'), 'gostos', t('frigorífico')]; } },
+  { id: 'geladaBook', group: 'conteudo', get title() { return t('Mostrar o livro das geladas a quem vê a geleira'); }, get keywords() { return [t('livro das geladas'), t('dívidas'), 'deve', 'devo', 'paga-me uma', 'gelada', 'geladas', t('quem me deve')]; } },
+  { id: 'remix', group: 'conteudo', get title() { return t('Deixar fazer duetos e respostas com as minhas tchekas'); }, get keywords() { return ['dueto', 'duetos', 'remix', 'remisturar', t('responder com tcheka'), t('respostas com tcheka'), t('resposta em vídeo'), t('responder com vídeo'), t('lado a lado'), t('fazer dueto'), 'reutilizar', 'duet', 'stitch', 'tchekas', 'reels']; } },
+  { id: 'insights', group: 'conteudo', get title() { return t('Estatísticas do perfil'); }, to: '/insights', get keywords() { return [t('visitas'), t('alcance'), t('números'), t('insights'), t('estatísticas')]; } },
+  { id: 'locais', group: 'conteudo', get title() { return t('Tenho um local (bar, restaurante…)'); }, to: '/locais', get keywords() { return [t('negócio'), 'bar', 'restaurante', t('página'), t('empresa'), 'local']; } },
+  { id: 'allowReposts', group: 'conteudo', get title() { return t('Deixar repostar as minhas publicações'); }, get keywords() { return ['repostar', 'repost', 'reposts', 'repostagem', t('partilhar no perfil'), t('partilhar no perfil deles'), 'citar', t('citação'), t('citações'), t('repostar com comentário'), 'retweet', 'retuitar', 'quote', t('impedir que repostem'), t('não deixar repostar'), t('conta privada'), t('publicações')]; } },
+  { id: 'soundReuse', group: 'conteudo', get title() { return t('Deixar usar o meu som'); }, get keywords() { return ['som', 'sons', t('som original'), t('usar este som'), t('usar o meu som'), 'reutilizar', t('sons em alta'), t('áudio'), t('música'), 'direitos', 'tchekas', 'reels', 'sound']; } },
+  { id: 'allowDownloads', group: 'conteudo', get title() { return t('Deixar guardar as minhas tchekas'); }, get keywords() { return ['guardar', t('guardar vídeo'), t('guardar o vídeo'), t('guardar tchekas'), 'descarregar', t('descarregar vídeo'), 'download', 'baixar', 'transferir', 'galeria', t('copiar vídeo'), t('impedir que guardem'), t('não deixar guardar'), 'tchekas', t('vídeos'), 'reels']; } },
+  { id: 'mySounds', group: 'conteudo', get title() { return t('Os meus sons'); }, to: '/settings/sons', get keywords() { return ['som', 'sons', t('som original'), t('retirar o som'), t('retirar o meu som'), t('apagar som'), t('tirar o som'), 'direitos', t('música'), 'tchekas', 'sound']; } },
+  { id: 'invites', group: 'conteudo', get title() { return t('Convida a tua malta'); }, to: '/invites', get keywords() { return ['convites', 'convidar', t('código de convite'), 'amigos']; } },
+  { id: 'contacts', group: 'conteudo', get title() { return t('Encontrar amigos nos contactos'); }, get keywords() { return ['contactos', 'amigos', 'agenda', t('procurar amigos')]; } },
   // Mensagens e chamadas
-  { id: 'dms', group: 'mensagens', title: 'Quem pode enviar-me mensagens', keywords: ['mensagens', 'conversas', 'dm', 'chat', 'txillgroups', 'grupos', 'escrever-me'] },
+  { id: 'dms', group: 'mensagens', get title() { return t('Quem pode enviar-me mensagens'); }, keywords: ['mensagens', 'conversas', 'dm', 'chat', 'txillgroups', 'grupos', 'escrever-me'] },
   // Estas duas mudam-se no menu «⋯» de cada conversa: a linha no ecrã explica onde e leva às Mensagens.
-  { id: 'temporaryMessages', group: 'mensagens', title: 'Mensagens temporárias', keywords: ['desaparecer', 'temporárias', 'efémeras', 'apagar sozinhas', 'autodestruir', '24 horas', '7 dias', '90 dias', 'disappearing'] },
-  { id: 'clearChat', group: 'mensagens', title: 'Limpar conversa', keywords: ['limpar', 'esvaziar', 'apagar mensagens', 'limpar chat', 'apagar histórico', 'clear chat'] },
+  { id: 'temporaryMessages', group: 'mensagens', get title() { return t('Mensagens temporárias'); }, get keywords() { return ['desaparecer', t('temporárias'), t('efémeras'), t('apagar sozinhas'), 'autodestruir', '24 horas', '7 dias', '90 dias', 'disappearing']; } },
+  { id: 'clearChat', group: 'mensagens', get title() { return t('Limpar conversa'); }, get keywords() { return ['limpar', 'esvaziar', t('apagar mensagens'), t('limpar chat'), t('apagar histórico'), t('clear chat')]; } },
   // Só explica (não há opção na API): os avisos de captura nas conversas e o bloqueio no Zás dos outros.
-  { id: 'screenshots', group: 'mensagens', title: 'Capturas de ecrã', keywords: ['captura', 'capturas', 'captura de ecrã', 'print', 'printscreen', 'screenshot', 'aviso de captura', 'zás'] },
+  { id: 'screenshots', group: 'mensagens', get title() { return t('Capturas de ecrã'); }, get keywords() { return ['captura', 'capturas', t('captura de ecrã'), 'print', 'printscreen', 'screenshot', t('aviso de captura'), 'zás']; } },
   // Mixar (0150): a linha explica e leva aos teus Mixar (sair, convites). Os avisos são a categoria «mixar» (0170) e os temas
   // privados têm a entrada mixarPrivateTopics (0172).
-  { id: 'mixar', group: 'mensagens', title: 'Os meus Mixar', to: '/mixar', keywords: ['mixar', 'feed a dois', 'blend', 'mixa challenge', 'desafio', 'sair do mixar', 'convite mixar', 'afinidade', 'guardados do mixar', 'resumo da semana do mixar', 'mais 5', 'ver juntos'] },
-  { id: 'calls', group: 'mensagens', title: 'Quem me pode ligar', keywords: ['chamadas', 'ligar', 'videochamada', 'chamada de voz'] },
-  { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
-  { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },
+  { id: 'mixar', group: 'mensagens', get title() { return t('Os meus Mixar'); }, to: '/mixar', get keywords() { return ['mixar', t('feed a dois'), 'blend', t('mixa challenge'), 'desafio', t('sair do mixar'), t('convite mixar'), 'afinidade', t('guardados do mixar'), t('resumo da semana do mixar'), 'mais 5', t('ver juntos')]; } },
+  { id: 'calls', group: 'mensagens', get title() { return t('Quem me pode ligar'); }, get keywords() { return ['chamadas', 'ligar', 'videochamada', t('chamada de voz')]; } },
+  { id: 'relay', group: 'mensagens', get title() { return t('Esconder o meu IP nas chamadas'); }, get keywords() { return [t('ip'), t('endereço'), 'servidor', t('relay')]; } },
+  { id: 'callLog', group: 'mensagens', get title() { return t('Registo de chamadas'); }, to: '/calls', get keywords() { return [t('histórico de chamadas'), 'chamadas', t('apagar chamadas')]; } },
   // Vibes e pagamentos
-  { id: 'wallet', group: 'pagamentos', title: 'Vibes e presentes', to: '/wallet', keywords: ['carteira', 'saldo', 'vibes', 'vib', 'txills', 'moedas', 'presentes', 'o que são vibes', 'o que são txills', 'levantar', 'trocar por dinheiro'] },
-  { id: 'orders', group: 'pagamentos', title: 'Pedidos e pagamentos', to: '/orders', keywords: ['recarregar', 'comprar vibes', 'comprar txills', 'pagamentos', 'm-pesa', 'mpesa', 'pedidos', 'recarga'] },
+  { id: 'wallet', group: 'pagamentos', get title() { return t('Vibes e presentes'); }, to: '/wallet', get keywords() { return ['carteira', 'saldo', 'vibes', 'vib', 'txills', 'moedas', 'presentes', t('o que são vibes'), t('o que são txills'), 'levantar', t('trocar por dinheiro')]; } },
+  { id: 'orders', group: 'pagamentos', get title() { return t('Pedidos e pagamentos'); }, to: '/orders', get keywords() { return ['recarregar', t('comprar vibes'), t('comprar txills'), 'pagamentos', 'm-pesa', 'mpesa', 'pedidos', 'recarga']; } },
   // Idiomas
-  { id: 'language', group: 'aparencia', title: 'Idiomas', to: '/language', keywords: ['idioma', 'língua', 'português', 'inglês', 'english', 'language', 'languages'] },
+  { id: 'language', group: 'aparencia', get title() { return t('Idiomas'); }, to: '/language', get keywords() { return [t('idioma'), t('língua'), t('português'), t('inglês'), t('english'), t('language'), t('languages')]; } },
   // Segurança
-  { id: 'password', group: 'seguranca', title: 'Alterar senha', keywords: ['palavra-passe', 'password', 'mudar senha', 'senha', 'palavra passe'] },
-  { id: 'devices', group: 'seguranca', title: 'Os teus aparelhos', keywords: ['sessões', 'dispositivos', 'telemóveis', 'computadores', 'terminar sessão noutros', 'sessão iniciada', 'aparelhos'] },
+  { id: 'password', group: 'seguranca', get title() { return t('Alterar senha'); }, get keywords() { return ['palavra-passe', 'password', t('mudar senha'), 'senha', t('palavra passe')]; } },
+  { id: 'devices', group: 'seguranca', get title() { return t('Os teus aparelhos'); }, get keywords() { return [t('sessões'), 'dispositivos', t('telemóveis'), 'computadores', t('terminar sessão noutros'), t('sessão iniciada'), 'aparelhos']; } },
   // Ajuda e sobre
-  { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio', 'denunciar', 'denúncia', 'reportar', 'abuso',
+  { id: 'help', group: 'ajuda', get title() { return t('Ajuda'); }, to: '/help', get keywords() { return ['perguntas', 'suporte', 'faq', t('dúvidas'), 'apoio', 'denunciar', t('denúncia'), 'reportar', 'abuso',
     // O estúdio das tchekas não tem opções nas Definições: quem o procura aqui vai dar às perguntas dele na Ajuda.
-    'estúdio', 'estúdio das tchekas', 'editar tcheka', 'voz-off', 'narração', 'microfone', 'montagem mágica', 'rascunhos', 'linha do tempo', 'cortar clipe', 'capulana',
-    'encher', 'inteiro', 'enquadrar', 'foto cortada', 'vídeo cortado', 'vídeo deitado', 'fundo desfocado',
+    t('estúdio'), t('estúdio das tchekas'), t('editar tcheka'), 'voz-off', t('narração'), 'microfone', t('montagem mágica'), 'rascunhos', t('linha do tempo'), t('cortar clipe'), 'capulana',
+    'encher', 'inteiro', 'enquadrar', t('foto cortada'), t('vídeo cortado'), t('vídeo deitado'), t('fundo desfocado'),
     // As letras ao publicar (textos nos mimos, publicações só com texto, legenda do Zás) também não têm opção: só a Ajuda.
-    'letra', 'letras', 'fonte', 'fontes', 'tipo de letra', 'texto no mimo', 'texto nos mimos',
+    'letra', 'letras', 'fonte', 'fontes', t('tipo de letra'), t('texto no mimo'), t('texto nos mimos'),
     // Guardar uma tcheka (GET /posts/:id/download): a opção é «Deixar guardar as minhas tchekas» (acima, em Conteúdo); como
     // guardar, o que leva a cópia e a música gravada no vídeo (que não tem opção) estão na Ajuda.
-    'guardar tcheka', 'guardar vídeo', 'descarregar tcheka', 'descarregar vídeo', 'impedir que guardem', 'marca de água', 'assinatura', 'música gravada'] },
-  { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições', 'tolerância zero', 'regras da malta'] },
-  { id: 'privacyPolicy', group: 'ajuda', title: 'Política de privacidade', to: '/privacy', keywords: ['rgpd', 'dados pessoais', 'privacidade'] },
-  { id: 'about', group: 'ajuda', title: 'Sobre', to: '/about', keywords: ['sobre o txillapp', 'informações'] },
-  { id: 'version', group: 'ajuda', title: 'Versão e atualizações', keywords: ['atualizar', 'versão', 'procurar atualização', 'recarregar', 'build', 'nova versão'] },
+    t('guardar tcheka'), t('guardar vídeo'), t('descarregar tcheka'), t('descarregar vídeo'), t('impedir que guardem'), t('marca de água'), 'assinatura', t('música gravada')]; } },
+  { id: 'terms', group: 'ajuda', get title() { return t('Termos de utilização'); }, to: '/terms', get keywords() { return ['termos', 'regras', t('condições'), t('tolerância zero'), t('regras da malta')]; } },
+  { id: 'privacyPolicy', group: 'ajuda', get title() { return t('Política de privacidade'); }, to: '/privacy', get keywords() { return ['rgpd', t('dados pessoais'), 'privacidade']; } },
+  { id: 'about', group: 'ajuda', get title() { return t('Sobre'); }, to: '/about', get keywords() { return [t('sobre o txillapp'), t('informações')]; } },
+  { id: 'version', group: 'ajuda', get title() { return t('Versão e atualizações'); }, get keywords() { return ['atualizar', t('versão'), t('procurar atualização'), 'recarregar', 'build', t('nova versão')]; } },
   // Início: contas e sair
-  { id: 'addAccount', group: 'inicio', title: 'Adicionar conta', keywords: ['nova conta', 'outra conta', 'várias contas'] },
-  { id: 'switchAccount', group: 'inicio', title: 'Trocar de conta', keywords: ['mudar de conta', 'outra conta', 'várias contas'] },
-  { id: 'logout', group: 'inicio', title: 'Terminar sessão', keywords: ['sair', 'logout', 'desligar', 'fechar sessão'] },
+  { id: 'addAccount', group: 'inicio', get title() { return t('Adicionar conta'); }, get keywords() { return [t('nova conta'), t('outra conta'), t('várias contas')]; } },
+  { id: 'switchAccount', group: 'inicio', get title() { return t('Trocar de conta'); }, get keywords() { return [t('mudar de conta'), t('outra conta'), t('várias contas')]; } },
+  { id: 'logout', group: 'inicio', get title() { return t('Terminar sessão'); }, get keywords() { return ['sair', 'logout', 'desligar', t('fechar sessão')]; } },
 ];
 
 export const settingsGroup = (id: string): SettingsGroup | undefined => SETTINGS_GROUPS.find((g) => g.id === id);
@@ -249,7 +250,7 @@ export function searchSettings(query: string, opts: { limit?: number; hidden?: r
     if (hidden.has(e.id)) return;
     const g = e.group === 'inicio' ? undefined : settingsGroup(e.group);
     const s = score(q, words, e.title, e.keywords, g?.title ?? '');
-    if (s) hits.push({ kind: 'entry', id: e.id, title: e.title, where: g?.title ?? 'Definições', path: entryPath(e), s, order: i });
+    if (s) hits.push({ kind: 'entry', id: e.id, title: e.title, where: g?.title ?? t('Definições'), path: entryPath(e), s, order: i });
   });
   // Empate: primeiro as opções (pela ordem do índice), depois os grupos (que só ganham pelo título).
   hits.sort((a, b) => b.s - a.s || a.order - b.order);

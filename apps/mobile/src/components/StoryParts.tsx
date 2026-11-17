@@ -23,16 +23,17 @@ import { SearchField } from './ui/SearchField';
 import { SegmentedTabs } from './ui/SegmentedTabs';
 import { SendButton } from './ui/SendButton';
 import { linkShare } from '@/lib/shareLink';
+import { t } from '@/lib/i18n';
 
 /** Reações a stories: a mesma mascote dos stickers, sem texto (guardam-se como :nome:). */
 export const REACTIONS: { id: string; label: string; art: string }[] = [
-  { id: ':rir:', label: 'Rir', art: 'rir' },
-  { id: ':uau:', label: 'Uau', art: 'uau' },
-  { id: ':amor:', label: 'Adorar', art: 'amor' },
-  { id: ':snif:', label: 'Triste', art: 'snif' },
-  { id: ':palmas:', label: 'Fixe', art: 'fixe' },
-  { id: ':fogo:', label: 'Bora', art: 'bora' },
-  { id: ':brinde:', label: 'Brindar', art: 'saude' },
+  { id: ':rir:', get label() { return t('Rir'); }, art: 'rir' },
+  { id: ':uau:', get label() { return t('Uau'); }, art: 'uau' },
+  { id: ':amor:', get label() { return t('Adorar'); }, art: 'amor' },
+  { id: ':snif:', get label() { return t('Triste'); }, art: 'snif' },
+  { id: ':palmas:', get label() { return t('Fixe'); }, art: 'fixe' },
+  { id: ':fogo:', get label() { return t('Bora'); }, art: 'bora' },
+  { id: ':brinde:', get label() { return t('Brindar'); }, art: 'saude' },
 ];
 export function ReactionArt({ body, size = 40 }: { body: string; size?: number }) {
   const r = REACTIONS.find((x) => x.id === body);
@@ -108,7 +109,7 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, 
     try {
       await api.replyStory(story.id, body.trim());
       setText('');
-      flash(REACTIONS.some((r) => r.id === body) ? `${reactionLabel(body)} enviado!` : 'Mensagem enviada');
+      flash(REACTIONS.some((r) => r.id === body) ? t('{reactionLabel} enviado!', { reactionLabel: reactionLabel(body) }) : t('Mensagem enviada'));
     } catch (e) { flash((e as Error).message); } finally { setBusy(false); }
   }
   const focus = (v: boolean) => { setOpen(v); onFocusChange(v); };
@@ -119,13 +120,13 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, 
       {open && (
         <View style={st.reactions}>
           {REACTIONS.map((r) => (
-            <Pressable key={r.id} onPress={() => void send(r.id)} style={({ pressed }) => pressed && { transform: [{ scale: 0.88 }] }} accessibilityRole="button" accessibilityLabel={`Reagir: ${r.label}`} hitSlop={4}><ReactionArt body={r.id} size={38} /></Pressable>
+            <Pressable key={r.id} onPress={() => void send(r.id)} style={({ pressed }) => pressed && { transform: [{ scale: 0.88 }] }} accessibilityRole="button" accessibilityLabel={t('Reagir: {label}', { label: r.label })} hitSlop={4}><ReactionArt body={r.id} size={38} /></Pressable>
           ))}
         </View>
       )}
       <View style={st.barRow}>
         <View style={[st.replyPill, open && st.replyPillOn]}>
-          <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={msg && !text ? '' : compact && !open ? 'Responder…' : `Responder a ${username}…`} placeholderTextColor="rgba(255,255,255,0.62)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={`Responder ao mimo de ${username}`} />
+          <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={msg && !text ? '' : compact && !open ? t('Responder…') : t('Responder a {username}…', { username })} placeholderTextColor="rgba(255,255,255,0.62)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={t('Responder ao mimo de {username}', { username })} />
           {msg && !text ? (
             <View style={st.flashIn} pointerEvents="none">
               <Icon name="check-circle" size={16} color={colors.brandWarm} />
@@ -136,11 +137,11 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, 
         </View>
         {!open && (
           <>
-            {onComments ? <BarButton icon="comment" label={story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={onComments} /> : null}
-            <Pressable onPress={() => void cheer()} hitSlop={4} style={({ pressed }) => [st.barBtn, cheered && st.barBtnOn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Brindar" accessibilityState={{ selected: cheered }}>
+            {onComments ? <BarButton icon="comment" label={story.commentCount > 0 ? t('{count} comentário', { count: story.commentCount, other: '{count} comentários' }) : t('Comentar')} onPress={onComments} /> : null}
+            <Pressable onPress={() => void cheer()} hitSlop={4} style={({ pressed }) => [st.barBtn, cheered && st.barBtnOn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={t('Brindar')} accessibilityState={{ selected: cheered }}>
               <Icon name="cheers" size={26} color={cheered ? colors.brandWarm : '#fff'} strokeWidth={cheered ? 2.1 : 1.8} />
             </Pressable>
-            {onShare ? <BarButton icon="share" label="Partilhar o mimo" onPress={onShare} size={24} /> : null}
+            {onShare ? <BarButton icon="share" label={t('Partilhar o mimo')} onPress={onShare} size={24} /> : null}
           </>
         )}
       </View>
@@ -172,28 +173,28 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
     try { await api.commentStory(story.id, body); setText(''); refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
   async function del(id: string) {
-    if (!(await confirm({ title: 'Apagar o comentário?', message: 'O comentário desaparece e não dá para o recuperar.', confirm: 'Apagar', danger: true }))) return;
+    if (!(await confirm({ title: t('Apagar o comentário?'), message: t('O comentário desaparece e não dá para o recuperar.'), confirm: t('Apagar'), danger: true }))) return;
     await api.deleteStoryComment(id).catch(() => undefined);
     refresh();
   }
   return (
-    <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
+    <Panel title={t('Comentários{value}', { value: list.data ? ` (${list.data.length})` : '' })} onClose={onClose}>
       {/* O teclado: a folha (Sheet) sobe sozinha por cima dele. */}
       <View>
         <ScrollView style={{ maxHeight: 320, minHeight: 96 }}>
           {list.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
-          {list.isSuccess && list.data.length === 0 && <Text style={st.none}>Ainda sem comentários. Sê o primeiro</Text>}
+          {list.isSuccess && list.data.length === 0 && <Text style={st.none}>{t('Ainda sem comentários. Sê o primeiro')}</Text>}
           {list.data?.map((c) => <StoryCommentRow key={c.id} c={c} onReport={() => setReporting(c.id)} onDelete={() => void del(c.id)} />)}
         </ScrollView>
         {canComment ? <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginTop: 8, marginBottom: 0 }} /> : null}
         {canComment ? (
           <View style={st.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={32} />
-            <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder="Adiciona um comentário…" placeholderTextColor={D.sub} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel="Comentário" />
-            <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>Publicar</Text></Pressable>
+            <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder={t('Adiciona um comentário…')} placeholderTextColor={D.sub} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel={t('Comentário')} />
+            <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>{t('Publicar')}</Text></Pressable>
           </View>
         ) : (
-          <Text style={st.closed}>Este mimo não aceita comentários.</Text>
+          <Text style={st.closed}>{t('Este mimo não aceita comentários.')}</Text>
         )}
         {err ? <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 14, color: '#fca5a5' }}>{err}</Text> : null}
       </View>
@@ -242,16 +243,16 @@ function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport:
     lastTap.current = now;
   }
   return (
-    <Pressable onPress={onRowPress} style={st.item} accessibilityHint="Dois toques para brindar">
+    <Pressable onPress={onRowPress} style={st.item} accessibilityHint={t('Dois toques para brindar')}>
       <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
         <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: D.text }} />
-        {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
+        {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>}
       </View>
-      {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={D.sub} /></Pressable>}
-      {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="trash" size={18} color={D.sub} /></Pressable>}
-      <Pressable onPress={() => void toggle()} hitSlop={10} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'} accessibilityState={{ selected: cheer.cheered }}>
+      {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Denunciar o comentário de {username}', { username: c.author.username })} style={{ padding: 6 }}><Icon name="flag" size={17} color={D.sub} /></Pressable>}
+      {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Apagar comentário')} style={{ padding: 6 }}><Icon name="trash" size={18} color={D.sub} /></Pressable>}
+      <Pressable onPress={() => void toggle()} hitSlop={10} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? t('Tirar o brinde') : t('Brindar comentário')} accessibilityState={{ selected: cheer.cheered }}>
         <Reanimated.View style={popStyle}><Icon name="cheers" size={19} color={cheer.cheered ? colors.brandWarm : D.sub} /></Reanimated.View>
       </Pressable>
       <CheersPour n={burst} size={96} />
@@ -265,17 +266,17 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
   const viewers = useQuery({ queryKey: ['story-viewers', story.id], queryFn: () => api.storyViewers(story.id) });
   const replies = useQuery({ queryKey: ['story-replies', story.id], queryFn: () => api.storyReplies(story.id) });
   const tabs = [
-    { value: 'viewers' as const, label: `Visualizações${story.viewCount ? ` (${story.viewCount})` : ''}` },
-    { value: 'replies' as const, label: `Respostas${replies.data ? ` (${replies.data.length})` : ''}` },
+    { value: 'viewers' as const, label: t('Visualizações{value}', { value: story.viewCount ? ` (${story.viewCount})` : '' }) },
+    { value: 'replies' as const, label: t('Respostas{value}', { value: replies.data ? ` (${replies.data.length})` : '' }) },
   ];
   return (
-    <Panel title="Atividade do mimo" onClose={onClose}>
+    <Panel title={t('Atividade do mimo')} onClose={onClose}>
       <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} dark style={{ marginBottom: 12 }} />
       <ScrollView style={{ maxHeight: 360 }}>
         {tab === 'replies' && (
           <>
             {replies.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
-            {replies.isSuccess && replies.data.length === 0 && <Text style={st.none}>Ainda sem respostas</Text>}
+            {replies.isSuccess && replies.data.length === 0 && <Text style={st.none}>{t('Ainda sem respostas')}</Text>}
             {replies.data?.map((r) => (
               <View key={r.id} style={st.item}>
                 <Avatar name={r.author.displayName} username={r.author.username} size={40} />
@@ -290,7 +291,7 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
         {tab === 'viewers' && (
           <>
             {viewers.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
-            {viewers.isSuccess && viewers.data.length === 0 && <Text style={st.none}>Ainda ninguém viu</Text>}
+            {viewers.isSuccess && viewers.data.length === 0 && <Text style={st.none}>{t('Ainda ninguém viu')}</Text>}
             {viewers.data?.map((v) => (
               <View key={v.username} style={[st.item, { alignItems: 'center' }]}>
                 <Avatar name={v.displayName} username={v.username} size={40} />
@@ -324,11 +325,11 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
     await qc.invalidateQueries({ queryKey: ['stories'] });
   }
   return (
-    <Sheet title="Amigos próximos" onClose={onClose} full>
+    <Sheet title={t('Amigos próximos')} onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só estas pessoas veem o que marcares para amigos próximos: mimos, notas, Zás, Txilladas e a geleira. Elas não sabem que estão na lista.</Text>
-        <Text style={st.sec}>Na tua lista ({friends.data?.length ?? 0})</Text>
-        {friends.data?.length === 0 && <Text style={{ paddingVertical: 8, fontSize: 14, color: colors.zinc500 }}>Ainda ninguém. Escolhe abaixo</Text>}
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>{t('Só estas pessoas veem o que marcares para amigos próximos: mimos, notas, Zás, Txilladas e a geleira. Elas não sabem que estão na lista.')}</Text>
+        <Text style={st.sec}>{t('Na tua lista ({n})', { n: friends.data?.length ?? 0 })}</Text>
+        {friends.data?.length === 0 && <Text style={{ paddingVertical: 8, fontSize: 14, color: colors.zinc500 }}>{t('Ainda ninguém. Escolhe abaixo')}</Text>}
         {friends.data?.map((f) => (
           <View key={f.username} style={[st.item, { alignItems: 'center' }]}>
             <Avatar name={f.displayName} username={f.hasAvatar ? f.username : undefined} size={40} />
@@ -336,11 +337,11 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
               <NameWithBadge name={f.displayName} who={f} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{f.username}</Text>
             </View>
-            <Pressable onPress={() => void toggle(f.username, false)} style={[st.pill, { backgroundColor: '#ecfdf5' }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#047857' }}>Na lista</Text></Pressable>
+            <Pressable onPress={() => void toggle(f.username, false)} style={[st.pill, { backgroundColor: '#ecfdf5' }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#047857' }}>{t('Na lista')}</Text></Pressable>
           </View>
         ))}
-        <Text style={[st.sec, { marginTop: 16 }]}>Adicionar dos teus seguidores</Text>
-        <SearchField value={q} onChangeText={setQ} placeholder="Procurar…" accessibilityLabel="Procurar seguidores" style={{ marginTop: 4 }} />
+        <Text style={[st.sec, { marginTop: 16 }]}>{t('Adicionar dos teus seguidores')}</Text>
+        <SearchField value={q} onChangeText={setQ} placeholder={t('Procurar…')} accessibilityLabel={t('Procurar seguidores')} style={{ marginTop: 4 }} />
         {candidates.map((p) => (
           <View key={p.username} style={[st.item, { alignItems: 'center' }]}>
             <Avatar name={p.displayName} username={p.username} size={40} />
@@ -348,10 +349,10 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
               <NameWithBadge name={p.displayName} who={p} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{p.username}</Text>
             </View>
-            <Pressable onPress={() => void toggle(p.username, true)} style={[st.pill, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#fff' }}>Adicionar</Text></Pressable>
+            <Pressable onPress={() => void toggle(p.username, true)} style={[st.pill, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#fff' }}>{t('Adicionar')}</Text></Pressable>
           </View>
         ))}
-        {followers.isSuccess && candidates.length === 0 && <Text style={{ paddingVertical: 12, fontSize: 14, color: colors.zinc500 }}>{q ? 'Ninguém com esse nome' : 'Não há mais seguidores para adicionar'}</Text>}
+        {followers.isSuccess && candidates.length === 0 && <Text style={{ paddingVertical: 12, fontSize: 14, color: colors.zinc500 }}>{q ? t('Ninguém com esse nome') : t('Não há mais seguidores para adicionar')}</Text>}
       </ScrollView>
     </Sheet>
   );

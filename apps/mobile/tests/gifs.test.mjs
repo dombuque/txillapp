@@ -3,6 +3,7 @@
 // "Powered by GIPHY" e só aparece quando o servidor diz que os GIFs estão ligados.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -102,7 +103,7 @@ test('o painel: "Powered by GIPHY", só com os GIFs ligados, toques ≥ 44 e GIF
 });
 
 test('GIF escondido a menores: a lista diz «GIF escondido» e a bolha mostra o cartão no lugar do GIF', () => {
-  assert.equal(g.GIF_HIDDEN_TEXT, 'GIF escondido');
+  assert.equal(g.GIF_HIDDEN_TEXT(), 'GIF escondido');
   assert.equal(g.gifPreviewText({}), 'GIF');
   assert.equal(g.gifPreviewText({ gifHidden: false }), 'GIF');
   assert.equal(g.gifPreviewText({ gifHidden: true }), 'GIF escondido');

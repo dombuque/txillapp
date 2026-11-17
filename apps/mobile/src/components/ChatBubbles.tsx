@@ -634,9 +634,9 @@ export function Bubble({
     // GIF acima de «g» (ou sem classificação) para quem é menor: o servidor não o manda; um cartão discreto no lugar,
     // que não se abre (segurar continua a abrir o menu, pelo Pressable de fora).
     content = (
-      <View style={[st.bubble, st.deleted, radius, dimStyle]} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+      <View style={[st.bubble, st.deleted, radius, dimStyle]} accessible accessibilityLabel={GIF_HIDDEN_TEXT()}>
         <Icon name="eye-off" size={15} color={colors.zinc500} />
-        <Text style={st.liveEndedText}>{GIF_HIDDEN_TEXT}</Text>
+        <Text style={st.liveEndedText}>{GIF_HIDDEN_TEXT()}</Text>
       </View>
     );
   } else if (m.kind === 'gif' && validGif(m.gif)) {

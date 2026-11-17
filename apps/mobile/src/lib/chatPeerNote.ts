@@ -3,6 +3,7 @@
 // correm em Node: tests/chatPeerNote.test.mjs).
 
 /** Quanto se sobe nas mensagens (pt) até o balão encolher. */
+import { t } from '@/lib/i18n';
 export const NOTE_FOLD_SCROLL = 80;
 /** Ao fim de quanto tempo à vista (ms) o balão encolhe sozinho. */
 export const NOTE_FOLD_MS = 8000;
@@ -47,8 +48,8 @@ export function peerNoteLabel(name: string, note: PeerNoteLike) {
   const { text } = peerNoteLines(note);
   const title = note.music?.title?.trim() ?? '';
   const place = title ? '' : note.place?.name?.trim() ?? '';
-  const said = [text, title ? `música ${title}` : '', place ? `em ${place}` : ''].filter(Boolean).join(', ');
-  return `Nota de ${name}: ${said}. Abrir`;
+  const said = [text, title ? t('música {title}', { title }) : '', place ? `em ${place}` : ''].filter(Boolean).join(', ');
+  return t('Nota de {name}: {said}. Abrir', { name, said });
 }
 
 /** Abaixo desta largura de ecrã (pt), a bio pode ocupar duas linhas no balão; acima, uma. */
@@ -61,7 +62,7 @@ export const peerBioText = (bio: string | null | undefined) => (bio ?? '').repla
 export const peerBioLines = (screenWidth: number) => (screenWidth < BIO_NARROW_WIDTH ? 2 : 1);
 
 /** O que o leitor de ecrã diz do balão da bio: "Bio de Ana: Café e praia. Abrir o perfil". */
-export const peerBioLabel = (name: string, text: string) => `Bio de ${name}: ${text}. Abrir o perfil`;
+export const peerBioLabel = (name: string, text: string) => t('Bio de {name}: {text}. Abrir o perfil', { name, text });
 
 /** O que vai no balão: a nota (se ainda vale) ganha; sem nota, a bio (se disser alguma coisa); senão nada. */
 export type PeerBubble<N extends PeerNoteLike = PeerNoteLike> = { kind: 'note'; note: N } | { kind: 'bio'; text: string };

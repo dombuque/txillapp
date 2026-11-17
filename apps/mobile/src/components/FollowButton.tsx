@@ -15,7 +15,7 @@ export function FollowButton({ username, following, requested, isPrivate, style 
     if (busy) return;
     // Deixar de seguir uma conta privada: depois só se volta a ver com um pedido novo aceite. Pergunta antes.
     if (s.following && isPrivate) {
-      const ok = await confirm({ title: `Deixar de seguir @${username}?`, message: 'Esta conta é privada. Se mudares de ideias, tens de pedir outra vez para seguir.', confirm: 'Deixar de seguir', danger: true });
+      const ok = await confirm({ title: t('Deixar de seguir @{username}?', { username }), message: t('Esta conta é privada. Se mudares de ideias, tens de pedir outra vez para seguir.'), confirm: t('Deixar de seguir'), danger: true });
       if (!ok) return;
     }
     setBusy(true);

@@ -4,7 +4,7 @@ import { languageName, t } from '@/lib/i18n';
 
 /**
  * Idiomas (o grupo `aparencia` das Definições; o id fica pelas ligações antigas): leva ao ecrã «Idiomas», com o idioma
- * escolhido à direita. Só o que existe, sem tema nem traduções de publicações (App Store 2.1/2.2, Google Play).
+ * escolhido à direita. Só o que existe, sem tema nem tradução de publicações (App Store 2.1/2.2, Google Play).
  */
 export default function LanguageSettings() {
   return (

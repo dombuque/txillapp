@@ -59,34 +59,35 @@ import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
 import { ChatMenuSheet } from '@/components/ChatHeader';
 import { HIDDEN_PATH, HIDDEN_TITLE } from '@/lib/chatHidden';
+import { t } from '@/lib/i18n';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
 
 /** O texto da última mensagem numa linha da lista (também nas «Conversas ocultas», app/messages/escondidas). */
 export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean; gifHidden?: boolean }, group = false) {
-  const you = m.fromMe ? 'Tu: ' : '';
-  if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
-  if (m.kind === 'voice') return `${you}Mensagem de voz`;
-  if (m.kind === 'video') return `${you}Vídeo`;
-  if (m.kind === 'post') return m.fromMe ? 'Partilhaste uma publicação' : 'Partilhou uma publicação';
-  if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
-  if (m.kind === 'sticker') return `${you}Sticker`;
+  const you = m.fromMe ? (t('Tu:') + ' ') : '';
+  if (m.kind === 'image') return `${you}${m.body || t('Foto')}`;
+  if (m.kind === 'voice') return t('{you}Mensagem de voz', { you });
+  if (m.kind === 'video') return t('{you}Vídeo', { you });
+  if (m.kind === 'post') return m.fromMe ? t('Partilhaste uma publicação') : t('Partilhou uma publicação');
+  if (m.kind === 'gift') return t('{value}Presente', { value: m.fromMe ? (t('Tu:') + ' ') : '' });
+  if (m.kind === 'sticker') return t('{you}Sticker', { you });
   if (m.kind === 'gif') return `${you}${gifPreviewText(m)}`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
   // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias.", "Ana fez uma captura de ecrã."): o servidor já
   // manda o texto para quem o vê.
   if (m.kind === 'system') return systemText(m);
-  if (m.kind === 'location') return `${you}Localização`;
+  if (m.kind === 'location') return t('{you}Localização', { you });
   // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
   if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma'}`;
-  if (m.kind === 'rodada') return `${you}${m.body || 'Abriu uma rodada'}`;
+  if (m.kind === 'rodada') return `${you}${m.body || t('Abriu uma rodada')}`;
   // Mixar: «Convidou-te para um Mixar» / «Convidaste para um Mixar» (sempre para quem vê, lib/mixar).
   if (m.kind === 'mixar') return mixarPreview(m);
-  if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;
-  if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
-  if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;
-  if (m.kind === 'zas_reply') return `${m.fromMe ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás'}: ${m.body}`;
+  if ((m.kind as string) === 'poll') return t('{you}Sondagem{value}', { you, value: m.body ? `: ${m.body}` : '' });
+  if (m.kind === 'story_reaction') return `${m.fromMe ? t('Reagiste ao mimo') : t('Reagiu ao teu mimo')}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
+  if (m.kind === 'story_reply') return `${m.fromMe ? t('Respondeste ao mimo') : t('Respondeu ao teu mimo')}: ${m.body}`;
+  if (m.kind === 'zas_reply') return `${m.fromMe ? t('Respondeste ao Zás') : t('Respondeu ao teu Zás')}: ${m.body}`;
   return `${group ? '' : you}${m.body}`;
 }
 
@@ -204,10 +205,10 @@ export default function Messages() {
   }
   /** Conversa a dois: apagar a conversa (pergunta antes). */
   async function deleteChat(u: string, name: string) {
-    if (!(await confirm({ title: 'Apagar a conversa?', message: `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, confirm: 'Apagar', danger: true }))) return;
+    if (!(await confirm({ title: t('Apagar a conversa?'), message: t('As mensagens com {name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.', { name }), confirm: t('Apagar'), danger: true }))) return;
     patchDirect(u, () => null);
     qc.removeQueries({ queryKey: ['chat-thread', u] });
-    void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
+    void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert(t('Não consegui apagar'), t('Tenta outra vez.')); });
   }
   /** TxillGroup: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
   function groupRead(g: TxillGroupSummary) {
@@ -216,10 +217,10 @@ export default function Messages() {
   }
   /** TxillGroup: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
   async function leaveGroup(g: TxillGroupSummary, me: string) {
-    if (!(await confirm({ title: 'Sair do TxillGroup?', message: `Deixas de receber as mensagens de «${g.name}». Só voltas se alguém te adicionar.`, confirm: 'Sair', cancel: 'Ficar', danger: true }))) return;
+    if (!(await confirm({ title: t('Sair do TxillGroup?'), message: t('Deixas de receber as mensagens de «{name}». Só voltas se alguém te adicionar.', { name: g.name }), confirm: t('Sair'), cancel: t('Ficar'), danger: true }))) return;
     patchGroup(g.id, () => null);
     qc.removeQueries({ queryKey: ['chat-group', g.id] });
-    void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
+    void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert(t('Não consegui sair do TxillGroup'), t('Tenta outra vez.')); });
   }
   /** Conversa a dois: limpar só para mim (pergunta antes; a conversa fica na lista, vazia). O mesmo que na conversa aberta. */
   function clearChat(u: string) {
@@ -229,7 +230,7 @@ export default function Messages() {
       patchDirect(u, (c) => ({ ...c, unread: 0, marked: false, lastMessage: { ...c.lastMessage, body: '', empty: true } }));
       void api.chatClearKeep(u)
         .then(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); refreshUnread(); })
-        .catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui limpar a conversa', 'Tenta outra vez.'); });
+        .catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert(t('Não consegui limpar a conversa'), t('Tenta outra vez.')); });
     });
   }
   /** Mensagens temporárias de uma conversa a partir da lista (computador): a mesma folha da conversa aberta. */
@@ -413,12 +414,12 @@ export default function Messages() {
   const header = (
     <View>
       <View style={styles.top}>
-        <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
-        <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
-        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou TxillGroup"><Icon name="compose" size={24} /></Pressable>
+        <Text style={styles.handle} numberOfLines={1}>{user?.username ?? t('Mensagens')}</Text>
+        <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel={t('Chamadas')}><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
+        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel={t('Nova conversa ou TxillGroup')}><Icon name="compose" size={24} /></Pressable>
         {/* "⋯": «Conversas ocultas» (e, no computador, os atalhos do teclado). */}
-        <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel="Mais opções das mensagens"><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
-        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel="Atalhos do teclado (?)"><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
+        <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções das mensagens')}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
+        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel={t('Atalhos do teclado (?)')}><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
       </View>
       <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
         <Icon name="search" size={18} color={colors.zinc500} />
@@ -426,17 +427,17 @@ export default function Messages() {
           ref={searchRef}
           value={text}
           onChangeText={setText}
-          placeholder={desk ? `Procurar (${isMac() ? '⌘' : 'Ctrl+'}K)` : 'Procurar pessoas e TxillGroups'}
+          placeholder={desk ? t('Procurar ({value}K)', { value: isMac() ? '⌘' : t('Ctrl+') }) : t('Procurar pessoas e TxillGroups')}
           placeholderTextColor={colors.zinc500}
           style={styles.input}
-          accessibilityLabel="Procurar conversas"
+          accessibilityLabel={t('Procurar conversas')}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           // Computador: Esc sai da pesquisa (limpa e larga a caixa).
           onKeyPress={desk ? (e) => { if ((e.nativeEvent as { key?: string }).key === 'Escape') { e.preventDefault(); setText(''); searchRef.current?.blur(); } } : undefined}
         />
-        {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
-        <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
+        {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel={t('Limpar')}><Icon name="x" size={16} /></Pressable> : null}
+        <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel={t('Abrir o SuperTxill')}><Bolt size={20} /></Pressable>
       </View>
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
       {/* Mixar: uma linha discreta por cima dos separadores, só quando algum Mixar tem novidades (a bolinha azul); sem novidades, nada. */}
@@ -444,25 +445,25 @@ export default function Messages() {
       <View style={styles.tabs} accessibilityRole="tablist">
         {searching ? (
           <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>
-            <Text style={[styles.tab, small && { fontSize: 15 }, styles.tabOn]} accessibilityRole="header">Resultados</Text>
-            <Text style={styles.searchHint} numberOfLines={1}>conversas e TxillGroups</Text>
+            <Text style={[styles.tab, small && { fontSize: 15 }, styles.tabOn]} accessibilityRole="header">{t('Resultados')}</Text>
+            <Text style={styles.searchHint} numberOfLines={1}>{t('conversas e TxillGroups')}</Text>
           </View>
         ) : (
           <View onLayout={slider.box('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
-            <InboxTabButton label="Conversas" n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} onLayout={slider.layout('chats', 'main')} />
+            <InboxTabButton label={t('Conversas')} n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} onLayout={slider.layout('chats', 'main')} />
             <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} onLayout={slider.layout('groups', 'main')} />
           </View>
         )}
-        <InboxTabButton label="Pedidos" n={counts.requests} what="à espera" on={view === 'requests'} onPress={() => setView('requests')} small={small} onLayout={slider.layout('requests')} />
+        <InboxTabButton label={t('Pedidos')} n={counts.requests} what={t('à espera')} on={view === 'requests'} onPress={() => setView('requests')} small={small} onLayout={slider.layout('requests')} />
         {slider.bar}
       </View>
-      {view === 'requests' && <Text style={styles.note}>Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.</Text>}
+      {view === 'requests' && <Text style={styles.note}>{t('Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.')}</Text>}
       {view === 'groups' && !searching && rows.length > 0 && (
-        <Pressable onPress={newGroup} style={({ pressed }) => [styles.row, styles.newGroup, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Novo TxillGroup">
+        <Pressable onPress={newGroup} style={({ pressed }) => [styles.row, styles.newGroup, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Novo TxillGroup')}>
           <View style={styles.newGroupIcon}><Icon name="plus" size={22} color={colors.brand} /></View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.name} numberOfLines={1}>Novo TxillGroup</Text>
-            <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e vibes</Text>
+            <Text style={styles.name} numberOfLines={1}>{t('Novo TxillGroup')}</Text>
+            <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>{t('Viagem, festa ou fim de semana, com Plano e vibes')}</Text>
           </View>
           <Icon name="chevron-right" size={18} color={colors.zinc500} />
         </Pressable>
@@ -511,7 +512,7 @@ export default function Messages() {
             style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}
             accessibilityRole="button"
             accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}
-            accessibilityHint={a11y.length ? (desk ? 'Clica para abrir. Botão direito para mais opções.' : 'Toca para abrir. Mantém premido para mais opções.') : undefined}
+            accessibilityHint={a11y.length ? (desk ? t('Clica para abrir. Botão direito para mais opções.') : t('Toca para abrir. Mantém premido para mais opções.')) : undefined}
             accessibilityActions={a11y.length ? a11y : undefined}
             onAccessibilityAction={a11y.length ? (e) => a11yAction(e.nativeEvent.actionName, r) : undefined}
           >
@@ -534,7 +535,7 @@ export default function Messages() {
               <View style={styles.line}>
                 <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
                 {!r.g && r.username && mixarNew.has(r.username) ? (
-                  <View style={styles.mixarNew} accessibilityLabel="Mixar com novidades"><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
+                  <View style={styles.mixarNew} accessibilityLabel={t('Mixar com novidades')}><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
                 ) : null}
                 {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>
@@ -550,32 +551,32 @@ export default function Messages() {
             // à espera de rede (abrem e mostram-nas mesmo sem rede).
             <View>
               <PendingConvs />
-              <ErrorState what="as mensagens" retryLabel={retrying ? 'A tentar…' : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
+              <ErrorState what={t('as mensagens')} retryLabel={retrying ? t('A tentar…') : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
             </View>
           ) : (
             <EmptyState
               icon={view === 'groups' && !term ? 'users' : 'messages'}
-              title={term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}
-              text={term ? 'Tenta outro nome ou começa uma conversa nova.'
-                : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
-                : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
-                : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
-              action={!term && view === 'chats' ? { label: 'Nova conversa', onPress: () => router.push('/messages/new' as never) } : !term && view === 'groups' ? { label: 'Novo TxillGroup', onPress: newGroup } : undefined}
+              title={term ? t('Nada com esse nome') : view === 'requests' ? t('Sem pedidos') : view === 'groups' ? t('Ainda não tens TxillGroups') : t('Ainda sem cochichos')}
+              text={term ? t('Tenta outro nome ou começa uma conversa nova.')
+                : view === 'requests' ? t('Quando alguém que não segues te escrever, aparece aqui.')
+                : view === 'groups' ? t('Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.')
+                : t('Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.')}
+              action={!term && view === 'chats' ? { label: t('Nova conversa'), onPress: () => router.push('/messages/new' as never) } : !term && view === 'groups' ? { label: t('Novo TxillGroup'), onPress: newGroup } : undefined}
             />
           )
         }
         ListFooterComponent={
           strangers.length > 0 ? (
             <View>
-              <Text style={styles.others}>OUTRAS PESSOAS</Text>
+              <Text style={styles.others}>{t('OUTRAS PESSOAS')}</Text>
               {strangers.map((p) => (
-                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversar com ${p.displayName}`} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
+                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={t('Conversar com {displayName}', { displayName: p.displayName })} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <NameWithBadge name={p.displayName} who={p} style={[styles.name, { fontSize: 16 }]} />
                     <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>@{p.username}</Text>
                   </View>
-                  <View style={styles.chat}><Text style={styles.chatText}>Conversar</Text></View>
+                  <View style={styles.chat}><Text style={styles.chatText}>{t('Conversar')}</Text></View>
                 </Pressable>
               ))}
             </View>
@@ -589,7 +590,7 @@ export default function Messages() {
         <InboxMenuSheet
           name={held.name}
           who={held.who}
-          sub={held.g ? `${held.g.members} ${held.g.members === 1 ? 'pessoa' : 'pessoas'}` : held.username ? `@${held.username}` : undefined}
+          sub={held.g ? t('{count} pessoa', { count: held.g.members, other: '{count} pessoas' }) : held.username ? `@${held.username}` : undefined}
           photo={held.g
             ? <GroupCover url={held.g.avatarUrl} kind={groupCardData(held.g).kind} size={48} radius={24} />
             : <Avatar name={held.names[0].name} username={held.names[0].username} size={48} />}
@@ -601,7 +602,7 @@ export default function Messages() {
       {deskMenu && deskRow ? (
         <DeskMenu
           at={deskMenu.at}
-          label={`Opções da conversa com ${deskRow.name}`}
+          label={t('Opções da conversa com {name}', { name: deskRow.name })}
           items={inboxDeskMenuItems(menuRow(deskRow)).map((it) => ({ id: it.id, label: it.label, icon: it.icon, danger: it.danger, onPress: () => runAction(it.id as InboxAction, deskRow) }))}
           onClose={() => setDeskMenu(null)}
         />
@@ -610,11 +611,11 @@ export default function Messages() {
       {help ? <ShortcutHelp onClose={() => setHelp(false)} /> : null}
       {moreOpen ? (
         <ChatMenuSheet
-          title="Mensagens"
+          title={t('Mensagens')}
           onClose={() => setMoreOpen(false)}
           items={[
-            { icon: 'eye-off', label: HIDDEN_TITLE, onPress: () => router.push(HIDDEN_PATH as never) },
-            ...(desk ? [{ icon: 'info' as const, label: 'Atalhos do teclado', onPress: () => setHelp(true) }] : []),
+            { icon: 'eye-off', label: HIDDEN_TITLE(), onPress: () => router.push(HIDDEN_PATH as never) },
+            ...(desk ? [{ icon: 'info' as const, label: t('Atalhos do teclado'), onPress: () => setHelp(true) }] : []),
           ]}
         />
       ) : null}
@@ -626,7 +627,7 @@ export default function Messages() {
 /** "?" no computador: os atalhos do teclado das Mensagens (lib/deskChatKeys, shortcutHelp). */
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   return (
-    <Sheet title="Atalhos do teclado" onClose={onClose}>
+    <Sheet title={t('Atalhos do teclado')} onClose={onClose}>
       <View style={{ paddingHorizontal: 24, paddingBottom: 4, gap: 10 }} {...deskZone(true)}>
         {shortcutHelp(isMac()).map((s) => (
           <View key={s.label} style={styles.keyRow}>
@@ -634,7 +635,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
             <Text style={styles.keyLabel}>{s.label}</Text>
           </View>
         ))}
-        <Text style={[styles.keyLabel, { color: colors.zinc500, marginTop: 6 }]}>Botão direito numa conversa ou numa mensagem: o menu com todas as opções.</Text>
+        <Text style={[styles.keyLabel, { color: colors.zinc500, marginTop: 6 }]}>{t('Botão direito numa conversa ou numa mensagem: o menu com todas as opções.')}</Text>
       </View>
     </Sheet>
   );

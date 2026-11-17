@@ -85,7 +85,9 @@ test('pesquisa: pelo nome, por sinónimos, sem acentos nem maiúsculas', () => {
   assert.equal(first('bloq'), 'blocked');
   // Sem tema na app: a pesquisa não leva a uma opção que não existe.
   assert.equal(m.searchSettings('modo escuro').length, 0);
-  assert.ok(m.searchSettings('idioma').every((h) => h.path.startsWith('/settings/aparencia')), 'o idioma leva ao ecrã do idioma');
+  // O idioma leva ao grupo «Idiomas» das Definições ou diretamente ao ecrã «Idiomas» (a lista de idiomas).
+  assert.ok(m.searchSettings('idioma').length > 0);
+  assert.ok(m.searchSettings('idioma').every((h) => h.path.startsWith('/settings/aparencia') || h.path === '/language'), 'o idioma leva ao ecrã do idioma');
   assert.ok(m.searchSettings('idioma').some((h) => h.id === 'language'));
   assert.equal(first('visto por ultimo'), 'presence');
   assert.equal(first('ip'), 'relay');

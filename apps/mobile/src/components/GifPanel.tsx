@@ -36,9 +36,9 @@ export function GifView({ gif, maxW = 220, maxH = 220 }: { gif: ChatGif; maxW?: 
  */
 export function GifHiddenCard() {
   return (
-    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT()}>
       <Icon name="eye-off" size={15} color={colors.zinc500} />
-      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT}</Text>
+      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT()}</Text>
     </View>
   );
 }

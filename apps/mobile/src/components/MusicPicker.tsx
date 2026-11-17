@@ -38,6 +38,7 @@ import { uploadMedia } from '@/lib/api';
 import { pauseTrack, playTrack, resumeTrack, stopTrack } from '@/lib/musicPlayer';
 import { Chip } from '@/components/ui/Chip';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 export { licenseLabel };
 
@@ -70,7 +71,7 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
     try {
       stopTrack(me.current);
       const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) throw new Error('Sem permissão para o microfone. Ativa-o nas definições.');
+      if (!perm.granted) throw new Error(t('Sem permissão para o microfone. Ativa-o nas definições.'));
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -83,12 +84,12 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
         if (t >= CLIP_MAX_MS) void stop();
       }, 200);
     } catch (e) {
-      setErr((e as Error).message || 'Este telemóvel não deixa gravar áudio aqui');
+      setErr((e as Error).message || t('Este telemóvel não deixa gravar áudio aqui'));
     }
   }
   async function stop() {
     clearInterval(timer.current);
-    const t = Math.min(CLIP_MAX_MS, Date.now() - started.current);
+    const tv = Math.min(CLIP_MAX_MS, Date.now() - started.current);
     try {
       await recorder.stop();
       uri.current = recorder.uri ?? null;
@@ -97,11 +98,11 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
     }
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
     if (!uri.current) {
-      setErr('Não consegui gravar');
+      setErr(t('Não consegui gravar'));
       setState('idle');
       return;
     }
-    setMs(t);
+    setMs(tv);
     setState('ready');
   }
   async function listen() {
@@ -123,37 +124,37 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
       let mime = 'audio/mp4';
       if (Platform.OS === 'web') mime = ((await (await fetch(uri.current)).blob()).type || 'audio/webm').split(';')[0];
       const mediaId = await uploadMedia(uri.current, mime, 'chat');
-      onPick({ kind: 'clip', mediaId, id: `clip:${mediaId}`, title: 'Áudio original', artist: '', url: uri.current, landing: null, license: 'own', licenseUrl: null, durationMs: Math.max(500, ms), cover: null });
+      onPick({ kind: 'clip', mediaId, id: `clip:${mediaId}`, title: t('Áudio original'), artist: '', url: uri.current, landing: null, license: 'own', licenseUrl: null, durationMs: Math.max(500, ms), cover: null });
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar');
+      setErr((e as Error).message || t('Não consegui enviar'));
       setBusy(false);
     }
   }
   const secs = Math.floor(ms / 1000);
   return (
     <View style={s.rec}>
-      <Text style={s.recTitle}>Gravar o meu áudio</Text>
+      <Text style={s.recTitle}>{t('Gravar o meu áudio')}</Text>
       {state === 'idle' && (
         <Pressable onPress={start} style={({ pressed }) => [s.bigBtn, pressed && s.pressed]} accessibilityRole="button">
           <Icon name="mic" size={18} color="#fff" />
-          <Text style={s.bigTxt}>Gravar (até 30 s)</Text>
+          <Text style={s.bigTxt}>{t('Gravar (até 30 s)')}</Text>
         </Pressable>
       )}
       {state === 'recording' && (
         <Pressable onPress={stop} style={({ pressed }) => [s.bigBtn, { backgroundColor: colors.red600 }, pressed && s.pressed]} accessibilityRole="button">
           <View style={s.dot2} />
-          <Text style={s.bigTxt}>A gravar {secs}s · Parar</Text>
+          <Text style={s.bigTxt}>{t('A gravar {secs}s · Parar', { secs })}</Text>
         </Pressable>
       )}
       {state === 'ready' && (
         <View style={s.recRow}>
-          <Pressable onPress={listen} style={s.listen} accessibilityRole="button" accessibilityLabel={on ? 'Parar' : 'Ouvir'}>
+          <Pressable onPress={listen} style={s.listen} accessibilityRole="button" accessibilityLabel={on ? t('Parar') : t('Ouvir')}>
             <Icon name={on ? 'pause' : 'play'} size={16} solid color={colors.zinc900} />
             <Text style={s.listenTxt}>{secs}s</Text>
           </Pressable>
-          <Pressable onPress={() => { stopTrack(me.current); setState('idle'); setMs(0); uri.current = null; }} style={s.again} accessibilityRole="button"><Text style={s.againTxt}>Repetir</Text></Pressable>
+          <Pressable onPress={() => { stopTrack(me.current); setState('idle'); setMs(0); uri.current = null; }} style={s.again} accessibilityRole="button"><Text style={s.againTxt}>{t('Repetir')}</Text></Pressable>
           <Pressable disabled={busy} onPress={use} style={({ pressed }) => [s.recUse, { flex: 1 }, busy && { opacity: 0.5 }, pressed && s.pressed]} accessibilityRole="button">
-            <Text style={s.bigTxt}>{busy ? 'A enviar…' : 'Usar'}</Text>
+            <Text style={s.bigTxt}>{busy ? t('A enviar…') : t('Usar')}</Text>
           </Pressable>
         </View>
       )}
@@ -223,7 +224,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
     // Muda logo no ecrã; o servidor confirma.
     onMutate: (t) => qc.setQueryData<Track[]>(['music-favorites'], (old) => toggleSaved(old, t)),
     onError: (e) => {
-      setErr((e as Error).message || 'Não consegui guardar');
+      setErr((e as Error).message || t('Não consegui guardar'));
       void qc.invalidateQueries({ queryKey: ['music-favorites'] });
     },
   });
@@ -238,10 +239,10 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       setUndo(t);
       for (const k of LIST_KEYS) qc.setQueriesData({ queryKey: [...k] }, (data: unknown) => (data ? dropFromCache(data, t.id) : data));
     },
-    onError: (e, t) => {
-      setDisliked((old) => { const n = new Set(old); n.delete(t.id); return n; });
+    onError: (e, track) => {
+      setDisliked((old) => { const n = new Set(old); n.delete(track.id); return n; });
       setUndo(null);
-      setErr((e as Error).message || 'Não consegui tirar a faixa');
+      setErr((e as Error).message || t('Não consegui tirar a faixa'));
       refetchLists();
     },
   });
@@ -273,8 +274,8 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
    * Tocar numa linha começa logo a ouvir essa faixa; outra vez na mesma pausa (e retoma). Tudo até ao `play()` é síncrono:
    * no iPhone (PWA) o toque é o que deixa o som sair, e um `await` antes perdia-o.
    */
-  function toggle(t: Track) {
-    const act = rowTap(playing, live, t.id);
+  function toggle(track: Track) {
+    const act = rowTap(playing, live, track.id);
     if (act === 'pause') {
       setPaused(true);
       return pauseTrack(me.current);
@@ -285,11 +286,11 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
     }
     setPaused(false);
     setErr('');
-    setPlaying(t.id);
-    void playTrack(me.current, t.url, { loop: false, onStop: () => setPlaying((cur) => (cur === t.id ? null : cur)) }).then((ok) => {
+    setPlaying(track.id);
+    void playTrack(me.current, track.url, { loop: false, onStop: () => setPlaying((cur) => (cur === track.id ? null : cur)) }).then((ok) => {
       if (ok) return;
-      setPlaying((cur) => (cur === t.id ? null : cur));
-      setErr('Não consegui tocar');
+      setPlaying((cur) => (cur === track.id ? null : cur));
+      setErr(t('Não consegui tocar'));
     });
   }
   function pick(t: Track) {
@@ -318,7 +319,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
   const loading = <ActivityIndicator color={C.sub} style={{ paddingVertical: 24 }} />;
   const list = (q: { isLoading: boolean; data?: Track[]; error?: unknown }, empty: string) => {
     if (q.isLoading) return loading;
-    if (q.error) return <Text style={s.err}>{(q.error as Error).message || 'Não consegui abrir a música agora'}</Text>;
+    if (q.error) return <Text style={s.err}>{(q.error as Error).message || t('Não consegui abrir a música agora')}</Text>;
     const items = onlyAllowed(withoutDisliked(q.data, disliked), allowLocal);
     return items.length ? items.map(row) : <Text style={s.empty}>{empty}</Text>;
   };
@@ -337,12 +338,12 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
 
   return (
     <View style={s.body}>
-      {mode !== 'bottom' ? <Text style={s.deskTitle} accessibilityRole="header">Música e sons</Text> : null}
+      {mode !== 'bottom' ? <Text style={s.deskTitle} accessibilityRole="header">{t('Música e sons')}</Text> : null}
       <View style={s.search}>
         <Icon name="search" size={18} color={C.sub} />
-        <TextInput value={term} onChangeText={setTerm} placeholder="Pesquisar…" placeholderTextColor={C.sub} accessibilityLabel="Pesquisar música, artista ou estilo" autoCorrect={false} keyboardAppearance="dark" selectionColor={colors.brand} style={s.input} />
+        <TextInput value={term} onChangeText={setTerm} placeholder={t('Pesquisar…')} placeholderTextColor={C.sub} accessibilityLabel={t('Pesquisar música, artista ou estilo')} autoCorrect={false} keyboardAppearance="dark" selectionColor={colors.brand} style={s.input} />
         {term ? (
-          <Pressable onPress={() => setTerm('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+          <Pressable onPress={() => setTerm('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
             <Icon name="x" size={16} color={C.sub} />
           </Pressable>
         ) : null}
@@ -366,14 +367,14 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       >
         {undo ? (
           <View style={s.undo} accessibilityLiveRegion="polite">
-            <Text style={s.undoTxt} numberOfLines={1}>Tirada: {undo.title}.</Text>
-            <Pressable onPress={() => undislike.mutate(undo)} hitSlop={6} accessibilityRole="button"><Text style={s.undoBtn}>Desfazer</Text></Pressable>
+            <Text style={s.undoTxt} numberOfLines={1}>{t('Tirada: {title}.', { title: undo.title })}</Text>
+            <Pressable onPress={() => undislike.mutate(undo)} hitSlop={6} accessibilityRole="button"><Text style={s.undoBtn}>{t('Desfazer')}</Text></Pressable>
           </View>
         ) : null}
         {!!err && <Text style={s.err}>{err}</Text>}
 
         {searching ? (
-          <View style={{ marginTop: 6 }}>{list(found, 'Nada com esse nome')}</View>
+          <View style={{ marginTop: 6 }}>{list(found, t('Nada com esse nome'))}</View>
         ) : tab === 'forYou' ? (
           <>
             {filter === null && !home.isLoading ? <Highlights items={tops} playing={playing} live={live} onPlay={toggle} onUse={pick} /> : null}
@@ -392,33 +393,33 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
             ) : null}
             {filter === null ? (
               <>
-                <Text style={s.h}>{suggestedLabel ? `Para o teu post · ${suggestedLabel}` : 'Sugestões para ti'}</Text>
-                {home.isLoading ? loading : home.error ? <Text style={s.err}>{(home.error as Error).message || 'Não consegui abrir a música agora'}</Text> : forYou.length ? forYou.map(row) : <Text style={s.empty}>Ainda não há sugestões. Procura uma música ou vê «Em alta».</Text>}
+                <Text style={s.h}>{suggestedLabel ? t('Para o teu post · {suggestedLabel}', { suggestedLabel }) : t('Sugestões para ti')}</Text>
+                {home.isLoading ? loading : home.error ? <Text style={s.err}>{(home.error as Error).message || t('Não consegui abrir a música agora')}</Text> : forYou.length ? forYou.map(row) : <Text style={s.empty}>{t('Ainda não há sugestões. Procura uma música ou vê «Em alta».')}</Text>}
               </>
             ) : filter === 'local' ? (
               <>
-                <Text style={s.h}>Artistas de Moçambique</Text>
-                {list(localList, 'Ainda não há músicas de artistas de Moçambique.')}
+                <Text style={s.h}>{t('Artistas de Moçambique')}</Text>
+                {list(localList, t('Ainda não há músicas de artistas de Moçambique.'))}
               </>
             ) : (
-              <View style={{ marginTop: 8 }}>{list(styleList, 'Ainda não há músicas deste estilo.')}</View>
+              <View style={{ marginTop: 8 }}>{list(styleList, t('Ainda não há músicas deste estilo.'))}</View>
             )}
           </>
         ) : tab === 'trending' ? (
           <>
-            <Text style={s.h}>Em alta no Txillapp</Text>
-            {list({ isLoading: home.isLoading, data: home.data?.trending, error: home.error }, 'Ainda não há músicas em alta. Vê «Para ti» ou pesquisa.')}
+            <Text style={s.h}>{t('Em alta no Txillapp')}</Text>
+            {list({ isLoading: home.isLoading, data: home.data?.trending, error: home.error }, t('Ainda não há músicas em alta. Vê «Para ti» ou pesquisa.'))}
           </>
         ) : tab === 'sounds' ? (
-          <View style={{ marginTop: 8 }}>{list(soundList, 'Ainda não há sons originais.')}</View>
+          <View style={{ marginTop: 8 }}>{list(soundList, t('Ainda não há sons originais.'))}</View>
         ) : (
           <View style={{ marginTop: 8 }}>
-            {favs.isLoading ? loading : saved.length ? saved.map(row) : <Text style={s.empty}>Ainda não guardaste nenhuma. Toca no marcador de uma faixa para a guardares aqui.</Text>}
+            {favs.isLoading ? loading : saved.length ? saved.map(row) : <Text style={s.empty}>{t('Ainda não guardaste nenhuma. Toca no marcador de uma faixa para a guardares aqui.')}</Text>}
           </View>
         )}
         <Text style={s.note}>
-          Só músicas que se podem pôr em vídeos partilhados: licença aberta (CC0, domínio público ou CC BY, com o crédito de quem as fez) e artistas de Moçambique que deram autorização ao Txillapp.{' '}
-          {desktop ? 'Clica numa faixa para a ouvires e em «Usar» para a escolheres; no «⋯» (ou com o botão direito) há «Não gosto desta».' : 'Toca numa faixa para a ouvires e em «Usar» para a escolheres; mantém-na premida para «Não gosto desta».'}
+          {t('Só músicas que se podem pôr em vídeos partilhados: licença aberta (CC0, domínio público ou CC BY, com o crédito de quem as fez) e artistas de Moçambique que deram autorização ao Txillapp.')}{' '}
+          {desktop ? t('Clica numa faixa para a ouvires e em «Usar» para a escolheres; no «⋯» (ou com o botão direito) há «Não gosto desta».') : t('Toca numa faixa para a ouvires e em «Usar» para a escolheres; mantém-na premida para «Não gosto desta».')}
         </Text>
       </ScrollView>
 
@@ -480,7 +481,7 @@ function SoundBars({ size = 16, color = '#fff' }: { size?: number; color?: strin
     return () => loops.forEach((l) => l.stop());
   }, [bars]);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', height: size, gap: Math.max(2, size / 8) }} accessibilityLabel="A tocar">
+    <View style={{ flexDirection: 'row', alignItems: 'center', height: size, gap: Math.max(2, size / 8) }} accessibilityLabel={t('A tocar')}>
       {bars.map((a, k) => (
         <Animated.View key={k} style={{ width: Math.max(3, size / 5), height: size, borderRadius: 2, backgroundColor: color, transform: [{ scaleY: a }] }} />
       ))}
@@ -494,33 +495,33 @@ function SoundBars({ size = 16, color = '#fff' }: { size?: number; color?: strin
  * ondas na capa, e aparece «Usar» ao lado do marcador); tocar outra vez pausa. Manter premido, o botão direito ou o «⋯»
  * (computador) abrem o resto.
  */
-function TrackRow({ t, active, live, locked = false, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; live: boolean; /** Guardada mas não se usa aqui (artistas de Moçambique fora dos mimos e tchekas). */ locked?: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
+function TrackRow({ t: track, active, live, locked = false, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; live: boolean; /** Guardada mas não se usa aqui (artistas de Moçambique fora dos mimos e tchekas). */ locked?: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
   const [hot, setHot] = useState(false);
-  const meta = locked ? lockedMeta(t) : rowMeta(t);
+  const meta = locked ? lockedMeta(track) : rowMeta(track);
   return (
     <Pressable
-      onPress={() => onPlay(t)}
-      onLongPress={() => onMenu(t, null)}
+      onPress={() => onPlay(track)}
+      onLongPress={() => onMenu(track, null)}
       delayLongPress={350}
       // O rato por cima (só no computador): mouseenter/mouseleave não contam a passagem para os botões de dentro.
       {...(desktop
         ? ({
             onMouseEnter: () => setHot(true),
             onMouseLeave: () => setHot(false),
-            onContextMenu: (e: { preventDefault?: () => void }) => { e.preventDefault?.(); onMenu(t, anchorOf(e)); },
+            onContextMenu: (e: { preventDefault?: () => void }) => { e.preventDefault?.(); onMenu(track, anchorOf(e)); },
           } as object)
         : null)}
       style={({ pressed }) => [s.row, active ? s.rowOn : hot ? s.rowHover : null, pressed && !active && s.rowPressed]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={`${t.title}${isExplicit(t) ? ' (explícita)' : ''}. ${meta}. ${active ? (live ? 'A tocar, toca para pausar' : 'Em pausa, toca para ouvir') : 'Ouvir'}`}
-      accessibilityHint={desktop ? undefined : 'Mantém premido para mais opções'}
+      accessibilityLabel={`${track.title}${isExplicit(track) ? (' ' + t('(explícita)')) : ''}. ${meta}. ${active ? (live ? t('A tocar, toca para pausar') : t('Em pausa, toca para ouvir')) : t('Ouvir')}`}
+      accessibilityHint={desktop ? undefined : t('Mantém premido para mais opções')}
     >
-      <Cover t={t} size={48} radius={8} active={active} live={live} />
+      <Cover t={track} size={48} radius={8} active={active} live={live} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={s.rowTop}>
-          <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
-          {isExplicit(t) ? (
+          <Text style={s.rowTitle} numberOfLines={1}>{track.title}</Text>
+          {isExplicit(track) ? (
             <View style={s.explicit} accessible={false}>
               <Text style={s.explicitTxt}>E</Text>
             </View>
@@ -529,18 +530,18 @@ function TrackRow({ t, active, live, locked = false, saved, desktop, onPlay, onU
         <Text style={s.rowSub} numberOfLines={1}>{meta}</Text>
       </View>
       {active || (desktop && hot) ? (
-        <Pressable disabled={locked} onPress={() => onUse(t)} style={(st) => [s.use, locked ? s.useOff : (st as { hovered?: boolean }).hovered && { backgroundColor: colors.brandLight }]} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? `Usar ${t.title}: ${LOCAL_ONLY_NOTE.toLowerCase()}` : `Usar ${t.title}`}>
-          <Text style={[s.useTxt, locked && s.useTxtOff]}>Usar</Text>
+        <Pressable disabled={locked} onPress={() => onUse(track)} style={(st) => [s.use, locked ? s.useOff : (st as { hovered?: boolean }).hovered && { backgroundColor: colors.brandLight }]} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? t('Usar {title}: {localOnlyNote}', { title: track.title, localOnlyNote: LOCAL_ONLY_NOTE().toLowerCase() }) : t('Usar {title}', { title: track.title })}>
+          <Text style={[s.useTxt, locked && s.useTxtOff]}>{t('Usar')}</Text>
         </Pressable>
       ) : null}
       {desktop && (hot || active) ? (
-        <Pressable onPress={(e) => onMenu(t, anchorOf(e))} hitSlop={6} style={(st) => [s.iconBtn, (st as { hovered?: boolean }).hovered && { backgroundColor: C.line }]} accessibilityRole="button" accessibilityLabel="Mais opções da faixa" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
+        <Pressable onPress={(e) => onMenu(track, anchorOf(e))} hitSlop={6} style={(st) => [s.iconBtn, (st as { hovered?: boolean }).hovered && { backgroundColor: C.line }]} accessibilityRole="button" accessibilityLabel={t('Mais opções da faixa')} {...({ dataSet: { tip: t('Mais opções') } } as object)}>
           <Icon name="more" size={20} color={C.soft} />
         </Pressable>
       ) : null}
       {/* O áudio gravado na hora não se guarda: sem marcador (e sem espaço vazio; o «Usar» encosta à direita). */}
-      {canSave(t) ? (
-        <Pressable onPress={() => onSave(t)} hitSlop={8} style={(st) => [s.iconBtn, desktop && (st as { hovered?: boolean }).hovered && { backgroundColor: C.line }]} accessibilityRole="button" accessibilityState={{ selected: saved }} accessibilityLabel={saved ? 'Tirar das guardadas' : 'Guardar'}>
+      {canSave(track) ? (
+        <Pressable onPress={() => onSave(track)} hitSlop={8} style={(st) => [s.iconBtn, desktop && (st as { hovered?: boolean }).hovered && { backgroundColor: C.line }]} accessibilityRole="button" accessibilityState={{ selected: saved }} accessibilityLabel={saved ? t('Tirar das guardadas') : t('Guardar')}>
           <BookmarkIcon on={saved} size={22} color={saved ? C.text : C.soft} />
         </Pressable>
       ) : null}
@@ -585,8 +586,8 @@ function Highlights({ items, playing, live, onPlay, onUse }: { items: Track[]; p
       )}
       {items.length > 1 ? (
         <View style={s.dots}>
-          {items.map((t, i) => (
-            <Pressable key={t.id} onPress={() => go(i)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Destaque ${i + 1} de ${items.length}`} accessibilityState={{ selected: i === at }}>
+          {items.map((track, i) => (
+            <Pressable key={track.id} onPress={() => go(i)} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Destaque {n} de {n2}', { n: i + 1, n2: items.length })} accessibilityState={{ selected: i === at }}>
               <View style={[s.dot, i === at && s.dotOn]} />
             </Pressable>
           ))}
@@ -598,19 +599,19 @@ function Highlights({ items, playing, live, onPlay, onUse }: { items: Track[]; p
 
 const HL_H = 76;
 
-function HighlightCard({ t, active, live, onPlay, onUse }: { t: Track; active: boolean; live: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
-  const kicker = t.source === 'local' ? 'Artistas de Moçambique' : t.featured ? 'Em destaque' : 'Em alta';
+function HighlightCard({ t: track, active, live, onPlay, onUse }: { t: Track; active: boolean; live: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
+  const kicker = track.source === 'local' ? t('Artistas de Moçambique') : track.featured ? t('Em destaque') : t('Em alta');
   return (
-    <Pressable onPress={() => onPlay(t)} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${kicker}: ${t.title}, ${t.artist || 'Autor desconhecido'}. ${active ? (live ? 'A tocar, toca para pausar' : 'Em pausa, toca para ouvir') : 'Ouvir'}`}>
-      <LinearGradient colors={highlightColors(t) as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hl}>
-        <Cover t={t} size={52} radius={10} active={active} live={live} />
+    <Pressable onPress={() => onPlay(track)} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${kicker}: ${track.title}, ${track.artist || t('Autor desconhecido')}. ${active ? (live ? t('A tocar, toca para pausar') : t('Em pausa, toca para ouvir')) : t('Ouvir')}`}>
+      <LinearGradient colors={highlightColors(track) as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hl}>
+        <Cover t={track} size={52} radius={10} active={active} live={live} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.hlKicker} numberOfLines={1}>{kicker}</Text>
-          <Text style={s.hlTitle} numberOfLines={1}>{t.title}</Text>
-          <Text style={s.hlArtist} numberOfLines={1}>{t.artist || (t.artistUsername ? `@${t.artistUsername}` : 'Autor desconhecido')}</Text>
+          <Text style={s.hlTitle} numberOfLines={1}>{track.title}</Text>
+          <Text style={s.hlArtist} numberOfLines={1}>{track.artist || (track.artistUsername ? `@${track.artistUsername}` : t('Autor desconhecido'))}</Text>
         </View>
-        <Pressable onPress={() => onUse(t)} style={({ pressed }) => [s.hlUse, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Usar ${t.title}`}>
-          <Text style={s.hlUseTxt}>Usar</Text>
+        <Pressable onPress={() => onUse(track)} style={({ pressed }) => [s.hlUse, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Usar {title}', { title: track.title })}>
+          <Text style={s.hlUseTxt}>{t('Usar')}</Text>
         </Pressable>
       </LinearGradient>
     </Pressable>
@@ -626,10 +627,10 @@ function RowMenu({ track, anchor, playing, locked = false, saved, onClose, onPla
   return (
     <Sheet title={track.title} onClose={onClose} dark variant="menu" anchor={anchor}>
       <View style={s.menu}>
-        <MenuItem icon={<Icon name="check" size={20} color={locked ? C.sub : C.text} />} label="Usar esta música" hint={locked ? LOCAL_ONLY_NOTE : undefined} disabled={locked} onPress={run(onUse)} />
-        <MenuItem icon={<Icon name={playing ? 'pause' : 'play'} size={18} solid color={C.text} />} label={playing ? 'Pausar' : 'Ouvir'} onPress={run(onPlay)} />
-        {canSave(track) ? <MenuItem icon={<BookmarkIcon on={saved} size={20} color={C.text} />} label={saved ? 'Tirar das guardadas' : 'Guardar'} onPress={run(onSave)} /> : null}
-        {track.kind !== 'clip' ? <MenuItem icon={<Icon name="eye-off" size={20} color={C.text} />} label="Não gosto desta" hint="Deixa de te aparecer" onPress={run(onDislike)} /> : null}
+        <MenuItem icon={<Icon name="check" size={20} color={locked ? C.sub : C.text} />} label={t('Usar esta música')} hint={locked ? LOCAL_ONLY_NOTE() : undefined} disabled={locked} onPress={run(onUse)} />
+        <MenuItem icon={<Icon name={playing ? 'pause' : 'play'} size={18} solid color={C.text} />} label={playing ? t('Pausar') : t('Ouvir')} onPress={run(onPlay)} />
+        {canSave(track) ? <MenuItem icon={<BookmarkIcon on={saved} size={20} color={C.text} />} label={saved ? t('Tirar das guardadas') : t('Guardar')} onPress={run(onSave)} /> : null}
+        {track.kind !== 'clip' ? <MenuItem icon={<Icon name="eye-off" size={20} color={C.text} />} label={t('Não gosto desta')} hint={t('Deixa de te aparecer')} onPress={run(onDislike)} /> : null}
       </View>
     </Sheet>
   );

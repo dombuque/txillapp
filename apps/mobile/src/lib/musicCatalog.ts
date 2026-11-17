@@ -5,6 +5,7 @@
  */
 
 /** O mínimo de uma faixa que esta lógica precisa (compatível com `Track` de api.music). */
+import { t } from '@/lib/i18n';
 export interface TrackLike {
   id: string;
   kind?: string;
@@ -23,10 +24,10 @@ export interface HomeLike<T extends TrackLike = TrackLike> { styles: StyleLike[]
 
 /** Como se lê a licença no crédito. */
 export const licenseLabel = (l: string) =>
-  l === 'own' ? 'Original'
+  l === 'own' ? t('Original')
     : l === 'cc0' ? 'CC0'
-      : l === 'pdm' ? 'Domínio público'
-        : l === 'txillapp' ? 'Artista no Txillapp'
+      : l === 'pdm' ? t('Domínio público')
+        : l === 'txillapp' ? t('Artista no Txillapp')
           : `CC ${l.toUpperCase()}`;
 
 /**
@@ -38,10 +39,10 @@ export const licenseLabel = (l: string) =>
  */
 export type PickerTab = 'forYou' | 'trending' | 'sounds' | 'saved';
 export const PICKER_TABS: readonly { id: PickerTab; label: string }[] = [
-  { id: 'forYou', label: 'Para ti' },
-  { id: 'trending', label: 'Em alta' },
-  { id: 'saved', label: 'Guardadas' },
-  { id: 'sounds', label: 'Sons originais' },
+  { id: 'forYou', get label() { return t('Para ti'); } },
+  { id: 'trending', get label() { return t('Em alta'); } },
+  { id: 'saved', get label() { return t('Guardadas'); } },
+  { id: 'sounds', get label() { return t('Sons originais'); } },
 ];
 /** Os quatro separadores, sempre pela mesma ordem (o que muda é o que há dentro de cada um). */
 export const pickerTabs = () => PICKER_TABS;
@@ -66,7 +67,7 @@ export type ForYouFilter = null | 'local' | `style:${string}`;
  */
 export function forYouChips(home: Pick<HomeLike, 'local' | 'styles'> | null | undefined, allowLocal: boolean, suggested?: string | null): { id: Exclude<ForYouFilter, null>; label: string }[] {
   const out: { id: Exclude<ForYouFilter, null>; label: string }[] = [];
-  if (allowLocal && hasLocal(home)) out.push({ id: 'local', label: 'Artistas de Moçambique' });
+  if (allowLocal && hasLocal(home)) out.push({ id: 'local', label: t('Artistas de Moçambique') });
   for (const s of styleChips(home?.styles, suggested)) out.push({ id: `style:${s.id}`, label: s.label });
   return out;
 }
@@ -143,7 +144,7 @@ export function dropFromCache<T>(data: T, id: string): T {
 export const canSave = (t: TrackLike) => t.kind !== 'clip';
 
 /** A nota das faixas que se podem guardar mas não usar aqui: as dos artistas de Moçambique, fora dos mimos e das tchekas. */
-export const LOCAL_ONLY_NOTE = 'Só em mimos e tchekas';
+export const LOCAL_ONLY_NOTE = () => t('Só em mimos e tchekas');
 
 /** Pode-se usar esta faixa aqui? As dos artistas de Moçambique só onde a licença deixa (`allowLocal`: mimos e tchekas). */
 export const usableHere = (t: TrackLike, allowLocal: boolean) => allowLocal || t.source !== 'local';
@@ -181,13 +182,13 @@ export function usesText(n: number | null | undefined): string {
 /** "usada 12 vezes esta semana" (nada para 0 ou sem número). */
 export function usesLabel(n: number | null | undefined): string {
   if (!n || n < 1) return '';
-  return n === 1 ? 'usada 1 vez esta semana' : `usada ${n} vezes esta semana`;
+  return t('usada {count} vez esta semana', { count: n, other: 'usada {count} vezes esta semana' });
 }
 
 /** O crédito por baixo do título: artista (com o @ na fonte local), duração. */
-export function creditLine(t: TrackLike & { durationMs?: number | null }, mmss: (ms: number | null) => string): string {
-  const who = t.artistUsername ? `${t.artist || t.artistUsername} · @${t.artistUsername}` : t.artist || 'Autor desconhecido';
-  const d = t.durationMs ? mmss(t.durationMs) : '';
+export function creditLine(track: TrackLike & { durationMs?: number | null }, mmss: (ms: number | null) => string): string {
+  const who = track.artistUsername ? `${track.artist || track.artistUsername} · @${track.artistUsername}` : track.artist || t('Autor desconhecido');
+  const d = track.durationMs ? mmss(track.durationMs) : '';
   return d ? `${who} · ${d}` : who;
 }
 
@@ -197,10 +198,10 @@ export function rowMeta(t: TrackLike): string {
 }
 
 /** Quem fez a faixa, como aparece na linha. */
-const rowWho = (t: TrackLike) => t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
+const rowWho = (track: TrackLike) => track.artist || (track.artistUsername ? `@${track.artistUsername}` : '') || (track.kind === 'sound' ? t('Som') : t('Autor desconhecido'));
 
 /** A linha cinzenta de uma faixa que não se pode usar aqui: «Artista · Só em mimos e tchekas». */
-export const lockedMeta = (t: TrackLike): string => `${rowWho(t)} · ${LOCAL_ONLY_NOTE}`;
+export const lockedMeta = (t: TrackLike): string => `${rowWho(t)} · ${LOCAL_ONLY_NOTE()}`;
 
 export const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');
 
