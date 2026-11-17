@@ -102,6 +102,31 @@ test('datas e números com o Intl do idioma ativo', () => {
   assert.equal(i18n.formatNumber(0.5, { style: 'percent' }), '50%');
 });
 
+test('meses e dias: em português os da casa, sem t() nem listas à mão nos ecrãs', () => {
+  assert.equal(i18n.monthNames()[10], 'novembro');
+  assert.equal(i18n.monthNames('short')[1], 'fev');
+  assert.equal(i18n.weekdayNames()[1], 'seg');
+  assert.equal(i18n.weekdayNames('short', { capital: true })[6], 'Sáb');
+  assert.equal(i18n.weekdayNames('long')[0], 'domingo');
+  assert.equal(i18n.abbr('nov'), 'nov.');
+  // Nenhuma lista de meses ou dias passa por t() (traduzir «seg» sozinho dá disparates): usa-se monthNames/weekdayNames.
+  const app = [...ex.parts.app.keys.keys()];
+  for (const k of ['janeiro', 'novembro', 'seg', 'Seg', 'sáb.', 'terça-feira']) assert.ok(!app.includes(k), `«${k}» em t()`);
+});
+
+test('marcadores do <T> (components/Trans.tsx): a tradução tem os mesmos que a frase', () => {
+  const tags = (s) => (s.match(/<\/?[a-z][\w-]*\s*\/?>/g) ?? []).sort().join(' ');
+  const fmt = { make: (i) => `XT${i}X`, find: /X\s?T\s?(\d+)\s?X/gi };
+  assert.equal(protect('Li e aceito os <terms>Termos de Uso</terms>.', fmt).text, 'Li e aceito os XT0XTermos de UsoXT1X.');
+  for (const lang of langs.slice(1)) {
+    const cat = json('locales', `${lang.code}.json`);
+    const bad = Object.entries(cat).filter(([k, v]) => tags(k.replace(/_(zero|one|two|few|many|other)$/, '')) !== tags(v)).map(([k, v]) => `${k} => ${v}`);
+    assert.deepEqual(bad.slice(0, 20), [], `traduções sem os marcadores certos em ${lang.code}`);
+  }
+  const trans = readFileSync(path.join(MOBILE, 'src', 'components', 'Trans.tsx'), 'utf8');
+  assert.match(trans, /export function T\(/);
+});
+
 test('o tradutor protege o glossário e as variáveis e repõe-nos; marcador perdido dá null', () => {
   const fmt = { make: (i) => `XT${i}X`, find: /X\s?T\s?(\d+)\s?X/gi };
   const p = protect('Abre a tua geleira, {nome}, e paga uma gelada à malta 🍺', fmt);

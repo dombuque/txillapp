@@ -75,10 +75,14 @@ export function neededKeys(all, locale) {
 const glossary = readJson(rel('scripts', 'i18n', 'glossary.json'), { keep: [] }).keep;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const terms = [...new Set(glossary)].sort((a, b) => b.length - a.length).map(esc).join('|');
-/** O que se protege: variáveis, links, @, emojis e os termos do glossário (palavras inteiras, maiúsculas ou não). */
+/**
+ * O que se protege: variáveis, os marcadores do <T> da app (`<b>`, `</b>`, `<badge/>`: components/Trans.tsx), links, @,
+ * emojis e os termos do glossário (palavras inteiras, maiúsculas ou não).
+ */
 const PROTECT = new RegExp(
   [
     '\\{[\\w.]+\\}',
+    '</?[a-z][\\w-]*\\s*/?>',
     'https?://\\S+',
     '@[\\p{L}\\p{N}_.]+',
     '\\p{Extended_Pictographic}(?:\\uFE0F|\\u200D\\p{Extended_Pictographic})*\\uFE0F?',

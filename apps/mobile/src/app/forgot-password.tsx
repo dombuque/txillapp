@@ -10,6 +10,7 @@ import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
 import { Field, Screen } from './login';
 import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 /** Esqueci a senha: pede o e-mail e responde sempre o mesmo, exista a conta ou não (igual ao site). */
 export default function ForgotPassword() {
@@ -54,7 +55,7 @@ export default function ForgotPassword() {
             <Text style={st.sentTitle}>{t('Vê o teu e-mail')}</Text>
           </View>
           <Text style={st.sentText}>
-            {t('Se existir uma conta com')} <Text style={{ fontWeight: '700' }}>{email.trim()}</Text>{t(', enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.')}
+            <T text={t('Se existir uma conta com <b>{email}</b>, enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.', { email: email.trim() })} tags={{ b: (s) => <Text style={{ fontWeight: '700' }}>{s}</Text> }} />
           </Text>
         </View>
       ) : (

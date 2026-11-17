@@ -13,6 +13,7 @@ import { colors } from '@/lib/theme';
 import { Field, Screen } from './login';
 import { problemOf, useAvailability } from './register';
 import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 /** Depois do Google, numa conta nova: escolher o @, o género e a data de nascimento. */
 export default function GoogleUsername() {
@@ -121,8 +122,7 @@ export default function GoogleUsername() {
         <Pressable onPress={() => { setError(''); setTerms(!terms); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: terms }}>
           <View style={[st.box, terms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{terms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
           <Text style={st.termsText}>
-            {t('Li e aceito os')} <Text style={st.link} onPress={() => legal('/terms')}>{t('Termos de Uso')}</Text> e a{' '}
-            <Text style={st.link} onPress={() => legal('/privacy')}>{t('Política de Privacidade')}</Text>.
+            <T text={t('Li e aceito os <terms>Termos de Uso</terms> e a <privacy>Política de Privacidade</privacy>.')} tags={{ terms: (s) => <Text style={st.link} onPress={() => legal('/terms')}>{s}</Text>, privacy: (s) => <Text style={st.link} onPress={() => legal('/privacy')}>{s}</Text> }} />
           </Text>
         </Pressable>
       </View>

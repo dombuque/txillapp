@@ -12,7 +12,7 @@ import { mmss, trackStatusLabel, usesLine } from '@/lib/artists';
 import { abs } from '@/lib/config';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { formatDate, t } from '@/lib/i18n';
 
 /**
  * Gerir as minhas músicas (artista): o estado de cada faixa, quantas vezes foi usada e por quantas pessoas (só totais),
@@ -71,7 +71,7 @@ export default function GerirMusicas() {
               <Text style={[ast.cardSub, { fontWeight: '600', color: colors.zinc900 }]}>{usesLine(track2.uses, track2.people)}</Text>
               {track2.reason && (track2.status === 'rejected' || track2.status === 'removed') ? <Text style={[ast.cardSub, { color: colors.red600 }]}>{t('Motivo: {reason}', { reason: track2.reason })}</Text> : null}
               {track2.onHold ? <Text style={ast.hint}>{t('Alguém denunciou esta música por direitos de autor. Fica escondida enquanto a equipa analisa; podes ser contactado.')}</Text> : null}
-              <Text style={ast.hint}>{t('Licença aceite')}{track2.licenseAcceptedAt ? ` a ${new Date(track2.licenseAcceptedAt).toLocaleDateString('pt-PT')}` : ''} {t('(versão {licenseVersion}).', { licenseVersion: track2.licenseVersion })}</Text>
+              <Text style={ast.hint}>{track2.licenseAcceptedAt ? t('Licença aceite a {date} (versão {licenseVersion}).', { date: formatDate(track2.licenseAcceptedAt), licenseVersion: track2.licenseVersion }) : t('Licença aceite (versão {licenseVersion}).', { licenseVersion: track2.licenseVersion })}</Text>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 {track2.previewUrl ? (
                   <Pressable onPress={() => void listen(track2)} style={[ast.ghost, { flexDirection: 'row', alignItems: 'center', gap: 6 }]} accessibilityRole="button" accessibilityLabel={playing === track2.id ? t('Parar') : t('Ouvir o trecho')}>

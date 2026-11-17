@@ -10,6 +10,7 @@ import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
 import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 const SUPPORT = 'privacidade@txillapp.com';
 
@@ -155,7 +156,7 @@ function Confirm({ token }: { token: string }) {
       {!who && !error ? <PageLoader style={{ paddingTop: 24 }} /> : null}
       {who ? (
         <>
-          <Text style={st.p}>{t('Vais apagar a conta')} <Text style={{ fontWeight: '700' }}>@{who.username}</Text> {t('({displayName}) e os teus dados. Isto não se desfaz.', { displayName: who.displayName })}</Text>
+          <Text style={st.p}><T text={t('Vais apagar a conta <b>@{username}</b> ({displayName}) e os teus dados. Isto não se desfaz.', { username: who.username, displayName: who.displayName })} tags={{ b: (s) => <Text style={{ fontWeight: '700' }}>{s}</Text> }} /></Text>
           <What />
           <Text style={st.err} accessibilityRole="alert">{error}</Text>
           {/* Esta página é a própria confirmação (como a caixa): o botão vermelho cheio. */}

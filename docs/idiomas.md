@@ -90,6 +90,17 @@ t('{count} seguidor', { count: n, other: '{count} seguidores' })   // plural: `o
 - Sem `other`, o plural é igual ao singular (por exemplo, `'{count} min'`).
 - Em português só o 1 é singular (regra de Moçambique e Portugal; o `Intl` usa a do Brasil, em que o 0 também é).
 - Na app: `import { t } from '@/lib/i18n'`. Datas e números com `formatDate(d, opts)` e `formatNumber(n, opts)`.
+  Nomes de meses e dias com `monthNames(width)` e `weekdayNames(width)` (em português, os da casa; nos outros idiomas,
+  os do `Intl`), nunca listas passadas por `t()`.
+- Uma frase com partes com estilo (negrito, ligações, um selo no meio) não se parte em pedaços: vai inteira, com
+  marcadores, e o componente `T` (`components/Trans.tsx`) troca cada marcador por um elemento. O tradutor protege os
+  marcadores como as variáveis.
+
+  ```tsx
+  <Text style={st.p}><T text={t('Vais apagar a conta <b>@{username}</b>.', { username })} tags={{ b: (s) => <Text style={st.bold}>{s}</Text> }} /></Text>
+  ```
+- Os erros da API que a app tem de reconhecer levam um `code` (ex.: `repost_blocked`): compara-se o código, nunca a
+  mensagem, que vem no idioma da pessoa.
 - No site há ainda `tr` (o mesmo que `t`) e `tk('…')`, que só marca uma frase para a extração (tabelas de opções que
   depois passam por `tr(valor)`). Na app e na API não há `tk`: as tabelas passam a funções ou usam `t()` na hora.
 

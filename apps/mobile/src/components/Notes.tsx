@@ -37,17 +37,18 @@ import { notesRow } from '@/lib/notesRow';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { showToast } from '@/lib/toast';
+import { t } from '@/lib/i18n';
 
 const trackLine = (n?: Note | null) => (n?.music ? `${n.music.title}${n.music.artist ? ` · ${n.music.artist}` : ''}` : '');
 const nativeDriver = Platform.OS !== 'web';
 /** O texto do campo da bolha, no editor. */
-const NOTE_PLACEHOLDER = 'O que se passa?';
+const NOTE_PLACEHOLDER = () => t('O que se passa?');
 
 /** O selo do brinde no canto (da bolha ou, numa nota só com GIF, do quadrado do GIF): o copo e, com mais de um, a contagem. */
 function CheersBadge({ cheers }: { cheers: number }) {
   if (!(cheers > 0)) return null;
   return (
-    <View style={styles.cheers} accessibilityLabel={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`}>
+    <View style={styles.cheers} accessibilityLabel={t('{count} brinde', { count: cheers, other: '{count} brindes' })}>
       <Icon name="cheers" size={14} color={colors.amber600} />
       {cheers > 1 && <Text style={styles.cheersN}>{cheers}</Text>}
     </View>
@@ -68,7 +69,7 @@ function NoteFace({ name, username, gif, size, online = false, onlineStyle, chee
       ) : (
         <Avatar name={name} username={username} size={size} />
       )}
-      {online && <View style={[styles.online, onlineStyle]} accessibilityLabel="Online" />}
+      {online && <View style={[styles.online, onlineStyle]} accessibilityLabel={t('Online')} />}
       {gif ? <CheersBadge cheers={cheers} /> : null}
     </View>
   );
@@ -123,20 +124,20 @@ export function NotesStrip() {
 
   return (
     <>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel="Notas">
-        <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-          <View style={styles.bubbleSlot}>{!mine || hasBubble(mine) ? <Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} place={mine?.place?.name} /> : null}</View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel={t('Notas')}>
+        <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? t('A tua nota') : t('Deixar uma nota')} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+          <View style={styles.bubbleSlot}>{!mine || hasBubble(mine) ? <Bubble text={mine ? mine.body : t('Deixa uma nota')} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} place={mine?.place?.name} /> : null}</View>
           <View>
             <NoteFace name={user.displayName} username={user.username} gif={mine?.gif} size={64} cheers={mine && !hasBubble(mine) ? mine.cheers ?? 0 : 0} />
             {!mine && <View style={styles.plus}><Icon name="plus" size={14} strokeWidth={3} color="#fff" /></View>}
           </View>
-          <Text style={styles.label} numberOfLines={1}>A tua nota</Text>
+          <Text style={styles.label} numberOfLines={1}>{t('A tua nota')}</Text>
         </Pressable>
         {row.map((e) => {
           if (e.kind === 'note') {
             const n = e.note;
             return (
-              <Pressable key={e.key} onPress={() => { primeKeyboard(); setViewing(n); }} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body || n.music?.title || n.place?.name || (n.gif ? 'GIF' : '')}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+              <Pressable key={e.key} onPress={() => { primeKeyboard(); setViewing(n); }} accessibilityRole="button" accessibilityLabel={t('Nota de {displayName}: {body}', { displayName: n.displayName, body: n.body || n.music?.title || n.place?.name || (n.gif ? 'GIF' : '') })} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
                 <View style={styles.bubbleSlot}>{hasBubble(n) ? <Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} color={n.color} place={n.place?.name} /> : null}</View>
                 <NoteFace name={n.displayName} username={n.hasAvatar ? n.username : undefined} gif={n.gif} size={64} online={n.hasAvatar && online.has(n.username.toLowerCase())} cheers={!hasBubble(n) && n.cheered ? 1 : 0} />
                 <NameWithBadge name={n.displayName.split(' ')[0]} who={n} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
@@ -146,11 +147,11 @@ export function NotesStrip() {
           // Alguém das minhas conversas, sem nota: sem balão (mas com o lugar dele, para as fotos ficarem todas alinhadas).
           const p = e.person;
           return (
-            <Pressable key={e.key} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversa com ${p.displayName}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+            <Pressable key={e.key} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={t('Conversa com {displayName}', { displayName: p.displayName })} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
               <View style={styles.bubbleSlot} />
               <View>
                 <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={64} />
-                {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
+                {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel={t('Online')} />}
               </View>
               <NameWithBadge name={p.displayName.split(' ')[0]} who={p} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
             </Pressable>
@@ -194,17 +195,17 @@ function NoteTrackLine({ track, tone, autoplay = true }: { track: Track; tone: N
   const [info, setInfo] = useState(false);
   const playing = on && live && !muted;
   const dark = tone.text === '#ffffff';
-  const artist = track.kind === 'clip' ? 'Áudio original' : track.artist || '';
+  const artist = track.kind === 'clip' ? t('Áudio original') : track.artist || '';
   return (
     <View style={styles.trackLine}>
       {autoplay ? (
-        <Pressable onPress={toggleMute} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'} style={[styles.trackBtn, { borderColor: dark ? 'rgba(255,255,255,0.4)' : colors.zinc200 }]}>
+        <Pressable onPress={toggleMute} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? t('Ativar o som') : t('Silenciar')} style={[styles.trackBtn, { borderColor: dark ? 'rgba(255,255,255,0.4)' : colors.zinc200 }]}>
           {playing ? <Playing color={dark ? '#fff' : colors.brand} /> : <Icon name={muted ? 'volume-off' : 'music'} size={12} strokeWidth={2.2} color={tone.text} />}
         </Pressable>
       ) : (
         <Icon name="music" size={14} strokeWidth={2.2} color={tone.text} />
       )}
-      <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel={`Música: ${track.title}${artist ? `, ${artist}` : ''}. Créditos`}>
+      <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel={t('Música: {title}{value}. Créditos', { title: track.title, value: artist ? `, ${artist}` : '' })}>
         <Text style={[styles.trackTitle, { color: tone.text }]} numberOfLines={1}>
           {track.title}
           {artist ? <Text style={{ fontWeight: '400', color: tone.sub }}>{` · ${artist}`}</Text> : null}
@@ -218,7 +219,7 @@ function NoteTrackLine({ track, tone, autoplay = true }: { track: Track; tone: N
 /** A linha do local, dentro da bolha: o pino e o nome do sítio. */
 function PlaceLine({ name, tone, center = false }: { name: string; tone: NoteTone; center?: boolean }) {
   return (
-    <View style={[styles.placeLine, center && { justifyContent: 'center' }]} accessibilityLabel={`Local: ${name}`}>
+    <View style={[styles.placeLine, center && { justifyContent: 'center' }]} accessibilityLabel={t('Local: {name}', { name })}>
       <Icon name="map-pin" size={13} strokeWidth={2} color={tone.sub} />
       <Text style={[styles.placeText, { color: tone.sub }]} numberOfLines={1}>{name}</Text>
     </View>
@@ -277,7 +278,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
       await notesApi.reply(note.username, said);
       onClose();
       if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
-      else showToast(noteSentText(note.username), { label: 'Ver', onPress: () => router.push(`/messages/${note.username}` as never) });
+      else showToast(noteSentText(note.username), { label: t('Ver'), onPress: () => router.push(`/messages/${note.username}` as never) });
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -311,7 +312,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
           <NameWithBadge name={note.displayName} who={note} style={styles.viewName} containerStyle={{ flexShrink: 1 }} />
           <Text style={styles.viewAgo}>{` · ${noteAgo(note.createdAt)}`}</Text>
           {mine ? null : (
-            <Pressable onPress={() => setStep('more')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mais opções da nota" style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}>
+            <Pressable onPress={() => setStep('more')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Mais opções da nota')} style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}>
               <Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} />
             </Pressable>
           )}
@@ -343,25 +344,25 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
               onFocus={releaseKeyboard}
               placeholder={noteReplyPlaceholder(note)}
               placeholderTextColor={colors.zinc500}
-              accessibilityLabel="Responder à nota"
+              accessibilityLabel={t('Responder à nota')}
               returnKeyType="send"
               submitBehavior="submit"
               onSubmitEditing={() => void send(text)}
               style={styles.replyInput}
             />
             {typed ? (
-              <SendButton label="Enviar resposta" keep={input} disabled={busy} onPress={() => void send(text)} style={styles.replySend} />
+              <SendButton label={t('Enviar resposta')} keep={input} disabled={busy} onPress={() => void send(text)} style={styles.replySend} />
             ) : (
               <View style={styles.quickRow}>
                 {NOTE_QUICK.map((e) => (
-                  <Pressable key={e} disabled={busy} onPress={() => void send(e)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Responder com ${e}`} style={({ pressed }) => [styles.quickBtn, pressed && { transform: [{ scale: 1.25 }] }]}>
+                  <Pressable key={e} disabled={busy} onPress={() => void send(e)} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('Responder com {e}', { e })} style={({ pressed }) => [styles.quickBtn, pressed && { transform: [{ scale: 1.25 }] }]}>
                     <Text style={styles.quickEmoji}>{e}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
           </View>
-          <Pressable onPress={() => void cheer()} hitSlop={6} accessibilityRole="button" accessibilityLabel={cheered ? 'Brindado. Tirar o brinde' : 'Brindar'} accessibilityState={{ selected: cheered }} style={({ pressed }) => [styles.cheerOut, pressed && { transform: [{ scale: 0.92 }] }]}>
+          <Pressable onPress={() => void cheer()} hitSlop={6} accessibilityRole="button" accessibilityLabel={cheered ? t('Brindado. Tirar o brinde') : t('Brindar')} accessibilityState={{ selected: cheered }} style={({ pressed }) => [styles.cheerOut, pressed && { transform: [{ scale: 0.92 }] }]}>
             <Animated.View style={{ transform: [{ scale: pop }] }}>
               <Icon name="cheers" size={30} strokeWidth={cheered ? 2.2 : 1.8} color={cheered ? colors.amber600 : colors.zinc800} />
             </Animated.View>
@@ -375,9 +376,9 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
 /** O menu do «⋯» da nota de outra pessoa: «Denunciar» (abre a folha da denúncia no lugar do menu). */
 function NoteMoreSheet({ username, onReport, onClose }: { username: string; onReport: () => void; onClose: () => void }) {
   return (
-    <Sheet title={`Nota de @${username}`} onClose={onClose} variant="menu" cancel>
+    <Sheet title={t('Nota de @{username}', { username })} onClose={onClose} variant="menu" cancel>
       <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
-        <ActionRow icon="flag" title="Denunciar" text="Avisa a moderação. A pessoa não sabe." danger onPress={onReport} />
+        <ActionRow icon="flag" title={t('Denunciar')} text={t('Avisa a moderação. A pessoa não sabe.')} danger onPress={onReport} />
       </View>
     </Sheet>
   );
@@ -409,7 +410,7 @@ function EditorFrame({ desktop, onClose, children }: { desktop: boolean; onClose
   if (desktop) {
     return (
       <View style={styles.edDeskRoot}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Fechar" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t('Fechar')} />
         <View style={styles.edDeskCard} accessibilityViewIsModal>{children}</View>
       </View>
     );
@@ -426,12 +427,12 @@ function EditorFrame({ desktop, onClose, children }: { desktop: boolean; onClose
 function OptionPill({ icon, label, chosen, onPress, onClear, a11y }: { icon: ReactNode; label?: string; chosen: boolean; onPress: () => void; onClear: () => void; a11y: string }) {
   return (
     <View style={[styles.opt, chosen && styles.optOn]}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={chosen ? `${a11y}: ${label}. Mudar` : a11y} style={({ pressed }) => [styles.optMain, pressed && { opacity: 0.6 }]}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={chosen ? t('{a11y}: {label}. Mudar', { a11y, label: String(label) }) : a11y} style={({ pressed }) => [styles.optMain, pressed && { opacity: 0.6 }]}>
         {icon}
         {chosen && label ? <Text style={styles.optText} numberOfLines={1}>{label}</Text> : null}
       </Pressable>
       {chosen ? (
-        <Pressable onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar ${a11y.toLowerCase()}`} style={styles.optX}>
+        <Pressable onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar {a11y}', { a11y: a11y.toLowerCase() })} style={styles.optX}>
           <Icon name="x" size={14} strokeWidth={2.4} color={colors.zinc600} />
         </Pressable>
       ) : null}
@@ -491,7 +492,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
     }
   }
   async function remove() {
-    if (await confirm({ title: 'Apagar a nota?', message: 'A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.', confirm: 'Apagar', danger: true })) {
+    if (await confirm({ title: t('Apagar a nota?'), message: t('A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.'), confirm: t('Apagar'), danger: true })) {
       void run(() => notesApi.remove());
     }
   }
@@ -505,10 +506,10 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
     <Modal visible transparent animationType={desktop ? 'fade' : 'slide'} onRequestClose={onClose} statusBarTranslucent>
       <EditorFrame desktop={desktop} onClose={onClose}>
         <View style={[styles.edTop, { paddingTop: desktop ? 14 : insets.top + 8 }]}>
-          <Pressable onPress={onClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Fechar" style={({ pressed }) => [styles.edX, pressed && { transform: [{ scale: 0.94 }] }]}>
+          <Pressable onPress={onClose} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Fechar')} style={({ pressed }) => [styles.edX, pressed && { transform: [{ scale: 0.94 }] }]}>
             <Icon name="x" size={22} strokeWidth={2.2} color={colors.zinc900} />
           </Pressable>
-          <Text style={styles.edTitle} accessibilityRole="header">{view ? 'A tua nota' : 'Nova nota'}</Text>
+          <Text style={styles.edTitle} accessibilityRole="header">{view ? t('A tua nota') : t('Nova nota')}</Text>
           <View style={{ width: 44 }} />
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.edCenter} keyboardShouldPersistTaps="handled">
@@ -522,7 +523,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
                 // largura. O onContentSizeChange da web não encolhe (a altura do placeholder de duas linhas ficava).
                 <View style={styles.edField}>
                   <Text aria-hidden style={[styles.edText, styles.edMeasure]} onLayout={(e) => setInputH(Math.min(88, Math.max(22, Math.ceil(e.nativeEvent.layout.height))))}>
-                    {`${body || NOTE_PLACEHOLDER}​`}
+                    {`${body || NOTE_PLACEHOLDER()}​`}
                   </Text>
                   <TextInput
                     ref={input}
@@ -532,9 +533,9 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
                     autoFocus
                     onFocus={releaseKeyboard}
                     maxLength={NOTE_LIMIT}
-                    placeholder={NOTE_PLACEHOLDER}
+                    placeholder={NOTE_PLACEHOLDER()}
                     placeholderTextColor={tone === NOTE_WHITE ? colors.zinc500 : tone.sub}
-                    accessibilityLabel="Nota"
+                    accessibilityLabel={t('Nota')}
                     style={[styles.edText, styles.edInput, { color: tone.text, height: inputH }]}
                   />
                 </View>
@@ -545,7 +546,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
             <View style={[styles.edTail, { backgroundColor: tone.bg, borderColor: tone.border }]} />
             {!view && !!body ? (
               // O × pequeno no canto da bolha: limpa o texto (o resto da nota fica).
-              <Pressable onPress={() => { setBody(''); input.current?.focus(); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar o texto" style={styles.edClear}>
+              <Pressable onPress={() => { setBody(''); input.current?.focus(); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Limpar o texto')} style={styles.edClear}>
                 <Icon name="x" size={12} strokeWidth={3} color="#fff" />
               </Pressable>
             ) : null}
@@ -555,20 +556,20 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           <View style={styles.edAvatar}>
             {/* Com GIF, o GIF fica no lugar da foto; tocar nele dá «Trocar o GIF» e «Tirar o GIF». */}
             {!view && gif ? (
-              <Pressable onPress={() => setPanel('gifMenu')} accessibilityRole="button" accessibilityLabel="GIF da nota. Trocar ou tirar">
+              <Pressable onPress={() => setPanel('gifMenu')} accessibilityRole="button" accessibilityLabel={t('GIF da nota. Trocar ou tirar')}>
                 <NoteFace name={user?.displayName ?? '?'} username={user?.username} gif={gif} size={108} />
               </Pressable>
             ) : (
               <NoteFace name={user?.displayName ?? '?'} username={user?.username} gif={view?.gif} size={view?.gif ? 108 : 96} />
             )}
             {!view && (
-              <Pressable onPress={() => setPalette((p) => !p)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Cor da bolha" accessibilityState={{ expanded: palette }} style={({ pressed }) => [styles.paletteBtn, palette && { borderColor: colors.brand }, pressed && { transform: [{ scale: 0.92 }] }]}>
+              <Pressable onPress={() => setPalette((p) => !p)} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Cor da bolha')} accessibilityState={{ expanded: palette }} style={({ pressed }) => [styles.paletteBtn, palette && { borderColor: colors.brand }, pressed && { transform: [{ scale: 0.92 }] }]}>
                 <PaletteIcon />
               </Pressable>
             )}
           </View>
           {!view && palette && (
-            <View style={styles.colorRow} accessibilityRole="radiogroup" accessibilityLabel="Cor da bolha">
+            <View style={styles.colorRow} accessibilityRole="radiogroup" accessibilityLabel={t('Cor da bolha')}>
               {([null, ...NOTE_COLORS] as (NoteColor | null)[]).map((c) => {
                 const t = noteTone(c);
                 const on = color === c;
@@ -582,8 +583,8 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           )}
           {!view ? (
             <View style={styles.optRow}>
-              <OptionPill a11y="Música" chosen={!!music} label={music?.title} onPress={() => setPanel('music')} onClear={() => setMusic(null)} icon={<Icon name="music" size={20} strokeWidth={2} color={colors.brand} />} />
-              <OptionPill a11y="Local" chosen={!!place} label={place?.name} onPress={() => setPanel('place')} onClear={() => setPlace(null)} icon={<Icon name="map-pin" size={20} strokeWidth={2} color={colors.sky} />} />
+              <OptionPill a11y={t('Música')} chosen={!!music} label={music?.title} onPress={() => setPanel('music')} onClear={() => setMusic(null)} icon={<Icon name="music" size={20} strokeWidth={2} color={colors.brand} />} />
+              <OptionPill a11y={t('Local')} chosen={!!place} label={place?.name} onPress={() => setPanel('place')} onClear={() => setPlace(null)} icon={<Icon name="map-pin" size={20} strokeWidth={2} color={colors.sky} />} />
               {gifs.enabled || gif ? (
                 <OptionPill a11y="GIF" chosen={!!gif} label="GIF" onPress={() => setPanel('gif')} onClear={() => setGif(null)} icon={gif ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.optGif} contentFit="cover" /> : <View style={styles.gifBadge}><Text style={styles.gifBadgeText}>GIF</Text></View>} />
               ) : null}
@@ -591,9 +592,9 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           ) : (
             <View style={{ alignItems: 'center' }}>
               {!!view.cheers && (
-                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.amber600} /><Text style={styles.cheerRowText}>{view.cheers} {view.cheers === 1 ? 'brinde' : 'brindes'}</Text></View>
+                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.amber600} /><Text style={styles.cheerRowText}>{view.cheers} {view.cheers === 1 ? t('brinde') : t('brindes')}</Text></View>
               )}
-              <Text style={styles.hint}>{timeAgo(view.createdAt)} · visível para {view.audience === 'close_friends' ? 'os teus amigos próximos' : 'os teus seguidores'}. Uma nota não se edita: apaga-a para publicar outra.</Text>
+              <Text style={styles.hint}>{view.audience === 'close_friends' ? t('{timeAgo} · visível para os teus amigos próximos. Uma nota não se edita: apaga-a para publicar outra.', { timeAgo: timeAgo(view.createdAt) }) : t('{timeAgo} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.', { timeAgo: timeAgo(view.createdAt) })}</Text>
             </View>
           )}
           {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
@@ -605,7 +606,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               <Text style={styles.audText}>{noteAudienceLabel(view.audience)}</Text>
             </View>
           ) : (
-            <Pressable onPress={() => setPanel('audience')} accessibilityRole="button" accessibilityLabel={`${noteAudienceLabel(audience)}. Mudar quem vê`} style={({ pressed }) => [styles.audBtn, pressed && { opacity: 0.6 }]}>
+            <Pressable onPress={() => setPanel('audience')} accessibilityRole="button" accessibilityLabel={t('{noteAudienceLabel}. Mudar quem vê', { noteAudienceLabel: noteAudienceLabel(audience) })} style={({ pressed }) => [styles.audBtn, pressed && { opacity: 0.6 }]}>
               <Icon name={audience === 'close_friends' ? 'star' : 'users'} size={18} strokeWidth={2} color={audience === 'close_friends' ? colors.green600 : colors.zinc800} />
               <Text style={styles.audText} numberOfLines={1}>{noteAudienceLabel(audience)}</Text>
               <Icon name="chevron-right" size={16} strokeWidth={2.2} color={colors.zinc700} />
@@ -613,11 +614,11 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           )}
           {view ? (
             <Pressable disabled={busy} onPress={() => void remove()} accessibilityRole="button" style={({ pressed }) => [styles.shareBtn, { backgroundColor: colors.dangerSoft }, pressed && { opacity: 0.8 }]}>
-              <Text style={[styles.shareText, { color: colors.danger }]}>Apagar</Text>
+              <Text style={[styles.shareText, { color: colors.danger }]}>{t('Apagar')}</Text>
             </Pressable>
           ) : (
-            <Pressable disabled={!canShare} onPress={() => void run(async () => { await notesApi.set({ body: body.trim(), music, color, place, gif, audience }); showToast('Nota partilhada'); })} accessibilityRole="button" accessibilityState={{ disabled: !canShare }} style={({ pressed }) => [styles.shareBtn, !canShare && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
-              <Text style={styles.shareText}>Partilhar</Text>
+            <Pressable disabled={!canShare} onPress={() => void run(async () => { await notesApi.set({ body: body.trim(), music, color, place, gif, audience }); showToast(t('Nota partilhada')); })} accessibilityRole="button" accessibilityState={{ disabled: !canShare }} style={({ pressed }) => [styles.shareBtn, !canShare && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+              <Text style={styles.shareText}>{t('Partilhar')}</Text>
             </Pressable>
           )}
         </View>
@@ -636,22 +637,22 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
         </Sheet>
       )}
       {panel === 'gifMenu' && (
-        <Sheet title="GIF da nota" onClose={back} variant="menu" cancel>
+        <Sheet title={t('GIF da nota')} onClose={back} variant="menu" cancel>
           <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
-            <ActionRow icon="repeat" title="Trocar o GIF" onPress={() => setPanel('gif')} />
-            <ActionRow icon="trash" title="Tirar o GIF" danger onPress={() => { setGif(null); back(); }} />
+            <ActionRow icon="repeat" title={t('Trocar o GIF')} onPress={() => setPanel('gif')} />
+            <ActionRow icon="trash" title={t('Tirar o GIF')} danger onPress={() => { setGif(null); back(); }} />
           </View>
         </Sheet>
       )}
       {panel === 'audience' && (
-        <Sheet title="Quem vê a tua nota" onClose={back}>
+        <Sheet title={t('Quem vê a tua nota')} onClose={back}>
           <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
             {(['mutual', 'close_friends'] as NoteAudience[]).map((a) => (
               <ActionRow
                 key={a}
                 icon={a === 'close_friends' ? 'star' : 'users'}
                 title={noteAudienceLabel(a)}
-                text={a === 'close_friends' ? 'Só quem está na tua lista de amigos próximos.' : 'Os teus seguidores.'}
+                text={a === 'close_friends' ? t('Só quem está na tua lista de amigos próximos.') : t('Os teus seguidores.')}
                 right={audience === a ? <Icon name="check" size={20} strokeWidth={2.4} color={colors.brand} /> : undefined}
                 onPress={() => { setAudience(a); back(); }}
               />

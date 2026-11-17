@@ -16,6 +16,7 @@ import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
 import { Field, Screen, authStyles } from './login';
 import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 const MIN_AGE = 15;
 type Key = 'displayName' | 'username' | 'email' | 'birthDate' | 'gender' | 'password';
@@ -200,7 +201,7 @@ export default function Register() {
       </View>
 
       <View style={{ marginTop: 40 }}>
-        {invite && i === 0 && <Text style={st.invite}>{t('Convite de {displayName}', { displayName: invite.displayName })}<InlineBadge who={invite} fontSize={15} />{t(': os dois ganham vibes quando entrares a sério.')}</Text>}
+        {invite && i === 0 && <Text style={st.invite}><T text={t('Convite de {displayName}<badge/>: os dois ganham vibes quando entrares a sério.', { displayName: invite.displayName })} tags={{ badge: () => <InlineBadge who={invite} fontSize={15} /> }} /></Text>}
         <Text style={st.title}>{step.title}</Text>
         <Text style={st.sub}>{step.sub}</Text>
 
@@ -270,8 +271,7 @@ export default function Register() {
             <Pressable onPress={() => { setError(''); setData({ ...data, acceptTerms: !data.acceptTerms }); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: !!data.acceptTerms }}>
               <View style={[st.box, data.acceptTerms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{data.acceptTerms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
               <Text style={st.termsText}>
-                {t('Li e aceito os')} <Text style={st.link} onPress={() => legal('/terms')}>{t('Termos de Uso')}</Text> e a{' '}
-                <Text style={st.link} onPress={() => legal('/privacy')}>{t('Política de Privacidade')}</Text>.
+                <T text={t('Li e aceito os <terms>Termos de Uso</terms> e a <privacy>Política de Privacidade</privacy>.')} tags={{ terms: (s) => <Text style={st.link} onPress={() => legal('/terms')}>{s}</Text>, privacy: (s) => <Text style={st.link} onPress={() => legal('/privacy')}>{s}</Text> }} />
               </Text>
             </Pressable>
           )}

@@ -6,17 +6,18 @@ import { txilladaApi } from '@/lib/api.txillada';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+import { t } from '@/lib/i18n';
 
 const REASONS: { value: ReportReason; label: string; text: string }[] = [
-  { value: 'spam', label: 'Spam', text: 'Publicidade, repetição ou ligações suspeitas.' },
-  { value: 'harassment', label: 'Assédio ou bullying', text: 'Ataques, ameaças ou perseguição.' },
-  { value: 'hate', label: 'Discurso de ódio', text: 'Discriminação ou ataques a um grupo.' },
-  { value: 'nudity', label: 'Nudez ou conteúdo sexual', text: 'Conteúdo impróprio.' },
-  { value: 'violence', label: 'Violência', text: 'Violência explícita ou apelo à violência.' },
-  { value: 'scam', label: 'Burla ou fraude', text: 'Tentativa de enganar ou roubar.' },
-  { value: 'impersonation', label: 'Faz-se passar por outra pessoa', text: 'Conta ou conteúdo falso.' },
-  { value: 'minor', label: 'Envolve menores', text: 'Conteúdo que põe crianças em risco.' },
-  { value: 'other', label: 'Outro motivo', text: 'Algo que não está na lista.' },
+  { value: 'spam', get label() { return t('Spam'); }, get text() { return t('Publicidade, repetição ou ligações suspeitas.'); } },
+  { value: 'harassment', get label() { return t('Assédio ou bullying'); }, get text() { return t('Ataques, ameaças ou perseguição.'); } },
+  { value: 'hate', get label() { return t('Discurso de ódio'); }, get text() { return t('Discriminação ou ataques a um grupo.'); } },
+  { value: 'nudity', get label() { return t('Nudez ou conteúdo sexual'); }, get text() { return t('Conteúdo impróprio.'); } },
+  { value: 'violence', get label() { return t('Violência'); }, get text() { return t('Violência explícita ou apelo à violência.'); } },
+  { value: 'scam', get label() { return t('Burla ou fraude'); }, get text() { return t('Tentativa de enganar ou roubar.'); } },
+  { value: 'impersonation', get label() { return t('Faz-se passar por outra pessoa'); }, get text() { return t('Conta ou conteúdo falso.'); } },
+  { value: 'minor', get label() { return t('Envolve menores'); }, get text() { return t('Conteúdo que põe crianças em risco.'); } },
+  { value: 'other', get label() { return t('Outro motivo'); }, get text() { return t('Algo que não está na lista.'); } },
 ];
 
 /** O que se pode denunciar: os tipos de POST /reports e os que têm rota própria (Txillada, agendada, comentário dela, nota). */
@@ -24,7 +25,7 @@ type ReportWhat = ReportType | 'txillada' | 'txillada_comment' | 'txillada_sched
 
 /** O que se está a denunciar, para o título da folha. */
 const WHAT: Record<ReportWhat, string> = {
-  note: 'esta nota', txillada: 'esta Txillada', txillada_schedule: 'esta Txillada agendada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local', mixar_comment: 'este comentário',
+  get note() { return t('esta nota'); }, get txillada() { return t('esta Txillada'); }, get txillada_schedule() { return t('esta Txillada agendada'); }, get txillada_comment() { return t('este comentário'); }, get post() { return t('esta publicação'); }, get comment() { return t('este comentário'); }, get story() { return t('este mimo'); }, get story_comment() { return t('este comentário'); }, get instant() { return t('este Zás'); }, get user() { return t('esta conta'); }, get message() { return t('esta mensagem'); }, get venue() { return t('este local'); }, get mixar_comment() { return t('este comentário'); },
 };
 
 /**
@@ -63,19 +64,19 @@ export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { typ
 
   if (done) {
     return (
-      <Sheet title="Denúncia enviada" onClose={onClose}>
+      <Sheet title={t('Denúncia enviada')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24, alignItems: 'center' }}>
           <Icon name="check-circle" size={44} color={colors.zinc300} />
-          <Text style={styles.thanks}>Obrigado por avisares</Text>
-          <Text style={styles.sub}>Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu{type === 'user' || type === 'venue' || type === 'txillada' ? '' : ', e deixas de ver o que denunciaste'}. Se quiseres, podes também bloqueá-la no perfil.</Text>
-          <Pressable onPress={onClose} style={styles.cta}><Text style={styles.ctaText}>Fechar</Text></Pressable>
+          <Text style={styles.thanks}>{t('Obrigado por avisares')}</Text>
+          <Text style={styles.sub}>{type === 'user' || type === 'venue' || type === 'txillada' ? t('Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu. Se quiseres, podes também bloqueá-la no perfil.') : t('Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu, e deixas de ver o que denunciaste. Se quiseres, podes também bloqueá-la no perfil.')}</Text>
+          <Pressable onPress={onClose} style={styles.cta}><Text style={styles.ctaText}>{t('Fechar')}</Text></Pressable>
         </View>
       </Sheet>
     );
   }
 
   return (
-    <Sheet title={`Porque queres denunciar ${WHAT[type]}?`} onClose={onClose}>
+    <Sheet title={t('Porque queres denunciar {what}?', { what: WHAT[type] })} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 8 }} accessibilityRole="radiogroup">
           {REASONS.map((r) => {
@@ -91,10 +92,10 @@ export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { typ
             );
           })}
         </View>
-        {reason && type !== 'txillada' && <TextInput value={note} onChangeText={setNote} maxLength={500} multiline placeholder="Queres acrescentar algo? (opcional)" placeholderTextColor={colors.zinc500} style={styles.note} accessibilityLabel="Nota" />}
+        {reason && type !== 'txillada' && <TextInput value={note} onChangeText={setNote} maxLength={500} multiline placeholder={t('Queres acrescentar algo? (opcional)')} placeholderTextColor={colors.zinc500} style={styles.note} accessibilityLabel={t('Nota')} />}
         {err ? <Text style={styles.err}>{err}</Text> : null}
         <Pressable disabled={!reason || busy} onPress={() => void send()} style={[styles.cta, (!reason || busy) && { opacity: 0.4 }]}>
-          <Text style={styles.ctaText}>{busy ? 'A enviar…' : 'Enviar denúncia'}</Text>
+          <Text style={styles.ctaText}>{busy ? t('A enviar…') : t('Enviar denúncia')}</Text>
         </Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
