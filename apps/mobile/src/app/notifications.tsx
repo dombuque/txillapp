@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { RequestsSheet } from '@/components/ProfileSheets';
@@ -416,6 +416,11 @@ export default function Notifications() {
         refreshControl={pull.control}
         data={data}
         keyExtractor={(e) => (e.kind === 'g' ? e.g.id : e.id)}
+        // Na web (sobretudo no PWA do iPhone) a FlatList nem sempre recebe o scroll: ficava nas primeiras 10 linhas e o que
+        // o «Ver mais» trazia nunca aparecia. Na web desenham-se logo todas as que já vieram (como no feed).
+        initialNumToRender={Platform.OS === 'web' ? 200 : 12}
+        windowSize={Platform.OS === 'web' ? 201 : 11}
+        disableVirtualization={Platform.OS === 'web'}
         stickyHeaderIndices={[0]}
         ListHeaderComponent={
           <View style={styles.filters}>
