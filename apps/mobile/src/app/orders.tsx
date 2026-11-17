@@ -3,7 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
@@ -20,7 +23,7 @@ const money = (minor: number, currency: string) => `${(minor / 100).toFixed(2).r
 const STATUS: Record<PaymentOrder['status'], { label: string; bg: string; fg: string }> = {
   pending: { label: 'À espera', bg: '#fef3c7', fg: '#92400e' },
   paid: { label: 'Pago', bg: '#d1fae5', fg: '#065f46' },
-  failed: { label: 'Falhou', bg: '#fee2e2', fg: '#b91c1c' },
+  failed: { label: 'Falhou', bg: colors.dangerSoft, fg: colors.danger },
   cancelled: { label: 'Cancelado', bg: colors.zinc100, fg: colors.zinc600 },
   expired: { label: 'Expirou', bg: colors.zinc100, fg: colors.zinc600 },
 };
@@ -35,7 +38,7 @@ const date = (iso: string) => {
  */
 export default function Orders() {
   const rules = usePurchases();
-  if (rules.pending) return <StackPage title="Pedidos e pagamentos"><ActivityIndicator style={{ margin: 32 }} color={colors.brand} /></StackPage>;
+  if (rules.pending) return <StackPage title="Pedidos e pagamentos"><PageLoader /></StackPage>;
   if (!rules.buyTxills) return <Redirect href={'/wallet' as never} />;
   return <OrdersScreen />;
 }
@@ -123,14 +126,12 @@ function OrdersScreen() {
           <Text style={{ marginTop: 4, fontSize: 38, fontWeight: '900', lineHeight: 38, color: '#fff' }}>
             {w.data ? n(w.data.balance) : '…'} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(w.data?.balance ?? 0)}</Text>
           </Text>
-          <Pressable onPress={() => router.push('/wallet' as never)} accessibilityRole="button" style={({ pressed }) => [st.balBtn, pressed && { transform: [{ scale: 0.95 }] }]}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Ver movimentos e presentes</Text>
-          </Pressable>
+          <Button label="Ver movimentos e presentes" kind="ghost" dark size="sm" onPress={() => router.push('/wallet' as never)} style={st.balBtn} />
         </LinearGradient>
 
         {(!NATIVE || providers.length > 0) && (
           <Group title="Recarregar vibes">
-            {cfg.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
+            {cfg.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
             {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar vibes" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
             {cfg.data && providers.length > 0 && !current ? (
               <View style={{ padding: 16, gap: 16 }}>
@@ -143,11 +144,9 @@ function OrdersScreen() {
                     </Pressable>
                   ))}
                 </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole="radiogroup">
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {providers.map((p) => (
-                    <Pressable key={p.id} onPress={() => setProvider(p.id)} accessibilityRole="radio" accessibilityState={{ checked: chosen?.id === p.id }} style={[st.prov, chosen?.id === p.id && { borderColor: colors.brand, backgroundColor: colors.rose50 }]}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: chosen?.id === p.id ? colors.brand : colors.zinc700 }}>{p.label}</Text>
-                    </Pressable>
+                    <Chip key={p.id} label={p.label} selected={chosen?.id === p.id} onPress={() => setProvider(p.id)} accessibilityLabel={`Pagar com ${p.label}`} />
                   ))}
                 </View>
                 {chosen?.needsPhone ? (
@@ -156,10 +155,8 @@ function OrdersScreen() {
                     <TextInput value={phone} onChangeText={(t) => { setPhone(t); setErr(''); }} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={20} placeholder="84 123 4567" placeholderTextColor={colors.zinc500} style={st.phone} accessibilityLabel={`O teu número ${chosen.label}`} />
                   </View>
                 ) : null}
-                {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text> : null}
-                <Pressable onPress={() => void pay()} disabled={payDisabled} accessibilityRole="button" style={({ pressed }) => [st.primary, payDisabled && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{busy ? 'A preparar…' : chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : 'Escolhe um pacote'}</Text>
-                </Pressable>
+                {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityRole="alert">{err}</Text> : null}
+                <Button label={chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : 'Escolhe um pacote'} onPress={() => void pay()} loading={busy} disabled={payDisabled} />
               </View>
             ) : null}
             {current ? (
@@ -171,21 +168,21 @@ function OrdersScreen() {
                       {current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} Isto atualiza sozinho.
                     </Text>
                     {current.provider === 'sandbox' ? (
-                      <Pressable onPress={() => void sandboxPay()} disabled={busy} style={[st.btn, { backgroundColor: '#10b981' }, busy && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.btnWhite}>Simular pagamento</Text></Pressable>
+                      <Button label="Simular pagamento" size="md" onPress={() => void sandboxPay()} loading={busy} />
                     ) : null}
-                    <Pressable onPress={() => void cancel()} style={st.btn} accessibilityRole="button"><Text style={{ fontWeight: '600', color: colors.zinc700 }}>Cancelar pedido</Text></Pressable>
+                    <Button label="Cancelar pedido" kind="ghost" size="md" onPress={() => void cancel()} />
                   </>
                 )}
                 {current.status === 'paid' && (
                   <>
                     <Text style={[st.stateTitle, { color: colors.green700 }]}>Pago! +{n(current.txills)} {vibesWord(current.txills)}</Text>
-                    <Pressable onPress={() => setCurrent(null)} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={{ fontWeight: '600', color: colors.zinc900 }}>Fechar</Text></Pressable>
+                    <Button label="Fechar" kind="secondary" size="md" onPress={() => setCurrent(null)} />
                   </>
                 )}
                 {(current.status === 'failed' || current.status === 'cancelled' || current.status === 'expired') && (
                   <>
                     <Text style={st.stateTitle}>{STATUS[current.status].label}</Text>
-                    <Pressable onPress={() => { setCurrent(null); setErr(''); }} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={st.btnWhite}>Tentar outra vez</Text></Pressable>
+                    <Button label="Tentar outra vez" size="md" onPress={() => { setCurrent(null); setErr(''); }} />
                   </>
                 )}
               </View>
@@ -194,13 +191,8 @@ function OrdersScreen() {
         )}
 
         <Group title="Pedidos">
-          {orders.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-          {orders.isError && !orders.data ? (
-            <Pressable onPress={() => void orders.refetch()} accessibilityRole="button" style={st.order}>
-              <Text style={{ flex: 1, fontSize: 15, color: colors.zinc700 }}>Não consegui carregar os pedidos.</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brand }}>Tentar outra vez</Text>
-            </Pressable>
-          ) : null}
+          {orders.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
+          {orders.isError && !orders.data ? <ErrorState what="os pedidos" onRetry={() => void orders.refetch()} style={{ marginTop: 16, marginBottom: 16 }} /> : null}
           {orders.data && orders.data.length === 0 ? <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" /> : null}
           {orders.data?.map((o) => (
             <View key={o.id} style={st.order}>
@@ -215,7 +207,7 @@ function OrdersScreen() {
           ))}
         </Group>
         <Text style={{ marginHorizontal: 24, marginTop: 20, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>
-          As vibes compradas entram na carteira e usam-se como as outras: para presentear quem segues. Não se trocam por dinheiro.
+          As vibes compradas entram na carteira e usam-se como as outras: para oferecer a quem segues. Não se trocam por dinheiro.
         </Text>
       </ScrollView>
     </StackPage>
@@ -224,13 +216,9 @@ function OrdersScreen() {
 
 const st = StyleSheet.create({
   balance: { marginHorizontal: 16, marginTop: 16, borderRadius: 24, padding: 20, boxShadow: '0 6px 18px rgba(214,51,79,0.3)' },
-  balBtn: { marginTop: 16, alignSelf: 'flex-start', height: 40, justifyContent: 'center', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16 },
+  balBtn: { marginTop: 16, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)' },
   pkg: { width: '48%', flexGrow: 1, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 12, paddingVertical: 12 },
-  prov: { height: 40, justifyContent: 'center', borderRadius: 999, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 16 },
   phone: { height: 48, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 16, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },
-  primary: { height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 999, backgroundColor: colors.brand },
   stateTitle: { textAlign: 'center', fontSize: 18, fontWeight: '800', color: colors.zinc900 },
-  btn: { height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
-  btnWhite: { fontWeight: '700', color: '#fff' },
   order: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
 });
