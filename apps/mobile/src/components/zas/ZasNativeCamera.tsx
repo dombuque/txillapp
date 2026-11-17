@@ -7,6 +7,7 @@ import { isMinorCameraError, quiet, zoomBounds } from '@/lib/cameraControls';
 import { Icon } from '../Icon';
 import { colors } from '@/lib/theme';
 import { ZAS_MAX_ZOOM, coverCrop, inCaptionZone, needsMirror, outSize, pinchZoom, roundCrop } from './zasFrame';
+import { t } from '@/lib/i18n';
 
 /**
  * A câmara ao vivo do Zás no telemóvel (Android/iPhone), dentro do cartão squircle 3:4.
@@ -212,12 +213,12 @@ export function ZasNativeCamera({
           <Pressable
             onPress={() => quiet(() => (perm.hasPermission ? undefined : perm.canRequestPermission ? perm.requestPermission() : Linking.openSettings()))}
             accessibilityRole="button"
-            accessibilityLabel="Permitir a câmara"
+            accessibilityLabel={t('Permitir a câmara')}
             style={{ alignItems: 'center', gap: 10, paddingHorizontal: 24 }}
           >
             <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
             <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
-              {perm.hasPermission ? 'Este telemóvel não tem câmara disponível.' : perm.canRequestPermission ? 'Toca para ligar a câmara' : 'A câmara está bloqueada. Toca para abrir as definições.'}
+              {perm.hasPermission ? t('Este telemóvel não tem câmara disponível.') : perm.canRequestPermission ? t('Toca para ligar a câmara') : t('A câmara está bloqueada. Toca para abrir as definições.')}
             </Text>
           </Pressable>
         )}

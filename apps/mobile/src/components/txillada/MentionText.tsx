@@ -1,5 +1,6 @@
 import { Text } from 'react-native';
 import { mentionParts } from '@/lib/txilladaChat';
+import { t } from '@/lib/i18n';
 
 /**
  * O texto de um comentário da Txillada com os @nomes a negrito e tocáveis (abrem o perfil). Vai dentro de um <Text> (o
@@ -19,7 +20,7 @@ export function MentionText({ text, onMention, color = '#fff' }: { text: string;
             onMention(p.u);
           }}
           accessibilityRole="link"
-          accessibilityLabel={`Perfil de ${p.u}`}
+          accessibilityLabel={t('Perfil de {u}', { u: p.u })}
         >
           @{p.u}
         </Text>

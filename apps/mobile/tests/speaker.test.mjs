@@ -147,9 +147,9 @@ test('ligações: fim da chamada repõe o áudio; avisos de rota; botão ao lado
   const ov = read('src', 'components', 'calls', 'CallOverlay.tsx');
   assert.doesNotMatch(ov, /speakerSelectable/);
   // Em chamada: microfone, (câmara), altifalante, desligar.
-  assert.match(ov, /<Ctrl label=\{c\.micOn \? 'Desligar o microfone'[\s\S]*?<SpeakerButton c=\{c\} \/>\n        <Pressable onPress=\{hangUp\}/);
+  assert.match(ov, /<Ctrl label=\{c\.micOn \? t\('Desligar o microfone'\)[\s\S]*?<SpeakerButton c=\{c\} \/>\n        <Pressable onPress=\{hangUp\}/);
   // A chamar: microfone | cancelar | altifalante (ou o lugar vazio).
-  assert.match(ov, /<BigBtn bg=\{RED\} label="Cancelar" onPress=\{hangUp\}>[\s\S]*?<SpeakerButton c=\{c\} spacer \/>/);
+  assert.match(ov, /<BigBtn bg=\{RED\} label=\{t\('Cancelar'\)\} onPress=\{hangUp\}>[\s\S]*?<SpeakerButton c=\{c\} spacer \/>/);
   assert.match(ov, /<Ctrl label=\{speakerLabel\(lit\)\}[^>]*off=\{lit\} onPress=\{toggleSpeaker\}>/);
   assert.match(ov, /if \(mode === 'none'\) return spacer \? <View style=\{\{ width: 56 \}\} \/> : null;/);
 });

@@ -9,6 +9,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { groupKeys, groupsApi, type AlbumItem, type AlbumPage } from '@/lib/api.groups';
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** O álbum do TxillGroup: todas as fotos e vídeos enviados na conversa, numa grelha. Fotos abrem no visor de fotos, vídeos no leitor do chat. */
 export function AlbumPanel({ groupId, columns = 3 }: { groupId: string; columns?: number }) {
@@ -45,12 +46,12 @@ export function AlbumPanel({ groupId, columns = 3 }: { groupId: string; columns?
           contentContainerStyle={{ gap: 2, paddingBottom: 24 }}
           onEndReachedThreshold={0.6}
           onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
-          ListHeaderComponent={items.length ? <Text style={st.head}>{photos.length} fotos · {items.length - photos.length} vídeos</Text> : undefined}
+          ListHeaderComponent={items.length ? <Text style={st.head}>{t('{n} fotos · {n2} vídeos', { n: photos.length, n2: items.length - photos.length })}</Text> : undefined}
           ListEmptyComponent={
             <View style={st.center}>
               <Icon name="images" size={44} color={colors.zinc300} />
-              <Text style={st.emptyTitle}>{q.isError ? 'Não consegui abrir o álbum' : 'O álbum ainda está vazio'}</Text>
-              <Text style={st.emptySub}>{q.isError ? (q.error as Error).message : 'As fotos e os vídeos que a malta mandar na conversa aparecem aqui.'}</Text>
+              <Text style={st.emptyTitle}>{q.isError ? t('Não consegui abrir o álbum') : t('O álbum ainda está vazio')}</Text>
+              <Text style={st.emptySub}>{q.isError ? (q.error as Error).message : t('As fotos e os vídeos que a malta mandar na conversa aparecem aqui.')}</Text>
             </View>
           }
           ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator color={colors.zinc500} /> : undefined}
@@ -58,7 +59,7 @@ export function AlbumPanel({ groupId, columns = 3 }: { groupId: string; columns?
             const thumb = item.kind === 'video' ? null : item.mediaUrl;
             const src = thumb ? sized(abs(thumb) ?? thumb, 360) : null;
             return (
-              <Pressable onPress={() => open(item)} style={{ width: size, height: size, backgroundColor: colors.zinc100 }} accessibilityRole="imagebutton" accessibilityLabel={item.kind === 'video' ? 'Vídeo' : 'Foto'}>
+              <Pressable onPress={() => open(item)} style={{ width: size, height: size, backgroundColor: colors.zinc100 }} accessibilityRole="imagebutton" accessibilityLabel={item.kind === 'video' ? t('Vídeo') : t('Foto')}>
                 {src ? <Image source={{ uri: src }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc800 }]} />}
                 {item.kind === 'video' && <View style={st.play}><Icon name="play" size={14} solid color="#fff" /></View>}
               </Pressable>

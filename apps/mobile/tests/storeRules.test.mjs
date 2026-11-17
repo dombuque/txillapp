@@ -84,7 +84,7 @@ test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, 
   const home = read('components', 'settings', 'SettingsHome.tsx');
   assert.match(home, /hiddenSettingsFor\(purchases\)/);
   assert.match(home, /paymentsSubtitleFor\(purchases, g\.subtitle\)/);
-  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens vibes suficientes\. Carrega a carteira primeiro\.' : 'Não tens vibes suficientes\.'/);
+  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? t\('Não tens vibes suficientes\. Carrega a carteira primeiro\.'\) : t\('Não tens vibes suficientes\.'\)/);
   // O Bombar nas lojas: sem campanha nova paga com Txills (só ver e parar as que existem). Pela loja, só com as compras
   // pela loja ligadas (IAP_READY e o catálogo do servidor), num componente à parte: ver tests/iap.test.mjs.
   const boost = read('components', 'boost', 'VenueBoost.tsx');

@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { LEAFLET_CSS } from './leafletCss';
 import { LEAFLET_JS, RUNTIME_JS } from './leafletInline';
 import type { NearbyMapProps } from './types';
+import { t } from '@/lib/i18n';
 
 // O tipo do WebView 14 com P = undefined dá props "never" no TS estrito: fixa-se P = {}.
 const WV = WebView<{}>;
@@ -54,7 +55,7 @@ export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId
   };
 
   return (
-    <View style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel="Mapa do que há à tua volta">
+    <View style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel={t('Mapa do que há à tua volta')}>
       <WV
         ref={web}
         source={{ html: page(zoomControl) }}

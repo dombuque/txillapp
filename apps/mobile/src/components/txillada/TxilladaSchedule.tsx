@@ -20,6 +20,7 @@ import {
   isNotScheduled, scheduleErrorText, scheduleKindText, withReminded, scheduleGoalText, scheduleShareLink, scheduleShareMessage, scheduledText, shiftMonth, startOfDay, validStart,
   type NextTxillada, type ScheduleInput, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
+import { t } from '@/lib/i18n';
 
 /** Pôr o lembrete (ou tirá-lo) em todas as cópias que a app tem: o cartão, a fila «Em breve», as listas e o perfil. */
 function markReminded(qc: QueryClient, id: string, on: boolean) {
@@ -45,7 +46,7 @@ export function useRemindToggle(): (id: string, on: boolean) => Promise<void> {
     try {
       const r = await txilladaApi.remind(id, on);
       if (r && typeof r.reminded === 'boolean' && r.reminded !== on) markReminded(qc, id, r.reminded);
-      if (on) showToast('Vais ser lembrado quando começar.');
+      if (on) showToast(t('Vais ser lembrado quando começar.'));
     } catch (e) {
       markReminded(qc, id, !on);
       const err = e instanceof ApiError ? e : null;
@@ -74,11 +75,11 @@ export async function shareSchedule(s: Pick<ScheduledTxillada, 'id' | 'host' | '
   const message = scheduleShareMessage(s, Date.now());
   const noShare = Platform.OS === 'web' && typeof navigator !== 'undefined' && typeof (navigator as { share?: unknown }).share !== 'function';
   if (noShare) {
-    try { await Clipboard.setStringAsync(url); showToast('Copiei a ligação da Txillada.'); } catch { showToast(url); }
+    try { await Clipboard.setStringAsync(url); showToast(t('Copiei a ligação da Txillada.')); } catch { showToast(url); }
     return;
   }
   try {
-    await Share.share(linkShare(message, url), { dialogTitle: `Txillada de @${s.host.username}` });
+    await Share.share(linkShare(message, url), { dialogTitle: t('Txillada de @{username}', { username: s.host.username }) });
   } catch { /* cancelado */ }
 }
 
@@ -123,12 +124,12 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
         <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.label === 'Hoje' || p.label === 'Amanhã' ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
       ))}
       {selDay != null && !inPills ? <Chip label={dayLabel(selDay, now)} dark selected={!cal} onPress={() => setCal(false)} /> : null}
-      <Chip label="Outro dia" icon="calendar" dark selected={cal} onPress={() => setCal((v) => !v)} accessibilityLabel="Escolher outro dia no calendário" />
+      <Chip label={t('Outro dia')} icon="calendar" dark selected={cal} onPress={() => setCal((v) => !v)} accessibilityLabel={t('Escolher outro dia no calendário')} />
     </>
   );
   return (
     <View style={{ gap: 10 }}>
-      <Text style={st.label}>Dia</Text>
+      <Text style={st.label}>{t('Dia')}</Text>
       {wide ? (
         <View style={st.pillsWrap}>
           {chips}
@@ -149,8 +150,8 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
           onPick={(day) => { pickDay(day); setCal(false); }}
         />
       ) : null}
-      <Text style={[st.label, { marginTop: 4 }]}>Hora</Text>
-      {selDay != null ? <TimeGrid day={selDay} value={value} now={now} onPick={onChange} /> : <Text style={st.sub}>Escolhe primeiro o dia.</Text>}
+      <Text style={[st.label, { marginTop: 4 }]}>{t('Hora')}</Text>
+      {selDay != null ? <TimeGrid day={selDay} value={value} now={now} onPick={onChange} /> : <Text style={st.sub}>{t('Escolhe primeiro o dia.')}</Text>}
     </View>
   );
 }
@@ -159,11 +160,11 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
 function MonthCalendar({ year, month, now, selected, onPrev, onNext, onPick }: { year: number; month: number; now: number; selected: string | null; onPrev?: () => void; onNext?: () => void; onPick: (day: number) => void }) {
   const weeks = monthGrid(year, month, now);
   return (
-    <View style={st.cal} accessibilityLabel={`Calendário de ${monthTitle(year, month)}`}>
+    <View style={st.cal} accessibilityLabel={t('Calendário de {monthTitle}', { monthTitle: monthTitle(year, month) })}>
       <View style={st.calHead}>
-        <IconButton icon="chevron-left" label="Mês anterior" variant="dark" size={40} iconSize={20} onPress={onPrev ?? (() => undefined)} disabled={!onPrev} />
+        <IconButton icon="chevron-left" label={t('Mês anterior')} variant="dark" size={40} iconSize={20} onPress={onPrev ?? (() => undefined)} disabled={!onPrev} />
         <Text style={st.calTitle}>{monthTitle(year, month)}</Text>
-        <IconButton icon="chevron-right" label="Mês seguinte" variant="dark" size={40} iconSize={20} onPress={onNext ?? (() => undefined)} disabled={!onNext} />
+        <IconButton icon="chevron-right" label={t('Mês seguinte')} variant="dark" size={40} iconSize={20} onPress={onNext ?? (() => undefined)} disabled={!onNext} />
       </View>
       <View style={st.week}>
         {WEEK_INITIALS.map((w, i) => <Text key={i} style={st.weekDay}>{w}</Text>)}
@@ -207,7 +208,7 @@ function TimeGrid({ day, value, now, onPick }: { day: number; value: number | nu
     placed.current = day;
     if (selRow > 0) ref.current?.scrollTo({ y: Math.max(0, selRow - 1) * ROW, animated: false });
   };
-  if (!rows.length) return <Text style={st.sub}>Já não há horas neste dia. Escolhe outro.</Text>;
+  if (!rows.length) return <Text style={st.sub}>{t('Já não há horas neste dia. Escolhe outro.')}</Text>;
   return (
     <ScrollView
       ref={ref}
@@ -216,7 +217,7 @@ function TimeGrid({ day, value, now, onPick }: { day: number; value: number | nu
       showsVerticalScrollIndicator
       onTouchStart={() => { if (sc) sc.top.current = false; }}
       onTouchEnd={() => { if (sc) sc.top.current = true; }}
-      accessibilityLabel="Hora"
+      accessibilityLabel={t('Hora')}
       onContentSizeChange={place}
     >
       {rows.map((r) => (
@@ -257,8 +258,8 @@ export function ScheduleSheet({ form, onClose, onDone, onProfile }: { form: Sche
   const [msg, setMsg] = useState<string | null>(null);
   const [done, setDone] = useState<ScheduledTxillada | null>(null);
   async function save() {
-    if (at == null) { setMsg('Escolhe o dia e a hora.'); return; }
-    if (!validStart(at, Date.now())) { setMsg('Escolhe uma hora pelo menos 15 min à frente.'); return; }
+    if (at == null) { setMsg(t('Escolhe o dia e a hora.')); return; }
+    if (!validStart(at, Date.now())) { setMsg(t('Escolhe uma hora pelo menos 15 min à frente.')); return; }
     setBusy(true);
     setMsg(null);
     try {
@@ -280,24 +281,24 @@ export function ScheduleSheet({ form, onClose, onDone, onProfile }: { form: Sche
           <Text style={st.doneTitle} accessibilityRole="header">{scheduledText(done.startsAt, now)}</Text>
           {done.title ? <Text style={st.doneSub} numberOfLines={2}>{done.title}</Text> : null}
           <Text style={st.doneMeta}>{goal ? `${scheduleKindText(done)}. ${goal}` : scheduleKindText(done)}</Text>
-          <Text style={st.doneHint}>Quem te segue vê-a no teu perfil e pode pedir para ser lembrado. Recebes um aviso 15 min antes.</Text>
+          <Text style={st.doneHint}>{t('Quem te segue vê-a no teu perfil e pode pedir para ser lembrado. Recebes um aviso 15 min antes.')}</Text>
           <View style={st.doneBtns}>
-            <Button label="Partilhar" icon="share" kind="secondary" dark onPress={() => void shareSchedule(done)} style={{ flex: 1 }} />
-            <Button label="Ver no perfil" icon="user" dark onPress={onProfile} style={{ flex: 1 }} />
+            <Button label={t('Partilhar')} icon="share" kind="secondary" dark onPress={() => void shareSchedule(done)} style={{ flex: 1 }} />
+            <Button label={t('Ver no perfil')} icon="user" dark onPress={onProfile} style={{ flex: 1 }} />
           </View>
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet dark title="Agendar a Txillada" onClose={onClose}>
+    <Sheet dark title={t('Agendar a Txillada')} onClose={onClose}>
       <SheetBody>
-        <Text style={st.sub}>Quem te segue vê-a no teu perfil e pode pedir para ser lembrado. Na hora recebes um aviso e começas com um toque.</Text>
+        <Text style={st.sub}>{t('Quem te segue vê-a no teu perfil e pode pedir para ser lembrado. Na hora recebes um aviso e começas com um toque.')}</Text>
         <SchedulePicker value={at} onChange={(v) => { setAt(v); setMsg(null); }} now={now} />
       </SheetBody>
       <View style={st.foot}>
         {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
-        <Button label={at != null ? `Agendar para ${fmtFor(at, now)}` : 'Agendar'} icon="calendar" dark loading={busy} disabled={at == null} onPress={() => void save()} block />
+        <Button label={at != null ? t('Agendar para {for}', { for: fmtFor(at, now) }) : t('Agendar')} icon="calendar" dark loading={busy} disabled={at == null} onPress={() => void save()} block />
       </View>
     </Sheet>
   );
@@ -314,10 +315,10 @@ export function EditScheduleSheet({ s, onClose, onSaved }: { s: ScheduledTxillad
   const [msg, setMsg] = useState<string | null>(null);
   async function save() {
     const body: { title?: string; startsAt?: string } = {};
-    const t = title.replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
-    if (t !== (s.title ?? '').trim()) body.title = t;
+    const txt = title.replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
+    if (txt !== (s.title ?? '').trim()) body.title = txt;
     if (at != null && at !== first) {
-      if (!validStart(at, Date.now())) { setMsg('Escolhe uma hora pelo menos 15 min à frente.'); return; }
+      if (!validStart(at, Date.now())) { setMsg(t('Escolhe uma hora pelo menos 15 min à frente.')); return; }
       body.startsAt = new Date(at).toISOString();
     }
     if (body.title === undefined && !body.startsAt) { onClose(); return; }
@@ -335,26 +336,26 @@ export function EditScheduleSheet({ s, onClose, onSaved }: { s: ScheduledTxillad
     }
   }
   return (
-    <Sheet dark title="Editar a Txillada" onClose={onClose}>
+    <Sheet dark title={t('Editar a Txillada')} onClose={onClose}>
       <SheetBody>
         <View style={st.field}>
           <TextInput
             value={title}
             onChangeText={(v) => { setTitle(v.slice(0, TITLE_MAX)); setMsg(null); }}
             maxLength={TITLE_MAX}
-            placeholder="Título (opcional)"
+            placeholder={t('Título (opcional)')}
             placeholderTextColor={D.sub}
             style={st.input}
-            accessibilityLabel="Título da Txillada"
+            accessibilityLabel={t('Título da Txillada')}
           />
           <Text style={st.count}>{TITLE_MAX - title.length}</Text>
         </View>
-        <Text style={st.sub}>{`${scheduleKindText(s)}. O tipo, o preço e a meta não mudam. Se mudares a hora, quem pediu para ser lembrado recebe um aviso.`}</Text>
+        <Text style={st.sub}>{t('{scheduleKindText}. O tipo, o preço e a meta não mudam. Se mudares a hora, quem pediu para ser lembrado recebe um aviso.', { scheduleKindText: scheduleKindText(s) })}</Text>
         <SchedulePicker value={at} onChange={(v) => { setAt(v); setMsg(null); }} now={now} />
       </SheetBody>
       <View style={st.foot}>
         {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
-        <Button label="Guardar" dark loading={busy} onPress={() => void save()} block />
+        <Button label={t('Guardar')} dark loading={busy} onPress={() => void save()} block />
       </View>
     </Sheet>
   );

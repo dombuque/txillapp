@@ -14,6 +14,7 @@ import type { Shot } from '../TxCamera';
 import { DuetGlyph } from './RemixParts';
 import { RemixRecorder, type RemixOriginal } from './RemixRecorder';
 import { DarkToggle, RemixReview } from './RemixReview';
+import { t } from '@/lib/i18n';
 
 /** Um ecrã escuro com uma mensagem e «Voltar» (dueto indisponível, no telemóvel, ou erro ao carregar). */
 export function RemixMessage({ title, text, action, onClose }: { title: string; text: string; action?: { label: string; onPress: () => void }; onClose: () => void }) {
@@ -24,7 +25,7 @@ export function RemixMessage({ title, text, action, onClose }: { title: string; 
       <Text style={st.msgTitle}>{title}</Text>
       <Text style={st.msgText}>{text}</Text>
       {action ? <Pressable onPress={action.onPress} style={st.msgCta} accessibilityRole="button"><Text style={st.msgCtaText}>{action.label}</Text></Pressable> : null}
-      <Pressable onPress={onClose} style={st.msgBack} accessibilityRole="button"><Text style={st.msgBackText}>Voltar</Text></Pressable>
+      <Pressable onPress={onClose} style={st.msgBack} accessibilityRole="button"><Text style={st.msgBackText}>{t('Voltar')}</Text></Pressable>
     </View>
   );
 }
@@ -53,20 +54,20 @@ export function DuetStudio({ postId }: { postId: string }) {
   if (Platform.OS !== 'web') {
     return (
       <RemixMessage
-        title="O dueto ainda só está no site"
-        text="Para gravar ao lado desta tcheka, abre o Txillapp no browser do telemóvel ou do computador. Em breve chega à app."
-        action={{ label: 'Abrir no site', onPress: () => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${duetHref(postId)}`) }}
+        title={t('O dueto ainda só está no site')}
+        text={t('Para gravar ao lado desta tcheka, abre o Txillapp no browser do telemóvel ou do computador. Em breve chega à app.')}
+        action={{ label: t('Abrir no site'), onPress: () => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${duetHref(postId)}`) }}
         onClose={close}
       />
     );
   }
   if (q.isLoading) return <View style={st.loading}><ActivityIndicator color="#fff" /></View>;
-  if (!p) return <RemixMessage title="Tcheka não encontrada" text="Pode ter sido apagada, ou a conta passou a privada." onClose={close} />;
-  if (!original) return <RemixMessage title="Só dá para fazer dueto com uma tcheka" text="Esta publicação não é uma tcheka (um vídeo só)." onClose={close} />;
-  if (!p.canRemix) return <RemixMessage title="Duetos desligados" text={`${p.author.displayName} não deixa fazer duetos nem responder com tchekas.`} onClose={close} />;
+  if (!p) return <RemixMessage title={t('Tcheka não encontrada')} text={t('Pode ter sido apagada, ou a conta passou a privada.')} onClose={close} />;
+  if (!original) return <RemixMessage title={t('Só dá para fazer dueto com uma tcheka')} text={t('Esta publicação não é uma tcheka (um vídeo só).')} onClose={close} />;
+  if (!p.canRemix) return <RemixMessage title={t('Duetos desligados')} text={t('{displayName} não deixa fazer duetos nem responder com tchekas.', { displayName: p.author.displayName })} onClose={close} />;
 
   const who = `@${p.author.username}`;
-  if (!shot) return <RemixRecorder original={original} title={`Dueto com ${who}`} onDone={onDone} onClose={close} />;
+  if (!shot) return <RemixRecorder original={original} title={t('Dueto com {who}', { who })} onDone={onDone} onClose={close} />;
 
   function publish(body: string) {
     if (!shot || busy) return;
@@ -81,7 +82,7 @@ export function DuetStudio({ postId }: { postId: string }) {
   return (
     <RemixReview
       uri={shot.uri}
-      title={`Dueto com ${who}`}
+      title={t('Dueto com {who}', { who })}
       busy={busy}
       onBack={() => { URL.revokeObjectURL(shot.uri); setShot(null); }}
       onPublish={publish}
@@ -90,12 +91,12 @@ export function DuetStudio({ postId }: { postId: string }) {
           <DarkToggle
             on={keepSound}
             onChange={setKeepSound}
-            title={p.sound || p.music ? `Som do original: ${p.sound?.title ?? p.music?.title}` : 'Som do original'}
-            sub={keepSound ? 'O dueto fica ligado ao som desta tcheka' : 'O dueto fica só com o som gravado'}
+            title={p.sound || p.music ? t('Som do original: {title}', { title: String(p.sound?.title ?? p.music?.title) }) : t('Som do original')}
+            sub={keepSound ? t('O dueto fica ligado ao som desta tcheka') : t('O dueto fica só com o som gravado')}
           />
           <View style={st.credit}>
             <Icon name="info" size={14} color="rgba(255,255,255,0.7)" />
-            <Text style={st.creditText}>Aparece «Dueto com {who}», com ligação à tcheka original.</Text>
+            <Text style={st.creditText}>{t('Aparece «Dueto com {who}», com ligação à tcheka original.', { who })}</Text>
           </View>
         </>
       }

@@ -9,6 +9,7 @@ import type { Badged } from '@/lib/api';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { NameWithBadge } from '../NameWithBadge';
+import { t } from '@/lib/i18n';
 
 const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
@@ -79,7 +80,7 @@ export function ReactionBar({ mine, theirs, partner, onPick, dark = true, style,
   style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View style={[st.bar, dark ? st.barDark : st.barLight, style]} accessibilityRole="toolbar" accessibilityLabel={others ? 'Reações do Mixar (só quem está no Mixar do grupo vê)' : 'Reações do Mixar (só vocês os dois veem)'}>
+    <View style={[st.bar, dark ? st.barDark : st.barLight, style]} accessibilityRole="toolbar" accessibilityLabel={others ? t('Reações do Mixar (só quem está no Mixar do grupo vê)') : t('Reações do Mixar (só vocês os dois veem)')}>
       {MIXAR_REACTIONS.map((r) => {
         if (!others) return <ReactionButton key={r.id} r={r} mine={mine === r.id} theirs={theirs === r.id} partner={partner} onPress={() => onPick(r.id)} dark={dark} />;
         const who = others.filter((o) => o.reaction === r.id).map((o) => o.who);
@@ -133,7 +134,7 @@ export function ReasonChip({ from, topic, partner, text: override, icon }: { fro
 
 /** «Visto por Ana»: o outro já viu este item. */
 export function SeenBy({ partner, text }: { partner: Who; /** Mixar de grupo: «Visto por Ana e Zeca», «Visto por todos». */ text?: string }) {
-  const line = text ?? `Visto por ${partner.name}`;
+  const line = text ?? t('Visto por {name}', { name: partner.name });
   return (
     <View style={st.seen} accessibilityRole="text" accessibilityLabel={line}>
       <Icon name="eye" size={13} color="rgba(255,255,255,0.9)" strokeWidth={2.2} />

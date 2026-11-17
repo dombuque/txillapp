@@ -10,6 +10,7 @@ import { CARD_ACTION_LABEL, firstName, mixarCardState, mixarErrorText } from '@/
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
 import { MIXAR_GRADIENT, MixarBadge } from './MixarBits';
+import { t } from '@/lib/i18n';
 
 const CARD_W = 268;
 
@@ -44,7 +45,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
       setM({ ...m, status: 'active', name: r.name || m.name });
       refresh();
     } catch (e) {
-      showToast(mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, t('Não consegui aceitar agora. Tenta outra vez.')));
     } finally {
       setBusy(null);
     }
@@ -57,7 +58,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
       setM({ ...m, status: 'declined' });
       refresh();
     } catch (e) {
-      showToast(mixarErrorText(e, 'Não consegui recusar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, t('Não consegui recusar agora. Tenta outra vez.')));
     } finally {
       setBusy(null);
     }
@@ -94,19 +95,19 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
         ) : null}
         {s.actions.includes('accept') ? (
           <View style={{ gap: 8, marginTop: 12 }}>
-            <Pressable disabled={!!busy} onPress={() => void accept()} style={({ pressed }) => [st.btn, st.primary, pressed && st.pressed, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Aceitar o Mixar com ${partner}`}>
+            <Pressable disabled={!!busy} onPress={() => void accept()} style={({ pressed }) => [st.btn, st.primary, pressed && st.pressed, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Aceitar o Mixar com {partner}', { partner })}>
               <Icon name="mixar" size={18} color="#fff" />
-              <Text style={st.primaryText}>{busy === 'accept' ? 'A juntar…' : CARD_ACTION_LABEL.accept}</Text>
+              <Text style={st.primaryText}>{busy === 'accept' ? t('A juntar…') : CARD_ACTION_LABEL.accept}</Text>
             </Pressable>
-            <Pressable disabled={!!busy} onPress={() => void decline()} style={({ pressed }) => [st.btn, st.ghost, pressed && st.pressed, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Agora não: recusar o Mixar com ${partner}`}>
-              <Text style={st.ghostText}>{busy === 'decline' ? 'A recusar…' : CARD_ACTION_LABEL.decline}</Text>
+            <Pressable disabled={!!busy} onPress={() => void decline()} style={({ pressed }) => [st.btn, st.ghost, pressed && st.pressed, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Agora não: recusar o Mixar com {partner}', { partner })}>
+              <Text style={st.ghostText}>{busy === 'decline' ? t('A recusar…') : CARD_ACTION_LABEL.decline}</Text>
             </Pressable>
           </View>
         ) : null}
         {s.actions.includes('open') ? (
           <>
             <Text style={st.line}>{s.line}</Text>
-            <Pressable onPress={open} style={({ pressed }) => [st.btn, st.primary, { marginTop: 12 }, pressed && st.pressed]} accessibilityRole="button" accessibilityLabel={`Abrir o Mixar ${s.title}`}>
+            <Pressable onPress={open} style={({ pressed }) => [st.btn, st.primary, { marginTop: 12 }, pressed && st.pressed]} accessibilityRole="button" accessibilityLabel={t('Abrir o Mixar {title}', { title: s.title })}>
               <Text style={st.primaryText}>{CARD_ACTION_LABEL.open}</Text>
               <Icon name="chevron-right" size={16} color="#fff" strokeWidth={2.6} />
             </Pressable>

@@ -4,6 +4,7 @@ import { CAMERA_EVERY_MS, cameraPass } from '@/lib/qrDecode';
 import { browserKind, classifyCameraError, permissionSteps, type CamProblem } from '@/lib/webCamera';
 import { detectNative, drawPass, loadJsQr, makeCanvas, qrEngine, readJsQr } from '@/lib/qrWeb';
 import { QrCameraNote } from './QrCameraNote';
+import { t } from '@/lib/i18n';
 
 export interface QrCameraProps {
   /** Parado (a mostrar o que se leu): a câmara fica, mas não lê. */
@@ -16,12 +17,12 @@ export interface QrCameraProps {
 type Phase = 'checking' | 'idle' | 'starting' | 'live' | CamProblem;
 
 const NOTES: Record<CamProblem, { title: string; sub: string }> = {
-  denied: { title: 'Sem acesso à câmara', sub: 'O browser não deixou usar a câmara. Podes ligá-la assim, ou escolher a imagem do QR:' },
-  busy: { title: 'A câmara está ocupada', sub: 'Outra app ou separador está a usá-la. Fecha-o e tenta outra vez, ou escolhe a imagem do QR.' },
-  nocamera: { title: 'Não encontrei câmara', sub: 'Este aparelho não tem câmara. Escolhe a imagem do QR (ou cola-a aqui).' },
-  insecure: { title: 'A câmara precisa de ligação segura', sub: 'Abre o Txillapp em https://txillapp.com para usar a câmara, ou escolhe a imagem do QR.' },
-  constraint: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe a imagem do QR.' },
-  failed: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe a imagem do QR.' },
+  denied: { get title() { return t('Sem acesso à câmara'); }, get sub() { return t('O browser não deixou usar a câmara. Podes ligá-la assim, ou escolher a imagem do QR:'); } },
+  busy: { get title() { return t('A câmara está ocupada'); }, get sub() { return t('Outra app ou separador está a usá-la. Fecha-o e tenta outra vez, ou escolhe a imagem do QR.'); } },
+  nocamera: { get title() { return t('Não encontrei câmara'); }, get sub() { return t('Este aparelho não tem câmara. Escolhe a imagem do QR (ou cola-a aqui).'); } },
+  insecure: { get title() { return t('A câmara precisa de ligação segura'); }, sub: 'Abre o Txillapp em https://txillapp.com para usar a câmara, ou escolhe a imagem do QR.' },
+  constraint: { get title() { return t('Não consegui abrir a câmara'); }, get sub() { return t('Tenta outra vez, ou escolhe a imagem do QR.'); } },
+  failed: { get title() { return t('Não consegui abrir a câmara'); }, get sub() { return t('Tenta outra vez, ou escolhe a imagem do QR.'); } },
 };
 
 const browserNow = () =>
@@ -164,11 +165,11 @@ export function QrCamera({ paused, onRead, onLive }: QrCameraProps) {
 
   const note =
     phase === 'checking' || phase === 'starting' ? (
-      <QrCameraNote title="A abrir a câmara…" busy />
+      <QrCameraNote title={t('A abrir a câmara…')} busy />
     ) : phase === 'idle' ? (
-      <QrCameraNote title="Ler com a câmara" sub="Aponta a câmara ao QR de outro telemóvel ou de um papel." action="Ligar a câmara" onAction={() => void start()} />
+      <QrCameraNote title={t('Ler com a câmara')} sub={t('Aponta a câmara ao QR de outro telemóvel ou de um papel.')} action={t('Ligar a câmara')} onAction={() => void start()} />
     ) : phase !== 'live' ? (
-      <QrCameraNote title={NOTES[phase].title} sub={NOTES[phase].sub} steps={phase === 'denied' ? steps : undefined} action={phase === 'nocamera' || phase === 'insecure' ? undefined : 'Tentar outra vez'} onAction={() => void start()} />
+      <QrCameraNote title={NOTES[phase].title} sub={NOTES[phase].sub} steps={phase === 'denied' ? steps : undefined} action={phase === 'nocamera' || phase === 'insecure' ? undefined : t('Tentar outra vez')} onAction={() => void start()} />
     ) : null;
 
   return (
@@ -178,7 +179,7 @@ export function QrCamera({ paused, onRead, onLive }: QrCameraProps) {
         playsInline: true,
         muted: true,
         autoPlay: true,
-        'aria-label': 'Imagem da câmara',
+        'aria-label': t('Imagem da câmara'),
         style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: phase === 'live' ? 'block' : 'none' },
       })}
       {note}

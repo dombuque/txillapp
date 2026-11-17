@@ -153,8 +153,8 @@ test('estados: EmptyState com botão e escuro (Empty continua), ErrorState com �
   assert.match(e, /export const Empty = EmptyState;/);
   assert.match(e, /box: \{ marginHorizontal: 32, marginTop: 48,/);
   const er = read('components', 'ui', 'ErrorState.tsx');
-  assert.match(er, /retryLabel = 'Tentar outra vez'/);
-  assert.match(er, /`Ups, não consegui carregar \$\{what\}`/);
+  assert.match(er, /retryLabel = t\('Tentar outra vez'\)/);
+  assert.match(er, /t\('Ups, não consegui carregar \{what\}', \{ what \}\)/);
   assert.match(er, /'Verifica a ligação e tenta outra vez\.'/);
   assert.match(er, /kind: 'secondary'/);
 });
@@ -164,7 +164,7 @@ test('componentes de components/ui existem: Chip, SegmentedTabs, SearchField, Se
     assert.ok(existsSync(path.join(ROOT, 'src', 'components', 'ui', `${f}.tsx`)), f);
   }
   assert.match(read('components', 'ui', 'Chip.tsx'), /chip: \{ height: 36, borderRadius: 999,/);
-  assert.match(read('components', 'ui', 'SearchField.tsx'), /accessibilityLabel="Limpar a pesquisa"/);
+  assert.match(read('components', 'ui', 'SearchField.tsx'), /accessibilityLabel=\{t\('Limpar a pesquisa'\)\}/);
   assert.match(read('components', 'ui', 'SearchField.tsx'), /box: \{ height: 44, borderRadius: 999,/);
   assert.match(read('components', 'ui', 'SegmentedTabs.tsx'), /accessibilityRole="tab"/);
   assert.match(read('components', 'ui', 'SendButton.tsx'), /<Icon name="arrow-up" size=\{22\} color="#fff"/);

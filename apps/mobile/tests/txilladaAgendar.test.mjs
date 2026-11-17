@@ -237,7 +237,7 @@ test('o cliente da API: agendar, listas, um, editar, cancelar, lembrar e começa
 test('as peças na app: preparar, cartão, perfil, «Em breve» e notificações', () => {
   const prep = read('components/txillada/TxilladaPrep.tsx');
   assert.match(prep, /ScheduleSheet/);
-  assert.match(prep, />Agendar</);
+  assert.match(prep, />\{t\('Agendar'\)\}</);
   const parts = read('components/txillada/TxilladaSchedule.tsx');
   for (const t of ['Outro dia', 'Agendar a Txillada', 'Partilhar', 'Ver no perfil', 'Editar a Txillada']) assert.ok(parts.includes(t), t);
   const route = 'app/txillada/agendada/[id].tsx';

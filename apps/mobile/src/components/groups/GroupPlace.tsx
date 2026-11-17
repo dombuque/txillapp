@@ -12,6 +12,7 @@ import { PLACE_LABEL_MAX, PRIVACY_NOTE, cleanPlaceLabel, type PlaceChoice } from
 import { kvGet } from '@/lib/kv';
 import { colors } from '@/lib/theme';
 import { ErrText, Field, Pill } from './GroupParts';
+import { t } from '@/lib/i18n';
 
 /**
  * O passo "Onde é o grupo?" (antes de "Guardar" num modo do mapa): usar o local do Plano ou marcar no mapa.
@@ -19,18 +20,18 @@ import { ErrText, Field, Pill } from './GroupParts';
  */
 export function PlaceStep({ onVenue, onMap, onKeep }: { onVenue: () => void; onMap: () => void; onKeep?: () => void }) {
   return (
-    <View style={s.step} accessibilityLabel="Onde é o grupo?">
-      <Text style={s.stepTitle} accessibilityRole="header">Onde é o grupo?</Text>
-      <Text style={s.stepText}>Para aparecer em À tua volta, o grupo precisa de um sítio no mapa.</Text>
-      <Pill label="Usar o local do plano" icon="store" kind="soft" onPress={onVenue} />
-      <Pill label="Marcar no mapa" icon="map-pin" kind="soft" onPress={onMap} />
+    <View style={s.step} accessibilityLabel={t('Onde é o grupo?')}>
+      <Text style={s.stepTitle} accessibilityRole="header">{t('Onde é o grupo?')}</Text>
+      <Text style={s.stepText}>{t('Para aparecer em À tua volta, o grupo precisa de um sítio no mapa.')}</Text>
+      <Pill label={t('Usar o local do plano')} icon="store" kind="soft" onPress={onVenue} />
+      <Pill label={t('Marcar no mapa')} icon="map-pin" kind="soft" onPress={onMap} />
       <View style={s.note}>
         <Icon name="lock" size={14} color={colors.zinc500} />
         <Text style={s.noteText}>{PRIVACY_NOTE}</Text>
       </View>
       {onKeep ? (
         <Pressable onPress={onKeep} style={s.keep} accessibilityRole="button" hitSlop={6}>
-          <Text style={s.keepText}>Manter o sítio</Text>
+          <Text style={s.keepText}>{t('Manter o sítio')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -39,18 +40,18 @@ export function PlaceStep({ onVenue, onMap, onKeep }: { onVenue: () => void; onM
 
 /** "Aparece em: Costa do Sol · Mudar" (administradores) ou só o selo do sítio (os outros membros, sem `onChange`). */
 export function PlaceRow({ label, pending, onChange }: { label: string | null; pending?: boolean; onChange?: () => void }) {
-  const text = label ?? 'zona marcada no mapa';
+  const text = label ?? t('zona marcada no mapa');
   return (
-    <View style={s.row} accessibilityLabel={`Aparece em ${text}${pending ? ', por guardar' : ''}`}>
+    <View style={s.row} accessibilityLabel={t('Aparece em {text}{value}', { text, value: pending ? t(', por guardar') : '' })}>
       <Icon name="map-pin" size={16} color={colors.brand} />
       <Text style={s.rowText} numberOfLines={1}>
-        <Text style={s.rowDim}>Aparece em: </Text>
+        <Text style={s.rowDim}>{t('Aparece em:')} </Text>
         {text}
-        {pending ? <Text style={s.rowDim}>  · por guardar</Text> : null}
+        {pending ? <Text style={s.rowDim}>  {t('· por guardar')}</Text> : null}
       </Text>
       {onChange ? (
-        <Pressable onPress={onChange} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mudar o sítio do grupo">
-          <Text style={s.rowLink}>Mudar</Text>
+        <Pressable onPress={onChange} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Mudar o sítio do grupo')}>
+          <Text style={s.rowLink}>{t('Mudar')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -94,7 +95,7 @@ export function MapPointSheet({ initial, onPick, onClose }: { initial?: (LatLng 
     if (!alive.current) return;
     setLocating(false);
     if (here) setCenter(here);
-    else setErr('Não consegui saber onde estás. Arrasta o mapa até ao sítio ou liga a localização.');
+    else setErr(t('Não consegui saber onde estás. Arrasta o mapa até ao sítio ou liga a localização.'));
   }
 
   function use() {
@@ -104,19 +105,19 @@ export function MapPointSheet({ initial, onPick, onClose }: { initial?: (LatLng 
   }
 
   return (
-    <Sheet title="Marcar no mapa" onClose={onClose} full>
+    <Sheet title={t('Marcar no mapa')} onClose={onClose} full>
       {/* Sem ScrollView: o mapa apanha os gestos todos; com o teclado aberto o mapa encolhe. */}
       <View style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
-        <Text style={s.stepText}>Arrasta o mapa até o alfinete ficar no sítio do grupo.</Text>
-        {center ? <MapBox center={center} onMove={setPoint} /> : <View style={[s.map, s.mapWait]}><Text style={s.noteText}>A abrir o mapa…</Text></View>}
-        <Pill label={locating ? 'A procurar…' : 'Ir para a minha posição'} icon="locate" kind="soft" small busy={locating} onPress={() => void mine()} style={{ alignSelf: 'flex-start' }} />
+        <Text style={s.stepText}>{t('Arrasta o mapa até o alfinete ficar no sítio do grupo.')}</Text>
+        {center ? <MapBox center={center} onMove={setPoint} /> : <View style={[s.map, s.mapWait]}><Text style={s.noteText}>{t('A abrir o mapa…')}</Text></View>}
+        <Pill label={locating ? t('A procurar…') : t('Ir para a minha posição')} icon="locate" kind="soft" small busy={locating} onPress={() => void mine()} style={{ alignSelf: 'flex-start' }} />
         <ErrText text={err} />
-        <Field value={label} onChangeText={setLabel} maxLength={PLACE_LABEL_MAX} placeholder="Nome do sítio (opcional) · ex.: Costa do Sol" accessibilityLabel="Nome do sítio, opcional" returnKeyType="done" onSubmitEditing={use} />
+        <Field value={label} onChangeText={setLabel} maxLength={PLACE_LABEL_MAX} placeholder={t('Nome do sítio (opcional) · ex.: Costa do Sol')} accessibilityLabel={t('Nome do sítio, opcional')} returnKeyType="done" onSubmitEditing={use} />
         <View style={s.note}>
           <Icon name="lock" size={14} color={colors.zinc500} />
           <Text style={s.noteText}>{PRIVACY_NOTE}</Text>
         </View>
-        <Pill label="Usar este sítio" onPress={use} disabled={!point} />
+        <Pill label={t('Usar este sítio')} onPress={use} disabled={!point} />
       </View>
     </Sheet>
   );
@@ -134,7 +135,7 @@ function MapBox({ center, onMove }: { center: LatLng; onMove: (c: LatLng) => voi
       onTouchEnd={free}
       onTouchCancel={free}
       accessible={Platform.OS !== 'web'}
-      accessibilityLabel="Mapa para marcar o sítio do grupo. Arrasta o mapa para mover o alfinete."
+      accessibilityLabel={t('Mapa para marcar o sítio do grupo. Arrasta o mapa para mover o alfinete.')}
     >
       <PlacePickMap center={center} onMove={onMove} style={{ flex: 1 }} />
     </View>

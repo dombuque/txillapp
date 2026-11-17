@@ -5,6 +5,7 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { sized } from '@/lib/config';
 import { marqueeMs, type SoundView } from '@/lib/reelView';
+import { t } from '@/lib/i18n';
 
 const nd = Platform.OS !== 'web';
 // As voltas sem fim levam isInteraction: false. Sem isso cada volta conta como «interação» a decorrer e a lista das
@@ -31,7 +32,7 @@ export function SoundDisc({ sound, spinning, onPress }: { sound: SoundView; spin
   }, [spinning, turn]);
   const rotate = turn.interpolate({ inputRange: [0, 2], outputRange: ['0deg', '720deg'] });
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.discHit, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="link" accessibilityLabel={`Som: ${sound.label}`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.discHit, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="link" accessibilityLabel={t('Som: {label}', { label: sound.label })}>
       <Animated.View style={[st.disc, { transform: [{ rotate }] }]}>
         <View style={st.grooves} pointerEvents="none" />
         <View style={st.cover}>
@@ -76,7 +77,7 @@ export function SoundMarquee({ sound, running, onPress, width }: { sound: SoundV
     </Text>
   );
   return (
-    <Pressable onPress={onPress} style={st.marquee} accessibilityRole="link" accessibilityLabel={`Som: ${sound.label}`}>
+    <Pressable onPress={onPress} style={st.marquee} accessibilityRole="link" accessibilityLabel={t('Som: {label}', { label: sound.label })}>
       <Icon name="music" size={14} color="#fff" strokeWidth={2.2} />
       <View style={[st.marqueeBox, { width: box }]}>
         <Animated.View style={[st.marqueeRow, { transform: [{ translateX: x }] }]}>

@@ -7,6 +7,7 @@ import { InlineBadge, NameWithBadge } from '@/components/NameWithBadge';
 import { colors, dark as D } from '@/lib/theme';
 import { REACTIONS, joinedParts, partsText, viewerStack, type FxParticle, type FxPerson, type Hello, type ReactionKind, type TextPart } from '@/lib/txilladaFx';
 import { viewersLabel } from '@/lib/txillada';
+import { t } from '@/lib/i18n';
 
 /** Um texto com @: cada conta verificada leva o selo logo a seguir ao @ (em todo o lado, como nos comentários). */
 function Parts({ parts, style, lines = 1 }: { parts: readonly TextPart[]; style: object; lines?: number }) {
@@ -75,7 +76,7 @@ export function FxLayer({ items, bottom, height, right, reduce }: { items: reado
 export function ReactionBar({ onReact, only }: { onReact: (k: ReactionKind) => void; only?: readonly ReactionKind[] }) {
   const list = only ? REACTIONS.filter((r) => only.includes(r.kind)) : REACTIONS;
   return (
-    <View style={fx.bar} accessibilityRole="toolbar" accessibilityLabel="Reações">
+    <View style={fx.bar} accessibilityRole="toolbar" accessibilityLabel={t('Reações')}>
       {list.map((r) => (
         <Pressable
           key={r.kind}
@@ -96,9 +97,9 @@ export function ReactionBar({ onReact, only }: { onReact: (k: ReactionKind) => v
 /** O botão do anfitrião: «👋 Olá a todos» (a saudação aparece em grande a quem está a ver). */
 export function HelloAllButton({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} hitSlop={4} style={({ pressed }) => [fx.helloAll, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel="Dizer olá a todos">
+    <Pressable onPress={onPress} hitSlop={4} style={({ pressed }) => [fx.helloAll, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={t('Dizer olá a todos')}>
       <Text style={fx.reactEmoji}>👋</Text>
-      <Text style={fx.helloAllText}>Olá a todos</Text>
+      <Text style={fx.helloAllText}>{t('Olá a todos')}</Text>
     </Pressable>
   );
 }
@@ -157,14 +158,14 @@ export function JoinedToast({ users, bottom, left, onHello }: { users: readonly 
         ))}
       </View>
       <Parts parts={parts} style={fx.joinText} />
-      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>{users.length === 1 ? 'Dizer olá' : 'Olá a todos'}</Text></View> : null}
+      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>{users.length === 1 ? t('Dizer olá') : t('Olá a todos')}</Text></View> : null}
     </>
   );
   return (
     <View style={[fx.joinWrap, { bottom, left }]} pointerEvents="box-none">
       <Animated.View key={text} entering={FadeIn.duration(200)} exiting={FadeOut.duration(220)}>
         {onHello ? (
-          <Pressable onPress={() => onHello(users.length === 1 ? first : null)} style={({ pressed }) => [fx.join, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${text}. Toca para dizer olá`}>
+          <Pressable onPress={() => onHello(users.length === 1 ? first : null)} style={({ pressed }) => [fx.join, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('{text}. Toca para dizer olá', { text })}>
             {body}
           </Pressable>
         ) : (
@@ -181,7 +182,7 @@ export function JoinedToast({ users, bottom, left, onHello }: { users: readonly 
 export function ViewersStack({ items, total, onPress }: { items: readonly FxPerson[]; total: number; onPress: () => void }) {
   const s = viewerStack(items, total, 3);
   return (
-    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [fx.stack, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={`${viewersLabel(s.count)}. Ver quem está a ver`}>
+    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [fx.stack, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={t('{viewersLabel}. Ver quem está a ver', { viewersLabel: viewersLabel(s.count) })}>
       {s.shown.length ? (
         <View style={fx.stackAvatars}>
           {s.shown.map((u, i) => (
@@ -203,7 +204,7 @@ export function ViewersList({ items, onOpen }: { items: readonly FxPerson[]; onO
     return (
       <View style={fx.empty}>
         <Icon name="users" size={28} color={D.sub} />
-        <Text style={fx.emptyText}>Ainda ninguém está a ver.</Text>
+        <Text style={fx.emptyText}>{t('Ainda ninguém está a ver.')}</Text>
       </View>
     );
   }

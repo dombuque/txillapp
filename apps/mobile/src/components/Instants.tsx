@@ -675,7 +675,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
           ) : slot === 'hint' ? (
             <View style={st.recapHint}>
               <Icon name="sparkles" size={14} color="rgba(255,255,255,0.55)" />
-              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{RECAP_HINT}</Text>
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{RECAP_HINT()}</Text>
             </View>
           ) : null}
           {items === null ? (

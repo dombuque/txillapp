@@ -23,6 +23,7 @@ import { ReportSheet } from '../ReportSheet';
 import { RailButton } from '../reel/ReelExtraActions';
 import { Sheet } from '../Sheet';
 import { MIXAR_GRADIENT, ReactionGlyph } from './MixarBits';
+import { t } from '@/lib/i18n';
 
 const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
@@ -47,13 +48,13 @@ export function MixarRailButtons({ comments, saved, partner, onComments, onToggl
             {badge ? <View style={st.badge} pointerEvents="none"><Text style={st.badgeText} allowFontScaling={false}>{badge}</Text></View> : null}
           </MixarCircle>
         }
-        label="Conversa"
+        label={t('Conversa')}
         onPress={onComments}
         accessibilityLabel={commentA11y(comments, partner)}
       />
       <RailButton
         icon={<MixarCircle on={saved}><BookmarkIcon on={saved} size={28} color={saved ? '#f5c518' : '#fff'} /></MixarCircle>}
-        label={saved ? 'Guardado' : 'Guardar'}
+        label={saved ? t('Guardado') : t('Guardar')}
         onPress={onToggleSave}
         selected={saved}
         accessibilityLabel={saveA11y(saved)}
@@ -120,21 +121,21 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
         qc.setQueryData<InfiniteData<MixarCommentsPage>>(key, (d) => (d ? { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) } : d));
         refreshCounts();
       } catch {
-        setErr('Não consegui apagar. Tenta outra vez.');
+        setErr(t('Não consegui apagar. Tenta outra vez.'));
       }
     };
     // A caixa da app (lib/confirm), igual no telemóvel e no site.
-    void confirm({ title: 'Apagar o comentário?', message: group ? GROUP_COMMENTS.remove : `Deixa de se ver para ti e para ${partner.name}.`, confirm: 'Apagar', danger: true }).then((ok) => { if (ok) void go(); });
+    void confirm({ title: t('Apagar o comentário?'), message: group ? GROUP_COMMENTS.remove : t('Deixa de se ver para ti e para {name}.', { name: partner.name }), confirm: t('Apagar'), danger: true }).then((ok) => { if (ok) void go(); });
   }
   const hide = (c: MixarComment) => qc.setQueryData<InfiniteData<MixarCommentsPage>>(key, (d) => (d ? { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) } : d));
 
   if (reporting) return <ReportSheet type="mixar_comment" id={reporting.id} onClose={() => setReporting(null)} onReported={() => { hide(reporting); refreshCounts(); }} />;
 
   return (
-    <Sheet title="Conversa sobre este vídeo" onClose={onClose}>
+    <Sheet title={t('Conversa sobre este vídeo')} onClose={onClose}>
       <View style={st.private}>
         <Icon name="lock" size={14} color={colors.zinc500} />
-        <Text style={st.privateText}>{group ? GROUP_COMMENTS.private : `Só tu e ${partner.name} veem isto`}</Text>
+        <Text style={st.privateText}>{group ? GROUP_COMMENTS.private : t('Só tu e {name} veem isto', { name: partner.name })}</Text>
       </View>
       <FlatList
         ref={list}
@@ -146,7 +147,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
         onContentSizeChange={() => { if (stick.current) list.current?.scrollToEnd({ animated: false }); }}
         ListHeaderComponent={q.hasNextPage ? (
           <Pressable onPress={() => { stick.current = false; void q.fetchNextPage(); }} disabled={q.isFetchingNextPage} style={st.older} accessibilityRole="button">
-            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={st.olderText}>Ver as mais antigas</Text>}
+            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={st.olderText}>{t('Ver as mais antigas')}</Text>}
           </Pressable>
         ) : undefined}
         renderItem={({ item: c }) => (
@@ -158,12 +159,12 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
               <View style={st.meta}>
                 <Text style={[st.ago, c.mine && { color: 'rgba(255,255,255,0.8)' }]}>{timeAgo(c.createdAt)}</Text>
                 {c.mine ? (
-                  <Pressable onPress={() => remove(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Apagar o meu comentário">
-                    <Text style={[st.action, { color: 'rgba(255,255,255,0.9)' }]}>Apagar</Text>
+                  <Pressable onPress={() => remove(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Apagar o meu comentário')}>
+                    <Text style={[st.action, { color: 'rgba(255,255,255,0.9)' }]}>{t('Apagar')}</Text>
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => setReporting(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.displayName}`}>
-                    <Text style={st.action}>Denunciar</Text>
+                  <Pressable onPress={() => setReporting(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Denunciar o comentário de {displayName}', { displayName: c.author.displayName })}>
+                    <Text style={st.action}>{t('Denunciar')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -173,8 +174,8 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
         ListEmptyComponent={
           q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
             <View style={st.emptyBox} accessibilityRole="alert">
-              <Text style={[st.emptyLine, { color: colors.red600 }]}>Ups, não consegui carregar</Text>
-              <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+              <Text style={[st.emptyLine, { color: colors.red600 }]}>{t('Ups, não consegui carregar')}</Text>
+              <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
             </View>
           ) : (
             <View style={st.emptyBox}>
@@ -194,18 +195,18 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = 
               value={text}
               onChangeText={(t) => { setText(t); if (err) setErr(''); }}
               maxLength={COMMENT_MAX + 50}
-              placeholder={group ? GROUP_COMMENTS.placeholder : `Diz a ${partner.name}…`}
+              placeholder={group ? GROUP_COMMENTS.placeholder : t('Diz a {name}…', { name: partner.name })}
               placeholderTextColor={colors.zinc500}
               style={st.input}
               multiline
-              accessibilityLabel={group ? 'Escrever ao grupo sobre este vídeo' : `Escrever a ${partner.name} sobre este vídeo`}
+              accessibilityLabel={group ? t('Escrever ao grupo sobre este vídeo') : t('Escrever a {name} sobre este vídeo', { name: partner.name })}
               onSubmitEditing={() => void send()}
               blurOnSubmit={false}
               onKeyPress={isWeb ? (e) => { const k = e.nativeEvent as unknown as { key: string; shiftKey?: boolean; preventDefault?: () => void }; if (k.key === 'Enter' && !k.shiftKey) { (e as unknown as { preventDefault: () => void }).preventDefault?.(); void send(); } } : undefined}
             />
-            {left.show ? <Text style={[st.left, left.over && { color: colors.red600 }]} accessibilityLabel={`Faltam ${Math.max(0, left.left)} caracteres`}>{left.left}</Text> : null}
-            <Pressable onPress={() => void send()} disabled={!canSend(text, busy)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Enviar">
-              {busy ? <ActivityIndicator color={colors.brand} /> : <Text style={[st.publish, !canSend(text) && { opacity: 0.45 }]}>Enviar</Text>}
+            {left.show ? <Text style={[st.left, left.over && { color: colors.red600 }]} accessibilityLabel={t('Faltam {value} caracteres', { value: Math.max(0, left.left) })}>{left.left}</Text> : null}
+            <Pressable onPress={() => void send()} disabled={!canSend(text, busy)} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Enviar')}>
+              {busy ? <ActivityIndicator color={colors.brand} /> : <Text style={[st.publish, !canSend(text) && { opacity: 0.45 }]}>{t('Enviar')}</Text>}
             </Pressable>
           </View>
         </View>
@@ -240,7 +241,7 @@ export function TogetherBanner({ partner, presence, myPostId, known, onJump }: {
         </View>
         <View style={{ flexShrink: 1, minWidth: 0 }}>
           <NameWithBadge name={partner.name} who={partner} style={st.togetherName} gap={4}>
-            <Text style={st.togetherRest} numberOfLines={1}>está a ver contigo</Text>
+            <Text style={st.togetherRest} numberOfLines={1}>{t('está a ver contigo')}</Text>
           </NameWithBadge>
           {sub.text ? <Text style={st.togetherSub} numberOfLines={1}>{sub.text}</Text> : null}
         </View>
@@ -257,7 +258,7 @@ export function HereChip({ partner }: { partner: Partner }) {
     <View style={st.here} accessibilityRole="text" accessibilityLabel={line}>
       <View style={st.hereDot} />
       <NameWithBadge name={partner.name} who={partner} style={st.hereText} gap={4}>
-        <Text style={st.hereText} numberOfLines={1}>está aqui</Text>
+        <Text style={st.hereText} numberOfLines={1}>{t('está aqui')}</Text>
       </NameWithBadge>
     </View>
   );
@@ -268,23 +269,23 @@ export function HereChip({ partner }: { partner: Partner }) {
  * recomeça. Some sozinha ao fim de BURST_MS.
  */
 export function ReactionBurst({ reaction, seq, partner }: { reaction: MixarReactionId | null; seq: number; partner: Who }) {
-  const t = useRef(new Animated.Value(0)).current;
+  const animatedValue = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(false);
   useEffect(() => {
     if (!reaction || !seq) return;
     setShown(true);
-    t.setValue(0);
-    const a = Animated.timing(t, { toValue: 1, duration: BURST_MS, easing: Easing.out(Easing.cubic), useNativeDriver: !isWeb });
+    animatedValue.setValue(0);
+    const a = Animated.timing(animatedValue, { toValue: 1, duration: BURST_MS, easing: Easing.out(Easing.cubic), useNativeDriver: !isWeb });
     a.start(({ finished }) => { if (finished) setShown(false); });
     return () => a.stop();
-  }, [seq, reaction, t]);
+  }, [seq, reaction, animatedValue]);
   const r = reactionOf(reaction);
   if (!shown || !r) return null;
-  const y = t.interpolate({ inputRange: [0, 1], outputRange: [0, -150] });
-  const op = t.interpolate({ inputRange: [0, 0.12, 0.75, 1], outputRange: [0, 1, 1, 0] });
-  const sc = t.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.4, 1.25, 1] });
+  const y = animatedValue.interpolate({ inputRange: [0, 1], outputRange: [0, -150] });
+  const op = animatedValue.interpolate({ inputRange: [0, 0.12, 0.75, 1], outputRange: [0, 1, 1, 0] });
+  const sc = animatedValue.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.4, 1.25, 1] });
   return (
-    <Animated.View pointerEvents="none" style={[st.burst, { opacity: op, transform: [{ translateY: y }, { scale: sc }] }]} accessibilityLiveRegion="polite" accessibilityLabel={`${partner.name} reagiu com ${r.label}`}>
+    <Animated.View pointerEvents="none" style={[st.burst, { opacity: op, transform: [{ translateY: y }, { scale: sc }] }]} accessibilityLiveRegion="polite" accessibilityLabel={t('{name} reagiu com {label}', { name: partner.name, label: r.label })}>
       <View style={st.burstGlyph}><ReactionGlyph r={r} size={34} /></View>
       <View style={st.burstFace}><Avatar name={partner.name} username={partner.username} size={20} /></View>
     </Animated.View>
@@ -305,25 +306,25 @@ export function SavedByChip({ by, partner, text: override }: { by: 'me' | 'them'
 /** O botão «Guardados» do cabeçalho do Mixar (abre a coleção dos dois). */
 export function SavedHeaderButton({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [st.headBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Guardados do Mixar">
+    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [st.headBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Guardados do Mixar')}>
       <BookmarkIcon on={false} size={22} color="#fff" />
-      <Text style={st.headBtnText} numberOfLines={1}>Guardados</Text>
+      <Text style={st.headBtnText} numberOfLines={1}>{t('Guardados')}</Text>
     </Pressable>
   );
 }
 
 /** O fim dos Guardados (ou os Guardados vazios). */
 export function SavedEndPage({ height, partner, empty, onBack, group = false }: { height: number; partner: string; empty: boolean; onBack: () => void; group?: boolean }) {
-  const t = empty ? (group ? GROUP_SAVED_EMPTY : savedEmpty(partner)) : savedEnd;
+  const tv = empty ? (group ? GROUP_SAVED_EMPTY : savedEmpty(partner)) : savedEnd;
   return (
     <View style={[{ height, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#0b0b0c' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]}>
       <LinearGradient colors={['rgba(245,197,24,0.18)', 'rgba(0,0,0,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.7 }} style={StyleSheet.absoluteFill} />
       <View style={st.savedIcon}><BookmarkIcon on size={34} color="#f5c518" /></View>
-      <Text style={st.endTitle}>{t.title}</Text>
-      <Text style={st.endLine}>{t.line}</Text>
+      <Text style={st.endTitle}>{tv.title}</Text>
+      <Text style={st.endLine}>{tv.line}</Text>
       <Pressable onPress={onBack} style={({ pressed }) => [st.endBtn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button">
         <Icon name="mixar" size={18} color="#fff" />
-        <Text style={st.endBtnText}>Voltar ao Mixar</Text>
+        <Text style={st.endBtnText}>{t('Voltar ao Mixar')}</Text>
       </Pressable>
     </View>
   );
@@ -336,8 +337,8 @@ export function MoreButton({ left, busy, note, onPress }: { left: number | null;
   const off = left === 0;
   return (
     <View style={{ alignItems: 'center', marginTop: 24 }}>
-      <Pressable onPress={onPress} disabled={busy || off} style={({ pressed }) => [st.more, off && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button" accessibilityState={{ disabled: busy || off, busy }} accessibilityHint="Junta até 5 vídeos novos à seleção de hoje">
-        {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="plus" size={18} color="#fff" strokeWidth={2.6} /><Text style={st.moreText}>Mais 5</Text></>}
+      <Pressable onPress={onPress} disabled={busy || off} style={({ pressed }) => [st.more, off && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button" accessibilityState={{ disabled: busy || off, busy }} accessibilityHint={t('Junta até 5 vídeos novos à seleção de hoje')}>
+        {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="plus" size={18} color="#fff" strokeWidth={2.6} /><Text style={st.moreText}>{t('Mais 5')}</Text></>}
       </Pressable>
       <Text style={st.moreLine} accessibilityLiveRegion="polite">{note ?? moreLine(left)}</Text>
     </View>

@@ -13,6 +13,7 @@ import { CheersPour } from '../CheersPour';
 import { DrinkArt } from '../DrinkArt';
 import { Icon } from '../Icon';
 import { SendLocationSheet } from '../SendLocationSheet';
+import { t } from '@/lib/i18n';
 
 /** Âmbar escuro para texto em fundo âmbar claro (contraste ≥ 4,5:1). */
 export const AMBER_INK = '#92400e';
@@ -38,15 +39,15 @@ export function AnswerButtons({ busy, onAnswer, name }: { busy: GeladaAnswer | n
   const [bora, nope, owe] = ANSWERS;
   return (
     <View style={{ gap: 8 }}>
-      <Pressable disabled={!!busy} onPress={() => onAnswer(bora.answer)} style={({ pressed }) => [st.btn, st.bora, pressed && st.pressed, !!busy && busy !== 'accept' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Bora! Aceitar o pedido de ${name}`}>
+      <Pressable disabled={!!busy} onPress={() => onAnswer(bora.answer)} style={({ pressed }) => [st.btn, st.bora, pressed && st.pressed, !!busy && busy !== 'accept' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Bora! Aceitar o pedido de {name}', { name })}>
         <Icon name="cheers" size={20} color="#fff" />
-        <Text style={st.boraText}>{busy === 'accept' ? 'A brindar…' : bora.label}</Text>
+        <Text style={st.boraText}>{busy === 'accept' ? t('A brindar…') : bora.label}</Text>
       </Pressable>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable disabled={!!busy} onPress={() => onAnswer(nope.answer)} style={({ pressed }) => [st.btn, st.ghost, { flex: 1 }, pressed && st.pressed, !!busy && busy !== 'decline' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Hoje não: recusar o pedido de ${name}`}>
+        <Pressable disabled={!!busy} onPress={() => onAnswer(nope.answer)} style={({ pressed }) => [st.btn, st.ghost, { flex: 1 }, pressed && st.pressed, !!busy && busy !== 'decline' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Hoje não: recusar o pedido de {name}', { name })}>
           <Text style={st.ghostText}>{nope.label}</Text>
         </Pressable>
-        <Pressable disabled={!!busy} onPress={() => onAnswer(owe.answer)} style={({ pressed }) => [st.btn, st.owe, { flex: 1 }, pressed && st.pressed, !!busy && busy !== 'owe' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Fica a dever: fico a dever uma a ${name}`}>
+        <Pressable disabled={!!busy} onPress={() => onAnswer(owe.answer)} style={({ pressed }) => [st.btn, st.owe, { flex: 1 }, pressed && st.pressed, !!busy && busy !== 'owe' && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Fica a dever: fico a dever uma a {name}', { name })}>
           <Text style={st.oweText} numberOfLines={1}>{owe.label}</Text>
         </Pressable>
       </View>
@@ -77,7 +78,7 @@ export function useAnswerGelada(onDone?: (r: GeladaRequest) => void) {
       void qc.invalidateQueries({ queryKey: geladaKeys.book() });
       return r.request;
     } catch (e) {
-      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui responder agora. Tenta outra vez.'));
+      Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui responder agora. Tenta outra vez.')));
       return null;
     } finally {
       setBusy(null);
@@ -116,7 +117,7 @@ export function GeladaCard({ r: initial }: { r: GeladaRequest | null | undefined
     return (
       <View style={[st.card, st.gone]} accessibilityRole="text">
         <Icon name="user-circle" size={18} color={colors.zinc500} />
-        <Text style={st.goneText}>Conta eliminada · este pedido já não existe</Text>
+        <Text style={st.goneText}>{t('Conta eliminada · este pedido já não existe')}</Text>
       </View>
     );
   }
@@ -132,10 +133,10 @@ export function GeladaCard({ r: initial }: { r: GeladaRequest | null | undefined
     <View style={st.card} accessibilityLabel={`Paga-me uma. ${cardTitle(r)}. ${statusLine(r.status, handleOf(r.recipient), r.forMe)}`}>
       <DrinkHero drink={r.drink} />
       <View style={st.body}>
-        <Text style={st.kicker}>{r.soft ? 'PAGA-ME UM REFRESCO' : 'PAGA-ME UMA'}</Text>
+        <Text style={st.kicker}>{r.soft ? t('PAGA-ME UM REFRESCO') : 'PAGA-ME UMA'}</Text>
         <Text style={st.title}>{cardTitle(r)}</Text>
         {/* O nome só por baixo do refresco (na bebida com álcool já vai no título). */}
-        {r.soft && !r.drink.masked ? <Text style={st.drink} numberOfLines={1}>{drinkLabel(r.drink)} · sem álcool</Text> : null}
+        {r.soft && !r.drink.masked ? <Text style={st.drink} numberOfLines={1}>{t('{drinkLabel} · sem álcool', { drinkLabel: drinkLabel(r.drink) })}</Text> : null}
         {r.canAnswer ? (
           <View style={{ marginTop: 12 }}>
             <AnswerButtons busy={busy} name={name} onAnswer={(a) => void answer(r.id, a, other)} />
@@ -146,15 +147,15 @@ export function GeladaCard({ r: initial }: { r: GeladaRequest | null | undefined
           </View>
         )}
         {r.status === 'accepted' && other ? (
-          <Pressable onPress={() => setPlace(true)} style={({ pressed }) => [st.btn, st.ghost, { marginTop: 8 }, pressed && st.pressed]} accessibilityRole="button" accessibilityHint="Abre a folha para enviar um sítio perto">
+          <Pressable onPress={() => setPlace(true)} style={({ pressed }) => [st.btn, st.ghost, { marginTop: 8 }, pressed && st.pressed]} accessibilityRole="button" accessibilityHint={t('Abre a folha para enviar um sítio perto')}>
             <Icon name="map-pin" size={18} color={colors.zinc800} />
-            <Text style={st.ghostText}>Sugerir um sítio perto</Text>
+            <Text style={st.ghostText}>{t('Sugerir um sítio perto')}</Text>
           </Pressable>
         ) : null}
         {r.status === 'owed' ? (
           <Pressable onPress={() => router.push('/geladas' as never)} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="link">
             <Icon name="file-text" size={16} color={AMBER_INK} />
-            <Text style={st.linkText}>Ficou no livro das geladas</Text>
+            <Text style={st.linkText}>{t('Ficou no livro das geladas')}</Text>
             <Icon name="chevron-right" size={14} color={AMBER_INK} />
           </Pressable>
         ) : null}

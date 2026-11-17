@@ -12,6 +12,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { abs, sized } from '@/lib/config';
 import { GROUP_KINDS, groupsApi, kindInfo, toIsoDay, dayOf, type GroupKind, type VenueHit } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** A capa do TxillGroup (foto) ou, sem capa, o ícone do tipo sobre o coral claro. */
 export function GroupCover({ url, kind, size = 48, radius }: { url?: string | null; kind?: GroupKind | null; size?: number; radius?: number }) {
@@ -28,7 +29,7 @@ export function GroupCover({ url, kind, size = 48, radius }: { url?: string | nu
 /** Os chips do tipo (Viagem, Festa, Fim de semana, Outro). */
 export function KindChips({ value, onChange }: { value: GroupKind; onChange: (k: GroupKind) => void }) {
   return (
-    <View style={ps.chips} accessibilityRole="radiogroup" accessibilityLabel="Tipo de TxillGroup">
+    <View style={ps.chips} accessibilityRole="radiogroup" accessibilityLabel={t('Tipo de TxillGroup')}>
       {GROUP_KINDS.map((k) => <Chip key={k.id} label={k.label} icon={k.icon} selected={k.id === value} onPress={() => onChange(k.id)} />)}
     </View>
   );
@@ -66,7 +67,7 @@ export const ErrText = ({ text }: { text: string }) => (text ? <Text style={ps.e
  * Confirmação na folha da app (igual no telemóvel e no site): título, as consequências, uma sugestão discreta e dois botões.
  * Só "Confirmar" faz o pedido; enquanto grava, os botões ficam presos; um erro mostra a mensagem do servidor e a folha fica aberta.
  */
-export function ConfirmSheet({ title, lines, hint, confirmLabel = 'Confirmar', cancelLabel = 'Voltar', danger, onConfirm, onClose }: { title: string; lines: string[]; hint?: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; onConfirm: () => Promise<unknown>; onClose: () => void }) {
+export function ConfirmSheet({ title, lines, hint, confirmLabel = t('Confirmar'), cancelLabel = t('Voltar'), danger, onConfirm, onClose }: { title: string; lines: string[]; hint?: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; onConfirm: () => Promise<unknown>; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   async function go() {
@@ -76,7 +77,7 @@ export function ConfirmSheet({ title, lines, hint, confirmLabel = 'Confirmar', c
       await onConfirm();
       onClose();
     } catch (e) {
-      setErr((e as Error).message || 'Não deu. Verifica a internet e tenta outra vez.');
+      setErr((e as Error).message || t('Não deu. Verifica a internet e tenta outra vez.'));
       setBusy(false);
     }
   }
@@ -86,7 +87,7 @@ export function ConfirmSheet({ title, lines, hint, confirmLabel = 'Confirmar', c
         {lines.map((l, i) => <Text key={i} style={ps.confirmText}>{l}</Text>)}
         {hint ? <Text style={ps.confirmHint}>{hint}</Text> : null}
         <ErrText text={err} />
-        <Button label={confirmLabel} kind={danger ? 'dangerSolid' : 'primary'} block loading={busy} onPress={() => void go()} accessibilityLabel={busy ? 'A guardar' : confirmLabel} style={{ marginTop: 6 }} />
+        <Button label={confirmLabel} kind={danger ? 'dangerSolid' : 'primary'} block loading={busy} onPress={() => void go()} accessibilityLabel={busy ? t('A guardar') : confirmLabel} style={{ marginTop: 6 }} />
         <Button label={cancelLabel} kind="secondary" block disabled={busy} onPress={onClose} />
       </View>
     </Sheet>
@@ -112,12 +113,12 @@ export function DateRangeSheet({ start, end, onSave, onClose }: { start: string 
   }
   const label = month.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
   return (
-    <Sheet title="Datas" onClose={onClose}>
+    <Sheet title={t('Datas')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
         <View style={ps.calHead}>
-          <Pressable onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={ps.calNav} accessibilityRole="button" accessibilityLabel="Mês anterior"><Icon name="chevron-left" size={20} /></Pressable>
+          <Pressable onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={ps.calNav} accessibilityRole="button" accessibilityLabel={t('Mês anterior')}><Icon name="chevron-left" size={20} /></Pressable>
           <Text style={ps.calTitle}>{label.charAt(0).toUpperCase() + label.slice(1)}</Text>
-          <Pressable onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={ps.calNav} accessibilityRole="button" accessibilityLabel="Mês seguinte"><Icon name="chevron-right" size={20} /></Pressable>
+          <Pressable onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={ps.calNav} accessibilityRole="button" accessibilityLabel={t('Mês seguinte')}><Icon name="chevron-right" size={20} /></Pressable>
         </View>
         <View style={ps.calGrid}>
           {WEEK.map((w, i) => <Text key={`w${i}`} style={ps.calWeek}>{w}</Text>)}
@@ -134,10 +135,10 @@ export function DateRangeSheet({ start, end, onSave, onClose }: { start: string 
             );
           })}
         </View>
-        <Text style={ps.calHint}>{!a ? 'Toca no primeiro dia.' : !b ? 'Toca no último dia (ou guarda só este).' : 'Pronto. Podes guardar.'}</Text>
+        <Text style={ps.calHint}>{!a ? t('Toca no primeiro dia.') : !b ? t('Toca no último dia (ou guarda só este).') : t('Pronto. Podes guardar.')}</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-          {(start || a) && <Pill label="Tirar datas" kind="ghost" onPress={() => { onSave(null, null); onClose(); }} />}
-          <Pill label="Guardar" disabled={!a} onPress={() => { onSave(a, b); onClose(); }} style={{ flex: 1 }} />
+          {(start || a) && <Pill label={t('Tirar datas')} kind="ghost" onPress={() => { onSave(null, null); onClose(); }} />}
+          <Pill label={t('Guardar')} disabled={!a} onPress={() => { onSave(a, b); onClose(); }} style={{ flex: 1 }} />
         </View>
       </View>
     </Sheet>
@@ -154,13 +155,13 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
   return (
     <Sheet title={title} onClose={onClose} full>
       <View style={{ flex: 1, paddingHorizontal: 16 }}>
-        <SearchField value={q} onChangeText={setQ} autoFocus placeholder="Nome do local ou cidade" accessibilityLabel="Procurar locais" />
-        {txillsOnly && <Text style={ps.calHint}>Só aparecem locais que aceitam vibes.</Text>}
+        <SearchField value={q} onChangeText={setQ} autoFocus placeholder={t('Nome do local ou cidade')} accessibilityLabel={t('Procurar locais')} />
+        {txillsOnly && <Text style={ps.calHint}>{t('Só aparecem locais que aceitam vibes.')}</Text>}
         <FlatList
           data={rows}
           keyExtractor={(v) => v.slug}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={<Text style={ps.none}>{term.length < 2 ? 'Escreve pelo menos duas letras.' : r.isLoading ? 'A procurar…' : 'Nenhum local com esse nome.'}</Text>}
+          ListEmptyComponent={<Text style={ps.none}>{term.length < 2 ? t('Escreve pelo menos duas letras.') : r.isLoading ? t('A procurar…') : t('Nenhum local com esse nome.')}</Text>}
           renderItem={({ item: v }) => (
             <Pressable onPress={() => { onPick(v); onClose(); }} style={({ pressed }) => [ps.row, pressed && { backgroundColor: colors.zinc100 }]}>
               {v.avatarUrl ? <Image source={{ uri: sized(abs(v.avatarUrl) ?? v.avatarUrl, 120) }} style={{ width: 44, height: 44, borderRadius: 12 }} /> : <View style={[ps.venueIcon]}><Icon name="store" size={20} color={colors.zinc600} /></View>}
@@ -194,11 +195,11 @@ export function MemberPickSheet({ title, people, selected, multiple, allowNone, 
           ListHeaderComponent={allowNone && !multiple ? (
             <Pressable onPress={() => { onDone([]); onClose(); }} style={({ pressed }) => [ps.row, pressed && { backgroundColor: colors.zinc100 }]}>
               <View style={ps.venueIcon}><Icon name="x" size={18} color={colors.zinc600} /></View>
-              <Text style={ps.rowName}>Ninguém</Text>
+              <Text style={ps.rowName}>{t('Ninguém')}</Text>
             </Pressable>
           ) : multiple ? (
             <Pressable onPress={() => setSel(sel.length === people.length ? [] : people.map((p) => p.username))} style={{ paddingHorizontal: 8, paddingVertical: 8 }} accessibilityRole="button">
-              <Text style={{ color: colors.brand, fontWeight: '700' }}>{sel.length === people.length ? 'Tirar todos' : 'Escolher todos'}</Text>
+              <Text style={{ color: colors.brand, fontWeight: '700' }}>{sel.length === people.length ? t('Tirar todos') : t('Escolher todos')}</Text>
             </Pressable>
           ) : undefined}
           renderItem={({ item: p }) => {
@@ -215,7 +216,7 @@ export function MemberPickSheet({ title, people, selected, multiple, allowNone, 
             );
           }}
         />
-        {multiple && <View style={{ paddingVertical: 12 }}><Pill label={`Feito${sel.length ? ` · ${sel.length}` : ''}`} disabled={!sel.length} onPress={() => { onDone(sel); onClose(); }} /></View>}
+        {multiple && <View style={{ paddingVertical: 12 }}><Pill label={t('Feito{value}', { value: sel.length ? ` · ${sel.length}` : '' })} disabled={!sel.length} onPress={() => { onDone(sel); onClose(); }} /></View>}
       </View>
     </Sheet>
   );

@@ -174,7 +174,7 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
 
 test('publicar com um hit: o botão «Adicionar um hit» só no pedido publicado, e a música vai no pedido', () => {
   const ask = read('components', 'gelada', 'AskSheet.tsx');
-  assert.match(ask, /channel === 'post' && \(hit \?[\s\S]*?>Adicionar um hit<\/Text>/);
+  assert.match(ask, /channel === 'post' && \(hit \?[\s\S]*?>\{t\('Adicionar um hit'\)\}<\/Text>/);
   assert.match(ask, /music: channel === 'post' \? hit : null/);
   assert.match(read('lib', 'api.gelada.ts'), /music: b\.channel === 'post' && b\.music \? musicPayload\(b\.music\) : undefined/);
 });

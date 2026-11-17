@@ -7,6 +7,7 @@
  *    `node scripts/make-leaflet-inline.mjs` para atualizar src/components/nearby/leafletInline.ts.
  */
 import type * as Leaflet from 'leaflet';
+import { t } from '@/lib/i18n';
 
 /** Os mosaicos do OpenStreetMap, servidos (e guardados em cache) pelo servidor do Txillapp: o mesmo em todos os mapas. */
 export const TILE_URL = 'https://txillapp.com/tiles/{z}/{x}/{y}.png';
@@ -147,7 +148,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   el.classList?.add('txnb');
 
   const map = L.map(el, { zoomControl: false, attributionControl: true, zoomSnap: 0.5, minZoom: 4, maxZoom: 19 });
-  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: t('Aproximar'), zoomOutTitle: t('Afastar') }).addTo(map);
   map.attributionControl.setPrefix(false);
   // Mosaicos do OpenStreetMap servidos pelo próprio Txillapp (com cache), sem chave.
   L.tileLayer(TILE_URL, {
@@ -188,7 +189,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     onAdd() {
       const b = L.DomUtil.create('button', 'txc') as HTMLButtonElement;
       b.type = 'button';
-      b.title = 'Voltar ao centro';
+      b.title = t('Voltar ao centro');
       b.setAttribute('aria-label', 'Voltar ao centro da procura');
       b.innerHTML = svg(LOCATE, 22, BRAND);
       L.DomEvent.disableClickPropagation(b);
@@ -368,7 +369,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       const mk = L.marker(c, {
         icon: L.divIcon({ className: 'txm', html: `<div class="b tx-cluster" style="width:${d}px;height:${d}px">${b.length > 99 ? '99+' : b.length}</div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }),
         keyboard: true,
-        title: `${b.length} sítios`,
+        title: t('{n} sítios', { n: b.length }),
         // Por cima do ponto azul: o número de um grupo no sítio onde estou não fica tapado.
         zIndexOffset: 6000,
       });
@@ -381,7 +382,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     });
     for (const m of singles) {
       const sel = m.id === st.selectedId;
-      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.boosted ? `${m.title} · Patrocinado` : m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.boosted ? 800 : m.kind === 'event' ? 200 : 0 });
+      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.boosted ? t('{title} · Patrocinado', { title: m.title }) : m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.boosted ? 800 : m.kind === 'event' ? 200 : 0 });
       mk.on('click', () => onPress(m.id));
       mk.on('add', () => hideBroken(mk));
       mk.addTo(layer);
@@ -398,7 +399,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       drawVeil(next.center, next.radiusKm);
       ringLabel.setLatLng([next.center.lat + span(next.center, next.radiusKm).dLat, next.center.lng]);
       const lbl = ringLabel.getElement?.()?.querySelector('span');
-      if (lbl) lbl.textContent = `${next.radiusKm} km`;
+      if (lbl) lbl.textContent = t('{radiusKm} km', { radiusKm: next.radiusKm });
       else ringLabel.setIcon?.(L.divIcon({ className: 'txr', html: `<span>${next.radiusKm} km</span>`, iconSize: [0, 0] }));
       me.setLatLng([next.center.lat, next.center.lng]);
       fit();
@@ -488,7 +489,7 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
     boxZoom: !still,
     keyboard: !still,
   });
-  if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: t('Aproximar'), zoomOutTitle: t('Afastar') }).addTo(map);
   map.attributionControl.setPrefix(false);
   L.tileLayer(TILE_URL, {
     maxZoom: 19,

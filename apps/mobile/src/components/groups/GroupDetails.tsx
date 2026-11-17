@@ -9,6 +9,7 @@ import { groupKindOf, groupsApi, type GroupKind, type TxillGroupInfo } from '@/l
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { ErrText, Field, KindChips, Pill } from './GroupParts';
+import { t } from '@/lib/i18n';
 
 /** A capa é a foto larga do grupo; a foto de perfil é a redonda (lista de conversas, cabeçalho, mapa). */
 export interface GroupDraft { name: string; kind: GroupKind; description: string; coverUri: string | null; coverMediaId: string | null; avatarUri: string | null; avatarMediaId: string | null }
@@ -34,7 +35,7 @@ export function GroupDetailsForm({ draft, onChange }: { draft: GroupDraft; onCha
       const c = await pickImage();
       if (c) onChange(which === 'cover' ? { ...draft, coverUri: c.uri, coverMediaId: c.mediaId } : { ...draft, avatarUri: c.uri, avatarMediaId: c.mediaId });
     } catch (e) {
-      setErr((e as Error).message || (which === 'cover' ? 'Não consegui enviar a capa.' : 'Não consegui enviar a foto.'));
+      setErr((e as Error).message || (which === 'cover' ? t('Não consegui enviar a capa.') : t('Não consegui enviar a foto.')));
     } finally {
       setUploading(null);
     }
@@ -44,36 +45,36 @@ export function GroupDetailsForm({ draft, onChange }: { draft: GroupDraft; onCha
     <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 14 }} keyboardShouldPersistTaps="handled">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <View style={{ alignItems: 'center', gap: 4 }}>
-          <Pressable onPress={() => void pick('cover')} disabled={busy} style={st.cover} accessibilityRole="button" accessibilityLabel={draft.coverUri ? 'Mudar a capa' : 'Pôr uma capa'}>
+          <Pressable onPress={() => void pick('cover')} disabled={busy} style={st.cover} accessibilityRole="button" accessibilityLabel={draft.coverUri ? t('Mudar a capa') : t('Pôr uma capa')}>
             {draft.coverUri ? <Image source={{ uri: draft.coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="camera" size={26} color={colors.zinc500} />}
-            {uploading === 'cover' && <View style={st.coverBusy}><Text style={st.busyText}>A enviar…</Text></View>}
+            {uploading === 'cover' && <View style={st.coverBusy}><Text style={st.busyText}>{t('A enviar…')}</Text></View>}
           </Pressable>
-          <Text style={st.picLabel}>Capa</Text>
+          <Text style={st.picLabel}>{t('Capa')}</Text>
         </View>
         <View style={{ alignItems: 'center', gap: 4 }}>
-          <Pressable onPress={() => void pick('avatar')} disabled={busy} style={st.avatar} accessibilityRole="button" accessibilityLabel={draft.avatarUri ? 'Mudar a foto de perfil do grupo' : 'Pôr uma foto de perfil do grupo'}>
+          <Pressable onPress={() => void pick('avatar')} disabled={busy} style={st.avatar} accessibilityRole="button" accessibilityLabel={draft.avatarUri ? t('Mudar a foto de perfil do grupo') : t('Pôr uma foto de perfil do grupo')}>
             {draft.avatarUri ? <Image source={{ uri: draft.avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="image" size={24} color={colors.zinc500} />}
-            {uploading === 'avatar' && <View style={st.coverBusy}><Text style={st.busyText}>A enviar…</Text></View>}
+            {uploading === 'avatar' && <View style={st.coverBusy}><Text style={st.busyText}>{t('A enviar…')}</Text></View>}
           </Pressable>
-          <Text style={st.picLabel}>Foto</Text>
+          <Text style={st.picLabel}>{t('Foto')}</Text>
         </View>
-        <Text style={[st.hint, { flex: 1 }]}>{draft.coverUri || draft.avatarUri ? 'Toca na capa ou na foto para trocar.' : 'Capa e foto de perfil opcionais. Toca para escolher.'}</Text>
+        <Text style={[st.hint, { flex: 1 }]}>{draft.coverUri || draft.avatarUri ? t('Toca na capa ou na foto para trocar.') : t('Capa e foto de perfil opcionais. Toca para escolher.')}</Text>
       </View>
-      <Field value={draft.name} onChangeText={(name) => onChange({ ...draft, name })} maxLength={40} autoFocus placeholder="Nome · ex.: Fim de ano no Tofo" accessibilityLabel="Nome do TxillGroup" />
+      <Field value={draft.name} onChangeText={(name) => onChange({ ...draft, name })} maxLength={40} autoFocus placeholder={t('Nome · ex.: Fim de ano no Tofo')} accessibilityLabel={t('Nome do TxillGroup')} />
       <View style={{ gap: 8 }}>
-        <Text style={st.label}>Que tipo de TxillGroup?</Text>
+        <Text style={st.label}>{t('Que tipo de TxillGroup?')}</Text>
         <KindChips value={draft.kind} onChange={(kind) => onChange({ ...draft, kind })} />
       </View>
       <View style={{ gap: 8 }}>
-        <Text style={st.label}>Descrição <Text style={{ fontWeight: '500', color: colors.zinc500 }}>(opcional)</Text></Text>
-        <Field value={draft.description} onChangeText={(description) => onChange({ ...draft, description })} maxLength={300} multiline placeholder="O que se vai passar, regras da malta, o que levar…" accessibilityLabel="Descrição" />
+        <Text style={st.label}>{t('Descrição')} <Text style={{ fontWeight: '500', color: colors.zinc500 }}>{t('(opcional)')}</Text></Text>
+        <Field value={draft.description} onChangeText={(description) => onChange({ ...draft, description })} maxLength={300} multiline placeholder={t('O que se vai passar, regras da malta, o que levar…')} accessibilityLabel={t('Descrição')} />
       </View>
       <ErrText text={err} />
     </ScrollView>
   );
 }
 
-export const draftError = (d: GroupDraft) => (d.name.trim().length < 2 ? 'O nome precisa de pelo menos 2 letras.' : '');
+export const draftError = (d: GroupDraft) => (d.name.trim().length < 2 ? t('O nome precisa de pelo menos 2 letras.') : '');
 
 /** Editar o TxillGroup (só administradores). */
 export function GroupEditSheet({ group, onClose, onSaved }: { group: TxillGroupInfo; onClose: () => void; onSaved: () => void }) {
@@ -109,11 +110,11 @@ export function GroupEditSheet({ group, onClose, onSaved }: { group: TxillGroupI
     }
   }
   return (
-    <Sheet title="Editar TxillGroup" onClose={onClose}>
+    <Sheet title={t('Editar TxillGroup')} onClose={onClose}>
       <GroupDetailsForm draft={draft} onChange={setDraft} />
       <View style={{ paddingHorizontal: 20 }}>
         <ErrText text={err} />
-        <Pill label="Guardar" busy={busy} onPress={() => void save()} />
+        <Pill label={t('Guardar')} busy={busy} onPress={() => void save()} />
       </View>
     </Sheet>
   );

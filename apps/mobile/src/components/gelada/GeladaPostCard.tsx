@@ -13,6 +13,7 @@ import { CheersPour } from '../CheersPour';
 import { DrinkArt } from '../DrinkArt';
 import { Icon } from '../Icon';
 import { AMBER_INK, AnswerButtons, useAnswerGelada } from './GeladaCard';
+import { t } from '@/lib/i18n';
 
 /** Atualiza o post em todas as listas em memória (feed, perfil, página do post…), como o GeleiraPostCard. */
 function usePostPatch(id: string) {
@@ -40,10 +41,10 @@ function Line({ r, onAnswered, onUntag, untagging }: { r: GeladaRequest; onAnswe
   return (
     <View style={st.line}>
       <View style={st.lineHead}>
-        <Pressable disabled={!p?.username} onPress={() => p?.username && router.push(`/u/${p.username}` as never)} accessibilityRole="link" accessibilityLabel={r.forMe ? 'Tu' : name}>
+        <Pressable disabled={!p?.username} onPress={() => p?.username && router.push(`/u/${p.username}` as never)} accessibilityRole="link" accessibilityLabel={r.forMe ? t('Tu') : name}>
           <Avatar name={p?.displayName ?? 'Conta eliminada'} username={p?.hasAvatar ? p.username : undefined} size={34} />
         </Pressable>
-        <Text style={st.lineName} numberOfLines={1}>{r.forMe ? 'Tu' : name}</Text>
+        <Text style={st.lineName} numberOfLines={1}>{r.forMe ? t('Tu') : name}</Text>
         {!r.canAnswer && (
           <View style={[st.chip, { backgroundColor: c.bg }]} accessibilityLiveRegion="polite">
             <Text style={[st.chipText, { color: c.fg }]} numberOfLines={1}>{statusLine(r.status, name, r.forMe)}</Text>
@@ -52,13 +53,13 @@ function Line({ r, onAnswered, onUntag, untagging }: { r: GeladaRequest; onAnswe
       </View>
       {r.canAnswer ? (
         <View style={{ marginTop: 10 }}>
-          <Text style={st.ask}>Pedem-te {drinkPhrase(r.drink)}. E então?</Text>
+          <Text style={st.ask}>{t('Pedem-te {drinkPhrase}. E então?', { drinkPhrase: drinkPhrase(r.drink) })}</Text>
           <AnswerButtons busy={busy} name={handleOf(r.requester)} onAnswer={(a) => void answer(r.id, a)} />
         </View>
       ) : null}
       {r.canUntag ? (
-        <Pressable disabled={untagging} onPress={onUntag} style={({ pressed }) => [st.untag, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityHint="Sais da publicação e o pedido fica fechado para ti">
-          <Text style={st.untagText}>{untagging ? 'A tirar…' : 'Tirar a minha identificação'}</Text>
+        <Pressable disabled={untagging} onPress={onUntag} style={({ pressed }) => [st.untag, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityHint={t('Sais da publicação e o pedido fica fechado para ti')}>
+          <Text style={st.untagText}>{untagging ? t('A tirar…') : t('Tirar a minha identificação')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -96,7 +97,7 @@ export function GeladaPostCard({ post, onOpen }: { post: Pick<Post, 'id' | 'gela
       setG(p.gelada ?? null);
       patch({ gelada: p.gelada ?? null });
     } catch (e) {
-      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui tirar a identificação. Tenta outra vez.'));
+      Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui tirar a identificação. Tenta outra vez.')));
     } finally {
       busy.current = false;
       setUntagging(false);
@@ -107,16 +108,16 @@ export function GeladaPostCard({ post, onOpen }: { post: Pick<Post, 'id' | 'gela
   return (
     <View style={st.wrap} accessibilityLabel={`Paga-me uma: ${title}`}>
       <LinearGradient colors={['#fffbeb', '#ffffff', '#fff1f2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <Pressable onPress={onOpen} disabled={!onOpen} style={st.head} accessibilityRole={onOpen ? 'button' : undefined} accessibilityLabel={onOpen ? 'Abrir a publicação' : undefined}>
+      <Pressable onPress={onOpen} disabled={!onOpen} style={st.head} accessibilityRole={onOpen ? 'button' : undefined} accessibilityLabel={onOpen ? t('Abrir a publicação') : undefined}>
         <LinearGradient colors={gelada.drink.alcoholic && !gelada.drink.masked ? ['#fff7e6', '#fde68a'] : ['#f0f9ff', '#bae6fd']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
           <View style={st.glow} />
           <View style={{ zIndex: 1 }}><DrinkArt slug={gelada.drink.slug} category={gelada.drink.category} size={84} /></View>
           <View style={st.shelf} />
         </LinearGradient>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.kicker}>{gelada.drink.alcoholic && !gelada.drink.masked ? 'PAGA-ME UMA' : 'PAGA-ME UM REFRESCO'}</Text>
+          <Text style={st.kicker}>{gelada.drink.alcoholic && !gelada.drink.masked ? 'PAGA-ME UMA' : t('PAGA-ME UM REFRESCO')}</Text>
           <Text style={st.title}>{title}</Text>
-          {!gelada.drink.alcoholic && !gelada.drink.masked ? <Text style={st.drink} numberOfLines={1}>{drinkLabel(gelada.drink)} · sem álcool</Text> : null}
+          {!gelada.drink.alcoholic && !gelada.drink.masked ? <Text style={st.drink} numberOfLines={1}>{t('{drinkLabel} · sem álcool', { drinkLabel: drinkLabel(gelada.drink) })}</Text> : null}
         </View>
       </Pressable>
       <View style={st.list}>
@@ -124,7 +125,7 @@ export function GeladaPostCard({ post, onOpen }: { post: Pick<Post, 'id' | 'gela
         {Array.from({ length: gelada.gone }, (_, i) => (
           <View key={`gone${i}`} style={[st.line, st.lineHead]}>
             <Icon name="user-circle" size={30} color={colors.zinc300} />
-            <Text style={[st.lineName, { color: colors.zinc500, fontStyle: 'italic' }]}>Conta eliminada</Text>
+            <Text style={[st.lineName, { color: colors.zinc500, fontStyle: 'italic' }]}>{t('Conta eliminada')}</Text>
           </View>
         ))}
       </View>
@@ -163,14 +164,14 @@ export function GeladaGridTile({ gelada, size }: { gelada: PostGelada; size: num
   const total = gelada.requests.length;
   return (
     <LinearGradient colors={['#fffbeb', '#ffffff', '#fff1f2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { padding: 7, alignItems: 'center' }]}>
-      <Text style={[st.kicker, { fontSize: 9, letterSpacing: 0.8 }]} numberOfLines={1}>{soft ? 'PAGA-ME UM REFRESCO' : 'PAGA-ME UMA'}</Text>
+      <Text style={[st.kicker, { fontSize: 9, letterSpacing: 0.8 }]} numberOfLines={1}>{soft ? t('PAGA-ME UM REFRESCO') : 'PAGA-ME UMA'}</Text>
       <LinearGradient colors={soft ? ['#f0f9ff', '#bae6fd'] : ['#fff7e6', '#fde68a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.hero, { flex: 1, width: '100%', height: undefined, marginTop: 4, borderRadius: 12, paddingBottom: 4 }]}>
         <View style={[st.glow, { width: size * 0.6, height: size * 0.6, borderRadius: size * 0.3, top: -size * 0.1 }]} />
         <View style={{ zIndex: 1 }}><DrinkArt slug={gelada.drink.slug} category={gelada.drink.category} size={Math.round(size * 0.42)} /></View>
         <View style={[st.shelf, { width: '70%' }]} />
       </LinearGradient>
       <Text style={{ marginTop: 3, fontSize: 11, fontWeight: '800', color: colors.zinc900 }} numberOfLines={1}>{drinkLabel(gelada.drink)}</Text>
-      <Text style={{ fontSize: 10, fontWeight: '700', color: paid ? '#15803d' : colors.zinc500 }} numberOfLines={1}>{paid ? `${paid} de ${total} ${paid === 1 ? 'pagou' : 'pagaram'}` : `${total} ${total === 1 ? 'pedido' : 'pedidos'}`}</Text>
+      <Text style={{ fontSize: 10, fontWeight: '700', color: paid ? '#15803d' : colors.zinc500 }} numberOfLines={1}>{paid ? t('{count} de {total} pagou', { count: paid, total, other: '{count} de {total} pagaram' }) : t('{count} pedido', { count: total, other: '{count} pedidos' })}</Text>
     </LinearGradient>
   );
 }

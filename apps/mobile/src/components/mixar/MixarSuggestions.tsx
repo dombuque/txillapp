@@ -9,6 +9,7 @@ import { NameWithBadge } from '../NameWithBadge';
 import { useMixarList } from './MixarEntry';
 import { TopicChips } from './MixarBits';
 import { useOpenMixar } from './useOpenMixar';
+import { t } from '@/lib/i18n';
 
 /**
  * «Faz um Mixar com…» (0170): até 3 pessoas com quem falo muito, que me seguem e eu sigo e com gostos parecidos (o servidor
@@ -35,7 +36,7 @@ export function MixarSuggestions() {
 
   return (
     <View style={st.wrap}>
-      <Text style={st.section}>Sugestões</Text>
+      <Text style={st.section}>{t('Sugestões')}</Text>
       <View style={st.card}>
         {shown.map((s, i) => (
           <View key={s.username} style={[st.item, i > 0 && st.divider]}>
@@ -48,11 +49,11 @@ export function MixarSuggestions() {
             </View>
             {s.common.length ? <View style={st.chips}><TopicChips topics={s.common} max={3} /></View> : null}
             <View style={st.actions}>
-              <Pressable onPress={() => void mixar.run(s.username, s.displayName)} disabled={mixar.busy} style={({ pressed }) => [st.btn, st.primary, (pressed || mixar.busy) && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Convidar ${s.displayName} para um Mixar`}>
-                <Text style={st.primaryText}>Convidar</Text>
+              <Pressable onPress={() => void mixar.run(s.username, s.displayName)} disabled={mixar.busy} style={({ pressed }) => [st.btn, st.primary, (pressed || mixar.busy) && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Convidar {displayName} para um Mixar', { displayName: s.displayName })}>
+                <Text style={st.primaryText}>{t('Convidar')}</Text>
               </Pressable>
-              <Pressable onPress={() => later(s)} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Agora não: esconder a sugestão de ${s.displayName}`}>
-                <Text style={st.ghostText}>Agora não</Text>
+              <Pressable onPress={() => later(s)} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Agora não: esconder a sugestão de {displayName}', { displayName: s.displayName })}>
+                <Text style={st.ghostText}>{t('Agora não')}</Text>
               </Pressable>
             </View>
           </View>

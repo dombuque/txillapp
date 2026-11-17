@@ -7,6 +7,7 @@ import { colors } from '@/lib/theme';
 import { limitBuffer } from '@/lib/videoMemory';
 import { Icon } from '../Icon';
 import { CommentSticker } from './RemixParts';
+import { t } from '@/lib/i18n';
 
 /** O autocolante do comentário, que se arrasta por cima do vídeo (posição em fração do vídeo, a partir de cima à esquerda). */
 export function DraggableSticker({ author, body, pos, onMove, box }: { author: RemixPerson; body: string; pos: { x: number; y: number }; onMove: (p: { x: number; y: number }) => void; box: { w: number; h: number } }) {
@@ -33,7 +34,7 @@ export function DraggableSticker({ author, body, pos, onMove, box }: { author: R
       {...pan.panHandlers}
       onLayout={(e) => { size.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height }; }}
       style={{ position: 'absolute', left: pos.x * box.w, top: pos.y * box.h, maxWidth: box.w * 0.62, ...(Platform.OS === 'web' ? ({ cursor: 'grab', touchAction: 'none', userSelect: 'none' } as object) : {}) }}
-      accessibilityHint="Arrasta para mudar o autocolante de sítio"
+      accessibilityHint={t('Arrasta para mudar o autocolante de sítio')}
     >
       <CommentSticker author={author} body={body} />
     </View>
@@ -61,7 +62,7 @@ export function RemixReview({ uri, title, overlay, options, busy, error, onBack,
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[st.root, { paddingTop: Math.max(insets.top, 10), paddingBottom: Math.max(insets.bottom, 14) }]}>
       <View style={st.top}>
-        <Pressable onPress={onBack} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="chevron-left" size={24} color="#fff" strokeWidth={2.4} /></Pressable>
+        <Pressable onPress={onBack} style={st.round} accessibilityRole="button" accessibilityLabel={t('Voltar')}><Icon name="chevron-left" size={24} color="#fff" strokeWidth={2.4} /></Pressable>
         <Text style={st.title} numberOfLines={1}>{title}</Text>
         <View style={{ width: 44 }} />
       </View>
@@ -72,11 +73,11 @@ export function RemixReview({ uri, title, overlay, options, busy, error, onBack,
         </View>
       </View>
       <ScrollView style={{ maxHeight: 220, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
-        <TextInput value={body} onChangeText={(t) => setBody(t.slice(0, 2000))} placeholder="Escreve uma legenda… #hashtags e @menções" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} multiline maxLength={2000} accessibilityLabel="Legenda" />
+        <TextInput value={body} onChangeText={(t) => setBody(t.slice(0, 2000))} placeholder={t('Escreve uma legenda… #hashtags e @menções')} placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} multiline maxLength={2000} accessibilityLabel={t('Legenda')} />
         {options}
         {error ? <Text style={st.err} accessibilityRole="alert">{error}</Text> : null}
         <Pressable onPress={() => onPublish(body)} disabled={busy} style={[st.cta, busy && { opacity: 0.6 }]} accessibilityRole="button">
-          <Text style={st.ctaText}>{busy ? 'A publicar…' : 'Publicar'}</Text>
+          <Text style={st.ctaText}>{busy ? t('A publicar…') : t('Publicar')}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

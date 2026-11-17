@@ -10,6 +10,7 @@ import type { TextFontId } from '@/lib/textLayers';
 import { FUN_FX, createFunRenderer, type FunRenderer } from './funFilters';
 import { squircle } from './squircle';
 import { ZAS_ASPECT, coverBox, coverCrop, inCaptionZone, isTap, outSize, pinchZoom, roundCrop, tapToSource, zasCardSize } from './zasFrame';
+import { t } from '@/lib/i18n';
 
 /**
  * A câmara ao vivo dos Zás NA WEB (getUserMedia + <video>/<canvas> dentro do React Native Web), igual ao CameraStudio do site:
@@ -154,7 +155,7 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
     setFocusRing(null);
     (async () => {
       try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error('sem câmara');
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error(t('sem câmara'));
         // Pede 3:4 ao alto e insiste ANTES de mostrar (cameraSession.fixPortrait): mudar o formato depois de começar era
         // o que fazia a imagem saltar de tamanho. Se o aparelho não der 3:4, o corte "cover" trata do resto.
         const s = await acquireCamera(facing, false, true);
@@ -366,12 +367,12 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
               ),
               !ready && (
                 <View key="wait" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48 }}>
-                  <Text style={{ textAlign: 'center', fontSize: 16, color: 'rgba(255,255,255,0.8)' }}>{problem ? 'Não consegui abrir a câmara. Os Zás só se mandam na hora.' : 'A acordar a câmara…'}</Text>
+                  <Text style={{ textAlign: 'center', fontSize: 16, color: 'rgba(255,255,255,0.8)' }}>{problem ? t('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : t('A acordar a câmara…')}</Text>
                 </View>
               ),
               flash && <View key="flash" pointerEvents="none" style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, zIndex: 11, backgroundColor: '#fff', animationKeyframes: [{ '0%': { opacity: 0.95 }, '100%': { opacity: 0 } }], animationDuration: '160ms', animationFillMode: 'forwards' })} />,
               <View key="shade" pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 112, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' })} />,
-              (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} font={caption ? captionFont : null} />,
+              (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || t('Adicionar legenda…')} hint={!caption} caret={editing} caretFirst={!caption} font={caption ? captionFont : null} />,
               <TextInput
                 key="inp"
                 ref={capInput}
@@ -383,7 +384,7 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
                 maxLength={80}
                 enterKeyHint="done"
                 autoComplete="off"
-                accessibilityLabel="Legenda"
+                accessibilityLabel={t('Legenda')}
                 style={web({ position: 'absolute', left: 0, top: 0, width: '100%', height: editing ? '100%' : '40%', zIndex: 5, opacity: 0, fontSize: 16, outlineStyle: 'none', caretColor: 'transparent', backgroundColor: 'transparent' })}
               />,
               err ? <Text key="err" accessibilityRole="alert" style={{ position: 'absolute', left: 32, right: 32, top: 24, overflow: 'hidden', borderRadius: 22, backgroundColor: 'rgba(220,38,38,0.9)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' }}>{err}</Text> : null,
@@ -401,15 +402,15 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {sentBox}
           {/* A letra da legenda: só depois de escrever alguma coisa. */}
-          {caption.trim() ? <FontChips value={captionFont} onChange={onCaptionFont} dark label="Letra da legenda" style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
+          {caption.trim() ? <FontChips value={captionFont} onChange={onCaptionFont} dark label={t('Letra da legenda')} style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
           <View style={{ alignSelf: 'center', width: '100%', maxWidth: 250, flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1, alignItems: 'center' }}>
-            <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'} style={({ pressed }) => [small, { backgroundColor: light ? colors.brand : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
+            <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? t('Lanterna') : t('Flash de ecrã')} style={({ pressed }) => [small, { backgroundColor: light ? colors.brand : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <FlashIcon on={light} size={25} />
             </Pressable>
             </View>
             <View style={{ flex: 1, alignItems: 'center' }}>
-            <Pressable onPress={press} disabled={!ready || busy} accessibilityRole="button" accessibilityLabel={count !== null ? 'Cancelar' : 'Tirar e enviar'} style={({ pressed }) => [{ width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', opacity: !ready || busy ? 0.5 : 1, transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
+            <Pressable onPress={press} disabled={!ready || busy} accessibilityRole="button" accessibilityLabel={count !== null ? t('Cancelar') : t('Tirar e enviar')} style={({ pressed }) => [{ width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', opacity: !ready || busy ? 0.5 : 1, transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <View style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 43, padding: 4, backgroundImage: 'conic-gradient(from 200deg, #ff5c5c, #ff9a5b, #ffd166, #ff5c5c)' })}>
                 <View style={{ flex: 1, borderRadius: 39, backgroundColor: '#08080b' }} />
               </View>
@@ -419,14 +420,14 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
             </Pressable>
             </View>
             <View style={{ flex: 1, alignItems: 'center' }}>
-            <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} accessibilityRole="button" accessibilityLabel="Virar câmara" style={({ pressed }) => [small, { backgroundColor: 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
+            <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} accessibilityRole="button" accessibilityLabel={t('Virar câmara')} style={({ pressed }) => [small, { backgroundColor: 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <Icon name="cam-flip" size={26} color="#fff" />
             </Pressable>
             </View>
           </View>
           {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
-          <View accessibilityRole="radiogroup" accessibilityLabel="Para quem vai" style={{ alignSelf: 'center', marginTop: 20, flexDirection: 'row', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)', padding: 4 }}>
-            {([['friends', 'Amigos'], ['close', 'Próximos']] as const).map(([id, label]) => {
+          <View accessibilityRole="radiogroup" accessibilityLabel={t('Para quem vai')} style={{ alignSelf: 'center', marginTop: 20, flexDirection: 'row', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)', padding: 4 }}>
+            {([['friends', t('Amigos')], ['close', t('Próximos')]] as const).map(([id, label]) => {
               const on = audience === id;
               return (
                 <Pressable key={id} onPress={() => onAudience(id)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 24, paddingVertical: 8, backgroundColor: on ? (id === 'close' ? '#10b981' : '#fff') : 'transparent' }}>

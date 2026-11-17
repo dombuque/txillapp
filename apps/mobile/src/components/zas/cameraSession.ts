@@ -3,6 +3,7 @@
  * pedir permissão outra vez a cada passo. Desliga-se sozinha ao fim de IDLE_MS, ou logo que a app vai para segundo plano.
  * O microfone só é pedido (uma vez) quando se entra no modo Reel.
  */
+import { t } from '@/lib/i18n';
 const IDLE_MS = 30_000;
 
 let cur: { stream: MediaStream; facing: 'environment' | 'user'; portrait: boolean } | null = null;
@@ -72,7 +73,7 @@ export async function acquireCamera(facing: 'environment' | 'user', audio: boole
     else cur = { stream, facing, portrait };
   }
   const cam = cur as { stream: MediaStream } | null;
-  if (!cam) throw new Error('Não consegui abrir a câmara');
+  if (!cam) throw new Error(t('Não consegui abrir a câmara'));
   // Sem microfone nesta vez (foto, story, Zás): larga já o que ficou ligado do Reel, para o iPhone não mostrar "a gravar".
   if (!audio) {
     cam.stream.getAudioTracks().forEach((t) => {

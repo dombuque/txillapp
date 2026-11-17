@@ -4,6 +4,7 @@ import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { colors } from '@/lib/theme';
 import type { TxilladaComment } from '@/lib/txillada';
+import { t } from '@/lib/i18n';
 
 /** O alfinete (os ícones da app não o têm): traço, como os outros. */
 export function PinIcon({ size = 18, color = '#fff', strokeWidth = 2 }: { size?: number; color?: string; strokeWidth?: number }) {
@@ -29,8 +30,8 @@ export function PinnedComment({ c, bottom, left, width, onPress, onHeight }: { c
         disabled={!onPress}
         style={({ pressed }) => [st.pill, glass, pressed && { transform: [{ scale: 0.98 }] }]}
         accessibilityRole="button"
-        accessibilityLabel={`Comentário fixado de ${c.author.username}: ${c.body}`}
-        accessibilityHint={onPress ? 'Abre as opções do comentário' : undefined}
+        accessibilityLabel={t('Comentário fixado de {username}: {body}', { username: c.author.username, body: c.body })}
+        accessibilityHint={onPress ? t('Abre as opções do comentário') : undefined}
       >
         <View style={st.ring}>
           <Avatar name={c.author.displayName} username={c.author.avatarUrl ? c.author.username : undefined} size={28} />
@@ -39,7 +40,7 @@ export function PinnedComment({ c, bottom, left, width, onPress, onHeight }: { c
           <NameWithBadge name={c.author.username} who={c.author} style={st.name}>
             <View style={st.tag}>
               <PinIcon size={10} strokeWidth={2.6} />
-              <Text style={st.tagText}>Fixado</Text>
+              <Text style={st.tagText}>{t('Fixado')}</Text>
             </View>
           </NameWithBadge>
           <Text style={st.text} numberOfLines={2}>{c.body}</Text>

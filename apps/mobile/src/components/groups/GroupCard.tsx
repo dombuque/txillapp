@@ -9,6 +9,7 @@ import { sized } from '@/lib/config';
 import { accessOf, type GroupAccess } from '@/lib/groupAccess';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { t } from '@/lib/i18n';
 
 /** O que o cartão precisa (tudo simples, para a lista e para o laboratório visual). */
 export interface GroupCardProps {
@@ -100,7 +101,7 @@ export function GroupCard(p: GroupCardProps) {
   const time = timeAgo(p.at).replace('Há ', '');
   const unread = p.unread > 0;
   const requests = p.requests ?? 0;
-  const seal = p.access === 'public' ? { icon: 'globe' as const, text: 'Público' } : p.access === 'map' ? { icon: 'map-pin' as const, text: 'No mapa' } : null;
+  const seal = p.access === 'public' ? { icon: 'globe' as const, text: t('Público') } : p.access === 'map' ? { icon: 'map-pin' as const, text: t('No mapa') } : null;
 
   const label = [
     `${p.name}, TxillGroup${p.kind ? ` de ${kind.label.toLowerCase()}` : ''}`,
@@ -122,7 +123,7 @@ export function GroupCard(p: GroupCardProps) {
         delayLongPress={p.delayLongPress}
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityHint={p.accessibilityActions?.length ? 'Toca para abrir. Mantém premido para mais opções.' : undefined}
+        accessibilityHint={p.accessibilityActions?.length ? t('Toca para abrir. Mantém premido para mais opções.') : undefined}
         accessibilityActions={p.accessibilityActions?.length ? p.accessibilityActions : undefined}
         onAccessibilityAction={p.onAccessibilityAction ? (e) => p.onAccessibilityAction?.(e.nativeEvent.actionName) : undefined}
         style={({ pressed }) => [s.card, pressed && s.pressed]}

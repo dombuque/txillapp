@@ -8,6 +8,7 @@ import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { MixarBadge, MixarDot } from './MixarBits';
+import { t } from '@/lib/i18n';
 
 /** A lista dos meus Mixar (a mesma query do ecrã /mixar). Falhar não incomoda ninguém: o acesso simplesmente não aparece. */
 export function useMixarList(enabled = true) {
@@ -29,7 +30,7 @@ export function MixarEntry() {
   const go = () => router.push('/mixar' as never);
   const faces = fresh.slice(0, 3).map((s) => s.partner);
   return (
-    <Pressable onPress={go} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`Mixar: ${e.line}. Abrir os teus Mixar`}>
+    <Pressable onPress={go} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Mixar: {line}. Abrir os teus Mixar', { line: e.line })}>
       <MixarBadge size={36} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={st.title}>Mixar</Text>
@@ -42,7 +43,7 @@ export function MixarEntry() {
           </View>
         ))}
       </View>
-      <MixarDot inline label="Há novidades" />
+      <MixarDot inline label={t('Há novidades')} />
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );
