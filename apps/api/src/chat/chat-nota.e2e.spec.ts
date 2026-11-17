@@ -53,7 +53,7 @@ describe('Conversa: a nota da pessoa no cabeçalho (integração)', () => {
     expect(seen).toMatchObject({ body: 'Loko angali yeso', music: null, cheered: false });
     expect(new Date(seen.expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(new Date(seen.createdAt).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
-    expect(Object.keys(seen).sort()).toEqual(['body', 'cheered', 'createdAt', 'expiresAt', 'music']);
+    expect(Object.keys(seen).sort()).toEqual(['body', 'cheered', 'color', 'createdAt', 'expiresAt', 'gif', 'music', 'place']);
 
     // Depois de brindar, vem marcado.
     await api().post(`/api/v1/notes/${a.username}/cheer`).set(auth(b)).expect(200);
