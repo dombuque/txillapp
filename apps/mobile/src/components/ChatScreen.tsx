@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
-import { composerInset, pinnedTop, webKeyboardOpen, webWindowHeight } from '@/lib/chatKeyboard';
+import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewport';
+import { composerInset, pinnedTop, webKeyboardOpen } from '@/lib/chatKeyboard';
 import { ChatDropCtx, deskZone, useDeskChat, useDeskChatChrome, type DropHandler } from '@/lib/deskChat';
 import { dragDepth, dragHasFiles } from '@/lib/deskChatKeys';
 import { colors } from '@/lib/theme';
-
-/** A altura da janela na web sem o teclado (lib/chatKeyboard `webWindowHeight`). */
-const winH = () => (typeof window === 'undefined' ? 0 : webWindowHeight(window.innerHeight, document.documentElement?.clientHeight ?? 0));
 
 /**
  * O teclado está aberto? No telemóvel pelos avisos do sistema; na web pela zona visível (lib/chatKeyboard).
@@ -24,7 +21,7 @@ export function useKeyboardOpen(): boolean {
     }
     const v = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!v) return;
-    const on = () => setOpen(webKeyboardOpen(v.height, winH(), v.scale));
+    const on = () => setOpen(webKeyboardOpen(v.height, webWindowH(), v.scale));
     on();
     v.addEventListener('resize', on);
     return () => v.removeEventListener('resize', on);
@@ -49,7 +46,7 @@ export function ChatScreen({ style, children }: { style: StyleProp<ViewStyle>; c
 
 function WebChatScreen({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
   const vv = useVisibleViewport();
-  const pinned = !!vv && typeof window !== 'undefined' && webKeyboardOpen(vv.height, winH(), vv.scale);
+  const pinned = !!vv && typeof window !== 'undefined' && webKeyboardOpen(vv.height, webWindowH(), vv.scale);
   const box = useRef<HTMLElement | null>(null);
   // Onde está o ecrã que contém a conversa (o topo, contado da janela). O Safari do iPhone desloca a página ao abrir o
   // teclado e nem sempre a deixa voltar ao topo: sem descontar isto a conversa ficava acima da zona visível e sobrava

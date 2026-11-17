@@ -24,7 +24,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { confirm } from '@/lib/confirm';
 import { captionSpot, floatColumn, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
-import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
+import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewport';
 import { barBottom, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
@@ -145,7 +145,7 @@ export default function StoryViewer() {
   // Na web (iPhone) o teclado tapa a página sem a encolher: só a zona visível fica mais baixa (lib/keyboardFrame). O
   // mimo fica do mesmo tamanho, atrás, e só a barra de responder sobe para cima do teclado; a página não rola.
   const vv = useVisibleViewport();
-  const vvBox = Platform.OS === 'web' && typeof window !== 'undefined' ? webKeyboardBox(vv, window.innerHeight, window.innerWidth) : null;
+  const vvBox = Platform.OS === 'web' && typeof window !== 'undefined' ? webKeyboardBox(vv, webWindowH(), window.innerWidth) : null;
   useEffect(() => {
     if (!vvBox || typeof window === 'undefined') return;
     const fix = () => { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); };

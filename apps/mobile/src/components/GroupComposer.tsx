@@ -4,7 +4,10 @@ import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, 
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
-import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useKeyboardOpen } from '@/components/ChatScreen';
+import { composerTools } from '@/lib/chatBars';
+import { composerPad } from '@/lib/chatKeyboard';
 import { uploadChatMedia } from '@/lib/api';
 import { type GroupSendBody } from '@/lib/api.grupos';
 import type { LocationMessage } from '@/lib/sendLocation';
@@ -224,9 +227,15 @@ export function GroupComposer({
       setBusy(false);
     }
   }
+  const keyboardOpen = useKeyboardOpen();
+  const { width: screenW } = useWindowDimensions();
+  const [pillW, setPillW] = useState(0);
+  if (!pillW && screenW) setPillW(screenW - 20);
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  // O mesmo desenho e as mesmas medidas da barra das conversas a dois (components/ChatComposer): uma pílula só.
-  const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: Math.max(14, bottom + 8) };
+  // O mesmo desenho e as mesmas medidas da barra das conversas a dois (components/ChatComposer): uma pílula só. Com o
+  // teclado aberto só a folga normal por baixo; em ecrãs estreitos os ícones encolhem e a galeria passa para os anexos.
+  const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: composerPad(bottom, keyboardOpen) };
+  const fit = composerTools(pillW);
 
   if (recording) {
     return (
@@ -254,6 +263,12 @@ export function GroupComposer({
     <View style={styles.wrap}>
       {panel === 'attach' && (
         <View style={styles.attach}>
+          {!fit.gallery && (
+            <Pressable onPress={() => { setPanel(null); void pick('library'); }} disabled={busy} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Enviar foto ou vídeo da galeria">
+              <View style={styles.attachIcon}><Icon name="image" size={22} color={colors.zinc800} /></View>
+              <Text style={styles.attachLabel}>Galeria</Text>
+            </Pressable>
+          )}
           {onPoll && (
             <Pressable onPress={() => { setPanel(null); onPoll(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Sondagem: perguntar à malta">
               <View style={styles.attachIcon}><Icon name="trending" size={22} color={colors.zinc800} /></View>
@@ -286,7 +301,7 @@ export function GroupComposer({
           </View>
         )}
         <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
-        <View style={styles.pill}>
+        <View style={styles.pill} onLayout={(e) => setPillW(e.nativeEvent.layout.width)}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.camera}>
               <Icon name="camera" size={20} color="#fff" />
@@ -299,9 +314,10 @@ export function GroupComposer({
             </Pop>
           ) : (
             <Pop key="tools" style={styles.tools}>
-              <Tool icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
-              <Tool icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} />
+              <Tool w={fit.toolW} icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
+              {fit.gallery ? <Tool w={fit.toolW} icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} /> : null}
               <Tool
+                w={fit.toolW}
                 icon="sticker"
                 label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
                 on={panel === 'stickers'}
@@ -312,7 +328,7 @@ export function GroupComposer({
                   setPanel(panel === 'stickers' ? null : 'stickers');
                 }}
               />
-              <Tool icon={panel === 'attach' ? 'x' : 'plus'} label={panel === 'attach' ? 'Fechar o menu' : 'Mais: sondagem e localização'} on={panel === 'attach'} expanded={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
+              <Tool w={fit.toolW} icon={panel === 'attach' ? 'x' : 'plus'} label={panel === 'attach' ? 'Fechar o menu' : fit.gallery ? 'Mais: sondagem e localização' : 'Mais: foto e vídeo, sondagem e localização'} on={panel === 'attach'} expanded={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
             </Pop>
           )}
         </View>
@@ -335,7 +351,8 @@ const styles = StyleSheet.create({
   err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
   busy: { textAlign: 'center', fontSize: 13, color: colors.zinc500, paddingBottom: 6 },
   attach: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
-  attachItem: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 16 },
+  // Até 84 de largura, mas encolhem para caberem os quatro (com a Galeria) a 320 px.
+  attachItem: { flexBasis: 84, flexShrink: 1, minWidth: 0, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 16 },
   attachIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   attachLabel: { fontSize: 12, fontWeight: '600', color: colors.zinc700 },
   reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },

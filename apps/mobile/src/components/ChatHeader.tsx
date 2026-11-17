@@ -4,6 +4,7 @@ import { BackButton } from '@/components/BackButton';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { colors } from '@/lib/theme';
+import { HEADER_ACTION_W } from '@/lib/chatBars';
 import type { Badged } from '@/lib/api';
 import { dayLabel, type Msg } from './ChatBubbles';
 import { NameWithBadge } from './NameWithBadge';
@@ -91,7 +92,7 @@ export function ChatHeader({
             </View>
           </Pressable>
         )}
-        {actions}
+        {actions ? <View style={st.actions}>{actions}</View> : null}
       </View>
       {below}
     </View>
@@ -122,10 +123,13 @@ export function HeaderStatus({ text, tone = 'muted', icon }: { text: string; ton
   );
 }
 
-/** Botão redondo de 44 pt no cabeçalho (chamadas, "⋯"). */
+/**
+ * Botão do cabeçalho (Mixar, chamadas, "⋯"): 40 de largura, colados uns aos outros, e o hitSlop leva o toque aos 44. O
+ * nome tem prioridade: com 44 e o espaço entre eles, a 390 px o nome ficava «Zeca La…» e a 320 px só «Z».
+ */
 export function HeaderButton({ label, onPress, children }: { label: string; onPress: () => void; children: ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.btn, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={label} hitSlop={2}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.act, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={label} hitSlop={{ top: 0, bottom: 0, left: (44 - HEADER_ACTION_W) / 2, right: (44 - HEADER_ACTION_W) / 2 }}>
       {children}
     </Pressable>
   );
@@ -201,6 +205,8 @@ const st = StyleSheet.create({
   overlay: { position: 'absolute', left: 0, right: 0, zIndex: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 6, minHeight: 56 },
   btn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  act: { width: HEADER_ACTION_W, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  actions: { flexDirection: 'row', alignItems: 'center' },
   who: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 4 },
   name: { fontWeight: '700', fontSize: 16, lineHeight: 20, color: colors.zinc900 },
   sub: { fontSize: 12.5, lineHeight: 16, color: colors.zinc500, flexShrink: 1 },

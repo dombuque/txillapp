@@ -12,9 +12,8 @@
  *   é ignorado enquanto o teclado está aberto): o ecrã subia com a página, a conversa ficava esse tanto acima da zona
  *   visível (o cabeçalho cortado) e por baixo da barra sobrava uma faixa branca até ao teclado. Agora mede-se onde está o
  *   ecrã (`getBoundingClientRect`, nas mesmas coordenadas do `offsetTop`) e desconta-se (`pinnedTop`).
- * - A janela de referência para saber se o teclado está aberto é a maior entre `innerHeight` e a altura do documento
- *   (`clientHeight`): se o `innerHeight` também encolher com o teclado (há versões do iPhone em que encolhe), o
- *   teclado continua a ser visto.
+ * - A janela de referência para saber se o teclado está aberto é lib/webViewport `webWindowHeight` (a mesma das folhas,
+ *   dos mimos e da Txillada).
  */
 
 /** Na web, o teclado está aberto quando a zona visível é bem mais baixa do que a janela (a barra do Safari não chega). */
@@ -26,9 +25,15 @@ export function webKeyboardOpen(visibleHeight: number, windowHeight: number, sca
   return visibleHeight > 0 && windowHeight > 0 && visibleHeight < windowHeight - KEYBOARD_MIN_PX;
 }
 
-/** A altura da janela sem o teclado: a maior entre `innerHeight` e a do documento (`documentElement.clientHeight`). */
-export function webWindowHeight(innerHeight: number, clientHeight: number): number {
-  return Math.max(innerHeight || 0, clientHeight || 0);
+/** A margem de baixo da barra de escrever com o teclado aberto: só a folga normal, colada a ele. */
+export const KB_COMPOSER_PAD = 8;
+
+/**
+ * O espaço por baixo da pílula da barra de escrever: sem teclado, a margem do sistema mais 8 (pelo menos 14); com o
+ * teclado aberto só `KB_COMPOSER_PAD` (antes ficavam os 14 de «sem teclado», uma faixa branca por cima do teclado).
+ */
+export function composerPad(bottom: number, keyboardOpen: boolean): number {
+  return keyboardOpen ? KB_COMPOSER_PAD : Math.max(14, bottom + 8);
 }
 
 /**
