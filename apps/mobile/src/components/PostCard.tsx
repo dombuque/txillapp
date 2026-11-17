@@ -22,6 +22,7 @@ import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
 import { PeopleSheet } from './PeopleSheet';
 import { PhotoViewer } from './PhotoViewer';
+import { viewerMedia } from '@/lib/viewerMedia';
 import { RichText } from './RichText';
 import { TeachBar } from './TeachBar';
 import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
@@ -401,7 +402,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         // O brinde aparece no meio da foto ou do vídeo. Com a música já gravada no vídeo (`musicBaked`), o vídeo toca com o som
         // dele e o selo fica só com o crédito (sem a tocar outra vez por cima).
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} onHold={hold} overlay={mediaOverlay(post, musicOn, () => setSheet({ people: 'cheers' }))} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} covered={!!viewer} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} onHold={hold} overlay={mediaOverlay(post, musicOn, () => setSheet({ people: 'cheers' }))} />
           <ReplyStickerOverlay remix={post.remixOf} />
           {/* O som que a tcheka usava foi tirado: o vídeo fica sem som e diz porquê. */}
           {soundRemovedText(post.soundRemoved) ? <View style={{ position: 'absolute', left: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5 }} pointerEvents="none"><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>♪ {soundRemovedText(post.soundRemoved)}</Text></View> : null}
@@ -417,11 +418,13 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {post.feed?.source === 'discover' && !mine ? <TeachBar postId={post.id} onNo={() => setGone(true)} /> : null}
       {viewer && (
         <PhotoViewer
-          photos={viewer.of.media.filter((m) => m.kind !== 'video').map((m) => ({ url: m.url, width: m.width, height: m.height, tags: m.tags }))}
-          start={viewer.of.media.slice(0, viewer.start).filter((m) => m.kind !== 'video').length}
+          // Todos os itens pela ordem da publicação (fotos e vídeos): o contador e o item onde abre contam com os vídeos.
+          photos={viewerMedia(viewer.of.media)}
+          start={viewer.start}
           author={viewer.of.author}
           body={viewer.of.body}
           music={viewer.of.music}
+          muteVideo={musicPlayback(viewer.of).muteVideo}
           onClose={() => setViewer(null)}
           burst={viewerBurst}
           footer={
@@ -622,7 +625,7 @@ function mediaOverlay(post: Post, musicOn: boolean, openCheers: () => void): Rea
   return <>{music}{friends}</>;
 }
 
-function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inView = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** Segurar numa foto: o menu da publicação. */ onHold?: () => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
+function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inView = false, covered = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** Segurar numa foto: o menu da publicação. */ onHold?: () => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O visor em ecrã inteiro está aberto por cima: os vídeos daqui param e largam o leitor (só um ativo). */ covered?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const winH = useWindowDimensions().height;
@@ -704,26 +707,28 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inVie
           extraData={`${i}|${h}|${width}`}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           {...carouselWindowProps(Platform.OS)}
-          renderItem={({ item: m, index }) => m.kind === 'video' && media.length > 1 ? (
-            // Carrossel com fotos e vídeos: o vídeo toca ali mesmo (uma tcheka, vídeo sozinho, abre no ecrã da Tcheka).
-            <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} inView={inView} mute={mute} onDouble={onDouble} />
-          ) : (
+          renderItem={({ item: m, index }) => {
+            // Uma tcheka (vídeo sozinho) abre no ecrã da Tcheka; num carrossel com fotos e vídeos, o vídeo toca ali mesmo
+            // (o som no botão do canto) e um toque abre o visor em ecrã inteiro nesse vídeo, como nas fotos.
+            const reel = m.kind === 'video' && media.length < 2;
+            return (
             <Pressable
               style={{ width, height: h }}
-              onPress={() => tap(m.kind === 'video' ? (reelId ? () => pushOnce(router, `/r/${reelId}`) : undefined) : () => onOpen?.(index))}
+              onPress={() => tap(reel ? (reelId ? () => pushOnce(router, `/r/${reelId}`) : undefined) : () => onOpen?.(index))}
               onLongPress={onHold}
               accessibilityRole="button"
-              accessibilityLabel={m.kind === 'video' ? t('Abrir a tcheka') : t('Ver a foto {n} de {n2} em ecrã inteiro (toca duas vezes para brindar)', { n: index + 1, n2: media.length })}
+              accessibilityLabel={reel ? t('Abrir a tcheka') : m.kind === 'video' ? t('Ver o vídeo {n} de {n2} em ecrã inteiro (toca duas vezes para brindar)', { n: index + 1, n2: media.length }) : t('Ver a foto {n} de {n2} em ecrã inteiro (toca duas vezes para brindar)', { n: index + 1, n2: media.length })}
             >
               {m.kind === 'video' ? (
-                // Tcheka no feed: corre sozinha sem som enquanto está à vista; um toque abre-a no ecrã da Tcheka (com som).
-                <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute={mute} passive />
+                // Corre sozinho sem som enquanto está à vista (e é o item em cena); pára com o visor aberto por cima.
+                <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={(reel || index === i) && !covered} inView={inView} mute={mute} passive />
               ) : (
                 // Na web: a foto que se vê e a seguinte carregam logo e sem fade (senão piscavam ao rolar o feed); as outras ficam lazy.
                 <Image source={{ uri: sized(m.url, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150, index <= i + 1)} accessibilityIgnoresInvertColors />
               )}
             </Pressable>
-          )}
+            );
+          }}
         />
         {overlay}
         {tags.length > 0 && (

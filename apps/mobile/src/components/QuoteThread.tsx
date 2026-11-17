@@ -88,7 +88,8 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
   const media = m ? (
     <Pressable
       disabled={!live}
-      onPress={() => (video ? onOpen?.(original) : tap(() => onPhoto?.(original)))}
+      // Uma tcheka (vídeo sozinho) abre a publicação; fotos, ou fotos e vídeos misturados, abrem o visor em ecrã inteiro.
+      onPress={() => (video && original.media.length < 2 ? onOpen?.(original) : tap(() => onPhoto?.(original)))}
       style={side ? styles.thumbSide : styles.thumbBelow}
       accessibilityRole="button"
       accessibilityLabel={video ? t('Ver o vídeo') : t('Ver a foto em ecrã inteiro')}
