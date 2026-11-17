@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { newDraftKey, saveDraft } from '@/lib/drafts';
 import { bookSummary, debtLine, debtState, geladaErrorText, momentText, venueTag } from '@/lib/gelada';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -139,10 +140,7 @@ export default function GeladasScreen() {
             onClaim={() => setClaiming(d)}
             onConfirm={() => void act(d, () => geladaApi.confirm(d.id), (r) => { setBurst((n) => n + 1); setMoment(r); })}
             onReject={() => void act(d, () => geladaApi.reject(d.id))}
-            onForgive={() => Alert.alert('Perdoar esta gelada?', `${debtLine(d)}. Fica fechada no livro.`, [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Perdoar', onPress: () => void act(d, () => geladaApi.forgive(d.id)) },
-            ])}
+            onForgive={() => void confirm({ title: 'Perdoar esta gelada?', message: `${debtLine(d)}. Fica fechada no livro.`, confirm: 'Perdoar' }).then((ok) => { if (ok) void act(d, () => geladaApi.forgive(d.id)); })}
             onMoment={() => setMoment(d)}
           />
         ))}

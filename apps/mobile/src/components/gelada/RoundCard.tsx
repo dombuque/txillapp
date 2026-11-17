@@ -12,6 +12,7 @@ import { DrinkArt } from '../DrinkArt';
 import { Icon } from '../Icon';
 import { InlineBadge } from '../NameWithBadge';
 import { Sheet } from '../Sheet';
+import { Button } from '../ui/Button';
 import { DrinkSheet } from './DrinkSheet';
 import { AMBER_INK } from './GeladaCard';
 
@@ -163,9 +164,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
                 <Switch value={bill} onValueChange={setBill} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel="Pôr no livro das geladas" />
               </View>
             ) : null}
-            <Pressable disabled={busy} onPress={() => void closeNow()} style={({ pressed }) => [st.btn, st.primary, pressed && st.pressed]} accessibilityRole="button">
-              <Text style={st.primaryText}>{busy ? 'A fechar…' : 'Fechar e brindar'}</Text>
-            </Pressable>
+            <Button label="Fechar e brindar" block loading={busy} onPress={() => void closeNow()} />
           </View>
         </Sheet>
       )}

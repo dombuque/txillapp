@@ -7,6 +7,7 @@ import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
 import { FeatureIntro } from '@/components/FeatureIntro';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { TasteBubble } from '@/components/TasteBubble';
 import { geleiraApi, type CatalogItem, type TasteKind } from '@/lib/api.geleira';
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
@@ -379,15 +380,9 @@ export default function GeleiraEditor() {
             <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>
               Tens {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} na geleira que ainda não guardaste.
             </Text>
-            <Pressable onPress={() => { setLeaving(false); void save(); }} accessibilityRole="button" style={[st.big, { backgroundColor: colors.brand }]}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Guardar e sair</Text>
-            </Pressable>
-            <Pressable onPress={leave} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#b91c1c' }}>Sair sem guardar</Text>
-            </Pressable>
-            <Pressable onPress={() => setLeaving(false)} accessibilityRole="button" style={[st.big, { marginTop: 4 }]}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>Continuar a editar</Text>
-            </Pressable>
+            <Button label="Guardar e sair" block onPress={() => { setLeaving(false); void save(); }} />
+            <Button label="Sair sem guardar" kind="danger" block onPress={leave} style={{ marginTop: 8 }} />
+            <Button label="Continuar a editar" kind="secondary" block onPress={() => setLeaving(false)} style={{ marginTop: 8 }} />
           </View>
         </Sheet>
       )}
@@ -426,6 +421,5 @@ const st = StyleSheet.create({
   pick: { height: 40, borderRadius: 999, backgroundColor: colors.zinc900, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.zinc100, backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 16, paddingTop: 12 },
   save: { height: 48, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  big: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   toast: { position: 'absolute', bottom: 96, alignSelf: 'center', borderRadius: 999, backgroundColor: colors.zinc900, paddingHorizontal: 20, paddingVertical: 10 },
 });
