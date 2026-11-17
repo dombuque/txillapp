@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Icon } from '@/components/Icon';
+import { StyleSheet, Text, View } from 'react-native';
 import { NameWithBadge, type Badged } from '@/components/NameWithBadge';
 import { Sheet } from '@/components/Sheet';
+import { ActionRow } from '@/components/ui/ActionRow';
 import type { InboxMenuItem } from '@/lib/inboxMenu';
 import { colors } from '@/lib/theme';
 
 /**
  * A folha de segurar uma linha da lista de Mensagens (conversa a dois ou TxillGroup), como no WhatsApp e no Instagram:
- * a foto e o nome (com o selo, `who`) em cima e as ações por baixo (lib/inboxMenu, inboxMenuItems), com «Cancelar» no fim.
- * Escolher uma ação fecha a folha e corre-a (`onPick`); «Cancelar» só fecha.
+ * a foto e o nome (com o selo, `who`) em cima e as ações por baixo (lib/inboxMenu, inboxMenuItems, com o ActionRow comum),
+ * com «Cancelar» no fim (o da folha). Escolher uma ação fecha a folha e corre-a (`onPick`); «Cancelar» só fecha.
  */
 export function InboxMenuSheet({ name, who, sub, photo, items, onPick, onClose }: {
   name: string;
@@ -21,8 +21,9 @@ export function InboxMenuSheet({ name, who, sub, photo, items, onPick, onClose }
   onPick: (id: InboxMenuItem['id']) => void;
   onClose: () => void;
 }) {
+  const cancel = items.find((it) => it.id === 'cancel');
   return (
-    <Sheet onClose={onClose}>
+    <Sheet onClose={onClose} cancel={cancel ? cancel.label : false}>
       <View style={st.wrap}>
         <View style={st.head}>
           {photo}
@@ -31,15 +32,8 @@ export function InboxMenuSheet({ name, who, sub, photo, items, onPick, onClose }
             {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
           </View>
         </View>
-        {items.map((it) => it.id === 'cancel' ? (
-          <Pressable key={it.id} onPress={onClose} style={({ pressed }) => [st.cancel, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={it.label}>
-            <Text style={st.cancelText}>{it.label}</Text>
-          </Pressable>
-        ) : (
-          <Pressable key={it.id} onPress={() => onPick(it.id)} style={({ pressed }) => [st.row, pressed && { backgroundColor: it.danger ? colors.dangerSoft : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={it.label}>
-            <View style={[st.icon, it.danger && { backgroundColor: colors.dangerSoft }]}><Icon name={it.icon} size={22} color={it.danger ? colors.danger : colors.zinc800} /></View>
-            <Text style={[st.label, it.danger && { color: colors.danger }]} numberOfLines={1}>{it.label}</Text>
-          </Pressable>
+        {items.filter((it) => it.id !== 'cancel').map((it) => (
+          <ActionRow key={it.id} icon={it.icon} title={it.label} danger={it.danger} onPress={() => onPick(it.id)} />
         ))}
       </View>
     </Sheet>
@@ -51,10 +45,4 @@ const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, paddingBottom: 12, marginBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.zinc200 },
   name: { fontSize: 18, fontWeight: '700', color: colors.zinc900 },
   sub: { fontSize: 14, color: colors.zinc500 },
-  // Áreas de toque com pelo menos 44 pt (aqui 56).
-  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 6 },
-  icon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  label: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.zinc900 },
-  cancel: { height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginTop: 8, backgroundColor: colors.zinc100 },
-  cancelText: { fontSize: 17, fontWeight: '600', color: colors.zinc800 },
 });
