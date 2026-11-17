@@ -41,6 +41,14 @@ test('gifMessage: tocar num GIF envia kind gif com o full (WebP), as medidas, a 
   assert.deepEqual(g.gifPayload(noStill), { id: 'XyZ789', w: 200, h: 200, url: 'https://media2.giphy.com/media/v1.Y2lk/XyZ789/200w.webp' });
 });
 
+test('gifPayload: a classificação do GIPHY (rating) vai com o GIF, se o servidor a mandar', () => {
+  assert.deepEqual(g.gifPayload({ ...item('AbC123'), rating: 'PG-13' }), {
+    id: 'AbC123', w: 200, h: 150, url: 'https://media2.giphy.com/media/v1.Y2lk/AbC123/200w.webp', still: 'https://media2.giphy.com/media/v1.Y2lk/AbC123/200w_s.gif', title: 'Brinde', rating: 'pg-13',
+  });
+  assert.equal('rating' in g.gifPayload(item('AbC123')), false, 'sem rating, não se inventa');
+  assert.equal('rating' in g.gifPayload({ ...item('AbC123'), rating: '  ' }), false);
+});
+
 test('columnsFor: 2 colunas no telemóvel, 3 e 4 em ecrãs mais largos', () => {
   assert.equal(g.columnsFor(0), 2);
   assert.equal(g.columnsFor(360), 2);

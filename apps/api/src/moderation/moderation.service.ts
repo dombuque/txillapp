@@ -12,18 +12,21 @@ import { txilladaBanned, txilladaVisible } from '../txillada/txillada-visibility
 import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens';
 import { blockedBetween, canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
+import { noteVisibleTo } from '../chat/note-visibility';
 import { purgeRemovalCopies, removeContent } from './content-removal';
 import { MediaService } from '../media/media.service';
 import { HELD_PUBLICATIONS } from '../media/held-token';
 import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment', 'txillada_schedule'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment', 'txillada_schedule', 'note'] as const;
 /**
  * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
  * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158; 'txillada_comment' um
  * comentário num live, 0162; 'mixar_comment' um comentário na conversa de um item do Mixar, 0171). 'txillada_schedule' (uma
  * Txillada agendada, 0176) denuncia-se só por POST /txilladas/schedules/:id/report (o serviço dela tira também o lembrete).
+ * 'note' (uma nota, 0178; target_id = social.notes.id) denuncia-se só por POST /notes/:username/report (pelo @ do autor,
+ * como a app conhece a nota), com uma cópia da nota como prova (a nota apaga-se sozinha).
  */
 export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment'] as const;
 /** A pré-visualização de uma Txillada agendada na fila (`ts` = content.txillada_schedules): o título e o motivo da meta. */
@@ -37,6 +40,26 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
  * decidida. Passado esse prazo a cópia apaga-se (fica a null) e a denúncia continua. As denúncias por decidir mantêm-na.
  */
 export const REPORT_EVIDENCE_DAYS = 180;
+
+/** A cópia de uma nota guardada no momento da denúncia (social.reports.evidence, 0178). Sem posição: as notas não a têm. */
+export interface NoteEvidence { body: string; placeName: string | null; gifUrl: string | null; gifRating: string | null; musicTitle: string | null; audience: string; createdAt: string; expiresAt: string }
+
+/** A prova da 1.ª denúncia que a tem, nas filas agrupadas por conteúdo (`r` = social.reports). */
+const FIRST_EVIDENCE = `(array_agg(r.evidence ORDER BY r.created_at) FILTER (WHERE r.evidence IS NOT NULL))[1]`;
+/** A pré-visualização de uma nota na fila: o texto da cópia; sem texto, o local, a música ou «GIF». */
+export const NOTE_PREVIEW = `CASE WHEN r.target_type = 'note' THEN COALESCE(NULLIF(${FIRST_EVIDENCE} ->> 'body', ''), ${FIRST_EVIDENCE} ->> 'placeName', ${FIRST_EVIDENCE} ->> 'musicTitle', CASE WHEN ${FIRST_EVIDENCE} ->> 'gifUrl' IS NOT NULL THEN 'GIF' END) END`;
+
+/** A cópia de uma nota denunciada, para a fila (null noutros tipos ou sem cópia). */
+export function noteProof(r: Record<string, any>): NoteEvidence | null {
+  const e = r.target_type === 'note' ? (r.evidence as Record<string, unknown> | null) : null;
+  if (!e || typeof e !== 'object') return null;
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
+  const iso = (v: unknown) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : '');
+  return {
+    body: str(e.body) ?? '', placeName: str(e.placeName), gifUrl: str(e.gifUrl), gifRating: str(e.gifRating), musicTitle: str(e.musicTitle),
+    audience: str(e.audience) ?? 'mutual', createdAt: iso(e.createdAt), expiresAt: iso(e.expiresAt),
+  };
+}
 
 /** A cópia de uma mensagem guardada no momento da denúncia (social.reports.evidence, 0111). */
 export interface MessageEvidence { kind: string; body: string; placeName: string | null; placeAddress: string | null; editedAt: string | null; /** GIF do GIPHY (0113): o url da imagem. */ gifUrl?: string | null }
@@ -56,6 +79,8 @@ export const EVIDENCE_COLUMNS = `(array_agg(r.evidence ORDER BY r.created_at) FI
  * outro tipo de conteúdo): os dois a null.
  */
 export function messageProof(r: Record<string, any>) {
+  // A prova das notas (0178) tem outra forma: lê-se com noteProof.
+  if (r.target_type !== undefined && r.target_type !== 'message') return { reported: null, current: null };
   const e = (r.evidence as MessageEvidence | null) ?? null;
   if (!e) return { reported: null, current: null };
   const reported = { kind: e.kind, body: e.body ?? '', placeName: e.placeName ?? null, placeAddress: e.placeAddress ?? null, editedAt: e.editedAt ?? null, gifUrl: e.gifUrl ?? null };
@@ -152,6 +177,10 @@ export class ModerationService implements OnModuleInit {
         sql = `SELECT s.host_id AS owner FROM content.txillada_schedules s JOIN identity.users h ON h.id = s.host_id
                 WHERE s.id = $2 AND s.status = 'scheduled' AND ${txilladaVisible('s', 'h', '$1')}`;
         break;
+      case 'note':
+        // Uma nota que quem denuncia pode ver agora (as regras das notas, note-visibility.ts).
+        sql = `SELECT n.user_id AS owner FROM social.notes n JOIN identity.users u ON u.id = n.user_id WHERE n.id = $2 AND ${noteVisibleTo('n', 'u', '$1')}`;
+        break;
       case 'mixar_comment':
         // Um comentário que ainda se vê, na conversa de um Mixar de que sou um dos dois (0171) ou participante (grupo, 0173).
         sql = `SELECT c.user_id AS owner FROM social.mixar_comments c JOIN social.mixars x ON x.id = c.mixar_id
@@ -185,17 +214,21 @@ export class ModerationService implements OnModuleInit {
     const owner = await this.ownerIfVisible(reporter, type, id);
     if (owner === reporter) throw new BadRequestException('Não podes denunciar o teu próprio conteúdo');
     // Numa mensagem guarda-se a prova (0111): uma cópia do que lá está agora. Denunciar outra vez não a substitui.
+    // Numa nota também (0178): o texto, o nome do local, o GIF e a classificação, o título da música, o público e as horas.
     await this.pool.query(
       `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note, evidence)
        VALUES ($1, $2, $3, $4, $5, $6, $7,
                CASE WHEN $3::text = 'message' THEN (SELECT jsonb_build_object('kind', m.kind, 'body', m.body, 'placeName', m.place_name, 'placeAddress', m.place_address, 'editedAt', m.edited_at, 'gifUrl', m.gif->>'url')
-                                                      FROM social.messages m WHERE m.id = $4) END)
+                                                      FROM social.messages m WHERE m.id = $4)
+                    WHEN $3::text = 'note' THEN (SELECT jsonb_build_object('body', n.body, 'placeName', n.place->>'name', 'gifUrl', n.gif->>'url', 'gifRating', n.gif->>'rating',
+                                                        'musicTitle', n.music->>'title', 'audience', n.audience, 'createdAt', n.created_at, 'expiresAt', n.expires_at)
+                                                   FROM social.notes n WHERE n.id = $4) END)
        ON CONFLICT (reporter_id, target_type, target_id) DO NOTHING`,
       [uuidv7(), reporter, type, id, owner, reason, note || null],
     );
     // O que denunciaste deixa de te aparecer (os outros continuam a ver até a moderação decidir). Publicações: saem do
     // teu feed, como «Não me interessa»; mensagens: como «Apagar para mim». Comentários, mimos, comentários de mimos e
-    // Zás: as listagens filtram-nos com notReportedBy (social/visibility.ts).
+    // Zás e notas: as listagens filtram-nos com notReportedBy (social/visibility.ts).
     if (type === 'post') {
       await this.pool.query(
         `INSERT INTO content.feed_impressions (user_id, post_id, hidden) VALUES ($1, $2, true)
@@ -216,7 +249,7 @@ export class ModerationService implements OnModuleInit {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), max(mxc.body), CASE WHEN r.target_type = 'txillada_schedule' THEN ${SCHEDULE_PREVIEW} END, CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), max(mxc.body), CASE WHEN r.target_type = 'txillada_schedule' THEN ${SCHEDULE_PREVIEW} END, ${NOTE_PREVIEW}, CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -419,6 +452,11 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
     const c = (await client.query('UPDATE content.txillada_comments SET removed_at = now() WHERE id = $1 AND removed_at IS NULL RETURNING txillada_id', [id])).rows[0];
     if (c) await client.query('UPDATE content.txilladas SET comments = GREATEST(comments - 1, 0) WHERE id = $1', [c.txillada_id]);
     await client.query('UPDATE content.txilladas SET pinned_comment_id = NULL WHERE pinned_comment_id = $1', [id]);
+    return;
+  }
+  // Nota (0178): apaga-se (como quando o autor a apaga; não se repõe), com os brindes. A cópia fica na denúncia.
+  if (type === 'note') {
+    await client.query('DELETE FROM social.notes WHERE id = $1', [id]);
     return;
   }
   // Comentário do Mixar (0171): deixa de se ver para os dois (como quando o autor o apaga; não se repõe).

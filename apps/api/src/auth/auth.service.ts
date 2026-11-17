@@ -759,6 +759,8 @@ export class AuthService implements OnModuleInit {
         'DELETE FROM social.message_hidden WHERE user_id = $1',
         'DELETE FROM social.notes WHERE user_id = $1',
         'DELETE FROM social.note_cheers WHERE user_id = $1',
+        // Os avisos de brinde que já mandei a notas dos outros (0178).
+        'DELETE FROM social.note_cheer_pings WHERE user_id = $1',
         'DELETE FROM social.instants WHERE author_id = $1',
         // Os resumos semanais dos Zás (0164); as imagens saem com os outros ficheiros da pessoa, mais abaixo.
         'DELETE FROM social.zas_recaps WHERE user_id = $1',

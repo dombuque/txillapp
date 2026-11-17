@@ -18,6 +18,7 @@ export function moderationNoun(d: ModerationData): string {
     case 'txillada_comment': return 'o teu comentário na Txillada';
     case 'mixar_comment': return 'o teu comentário no Mixar';
     case 'story': return 'o teu mimo';
+    case 'note': return 'a tua nota';
     case 'message': return 'a tua mensagem';
     case 'media': return 'a tua foto';
     case 'user': return 'o teu perfil';

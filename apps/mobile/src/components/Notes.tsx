@@ -14,6 +14,7 @@ import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
 import { MusicPicker } from '@/components/MusicPicker';
 import { PlaceSheet } from '@/components/PlaceSheet';
+import { ReportSheet } from '@/components/ReportSheet';
 import { Sheet } from '@/components/Sheet';
 import { TrackCredits, useAutoTrack, useMusicMuted } from '@/components/TrackCard';
 import { SendButton } from '@/components/ui/SendButton';
@@ -245,6 +246,10 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
   const tone = noteTone(note.color);
   const layout = noteLayout(note);
   const avatar = width < 360 ? 72 : 88;
+  const { user } = useAuth();
+  const mine = !!user && user.username.toLowerCase() === note.username.toLowerCase();
+  const [step, setStep] = useState<'view' | 'more' | 'report'>('view');
+  const reported = useRef(false);
   useEffect(() => releaseKeyboard, []);
 
   async function cheer() {
@@ -280,12 +285,36 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
   }
   const typed = !!text.trim();
 
+  // O «⋯» troca a folha da nota pelo menu, e o «Denunciar» troca o menu pela folha da denúncia (uma folha de cada vez,
+  // nunca uma por cima da outra). Fechar o menu, ou a denúncia sem a enviar, volta à nota (com o que já se escreveu).
+  // Denunciada, a nota sai logo da fila (o servidor esconde-a a quem denunciou) e, ao fechar o «Obrigado», fecha-se.
+  if (step === 'more') return <NoteMoreSheet username={note.username} onReport={() => setStep('report')} onClose={() => setStep('view')} />;
+  if (step === 'report') {
+    return (
+      <ReportSheet
+        type="note"
+        id={note.username}
+        onReported={() => {
+          reported.current = true;
+          void qc.invalidateQueries({ queryKey: ['notes'] });
+          if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
+        }}
+        onClose={() => (reported.current ? onClose() : setStep('view'))}
+      />
+    );
+  }
+
   return (
     <Sheet onClose={onClose}>
       <View style={styles.view}>
         <View style={styles.viewHead}>
           <NameWithBadge name={note.displayName} who={note} style={styles.viewName} containerStyle={{ flexShrink: 1 }} />
           <Text style={styles.viewAgo}>{` · ${noteAgo(note.createdAt)}`}</Text>
+          {mine ? null : (
+            <Pressable onPress={() => setStep('more')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mais opções da nota" style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}>
+              <Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} />
+            </Pressable>
+          )}
         </View>
         <View style={[styles.viewRow, !hasBubble(note) && { justifyContent: 'center' }]}>
           {/* Com GIF, o GIF fica no lugar da foto (quadrado arredondado, a mexer). Só com GIF, não há bolha. */}
@@ -338,6 +367,17 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
             </Animated.View>
           </Pressable>
         </View>
+      </View>
+    </Sheet>
+  );
+}
+
+/** O menu do «⋯» da nota de outra pessoa: «Denunciar» (abre a folha da denúncia no lugar do menu). */
+function NoteMoreSheet({ username, onReport, onClose }: { username: string; onReport: () => void; onClose: () => void }) {
+  return (
+    <Sheet title={`Nota de @${username}`} onClose={onClose} variant="menu" cancel>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+        <ActionRow icon="flag" title="Denunciar" text="Avisa a moderação. A pessoa não sabe." danger onPress={onReport} />
       </View>
     </Sheet>
   );
@@ -412,7 +452,7 @@ function PaletteIcon() {
 /**
  * A minha nota, em ecrã inteiro (como nas redes sociais): o × em cima; ao centro a minha foto com a bolha por cima, onde
  * se escreve diretamente (o teclado abre logo); a paleta na foto escolhe a cor da bolha; por baixo, música, local e GIF;
- * em baixo, colados ao teclado, o público («Partilhar com amigos» ou «Amigos próximos») e «Partilhar». Uma nota não se
+ * em baixo, colados ao teclado, o público («Seguidores ›» ou «Amigos próximos ›») e «Partilhar». Uma nota não se
  * edita: a que já está publicada abre aqui com o que tem e com «Apagar» (pergunta antes).
  */
 function NoteEditor({ current, onClose }: { current: Note | null; onClose: () => void }) {
@@ -562,7 +602,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           {view ? (
             <View style={styles.audBtn}>
               <Icon name={view.audience === 'close_friends' ? 'star' : 'users'} size={18} strokeWidth={2} color={colors.zinc800} />
-              <Text style={styles.audText}>{view.audience === 'close_friends' ? 'Amigos próximos' : 'Amigos'}</Text>
+              <Text style={styles.audText}>{noteAudienceLabel(view.audience)}</Text>
             </View>
           ) : (
             <Pressable onPress={() => setPanel('audience')} accessibilityRole="button" accessibilityLabel={`${noteAudienceLabel(audience)}. Mudar quem vê`} style={({ pressed }) => [styles.audBtn, pressed && { opacity: 0.6 }]}>
@@ -586,7 +626,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
       {panel === 'place' && (
         <PlaceSheet
           value={place?.name ?? ''}
-          onChange={(v, g) => setPlace(v.trim() ? { name: v.trim().slice(0, 80), ...(g ? { lat: g.lat, lng: g.lng, coarse: g.coarse } : {}) } : null)}
+          onChange={(v) => setPlace(v.trim() ? { name: v.trim().slice(0, 80) } : null)}
           onClose={back}
         />
       )}
@@ -610,7 +650,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               <ActionRow
                 key={a}
                 icon={a === 'close_friends' ? 'star' : 'users'}
-                title={a === 'close_friends' ? 'Amigos próximos' : 'Amigos'}
+                title={noteAudienceLabel(a)}
                 text={a === 'close_friends' ? 'Só quem está na tua lista de amigos próximos.' : 'Os teus seguidores.'}
                 right={audience === a ? <Icon name="check" size={20} strokeWidth={2.4} color={colors.brand} /> : undefined}
                 onPress={() => { setAudience(a); back(); }}
@@ -655,6 +695,7 @@ const styles = StyleSheet.create({
   viewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   viewName: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   viewAgo: { fontSize: 15, color: colors.zinc500 },
+  viewMore: { position: 'absolute', right: -8, top: '50%', marginTop: -18, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   viewRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 6 },
   viewBubbleWrap: { flexShrink: 1, flexDirection: 'row', alignItems: 'center' },
   viewDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, marginRight: 2, marginTop: -18, boxShadow: SHADOW } as object,

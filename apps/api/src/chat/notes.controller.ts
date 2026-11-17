@@ -7,16 +7,17 @@ import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { gifSchema } from '../gifs/gif';
 import { musicSchema } from '../music/music.service';
+import { REPORT_REASONS } from '../moderation/moderation.service';
 import { NOTE_COLORS, NotesService } from './notes.service';
 
 type AuthedReq = Request & { userId?: string };
 
-/** O local da nota: o nome (como o locationLabel das publicações) e, se houver, a posição (arredondada ao gravar). */
+/**
+ * O local da nota: só o nome do sítio (como o locationLabel das publicações). A posição nunca se guarda: se uma app
+ * antiga mandar lat, lng ou coarse, saem aqui (o zod tira as chaves que não conhece).
+ */
 const notePlaceSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  lat: z.number().min(-90).max(90).optional(),
-  lng: z.number().min(-180).max(180).optional(),
-  coarse: z.boolean().optional(),
 });
 
 const noteSchema = z
@@ -33,6 +34,8 @@ const noteSchema = z
   })
   .refine((n) => n.body.length > 0 || !!n.music || !!n.gif || !!n.place, { message: 'Escreve algo ou escolhe uma música, um local ou um GIF', path: ['body'] });
 const replySchema = z.object({ text: z.string().trim().min(1).max(500) });
+/** Os mesmos motivos e limites das outras denúncias (POST /reports). */
+const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
 
 @Controller('notes')
 @UseGuards(JwtAuthGuard)
@@ -70,5 +73,13 @@ export class NotesController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   reply(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
     return this.notes.reply(req.userId!, username, b.text);
+  }
+
+  /** Denunciar a nota de alguém (quem a vê, não o autor): a fila da moderação ('note'); deixa de aparecer a quem denunciou. */
+  @Post(':username/report')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
+  report(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(reportSchema)) b: z.infer<typeof reportSchema>) {
+    return this.notes.report(req.userId!, username, b.reason, b.note || undefined);
   }
 }

@@ -3,11 +3,13 @@ import { z } from 'zod';
 /**
  * GIFs do GIPHY: a parte pura (sem Nest nem base de dados), partilhada pelo módulo dos GIFs, pelo chat e pelos comentários.
  *
- * Um GIF numa mensagem ou num comentário guarda-se só como { id, w, h, url } (e, opcionais, `still` e `title`):
+ * Um GIF numa mensagem ou num comentário guarda-se só como { id, w, h, url } (e, opcionais, `still`, `title` e `rating`):
  *  - `url` e `still` têm de ser https e de um anfitrião de média do GIPHY (media.giphy.com, media0..media9.giphy.com),
  *    com o caminho /media/…/<id>/… e terminados em .gif ou .webp. A query (cid, rid, ct: analítica do GIPHY) sai antes de guardar;
  *  - `id` é o id do GIPHY (letras e números);
- *  - `w` e `h` em píxeis, entre 16 e 2000, com proporção entre 1:5 e 5:1.
+ *  - `w` e `h` em píxeis, entre 16 e 2000, com proporção entre 1:5 e 5:1;
+ *  - `rating` é a classificação do GIPHY ('y', 'g', 'pg', 'pg-13', 'r'), que a grelha traz em cada GIF. Nas notas, quem
+ *    é menor de 18 (ou não tem data de nascimento) não recebe um GIF acima de 'g' nem um sem classificação (gifForMinor).
  * As imagens são carregadas pelo aparelho diretamente da CDN do GIPHY (não passam pelo nosso servidor).
  */
 
@@ -34,6 +36,17 @@ export function giphyMediaUrl(raw: unknown, id?: string): string | null {
   return `https://${u.hostname}${u.pathname}`;
 }
 
+/** As classificações do GIPHY, da mais leve para a mais forte. */
+export const GIF_RATINGS = ['y', 'g', 'pg', 'pg-13', 'r'] as const;
+export type GifRatingValue = (typeof GIF_RATINGS)[number];
+/** Lê uma classificação (em minúsculas, sem espaços); desconhecida = null. */
+export function readRating(v: unknown): GifRatingValue | null {
+  const r = typeof v === 'string' ? v.trim().toLowerCase() : '';
+  return (GIF_RATINGS as readonly string[]).includes(r) ? (r as GifRatingValue) : null;
+}
+/** Um GIF que um menor de 18 pode ver: só 'y' ou 'g' (sem classificação, não). */
+export const gifForMinor = (rating: unknown) => { const r = readRating(rating); return r === 'y' || r === 'g'; };
+
 /** Medidas razoáveis para uma bolha ou um comentário. */
 export const sizeOk = (w: number, h: number) => Number.isInteger(w) && Number.isInteger(h) && w >= 16 && h >= 16 && w <= 2000 && h <= 2000 && w / h <= 5 && h / w <= 5;
 
@@ -46,6 +59,8 @@ export const gifSchema = z
     url: z.string().max(600),
     still: z.string().max(600).optional(),
     title: z.string().max(200).optional(),
+    /** A classificação do GIPHY (a grelha manda-a); desconhecida fica de fora. */
+    rating: z.string().max(10).optional(),
   })
   .transform((g, ctx) => {
     const url = giphyMediaUrl(g.url, g.id);
@@ -55,12 +70,13 @@ export const gifSchema = z
     if (!sizeOk(g.w, g.h)) ctx.addIssue({ code: 'custom', path: ['w'], message: 'Tamanho do GIF inválido' });
     if (!url || still === null || !sizeOk(g.w, g.h)) return z.NEVER;
     const title = (g.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
-    return { id: g.id, w: g.w, h: g.h, url, ...(still ? { still } : {}), ...(title ? { title } : {}) };
+    const rating = readRating(g.rating);
+    return { id: g.id, w: g.w, h: g.h, url, ...(still ? { still } : {}), ...(title ? { title } : {}), ...(rating ? { rating } : {}) };
   });
 export type GifInput = z.infer<typeof gifSchema>;
 
 /** O que fica guardado (coluna jsonb `gif`) e o que a app recebe de volta. */
-export interface StoredGif { id: string; w: number; h: number; url: string; still?: string; title?: string }
+export interface StoredGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: GifRatingValue }
 
 /** Lê o jsonb guardado (defensivo: se alguma coisa não bater certo, não se mostra). */
 export function readGif(v: unknown): StoredGif | null {
@@ -71,7 +87,8 @@ export function readGif(v: unknown): StoredGif | null {
   if (!url) return null;
   const still = giphyMediaUrl(g.still, g.id);
   const title = typeof g.title === 'string' ? g.title.slice(0, 100) : '';
-  return { id: g.id, w: g.w, h: g.h, url, ...(still ? { still } : {}), ...(title ? { title } : {}) };
+  const rating = readRating(g.rating);
+  return { id: g.id, w: g.w, h: g.h, url, ...(still ? { still } : {}), ...(title ? { title } : {}), ...(rating ? { rating } : {}) };
 }
 
 /* ───────────── respostas do GIPHY ───────────── */
@@ -89,11 +106,13 @@ export interface GifItem {
   /** Primeira imagem, parada ("Reduzir movimento"). */
   still?: string;
   mp4?: string;
+  /** A classificação do GIPHY ('g', 'pg', 'pg-13'…), para a nota a guardar. */
+  rating?: string;
 }
 export interface GifPage { items: GifItem[]; next: number | null }
 
 type Rendition = { url?: string; width?: string | number; height?: string | number; webp?: string; mp4?: string };
-interface GiphyGif { id?: string; title?: string; images?: Record<string, Rendition | undefined> }
+interface GiphyGif { id?: string; title?: string; rating?: string; images?: Record<string, Rendition | undefined> }
 
 /** O maior offset que a pesquisa do GIPHY aceita. */
 export const MAX_OFFSET = 4999;
@@ -140,7 +159,8 @@ export function mapGiphy(body: unknown, offset: number, limit: number): GifPage 
     const still = giphyMediaUrl(im.fixed_width_still?.url, id) ?? giphyMediaUrl(im.fixed_width_small_still?.url, id) ?? giphyMediaUrl(im.original_still?.url, id) ?? stillOf(giphyMediaUrl(fw.url, id));
     const mp4 = giphyMp4(fw.mp4);
     const title = typeof g.title === 'string' ? g.title.replace(/\s+/g, ' ').trim().slice(0, 100) : '';
-    items.push({ id, title, w, h, preview, full, ...(still ? { still } : {}), ...(mp4 ? { mp4 } : {}) });
+    const rating = readRating(g.rating);
+    items.push({ id, title, w, h, preview, full, ...(still ? { still } : {}), ...(mp4 ? { mp4 } : {}), ...(rating ? { rating } : {}) });
   }
   const p = b.pagination ?? {};
   const count = typeof p.count === 'number' ? p.count : data.length;

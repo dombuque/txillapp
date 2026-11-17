@@ -1,5 +1,5 @@
 -- Notas: uma frase curta (até 60 caracteres) por cima da foto de perfil, que dura 24 horas. Uma nota ativa por pessoa.
--- 'mutual' = quem eu sigo e também me segue; 'close_friends' = a minha lista de amigos próximos.
+-- 'mutual' = quem me segue (na app, «Seguidores»); 'close_friends' = a minha lista de amigos próximos.
 CREATE TABLE social.notes (
   user_id uuid PRIMARY KEY REFERENCES identity.users(id) ON DELETE CASCADE,
   body text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 60),

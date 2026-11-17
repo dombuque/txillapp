@@ -9,7 +9,7 @@ import { createApp } from '../main';
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 
 interface U { token: string; id: string; username: string }
-interface Note { username: string; body: string; color: string | null; place: { name: string; lat?: number; lng?: number } | null; gif: Record<string, unknown> | null; audience: string }
+interface Note { username: string; body: string; color: string | null; place: { name: string } | null; gif: Record<string, unknown> | null; audience: string }
 
 const GIF = { id: 'Nota42gif', w: 200, h: 150, url: 'https://media2.giphy.com/media/Nota42gif/200w.gif?cid=abc&rid=200w.gif', title: '  Bora   txilar ' };
 const GIF_SAVED = { id: 'Nota42gif', w: 200, h: 150, url: 'https://media2.giphy.com/media/Nota42gif/200w.gif', title: 'Bora txilar' };
@@ -47,7 +47,7 @@ describe('Notas: cor, local, GIF e amigos próximos (integração)', () => {
     await pool.end();
   });
 
-  it('grava e lê a cor, o local (posição arredondada) e o GIF, na lista, na minha nota, no cabeçalho da conversa e na exportação', async () => {
+  it('grava e lê a cor, o local (só o nome, a posição que a app mande sai) e o GIF, na lista, na minha nota, no cabeçalho da conversa e na exportação', async () => {
     const a = await signup('noa');
     const b = await signup('nob');
     await follow(b, a);
@@ -57,11 +57,16 @@ describe('Notas: cor, local, GIF e amigos próximos (integração)', () => {
       .send({ body: 'Bora txilar', color: 'ceu', place: { name: '  Ilha de Luanda ', lat: -8.79567, lng: 13.22345, coarse: true }, gif: GIF })
       .expect(204);
 
-    const place = { name: 'Ilha de Luanda', lat: -8.8, lng: 13.22 };
+    const place = { name: 'Ilha de Luanda' };
     expect((await notes(a)).mine).toMatchObject({ body: 'Bora txilar', color: 'ceu', place, gif: GIF_SAVED, audience: 'mutual' });
+    expect((await notes(a)).mine!.place).toEqual(place);
+    // Na base de dados também só fica o nome.
+    expect((await pool.query('SELECT place FROM social.notes WHERE user_id = $1', [a.id])).rows[0].place).toEqual(place);
     const seen = await noteOf(b, a);
     expect(seen).toMatchObject({ body: 'Bora txilar', color: 'ceu', place, gif: GIF_SAVED });
+    expect(seen!.place).toEqual(place);
     expect(await peerNote(b, a)).toMatchObject({ body: 'Bora txilar', color: 'ceu', place, gif: GIF_SAVED, music: null });
+    expect((await peerNote(b, a)).place).toEqual(place);
 
     // Sem as opções: cor, local e GIF vêm a null (a bolha branca de sempre).
     await api().put('/api/v1/notes/me').set(auth(b)).send({ body: 'Simples' }).expect(204);
@@ -72,6 +77,7 @@ describe('Notas: cor, local, GIF e amigos próximos (integração)', () => {
     const ex = (await api().get('/api/v1/me/export').set(auth(a)).expect(200)).body as { notes: Record<string, unknown>[] };
     expect(ex.notes).toHaveLength(1);
     expect(ex.notes[0]).toMatchObject({ body: 'Bora txilar', color: 'ceu', place, gif: GIF_SAVED, audience: 'mutual' });
+    expect(ex.notes[0].place).toEqual(place);
     expect(ex.notes[0]).toHaveProperty('expiresAt');
   });
 
@@ -88,7 +94,7 @@ describe('Notas: cor, local, GIF e amigos próximos (integração)', () => {
     expect((await notes(e)).mine).toBeNull();
   });
 
-  it('aceita a nota só com GIF e só com local; a resposta diz «GIF» ou o nome do local; um menor fica sem posição', async () => {
+  it('aceita a nota só com GIF e só com local; a resposta diz «GIF» ou o nome do local; ninguém fica com posição', async () => {
     const g = await signup('nog');
     const h = await signup('noh');
     const r = await signup('nor');

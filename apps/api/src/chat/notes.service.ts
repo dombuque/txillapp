@@ -1,14 +1,17 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
-import { blockedBetween } from '../social/visibility';
+import { blockedBetween, notReportedBy } from '../social/visibility';
 import { badge } from '../common/badge';
 import { PushService } from '../push/push.service';
 import { ChatService } from './chat.service';
-import { readGif, type GifInput } from '../gifs/gif';
-import { coarse } from '../nearby/geo-sql';
+import { gifForMinor, readGif, type GifInput } from '../gifs/gif';
+import { uuidv7 } from '../common/uuid7';
+import { Scheduler } from '../realtime/scheduler';
+import { ModerationService, type ReportReason } from '../moderation/moderation.service';
+import { NOTE_KEEP_AFTER_EXPIRY, noteVisibleTo } from './note-visibility';
 
 export type NoteAudience = 'mutual' | 'close_friends';
 
@@ -16,36 +19,65 @@ export type NoteAudience = 'mutual' | 'close_friends';
 export const NOTE_COLORS = ['coral', 'ambar', 'verde', 'ceu', 'noite'] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
-/** O local de uma nota como sai: o nome e, só se existir, a posição (já arredondada a 2 casas). */
-export interface NotePlace { name: string; lat?: number; lng?: number }
+/** O local de uma nota: só o nome do sítio (nunca a posição: nem se guarda nem se envia). */
+export interface NotePlace { name: string }
+
+/** De quanto em quanto tempo corre a limpeza das notas (apaga as que deixaram de se ver há mais de 24 horas). */
+export const NOTES_PURGE_EVERY_MS = 3_600_000;
 
 /** O que a app manda além do texto e da música. */
 export interface NoteExtras {
   color?: NoteColor | null;
-  place?: { name: string; lat?: number; lng?: number; coarse?: boolean } | null;
+  place?: { name: string } | null;
   gif?: GifInput | null;
   audience?: NoteAudience;
 }
 
-/** Lê o jsonb `place` guardado (defensivo: sem nome, não se mostra; a posição só se vier inteira). */
+/** Lê o jsonb `place` guardado (defensivo: sem nome, não se mostra). Sai só o nome. */
 export function readNotePlace(v: unknown): NotePlace | null {
   if (!v || typeof v !== 'object') return null;
   const p = v as Record<string, unknown>;
   if (typeof p.name !== 'string' || !p.name.trim()) return null;
-  const ok = typeof p.lat === 'number' && typeof p.lng === 'number' && Number.isFinite(p.lat) && Number.isFinite(p.lng);
-  return { name: p.name.slice(0, 80), ...(ok ? { lat: p.lat as number, lng: p.lng as number } : {}) };
+  return { name: p.name.slice(0, 80) };
 }
 
-/** Notas de 24 horas por cima da foto de perfil. Só os seguidores da pessoa as vêem. Não se editam: apaga-se e publica-se outra. */
+/** Se a pessoa com o id `id` (SQL) é adulta: 18 anos feitos, com data de nascimento. */
+const ADULT_SQL = (id: string) => `EXISTS (SELECT 1 FROM identity.users ad WHERE ad.id = ${id} AND ad.birth_date IS NOT NULL AND ad.birth_date <= (current_date - interval '18 years'))`;
+
+/**
+ * Notas de 24 horas por cima da foto de perfil. Só os seguidores da pessoa as vêem. Não se editam: apaga-se e publica-se outra.
+ * Às 24 horas deixam de se ver; 24 horas depois a limpeza (`purge`, de hora a hora) apaga-as de vez, com os brindes e os
+ * avisos de brinde (ON DELETE CASCADE). As respostas já enviadas ficam nas conversas: são mensagens.
+ */
 @Injectable()
-export class NotesService {
+export class NotesService implements OnModuleInit {
+  private readonly log = new Logger('Notas');
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly chat: ChatService,
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
     private readonly push: PushService,
+    private readonly moderation: ModerationService,
+    private readonly scheduler: Scheduler,
   ) {}
+
+  /** A limpeza de hora a hora (só no worker, fora dos testes: aí chama-se `purge()`). */
+  onModuleInit() {
+    this.scheduler.every('notes.purge', NOTES_PURGE_EVERY_MS, () => this.purge(), { firstAfterMs: 4 * 60_000 });
+  }
+
+  /**
+   * Apaga de vez as notas que deixaram de se ver há mais de 24 horas (e, pela base de dados, os brindes e os avisos de
+   * brinde delas). As denúncias ficam, com a cópia da nota (a prova). Devolve quantas apagou.
+   */
+  async purge(): Promise<number> {
+    const r = await this.pool.query(`DELETE FROM social.notes WHERE expires_at < now() - interval '${NOTE_KEEP_AFTER_EXPIRY}'`);
+    const n = r.rowCount ?? 0;
+    if (n) this.log.log(`${n} notas antigas apagadas`);
+    return n;
+  }
 
   /**
    * A faixa das mensagens: a minha nota, as notas que posso ver e, a seguir, as pessoas com quem já conversei
@@ -113,25 +145,32 @@ export class NotesService {
 
   /**
    * A minha nota (se ainda vale) e as de quem me deixa vê-las (os brindes e as respostas só valem para estas).
-   * Uma nota 'close_friends' só a vê quem está na lista de amigos próximos do autor (além das outras regras); a minha vejo-a sempre.
+   * As regras de quem vê a nota de outra pessoa estão em noteVisibleTo (note-visibility.ts): seguir o autor e, numa nota
+   * 'close_friends', estar na lista de amigos próximos dele. A minha vejo-a sempre. Uma nota que denunciei deixa de me
+   * aparecer. GIFs: quem é menor de 18 (ou não tem data de nascimento) recebe a nota sem o GIF se a classificação for
+   * acima de 'g' ou se faltar (gifForMinor); se a nota era só o GIF, não a recebe.
    * `only` (username) = só a dessa pessoa (e a minha, se for eu).
    */
   private async visible(me: string, only?: string) {
     const { rows } = await this.pool.query(
-      `SELECT n.user_id, n.body, n.music, n.color, n.place, n.gif, n.audience, n.created_at, n.expires_at, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+      `SELECT n.id, n.user_id, n.body, n.music, n.color, n.place, n.gif, n.audience, n.created_at, n.expires_at, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*)::int FROM social.note_cheers c WHERE c.note_user_id = n.user_id) AS cheers,
-              EXISTS (SELECT 1 FROM social.note_cheers c WHERE c.note_user_id = n.user_id AND c.user_id = $1) AS cheered
+              EXISTS (SELECT 1 FROM social.note_cheers c WHERE c.note_user_id = n.user_id AND c.user_id = $1) AS cheered,
+              ${ADULT_SQL('$1')} AS viewer_adult
          FROM social.notes n JOIN identity.users u ON u.id = n.user_id AND u.status = 'active'
         WHERE n.expires_at > now()
-          AND (n.user_id = $1 OR (
-                NOT ${blockedBetween('u.id', '$1')}
-                AND EXISTS (SELECT 1 FROM social.follows a WHERE a.follower_id = $1 AND a.followee_id = u.id)
-                AND (n.audience <> 'close_friends' OR EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = n.user_id AND cf.friend_id = $1))))
+          AND (n.user_id = $1 OR (${noteVisibleTo('n', 'u', '$1')} AND ${notReportedBy('note', 'n.id', '$1')}))
           AND ($2::text IS NULL OR lower(u.username) = lower($2))
         ORDER BY n.created_at DESC LIMIT 60`,
       [me, only ?? null],
     );
+    const gifFor = (r: Record<string, unknown>) => {
+      const g = readGif(r.gif);
+      return g && (r.viewer_adult || gifForMinor(g.rating)) ? g : null;
+    };
     const map = (r: Record<string, unknown>) => ({
+      /** O id desta nota (muda a cada nota publicada). */
+      id: r.id as string,
       username: r.username as string,
       displayName: r.display_name as string,
       ...badge(r.verified, r.verified_tier),
@@ -141,10 +180,10 @@ export class NotesService {
       music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
       /** A cor da bolha (null = a branca de sempre). */
       color: ((r.color as string | null) ?? null) as NoteColor | null,
-      /** O local: { name, lat?, lng? } (a posição só se existir). */
+      /** O local: { name } (só o nome do sítio). */
       place: readNotePlace(r.place),
-      /** O GIF (o formato das mensagens GIF), lido como no chat. */
-      gif: readGif(r.gif),
+      /** O GIF (o formato das mensagens GIF, com a classificação), lido como no chat; a menores, só até 'g'. */
+      gif: gifFor(r),
       audience: r.audience as NoteAudience,
       createdAt: r.created_at as string,
       expiresAt: r.expires_at as string,
@@ -152,29 +191,28 @@ export class NotesService {
       cheered: r.cheered as boolean,
     });
     const mine = rows.find((r) => r.user_id === me);
-    return { mine: mine ? map(mine) : null, items: rows.filter((r) => r.user_id !== me).map(map) };
+    // Uma nota que, sem o GIF, fica sem nada para mostrar não se manda.
+    const shown = (n: ReturnType<typeof map>) => !!n.body || !!n.music || !!n.place || !!n.gif;
+    return { mine: mine ? map(mine) : null, items: rows.filter((r) => r.user_id !== me).map(map).filter(shown) };
   }
 
   /**
    * Publicar a minha nota (24 horas, para os seguidores ou só para os amigos próximos). Não se troca: para escrever outra,
-   * apaga-se esta primeiro. O local segue a regra das publicações: a posição arredondada a 2 casas (~1 km), nunca a exata,
-   * e nenhuma para menores de 18 anos (fica só o nome).
+   * apaga-se esta primeiro (uma nota que já expirou sai aqui). Do local guarda-se só o nome do sítio, nunca a posição.
+   * O GIF guarda a classificação do GIPHY; sem ela, se quem publica é menor (a grelha só lhe mostra GIFs 'g'), fica 'g'.
    */
   async set(me: string, body: string, musicIn: MusicInput | null = null, extras: NoteExtras = {}) {
     const placeIn = extras.place ?? null;
     this.filter.assertClean(body, placeIn?.name, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(me, musicIn);
-    let place: NotePlace | null = null;
-    if (placeIn) {
-      const hasGeo = placeIn.lat != null && placeIn.lng != null;
-      const adult = hasGeo && !!(await this.pool.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [me])).rowCount;
-      place = { name: placeIn.name.trim(), ...(adult ? { lat: coarse(placeIn.lat!), lng: coarse(placeIn.lng!) } : {}) };
-    }
+    const place: NotePlace | null = placeIn ? { name: placeIn.name.trim().slice(0, 80) } : null;
+    let gif = extras.gif ?? null;
+    if (gif && !gif.rating && !(await this.pool.query(`SELECT ${ADULT_SQL('$1')} AS a`, [me])).rows[0].a) gif = { ...gif, rating: 'g' };
     await this.pool.query('DELETE FROM social.notes WHERE user_id = $1 AND expires_at <= now()', [me]);
     try {
       await this.pool.query(
-        `INSERT INTO social.notes (user_id, body, music, color, place, gif, audience, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now() + interval '24 hours')`,
-        [me, body.trim(), music ? JSON.stringify(music) : null, extras.color ?? null, place ? JSON.stringify(place) : null, extras.gif ? JSON.stringify(extras.gif) : null, extras.audience ?? 'mutual'],
+        `INSERT INTO social.notes (id, user_id, body, music, color, place, gif, audience, created_at, expires_at) VALUES ($8, $1, $2, $3, $4, $5, $6, $7, now(), now() + interval '24 hours')`,
+        [me, body.trim(), music ? JSON.stringify(music) : null, extras.color ?? null, place ? JSON.stringify(place) : null, gif ? JSON.stringify(gif) : null, extras.audience ?? 'mutual', uuidv7()],
       );
     } catch (e) {
       if ((e as { code?: string }).code === '23505') throw new ConflictException('Já tens uma nota. Apaga-a para publicar outra');
@@ -186,15 +224,22 @@ export class NotesService {
     await this.pool.query('DELETE FROM social.notes WHERE user_id = $1', [me]);
   }
 
-  /** Brindar a nota de alguém (só quem a pode ver): põe ou tira o meu brinde. O dono é avisado só da primeira vez. */
+  /**
+   * Brindar a nota de alguém (só quem a pode ver): põe ou tira o meu brinde. O dono é avisado só do primeiro brinde de cada
+   * pessoa a esta nota (social.note_cheer_pings): brindar, tirar e voltar a pôr não volta a avisar.
+   */
   async cheer(me: string, username: string) {
-    const visible = (await this.visible(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
+    const visible = (await this.visible(me, username)).items[0];
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     const owner = (await this.pool.query('SELECT id FROM identity.users WHERE lower(username) = lower($1)', [visible.username])).rows[0].id as string;
     const del = await this.pool.query('DELETE FROM social.note_cheers WHERE note_user_id = $1 AND user_id = $2', [owner, me]);
     const cheered = !del.rowCount;
+    let first = false;
     if (cheered) {
       await this.pool.query('INSERT INTO social.note_cheers (note_user_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [owner, me]);
+      first = !!(await this.pool.query('INSERT INTO social.note_cheer_pings (note_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [visible.id, me])).rowCount;
+    }
+    if (first) {
       const name = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0]?.display_name as string;
       void this.push.send(owner, { title: name, body: 'brindou a tua nota', url: '/messages', tag: `note-cheer:${owner}`, category: 'reactions' });
     }
@@ -205,9 +250,23 @@ export class NotesService {
   /** Responder a uma nota: vai como mensagem normal, a dizer a que nota responde (só quem pode ver a nota). */
   async reply(me: string, username: string, text: string) {
     this.filter.assertClean(text);
-    const visible = (await this.visible(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
+    const visible = (await this.visible(me, username)).items[0];
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     const label = visible.body || (visible.music as { title?: string } | null)?.title || (visible.gif ? 'GIF' : '') || visible.place?.name || '♪';
     return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${label}”: ${text.trim()}` });
+  }
+
+  /**
+   * Denunciar a nota de alguém (só quem a pode ver; a própria nunca): a fila da moderação ('note', com a cópia da nota como
+   * prova), os mesmos motivos e limites das outras denúncias. Quem denuncia deixa de ver essa nota (visible).
+   */
+  async report(me: string, username: string, reason: ReportReason, note?: string) {
+    const visible = (await this.visible(me, username)).items[0];
+    if (!visible) {
+      const mine = (await this.pool.query('SELECT 1 FROM identity.users WHERE id = $1 AND lower(username) = lower($2)', [me, username])).rowCount;
+      if (mine) throw new BadRequestException('Não podes denunciar a tua própria nota');
+      throw new NotFoundException('Essa nota já não está disponível');
+    }
+    await this.moderation.report(me, 'note', visible.id, reason, note);
   }
 }

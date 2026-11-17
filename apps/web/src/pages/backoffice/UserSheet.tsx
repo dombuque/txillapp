@@ -28,7 +28,7 @@ const ACTION: Record<string, string> = {
   'auth.register': 'Registo',
 };
 const REASON: Record<string, string> = { spam: 'Spam', harassment: 'Assédio', hate: 'Ódio', nudity: 'Nudez', violence: 'Violência', scam: 'Burla', impersonation: 'Falsa identidade', minor: 'Menor', other: 'Outro' };
-const TYPE: Record<string, string> = { post: 'publicação', comment: 'comentário', story: 'mimo', user: 'perfil', message: 'mensagem', media: 'foto' };
+const TYPE: Record<string, string> = { post: 'publicação', comment: 'comentário', story: 'mimo', user: 'perfil', message: 'mensagem', media: 'foto', note: 'nota' };
 const reportStatus = (s: string) => <Badge tone={s === 'open' ? 'amber' : s === 'actioned' ? 'red' : 'zinc'}>{s === 'open' ? 'por decidir' : s === 'actioned' ? 'com ação' : 'ignorada'}</Badge>;
 
 type Tab = 'resumo' | 'atividade' | 'queixas' | 'sessoes' | 'notas' | 'historico';

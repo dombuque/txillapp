@@ -103,7 +103,7 @@ const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
   type === 'comment' ? 'o teu comentário' : type === 'txillada_comment' ? 'o teu comentário na Txillada' : type === 'mixar_comment' ? 'o teu comentário no Mixar' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
-  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : type === 'txillada_schedule' ? 'a tua Txillada agendada' : tcheka ? 'a tua tcheka' : 'a tua publicação';
+  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : type === 'txillada_schedule' ? 'a tua Txillada agendada' : type === 'note' ? 'a tua nota' : tcheka ? 'a tua tcheka' : 'a tua publicação';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
