@@ -69,7 +69,7 @@ export interface MixarEvent {
  */
 export type TxilladaEvent =
   | { type: 'txillada.comment'; txilladaId: string; comment: unknown }
-  | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string } }
+  | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string; verified: boolean; verifiedTier: string | null } }
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
   | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut' }
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
@@ -118,6 +118,16 @@ export type TxilladaEvent =
       raised: number;
       goal: number | null;
       topGivers: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null; total: number }[];
+    }
+  /**
+   * Mencionaram-me num comentário (txillada-voltar) e já estou na Txillada (anfitrião, convidado a transmitir ou a ver): só a
+   * mim, sem aviso na lista. `from`: o autor (com o selo); `commentId`: o comentário.
+   */
+  | {
+      type: 'txillada.mention';
+      txilladaId: string;
+      from: { username: string; displayName: string; avatarUrl: string | null; verified: boolean; verifiedTier: string | null };
+      commentId: string;
     };
 
 /** Quem transmite com o anfitrião (o `id` é o identity no LiveKit: a app liga o quadrado à faixa). */

@@ -254,7 +254,7 @@ describe('Txillada: os lives (integração)', () => {
     const { host, ana, rui } = u;
     const id = (await pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [host.id])).rows[0].id as string;
     expect((await api().post(`/api/v1/txilladas/${id}/cheer`).set(auth(ana)).expect(200)).body).toEqual({ cheers: 1 });
-    expect(txEvents(host, 'txillada.cheer').at(-1)).toEqual({ type: 'txillada.cheer', txilladaId: id, cheers: 1, from: { username: ana.username } });
+    expect(txEvents(host, 'txillada.cheer').at(-1)).toEqual({ type: 'txillada.cheer', txilladaId: id, cheers: 1, from: { username: ana.username, verified: false, verifiedTier: null } });
     const burst = await Promise.all(Array.from({ length: 8 }, () => api().post(`/api/v1/txilladas/${id}/cheer`).set(auth(rui))));
     expect(burst.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(3);
     const ok = burst.filter((r) => r.status === 200).length;

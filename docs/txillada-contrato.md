@@ -56,6 +56,8 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
   da carteira); `txilladas` passa a levar `price`, `goal`, `goalPurpose`, `raised` e `tickets`.
 - **0168_txillada_convite_aviso.sql:** `social.notifications.kind` ganha `'txillada_invite'` (o aviso de «Convidar por @»;
   ver a secção dela).
+- **0174_txillada_reabrir.sql:** `content.txilladas.reopens int NOT NULL DEFAULT 0` e `reopened_at timestamptz` (reabrir uma
+  Angariação; ver «Reabrir (0174)»).
 - **Limpeza (`txillada.purge`, de hora a hora):** 7 dias depois do fim apaga comentários, brindes, brindes aos comentários,
   expulsões e convidados (0165), menos os comentários de uma Txillada com denúncia aberta e cada comentário com denúncia
   aberta (`txillada_comment`): ficam até à decisão (os brindes a eles apagam-se na mesma).
@@ -172,6 +174,71 @@ transmitir na Txillada: <título>» (com o selo; «Entra e aceita o convite» ou
 (`lib/txillada.ts` `inviteNoticeText`, `inviteNoticeSub`). Testes: `apps/api/src/txillada/txillada-convidar.e2e.spec.ts`,
 `apps/mobile/tests/txilladaConvidar.test.mjs`.
 
+### Menções (txillada-voltar)
+
+Sem migração. Testes: `apps/api/src/txillada/txillada-mencoes.e2e.spec.ts`.
+
+- **Histórico dos comentários:** `GET /txilladas/:id/comments?before=<id>` dá os 50 comentários antes desse (as mesmas
+  regras: não apagados, autor ativo, sem bloqueios, não denunciados por mim), do mais antigo para o mais recente. A resposta
+  (com ou sem `after`/`before`) passa a ser `{ items, more }`: `more: true` quando há comentários mais antigos do que a página
+  (no intervalo pedido). Sem nada: os 50 mais recentes e se há mais antigos. A app sobe a lista e pede `before=<o mais antigo>`
+  enquanto `more`.
+- **Sugestões de @ (`GET /mentions/suggest?q=&context=txillada&id=<txilladaId>`):** só conta se eu posso ver a Txillada e lá
+  entrar (`txilladaVisible`, não expulso, `txilladaTicket`); senão é como sem contexto (não diz nada). Sobem: o anfitrião
+  (+100, `reason: 'anfitriao'`), quem está a transmitir (+90, `'a-transmitir'`), quem está a ver agora (+50, `'a-ver'`; numa
+  **paga**, para quem não é o anfitrião, quem vê é segredo: nem sobe nem se diz) e quem lá comentou (dos últimos 300
+  comentários, +40, `'comentou'`). Com `q=''` (só o «@») já aparecem. Cada pessoa (também as da pesquisa geral) leva, só
+  neste contexto, `inTxillada: boolean` (anfitrião, a transmitir, ou a ver quando isso se pode mostrar) e `invitable: boolean`
+  (não está lá e podia entrar se a convidassem: conta ativa, `txilladaVisible` para ela, não expulsa, sem bloqueio com o
+  anfitrião; os bloqueios comigo já os tira o `mentionableBy`). Nunca eu. Continua o limite de 8.
+- **Menção = convite (`POST /txilladas/:id/comments`):** depois de guardar e mandar o comentário, os @ do texto (no máximo 5
+  pessoas), só quem o autor pode mencionar (`mentionableBy`: conta ativa, sem bloqueio, aceita menções). Quem já lá está (o
+  anfitrião, um convidado a transmitir, quem está a ver) recebe só `txillada.mention` (sem aviso). Quem não está e podia entrar
+  (`txilladaVisible` para essa pessoa: numa «Para amigos» só os amigos; não expulsa; sem bloqueio com o anfitrião) recebe o
+  aviso `txillada_invite` com `data: { txilladaId, title, mention: true, host: { username, verified, verifiedTier } }`, ator =
+  quem comentou. O mesmo limite do convite do anfitrião (a mesma chave `tx:invnote:<id>:<pessoa>`: no máximo um aviso por
+  pessoa e Txillada a cada 10 min, venha da menção ou do «Convidar por @») e no máximo 20 avisos por minuto por autor. Numa
+  **paga** o aviso vai, mas leva à entrada paga: não dá entrada nem lugar de convidado. A resposta é o `TxilladaComment` com
+  `invited: string[]` (os @ de quem recebeu o aviso agora); o `txillada.comment` da sala não leva `invited`. Mencionar nunca
+  faz falhar o comentário.
+- **No telemóvel** (`txillada_invite` com `mention`): «@ana mencionou-te na Txillada de @zeca: vem ver» (quem comentou não é o
+  anfitrião) ou «@zeca mencionou-te na Txillada: vem ver» (é o anfitrião); `url: /txillada/<id>`. Sem `mention` fica «@x
+  convidou-te para transmitir na Txillada».
+- **Selo:** todos os sítios que mostram pessoas na Txillada levam `verified` e `verifiedTier` (comentários, resposta do
+  `POST`, `txillada.comment`, fixado e `txillada.pinned`, a ver, `txillada.joined`, ofertas e quem mais ofereceu, convidados e
+  pedidos, reações, `txillada.mention`, sugestões); o `txillada.cheer` passou a levar `from: { username, verified, verifiedTier }`.
+
+### Reabrir (0174)
+
+Uma Txillada com Angariação que o anfitrião acabou (`status: 'ended'`, não cortada pela moderação) antes de chegar à meta
+(`raised < goal`) pode reabrir-se até **24 h** depois de `ended_at`, no máximo **3 vezes** (migração
+**0174_txillada_reabrir.sql**: `content.txilladas.reopens int` e `reopened_at`). `POST /txilladas/:id/reopen`, só o anfitrião
+(conta ativa, 18+), até 10 por hora.
+
+- **O que fica:** o mesmo `id`, título, tipo, preço, meta e motivo, o que já se juntou (`raised`), as ofertas e quem mais
+  ofereceu, as entradas pagas, `peakViewers`, os brindes e os comentários (o histórico continua).
+- **O que muda:** `status: 'live'`, `endedAt: null`, `startedAt` = agora (as 4 h contam outra vez), `viewers: 0`, uma **sala
+  nova** no LiveKit (`tx-<id>-r<n>`: os tokens da sala antiga não voltam a entrar e o `room_finished` dela já não acaba esta),
+  o vídeo com os mesmos 60 s de folga de uma nova (a tarefa não a acaba logo), sem o fixado e sem convidados (ninguém fica a
+  transmitir nem à espera). As expulsões ficam.
+- **Numa paga:** quem já pagou entra sem pagar outra vez (`txilladaTicket`); acabar e reabrir não devolve nem cobra nada (só
+  uma Txillada cortada devolve as entradas).
+- **Erros:** 403 «Só o anfitrião pode reabrir a Txillada.»; 409 com `code`: `still_live` «A Txillada ainda está a decorrer.»,
+  `cut` «Esta Txillada foi cortada pela moderação: não se pode reabrir.», `no_goal` «Só se pode reabrir uma Txillada com
+  angariação.», `goal_reached` «A meta da angariação já foi atingida. Para continuar, abre uma Txillada nova.»,
+  `reopens_max` «Já reabriste esta Txillada 3 vezes. Para continuar, abre uma Txillada nova.», `other_live` «Já tens uma
+  Txillada a decorrer.» (com `id`), `not_reopenable` (corrida); 410 `too_late` «Já passaram mais de 24 horas desde que acabou:
+  já não se pode reabrir. Abre uma Txillada nova.»; 429 «Calma! Reabriste muitas vezes seguidas. Tenta mais tarde.».
+- **Resposta:** o `TxilladaDto` (como o `GET`); o anfitrião pede o token com `POST /join`, como ao voltar a entrar.
+- **No DTO, só para o anfitrião:** `canReopen: boolean` (pode reabrir agora: acabada por ele, com meta por atingir, dentro das
+  24 h, abaixo das 3 vezes e sem outra a decorrer) e `reopenUntil: string | null` (até quando; null quando já não se pode,
+  e também a decorrer; com outra a decorrer fica com a hora e `canReopen: false`).
+- **Avisos:** `txillada_live` com `data: { txilladaId, title, reopened: true }` a quem ofereceu e a quem pagou a entrada, e aos
+  seguidores só se o anfitrião não avisou na última hora (o mesmo limite do abrir, contando com esta Txillada). Ninguém recebe
+  dois avisos `txillada_live` da mesma Txillada em 10 min. No telemóvel: «@anfitrião reabriu a Txillada: <título>». Só quem
+  pode ver a Txillada, não expulso e sem «Txilladas» desligado.
+- Testes: `apps/api/src/txillada/txillada-reabrir.e2e.spec.ts`.
+
 ## Tipos e Angariação (0167)
 
 **Os três tipos** (escolhem-se ao preparar e ficam fixos: não há rota para os mudar):
@@ -248,8 +315,9 @@ Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na
 | `GET /txilladas/:id` | quem pode ver | `TxilladaDto` |
 | `POST /txilladas/:id/join` | quem pode ver | `{ token, url }` (só `canSubscribe`, visível na sala — sem `hidden`; o anfitrião recebe `canPublish`); manda `txillada.joined` |
 | `POST /txilladas/:id/end` | anfitrião | `TxilladaDto` (status 'ended') |
-| `GET /txilladas/:id/comments?after=<id>` | quem pode ver | `{ items: TxilladaComment[] }` (os 50 mais recentes, do mais antigo para o mais recente) |
-| `POST /txilladas/:id/comments` `{ body }` | quem pode comentar | `TxilladaComment` |
+| `POST /txilladas/:id/reopen` | anfitrião | 200 `TxilladaDto` (a mesma Txillada outra vez 'live'; o token vem do `POST /join`). 403 a quem não é o anfitrião; 409 com `code` (`still_live`, `cut`, `no_goal`, `goal_reached`, `reopens_max`, `other_live` com `id`, `not_reopenable`); 410 `too_late` (mais de 24 h); 429. Ver «Reabrir (0174)» |
+| `GET /txilladas/:id/comments?after=<id>&before=<id>` | quem pode ver | `{ items: TxilladaComment[], more }` (no máximo 50, do mais antigo para o mais recente: sem nada, os mais recentes; `after`, os mais recentes depois desse; `before`, os 50 antes desse, o histórico; `more`: há mais antigos do que a página) |
+| `POST /txilladas/:id/comments` `{ body }` | quem pode comentar | `TxilladaComment & { invited: string[] }` (os @ mencionados que receberam agora o aviso-convite; ver «Menções (txillada-voltar)») |
 | `DELETE /txilladas/:id/comments/:commentId` | anfitrião ou autor | 204 |
 | `POST /txilladas/:id/comments/:commentId/cheer` | quem pode ver (sem bloqueio com o autor) | 200 `{ cheered, cheers }` — brindar outra vez tira; 404 (apagado, bloqueio), 403 (expulso), 409 (acabada), 429 (mais de 5/s). Sem aviso ao autor; manda `txillada.comment_cheer` (0161) |
 | `POST /txilladas/:id/cheer` | quem pode ver | `{ cheers }` |
@@ -266,7 +334,7 @@ Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na
 `TxilladaDto`: `{ id, host: { id, username, displayName, avatarUrl, verified, verifiedTier }, title, audience, status,
 startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment, pinned }` (e, desde a 0167, `kind`, `closeOnly`,
 `price`, `hasTicket`, `locked`, `viewersHidden`, `goal`, `goalPurpose`, `raised`, `topGivers`, `tickets`: ver «Tipos e
-Angariação») (`pinned`: o comentário fixado
+Angariação»; desde a 0174, só para o anfitrião, `canReopen` e `reopenUntil`: ver «Reabrir (0174)») (`pinned`: o comentário fixado
 como eu o vejo, `TxilladaComment | null`; null se não há, se o apagaram, se a conta do autor não está ativa, se há bloqueio
 entre mim e o autor ou se o denunciei).
 
@@ -275,7 +343,7 @@ entre mim e o autor ou se o denunciei).
 ## Tempo real (pelo canal da app)
 
 Para cada espectador ligado e o anfitrião: `{ type: 'txillada.comment', txilladaId, comment }`,
-`{ type: 'txillada.cheer', txilladaId, cheers, from: { username } }`, `{ type: 'txillada.viewers', txilladaId, viewers }`,
+`{ type: 'txillada.cheer', txilladaId, cheers, from: { username, verified, verifiedTier } }`, `{ type: 'txillada.viewers', txilladaId, viewers }`,
 `{ type: 'txillada.ended', txilladaId, status }`, `{ type: 'txillada.comment_removed', txilladaId, commentId }`, `{ type: 'txillada.comment_cheer', txilladaId, commentId, cheers }` (a contagem nova de um comentário, sem dizer quem brindou; não vai a quem tem bloqueio com o autor do comentário). Quem está a
 ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se no Redis/RealtimeBus).
 
@@ -288,6 +356,9 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
   chega nenhum dos dois (`sent: false`).
 - `{ type: 'txillada.joined', txilladaId, user: { username, displayName, avatarUrl, verified, verifiedTier } }` — «@fulano
   entrou» (ver as regras). Sem o id interno.
+- `{ type: 'txillada.mention', txilladaId, from: { username, displayName, avatarUrl, verified, verifiedTier }, commentId }`:
+  só a quem foi mencionado num comentário e já está na Txillada (anfitrião, convidado a transmitir, ou a ver); sem aviso na
+  lista (quem não está recebe o `txillada_invite` com `mention: true`; ver «Menções (txillada-voltar)»).
 - `{ type: 'txillada.pinned', txilladaId, comment: TxilladaComment | null }` — o fixado mudou (`POST /pin`) ou saiu
   (o comentário foi apagado pelo anfitrião ou pelo autor). A cada pessoa da sala vai o comentário, ou null a quem tem
   bloqueio com o autor ou o denunciou. Quando a moderação remove um comentário denunciado, a sala recebe
@@ -325,6 +396,38 @@ ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se 
   marca «FIXADO» e o texto (2 linhas); o comentário fixado sai dos balões para não aparecer duas vezes.
 - Ligações `txillapp.com/txillada/<id>` no chat abrem a rota da app (ecrã inteiro), nunca o browser por cima.
 - «Reduzir movimento»: as reações aparecem e desvanecem no sítio, sem subir nem rodar.
+
+## App (txillada-voltar)
+
+- **A sala fora do ecrã** (`lib/txilladaSession.tsx`, como as chamadas): o `useTxillada` vive no layout raiz
+  (`TxilladaSessionHost`), com a chave do id. O ecrã `app/txillada/[id]` abre a sessão (`openTxillada`) e desenha o que ela
+  publica. Sair do ecrã para outro sítio da app (o perfil de um @, a carteira, uma notificação, o voltar do Android) não
+  desliga: quem vê fica com o leitor pequeno (`components/txillada/TxilladaMini.tsx`: o vídeo 9:16, arrasta-se e fica
+  encostado a um lado por cima dos separadores; um toque volta, o X sai de vez) e o som; o anfitrião (e quem transmite)
+  tem a pílula «Estás ao vivo · Voltar» (a transmissão continua). Só Sair, o X, Concluir (e sair da conta) desligam. Sair
+  do ecrã sem estar a decorrer (acabada, a pagar, com erro) também fecha. Acabada fora do ecrã: «A Txillada acabou».
+- **Lembrar a Txillada aberta** (`lib/txilladaMini` `encodeOpen`, chave `tx_txillada_open:<@>`, renova-se de minuto a minuto,
+  vale 30 min): se a PWA recarregar ao voltar (register-sw), aparece «Estavas na Txillada de @zeca · Voltar» enquanto ela
+  ainda está a decorrer (GET), com o X para esquecer.
+- **O teclado** (`lib/txilladaChat` `liveKeyboard`): o palco é medido sem o teclado e fica parado enquanto se escreve
+  (`stableScreen`); na web o ecrã fixo passa de 100dvh para a altura de antes em px. Só a barra de comentar sobe por cima do
+  teclado (iPhone: o fundo do visualViewport; Android: a parte que a janela não encolheu) e os balões sobem com ela, sem
+  passar acima da parte que se vê. A escrever, a fila de cima (reações, ferramentas, Oferecer) esconde-se.
+- **Ler para trás** (`components/txillada/LiveCommentList.tsx`): tocar ou arrastar na zona dos comentários abre a lista
+  que rola (todos desde que entrei, até 1000; ao chegar ao topo, os 50 anteriores com `?before=` enquanto `more`). Lendo para
+  trás, os novos não puxam para baixo: «N comentários novos» volta ao fim. Um toque num comentário abre o menu (a lista
+  distingue o toque do arrasto). Parada no fim 6 s, volta aos balões.
+- **@menções**: o campo usa o `useMentionSuggest` com `context: 'txillada'` (ao escrever «@» aparecem logo pessoas, primeiro
+  o anfitrião, quem transmite, quem está a ver e quem comentou); quem não está a ver tem «Convida-se ao mencionar». Os @ dos
+  balões e da lista são tocáveis (abrem o perfil; a Txillada fica no leitor). Depois de comentar, `invited` dá «Convidaste
+  @rui para vir ver a Txillada»; `txillada.mention` dá «@ana mencionou-te num comentário». A notificação `txillada_invite`
+  com `data.mention`: «mencionou-te na Txillada de @zeca: vem ver» (por baixo «Toca para ver» ou «Já acabou»).
+- **A câmara**: o anfitrião desliga e liga a câmara (a faixa fica publicada e calada: a sala não cai, o som continua); quem
+  vê tem a foto e «Câmara desligada». Quem transmite como convidado tem «Desligar a câmara e ficar a ver» (sai do ecrã sem
+  perguntar e fica a ver, a comentar e a oferecer); «Sair do ecrã» faz o mesmo, com confirmação.
+- **Reabrir a Angariação**: o resumo do anfitrião mostra «Reabrir a Angariação» com «Faltam N vibes para a meta» quando
+  `canReopen`; reabrir volta ao vivo do zero (a conversa de antes fica para ler para trás) e liga-se à sala nova com o `join`.
+  A notificação `txillada_live` com `data.reopened`: «reabriu a Txillada: <título>».
 
 ## App (fase 1)
 
