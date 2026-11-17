@@ -689,6 +689,15 @@ export class AuthService implements OnModuleInit {
       await client.query('DELETE FROM social.mixar_notices WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.mixar_topic_prefs WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.mixar_author_less WHERE user_id = $1', [userId]);
+      // Os ids da pessoa que ficavam nos Mixar de grupo dos outros (0179): a razão de cada item («do gosto de…», `fans`, só nos
+      // Mixar em que ela esteve), quem propôs e quem terminou. Antes de apagar as linhas de membro, que dizem onde procurar.
+      await client.query(
+        `UPDATE social.mixar_items i SET fans = array_remove(i.fans, $1::uuid)
+          WHERE i.mixar_id IN (SELECT mm.mixar_id FROM social.mixar_members mm WHERE mm.user_id = $1) AND $1::uuid = ANY(i.fans)`,
+        [userId],
+      );
+      await client.query('UPDATE social.mixars SET invited_by = NULL WHERE invited_by = $1 AND group_id IS NOT NULL', [userId]);
+      await client.query('UPDATE social.mixars SET ended_by = NULL WHERE ended_by = $1', [userId]);
       await client.query('DELETE FROM social.mixar_members WHERE user_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);

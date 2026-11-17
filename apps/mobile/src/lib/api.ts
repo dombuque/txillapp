@@ -232,6 +232,12 @@ export interface PrivacySettings {
   suggestable: boolean;
   /** «Deixar fazer duetos e respostas com as minhas tchekas» (numa conta privada não vale). Servidores antigos não mandam. */
   remixAllowed?: boolean;
+  /** Mixar (0179): mostrar aos outros que estou a ver o mesmo Mixar com eles. Servidores antigos não mandam (a linha não aparece). */
+  mixarPresence?: boolean;
+  /** Mixar (0179): aparecer nas sugestões «Faz um Mixar com…» dos outros. */
+  mixarSuggestable?: boolean;
+  /** Mixar (0179): deixar que o outro partilhe o resumo da semana do nosso Mixar. */
+  mixarWeekInclude?: boolean;
   /** Já viu (ou saltou) a visita guiada. */
   welcomed?: boolean;
 }

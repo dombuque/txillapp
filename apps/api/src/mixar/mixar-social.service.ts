@@ -107,7 +107,7 @@ export class MixarSocialService implements OnModuleInit {
     await this.mixar.assertItem(me, m, postId);
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
     const { rows } = await this.pool.query(
-      `SELECT c.id, c.body, c.created_at, c.user_id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier
+      `SELECT c.id, c.body, c.created_at, c.user_id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier, u.status
          FROM social.mixar_comments c JOIN identity.users u ON u.id = c.user_id
         WHERE c.mixar_id = $2 AND c.post_id = $3 AND c.deleted_at IS NULL AND ($4::uuid IS NULL OR c.id < $4)
           AND ${notReportedBy('mixar_comment', 'c.id', '$1')}
@@ -130,7 +130,7 @@ export class MixarSocialService implements OnModuleInit {
     this.live(m, me, { what: 'comment', postId });
     const r = (
       await this.pool.query(
-        `SELECT c.id, c.body, c.created_at, c.user_id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier
+        `SELECT c.id, c.body, c.created_at, c.user_id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier, u.status
            FROM social.mixar_comments c JOIN identity.users u ON u.id = c.user_id WHERE c.id = $1`,
         [cid],
       )
@@ -383,11 +383,14 @@ export class MixarSocialService implements OnModuleInit {
   /**
    * «Estou com o Mixar aberto, neste item» (a app repete de 20 em 20 s e quando muda de item; `leave` ao sair). Vale 45 s.
    * O outro recebe um evento quando chego, mudo de item ou saio (não a cada repetição). Devolve onde está o outro.
+   * Com «Mostrar que estou a ver contigo» desligada (0179), a minha presença não se guarda nem se anuncia (é como sair);
+   * continuo a ver onde estão os outros.
    */
   async presence(me: string, id: string, postId: string | null, leave: boolean) {
     const m = await this.mixar.active(me, id);
     const key = presenceKey(id, me);
-    if (leave) {
+    const shown = (await this.pool.query('SELECT mixar_presence FROM identity.users WHERE id = $1', [me])).rows[0]?.mixar_presence !== false;
+    if (leave || !shown) {
       const was = await this.bus.getFlag(key);
       await this.bus.delFlag(key);
       if (was !== null) for (const o of m.others) this.bus.publish(o, { type: 'mixar.live', id, what: 'presence', here: false, postId: null } satisfies MixarLiveEvent);
@@ -422,7 +425,11 @@ export class MixarSocialService implements OnModuleInit {
       body: r.body as string,
       createdAt: (r.created_at as Date).toISOString(),
       mine: r.user_id === me,
-      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, ...badge(r.verified, r.verified_tier) },
+      // Quem saiu do Mixar (ou do grupo) continua com o nome como está; uma conta que já não está ativa aparece como
+      // «Conta eliminada», sem @, foto nem selo, como no resto da app (0179).
+      author: r.status === 'active'
+        ? { username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, ...badge(r.verified, r.verified_tier) }
+        : { username: '', displayName: 'Conta eliminada', hasAvatar: false, ...badge(false, null) },
     };
   }
 

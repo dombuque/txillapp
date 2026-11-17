@@ -112,9 +112,13 @@ export function weekLine(w: Pick<MixarWeek, 'together' | 'challenge'>, partner: 
 /** Depois de partilhar. */
 export const shareDoneText = (to: MixarShareTo) => (to === 'zas' ? t('Está no teu Zás') : t('Está nos teus mimos'));
 
+/** O outro desligou «Deixar que o resumo da semana me inclua» (0179): o resumo vê-se no Mixar mas não se partilha. */
+export const weekNotShareableText = (partner: string) => t('{partner} não deixa partilhar o resumo da semana do vosso Mixar. Continuam a vê-lo aqui.', { partner });
+
 /** O texto de um erro ao partilhar. */
 export function shareErrorText(e: unknown): string {
   const status = (e as { status?: number } | null)?.status;
+  if ((e as { code?: string } | null)?.code === 'mixar_week_not_shareable') return t('A outra pessoa não deixa partilhar o resumo da semana do vosso Mixar.');
   if (status === 403) return t('Confirma o teu email para partilhar.');
   if (status === 429) return t('Partilhaste muitas vezes seguidas. Espera um bocadinho.');
   if (status === 404) return t('Este Mixar já não existe.');

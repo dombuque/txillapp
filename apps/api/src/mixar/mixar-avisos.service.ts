@@ -213,7 +213,8 @@ export class MixarAvisosService {
    * «Faz um Mixar com…»: até 3 pessoas com quem falei muito nos últimos 30 dias (pelo menos 10 mensagens, 3 de cada lado),
    * que me seguem e eu sigo, sem Mixar ativo ou pendente entre nós, sem bloqueios, a quem posso mandar mensagens, que eu não
    * dispensei nos últimos 30 dias e com gostos parecidos (o perfil de temas do Explorar; `match` 0–100, no mínimo 40). As que
-   * batem mais e com quem falo mais vêm primeiro. Com 20 Mixar ativos, nenhuma.
+   * batem mais e com quem falo mais vêm primeiro. Com 20 Mixar ativos, nenhuma. Quem desligou «Aparecer nas sugestões de
+   * Mixar» (0179) nunca aparece.
    */
   async suggestions(me: string): Promise<{ items: MixarSuggestion[] }> {
     await this.pool.query('DELETE FROM social.mixar_suggestion_dismissals WHERE user_id = $1 AND until < now()', [me]);
@@ -230,7 +231,7 @@ export class MixarAvisosService {
           GROUP BY 1
        )
        SELECT u.id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier, t.mine + t.theirs AS total
-         FROM talk t JOIN identity.users u ON u.id = t.other AND u.status = 'active'
+         FROM talk t JOIN identity.users u ON u.id = t.other AND u.status = 'active' AND u.mixar_suggestable
         WHERE t.mine >= $3 AND t.theirs >= $3 AND t.mine + t.theirs >= $4
           AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
           AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1)

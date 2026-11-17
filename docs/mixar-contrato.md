@@ -13,7 +13,8 @@ Este ficheiro é o contrato fixo entre a equipa da API e a da app. Quem precisar
   já existente). Com bloqueio entre os dois, o Mixar deixa de aparecer e não se convida.
 - Convidar cria o Mixar `pending` e um **cartão no chat** (mensagem `kind 'mixar'`). Aceitar põe-no `active`; recusar
   põe-no `declined`; qualquer um pode **sair** (`ended`). Um convite novo depois de `declined`/`ended` cria outro Mixar.
-- No máximo **20 Mixar ativos** por pessoa e **10 convites por dia**.
+- No máximo **20 Mixar ativos** por pessoa e **10 convites por dia**. Contam só os Mixar a dois (`user_a`/`user_b`); os de
+  grupo têm o limite próprio de cada TxillGroup (um aberto de cada vez, ver «Mixar de grupo») e não gastam estes 20.
 - O feed só tem conteúdo que **os dois podem ver** (conta privada só se os dois a seguem, bloqueios dos dois lados,
   publicações removidas pela moderação, escondidas, de quem silenciou ou que a pessoa marcou «não me interessa»).
   Nunca publicações dos próprios dois.
@@ -465,3 +466,32 @@ grupo) apagam-se ao fim de 30 dias (`MixarService.purge`, de 6 em 6 horas).
 - Eliminar a conta: a pessoa sai dos grupos (e, pelo gatilho, dos Mixar deles; com menos de 3, acaba) e apaga-se o que
   fez lá dentro (estado, reações, vistos, escolhas, comentários, o que guardou à mão, aberturas, avisos e temas). Os Mixar
   de grupo que ela propôs continuam para os outros.
+
+## Privacidade (0179)
+
+Migração `0179_mixar_privacidade.sql`. Três escolhas na conta (colunas em `identity.users`, como as outras definições de
+privacidade), todas `true` por omissão, em `GET/PATCH /users/me/privacy` e na app em Definições → Privacidade → Mixar:
+
+| campo | coluna | desligado |
+|---|---|---|
+| `mixarPresence` («Mostrar que estou a ver contigo») | `mixar_presence` | `POST /mixar/:id/presence` trata-me como `leave`: a minha presença não se guarda nem se anuncia (os outros recebem `here: false` se eu estava). A resposta continua a dizer onde estão os outros. Vale a dois e no grupo. |
+| `mixarSuggestable` («Aparecer nas sugestões de Mixar») | `mixar_suggestable` | não apareço em `GET /mixar/suggestions` de ninguém (continuam a poder convidar-me). |
+| `mixarWeekInclude` («Deixar que o resumo da semana me inclua») | `mixar_week_include` | o outro não partilha nem descarrega o cartão: `POST /mixar/:id/week/share` e `GET /mixar/:id/week/image` dão 403 `{ code: 'mixar_week_not_shareable' }`. `GET /mixar/:id/week` continua (para os dois) e traz `shareable: false`; a app troca os botões por «Ana não deixa partilhar o resumo da semana do vosso Mixar». |
+
+`MixarWeek` ganha `shareable: boolean` (a escolha do outro). As três entram em `/me/export` (`settings.mixarPresence`,
+`settings.mixarSuggestable`, `settings.mixarWeekInclude`). Os resumos já partilhados são Zás ou mimos de quem partilhou e
+seguem as regras deles.
+
+### Limite do Mixar de grupo
+
+O limite de 20 (`MAX_ACTIVE`) conta só Mixar a dois. O Mixar de grupo tem o limite do próprio TxillGroup: no máximo um aberto
+(pendente ou ativo) por grupo (`mixars_group_open_idx`, `GROUP_OPEN_MAX = 1`), 3 propostas por pessoa e grupo em 24 horas e
+3 a 5 participantes. Quem tem 20 Mixar a dois entra e propõe Mixar de grupo na mesma, e entrar num não gasta os 20.
+
+### Quem sai e apagar a conta
+
+- Os comentários de quem saiu do Mixar do grupo (ou do grupo) continuam a ver-se, com o nome como está. Um autor cuja conta
+  já não está ativa aparece como «Conta eliminada» (sem @, foto nem selo), como no chat.
+- Eliminar a conta apaga os comentários da pessoa (como no resto da app) e tira o id dela de `mixar_items.fans` (nos Mixar em
+  que esteve), de `mixars.invited_by` nos Mixar de grupo (passa a NULL; `proposedBy: null`) e de `mixars.ended_by`. Os
+  Mixar a dois saem inteiros, como antes.

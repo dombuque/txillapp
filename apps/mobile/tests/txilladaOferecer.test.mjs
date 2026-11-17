@@ -29,3 +29,14 @@ test('na folha, um toque num valor oferece logo e a folha fica aberta para dar m
   assert.match(money, /Toca de novo para dar mais\./);
   assert.doesNotMatch(screen, /onDone=\{\(n\) => \{ setPanel\(null\)/);
 });
+
+test('100 vibes ou mais pedem confirmação («Oferecer 100 vibes a @x?»); abaixo, um toque e já está', () => {
+  const lib = read('lib', 'txillada.ts');
+  assert.match(lib, /export const GIFT_CONFIRM_FROM = 100;/);
+  assert.match(lib, /export const giftNeedsConfirm = \(n: number\): boolean => n >= GIFT_CONFIRM_FROM;/);
+  // Na folha: depois da validação e antes de enviar, só quando o valor chega aos 100 (num valor ou em «Outro valor»).
+  assert.match(money, /if \(bad\) \{[^\n]*\n    if \(giftNeedsConfirm\(amount\)\) \{[\s\S]*?await confirm\(\{ title: t\('Oferecer \{txillsLabel\} a @\{host\}\?', \{ txillsLabel: txillsLabel\(amount\), host \}\)[\s\S]*?if \(!ok\) return;\n    \}\n    setBusy\(from\);\n    setErr\(null\);\n    const r = await onSend\(amount\);/);
+  // O 100 é o único valor pronto que pede confirmação; os outros continuam a um toque.
+  const presets = [...lib.match(/GIFT_PRESETS = \[([^\]]+)\]/)[1].matchAll(/\d+/g)].map(Number);
+  assert.deepEqual(presets.filter((v) => v >= 100), [100]);
+});

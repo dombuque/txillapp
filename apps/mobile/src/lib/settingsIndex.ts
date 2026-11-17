@@ -123,7 +123,11 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'findByContacts', group: 'privacidade', get title() { return t('Deixar que me encontrem pelos contactos'); }, keywords: ['contactos', 'agenda', 'encontrar-me'] },
   { id: 'analytics', group: 'privacidade', get title() { return t('Ajudar a melhorar o Txillapp'); }, get keywords() { return [t('estatísticas de uso'), 'analytics', t('dados de uso'), 'telemetria', 'rastreio', 'melhorar']; } },
   // Mixar (0172): os temas que nunca aparecem nos meus Mixar (ecrã próprio; a linha está em Privacidade e em Mensagens e chamadas).
-  { id: 'mixarPrivateTopics', group: 'privacidade', get title() { return t('Temas privados no Mixar'); }, to: '/settings/mixar-temas', get keywords() { return [t('temas privados'), 'mixar', t('esconder temas'), t('gostos privados'), 'compatibilidade', 'afinidade', t('temas em comum'), t('resumo da semana do mixar'), t('faz um mixar com'), t('sugestões do mixar')]; } },
+  { id: 'mixarPrivateTopics', group: 'privacidade', get title() { return t('Temas privados no Mixar'); }, to: '/settings/mixar-temas', get keywords() { return [t('temas privados'), 'mixar', t('esconder temas'), t('gostos privados'), 'compatibilidade', 'afinidade', t('temas em comum')]; } },
+  // Mixar (0179): ver juntos, sugestões e o resumo da semana (interruptores em Privacidade).
+  { id: 'mixarPresence', group: 'privacidade', get title() { return t('Mostrar que estou a ver contigo'); }, get keywords() { return ['mixar', t('ver juntos'), t('está a ver contigo'), t('presença no mixar'), t('esconder que estou a ver'), t('estou aqui')]; } },
+  { id: 'mixarSuggestable', group: 'privacidade', get title() { return t('Aparecer nas sugestões de Mixar'); }, get keywords() { return ['mixar', t('faz um mixar com'), t('sugestões do mixar'), t('não me sugerir'), t('sugestões')]; } },
+  { id: 'mixarWeekInclude', group: 'privacidade', get title() { return t('Deixar que o resumo da semana me inclua'); }, get keywords() { return ['mixar', t('resumo da semana do mixar'), t('resumo da semana'), t('partilhar o resumo'), 'zás', 'mimos', 'recap']; } },
   // Notificações
   { id: 'deviceNotif', group: 'notificacoes', get title() { return t('Notificações no telemóvel'); }, get keywords() { return ['push', 'alertas', 'avisos', t('ligar notificações'), 'desligadas', t('notificação de teste'), t('neste aparelho')]; } },
   { id: 'installApp', group: 'notificacoes', get title() { return t('Instalar a app'); }, get keywords() { return [t('ecrã principal'), 'pwa', t('adicionar ao ecrã'), 'instalar']; } },

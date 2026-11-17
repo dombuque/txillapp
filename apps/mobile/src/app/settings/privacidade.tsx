@@ -108,9 +108,13 @@ export default function PrivacySettingsScreen() {
         </SettingsSection>
       ) : null}
 
-      {mixarPrivate.data ? (
+      {mixarPrivate.data || p?.mixarPresence !== undefined ? (
         <SettingsSection title="Mixar">
-          <SettingRow anchor="mixarPrivateTopics" icon="mixar" title={t('Temas privados no Mixar')} description={t('Temas que nunca aparecem nos teus Mixar nem nos temas em comum.')} value={privateCountLabel(mixarPrivate.data.topics.length)} to="/settings/mixar-temas" />
+          {mixarPrivate.data ? <SettingRow anchor="mixarPrivateTopics" icon="mixar" title={t('Temas privados no Mixar')} description={t('Temas que nunca aparecem nos teus Mixar nem nos temas em comum.')} value={privateCountLabel(mixarPrivate.data.topics.length)} to="/settings/mixar-temas" /> : null}
+          {/* Privacidade do Mixar (0179). Servidor antigo (sem os campos): as linhas não aparecem. */}
+          {p?.mixarPresence !== undefined ? <SettingRow anchor="mixarPresence" icon="eye" title={t('Mostrar que estou a ver contigo')} description={t('No Mixar, os outros veem quando estás a ver com eles e em que vídeo. Se desligares, deixam de saber que estás lá; tu continuas a ver quem está.')} toggle={{ on: p.mixarPresence, onChange: (v) => void save({ mixarPresence: v }) }} /> : null}
+          {p?.mixarSuggestable !== undefined ? <SettingRow anchor="mixarSuggestable" icon="user-plus" title={t('Aparecer nas sugestões de Mixar')} description={t('Quem fala muito contigo pode ver-te nas sugestões «Faz um Mixar com…». Se desligares, não apareces a ninguém; podem convidar-te na mesma.')} toggle={{ on: p.mixarSuggestable, onChange: (v) => void save({ mixarSuggestable: v }) }} /> : null}
+          {p?.mixarWeekInclude !== undefined ? <SettingRow anchor="mixarWeekInclude" icon="calendar" title={t('Deixar que o resumo da semana me inclua')} description={t('O resumo da semana de um Mixar leva o teu primeiro nome. Se desligares, a outra pessoa continua a vê-lo no Mixar, mas não o pode partilhar no Zás nem nos mimos.')} toggle={{ on: p.mixarWeekInclude, onChange: (v) => void save({ mixarWeekInclude: v }) }} /> : null}
         </SettingsSection>
       ) : null}
 

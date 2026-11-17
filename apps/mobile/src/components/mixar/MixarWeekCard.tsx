@@ -8,7 +8,7 @@ import type { MixarPerson } from '@/lib/api.mixar';
 import { mixarControloKeys, type MixarShareTo, type MixarWeek, type mixarControloApi } from '@/lib/api.mixarControlo';
 import { abs, sized } from '@/lib/config';
 import { reactionOf } from '@/lib/mixar';
-import { shareDoneText, shareErrorText, weekLine, weekStats } from '@/lib/mixarControlo';
+import { shareDoneText, shareErrorText, weekLine, weekNotShareableText, weekStats } from '@/lib/mixarControlo';
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
 import { NameWithBadge } from '../NameWithBadge';
@@ -89,8 +89,11 @@ export function WeekCard({ week, me, them, partner, onOpenTop }: { week: MixarWe
   );
 }
 
-/** «Partilhar no Zás» e «Partilhar nos mimos» (a imagem é desenhada no servidor, sem temas privados). */
-export function WeekShare({ mixarId, api, dark = false }: { mixarId: string; api: Api; dark?: boolean }) {
+/**
+ * «Partilhar no Zás» e «Partilhar nos mimos» (a imagem é desenhada no servidor, sem temas privados). Com `blockedBy` (o outro
+ * desligou «Deixar que o resumo da semana me inclua», 0179) não há botões, só a frase.
+ */
+export function WeekShare({ mixarId, api, dark = false, blockedBy = null }: { mixarId: string; api: Api; dark?: boolean; blockedBy?: string | null }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<MixarShareTo | null>(null);
   const [done, setDone] = useState<Partial<Record<MixarShareTo, true>>>({});
@@ -126,6 +129,7 @@ export function WeekShare({ mixarId, api, dark = false }: { mixarId: string; api
       )}
     </Pressable>
   );
+  if (blockedBy) return <Text style={[ws.note, { fontSize: 14, lineHeight: 20 }, dark && { color: 'rgba(255,255,255,0.75)' }]}>{weekNotShareableText(blockedBy)}</Text>;
   return (
     <View style={{ gap: 10, width: '100%' }}>
       {btn('zas', 'bolt', t('Partilhar no Zás'), true)}
@@ -150,7 +154,7 @@ export function WeekPage({ height, mixarId, api, me, them, partner, onOpenTop, t
         {w.data ? (
           <View style={{ width: '100%', maxWidth: 420, gap: 16 }}>
             <WeekCard week={w.data} me={me} them={them} partner={partner} onOpenTop={onOpenTop} />
-            <WeekShare mixarId={mixarId} api={api} dark />
+            <WeekShare mixarId={mixarId} api={api} dark blockedBy={w.data.shareable === false ? them.name : null} />
           </View>
         ) : w.isError ? <Text style={ws.err}>{t('O resumo da semana não carregou.')}</Text> : <ActivityIndicator color="#fff" />}
       </ScrollView>
@@ -167,7 +171,7 @@ export function WeekSheet({ mixarId, api, me, them, partner, onOpenTop, onClose 
         {w.data ? (
           <>
             <WeekCard week={w.data} me={me} them={them} partner={partner} onOpenTop={(p) => { onClose(); onOpenTop(p); }} />
-            <WeekShare mixarId={mixarId} api={api} />
+            <WeekShare mixarId={mixarId} api={api} blockedBy={w.data.shareable === false ? them.name : null} />
           </>
         ) : w.isError ? <Text style={[ws.err, { color: colors.zinc600 }]}>{t('O resumo da semana não carregou. Tenta outra vez daqui a pouco.')}</Text> : <ActivityIndicator style={{ margin: 32 }} color={colors.brand} />}
       </ScrollView>
