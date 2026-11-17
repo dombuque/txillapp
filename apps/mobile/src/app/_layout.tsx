@@ -72,6 +72,8 @@ function useBootDone() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.getElementById('tx-boot')?.remove();
+    // Noutro idioma que não o português, o boot.js escondeu o HTML pré-gerado (em português) até a app montar.
+    document.getElementById('tx-lang-hide')?.remove();
     try { window.sessionStorage.removeItem('tx_reload'); } catch { /* nada */ }
   }, []);
 }

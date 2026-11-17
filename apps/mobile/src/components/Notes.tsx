@@ -362,7 +362,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
                     <Text style={styles.quickEmoji}>{e}</Text>
                   </Pressable>
                 ))}
-                <TxillappReaction width={42} height={40} disabled={busy} label="Responder com o GIF Txillapp" onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
+                <TxillappReaction width={42} height={40} disabled={busy} label={t('Responder com o GIF Txillapp')} onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
               </View>
             )}
           </View>

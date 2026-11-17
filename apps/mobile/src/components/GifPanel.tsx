@@ -8,6 +8,7 @@ import { gifsApi } from '@/lib/api.gifs';
 import { GIF_DEBOUNCE_MS, GIF_HIDDEN_TEXT, TXILLAPP_GIF, TXILLAPP_GIF_TITLE, columnsFor, gifColumns, gifFit, gifLabel, gifPayload, gifQuery, gifShown, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /** Os GIFs estão ligados no servidor (há chave do GIPHY)? Sem isso, nada de GIFs na app. */
 export function useGifsConfig() {
@@ -35,7 +36,7 @@ export function GifView({ gif, maxW = 220, maxH = 220, onDark = false }: { gif: 
  * A reação «Txillapp»: um botão pequeno com o GIF da marca a mexer (parado com «Reduzir movimento»). Tocar envia o GIF
  * (nos comentários, nas respostas às notas…). `onDark`: as letras brancas, para barras escuras.
  */
-export function TxillappReaction({ onPress, disabled = false, onDark = false, width = 56, height = 32, label = 'Reagir com o GIF Txillapp' }: { onPress: () => void; disabled?: boolean; onDark?: boolean; width?: number; height?: number; label?: string }) {
+export function TxillappReaction({ onPress, disabled = false, onDark = false, width = 56, height = 32, label = t('Reagir com o GIF Txillapp') }: { onPress: () => void; disabled?: boolean; onDark?: boolean; width?: number; height?: number; label?: string }) {
   const reduce = useReducedMotion();
   const shown = gifShown(gifPayload(TXILLAPP_GIF), onDark);
   return (
@@ -51,7 +52,7 @@ function BrandGifTile({ width, onPick, reduce }: { width: number; onPick: (g: Gi
   return (
     <View style={{ marginBottom: 8 }}>
       <Text style={st.brandHeading}>{TXILLAPP_GIF_TITLE}</Text>
-      <Pressable onPress={() => onPick(TXILLAPP_GIF)} style={({ pressed }) => [st.brandTile, { width: w, height: Math.round(w * 0.5) }, pressed && { opacity: 0.7 }]} accessibilityRole="imagebutton" accessibilityLabel={`Enviar ${gifLabel(TXILLAPP_GIF.title)}`}>
+      <Pressable onPress={() => onPick(TXILLAPP_GIF)} style={({ pressed }) => [st.brandTile, { width: w, height: Math.round(w * 0.5) }, pressed && { opacity: 0.7 }]} accessibilityRole="imagebutton" accessibilityLabel={t('Enviar {gifLabel}', { gifLabel: gifLabel(TXILLAPP_GIF.title) })}>
         <Image source={{ uri: reduce && TXILLAPP_GIF.still ? TXILLAPP_GIF.still : TXILLAPP_GIF.preview }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="contain" recyclingKey={TXILLAPP_GIF.id} accessibilityIgnoresInvertColors />
       </Pressable>
     </View>
@@ -64,9 +65,9 @@ function BrandGifTile({ width, onPick, reduce }: { width: number; onPick: (g: Gi
  */
 export function GifHiddenCard() {
   return (
-    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT()}>
       <Icon name="eye-off" size={15} color={colors.zinc500} />
-      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT}</Text>
+      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT()}</Text>
     </View>
   );
 }
@@ -115,39 +116,39 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Procurar no GIPHY"
+          placeholder={t('Procurar no GIPHY')}
           placeholderTextColor={colors.zinc500}
           style={st.input}
           maxLength={50}
           returnKeyType="search"
           autoCorrect={false}
-          accessibilityLabel="Procurar GIFs"
+          accessibilityLabel={t('Procurar GIFs')}
         />
         {text ? (
-          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
             <Icon name="x" size={16} color={colors.zinc500} />
           </Pressable>
         ) : null}
       </View>
       {!q && channel ? (
         <View style={st.tabs}>
-          {([['trending', 'Em alta'], ['channel', 'Txillapp']] as const).map(([id, label]) => (
-            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? 'GIFs Txillapp' : 'GIFs em alta'}>
+          {([['trending', t('Em alta')], ['channel', 'Txillapp']] as const).map(([id, label]) => (
+            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? t('GIFs Txillapp') : t('GIFs em alta')}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: tab === id ? '#fff' : colors.zinc700 }}>{label}</Text>
             </Pressable>
           ))}
         </View>
       ) : q ? (
-        <Text style={st.heading}>{`GIFs de “${q}”`}</Text>
+        <Text style={st.heading}>{t('GIFs de “{q}”', { q })}</Text>
       ) : null}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: PAD }} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled">
         {!q || /txill/i.test(q) ? <BrandGifTile width={colWidth * 2 + GAP} onPick={onPick} reduce={!!reduce} /> : null}
         {/* Sem pesquisa (e sem o canal): o título dos do GIPHY vem a seguir ao GIF «Txillapp». */}
-        {!q && !channel ? <Text style={st.brandHeading}>Em alta</Text> : null}
+        {!q && !channel ? <Text style={st.brandHeading}>{t('Em alta')}</Text> : null}
         {list.isLoading ? (
           <ActivityIndicator color={colors.brand} style={{ margin: 24 }} />
         ) : !items.length ? (
-          <Text style={st.empty}>{list.isError ? 'Não consegui carregar os GIFs. Tenta daqui a pouco.' : q ? 'Nenhum GIF encontrado.' : 'Sem GIFs agora. Tenta daqui a pouco.'}</Text>
+          <Text style={st.empty}>{list.isError ? t('Não consegui carregar os GIFs. Tenta daqui a pouco.') : q ? t('Nenhum GIF encontrado.') : t('Sem GIFs agora. Tenta daqui a pouco.')}</Text>
         ) : (
           <View style={{ flexDirection: 'row', gap: GAP }}>
             {grid.map((col, i) => (
@@ -158,7 +159,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
                     onPress={() => onPick(item)}
                     style={({ pressed }) => [st.cell, { height: Math.max(h, 44) }, pressed && { opacity: 0.7 }]}
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={`Enviar ${gifLabel(item.title)}`}
+                    accessibilityLabel={t('Enviar {gifLabel}', { gifLabel: gifLabel(item.title) })}
                   >
                     <Image
                       source={{ uri: reduce && item.still ? item.still : item.preview }}
@@ -177,7 +178,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         {list.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ margin: 12 }} /> : null}
       </ScrollView>
       {/* Atribuição pedida pelo GIPHY (em texto: não carregamos o logótipo de terceiros). */}
-      <Text style={st.powered} accessibilityLabel="Powered by GIPHY">Powered by GIPHY</Text>
+      <Text style={st.powered} accessibilityLabel={t('Powered by GIPHY')}>{t('Powered by GIPHY')}</Text>
     </View>
   );
 }

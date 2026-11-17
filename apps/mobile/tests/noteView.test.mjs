@@ -102,7 +102,7 @@ test('NoteView: o Brindar fica fora da pílula, otimista e com a animação, âm
 test('NoteView: enviado, fecha e mostra «Enviada a @x» com «Ver» (na conversa só fecha e põe em dia)', () => {
   const b = body('NoteView');
   assert.match(b, /await notesApi\.reply\(note\.username, said, gif\);\s*onClose\(\);/);
-  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: t('Ver'), onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
+  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: t\('Ver'\), onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
   assert.equal(b.split('router.push').length - 1, 1, 'já não salta logo para a conversa: só o «Ver» do aviso a abre');
 });
 
