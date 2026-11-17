@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { useDesktop } from './desktop';
 import { composerKey, type KeyLike } from './deskChatKeys';
+import { deskGutter } from './deskMessages';
 import { colors } from './theme';
 import { t } from '@/lib/i18n';
 
@@ -137,3 +138,16 @@ export function useComposerKeys(o: { text: string; send: () => void; cancel: () 
 
 /** As props que marcam uma zona das Mensagens no computador (`data-deskchat`): espalhar com `{...deskZone(desk)}`. */
 export const deskZone = (on: boolean): object => (on ? { dataSet: DESK_CHAT } : {});
+
+/**
+ * A conversa aberta no computador (o painel da direita, ao lado da lista): as mensagens e a barra de escrever ficam numa
+ * coluna legível ao centro (lib/deskMessages: 640 px as mensagens, 760 a barra), com o fundo e a barra de rolar a ocupar
+ * o painel todo. Devolve as margens dos lados para juntar ao estilo, ou null no telemóvel (fica tudo como estava).
+ */
+export function useDeskColumn(max: number, min = 0): { paddingLeft: number; paddingRight: number } | null {
+  const desktop = useDesktop();
+  if (!desktop || Platform.OS !== 'web') return null;
+  // Só na web: o react-native-web passa o `max(…calc…)` tal e qual para o CSS.
+  const side = deskGutter(min, max) as unknown as number;
+  return { paddingLeft: side, paddingRight: side };
+}
