@@ -10,6 +10,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { ApiError } from '@/lib/api';
 import { UPCOMING_KEY, scheduleKey, txilladaApi } from '@/lib/api.txillada';
 import { SITE_URL } from '@/lib/config';
+import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
 import { colors, dark as D } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
@@ -110,20 +111,33 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
   const [cal, setCal] = useState(false);
   const range = monthRange(now);
   const [month, setMonth] = useState(() => (value != null ? { year: new Date(value).getFullYear(), month: new Date(value).getMonth() } : range.first));
+  // No computador as pastilhas quebram linha (rolar para o lado com o rato escondia «Outro dia»).
+  const wide = useDesktop();
   const pickDay = (day: number) => {
     const at = moveToDay(day, value, now);
     if (at != null) onChange(at);
   };
+  const chips = (
+    <>
+      {pills.map((p) => (
+        <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.label === 'Hoje' || p.label === 'Amanhã' ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
+      ))}
+      {selDay != null && !inPills ? <Chip label={dayLabel(selDay, now)} dark selected={!cal} onPress={() => setCal(false)} /> : null}
+      <Chip label="Outro dia" icon="calendar" dark selected={cal} onPress={() => setCal((v) => !v)} accessibilityLabel="Escolher outro dia no calendário" />
+    </>
+  );
   return (
     <View style={{ gap: 10 }}>
       <Text style={st.label}>Dia</Text>
+      {wide ? (
+        <View style={st.pillsWrap}>
+          {chips}
+        </View>
+      ) : (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.pillsRow} contentContainerStyle={st.pills} keyboardShouldPersistTaps="handled">
-        {pills.map((p) => (
-          <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.label === 'Hoje' || p.label === 'Amanhã' ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
-        ))}
-        {selDay != null && !inPills ? <Chip label={dayLabel(selDay, now)} dark selected={!cal} onPress={() => setCal(false)} /> : null}
-        <Chip label="Outro dia" icon="calendar" dark selected={cal} onPress={() => setCal((v) => !v)} accessibilityLabel="Escolher outro dia no calendário" />
+          {chips}
       </ScrollView>
+      )}
       {cal ? (
         <MonthCalendar
           year={month.year}
@@ -355,6 +369,7 @@ const st = StyleSheet.create({
   // A fila dos dias vai até às bordas da folha (rola por baixo do recuo).
   pillsRow: { marginHorizontal: -20, flexGrow: 0 },
   pills: { gap: 8, paddingHorizontal: 20 },
+  pillsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cal: { borderRadius: 18, backgroundColor: D.raised, paddingHorizontal: 8, paddingVertical: 8, gap: 2 },
   calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   calTitle: { color: D.text, fontSize: 15, fontWeight: '700' },
