@@ -1,4 +1,5 @@
 import sharp, { type OverlayOptions } from 'sharp';
+import { LOGO_BOX, logoSvgPaths } from '../media/marca';
 import { STICKER_ART } from '../stories/sticker-art';
 
 /**
@@ -28,17 +29,17 @@ const cut = (t: string, n: number) => {
 };
 const FONT = 'DejaVu Sans, Helvetica, Arial, sans-serif';
 
-/** O logótipo em traços (a mesma geometria de lib/wordmark.ts e media/signature.ts). */
-const circlePath = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
-const WORDMARK = ['M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 20 34', 'M42 14V34', 'M51 3V34', 'M61 3V34', circlePath(77, 24, 9.5), 'M86.5 14V34', circlePath(106, 24, 9.5), 'M96.5 14V46', circlePath(135, 24, 9.5), 'M125.5 14V46'];
-/** O logótipo oficial (letras escuras, ponto do i a coral) numa pastilha branca, para se ler bem em cima do degradê. */
+/**
+ * O logótipo oficial (media/marca.ts, formas cheias: letras escuras, ponto do i a coral) numa pastilha branca, para se ler
+ * bem em cima do degradê. A caixa x, y, largura é a do desenho; a pastilha fica à volta dela.
+ */
 const wordmark = (x: number, y: number, width: number) => {
-  const s = width / 154;
-  const h = 54 * s;
+  const s = width / LOGO_BOX.w;
+  const h = LOGO_BOX.h * s;
   const px = 0.16 * h * 1.6;
   const py = 0.3 * h;
   const pill = `<rect x="${x - px}" y="${y - py}" width="${width + 2 * px}" height="${h + 2 * py}" rx="${(h + 2 * py) / 2}" fill="#ffffff"/>`;
-  return `${pill}<g transform="translate(${x + 4 * s} ${y + 3 * s}) scale(${s})" fill="none" stroke="#1f1b24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="#d6334f" stroke="none"/></g>`;
+  return `${pill}<g transform="translate(${x - LOGO_BOX.x * s} ${y - LOGO_BOX.y * s}) scale(${s})">${logoSvgPaths('#1f1b24', '#d6334f')}</g>`;
 };
 
 /** Um sticker da biblioteca (arte em SVG) dentro da caixa x,y,w (mantém a proporção), com uma inclinação. */

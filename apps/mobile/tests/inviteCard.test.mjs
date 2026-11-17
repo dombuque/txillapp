@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import './aliasHooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const c = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'inviteCard.ts')).href);

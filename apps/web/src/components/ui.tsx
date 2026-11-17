@@ -1,43 +1,24 @@
 import { useOnline } from '../lib/presence';
 import { useStoryRing } from '../lib/storyRing';
 import { tr } from '../lib/i18n';
+import { LOGO_BOX, LOGO_DOT_COLOR, LOGO_DOT_PATHS, LOGO_FILL_RULE, LOGO_INK_PATHS } from '../lib/marca';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject, type TouchEvent } from 'react';
 
-const BRAND = '#d6334f';
-
-/** Logótipo "txillapp": traço grosso e arredondado, com o ponto do i a coral. */
+/**
+ * O logótipo «txillapp» (o desenho oficial de lib/marca.ts, gerado de assets/marca): as letras na cor do texto
+ * (currentColor, ex. text-white) e o ponto do i vermelho. Com `loading`, o ponto do i salta.
+ */
 export const Wordmark = ({ className = 'h-8', loading = false }: { className?: string; loading?: boolean }) => (
   <svg
-    viewBox="-4 -3 154 54"
+    viewBox={`${LOGO_BOX.x} ${LOGO_BOX.y} ${LOGO_BOX.w} ${LOGO_BOX.h}`}
     role="img"
     aria-label={tr('txillapp')}
-    className={`w-auto ${className}`}
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={7}
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    className={`w-auto overflow-visible ${className}`}
+    fill="currentColor"
   >
-    {/* t */}
-    <path d="M7 5V27Q7 34 14 34M0 14H14" />
-    {/* x */}
-    <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34" />
-    {/* i */}
-    <path d="M42 14V34" />
-    <circle cx="42" cy="3.5" r="4.2" strokeWidth={0} fill={BRAND} className={loading ? 'ponto-i' : undefined} />
-    {/* l l */}
-    <path d="M51 3V34" />
-    <path d="M61 3V34" />
-    {/* a */}
-    <circle cx="77" cy="24" r="9.5" />
-    <path d="M86.5 14V34" />
-    {/* p */}
-    <circle cx="106" cy="24" r="9.5" />
-    <path d="M96.5 14V46" />
-    {/* p */}
-    <circle cx="135" cy="24" r="9.5" />
-    <path d="M125.5 14V46" />
+    {LOGO_INK_PATHS.map((d, i) => <path key={i} d={d} fillRule={LOGO_FILL_RULE} />)}
+    {LOGO_DOT_PATHS.map((d, i) => <path key={`d${i}`} d={d} fill={LOGO_DOT_COLOR} fillRule={LOGO_FILL_RULE} className={loading ? 'ponto-i' : undefined} />)}
   </svg>
 );
 

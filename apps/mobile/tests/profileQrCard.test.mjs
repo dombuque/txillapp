@@ -6,9 +6,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import './aliasHooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const c = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'profileQrCard.ts')).href);
+const marca = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'marca.ts')).href);
 const { qrMatrix } = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'qr.ts')).href);
 
 const URLS = ['https://txillapp.com/u/malta', 'https://txillapp.com/c/ABCD2345', `https://txillapp.com/u/${'x'.repeat(30)}`];
@@ -60,13 +62,18 @@ test('o @username vai por baixo do QR, ao centro, a negrito, e encolhe se não c
   assert.equal(l.text.weight, 800);
   assert.equal(l.text.maxWidth, 1080 - 2 * c.QR_CARD.margin);
   assert.ok(l.text.y > l.qr.y + l.qr.size, 'abaixo do QR');
-  // O logótipo: os traços do Wordmark e o ponto do i a coral, abaixo do @ e acima da margem de baixo.
-  const g = l.svg.match(/<g transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)" fill="none" stroke="#18181b"/);
+  // O logótipo (lib/marca.ts, o mesmo do Wordmark) com o ponto do i a coral, abaixo do @ e acima da margem de baixo.
+  const B = marca.LOGO_BOX;
+  const g = l.svg.match(/<g transform="translate\((-?[\d.]+) (-?[\d.]+)\) scale\(([\d.]+)\)"><path fill="#18181b"/);
   assert.ok(g, 'tem o logótipo');
-  assert.ok(+g[2] > l.text.y, 'logótipo abaixo do @');
-  assert.ok(+g[2] + 51 * +g[3] <= l.height - c.QR_CARD.margin + 1, 'com margem por baixo');
-  assert.ok(Math.abs(+g[1] - 4 * +g[3] + (154 * +g[3]) / 2 - 540) < 1, 'logótipo ao centro');
-  assert.ok(l.svg.includes('M7 5V27Q7 34 14 34M0 14H14') && l.svg.includes('fill="#d6334f"'));
+  const s = +g[3];
+  const top = +g[2] + B.y * s;
+  const left = +g[1] + B.x * s;
+  assert.ok(top > l.text.y, 'logótipo abaixo do @');
+  assert.ok(Math.abs(B.h * s - c.QR_CARD.markH) < 0.01, 'com a altura do cartão');
+  assert.ok(top + B.h * s <= l.height - c.QR_CARD.margin + 1, 'com margem por baixo');
+  assert.ok(Math.abs(left + (B.w * s) / 2 - 540) < 1, 'logótipo ao centro');
+  assert.ok(marca.LOGO_INK_PATHS.every((d) => l.svg.includes(d)) && l.svg.includes(`<path fill="#d6334f" d="${marca.LOGO_DOT_PATHS[0]}"`));
   assert.equal(l.label, 'QR do perfil de @malta no Txillapp');
 });
 

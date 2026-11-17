@@ -11,9 +11,10 @@ import { editorOutWidth } from '@/lib/photoSize';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import {
-  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, sealOf, sealPaint, signLayout,
   type SealTier,
 } from '@/lib/wordmark';
+import { LOGO_DOT_PATHS, LOGO_INK_PATHS } from '@/lib/marca';
 import { Icon } from './Icon';
 
 /**
@@ -220,9 +221,11 @@ function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number,
   if (sign) drawSign(canvas, W, H, font, username, seal);
 }
 
-/** Logótipo em caminhos Skia (feito uma vez). */
-let markPaths: ReturnType<typeof Skia.Path.MakeFromSVGString>[] | null = null;
-const marks = () => (markPaths ??= WORDMARK_PATHS.map((d) => Skia.Path.MakeFromSVGString(d)));
+/** Logótipo em caminhos Skia (feito uma vez): as letras e o ponto do i, cada forma cheia à parte. */
+type SkPathOrNull = ReturnType<typeof Skia.Path.MakeFromSVGString>;
+let markPaths: { ink: SkPathOrNull[]; dot: SkPathOrNull[] } | null = null;
+// As formas do logótipo enchem-se com a regra nonzero, a de origem do Skia (o gerador avisa se a marca mudar de regra).
+const marks = () => (markPaths ??= { ink: LOGO_INK_PATHS.map((d) => Skia.Path.MakeFromSVGString(d)), dot: LOGO_DOT_PATHS.map((d) => Skia.Path.MakeFromSVGString(d)) });
 /** O selo de verificado em caminhos Skia (o mesmo desenho do VerifiedBadge, na caixa de 24). */
 let sealPaths: { seal: ReturnType<typeof Skia.Path.MakeFromSVGString>; check: ReturnType<typeof Skia.Path.MakeFromSVGString> } | null = null;
 const sealMarks = () => (sealPaths ??= { seal: Skia.Path.MakeFromSVGString(SEAL_PATH), check: Skia.Path.MakeFromSVGString(SEAL_CHECK) });
@@ -233,23 +236,20 @@ const sealMarks = () => (sealPaths ??= { seal: Skia.Path.MakeFromSVGString(SEAL_
  */
 function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, username?: string | null, seal?: SealTier | null) {
   const L = signLayout(W, H, !!username && !!font, seal);
-  const shadow = Skia.ImageFilter.MakeDropShadow(0, L.s * 2, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.45)'), null);
-  const stroke = Skia.Paint();
-  stroke.setStyle(PaintStyle.Stroke);
-  stroke.setStrokeWidth(WORDMARK_STROKE);
-  stroke.setStrokeCap(StrokeCap.Round);
-  stroke.setStrokeJoin(StrokeJoin.Round);
-  stroke.setColor(Skia.Color('#ffffff'));
-  stroke.setAntiAlias(true);
-  stroke.setImageFilter(shadow);
+  const shadow = Skia.ImageFilter.MakeDropShadow(0, L.shadowY, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.45)'), null);
+  const ink = Skia.Paint();
+  ink.setColor(Skia.Color('#ffffff'));
+  ink.setAntiAlias(true);
+  ink.setImageFilter(shadow);
   canvas.save();
   canvas.translate(L.x - WORDMARK_BOX.x * L.s, L.y - WORDMARK_BOX.y * L.s);
   canvas.scale(L.s, L.s);
-  for (const p of marks()) if (p) canvas.drawPath(p, stroke);
+  const m = marks();
+  for (const p of m.ink) if (p) canvas.drawPath(p, ink);
   const dot = Skia.Paint();
   dot.setColor(Skia.Color('#ff5c6c'));
   dot.setAntiAlias(true);
-  canvas.drawCircle(WORDMARK_DOT.cx, WORDMARK_DOT.cy, WORDMARK_DOT.r, dot);
+  for (const p of m.dot) if (p) canvas.drawPath(p, dot);
   canvas.restore();
   if (username && font) {
     const t = `@${username}`;

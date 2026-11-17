@@ -171,6 +171,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/notification-icon.png",
           "color": "#d6334f",
           "defaultChannel": "txillapp",
           "sounds": [

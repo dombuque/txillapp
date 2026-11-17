@@ -1,25 +1,10 @@
 /**
- * O logótipo "txillapp" em traços (os mesmos do componente Wordmark): serve para desenhar a assinatura nas fotos,
- * no browser (canvas) e no telemóvel (Skia). Caixa de -4,-3 a 150,51; traço de 7 com pontas redondas; o ponto do i a coral.
+ * A assinatura do Txillapp nas fotos (no browser, canvas, e no telemóvel, Skia): o logótipo em baixo à direita e o @ por
+ * baixo. O desenho do logótipo (formas cheias) está em lib/marca.ts; aqui fica só a caixa dele, para a conta da posição
+ * (este ficheiro não importa nada, porque os testes da API compilam-no sozinho para comparar com a de lá).
  */
-const circle = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
-
-export const WORDMARK_BOX = { x: -4, y: -3, w: 154, h: 54 };
-export const WORDMARK_STROKE = 7;
-export const WORDMARK_PATHS: string[] = [
-  'M7 5V27Q7 34 14 34M0 14H14',
-  'M20 14Q27 24 34 34M34 14Q27 24 20 34',
-  'M42 14V34',
-  'M51 3V34',
-  'M61 3V34',
-  circle(77, 24, 9.5),
-  'M86.5 14V34',
-  circle(106, 24, 9.5),
-  'M96.5 14V46',
-  circle(135, 24, 9.5),
-  'M125.5 14V46',
-];
-export const WORDMARK_DOT = { cx: 42, cy: 3.5, r: 4.2 };
+/** A caixa do logótipo (LOGO_BOX de lib/marca.ts; esta linha é escrita por scripts/marca/gerar.mjs). */
+export const WORDMARK_BOX = { x: 197.964, y: 266.11, w: 199.348, h: 71.815 };
 
 /**
  * O selo de verificado (o mesmo desenho do VerifiedBadge, numa caixa de 24×24): a roseta coral em degradê (verificado pelo
@@ -82,5 +67,5 @@ export function signLayout(W: number, H: number, withUser: boolean, seal?: SealT
     ? { tier: seal, size, k: size / SEAL_BOX, x: right - size, y: userBaseline - userSize * SEAL_LIFT - size / 2 }
     : null;
   const textRight = badge ? right - size - userSize * SEAL_GAP : right;
-  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, textRight, seal: badge, blur: Math.max(2, s * 5) };
+  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, textRight, seal: badge, blur: Math.max(2, ww / 30.8), shadowY: ww / 77 };
 }

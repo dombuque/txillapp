@@ -6,6 +6,8 @@
  * sobe para cima da imagem. Contas puras, testadas em tests/storyFrame.test.mjs.
  */
 
+import { WORDMARK_BOX } from '@/lib/wordmark';
+
 /** A forma do cartão (a das fotos e vídeos da câmara dos mimos). */
 export const CARD_RATIO = 9 / 16;
 /** A altura da barra de baixo (campo de 44 e folga). */
@@ -53,7 +55,7 @@ export function signatureRect(w: number, h: number, username = 'txillapp', seal 
   const base = Math.min(w, h);
   const m = base * 0.04;
   const ww = base * 0.2;
-  const wh = (54 / 154) * ww;
+  const wh = (WORDMARK_BOX.h / WORDMARK_BOX.w) * ww;
   const userSize = base * 0.028;
   const right = w - m;
   const baseline = h - m;

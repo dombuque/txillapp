@@ -18,9 +18,10 @@ import { useAuth } from '@/lib/auth';
 import { finalMs, musicRateWhileRecording, recordableMs, segmentBar, SPEEDS, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
 import {
-  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, sealOf, sealPaint, signLayout,
   type SealTier,
 } from '@/lib/wordmark';
+import { LOGO_DOT_PATHS, LOGO_FILL_RULE, LOGO_INK_PATHS } from '@/lib/marca';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
@@ -120,18 +121,13 @@ export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number,
   g.save();
   g.shadowColor = 'rgba(0,0,0,0.45)';
   g.shadowBlur = L.blur;
-  g.shadowOffsetY = L.s * 2;
+  g.shadowOffsetY = L.shadowY;
   g.translate(L.x - WORDMARK_BOX.x * L.s, L.y - WORDMARK_BOX.y * L.s);
   g.scale(L.s, L.s);
-  g.lineWidth = WORDMARK_STROKE;
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  g.strokeStyle = '#fff';
-  for (const d of WORDMARK_PATHS) g.stroke(new Path2D(d));
+  g.fillStyle = '#fff';
+  for (const d of LOGO_INK_PATHS) g.fill(new Path2D(d), LOGO_FILL_RULE);
   g.fillStyle = '#ff5c6c';
-  g.beginPath();
-  g.arc(WORDMARK_DOT.cx, WORDMARK_DOT.cy, WORDMARK_DOT.r, 0, Math.PI * 2);
-  g.fill();
+  for (const d of LOGO_DOT_PATHS) g.fill(new Path2D(d), LOGO_FILL_RULE);
   g.restore();
   if (username) {
     g.save();

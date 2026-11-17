@@ -6,6 +6,8 @@
  * tamanho e posição) e o círculo da foto. Tudo se faz no aparelho: nada sai para fora.
  */
 
+import { LOGO_BOX, logoSvgPaths } from '@/lib/marca';
+
 /** As frases do cartão, em calão da malta. A mesma lista do servidor (api/src/invites/card.ts). */
 export const INVITE_PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta'] as const;
 /** O Gelinho (a geleira) que acompanha cada frase, em três stickers da biblioteca. */
@@ -166,18 +168,15 @@ export interface CardLayout {
 const BRAND = '#d6334f';
 const INK = '#1f1b24';
 
-/** O logótipo em traços (a mesma geometria de lib/wordmark.ts). */
-const circlePath = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
-const WORDMARK = ['M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 20 34', 'M42 14V34', 'M51 3V34', 'M61 3V34', circlePath(77, 24, 9.5), 'M86.5 14V34', circlePath(106, 24, 9.5), 'M96.5 14V46', circlePath(135, 24, 9.5), 'M125.5 14V46'];
+/** O logótipo oficial (lib/marca.ts, gerado de assets/marca) numa pastilha branca: `width` de largura, a começar em `y`. */
 function wordmarkSvg(cx: number, y: number, width: number) {
-  const s = width / 154;
+  const s = width / LOGO_BOX.w;
   const x = cx - width / 2;
-  // O logótipo oficial (letras escuras, ponto do i a coral) numa pastilha branca.
-  const h = 54 * s;
+  const h = LOGO_BOX.h * s;
   const px = 0.26 * h;
   const py = 0.3 * h;
   const pill = `<rect x="${(x - px).toFixed(2)}" y="${(y - py).toFixed(2)}" width="${(width + 2 * px).toFixed(2)}" height="${(h + 2 * py).toFixed(2)}" rx="${((h + 2 * py) / 2).toFixed(2)}" fill="#ffffff"/>`;
-  return `${pill}<g transform="translate(${(x + 4 * s).toFixed(2)} ${(y + 3 * s).toFixed(2)}) scale(${s.toFixed(4)})" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="${BRAND}" stroke="none"/></g>`;
+  return `${pill}<g transform="translate(${(x - LOGO_BOX.x * s).toFixed(2)} ${(y - LOGO_BOX.y * s).toFixed(2)}) scale(${s.toFixed(5)})">${logoSvgPaths(INK, BRAND)}</g>`;
 }
 
 /** O QR como um só caminho (quadradinhos escuros), dentro do quadrado x,y,size. */

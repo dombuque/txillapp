@@ -111,10 +111,11 @@ body {
   0%, 100% { transform: scaleX(1); opacity: 0.22; }
   38% { transform: scaleX(0.45); opacity: 0.08; }
 }
+/* O salto em frações do próprio ponto (transform-box: fill-box): o mesmo a qualquer escala do logótipo. */
 @keyframes ponto-i {
   0%, 100% { transform: translateY(0) scale(1.15, 0.85); }
-  38% { transform: translateY(-13px) scale(0.9, 1.12); }
-  62% { transform: translateY(-1px) scale(1, 1); }
+  38% { transform: translateY(-210%) scale(0.9, 1.12); }
+  62% { transform: translateY(-12%) scale(1, 1); }
   78% { transform: translateY(0) scale(1.1, 0.9); }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
