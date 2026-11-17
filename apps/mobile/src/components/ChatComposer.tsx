@@ -4,7 +4,7 @@ import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, 
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
-import { api, uploadChatMedia } from '@/lib/api';
+import { api } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import type { LocationMessage } from '@/lib/sendLocation';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
@@ -25,9 +25,8 @@ import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
-import { CHAT_PICK_MAX, chatPicks, failedLabel, offlinePicksLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
-import { newHeldVoice, useHeldVoice } from '@/lib/heldVoice';
-import { HeldVoiceRow } from './HeldVoiceRow';
+import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { sendChatMedia, type ChatMediaItem } from '@/lib/chatMediaSend';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -104,12 +103,15 @@ export function ChatComposer({
     if (replyTo?.id) input.current?.focus();
   }, [replyTo?.id]);
 
-  // Mensagens de voz: sobem e vão já; sem rede ficam guardadas aqui e vão sozinhas, com o mesmo clientId (não duplicam).
-  const voice = useHeldVoice(async (v) => {
-    if (!v.mediaId) v.mediaId = await uploadChatMedia(v.uri, v.mime);
-    await api.chatSend(username, { kind: 'voice', mediaId: v.mediaId, durationMs: v.durationMs, once: v.once, replyTo: v.replyTo, clientId: v.clientId });
-    onSent();
-  }, setErr);
+  /**
+   * Voz, foto ou vídeo (lib/chatMediaSend): com rede vai já; sem rede o ficheiro fica guardado neste aparelho e a mensagem
+   * fica na conversa com o reloginho, e vai sozinha quando a rede voltar. Lança só uma recusa do servidor.
+   */
+  async function sendItem(item: Omit<ChatMediaItem, 'reply'>) {
+    const r = await sendChatMedia(`u:${username}`, { ...item, reply: replyTo }, onSent);
+    if (r !== 'cancelled') onClearReply?.();
+    return r;
+  }
 
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
@@ -162,21 +164,19 @@ export function ChatComposer({
     setErr('');
     const caption = text.trim() || undefined;
     let failed = 0;
-    let noNet = false;
     try {
       for (let i = 0; i < picks.length; i++) {
         setProgress({ done: i, total: picks.length });
         const p = picks[i];
         try {
-          const mediaId = await uploadChatMedia(p.uri, p.mime);
-          await dispatch({ kind: p.video ? 'video' : 'image', mediaId, body: i === 0 ? caption : undefined, once });
+          // Sem rede, cada uma fica guardada e à espera na conversa, pela mesma ordem (lib/chatMediaSend).
+          await sendItem({ kind: p.video ? 'video' : 'image', uri: p.uri, mime: p.mime, body: i === 0 ? caption : undefined, once });
           if (i === 0) {
             setText('');
             grow.reset();
           }
-        } catch (e) {
+        } catch {
           failed++;
-          if (e instanceof TypeError) noNet = true;
         }
       }
     } finally {
@@ -184,15 +184,15 @@ export function ChatComposer({
       setBusy(false);
       setOnce(false);
     }
-    if (failed) setErr(noNet ? offlinePicksLabel(failed, picks.length) : failedLabel(failed, picks.length));
+    if (failed) setErr(failedLabel(failed, picks.length));
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda e "Ver uma vez". */
   /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
   async function sendMedia(uri: string, mime: string, video: boolean, caption?: string) {
     setBusy(true);
     try {
-      const mediaId = await uploadChatMedia(uri, mime);
-      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: (caption ?? text).trim() || undefined, once });
+      setErr('');
+      if ((await sendItem({ kind: video ? 'video' : 'image', uri, mime, body: (caption ?? text).trim() || undefined, once })) === 'cancelled') return;
       setText('');
       grow.reset();
       setOnce(false);
@@ -252,12 +252,13 @@ export function ChatComposer({
       const uri = recorder.uri;
       if (!send || !uri || secs < 1) return;
       setErr('');
-      // Sem rede não se perde: fica guardada por cima da barra e vai sozinha quando a rede voltar (lib/heldVoice).
-      const v = newHeldVoice({ uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, once, ...(replyTo ? { replyTo: replyTo.id } : null) });
-      onClearReply?.();
-      await voice.submit(v);
+      setBusy(true);
+      // Sem rede não se perde: fica guardada neste aparelho, na conversa com o reloginho, e vai sozinha (lib/chatMediaSend).
+      await sendItem({ kind: 'voice', uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, once });
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
+    } finally {
+      setBusy(false);
     }
   }
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -298,7 +299,6 @@ export function ChatComposer({
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
-        <HeldVoiceRow held={voice.held} trying={voice.trying} onDrop={voice.drop} />
         {replyTo && (
           <View style={st.reply}>
             <View style={st.replyBar} />

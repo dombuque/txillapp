@@ -3,7 +3,7 @@
 // (reloginho) e vai sozinha, pela ordem, quando a rede volta; só uma recusa do servidor (4xx) fica "Não enviada"; as que
 // estão à espera ficam guardadas por conta e voltam ao abrir a app.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
-import { test } from 'node:test';
+import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +13,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const p = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'chatPending.ts')).href);
 
 const C = 'u:sara';
+// Cada teste acaba sem temporizadores nem filas (uma fila sem rede tenta para sempre: não deixaria o processo acabar).
+afterEach(() => p.resetPending());
 /** Uma promessa que se resolve (ou falha) quando o teste quiser. */
 function later() {
   let ok, ko;
@@ -380,7 +382,7 @@ test('as contas não se misturam; terminar sessão apaga as guardadas dessa cont
   await flush();
   assert.equal(s.calls.length, 0, 'a mensagem da Ana não vai com a sessão do Rui');
   // A Ana termina sessão: as dela são apagadas do aparelho.
-  p.forgetPendingUser('ana');
+  await p.forgetPendingUser('ana');
   assert.equal(store.data.has('ana'), false);
   // Uma estragada no armazenamento não parte nada.
   store.data.set('rui', '{isto não é json');
@@ -427,4 +429,241 @@ test('as barras de escrever, a lista, a bolha e a sessão usam as mensagens a ca
   assert.match(outbox, /clientId: r\.clientId/);
   assert.match(outbox, /addEventListener\('online'/);
   assert.match(outbox, /s === 'active'/);
+});
+
+// ---------- Voz, fotos e vídeos sem rede ----------
+
+/** Os ficheiros guardados de faz de conta (lib/chatMediaStore): o que existe e o que se apagou. */
+function fakeMedia() {
+  const files = new Map([['voz-1.m4a', 'file:///docs/tx-chat-media/voz-1.m4a'], ['foto-1.jpg', 'file:///docs/tx-chat-media/foto-1.jpg']]);
+  const dropped = [];
+  return { files, dropped, resolve: async (ref) => files.get(ref) ?? null, drop: (ref) => { dropped.push(ref); files.delete(ref); } };
+}
+
+test('voz sem rede: fica na conversa à espera com o ficheiro guardado; volta a rede: sobe uma vez e envia', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const media = fakeMedia();
+  const calls = [];
+  let mode = 'down';
+  let uploads = 0;
+  p.configurePending({
+    media,
+    online: () => true,
+    transport: async (req, ctx) => {
+      calls.push(req);
+      if (req.media && !req.mediaId) { uploads++; ctx.uploaded('asset-1'); }
+      if (mode === 'down') throw new TypeError('Load failed');
+      return { id: 'srv-voz' };
+    },
+  });
+  await p.sendPending(C, { kind: 'voice', media: { ref: 'voz-1.m4a', mime: 'audio/mp4', durationMs: 4000 }, localUri: 'file:///docs/tx-chat-media/voz-1.m4a' });
+  await flush();
+  let [b] = p.mergePending([], p.pendingOf(C));
+  assert.equal(b.kind, 'voice');
+  assert.equal(b.state, 'waiting');
+  assert.equal(b.mediaUrl, 'file:///docs/tx-chat-media/voz-1.m4a', 'a bolha toca a cópia guardada');
+  assert.equal(b.durationMs, 4000);
+  assert.equal(p.pendingOf(C)[0].mediaId, 'asset-1', 'o ficheiro que já subiu fica guardado');
+  // A rede volta: não sobe outra vez (vai com o mediaId), com o mesmo clientId.
+  mode = 'ok';
+  p.wakePending();
+  await flush();
+  assert.equal(uploads, 1);
+  assert.equal(calls.at(-1).mediaId, 'asset-1');
+  assert.equal(calls.at(-1).clientId, calls[0].clientId);
+  [b] = p.mergePending([], p.pendingOf(C));
+  assert.equal(b.id, 'srv-voz');
+  assert.equal(b.mediaUrl, 'file:///docs/tx-chat-media/voz-1.m4a', 'até o servidor a trazer, ainda se ouve a cópia');
+  assert.deepEqual(media.dropped, []);
+  // O servidor traz a mensagem: o ficheiro local apaga-se.
+  p.prunePending(C, new Set(['srv-voz']));
+  assert.deepEqual(media.dropped, ['voz-1.m4a']);
+  t.mock.timers.reset();
+});
+
+test('o ficheiro de uma enviada apaga-se sozinho passado MEDIA_KEEP_AFTER_SENT_MS (mesmo sem abrir a conversa)', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const media = fakeMedia();
+  p.configurePending({ media, transport: async () => ({ id: 'srv-f' }) });
+  await p.sendPending(C, { kind: 'image', body: 'praia', media: { ref: 'foto-1.jpg', mime: 'image/jpeg' } });
+  assert.deepEqual(media.dropped, []);
+  t.mock.timers.tick(p.MEDIA_KEEP_AFTER_SENT_MS);
+  assert.deepEqual(media.dropped, ['foto-1.jpg']);
+  t.mock.timers.reset();
+});
+
+test('apagar uma foto à espera, limpar a conversa e terminar sessão apagam os ficheiros guardados', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const media = fakeMedia();
+  const store = fakeStore();
+  const s = fakeServer();
+  p.configurePending({ media, store });
+  s.online = false;
+  await p.setPendingUser('ana');
+  await p.sendPending(C, { kind: 'image', media: { ref: 'foto-1.jpg', mime: 'image/jpeg' } });
+  p.dropPending(C, p.pendingOf(C)[0].id);
+  assert.deepEqual(media.dropped, ['foto-1.jpg']);
+  await p.sendPending('g:3', { kind: 'voice', media: { ref: 'voz-1.m4a', mime: 'audio/mp4', durationMs: 2000 } });
+  p.clearPending('g:3');
+  assert.deepEqual(media.dropped, ['foto-1.jpg', 'voz-1.m4a']);
+  // Terminar sessão: também os ficheiros das que estão guardadas (mesmo de uma conta que já não é a ativa).
+  await p.sendPending(C, { kind: 'video', media: { ref: 'video-1.mp4', mime: 'video/mp4' } });
+  await p.setPendingUser('rui');
+  await p.forgetPendingUser('ana');
+  assert.ok(media.dropped.includes('video-1.mp4'));
+  assert.equal(store.data.has('ana'), false);
+  t.mock.timers.reset();
+});
+
+test('voz e fotos guardadas sobrevivem a fechar a app: voltam com o ficheiro (onde se vê agora) e o mediaId', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const store = fakeStore();
+  let media = fakeMedia();
+  let s = fakeServer();
+  p.configurePending({ store, media });
+  s.online = false;
+  await p.setPendingUser('ana');
+  await p.sendPending(C, { kind: 'voice', media: { ref: 'voz-1.m4a', mime: 'audio/mp4', durationMs: 3000, once: true }, localUri: 'blob:velho' }, { mediaId: 'asset-9', clientId: '11111111-1111-4111-8111-111111111111' });
+  const saved = JSON.parse(store.data.get('ana')).convs[C][0];
+  assert.equal(saved.media.ref, 'voz-1.m4a');
+  assert.equal(saved.mediaId, 'asset-9');
+  assert.equal(saved.localUri, undefined, 'o endereço do momento não se guarda (no browser muda)');
+  // Abrir outra vez, ainda sem rede: a bolha volta com o ficheiro guardado.
+  p.resetPending();
+  media = fakeMedia();
+  s = fakeServer();
+  s.online = false;
+  p.configurePending({ store, media });
+  await p.setPendingUser('ana');
+  await flush();
+  const [b] = p.mergePending([], p.pendingOf(C));
+  assert.equal(b.kind, 'voice');
+  assert.equal(b.mediaUrl, 'file:///docs/tx-chat-media/voz-1.m4a');
+  assert.equal(b.viewOnce, true);
+  s.online = true;
+  p.wakePending();
+  await flush();
+  assert.equal(s.calls[0].mediaId, 'asset-9');
+  assert.equal(s.calls[0].clientId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(s.calls[0].media.durationMs, 3000);
+  t.mock.timers.reset();
+});
+
+test('o ficheiro já não está no aparelho (o transporte diz 410): fica «Não enviada», não tenta para sempre', async () => {
+  p.resetPending();
+  p.configurePending({ transport: async () => { throw httpError(410); } });
+  await p.sendPending(C, { kind: 'image', media: { ref: 'sumiu.jpg', mime: 'image/jpeg' } });
+  assert.equal(p.pendingOf(C)[0].state, 'failed');
+});
+
+test('uma guardada de voz sem ficheiro (estragada) não volta; as outras voltam pela ordem', async () => {
+  p.resetPending();
+  const store = fakeStore();
+  store.data.set('ana', JSON.stringify({ v: 1, convs: { [C]: [
+    { id: 'tmp-b', clientId: 'b', kind: 'image', body: '', media: { ref: 'f.jpg', mime: 'image/jpeg' }, at: '2026-11-17T10:01:00Z', state: 'waiting' },
+    { id: 'tmp-x', clientId: 'x', kind: 'voice', body: '', at: '2026-11-17T10:00:30Z', state: 'waiting' },
+    { id: 'tmp-a', clientId: 'a', kind: 'text', body: 'olá', at: '2026-11-17T10:00:00Z', state: 'waiting' },
+  ] } }));
+  p.configurePending({ store, online: () => false });
+  await p.setPendingUser('ana');
+  assert.deepEqual(p.pendingOf(C).map((x) => x.id), ['tmp-b', 'tmp-a']);
+});
+
+// ---------- Segundo plano, recuo no telemóvel ----------
+
+test('em segundo plano não tenta nem agenda; ao voltar ao primeiro plano tenta logo', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const s = fakeServer();
+  let active = false;
+  p.configurePending({ active: () => active });
+  await p.sendPending(C, { kind: 'text', body: 'no bolso' });
+  t.mock.timers.tick(10 * 60_000);
+  await flush();
+  assert.equal(s.calls.length, 0, 'em segundo plano não gasta');
+  assert.equal(p.pendingOf(C)[0].state, 'waiting');
+  active = true;
+  p.wakePending();
+  await flush();
+  assert.equal(s.calls.length, 1);
+  assert.equal(p.pendingOf(C)[0].state, 'sent');
+  t.mock.timers.reset();
+});
+
+test('telemóvel (NATIVE_RETRY_DELAYS): com a app à frente, nunca mais de 15 s entre tentativas', async (t) => {
+  p.resetPending();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const s = fakeServer();
+  s.mode = 'down';
+  p.configurePending({ retryDelays: p.NATIVE_RETRY_DELAYS });
+  assert.equal(Math.max(...p.NATIVE_RETRY_DELAYS), 15_000);
+  await p.sendPending(C, { kind: 'text', body: 'x' });
+  await flush();
+  for (const step of [2_000, 5_000, 10_000, 15_000, 15_000, 15_000]) {
+    const n = s.calls.length;
+    t.mock.timers.tick(step);
+    await flush();
+    assert.equal(s.calls.length, n + 1, `tentou ao fim de ${step} ms`);
+  }
+  t.mock.timers.reset();
+});
+
+// ---------- O nome da conversa e a lista sem rede ----------
+
+test('o nome da conversa fica guardado com as que estão à espera e volta ao abrir (cabeçalho sem rede)', async () => {
+  p.resetPending();
+  const store = fakeStore();
+  p.configurePending({ store, online: () => false });
+  await p.setPendingUser('ana');
+  p.notePendingTitle(C, { name: 'Sara Machel', username: 'sara', hasAvatar: true });
+  p.notePendingTitle('g:9', { name: 'Malta do Tofo' });
+  assert.equal(store.data.has('ana'), false, 'sem mensagens à espera não se guarda nada');
+  await p.sendPending(C, { kind: 'text', body: 'já chego' });
+  await p.sendPending('g:9', { kind: 'sticker', body: 'brinde' });
+  assert.deepEqual(JSON.parse(store.data.get('ana')).titles, { [C]: { name: 'Sara Machel', username: 'sara', hasAvatar: true }, 'g:9': { name: 'Malta do Tofo' } });
+  p.resetPending();
+  p.configurePending({ store, online: () => false });
+  await p.setPendingUser('ana');
+  assert.equal(p.pendingTitle(C).name, 'Sara Machel');
+  const convs = p.pendingConvs();
+  assert.deepEqual(convs.map((c) => [c.conv, c.title?.name, c.count]).sort(), [['g:9', 'Malta do Tofo', 1], [C, 'Sara Machel', 1]]);
+  assert.equal(p.pendingConvs(), convs, 'a mesma referência enquanto nada muda (useSyncExternalStore)');
+});
+
+test('pendingPreview: o texto curto de cada tipo', () => {
+  assert.equal(p.pendingPreview({ kind: 'text', body: 'olá' }), 'olá');
+  assert.equal(p.pendingPreview({ kind: 'sticker', body: 'brinde' }), 'Sticker');
+  assert.equal(p.pendingPreview({ kind: 'gif', body: '' }), 'GIF');
+  assert.equal(p.pendingPreview({ kind: 'voice', body: '' }), 'Mensagem de voz');
+  assert.equal(p.pendingPreview({ kind: 'image', body: '' }), 'Foto');
+  assert.equal(p.pendingPreview({ kind: 'video', body: 'golo' }), 'Vídeo: golo');
+});
+
+test('voz, fotos e vídeos sem rede passam pela fila (lib/chatMediaSend), nas conversas e nos grupos', () => {
+  const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
+  for (const f of ['src/components/ChatComposer.tsx', 'src/components/GroupComposer.tsx']) {
+    const s = read(f);
+    assert.match(s, /sendChatMedia\(/, f);
+    assert.match(s, /kind: 'voice', uri,/, f);
+    assert.doesNotMatch(s, /heldVoice|HeldVoiceRow/, f);
+  }
+  const send = read('src/lib/chatMediaSend.ts');
+  assert.match(send, /keepChatMedia\(/);
+  assert.match(send, /pendingWaiting\(conv\)/, 'com mensagens à espera, a nova vai atrás delas');
+  assert.match(send, /Tentar quando houver rede/);
+  assert.match(read('src/lib/chatOutbox.ts'), /retryDelays: NATIVE_RETRY_DELAYS/);
+  assert.match(read('src/lib/chatOutbox.ts'), /media: \{ resolve: chatMediaUri, drop: dropChatMedia \}/);
+  assert.match(read('src/lib/chatMediaStore.ts'), /Paths\.document, 'tx-chat-media'/);
+  assert.match(read('src/lib/chatMediaStore.web.ts'), /indexedDB/);
+  // Sem rede ao abrir: a conversa com mensagens à espera abre (com o nome guardado) e a lista mostra-as.
+  for (const f of ['src/app/messages/[username].tsx', 'src/app/messages/g/[id].tsx']) {
+    assert.match(read(f), /offlineWithPending\(q\.error, waitingHere\.length\)/, f);
+    assert.match(read(f), /notePendingTitle\(/, f);
+  }
+  assert.match(read('src/app/(tabs)/messages.tsx'), /<PendingConvs \/>/);
+  for (const f of ['src/lib/chatMediaSend.ts', 'src/components/PendingConvs.tsx', 'src/lib/chatMediaStore.ts', 'src/lib/chatMediaStore.web.ts']) assert.doesNotMatch(read(f), /[—–]/, `${f}: sem travessões`);
 });

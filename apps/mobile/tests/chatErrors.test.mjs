@@ -39,7 +39,8 @@ test('a lista: cada separador olha para a sua fonte; a pesquisa para as duas', (
 
 test('o ecrã da conversa e a lista usam estas regras', () => {
   const thread = read('src/app/messages/[username].tsx');
-  assert.match(thread, /if \(blockingError\(q\.isError, !!first\)\)/);
+  // Sem rede e com mensagens à espera (lib/chatPending), a conversa abre na mesma e mostra-as (offlineView).
+  assert.match(thread, /if \(blockingError\(q\.isError, !!first\) && !offlineView\)/);
   assert.doesNotMatch(thread, /if \(q\.isError\) \{/);
   assert.match(thread, /Tentar outra vez/);
   const inbox = read('src/app/(tabs)/messages.tsx');
@@ -58,8 +59,9 @@ test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os
 test('a abrir uma conversa, o cabeçalho já mostra o nome e a foto da lista (não aparece vazio e depois salta)', () => {
   const thread = read('src/app/messages/[username].tsx');
   assert.match(thread, /const listed = useMemo\(\(\) => qc\.getQueryData<Conversation\[\]>\(\['chat-list'\]\)/);
-  assert.match(thread, /title=\{person\?\.displayName \?\? listed\?\.displayName \?\? ''\}/);
+  // Sem rede: o nome guardado com as mensagens à espera (`saved`, lib/chatPending).
+  assert.match(thread, /title=\{person\?\.displayName \?\? listed\?\.displayName \?\? saved\?\.name \?\? ''\}/);
   const group = read('src/app/messages/g/[id].tsx');
   assert.match(group, /const listed = useMemo\(\(\) => qc\.getQueryData<TxillGroupSummary\[\]>\(\['chat-groups'\]\)/);
-  assert.match(group, /title=\{group\?\.name \?\? listed\?\.name \?\? ''\}/);
+  assert.match(group, /title=\{group\?\.name \?\? listed\?\.name \?\? saved\?\.name \?\? ''\}/);
 });

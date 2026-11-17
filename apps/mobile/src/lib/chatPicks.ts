@@ -36,10 +36,3 @@ export function failedLabel(failed: number, total: number): string {
   if (total <= 1) return 'Não consegui enviar';
   return failed === total ? 'Não consegui enviar nenhum' : failed === 1 ? `Não consegui enviar 1 de ${total}` : `Não consegui enviar ${failed} de ${total}`;
 }
-
-/** O mesmo, quando foi por falta de rede: as fotos e os vídeos continuam na galeria (escolhem-se outra vez). */
-export function offlinePicksLabel(failed: number, total: number): string {
-  if (failed <= 0) return '';
-  const what = failed === total ? (total <= 1 ? 'Não foi enviada' : 'Nenhuma foi enviada') : `Não foram enviadas ${failed} de ${total}`;
-  return `Sem rede. ${what}: escolhe outra vez da galeria quando a rede voltar.`;
-}

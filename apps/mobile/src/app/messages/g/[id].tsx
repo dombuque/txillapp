@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { abs } from '@/lib/config';
 import { useChatVisible } from '@/lib/chatVisible';
 import { useScreenshotNotice } from '@/lib/screenCapture';
@@ -16,7 +16,8 @@ import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus 
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
 import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
-import { clearPending } from '@/lib/chatPending';
+import { clearPending, notePendingTitle, pendingOf, pendingTitle, subscribePending } from '@/lib/chatPending';
+import { offlineWithPending } from '@/lib/chatErrors';
 import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
 import { OnceViewer } from '@/components/OnceViewer';
@@ -107,6 +108,13 @@ export default function GroupThreadScreen() {
   });
   const first = q.data?.pages[0];
   const group = first?.group as TxillGroupInfo | undefined;
+  // Sem rede ao abrir: as mensagens à espera deste grupo e o nome guardado com elas (lib/chatPending).
+  const waitingHere = useSyncExternalStore(subscribePending, () => pendingOf(`g:${id}`), () => pendingOf(`g:${id}`));
+  const saved = pendingTitle(`g:${id}`);
+  useEffect(() => {
+    if (group) notePendingTitle(`g:${id}`, { name: group.name });
+  }, [id, group]);
+  const offlineView = !group && waitingHere.length > 0 && (q.isLoading || offlineWithPending(q.error, waitingHere.length));
   /** «Abrir rodada» (0145): o cartão aparece na conversa; já há uma aberta (409): diz porquê. */
   async function openRound() {
     try {
@@ -191,7 +199,7 @@ export default function GroupThreadScreen() {
   const editLast = mineLast && canEdit(mineLast) ? mineLast : null;
   const chat = (
     <View style={{ flex: 1, minWidth: 0 }}>
-      {q.isError && !group ? (
+      {q.isError && !group && !offlineView ? (
         <View style={{ alignItems: 'center' }}>
           <Text style={st.empty}>{(q.error as Error).message || 'Não consegui abrir este TxillGroup.'}</Text>
           {/* Quem não está no grupo vê a página pública (se o grupo estiver no mapa ou for público). */}
@@ -210,7 +218,7 @@ export default function GroupThreadScreen() {
           onRaised={setRaised}
           emptyArt={group ? <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={80} radius={40} /> : null}
           emptyTitle={group?.name}
-          loading={q.isLoading}
+          loading={q.isLoading && !offlineView}
           hasNext={!!q.hasNextPage}
           fetchNext={() => q.fetchNextPage()}
           fetchingNext={q.isFetchingNextPage}
@@ -237,7 +245,7 @@ export default function GroupThreadScreen() {
             setEditing(null);
           }}
         />
-      ) : group && (
+      ) : (group || offlineView) && (
         <GroupComposer groupId={id} pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onRound={() => void openRound()} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
     </View>
@@ -257,7 +265,7 @@ export default function GroupThreadScreen() {
               {ttl ? <TtlBadge size={36} /> : null}
             </View>
           }
-          title={group?.name ?? listed?.name ?? ''}
+          title={group?.name ?? listed?.name ?? saved?.name ?? ''}
           subtitle={group ? <HeaderStatus text={sub} /> : null}
           actions={group ? (
             <>

@@ -36,6 +36,7 @@ import { groupSenderPrefix, listTime, rowLabel, unreadBadge } from '@/lib/inboxR
 import { systemText } from '@/lib/screenshotNotice';
 import { emptyPreview } from '@/lib/chatTemporary';
 import { inboxFailed } from '@/lib/chatErrors';
+import { PendingConvs } from '@/components/PendingConvs';
 
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
@@ -544,8 +545,12 @@ export default function Messages() {
         }}
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : failed ? (
-            // Não carregou (sem rede): não é "Ainda sem cochichos" (lib/chatErrors).
-            <ErrorState what="as mensagens" retryLabel={retrying ? 'A tentar…' : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
+            // Não carregou (sem rede): não é "Ainda sem cochichos" (lib/chatErrors). Por cima, as conversas com mensagens
+            // à espera de rede (abrem e mostram-nas mesmo sem rede).
+            <View>
+              <PendingConvs />
+              <ErrorState what="as mensagens" retryLabel={retrying ? 'A tentar…' : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
+            </View>
           ) : (
             <EmptyState
               icon={view === 'groups' && !term ? 'users' : 'messages'}
