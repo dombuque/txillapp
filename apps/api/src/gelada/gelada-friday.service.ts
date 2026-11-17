@@ -6,6 +6,8 @@ import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
 import { adultSql } from './gelada-cards';
+import { t, type Lang } from '../i18n/i18n';
+import { recipientLang } from '../i18n/request-lang';
 
 /** De quanto em quanto tempo a tarefa corre (a mesma cadência dos lembretes de regresso). */
 export const FRIDAY_EVERY_MS = 3_600_000;
@@ -32,16 +34,21 @@ export const MODERATION = { adult: 'Bebe com moderação 🙌', minor: 'Com calm
 
 /**
  * O texto do aviso: cobrar a dívida mais antiga («É sexta 🍻 O @januario ainda te deve uma. Cobra-lhe!») ou pedir à malta.
- * Para menores, a versão refresco, sem álcool no texto. Termina sempre com a linha de moderação.
+ * Para menores, a versão refresco, sem álcool no texto. Termina sempre com a linha de moderação (MODERATION). No idioma de
+ * quem recebe (`lang`); o artigo antes do @ («O @januario») só em português.
  */
-export function fridayMessage(f: { adult: boolean; debtor?: { username: string; article: 'O' | 'A' | null } | null }) {
-  const cheers = f.adult ? '🍻' : '🥤';
-  const what = f.debtor
-    ? `${f.debtor.article ? `${f.debtor.article} ` : ''}@${f.debtor.username} ainda te deve ${f.adult ? 'uma' : 'um refresco'}. Cobra-lhe!`
-    : f.adult ? 'Pede uma gelada à malta.' : 'Pede um refresco à malta.';
+export function fridayMessage(f: { adult: boolean; debtor?: { username: string; article: 'O' | 'A' | null } | null }, lang: Lang = 'pt') {
+  const who = f.debtor ? (f.debtor.article && lang === 'pt' ? `${f.debtor.article} @${f.debtor.username}` : `@${f.debtor.username}`) : '';
+  const body = f.debtor
+    ? f.adult
+      ? t('É sexta 🍻 {who} ainda te deve uma. Cobra-lhe! Bebe com moderação 🙌', { who }, lang)
+      : t('É sexta 🥤 {who} ainda te deve um refresco. Cobra-lhe! Com calma e boa sexta 🙌', { who }, lang)
+    : f.adult
+      ? t('É sexta 🍻 Pede uma gelada à malta. Bebe com moderação 🙌', {}, lang)
+      : t('É sexta 🥤 Pede um refresco à malta. Com calma e boa sexta 🙌', {}, lang);
   return {
-    title: f.adult ? 'Sexta da gelada' : 'É sexta!',
-    body: `É sexta ${cheers} ${what} ${f.adult ? MODERATION.adult : MODERATION.minor}`,
+    title: f.adult ? t('Sexta da gelada', {}, lang) : t('É sexta!', {}, lang),
+    body,
     url: f.debtor ? '/geladas' : '/geladas?pedir=1',
     kind: (f.debtor ? 'debt' : 'friends') as 'debt' | 'friends',
   };
@@ -79,7 +86,7 @@ export class GeladaFridayService implements OnModuleInit {
     if (!this.push.enabled) return { sent: 0, outside: false };
     const friday = maputo(now).date;
     const { rows } = await this.pool.query(
-      `SELECT u.id, ${adultSql('u')} AS adult,
+      `SELECT u.id, u.language, ${adultSql('u')} AS adult,
               (SELECT json_build_object('username', du.username, 'gender', CASE WHEN du.show_gender THEN du.gender END)
                  FROM taste.gelada_debts d JOIN identity.users du ON du.id = d.debtor_id
                 WHERE d.creditor_id = u.id AND d.status = 'open' AND du.status = 'active' AND NOT ${blockedBetween('du.id', 'u.id')}
@@ -107,7 +114,7 @@ export class GeladaFridayService implements OnModuleInit {
       try {
         const claim = await this.pool.query(`INSERT INTO taste.gelada_fridays (user_id, friday, kind, sent_at) VALUES ($1, $2, 'pending', $3) ON CONFLICT DO NOTHING`, [r.id, friday, now]);
         if (!claim.rowCount) continue; // outra volta já lhe pegou
-        const msg = fridayMessage({ adult: !!r.adult, debtor: d ? { username: d.username, article: d.gender === 'female' ? 'A' : d.gender === 'male' ? 'O' : null } : null });
+        const msg = fridayMessage({ adult: !!r.adult, debtor: d ? { username: d.username, article: d.gender === 'female' ? 'A' : d.gender === 'male' ? 'O' : null } : null }, recipientLang(r.language));
         const delivered = await this.push.send(r.id as string, { title: msg.title, body: msg.body, url: msg.url, tag: 'gelada-friday', category: 'gelada', ttlSeconds: 4 * 3600 });
         if (delivered > 0) {
           await this.pool.query('UPDATE taste.gelada_fridays SET kind = $3 WHERE user_id = $1 AND friday = $2', [r.id, friday, msg.kind]);

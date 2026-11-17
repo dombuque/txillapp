@@ -23,6 +23,8 @@ import { ReqContext, SecurityService } from '../security/security.service';
 import { AppleService } from './apple.service';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
+import { msg, storedLang, type Lang } from '../i18n/i18n';
+import { recipientLang } from '../i18n/request-lang';
 import { dropDownloadCopies } from '../posts/download-copies';
 
 const ACCESS_TTL_S = 10 * 60;
@@ -225,7 +227,7 @@ export class AuthService implements OnModuleInit {
       const tokens = await this.issueSession(client, row.id, uuidv7(), userAgent);
       await this.audit(client, row.id, 'auth.login');
       await client.query('COMMIT');
-      if (!known) void this.noticeNewLogin(row.id, userAgent, 'com a senha', ctx);
+      if (!known) void this.noticeNewLogin(row.id, userAgent, msg('com a senha'), ctx);
       return { tokens, user: sessionUser(row) };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -293,7 +295,7 @@ export class AuthService implements OnModuleInit {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
       const known = await this.knownDevice(u.id, userAgent);
       const tokens = await this.sessionFor(u.id, 'auth.google_login', userAgent);
-      if (!known) void this.noticeNewLogin(u.id, userAgent, 'com a Google', ctx);
+      if (!known) void this.noticeNewLogin(u.id, userAgent, msg('com a Google'), ctx);
       return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Não se liga automaticamente a uma conta existente com o mesmo email (evita tomadas de conta por email não verificado).
@@ -369,7 +371,7 @@ export class AuthService implements OnModuleInit {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
       const known = await this.knownDevice(u.id, userAgent);
       const tokens = await this.sessionFor(u.id, 'auth.apple_login', userAgent);
-      if (!known) void this.noticeNewLogin(u.id, userAgent, 'com a Apple', ctx);
+      if (!known) void this.noticeNewLogin(u.id, userAgent, msg('com a Apple'), ctx);
       return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Sem email (a pessoa escondeu-o e a Apple não o confirmou) a conta fica sem email até ele ser confirmado mais tarde.
@@ -563,7 +565,7 @@ export class AuthService implements OnModuleInit {
     const email = rawEmail.trim().toLowerCase();
     // No máximo 3 emails por hora para o mesmo endereço (a resposta é igual: não diz se travou).
     if (this.mail.enabled && z.string().email().max(254).safeParse(email).success && (await this.security.mailAllowed('delete', email, ctx))) {
-      const { rows } = await this.pool.query("SELECT id, email, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
+      const { rows } = await this.pool.query("SELECT id, email, display_name, language FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
       const u = rows[0];
       if (u) {
         const token = await new SignJWT({ m: this.deletionMark(u.email) })
@@ -574,7 +576,7 @@ export class AuthService implements OnModuleInit {
           .setIssuedAt()
           .setExpirationTime('1h')
           .sign(this.secret);
-        await this.mail.send({ to: u.email, ...deleteAccountMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token) });
+        await this.mail.send({ to: u.email, ...deleteAccountMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token, recipientLang(u.language, true)) });
       }
     }
     // `mail: false` é igual para toda a gente (o servidor não envia emails): a página manda apagar na app em vez de esperar.
@@ -639,7 +641,7 @@ export class AuthService implements OnModuleInit {
         `UPDATE identity.users SET status = 'deleted', username = 'eliminado_' || substr(replace(id::text, '-', ''), 1, 12),
                 display_name = 'Conta eliminada', email = 'deleted+' || id::text || '@invalid.local',
                 bio = NULL, google_sub = NULL, apple_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL,
-                city = NULL, website = NULL, country = NULL, last_seen_at = NULL
+                city = NULL, website = NULL, country = NULL, last_seen_at = NULL, language = NULL
           WHERE id = $1`,
         [userId],
       );
@@ -900,11 +902,11 @@ export class AuthService implements OnModuleInit {
   /** Envia (ou reenvia) o e-mail de confirmação. Devolve false se o e-mail não está ligado ou a conta já está confirmada. */
   async sendVerification(userId: string): Promise<boolean> {
     if (!this.mail.enabled) return false;
-    const { rows } = await this.pool.query("SELECT email, display_name, email_verified_at FROM identity.users WHERE id = $1 AND status = 'active'", [userId]);
+    const { rows } = await this.pool.query("SELECT email, display_name, email_verified_at, language FROM identity.users WHERE id = $1 AND status = 'active'", [userId]);
     const u = rows[0];
     if (!u || u.email_verified_at) return false;
     const token = await this.issueEmailToken(userId, 'verify', 48 * 3600_000);
-    return this.mail.send({ to: u.email, ...verifyEmailMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token) });
+    return this.mail.send({ to: u.email, ...verifyEmailMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token, recipientLang(u.language, true)) });
   }
 
   async emailStatus(userId: string) {
@@ -957,10 +959,10 @@ export class AuthService implements OnModuleInit {
     await this.security.requireHuman(ctx, 'forgot');
     // No máximo 3 emails por hora para o mesmo endereço (a resposta é igual: não diz se travou nem se a conta existe).
     if (this.mail.enabled && z.string().email().max(254).safeParse(email).success && (await this.security.mailAllowed('reset', email, ctx))) {
-      const { rows } = await this.pool.query("SELECT id, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
+      const { rows } = await this.pool.query("SELECT id, display_name, language FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
       if (rows[0]) {
         const token = await this.issueEmailToken(rows[0].id, 'reset', 3600_000);
-        await this.mail.send({ to: email, ...resetPasswordMail(this.mail.publicUrl, String(rows[0].display_name).split(' ')[0], token) });
+        await this.mail.send({ to: email, ...resetPasswordMail(this.mail.publicUrl, String(rows[0].display_name).split(' ')[0], token, recipientLang(rows[0].language, true)) });
       }
     }
     return { ok: true };
@@ -1011,13 +1013,14 @@ export class AuthService implements OnModuleInit {
     }
   }
 
-  async getUser(id: string): Promise<SessionUser> {
+  async getUser(id: string): Promise<SessionUser & { language: Lang | null }> {
     const { rows } = await this.pool.query(
-      `SELECT id, username, display_name, verified, verified_tier FROM identity.users WHERE id = $1 AND status = 'active'`,
+      `SELECT id, username, display_name, verified, verified_tier, language FROM identity.users WHERE id = $1 AND status = 'active'`,
       [id],
     );
     if (!rows[0]) throw new UnauthorizedException();
-    return sessionUser(rows[0]);
+    // O idioma escolhido na conta (null = não escolheu: a app segue o do telemóvel). Ver docs/idiomas-api.md.
+    return { ...sessionUser(rows[0]), language: storedLang(rows[0].language) };
   }
 
   /* ───── avisos de segurança ───── */
@@ -1033,9 +1036,11 @@ export class AuthService implements OnModuleInit {
   }
 
   /** Para onde mandar um aviso: só emails confirmados (nunca para um email que alguém inventou no registo). */
-  private async mailTarget(userId: string) {
-    const u = (await this.pool.query("SELECT email, display_name, email_verified_at FROM identity.users WHERE id = $1 AND status = 'active'", [userId])).rows[0];
-    return u && u.email_verified_at && !String(u.email).endsWith('.invalid') ? { email: u.email as string, name: String(u.display_name).split(' ')[0] } : null;
+  // `self`: o pedido é da própria pessoa (entrou agora), por isso sem idioma escolhido vale o do pedido; nos outros avisos
+  // (bloqueio, sessão copiada) o pedido pode ser de outra pessoa e vale só o da conta (senão pt).
+  private async mailTarget(userId: string, self = false) {
+    const u = (await this.pool.query("SELECT email, display_name, email_verified_at, language FROM identity.users WHERE id = $1 AND status = 'active'", [userId])).rows[0];
+    return u && u.email_verified_at && !String(u.email).endsWith('.invalid') ? { email: u.email as string, name: String(u.display_name).split(' ')[0], lang: recipientLang(u.language, self) } : null;
   }
 
   /** «Novo início de sessão»: um email (no máximo um em cada 10 minutos). Nunca falha o login. */
@@ -1044,8 +1049,8 @@ export class AuthService implements OnModuleInit {
       const device = describeDevice(userAgent).label;
       void this.security.event('new_login', ctx, userId, { how });
       if (!this.mail.enabled || !(await this.security.once(`newlogin:${userId}`, LOGIN.NEW_LOGIN_EVERY_MS))) return;
-      const t = await this.mailTarget(userId);
-      if (t) await this.mail.send({ to: t.email, ...newLoginMail(this.mail.publicUrl, t.name, { at: new Date(), device, how }) });
+      const t = await this.mailTarget(userId, true);
+      if (t) await this.mail.send({ to: t.email, ...newLoginMail(this.mail.publicUrl, t.name, { at: new Date(), device, how }, t.lang) });
     } catch {
       /* o aviso não pode estragar o login */
     }
@@ -1056,7 +1061,7 @@ export class AuthService implements OnModuleInit {
     try {
       if (!this.mail.enabled || !(await this.security.once(`locked:${userId}`, LOGIN.WARN_EVERY_MS))) return;
       const t = await this.mailTarget(userId);
-      if (t) await this.mail.send({ to: t.email, ...loginLockedMail(this.mail.publicUrl, t.name, { until, device: ctx.deviceLabel }) });
+      if (t) await this.mail.send({ to: t.email, ...loginLockedMail(this.mail.publicUrl, t.name, { until, device: ctx.deviceLabel }, t.lang) });
     } catch {
       /* nunca falha */
     }
@@ -1069,7 +1074,7 @@ export class AuthService implements OnModuleInit {
       void this.security.event('refresh_reuse', ctx, userId, { family: familyId, from: describeDevice(userAgent).label });
       if (!this.mail.enabled || !(await this.security.once(`reuse:${userId}`, 24 * 3600_000))) return;
       const t = await this.mailTarget(userId);
-      if (t) await this.mail.send({ to: t.email, ...sessionReuseMail(this.mail.publicUrl, t.name, { at: new Date(), device: describeDevice(first).label }) });
+      if (t) await this.mail.send({ to: t.email, ...sessionReuseMail(this.mail.publicUrl, t.name, { at: new Date(), device: describeDevice(first).label }, t.lang) });
     } catch {
       /* nunca falha */
     }

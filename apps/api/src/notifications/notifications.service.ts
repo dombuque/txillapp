@@ -10,6 +10,7 @@ import { badge, type Badge } from '../common/badge';
 import { vibes } from '../common/vibes';
 import { txilladaVisible } from '../txillada/txillada-visibility';
 import { whenLabel } from '../txillada/txillada-when';
+import { msg, SOURCE_LANG, t, type Lang } from '../i18n/i18n';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
 export const MENTION_RE = /(?<![\w.])@([a-zA-Z0-9_.]{3,30})/g;
@@ -28,12 +29,12 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
  * num comentário (txillada-voltar), de quem comentou; «na Txillada de @anfitrião» quando quem comentou não é o anfitrião.
  */
 export const txInviteBody = (actor: string | undefined, data?: Record<string, unknown>) => {
-  const who = `@${actor ?? 'alguém'}`;
-  if (!data?.mention) return `${who} convidou-te para transmitir na Txillada`;
+  const who = `@${actor ?? msg('alguém')}`;
+  if (!data?.mention) return t('{who} convidou-te para transmitir na Txillada', { who });
   const host = (data.host as { username?: unknown } | undefined)?.username;
   return typeof host === 'string' && host && host.toLowerCase() !== (actor ?? '').toLowerCase()
-    ? `${who} mencionou-te na Txillada de @${host}: vem ver`
-    : `${who} mencionou-te na Txillada: vem ver`;
+    ? t('{who} mencionou-te na Txillada de @{host}: vem ver', { who, host })
+    : t('{who} mencionou-te na Txillada: vem ver', { who });
 };
 
 export type NotificationKind ='blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review'
@@ -102,8 +103,8 @@ const SELF_KINDS = new Set<NotificationKind>(['txillada_scheduled_soon', 'txilla
 const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
-  type === 'comment' ? 'o teu comentário' : type === 'txillada_comment' ? 'o teu comentário na Txillada' : type === 'mixar_comment' ? 'o teu comentário no Mixar' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
-  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : type === 'txillada_schedule' ? 'a tua Txillada agendada' : tcheka ? 'a tua tcheka' : 'a tua publicação';
+  msg(type === 'comment' ? 'o teu comentário' : type === 'txillada_comment' ? 'o teu comentário na Txillada' : type === 'mixar_comment' ? 'o teu comentário no Mixar' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
+  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : type === 'txillada_schedule' ? 'a tua Txillada agendada' : tcheka ? 'a tua tcheka' : 'a tua publicação');
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -135,9 +136,9 @@ export const CHEER_PUSH_DAILY_MAX = 6;
 
 const cheerTargetId = (t: CheerTarget) => (t.kind === 'post' ? t.postId : t.commentId);
 const cheerWhat = (t: CheerTarget) =>
-  t.kind === 'comment' ? { a: 'o teu comentário', in: 'no teu comentário' }
-  : t.kind === 'story_comment' ? { a: 'o teu comentário no mimo', in: 'no teu comentário no mimo' }
-  : t.tcheka ? { a: 'a tua tcheka', in: 'na tua tcheka' } : { a: 'a tua publicação', in: 'na tua publicação' };
+  t.kind === 'comment' ? { a: msg('o teu comentário'), in: msg('no teu comentário') }
+  : t.kind === 'story_comment' ? { a: msg('o teu comentário no mimo'), in: msg('no teu comentário no mimo') }
+  : t.tcheka ? { a: msg('a tua tcheka'), in: msg('na tua tcheka') } : { a: msg('a tua publicação'), in: msg('na tua publicação') };
 const cheerUrl = (t: CheerTarget) =>
   t.kind === 'comment' ? `/p/${t.postId}?comments=1&c=${t.commentId}`
   : t.kind === 'story_comment' ? `/stories/${encodeURIComponent(t.storyAuthor)}?m=${t.mediaId}&comments=1`
@@ -180,6 +181,11 @@ export class NotificationsService {
     } catch {
       return null;
     }
+  }
+
+  /** O idioma de quem recebe (o escolhido na conta; sem escolha, pt). */
+  langOf(userId: string): Promise<Lang> {
+    return this.push.langOf(userId);
   }
 
   /**
@@ -236,7 +242,9 @@ export class NotificationsService {
     if (!this.push.enabled) return;
     const a = (await this.pool.query('SELECT display_name, username FROM identity.users WHERE id = $1', [n.actorId])).rows[0];
     const profile = a?.username ? `/u/${a.username as string}` : '/notifications';
-    const who = STAFF_KINDS.has(n.kind) ? 'Txillapp' : ((a?.display_name as string | undefined) ?? 'Alguém');
+    const who = STAFF_KINDS.has(n.kind) ? 'Txillapp' : ((a?.display_name as string | undefined) ?? msg('Alguém'));
+    // As datas no texto já no idioma de quem recebe (o resto traduz-se no push).
+    const lang = n.kind === 'txillada_scheduled_cancelled' ? await this.push.langOf(n.userId) : SOURCE_LANG;
     const postId = n.data?.postId as string | undefined;
     const commentId = n.data?.commentId as string | undefined;
     const txUrl = typeof n.data?.txilladaId === 'string' ? `/txillada/${encodeURIComponent(n.data.txilladaId)}` : '/notifications';
@@ -278,8 +286,8 @@ export class NotificationsService {
         body: n.data?.removed
           ? `A Txillada de @${String(a?.username ?? 'alguém')} foi retirada`
           : n.data?.moved
-          ? `@${String(a?.username ?? 'alguém')} mudou a Txillada para ${whenLabel(String(n.data?.newStartsAt ?? ''))}`
-          : `@${String(a?.username ?? 'alguém')} cancelou a Txillada de ${whenLabel(String(n.data?.startsAt ?? ''))}`,
+          ? `@${String(a?.username ?? 'alguém')} mudou a Txillada para ${whenLabel(String(n.data?.newStartsAt ?? ''), new Date(), lang)}`
+          : `@${String(a?.username ?? 'alguém')} cancelou a Txillada de ${whenLabel(String(n.data?.startsAt ?? ''), new Date(), lang)}`,
         url: typeof n.data?.scheduleId === 'string' ? `/txillada/agendada/${encodeURIComponent(n.data.scheduleId)}` : '/notifications',
       },
       // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
@@ -565,7 +573,7 @@ export class NotificationsService {
     const what = cheerWhat(t);
     const tag = `cheer:${targetId}`;
     if (count === 1) {
-      const who = ((await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [actorId])).rows[0]?.display_name as string | undefined) ?? 'Alguém';
+      const who = ((await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [actorId])).rows[0]?.display_name as string | undefined) ?? msg('Alguém');
       await this.push.send(ownerId, { title: who, body: `brindou ${what.a}`, url: cheerUrl(t), tag, category: 'reactions' });
     } else {
       await this.push.send(ownerId, { title: 'A malta brindou-te', body: `+${count} brindes ${what.in}`, url: cheerUrl(t), tag, category: 'reactions' });

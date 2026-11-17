@@ -6,6 +6,8 @@ import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ApnsSender, apnsOptionsFromEnv, nativeRoute } from './apns';
 import { FcmSender, type FcmPush } from './fcm';
+import { SOURCE_LANG, translateText, type Lang } from '../i18n/i18n';
+import { recipientLang } from '../i18n/request-lang';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
 // `comeback`: os lembretes quando a pessoa não passa por cá (push e e-mail, ver src/reminders/comeback-reminder.service.ts);
@@ -116,11 +118,30 @@ export class PushService implements OnModuleDestroy {
     await this.pool.query('DELETE FROM social.push_subscriptions WHERE user_id = $1 AND endpoint = $2', [userId, endpoint]);
   }
 
+  /** O idioma de quem recebe (o escolhido na conta; sem escolha, pt). */
+  async langOf(userId: string): Promise<Lang> {
+    const r = await this.pool.query('SELECT language FROM identity.users WHERE id = $1', [userId]);
+    return recipientLang(r.rows[0]?.language);
+  }
+
   /**
-   * Envia para todos os aparelhos da pessoa. Nunca falha a acção principal; subscrições mortas são removidas.
+   * Envia para todos os aparelhos da pessoa, no idioma dela: o título e o texto vêm em português (a chave do catálogo) e
+   * traduzem-se aqui (docs/idiomas-api.md). Nunca falha a acção principal; subscrições mortas são removidas.
    * Devolve a quantos aparelhos chegou (0 = nenhum push válido: os lembretes de regresso passam então ao e-mail).
    */
   async send(userId: string, payload: PushPayload): Promise<number> {
+    if (!this.enabled) return 0;
+    let lang: Lang = SOURCE_LANG;
+    try {
+      lang = await this.langOf(userId);
+    } catch {
+      /* sem idioma, vai em português */
+    }
+    return this.deliver(userId, lang === SOURCE_LANG ? payload : { ...payload, title: translateText(payload.title, lang), body: translateText(payload.body, lang) });
+  }
+
+  /** Entrega o push já no idioma certo (os testes espiam aqui para ver o texto final). */
+  async deliver(userId: string, payload: PushPayload): Promise<number> {
     if (!this.enabled) return 0;
     let delivered = 0;
     try {
