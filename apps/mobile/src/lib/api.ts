@@ -386,7 +386,7 @@ export interface ChatThread {
    * A nota ativa da pessoa, se eu a puder ver (por baixo da foto do cabeçalho). Só na 1.ª página; servidores antigos
    * não mandam.
    */
-  peerNote?: { body: string; music: import('./api.music').Track | null; createdAt: string; expiresAt: string; cheered: boolean } | null;
+  peerNote?: { body: string; music: import('./api.music').Track | null; color?: import('./noteLook').NoteColor | null; place?: import('./api.notes').NotePlace | null; gif?: import('./gifs').ChatGif | null; createdAt: string; expiresAt: string; cheered: boolean } | null;
   /**
    * Sem nota, a bio do perfil da pessoa (tal como está, até 150 caracteres), se eu puder ver o perfil e não houver
    * bloqueio; vai no mesmo balão. Só na 1.ª página; servidores antigos não mandam.

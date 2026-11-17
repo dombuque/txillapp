@@ -1,40 +1,70 @@
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { useKeyboardOpen } from '@/components/ChatScreen';
+import { GifPanel, GifView, useGifsConfig } from '@/components/GifPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { Modal } from '@/components/Modal';
 import { MusicPicker } from '@/components/MusicPicker';
+import { PlaceSheet } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
-import { Button } from '@/components/ui/Button';
-import { TrackCard } from '@/components/TrackCard';
-import { notesApi, type Note } from '@/lib/api.notes';
+import { TrackCredits, useAutoTrack, useMusicMuted } from '@/components/TrackCard';
+import { SendButton } from '@/components/ui/SendButton';
+import { ActionRow } from '@/components/ui/ActionRow';
+import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewport';
+import { notesApi, type Note, type NoteDraft } from '@/lib/api.notes';
 import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
+import { pinnedTop, webKeyboardOpen } from '@/lib/chatKeyboard';
+import { confirm } from '@/lib/confirm';
+import { useDesktop } from '@/lib/desktop';
+import { gifPayload, type ChatGif } from '@/lib/gifs';
+import { primeKeyboard, releaseKeyboard } from '@/lib/keyboardPrime';
+import { useTrackLive } from '@/lib/musicPlayer';
+import {
+  NOTE_COLORS, NOTE_LIMIT, NOTE_QUICK, NOTE_TONES, NOTE_WHITE, noteAgo, noteAudienceLabel, noteHasContent, noteLayout, noteReplyPlaceholder,
+  noteSentText, noteTone, type NoteAudience, type NoteColor, type NoteTone,
+} from '@/lib/noteLook';
 import { notesRow } from '@/lib/notesRow';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { showToast } from '@/lib/toast';
 
-const LIMIT = 60;
 const trackLine = (n?: Note | null) => (n?.music ? `${n.music.title}${n.music.artist ? ` · ${n.music.artist}` : ''}` : '');
+const nativeDriver = Platform.OS !== 'web';
 
-/** O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa. */
-function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; dim?: boolean; track?: string; cheers?: number }) {
-  const tone = dim ? { color: colors.zinc500 } : null;
+/**
+ * O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa, na cor que a pessoa
+ * escolheu (lib/noteLook). A linha pequena leva a música ou, sem ela, o local; o GIF vai pequeno ao lado do texto.
+ */
+function Bubble({ text, dim = false, track = '', cheers = 0, color = null, gif = null, place = '' }: { text: string; dim?: boolean; track?: string; cheers?: number; color?: string | null; gif?: ChatGif | null; place?: string }) {
+  const t = noteTone(color);
+  const tone = dim ? { color: colors.zinc500 } : { color: t.text };
+  const small = track || place;
   return (
     <View style={styles.bubbleWrap}>
-      <View style={styles.bubble}>
-        {!!text && <Text style={[styles.bubbleText, tone]} numberOfLines={track ? 2 : 3}>{text}</Text>}
-        {!!track && (
-          <View style={[styles.trackRow, !!text && { marginTop: 2 }]}>
-            <Icon name="music" size={11} color={text ? colors.zinc500 : dim ? colors.zinc500 : colors.zinc800} />
-            <Text style={[text ? styles.trackSmall : styles.bubbleText, { flexShrink: 1 }, !text && tone]} numberOfLines={text ? 1 : 3}>{track}</Text>
+      <View style={[styles.bubble, { backgroundColor: t.bg, borderColor: t.border }]}>
+        {gif && !text ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.gifSolo} contentFit="cover" accessibilityLabel="GIF" /> : null}
+        {!!text && (
+          <View style={gif ? styles.gifRow : null}>
+            {gif ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.gifMini} contentFit="cover" accessibilityLabel="GIF" /> : null}
+            <Text style={[styles.bubbleText, tone, gif && { flexShrink: 1, textAlign: 'left' }]} numberOfLines={small ? 2 : 3}>{text}</Text>
+          </View>
+        )}
+        {!!small && (
+          <View style={[styles.trackRow, (!!text || !!gif) && { marginTop: 2 }]}>
+            <Icon name={track ? 'music' : 'map-pin'} size={11} color={text || gif ? t.sub : dim ? colors.zinc500 : t.text} />
+            <Text style={[text || gif ? styles.trackSmall : styles.bubbleText, { flexShrink: 1, color: text || gif ? t.sub : t.text }]} numberOfLines={text || gif ? 1 : 3}>{small}</Text>
           </View>
         )}
       </View>
-      <View style={styles.tail} />
+      <View style={[styles.tail, { backgroundColor: t.bg }]} />
       {cheers > 0 && (
         <View style={styles.cheers} accessibilityLabel={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`}>
           <Icon name="cheers" size={14} color={colors.amber600} />
@@ -45,14 +75,11 @@ function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; d
   );
 }
 
-function Field({ children }: { children: ReactNode }) {
-  return <View style={{ paddingHorizontal: 24 }}>{children}</View>;
-}
-
 /**
  * Notas, como no Instagram: uma frase de até 60 caracteres por cima da tua foto, durante 24 horas.
- * Só as vêem os teus seguidores. Não se editam. Tocar numa nota de outra pessoa deixa-te responder.
- * Depois das notas vêm as pessoas com quem já conversaste, mesmo sem nota (tocar abre a conversa) — ver lib/notesRow.ts.
+ * Só as vêem os teus seguidores (ou só os teus amigos próximos). Não se editam. Tocar numa nota de outra pessoa abre-a
+ * (ver, brindar e responder). Depois das notas vêm as pessoas com quem já conversaste, mesmo sem nota (tocar abre a
+ * conversa): ver lib/notesRow.ts.
  */
 export function NotesStrip() {
   const { user } = useAuth();
@@ -70,8 +97,8 @@ export function NotesStrip() {
   return (
     <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel="Notas">
-        <Pressable onPress={() => setEditing(true)} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-          <View style={styles.bubbleSlot}><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} /></View>
+        <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+          <View style={styles.bubbleSlot}><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} gif={mine?.gif} place={mine?.place?.name} /></View>
           <View>
             <Avatar name={user.displayName} username={user.username} size={64} />
             {!mine && <View style={styles.plus}><Icon name="plus" size={14} strokeWidth={3} color="#fff" /></View>}
@@ -82,8 +109,8 @@ export function NotesStrip() {
           if (e.kind === 'note') {
             const n = e.note;
             return (
-              <Pressable key={e.key} onPress={() => setViewing(n)} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-                <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} /></View>
+              <Pressable key={e.key} onPress={() => { primeKeyboard(); setViewing(n); }} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body || n.music?.title || n.place?.name || (n.gif ? 'GIF' : '')}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+                <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} color={n.color} gif={n.gif} place={n.place?.name} /></View>
                 <View>
                   <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
                   {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
@@ -107,20 +134,287 @@ export function NotesStrip() {
         })}
       </ScrollView>
       {editing && <NoteEditor current={mine} onClose={() => setEditing(false)} />}
-      {viewing && <NoteView note={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <NoteView note={viewing} online={viewing.hasAvatar && online.has(viewing.username.toLowerCase())} onClose={() => setViewing(null)} />}
     </>
   );
 }
 
-/** Publicar a minha nota, ou apagá-la. Não se edita: apaga-se e escreve-se outra. */
-function NoteEditor({ current, onClose }: { current: Note | null; onClose: () => void }) {
+/** Três barrinhas a subir e a descer: a música da nota está a tocar. */
+function Playing({ color }: { color: string }) {
+  const bars = useRef([0, 1, 2].map(() => new Animated.Value(0.4))).current;
+  useEffect(() => {
+    const loops = bars.map((a, i) =>
+      Animated.loop(Animated.sequence([
+        Animated.timing(a, { toValue: 1, duration: 260 + i * 90, useNativeDriver: nativeDriver }),
+        Animated.timing(a, { toValue: 0.3, duration: 260 + i * 90, useNativeDriver: nativeDriver }),
+      ])),
+    );
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [bars]);
+  return (
+    <View style={styles.playing}>
+      {bars.map((a, i) => <Animated.View key={i} style={[styles.playingBar, { backgroundColor: color, transform: [{ scaleY: a }] }]} />)}
+    </View>
+  );
+}
+
+/**
+ * A música da nota numa linha («Título · Artista»), dentro da bolha. Toca sozinha ao abrir (o mesmo leitor do cartão
+ * da música, useAutoTrack); o botão redondo silencia ou volta a ligar o som da app, e o nome mostra os créditos.
+ */
+function NoteTrackLine({ track, tone, autoplay = true }: { track: Track; tone: NoteTone; autoplay?: boolean }) {
+  const { on, me } = useAutoTrack(track, { autoplay, playNow: autoplay });
+  const live = useTrackLive(me);
+  const [muted, toggleMute] = useMusicMuted();
+  const [info, setInfo] = useState(false);
+  const playing = on && live && !muted;
+  const dark = tone.text === '#ffffff';
+  const artist = track.kind === 'clip' ? 'Áudio original' : track.artist || '';
+  return (
+    <View style={styles.trackLine}>
+      {autoplay ? (
+        <Pressable onPress={toggleMute} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'} style={[styles.trackBtn, { borderColor: dark ? 'rgba(255,255,255,0.4)' : colors.zinc200 }]}>
+          {playing ? <Playing color={dark ? '#fff' : colors.brand} /> : <Icon name={muted ? 'volume-off' : 'music'} size={12} strokeWidth={2.2} color={tone.text} />}
+        </Pressable>
+      ) : (
+        <Icon name="music" size={14} strokeWidth={2.2} color={tone.text} />
+      )}
+      <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel={`Música: ${track.title}${artist ? `, ${artist}` : ''}. Créditos`}>
+        <Text style={[styles.trackTitle, { color: tone.text }]} numberOfLines={1}>
+          {track.title}
+          {artist ? <Text style={{ fontWeight: '400', color: tone.sub }}>{` · ${artist}`}</Text> : null}
+        </Text>
+      </Pressable>
+      {info && <TrackCredits track={track} onClose={() => setInfo(false)} />}
+    </View>
+  );
+}
+
+/** A linha do local, dentro da bolha: o pino e o nome do sítio. */
+function PlaceLine({ name, tone, center = false }: { name: string; tone: NoteTone; center?: boolean }) {
+  return (
+    <View style={[styles.placeLine, center && { justifyContent: 'center' }]} accessibilityLabel={`Local: ${name}`}>
+      <Icon name="map-pin" size={13} strokeWidth={2} color={tone.sub} />
+      <Text style={[styles.placeText, { color: tone.sub }]} numberOfLines={1}>{name}</Text>
+    </View>
+  );
+}
+
+/**
+ * A nota de outra pessoa, como nas redes sociais: em cima «Nome · há 1 h» (com o selo); a foto (com o ponto verde se
+ * estiver online) e a bolha da nota ao lado. Com música, a bolha leva a música numa linha (a tocar sozinha) e o texto
+ * sai para baixo, grande e a negrito; sem música, o texto vai dentro da bolha. Em baixo, colada ao teclado (que abre
+ * logo), a barra de resposta: a pílula com o campo e três reações rápidas (tocar numa envia-a logo) e, fora dela, o
+ * Brindar. Com texto escrito, as reações dão lugar ao Enviar. Enviado: a folha fecha e aparece «Enviada a @x» com «Ver»
+ * (abre a conversa). `inChat` = aberta do cabeçalho da conversa com essa pessoa: aí só fecha e põe a conversa em dia.
+ */
+export function NoteView({ note, onClose, inChat = false, online = false }: { note: Note; onClose: () => void; inChat?: boolean; online?: boolean }) {
+  const router = useRouter();
   const qc = useQueryClient();
-  const [body, setBody] = useState('');
-  const [music, setMusic] = useState<Track | null>(null);
-  const [picking, setPicking] = useState(false);
+  const { width } = useWindowDimensions();
+  const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cheered, setCheered] = useState(!!note.cheered);
+  const pop = useRef(new Animated.Value(1)).current;
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const tone = noteTone(note.color);
+  const layout = noteLayout(note);
+  const avatar = width < 360 ? 72 : 88;
+  useEffect(() => releaseKeyboard, []);
+
+  async function cheer() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setCheered((c) => !c);
+    Animated.sequence([Animated.timing(pop, { toValue: 1.3, duration: 150, useNativeDriver: nativeDriver }), Animated.timing(pop, { toValue: 1, duration: 250, useNativeDriver: nativeDriver })]).start();
+    try {
+      const r = await notesApi.cheer(note.username);
+      setCheered(r.cheered);
+      void qc.invalidateQueries({ queryKey: ['notes'] });
+      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
+    } catch (e) {
+      setCheered((c) => !c);
+      setErr((e as Error).message);
+    }
+  }
+
+  /** Responder (o texto escrito ou uma reação rápida): vai como mensagem para a conversa a dois. */
+  async function send(body: string) {
+    const said = body.trim();
+    if (!said || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await notesApi.reply(note.username, said);
+      onClose();
+      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
+      else showToast(noteSentText(note.username), { label: 'Ver', onPress: () => router.push(`/messages/${note.username}` as never) });
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  }
+  const typed = !!text.trim();
+
+  return (
+    <Sheet onClose={onClose}>
+      <View style={styles.view}>
+        <View style={styles.viewHead}>
+          <NameWithBadge name={note.displayName} who={note} style={styles.viewName} containerStyle={{ flexShrink: 1 }} />
+          <Text style={styles.viewAgo}>{` · ${noteAgo(note.createdAt)}`}</Text>
+        </View>
+        <View style={styles.viewRow}>
+          <View>
+            <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={avatar} />
+            {online && <View style={[styles.online, styles.onlineBig]} accessibilityLabel="Online" />}
+          </View>
+          <View style={styles.viewBubbleWrap}>
+            <View style={[styles.viewDot, { backgroundColor: tone.bg, borderColor: tone.border }]} />
+            <View style={[styles.viewBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+              {note.gif ? <View style={styles.viewGif}><GifView gif={note.gif} maxW={150} maxH={110} /></View> : null}
+              {layout === 'music' && note.music ? <NoteTrackLine track={note.music} tone={tone} /> : null}
+              {layout === 'text' && !!note.body ? <Text style={[styles.viewBubbleText, { color: tone.text }]} numberOfLines={4}>{note.body}</Text> : null}
+              {note.place ? <PlaceLine name={note.place.name} tone={tone} /> : null}
+            </View>
+          </View>
+        </View>
+        {layout === 'music' && !!note.body ? <Text style={styles.viewBig}>{note.body}</Text> : null}
+        {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
+        <View style={styles.replyRow}>
+          <View style={styles.replyPill}>
+            <TextInput
+              ref={input}
+              value={text}
+              onChangeText={setText}
+              maxLength={400}
+              autoFocus
+              onFocus={releaseKeyboard}
+              placeholder={noteReplyPlaceholder(note)}
+              placeholderTextColor={colors.zinc500}
+              accessibilityLabel="Responder à nota"
+              returnKeyType="send"
+              submitBehavior="submit"
+              onSubmitEditing={() => void send(text)}
+              style={styles.replyInput}
+            />
+            {typed ? (
+              <SendButton label="Enviar resposta" keep={input} disabled={busy} onPress={() => void send(text)} style={styles.replySend} />
+            ) : (
+              <View style={styles.quickRow}>
+                {NOTE_QUICK.map((e) => (
+                  <Pressable key={e} disabled={busy} onPress={() => void send(e)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Responder com ${e}`} style={({ pressed }) => [styles.quickBtn, pressed && { transform: [{ scale: 1.25 }] }]}>
+                    <Text style={styles.quickEmoji}>{e}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+          <Pressable onPress={() => void cheer()} hitSlop={6} accessibilityRole="button" accessibilityLabel={cheered ? 'Brindado. Tirar o brinde' : 'Brindar'} accessibilityState={{ selected: cheered }} style={({ pressed }) => [styles.cheerOut, pressed && { transform: [{ scale: 0.92 }] }]}>
+            <Animated.View style={{ transform: [{ scale: pop }] }}>
+              <Icon name="cheers" size={30} strokeWidth={cheered ? 2.2 : 1.8} color={cheered ? colors.amber600 : colors.zinc800} />
+            </Animated.View>
+          </Pressable>
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+/**
+ * O editor em ecrã inteiro, colado ao teclado. Na web do iPhone o teclado tapa a página sem a encolher: com ele aberto,
+ * o editor ocupa só a zona visível (o mesmo método das conversas, lib/chatKeyboard `pinnedTop`). No telemóvel é o
+ * KeyboardAvoidingView. No computador é uma janela ao centro.
+ */
+function EditorFrame({ desktop, onClose, children }: { desktop: boolean; onClose: () => void; children: ReactNode }) {
+  const vv = useVisibleViewport();
+  const pinned = Platform.OS === 'web' && !!vv && typeof window !== 'undefined' && webKeyboardOpen(vv.height, webWindowH(), vv.scale);
+  const box = useRef<HTMLElement | null>(null);
+  const [parentTop, setParentTop] = useState(0);
+  useEffect(() => {
+    if (!pinned || typeof window === 'undefined') { setParentTop(0); return; }
+    const measure = () => {
+      const el = box.current?.parentElement;
+      const t = el && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect().top : 0;
+      setParentTop((p) => (Math.abs(p - t) < 0.5 ? p : t));
+    };
+    const fix = () => { window.scrollTo(0, 0); measure(); };
+    fix();
+    window.addEventListener('scroll', fix);
+    return () => window.removeEventListener('scroll', fix);
+  }, [pinned, vv?.top, vv?.height]);
+
+  if (desktop) {
+    return (
+      <View style={styles.edDeskRoot}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Fechar" />
+        <View style={styles.edDeskCard} accessibilityViewIsModal>{children}</View>
+      </View>
+    );
+  }
+  if (Platform.OS !== 'web') return <KeyboardAvoidingView style={styles.edRoot} behavior="padding">{children}</KeyboardAvoidingView>;
+  return (
+    <View ref={box as never} style={[styles.edRoot, pinned && vv ? { position: 'absolute', left: 0, right: 0, top: pinnedTop(vv.top, parentTop), height: vv.height, flex: 0 } : null]}>
+      {children}
+    </View>
+  );
+}
+
+/** Um botão em pílula do editor (música, local, GIF): escolhido, mostra o que se escolheu e um × para tirar. */
+function OptionPill({ icon, label, chosen, onPress, onClear, a11y }: { icon: ReactNode; label?: string; chosen: boolean; onPress: () => void; onClear: () => void; a11y: string }) {
+  return (
+    <View style={[styles.opt, chosen && styles.optOn]}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={chosen ? `${a11y}: ${label}. Mudar` : a11y} style={({ pressed }) => [styles.optMain, pressed && { opacity: 0.6 }]}>
+        {icon}
+        {chosen && label ? <Text style={styles.optText} numberOfLines={1}>{label}</Text> : null}
+      </Pressable>
+      {chosen ? (
+        <Pressable onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar ${a11y.toLowerCase()}`} style={styles.optX}>
+          <Icon name="x" size={14} strokeWidth={2.4} color={colors.zinc600} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/** O botão da paleta, na foto: quatro pintas das cores das bolhas. */
+function PaletteIcon() {
+  const dots: NoteColor[] = ['coral', 'ambar', 'verde', 'ceu'];
+  return (
+    <View style={styles.paletteDots}>
+      {dots.map((c) => <View key={c} style={[styles.paletteDot, { backgroundColor: c === 'ambar' ? '#f59e0b' : c === 'verde' ? '#16a34a' : c === 'ceu' ? '#0ea5e9' : NOTE_TONES[c].bg }]} />)}
+    </View>
+  );
+}
+
+/**
+ * A minha nota, em ecrã inteiro (como nas redes sociais): o × em cima; ao centro a minha foto com a bolha por cima, onde
+ * se escreve diretamente (o teclado abre logo); a paleta na foto escolhe a cor da bolha; por baixo, música, local e GIF;
+ * em baixo, colados ao teclado, o público («Partilhar com amigos» ou «Amigos próximos») e «Partilhar». Uma nota não se
+ * edita: a que já está publicada abre aqui com o que tem e com «Apagar» (pergunta antes).
+ */
+function NoteEditor({ current, onClose }: { current: Note | null; onClose: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const desktop = useDesktop();
+  const kbOpen = useKeyboardOpen();
+  const gifs = useGifsConfig();
+  const [body, setBody] = useState('');
+  const [music, setMusic] = useState<Track | null>(null);
+  const [color, setColor] = useState<NoteColor | null>(null);
+  const [place, setPlace] = useState<NoteDraft['place']>(null);
+  const [gif, setGif] = useState<ChatGif | null>(null);
+  const [audience, setAudience] = useState<NoteAudience>('mutual');
+  const [panel, setPanel] = useState<null | 'music' | 'place' | 'gif' | 'audience'>(null);
+  const [palette, setPalette] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [inputH, setInputH] = useState(22);
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const view = current;
+  const tone = noteTone(view ? view.color : color);
+  useEffect(() => releaseKeyboard, []);
 
   async function run(job: () => Promise<unknown>) {
     setBusy(true);
@@ -134,123 +428,158 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
       setBusy(false);
     }
   }
-  const cantPost = busy || (!body.trim() && !music);
+  async function remove() {
+    if (await confirm({ title: 'Apagar a nota?', message: 'A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.', confirm: 'Apagar', danger: true })) {
+      void run(() => notesApi.remove());
+    }
+  }
+  const back = () => { setPanel(null); setTimeout(() => input.current?.focus(), 60); };
+  const canShare = !busy && noteHasContent({ body, music, gif, place });
+  const shown = view
+    ? { body: view.body, music: view.music ?? null, gif: view.gif ?? null, place: view.place?.name ?? '' }
+    : { body, music, gif, place: place?.name ?? '' };
 
   return (
-    <>
-      <Sheet title="A tua nota" onClose={onClose}>
-        <Field>
-          {current ? (
-            <>
-              {!!current.body && <Text style={styles.big}>{current.body}</Text>}
-              {current.music && <TrackCard track={current.music} autoplay playNow />}
-              {!!current.cheers && (
-                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.zinc700} /><Text style={styles.cheerRowText}>{current.cheers} {current.cheers === 1 ? 'brinde' : 'brindes'}</Text></View>
-              )}
-              <Text style={styles.hint}>{timeAgo(current.createdAt)} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.</Text>
-              {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-              <Pressable disabled={busy} onPress={() => setConfirmDelete(true)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 12 }, pressed && { backgroundColor: colors.dangerSoft }]}><Text style={[styles.ghostText, { color: colors.danger }]}>Apagar nota</Text></Pressable>
-            </>
-          ) : (
-            <>
-              <TextInput value={body} onChangeText={(t) => setBody(t.replace(/\n/g, ' ').slice(0, LIMIT))} multiline autoFocus placeholder="O que se passa?" placeholderTextColor={colors.zinc500} accessibilityLabel="Nota" style={[styles.field, { height: 80, textAlignVertical: 'top' }]} />
-              <Text style={[styles.count, body.length >= LIMIT && { color: colors.brand }]}>{body.length}/{LIMIT}</Text>
-              {music ? (
-                <View>
-                  <TrackCard track={music} />
-                  <Pressable onPress={() => setMusic(null)} accessibilityLabel="Tirar a música" style={styles.drop}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
-                </View>
+    <Modal visible transparent animationType={desktop ? 'fade' : 'slide'} onRequestClose={onClose} statusBarTranslucent>
+      <EditorFrame desktop={desktop} onClose={onClose}>
+        <View style={[styles.edTop, { paddingTop: desktop ? 14 : insets.top + 8 }]}>
+          <Pressable onPress={onClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Fechar" style={({ pressed }) => [styles.edX, pressed && { transform: [{ scale: 0.94 }] }]}>
+            <Icon name="x" size={22} strokeWidth={2.2} color={colors.zinc900} />
+          </Pressable>
+          <Text style={styles.edTitle} accessibilityRole="header">{view ? 'A tua nota' : 'Nova nota'}</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.edCenter} keyboardShouldPersistTaps="handled">
+          <View style={styles.edBubbleWrap}>
+            <View style={[styles.edBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+              {shown.gif ? <View style={styles.viewGif}><GifView gif={shown.gif} maxW={140} maxH={100} /></View> : null}
+              {view ? (
+                !!view.body && <Text style={[styles.edText, { color: tone.text }]}>{view.body}</Text>
               ) : (
-                <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [styles.musicBtn, pressed && { transform: [{ scale: 0.98 }] }]}><Icon name="music" size={18} color={colors.zinc800} /><Text style={styles.musicText}>Adicionar música</Text></Pressable>
+                // A altura do campo segue o texto (ou o «Partilha o que…»): mede-se um Text invisível com a mesma letra e
+                // largura. O onContentSizeChange da web não encolhe (a altura do placeholder de duas linhas ficava).
+                <View style={styles.edField}>
+                  <Text aria-hidden style={[styles.edText, styles.edMeasure]} onLayout={(e) => setInputH(Math.min(88, Math.max(22, Math.ceil(e.nativeEvent.layout.height))))}>
+                    {`${body || 'Partilha o que te vai na cabeça…'}​`}
+                  </Text>
+                  <TextInput
+                    ref={input}
+                    value={body}
+                    onChangeText={(t) => setBody(t.replace(/\n/g, ' ').slice(0, NOTE_LIMIT))}
+                    multiline
+                    autoFocus
+                    onFocus={releaseKeyboard}
+                    maxLength={NOTE_LIMIT}
+                    placeholder="Partilha o que te vai na cabeça…"
+                    placeholderTextColor={tone === NOTE_WHITE ? colors.zinc500 : tone.sub}
+                    accessibilityLabel="Nota"
+                    style={[styles.edText, styles.edInput, { color: tone.text, height: inputH }]}
+                  />
+                </View>
               )}
-              <Text style={[styles.hint, { textAlign: 'left' }]}>Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.</Text>
-              {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-              <Pressable disabled={cantPost} onPress={() => void run(() => notesApi.set(body.trim(), music))} style={[styles.primary, { marginTop: 12 }, cantPost && { opacity: 0.4 }]}><Text style={styles.primaryText}>Partilhar nota</Text></Pressable>
-            </>
+              {shown.music ? <NoteTrackLine track={shown.music} tone={tone} autoplay={!!view} /> : null}
+              {shown.place ? <PlaceLine name={shown.place} tone={tone} center /> : null}
+            </View>
+            <View style={[styles.edTail, { backgroundColor: tone.bg, borderColor: tone.border }]} />
+          </View>
+          {!view && body.length >= NOTE_LIMIT - 15 ? <Text style={[styles.count, body.length >= NOTE_LIMIT && { color: colors.brand }]}>{body.length}/{NOTE_LIMIT}</Text> : null}
+          <View style={styles.edAvatar}>
+            <Avatar name={user?.displayName ?? '?'} username={user?.username} size={96} />
+            {!view && (
+              <Pressable onPress={() => setPalette((p) => !p)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Cor da bolha" accessibilityState={{ expanded: palette }} style={({ pressed }) => [styles.paletteBtn, palette && { borderColor: colors.brand }, pressed && { transform: [{ scale: 0.92 }] }]}>
+                <PaletteIcon />
+              </Pressable>
+            )}
+          </View>
+          {!view && palette && (
+            <View style={styles.colorRow} accessibilityRole="radiogroup" accessibilityLabel="Cor da bolha">
+              {([null, ...NOTE_COLORS] as (NoteColor | null)[]).map((c) => {
+                const t = noteTone(c);
+                const on = color === c;
+                return (
+                  <Pressable key={c ?? 'branca'} onPress={() => setColor(c)} accessibilityRole="radio" accessibilityLabel={t.label} accessibilityState={{ checked: on }} hitSlop={4} style={[styles.colorRing, on && { borderColor: colors.brand }]}>
+                    <View style={[styles.colorDot, { backgroundColor: t.bg, borderColor: c ? t.bg : colors.zinc300 }]} />
+                  </Pressable>
+                );
+              })}
+            </View>
           )}
-        </Field>
-      </Sheet>
-      {picking && <MusicPicker hint={body} onPick={(t) => { setMusic(t); setPicking(false); }} onClose={() => setPicking(false)} />}
-      {confirmDelete && (
-        <Sheet title="Apagar a nota?" onClose={() => setConfirmDelete(false)}>
-          <Field>
-            <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.</Text>
-            <Button label="Apagar" kind="dangerSolid" block loading={busy} onPress={() => void run(() => notesApi.remove())} />
-            <Button label="Cancelar" kind="secondary" block onPress={() => setConfirmDelete(false)} style={{ marginTop: 8 }} />
-          </Field>
+          {!view ? (
+            <View style={styles.optRow}>
+              <OptionPill a11y="Música" chosen={!!music} label={music?.title} onPress={() => setPanel('music')} onClear={() => setMusic(null)} icon={<Icon name="music" size={20} strokeWidth={2} color={colors.brand} />} />
+              <OptionPill a11y="Local" chosen={!!place} label={place?.name} onPress={() => setPanel('place')} onClear={() => setPlace(null)} icon={<Icon name="map-pin" size={20} strokeWidth={2} color={colors.sky} />} />
+              {gifs.enabled || gif ? (
+                <OptionPill a11y="GIF" chosen={!!gif} label="GIF" onPress={() => setPanel('gif')} onClear={() => setGif(null)} icon={gif ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.optGif} contentFit="cover" /> : <View style={styles.gifBadge}><Text style={styles.gifBadgeText}>GIF</Text></View>} />
+              ) : null}
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center' }}>
+              {!!view.cheers && (
+                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.amber600} /><Text style={styles.cheerRowText}>{view.cheers} {view.cheers === 1 ? 'brinde' : 'brindes'}</Text></View>
+              )}
+              <Text style={styles.hint}>{timeAgo(view.createdAt)} · visível para {view.audience === 'close_friends' ? 'os teus amigos próximos' : 'os teus seguidores'}. Uma nota não se edita: apaga-a para publicar outra.</Text>
+            </View>
+          )}
+          {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
+        </ScrollView>
+        <View style={[styles.edBar, { paddingBottom: desktop ? 16 : kbOpen ? 8 : Math.max(insets.bottom, 12) + 4 }]}>
+          {view ? (
+            <View style={styles.audBtn}>
+              <Icon name={view.audience === 'close_friends' ? 'star' : 'users'} size={18} strokeWidth={2} color={colors.zinc800} />
+              <Text style={styles.audText}>{view.audience === 'close_friends' ? 'Amigos próximos' : 'Amigos'}</Text>
+            </View>
+          ) : (
+            <Pressable onPress={() => setPanel('audience')} accessibilityRole="button" accessibilityLabel={`${noteAudienceLabel(audience)}. Mudar quem vê`} style={({ pressed }) => [styles.audBtn, pressed && { opacity: 0.6 }]}>
+              <Icon name={audience === 'close_friends' ? 'star' : 'users'} size={18} strokeWidth={2} color={audience === 'close_friends' ? colors.green600 : colors.zinc800} />
+              <Text style={styles.audText} numberOfLines={1}>{noteAudienceLabel(audience)}</Text>
+              <Icon name="chevron-right" size={16} strokeWidth={2.2} color={colors.zinc700} />
+            </Pressable>
+          )}
+          {view ? (
+            <Pressable disabled={busy} onPress={() => void remove()} accessibilityRole="button" style={({ pressed }) => [styles.shareBtn, { backgroundColor: colors.dangerSoft }, pressed && { opacity: 0.8 }]}>
+              <Text style={[styles.shareText, { color: colors.danger }]}>Apagar</Text>
+            </Pressable>
+          ) : (
+            <Pressable disabled={!canShare} onPress={() => void run(() => notesApi.set({ body: body.trim(), music, color, place, gif, audience }))} accessibilityRole="button" accessibilityState={{ disabled: !canShare }} style={({ pressed }) => [styles.shareBtn, !canShare && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+              <Text style={styles.shareText}>Partilhar</Text>
+            </Pressable>
+          )}
+        </View>
+      </EditorFrame>
+      {panel === 'music' && <MusicPicker hint={body} onPick={(t) => { setMusic(t); back(); }} onClose={back} />}
+      {panel === 'place' && (
+        <PlaceSheet
+          value={place?.name ?? ''}
+          onChange={(v, g) => setPlace(v.trim() ? { name: v.trim().slice(0, 80), ...(g ? { lat: g.lat, lng: g.lng, coarse: g.coarse } : {}) } : null)}
+          onClose={back}
+        />
+      )}
+      {panel === 'gif' && (
+        <Sheet title="GIF" onClose={back}>
+          <GifPanel height={360} onPick={(g) => { setGif(gifPayload(g)); back(); }} />
         </Sheet>
       )}
-    </>
+      {panel === 'audience' && (
+        <Sheet title="Quem vê a tua nota" onClose={back}>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            {(['mutual', 'close_friends'] as NoteAudience[]).map((a) => (
+              <ActionRow
+                key={a}
+                icon={a === 'close_friends' ? 'star' : 'users'}
+                title={a === 'close_friends' ? 'Amigos próximos' : 'Amigos'}
+                text={a === 'close_friends' ? 'Só quem está na tua lista de amigos próximos.' : 'Os teus seguidores.'}
+                right={audience === a ? <Icon name="check" size={20} strokeWidth={2.4} color={colors.brand} /> : undefined}
+                onPress={() => { setAudience(a); back(); }}
+              />
+            ))}
+          </View>
+        </Sheet>
+      )}
+    </Modal>
   );
 }
 
-/**
- * A nota de outra pessoa: ler, brindar e responder (a resposta vai como mensagem). `inChat` = aberta do cabeçalho da
- * conversa com essa pessoa: responder fica na conversa (que se põe em dia) e não há o botão "Abrir a conversa".
- */
-export function NoteView({ note, onClose, inChat = false }: { note: Note; onClose: () => void; inChat?: boolean }) {
-  const router = useRouter();
-  const qc = useQueryClient();
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const [cheered, setCheered] = useState(!!note.cheered);
-  const pop = useRef(new Animated.Value(1)).current;
-
-  async function cheer() {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    setCheered((c) => !c);
-    Animated.sequence([Animated.timing(pop, { toValue: 1.3, duration: 150, useNativeDriver: true }), Animated.timing(pop, { toValue: 1, duration: 250, useNativeDriver: true })]).start();
-    try {
-      const r = await notesApi.cheer(note.username);
-      setCheered(r.cheered);
-      void qc.invalidateQueries({ queryKey: ['notes'] });
-      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
-    } catch (e) {
-      setCheered((c) => !c);
-      setErr((e as Error).message);
-    }
-  }
-
-  async function reply() {
-    if (!text.trim()) return;
-    setBusy(true);
-    setErr('');
-    try {
-      await notesApi.reply(note.username, text.trim());
-      onClose();
-      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
-      else router.push(`/messages/${note.username}` as never);
-    } catch (e) {
-      setErr((e as Error).message);
-      setBusy(false);
-    }
-  }
-  const cantSend = busy || !text.trim();
-
-  return (
-    <Sheet title={note.displayName} onClose={onClose}>
-      <Field>
-        <View style={{ alignItems: 'center' }}>
-          <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={72} />
-          {!!note.body && <Text style={[styles.big, { marginTop: 12 }]}>{note.body}</Text>}
-          {note.music && <View style={{ width: '100%' }}><TrackCard track={note.music} autoplay playNow /></View>}
-          <Text style={[styles.hint, { marginTop: 6 }]}>{timeAgo(note.createdAt)}</Text>
-        </View>
-        <Pressable onPress={() => void cheer()} accessibilityRole="button" accessibilityState={{ selected: cheered }} style={[styles.cheerBtn, { backgroundColor: cheered ? '#fef3c7' : colors.zinc100 }]}>
-          <Animated.View style={{ transform: [{ scale: pop }] }}><Icon name="cheers" size={20} color={cheered ? '#92400e' : colors.zinc800} /></Animated.View>
-          <Text style={[styles.cheerBtnText, { color: cheered ? '#92400e' : colors.zinc800 }]}>{cheered ? 'Brindou' : 'Brindar'}</Text>
-        </Pressable>
-        <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
-          <TextInput value={text} onChangeText={setText} maxLength={400} placeholder="Responder à nota…" placeholderTextColor={colors.zinc500} accessibilityLabel="Responder à nota" returnKeyType="send" onSubmitEditing={() => void reply()} style={[styles.field, { flex: 1 }]} />
-          <Pressable disabled={cantSend} onPress={() => void reply()} style={[styles.send, cantSend && { opacity: 0.4 }]}><Text style={styles.primaryText}>Enviar</Text></Pressable>
-        </View>
-        {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-        {!inChat && <Pressable onPress={() => { onClose(); router.push(`/messages/${note.username}` as never); }} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8, height: 44 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>Abrir a conversa</Text></Pressable>}
-      </Field>
-    </Sheet>
-  );
-}
+const SHADOW = '0 1px 3px rgba(24,24,27,0.12), 0 4px 14px -2px rgba(24,24,27,0.14)';
 
 const styles = StyleSheet.create({
   strip: { marginHorizontal: -16, flexGrow: 0 },
@@ -260,6 +589,9 @@ const styles = StyleSheet.create({
   bubbleWrap: { marginBottom: 6, maxWidth: 84 },
   bubble: { maxWidth: 84, borderRadius: 14, backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as object,
   bubbleText: { fontSize: 11, fontWeight: '500', lineHeight: 12.65, textAlign: 'center', color: colors.zinc800 },
+  gifRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gifMini: { width: 22, height: 22, borderRadius: 5 },
+  gifSolo: { width: 40, height: 30, borderRadius: 6, alignSelf: 'center' },
   trackRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
   trackSmall: { fontSize: 10, lineHeight: 12, textAlign: 'center', color: colors.zinc500 },
   tail: { position: 'absolute', bottom: -4, left: '50%', marginLeft: -5, width: 10, height: 10, backgroundColor: '#fff', transform: [{ rotate: '45deg' }] },
@@ -267,24 +599,78 @@ const styles = StyleSheet.create({
   cheersN: { fontSize: 10, fontWeight: '700', color: colors.amber600 },
   plus: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   online: { position: 'absolute', right: 0, bottom: 0, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff', backgroundColor: '#10b981' },
+  onlineBig: { right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, borderWidth: 3 },
   label: { marginTop: 4, width: '100%', textAlign: 'center', fontSize: 12, color: colors.zinc600 },
   /** Na linha com o selo (o selo fica a seguir ao nome, os dois centrados). */
   labelName: { marginTop: 0, width: undefined },
-  big: { alignSelf: 'center', maxWidth: 320, borderRadius: 18, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, textAlign: 'center', fontSize: 17, fontWeight: '500', lineHeight: 23, color: colors.zinc900, overflow: 'hidden' },
-  hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
+  hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500, maxWidth: 320 },
   err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
-  field: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  count: { marginTop: 4, textAlign: 'right', fontSize: 12, color: colors.zinc500 },
-  musicBtn: { marginTop: 8, height: 44, borderRadius: 999, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  musicText: { fontSize: 16, fontWeight: '600', color: colors.zinc800 },
-  drop: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' },
-  primary: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  ghostBtn: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 16, fontWeight: '600', color: colors.zinc700 },
-  cheerRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  count: { marginTop: 6, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
+  cheerRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   cheerRowText: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },
-  cheerBtn: { alignSelf: 'center', marginTop: 16, height: 44, paddingHorizontal: 24, borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cheerBtnText: { fontSize: 16, fontWeight: '600' },
-  send: { height: 50, paddingHorizontal: 20, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
+  // A nota aberta (NoteView).
+  view: { paddingHorizontal: 16 },
+  viewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  viewName: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  viewAgo: { fontSize: 15, color: colors.zinc500 },
+  viewRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  viewBubbleWrap: { flexShrink: 1, flexDirection: 'row', alignItems: 'center' },
+  viewDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, marginRight: 2, marginTop: -18, boxShadow: SHADOW } as object,
+  viewBubble: { flexShrink: 1, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11, minHeight: 46, justifyContent: 'center', boxShadow: SHADOW } as object,
+  viewBubbleText: { fontSize: 16, lineHeight: 21, fontWeight: '500' },
+  viewGif: { alignSelf: 'center', marginBottom: 6, borderRadius: 12, overflow: 'hidden' },
+  viewBig: { marginTop: 22, textAlign: 'center', fontSize: 19, lineHeight: 25, fontWeight: '800', color: colors.zinc900, paddingHorizontal: 12 },
+  trackLine: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  trackBtn: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  trackTitle: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  playing: { flexDirection: 'row', alignItems: 'center', gap: 1.5, height: 12 },
+  playingBar: { width: 2.5, height: 12, borderRadius: 1.25 },
+  placeLine: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
+  placeText: { flexShrink: 1, fontSize: 13, lineHeight: 17, fontWeight: '500' },
+  replyRow: { marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  replyPill: { flex: 1, minHeight: 50, borderRadius: 25, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 6 },
+  replyInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
+  replySend: { marginLeft: 6 },
+  quickRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 4 },
+  quickBtn: { width: 38, height: 40, alignItems: 'center', justifyContent: 'center' },
+  quickEmoji: { fontSize: 25, lineHeight: 32 },
+  cheerOut: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
+
+  // O editor da minha nota (NoteEditor).
+  edRoot: { flex: 1, backgroundColor: colors.white },
+  edDeskRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.4)' },
+  edDeskCard: { width: '100%', maxWidth: 480, height: 600, maxHeight: '100%', borderRadius: 24, backgroundColor: colors.white, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' } as object,
+  edTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  edX: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, alignItems: 'center', justifyContent: 'center', boxShadow: SHADOW } as object,
+  edTitle: { fontSize: 16, fontWeight: '700', color: colors.zinc900 },
+  edCenter: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
+  edBubbleWrap: { alignItems: 'center', marginBottom: 8 },
+  edBubble: { minWidth: 170, maxWidth: 280, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', gap: 2, boxShadow: SHADOW } as object,
+  edTail: { position: 'absolute', bottom: -6, left: '50%', marginLeft: -16, width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
+  edText: { fontSize: 17, lineHeight: 22, fontWeight: '500', textAlign: 'center' },
+  edField: { width: 210 },
+  edMeasure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
+  edInput: { width: '100%', padding: 0, outlineStyle: 'none' } as object,
+  edAvatar: { marginTop: 8 },
+  paletteBtn: { position: 'absolute', right: -4, bottom: -2, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.zinc200, alignItems: 'center', justifyContent: 'center', boxShadow: SHADOW } as object,
+  paletteDots: { width: 16, height: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
+  paletteDot: { width: 7, height: 7, borderRadius: 3.5 },
+  colorRow: { marginTop: 14, flexDirection: 'row', gap: 8 },
+  colorRing: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  colorDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1 },
+  optRow: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+  opt: { height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, flexDirection: 'row', alignItems: 'center', boxShadow: '0 1px 2px rgba(24,24,27,0.06)' } as object,
+  optOn: { backgroundColor: colors.zinc50, borderColor: colors.zinc300 },
+  optMain: { height: 40, minWidth: 54, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  optText: { maxWidth: 110, fontSize: 14, fontWeight: '600', color: colors.zinc800 },
+  optX: { width: 30, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  optGif: { width: 26, height: 20, borderRadius: 4 },
+  gifBadge: { height: 20, paddingHorizontal: 4, borderRadius: 5, borderWidth: 1.6, borderColor: colors.green600, alignItems: 'center', justifyContent: 'center' },
+  gifBadgeText: { fontSize: 10, fontWeight: '800', color: colors.green600 },
+  edBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 8 },
+  audBtn: { flexShrink: 1, height: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  audText: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  shareBtn: { height: 44, paddingHorizontal: 22, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  shareText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

@@ -10,6 +10,11 @@ export const NOTE_FOLD_MS = 8000;
 export interface PeerNoteLike {
   body: string;
   music?: { title: string } | null;
+  /** O GIF e o local da nota (servidores com a 0178): uma nota pode ser só um deles. */
+  gif?: { id: string } | null;
+  place?: { name: string } | null;
+  /** A cor da bolha (lib/noteLook). */
+  color?: string | null;
   createdAt: string;
   expiresAt: string;
 }
@@ -19,25 +24,30 @@ export function activePeerNote<N extends PeerNoteLike>(note: N | null | undefine
   if (!note) return null;
   const end = Date.parse(note.expiresAt);
   if (Number.isFinite(end) && end <= now) return null;
-  if (!note.body.trim() && !note.music?.title) return null;
+  if (!note.body.trim() && !note.music?.title && !note.gif && !note.place?.name) return null;
   return note;
 }
 
 /** Identifica a nota (uma nota nova da mesma pessoa volta a abrir o balão). */
 export const peerNoteKey = (note: PeerNoteLike | null | undefined) => (note ? `${note.createdAt}|${note.body}` : null);
 
-/** O que o balão mostra: o texto e, se tiver música, "♪ título" (sozinho, se a nota for só a música). */
+/**
+ * O que o balão mostra: o texto e, se tiver música, "♪ título" (sozinho, se a nota for só a música). Sem música, a linha
+ * pequena leva o nome do local; uma nota só com GIF diz "GIF".
+ */
 export function peerNoteLines(note: PeerNoteLike) {
-  const text = note.body.trim();
+  const text = note.body.trim() || (note.gif ? 'GIF' : '');
   const title = note.music?.title?.trim() ?? '';
-  return { text, track: title ? `♪ ${title}` : '' };
+  const place = note.place?.name?.trim() ?? '';
+  return { text, track: title ? `♪ ${title}` : place };
 }
 
 /** O que o leitor de ecrã diz do balão: "Nota de Ana: Bora txilar. Abrir". */
 export function peerNoteLabel(name: string, note: PeerNoteLike) {
   const { text } = peerNoteLines(note);
   const title = note.music?.title?.trim() ?? '';
-  const said = [text, title ? `música ${title}` : ''].filter(Boolean).join(', ');
+  const place = title ? '' : note.place?.name?.trim() ?? '';
+  const said = [text, title ? `música ${title}` : '', place ? `em ${place}` : ''].filter(Boolean).join(', ');
   return `Nota de ${name}: ${said}. Abrir`;
 }
 

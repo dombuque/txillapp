@@ -20,6 +20,7 @@ import { OnceViewer } from '@/components/OnceViewer';
 import type { OnceContent } from '@/lib/onceView';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
+import { primeKeyboard } from '@/lib/keyboardPrime';
 import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare, loveMessage } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
@@ -295,7 +296,7 @@ export default function Thread() {
         }
         avatarAction={person && bubble && !fold.open ? { label: `Mostrar a ${bubble.kind === 'bio' ? 'bio' : 'nota'} de ${person.displayName}`, onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
         overlay={person && bubble ? (
-          <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
+          <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => { if (bubble.kind === 'bio') openProfile?.(); else { primeKeyboard(); setNoteOpen(true); } }} />
         ) : null}
         title={person?.displayName ?? listed?.displayName ?? saved?.name ?? ''}
         titleWho={person ?? listed}
@@ -415,7 +416,8 @@ export default function Thread() {
       {noteOpen && person && peerNote && (
         <NoteView
           inChat
-          note={{ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar, body: peerNote.body, music: peerNote.music, audience: 'mutual', createdAt: peerNote.createdAt, expiresAt: peerNote.expiresAt, cheered: peerNote.cheered }}
+          online={!!online}
+          note={{ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar, verified: person.verified, verifiedTier: person.verifiedTier, body: peerNote.body, music: peerNote.music, color: peerNote.color ?? null, place: peerNote.place ?? null, gif: peerNote.gif ?? null, audience: 'mutual', createdAt: peerNote.createdAt, expiresAt: peerNote.expiresAt, cheered: peerNote.cheered }}
           onClose={() => setNoteOpen(false)}
         />
       )}
