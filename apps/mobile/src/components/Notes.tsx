@@ -361,7 +361,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
                     <Text style={styles.quickEmoji}>{e}</Text>
                   </Pressable>
                 ))}
-                <TxillappReaction width={46} height={40} disabled={busy} label="Responder com o GIF Txillapp" onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
+                <TxillappReaction width={42} height={40} disabled={busy} label="Responder com o GIF Txillapp" onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
               </View>
             )}
           </View>
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   replyInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
   replySend: { marginLeft: 6 },
   quickRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 4 },
-  quickBtn: { width: 38, height: 40, alignItems: 'center', justifyContent: 'center' },
+  quickBtn: { width: 34, height: 40, alignItems: 'center', justifyContent: 'center' },
   quickEmoji: { fontSize: 25, lineHeight: 32 },
   cheerOut: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
 

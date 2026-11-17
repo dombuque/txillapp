@@ -137,11 +137,13 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
             </Pressable>
           ))}
         </View>
-      ) : (
-        <Text style={st.heading}>{q ? `GIFs de “${q}”` : 'Em alta'}</Text>
-      )}
+      ) : q ? (
+        <Text style={st.heading}>{`GIFs de “${q}”`}</Text>
+      ) : null}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: PAD }} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled">
         {!q || /txill/i.test(q) ? <BrandGifTile width={colWidth * 2 + GAP} onPick={onPick} reduce={!!reduce} /> : null}
+        {/* Sem pesquisa (e sem o canal): o título dos do GIPHY vem a seguir ao GIF «Txillapp». */}
+        {!q && !channel ? <Text style={st.brandHeading}>Em alta</Text> : null}
         {list.isLoading ? (
           <ActivityIndicator color={colors.brand} style={{ margin: 24 }} />
         ) : !items.length ? (
