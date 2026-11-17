@@ -1,7 +1,7 @@
 // Testes do seletor de música (src/lib/musicCatalog.ts e src/lib/musicSuggest.ts): os quatro separadores («Para ti», «Em alta»,
-// «Sons originais», «Guardadas»), os destaques e a lista de «Para ti», as pastilhas pequenas (artistas de Moçambique só com a
+// «Guardadas», «Sons originais»), os destaques e a lista de «Para ti», as pastilhas pequenas (artistas de Moçambique só com a
 // fonte local e onde a licença deixa), «Não gosto desta» a tirar a faixa de todas as listas, guardar, os números à portuguesa
-// («1,2 mil usos»), as cores dos destaques, o rótulo das licenças e a sugestão de estilo pelo texto.
+// («1,2 mil tchekas»), as cores dos destaques, o rótulo das licenças e a sugestão de estilo pelo texto.
 // E: o componente (folha escura, linhas com capa e marcador, menu com «Não gosto desta») e o que vai para o servidor.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
@@ -19,12 +19,12 @@ const t = (id, extra = {}) => ({ id, title: `Faixa ${id}`, artist: 'Artista', ur
 const STYLE_IDS = ['afrobeats', 'amapiano', 'pandza', 'marrabenta', 'kizomba', 'hiphop', 'rnb', 'gospel', 'chill', 'festa', 'romantico', 'praia'];
 const ids = (list) => list.map((x) => x.id);
 
-test('separadores: «Para ti», «Em alta», «Sons originais» e «Guardadas», sempre pela mesma ordem', () => {
+test('separadores: «Para ti», «Em alta», «Guardadas» e «Sons originais», sempre pela mesma ordem', () => {
   assert.deepEqual(m.pickerTabs().map((x) => [x.id, x.label]), [
     ['forYou', 'Para ti'],
     ['trending', 'Em alta'],
-    ['sounds', 'Sons originais'],
     ['saved', 'Guardadas'],
+    ['sounds', 'Sons originais'],
   ]);
   assert.equal(m.hasLocal({ local: [t('local:1')] }), true);
   assert.equal(m.hasLocal({ local: [] }), false);
@@ -95,7 +95,14 @@ test('guardar: muda logo (a nova vai para o topo; tocar outra vez tira); clipes 
   assert.equal(m.canSave(t('ccmixter:1', { source: 'ccmixter' })), true);
   assert.equal(m.canSave(t('freesound:1', { kind: 'sound' })), true);
   assert.equal(m.canSave(t('clip:1', { kind: 'clip' })), false);
-  assert.equal(m.canSave(t('local:1', { source: 'local' })), false);
+  assert.equal(m.canSave(t('local:1', { source: 'local' })), true); // só a referência fica no servidor
+  // Guardar é só um marcador; usar é que segue a licença: as locais só em mimos e tchekas (`allowLocal`).
+  assert.equal(m.usableHere(t('local:1', { source: 'local' }), false), false);
+  assert.equal(m.usableHere(t('local:1', { source: 'local' }), true), true);
+  assert.equal(m.usableHere(t('ccmixter:1', { source: 'ccmixter' }), false), true);
+  assert.equal(m.LOCAL_ONLY_NOTE, 'Só em mimos e tchekas');
+  assert.equal(m.lockedMeta(t('local:1', { source: 'local', artist: 'Mano Txill', usesTotal: 40, durationMs: 185_000 })), 'Mano Txill · Só em mimos e tchekas');
+  assert.equal(m.lockedMeta({ id: 'local:2', source: 'local', artist: '', artistUsername: 'mano' }), '@mano · Só em mimos e tchekas');
 });
 
 test('números à portuguesa: 1,2 mil; 4,4 mil; 1 M (arredonda para baixo, sem «,0»)', () => {
@@ -105,19 +112,42 @@ test('números à portuguesa: 1,2 mil; 4,4 mil; 1 M (arredonda para baixo, sem �
   assert.equal(m.compactCount(-5), '0');
   assert.equal(m.usesText(0), '');
   assert.equal(m.usesText(undefined), '');
-  assert.equal(m.usesText(1), '1 uso');
-  assert.equal(m.usesText(12), '12 usos');
-  assert.equal(m.usesText(1234), '1,2 mil usos');
-  assert.equal(m.usesText(1_000_000), '1 M usos');
+  assert.equal(m.usesText(1), '1 tcheka');
+  assert.equal(m.usesText(2), '2 tchekas');
+  assert.equal(m.usesText(59), '59 tchekas');
+  assert.equal(m.usesText(1234), '1,2 mil tchekas');
+  assert.equal(m.usesText(1_000_000), '1 M tchekas');
+  assert.equal(m.usesText(1_234_567), '1,2 M tchekas');
 });
 
-test('a linha por baixo do título: «Artista · 1,2 mil usos · 2:53»', () => {
-  assert.equal(m.rowMeta(t('a', { usesTotal: 1234, uses: 3, durationMs: 173_000 })), 'Artista · 1,2 mil usos · 2:53');
-  assert.equal(m.rowMeta(t('a', { uses: 4, durationMs: 95_000 })), 'Artista · 4 usos · 1:35'); // versões antigas do servidor
-  assert.equal(m.rowMeta(t('a', { usesTotal: 0, durationMs: 60_000 })), 'Artista · 1:00'); // sem usos não diz «0 usos»
+test('a linha por baixo do título: «Artista · 1,2 mil tchekas · 2:53»', () => {
+  assert.equal(m.rowMeta(t('a', { usesTotal: 1234, uses: 3, durationMs: 173_000 })), 'Artista · 1,2 mil tchekas · 2:53');
+  assert.equal(m.rowMeta(t('a', { uses: 4, durationMs: 95_000 })), 'Artista · 4 tchekas · 1:35'); // versões antigas do servidor
+  assert.equal(m.rowMeta(t('a', { usesTotal: 1, durationMs: 208_000 })), 'Artista · 1 tcheka · 3:28');
+  assert.equal(m.rowMeta(t('a', { usesTotal: 59, durationMs: 282_000 })), 'Artista · 59 tchekas · 4:42');
+  assert.equal(m.rowMeta(t('a', { usesTotal: 0, durationMs: 60_000 })), 'Artista · 1:00'); // sem usos não diz «0 tchekas»
   assert.equal(m.rowMeta({ id: 'x', artist: '', durationMs: null }), 'Autor desconhecido');
   assert.equal(m.rowMeta({ id: 'x', artist: '', artistUsername: 'lizha' }), '@lizha');
   assert.equal(m.rowMeta({ id: 'x', artist: '', kind: 'sound', durationMs: 4000 }), 'Som · 0:04');
+});
+
+test('duração m:ss: 3:28, 0:04, 12:05 (nada sem duração)', () => {
+  assert.equal(m.mmss(208_000), '3:28');
+  assert.equal(m.mmss(4_000), '0:04');
+  assert.equal(m.mmss(4_999), '0:04');
+  assert.equal(m.mmss(725_000), '12:05');
+  assert.equal(m.mmss(null), '');
+  assert.equal(m.mmss(0), '');
+});
+
+test('tocar numa linha: outra faixa começa logo; a mesma pausa a tocar e retoma em pausa; o «E» só nas explícitas', () => {
+  assert.equal(m.rowTap(null, false, 'a'), 'play');
+  assert.equal(m.rowTap('b', true, 'a'), 'play'); // troca de faixa
+  assert.equal(m.rowTap('a', true, 'a'), 'pause');
+  assert.equal(m.rowTap('a', false, 'a'), 'resume'); // em pausa (ou à espera do toque no iPhone)
+  assert.equal(m.isExplicit({ explicit: true }), true);
+  assert.equal(m.isExplicit({ explicit: false }), false);
+  assert.equal(m.isExplicit({}), false);
 });
 
 test('cores dos destaques: as da capa (do servidor) ou o gradiente da marca', () => {
@@ -188,19 +218,45 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   // O fundo da folha escura vem do tema (lib/theme `dark.bg`, o mesmo #1c1c1e).
   assert.match(read('components/Sheet.tsx'), /export const DARK = \{ bg: DARK_UI\.bg/);
   assert.match(read('lib/theme.ts'), /export const dark = \{\r?\n\s+bg: '#1c1c1e',/);
-  assert.match(src, /placeholder="Procurar música, artista ou estilo"/);
+  // A pesquisa em pílula e, logo por baixo, os separadores em pílula (Chip escuro: o escolhido a branco).
+  assert.match(src, /placeholder="Pesquisar…"/);
+  assert.match(src, /search: \{[^}]*borderRadius: 999/);
   assert.match(src, /const tabs = pickerTabs\(\);/);
-  assert.match(src, /tabOn: \{ backgroundColor: '#ffffff' \}/); // o separador ativo a branco, com o texto escuro
-  assert.match(src, /tabTxtOn: \{ color: C\.bg/);
+  assert.match(src, /<Chip key=\{id\} dark label=\{label\} selected=\{tab === id\} onPress=\{\(\) => setTab\(id\)\} \/>/);
   assert.match(src, /Em alta no Txillapp/);
   // «Para ti»: destaques com o gradiente da capa e pontos; pastilhas pequenas; a lista do estilo sugerido e das guardadas.
   assert.match(src, /<LinearGradient colors=\{highlightColors\(t\)/);
   assert.match(src, /pagingEnabled/);
   assert.match(src, /const chips = forYouChips\(home\.data, allowLocal, suggestion\?\.genre\);/);
   assert.match(src, /const autoStyle = forYouStyle\(suggestion\?\.genre, favs\.data\);/);
-  // As linhas: capa de 56, «Artista · usos · duração», o marcador de guardar (cheio quando guardada), a tocar realçada.
-  assert.match(src, /<Cover t=\{t\} size=\{56\} radius=\{8\} active=\{active\} \/>/);
-  assert.match(src, /const meta = rowMeta\(t\);/);
+  // As linhas (iguais em todos os separadores, a mesma função `row`): capa de 48, título a negrito numa linha com o «E»,
+  // «Artista · N tchekas · m:ss», o marcador de guardar (cheio quando guardada) e «Usar» na linha que está a ouvir.
+  assert.match(src, /<Cover t=\{t\} size=\{48\} radius=\{8\} active=\{active\} live=\{live\} \/>/);
+  assert.match(src, /<Text style=\{s\.rowTitle\} numberOfLines=\{1\}>\{t\.title\}<\/Text>/);
+  assert.match(src, /rowTitle: \{[^}]*fontWeight: '700'/);
+  assert.match(src, /\{isExplicit\(t\) \? \(/);
+  assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
+  assert.match(src, /\{live \? <SoundBars /);
+  // A pesquisa e os quatro separadores mostram as faixas com a mesma linha (com guardar).
+  assert.equal((src.match(/\.map\(row\)/g) || []).length, 3);
+  assert.match(src, /items\.length \? items\.map\(row\)/);
+  assert.match(src, /onSave=\{\(x\) => toggleSave\.mutate\(x\)\}/);
+  // O áudio gravado na hora não tem marcador e não deixa espaço vazio (o «Usar» encosta à direita).
+  assert.doesNotMatch(src, /<View style=\{s\.iconBtn\} \/>/);
+  // Guardada mas sem licença aqui: «Artista · Só em mimos e tchekas» e o «Usar» desativado (também no menu).
+  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
+  assert.match(src, /<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
+  assert.match(src, /label="Usar esta música" hint=\{locked \? LOCAL_ONLY_NOTE : undefined\} disabled=\{locked\}/);
+  assert.match(src, /savedIds\.has\(t\.id\) \? musicApi\.removeFavorite\(t\.id\) : musicApi\.addFavorite\(t\)/);
+  // Tocar ouve logo (pausa e retoma na mesma linha), sem `await` antes do som; «Usar» é que escolhe.
+  assert.match(src, /const act = rowTap\(playing, live, t\.id\);/);
+  assert.match(src, /if \(act === 'pause'\) \{\n      setPaused\(true\);\n      return pauseTrack\(me\.current\);/);
+  assert.match(src, /if \(act === 'resume'\) \{\n      setPaused\(false\);\n      return resumeTrack\(me\.current\);/);
+  // As ondas seguem o que a pessoa fez (a carregar já mostra que vai tocar), não o estado do leitor.
+  assert.match(src, /const live = playing !== null && !paused;/);
+  assert.doesNotMatch(src, /async function toggle/);
+  assert.match(src, /function pick\(t: Track\) \{\n[^}]*if \(!usableHere\(t, allowLocal\)\) return;\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
+  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
   assert.match(src, /<BookmarkIcon on=\{saved\}/);
   assert.match(src, /<SoundBars /);
   assert.match(src, /onMutate: \(t\) => qc\.setQueryData<Track\[\]>\(\['music-favorites'\], \(old\) => toggleSaved\(old, t\)\)/);
@@ -217,7 +273,7 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.doesNotMatch(src, /GENRES/); // acabaram os géneros fixos na app
   assert.doesNotMatch(src, /Creative Commons\)/);
   // Nada em inglês nos textos do seletor.
-  for (const w of ['For you', 'Trending', 'Saved', 'Original sounds?', 'Use', 'Search', 'Play', 'Not interested']) assert.doesNotMatch(src, new RegExp(`['"` + '>]' + w + `['"<]`));
+  for (const w of ['For you', 'Trending', 'Saved', 'Original sounds?', 'Use', 'Search', 'Play', 'Not interested', 'reels']) assert.doesNotMatch(src, new RegExp(`['"` + '>]' + w + `['"<]`));
   assert.match(read('components/TrackCard.tsx'), /from '@\/lib\/musicCatalog'/);
   const api = read('lib/api.music.ts');
   assert.match(api, /'\/music\/home'/);
@@ -226,4 +282,17 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(api, /coverColors\?: \[string, string\];/);
   // Para o servidor vão só os campos de sempre (mais a fonte e o @ do artista), não as contagens, as cores nem os estilos.
   assert.match(api, /const \{ id, title, artist, url, landing, license, licenseUrl, durationMs, cover, source, artistUsername \} = t;/);
+});
+
+test('o leitor na web: nada de `await` entre o toque e o `play()` (no iPhone o primeiro toque já tem som)', () => {
+  const src = read('lib/musicPlayer.ts');
+  const body = src.slice(src.indexOf('export async function playTrack'), src.indexOf('let gestureArmed'));
+  const head = body.slice(0, body.indexOf('    player.play();'));
+  // Os dois `await` que havia (modo de áudio e voltar ao início) só correm fora da web.
+  assert.match(head, /if \(!onWeb\) \{\n      await ensureMode\(\);/);
+  assert.match(head, /if \(onWeb\) void player\.seekTo\(0\)\.catch\(\(\) => undefined\);\n    else \{\n      await player\.seekTo\(0\)/);
+  for (const line of head.split('\n').filter((l) => /\bawait\b/.test(l) && !l.trim().startsWith('//'))) assert.match(line, /^      await /, `await fora do ramo nativo: ${line}`);
+  // Pausar e retomar mudam logo o indicador (as ondas) e retomar é síncrono.
+  assert.match(src, /export function pauseTrack\(id: symbol\) \{\n  if \(owner !== id\) return;\n  try \{ player\?\.pause\(\); \} catch \{ \/\* \*\/ \}\n  setLive\(id, false\);/);
+  assert.match(src, /export function resumeTrack\(id: symbol\) \{\n  if \(owner !== id\) return;\n  if \(pending\?\.id === id\) pending = null;\n  try \{ player\?\.play\(\); \}/);
 });

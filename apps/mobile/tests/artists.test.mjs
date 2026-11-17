@@ -103,9 +103,13 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   assert.match(picker, /forYouChips\(home\.data, allowLocal, suggestion\?\.genre\)/);
   assert.match(picker, /highlights\(home\.data, allowLocal\)/);
   assert.match(picker, /onlyAllowed\(withoutDisliked\(q\.data, disliked\), allowLocal\)/);
-  // As faixas dos artistas não vão para as guardadas (o servidor só guarda faixas do catálogo aberto).
+  // As faixas dos artistas guardam-se (só a referência, no servidor) e aparecem nas «Guardadas» em todo o lado, mas fora dos
+  // mimos e das tchekas o «Usar» fica desativado, com a nota «Só em mimos e tchekas».
   assert.match(picker, /\{canSave\(t\) \? \(/);
-  assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip' && t\.source !== 'local';/);
+  assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip';/);
+  assert.match(picker, /const saved = withoutDisliked\(favs\.data, disliked\);/);
+  assert.match(picker, /locked=\{!usableHere\(t, allowLocal\)\}/);
+  assert.match(picker, /if \(!usableHere\(t, allowLocal\)\) return;/);
 });
 
 test('ecrãs: Sou artista nas Definições e na pesquisa, o perfil com a etiqueta «Artista» (sem o selo de verificado)', () => {

@@ -1,12 +1,11 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
-import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { MusicCatalogService } from './catalog/catalog.service';
 import { isStyle } from './catalog/track';
-import { MusicService, trackSchema } from './music.service';
+import { favoriteSchema, MusicService, type FavoriteInput } from './music.service';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -76,9 +75,9 @@ export class MusicController {
     return this.music.favorites(req.userId!);
   }
 
-  /** Marcar uma faixa como favorita (o corpo é a faixa, validada como nas publicações). */
+  /** Marcar uma faixa como favorita: a faixa do catálogo (validada como nas publicações) ou só `{ source: 'local', id }`. */
   @Put('favorites')
-  addFavorite(@Req() req: AuthedReq, @Body(new ZodPipe(trackSchema)) t: z.infer<typeof trackSchema>) {
+  addFavorite(@Req() req: AuthedReq, @Body(new ZodPipe(favoriteSchema)) t: FavoriteInput) {
     return this.music.addFavorite(req.userId!, t);
   }
 

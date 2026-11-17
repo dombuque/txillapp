@@ -78,10 +78,15 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
   liveUrl = url;
   const src = /^(file|blob|content|data):/i.test(url) ? url : abs(url);
   if (!src) { owner = null; onStop = null; return false; }
+  // No browser não há modo de áudio e o iPhone só deixa tocar dentro do toque que pediu a faixa: até ao `play()` não se
+  // espera por nada (sem `await`), senão o gesto perde-se e o primeiro toque fica sem som.
+  const onWeb = Platform.OS === 'web';
   try {
-    await ensureMode();
-    // Entretanto pararam-na (ex.: fechou a nota antes de a música começar): não toca.
-    if (owner !== id) return false;
+    if (!onWeb) {
+      await ensureMode();
+      // Entretanto pararam-na (ex.: fechou a nota antes de a música começar): não toca.
+      if (owner !== id) return false;
+    }
     if (!player) player = createAudioPlayer(src);
     else player.replace(src);
     endSub?.remove();
@@ -91,8 +96,11 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
     });
     player.loop = opts.loop;
     player.muted = muted;
-    await player.seekTo(0).catch(() => undefined);
-    if (owner !== id) { try { player.pause(); } catch { /* */ } return false; }
+    if (onWeb) void player.seekTo(0).catch(() => undefined);
+    else {
+      await player.seekTo(0).catch(() => undefined);
+      if (owner !== id) { try { player.pause(); } catch { /* */ } return false; }
+    }
     player.play();
     setLive(id, true);
     // No browser (sobretudo iPhone), o som sem um toque recente é bloqueado: o leitor fica parado sem dar erro.
@@ -150,10 +158,16 @@ export function stopTrack(id: symbol) {
 
 /** Pausa e retoma sem largar a faixa (stories). */
 export function pauseTrack(id: symbol) {
-  if (owner === id) try { player?.pause(); } catch { /* */ }
+  if (owner !== id) return;
+  try { player?.pause(); } catch { /* */ }
+  setLive(id, false);
 }
+/** Retoma de onde estava; síncrono até ao `play()`, para valer o toque (iPhone). */
 export function resumeTrack(id: symbol) {
-  if (owner === id) try { player?.play(); } catch { /* */ }
+  if (owner !== id) return;
+  if (pending?.id === id) pending = null;
+  try { player?.play(); } catch { /* */ }
+  if (player?.playing) setLive(id, true);
 }
 export const isPlaying = (id: symbol) => owner === id && !!player && player.playing;
 

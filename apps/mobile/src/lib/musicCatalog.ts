@@ -1,5 +1,5 @@
 /**
- * Lógica do seletor de música (sem React): os separadores («Para ti», «Em alta», «Sons originais», «Guardadas»), o que vai
+ * Lógica do seletor de música (sem React): os separadores («Para ti», «Em alta», «Guardadas», «Sons originais»), o que vai
  * para os destaques e para «Para ti», tirar as faixas de que não gosto, guardar, o texto das contagens e os rótulos das
  * licenças. O catálogo vem curado do servidor (docs/musica.md); aqui só se decide o que aparece e como.
  */
@@ -30,18 +30,18 @@ export const licenseLabel = (l: string) =>
           : `CC ${l.toUpperCase()}`;
 
 /**
- * Os separadores do seletor (as pastilhas de cima):
+ * Os separadores do seletor (as pastilhas logo por baixo da pesquisa), por esta ordem:
  * - `forYou` «Para ti»: os destaques e o que combina com o estilo sugerido pelo texto e com as guardadas;
  * - `trending` «Em alta»: o «Em alta no Txillapp» do servidor;
- * - `sounds` «Sons originais»: os sons do catálogo;
- * - `saved` «Guardadas»: as favoritas.
+ * - `saved` «Guardadas»: as favoritas;
+ * - `sounds` «Sons originais»: os sons do catálogo.
  */
 export type PickerTab = 'forYou' | 'trending' | 'sounds' | 'saved';
 export const PICKER_TABS: readonly { id: PickerTab; label: string }[] = [
   { id: 'forYou', label: 'Para ti' },
   { id: 'trending', label: 'Em alta' },
-  { id: 'sounds', label: 'Sons originais' },
   { id: 'saved', label: 'Guardadas' },
+  { id: 'sounds', label: 'Sons originais' },
 ];
 /** Os quatro separadores, sempre pela mesma ordem (o que muda é o que há dentro de cada um). */
 export const pickerTabs = () => PICKER_TABS;
@@ -137,10 +137,16 @@ export function dropFromCache<T>(data: T, id: string): T {
 // ---------------------------------------------------------------- guardar («Guardadas»)
 
 /**
- * Que faixas se podem guardar: os clipes próprios não, e as dos artistas de Moçambique também não (o servidor só guarda
- * faixas do catálogo aberto).
+ * Que faixas se podem guardar: todas as que têm um id estável no servidor (catálogo aberto, sons e artistas de Moçambique, destes
+ * só a referência). O áudio gravado na hora (clipe próprio) não.
  */
-export const canSave = (t: TrackLike) => t.kind !== 'clip' && t.source !== 'local';
+export const canSave = (t: TrackLike) => t.kind !== 'clip';
+
+/** A nota das faixas que se podem guardar mas não usar aqui: as dos artistas de Moçambique, fora dos mimos e das tchekas. */
+export const LOCAL_ONLY_NOTE = 'Só em mimos e tchekas';
+
+/** Pode-se usar esta faixa aqui? As dos artistas de Moçambique só onde a licença deixa (`allowLocal`: mimos e tchekas). */
+export const usableHere = (t: TrackLike, allowLocal: boolean) => allowLocal || t.source !== 'local';
 
 /** Guardar ou tirar das guardadas (muda logo no ecrã; o servidor confirma): a guardada nova vai para o topo. */
 export function toggleSaved<T extends TrackLike>(saved: T[] | null | undefined, t: T): T[] {
@@ -166,10 +172,10 @@ export function compactCount(n: number | null | undefined): string {
   return `${fmt(1_000_000, v < 100_000_000 ? 1 : 0)} M`;
 }
 
-/** «1 uso», «12 usos», «1,2 mil usos» (nada para 0 ou sem número). */
+/** Quantas tchekas (e mimos) já a usaram: «1 tcheka», «59 tchekas», «1,2 mil tchekas», «1,2 M tchekas» (nada para 0 ou sem número). */
 export function usesText(n: number | null | undefined): string {
   if (!n || n < 1) return '';
-  return n === 1 ? '1 uso' : `${compactCount(n)} usos`;
+  return Math.floor(n) === 1 ? '1 tcheka' : `${compactCount(n)} tchekas`;
 }
 
 /** "usada 12 vezes esta semana" (nada para 0 ou sem número). */
@@ -185,11 +191,16 @@ export function creditLine(t: TrackLike & { durationMs?: number | null }, mmss: 
   return d ? `${who} · ${d}` : who;
 }
 
-/** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil usos · 2:53» (os usos desde sempre, quando os há). */
+/** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil tchekas · 2:53» (os usos desde sempre, quando os há). */
 export function rowMeta(t: TrackLike): string {
-  const who = t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
-  return [who, usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
+  return [rowWho(t), usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
 }
+
+/** Quem fez a faixa, como aparece na linha. */
+const rowWho = (t: TrackLike) => t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
+
+/** A linha cinzenta de uma faixa que não se pode usar aqui: «Artista · Só em mimos e tchekas». */
+export const lockedMeta = (t: TrackLike): string => `${rowWho(t)} · ${LOCAL_ONLY_NOTE}`;
 
 export const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');
 
@@ -201,3 +212,15 @@ export function highlightColors(t: TrackLike): readonly [string, string] {
   const c = t.coverColors;
   return Array.isArray(c) && c.length === 2 && c.every((x) => /^#[0-9a-f]{6}$/i.test(x)) ? [c[0], c[1]] : BRAND_GRADIENT;
 }
+
+/**
+ * Tocar numa linha do seletor: outra faixa começa logo a tocar (e a que estava pára); a mesma faixa pausa se está a tocar e
+ * retoma se está em pausa. Escolher a faixa é à parte, no «Usar» da linha.
+ */
+export function rowTap(current: string | null, live: boolean, id: string): 'play' | 'pause' | 'resume' {
+  if (current !== id) return 'play';
+  return live ? 'pause' : 'resume';
+}
+
+/** O selo «E» ao lado do título: só nas faixas marcadas como explícitas. */
+export const isExplicit = (t: { explicit?: boolean | null }) => t.explicit === true;
