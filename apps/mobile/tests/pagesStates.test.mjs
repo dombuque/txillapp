@@ -40,7 +40,10 @@ test('Ajuda: procura sem acentos (normalize das Definições) e a pergunta abert
   assert.match(src, /setOpen\(open === f\.q \? null : f\.q\)/);
   assert.doesNotMatch(src, /list\.map\(\(f, i\)/);
   // O botão do ecrã de entrada chama-se «Esqueceste a senha?»: a Ajuda diz o mesmo.
-  assert.match(src, /toca em "Esqueceste a senha\?"/);
+  assert.match(src, /toca em «Esqueceste a senha\?»/);
+  // Só aspas «» no texto da Ajuda (as retas ficam para o código).
+  const faq = src.slice(src.indexOf('const FAQ'), src.indexOf('/** Ajuda:'));
+  assert.doesNotMatch(faq, /"/);
 });
 
 test('criar evento: no Android as horas abrem o teclado numérico (o de pontuação não existe lá) e sem dois envios', () => {

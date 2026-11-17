@@ -1,21 +1,30 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { CallIcon } from '@/components/calls/CallIcons';
-import { Empty } from '@/components/Empty';
+import { EmptyState } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { ActivityIndicator, ListSkeleton } from '@/components/PontoLoader';
+import { ActionRow } from '@/components/ui/ActionRow';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { IconButton } from '@/components/ui/IconButton';
 import { StackPage } from '@/components/StackPage';
 import { Sheet } from '@/components/Sheet';
 import { HOLD_MS } from '@/lib/messageMenu';
 import { callsApi, fmtDuration, startCall, type CallLogItem } from '@/lib/calls';
-import { colors } from '@/lib/theme';
+import { confirm } from '@/lib/confirm';
+import { colors, typo } from '@/lib/theme';
+import { showToast } from '@/lib/toast';
 import { timeAgo } from '@/lib/time';
 
 /** Perdida: ligaram-me e não atendi (tocou até ao fim, ou desistiram antes). */
+/** O tempo para «Desfazer» antes de apagar uma chamada no servidor (o mesmo do aviso com botão). */
+const UNDO_MS = 6000;
+
 const isMissed = (c: CallLogItem) => c.direction === 'in' && (c.status === 'missed' || c.status === 'cancelled');
 
 function subtitle(c: CallLogItem): string {
@@ -45,30 +54,35 @@ export default function Calls() {
 
   const qc = useQueryClient();
   type Pages = InfiniteData<{ items: CallLogItem[]; nextCursor: string | null }>;
-  /** Apagar já, sem perguntar (tira da lista na hora; se falhar, volta). */
+  /**
+   * Apagar uma chamada: sai da lista na hora e o aviso de baixo dá uns segundos para «Desfazer». Só depois se apaga no
+   * servidor (se falhar, volta à lista).
+   */
   function remove(c: CallLogItem) {
     const before = qc.getQueryData<Pages>(['calls']);
     qc.setQueryData<Pages>(['calls'], (d) => d && { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) });
-    callsApi.remove(c.id).catch(() => { qc.setQueryData(['calls'], before); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
+    let undone = false;
+    showToast('Chamada apagada do registo', { label: 'Desfazer', onPress: () => { undone = true; qc.setQueryData(['calls'], before); } });
+    setTimeout(() => {
+      if (undone) return;
+      callsApi.remove(c.id).catch(() => { qc.setQueryData(['calls'], before); showToast('Não consegui apagar. Tenta outra vez.'); });
+    }, UNDO_MS);
   }
-  function clearAll() {
-    Alert.alert('Limpar o histórico?', 'Todas as chamadas saem da tua lista. Do lado da outra pessoa ficam.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Limpar', style: 'destructive', onPress: () => { void callsApi.removeAll().then(() => qc.invalidateQueries({ queryKey: ['calls'] })).catch(() => Alert.alert('Não consegui limpar', 'Tenta outra vez.')); } },
-    ]);
+  async function clearAll() {
+    const ok = await confirm({ title: 'Limpar o histórico?', message: 'Todas as chamadas saem da tua lista. Do lado da outra pessoa ficam.', confirm: 'Limpar', danger: true });
+    if (!ok) return;
+    void callsApi.removeAll().then(() => qc.invalidateQueries({ queryKey: ['calls'] })).catch(() => showToast('Não consegui limpar o histórico. Tenta outra vez.'));
   }
 
   function callBack(c: CallLogItem) {
-    void startCall(c.peer, c.video).catch((e: Error) => Alert.alert('Não consegui ligar', e.message));
+    void startCall(c.peer, c.video).catch((e: Error) => showToast(e.message ? `Não consegui ligar: ${e.message}` : 'Não consegui ligar. Tenta outra vez.'));
   }
 
   return (
     <StackPage
       title="Chamadas"
       right={items.length ? (
-        <Pressable onPress={clearAll} hitSlop={8} accessibilityRole="button" style={({ pressed }) => [st.clear, pressed && { opacity: 0.6 }]}>
-          <Text style={st.clearText}>Limpar</Text>
-        </Pressable>
+        <Button label="Limpar" kind="ghost" size="sm" onPress={() => void clearAll()} accessibilityLabel="Limpar o histórico de chamadas" />
       ) : undefined}
     >
       <FlatList
@@ -79,9 +93,9 @@ export default function Calls() {
         refreshing={q.isRefetching && !q.isFetchingNextPage}
         contentContainerStyle={{ paddingVertical: 6 }}
         ListEmptyComponent={
-          q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> :
-          q.isError ? <Empty icon="alert" title="Não consegui ver as chamadas agora" text="Verifica a internet e tenta outra vez." /> :
-          <Empty icon="phone" title="Ainda não há chamadas" text="Liga a alguém a partir de uma conversa: o botão está no topo." />
+          q.isLoading ? <ListSkeleton avatar={48} /> :
+          q.isError ? <ErrorState what="as chamadas" onRetry={() => void q.refetch()} /> :
+          <EmptyState icon="phone" title="Ainda não há chamadas" text="Liga a alguém a partir de uma conversa: o botão está no topo." />
         }
         ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} color={colors.brand} /> : undefined}
         renderItem={({ item: c }) => {
@@ -96,28 +110,25 @@ export default function Calls() {
                   <Text style={[st.sub, missed && { color: colors.red600 }]} numberOfLines={1}>{subtitle(c)}</Text>
                 </View>
               </View>
-              <Pressable onPress={() => callBack(c)} hitSlop={6} style={({ pressed }) => [st.callBtn, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={c.video ? `Videochamada a ${c.peer.displayName}` : `Ligar a ${c.peer.displayName}`}>
+              <IconButton variant="soft" onPress={() => callBack(c)} label={c.video ? `Videochamada a ${c.peer.displayName}` : `Ligar a ${c.peer.displayName}`}>
                 {c.video ? <Icon name="video" size={22} color={colors.zinc800} /> : <CallIcon name="handset" size={21} color={colors.zinc800} />}
-              </Pressable>
+              </IconButton>
             </Pressable>
           );
         }}
       />
       {held ? (
-        <Sheet onClose={() => setHeld(null)}>
-          <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
-            <Text style={st.sheetName} numberOfLines={1} accessibilityRole="header">{held.peer.displayName}</Text>
+        <Sheet onClose={() => setHeld(null)} cancel>
+          <View style={{ paddingHorizontal: 16 }}>
+            <NameWithBadge name={held.peer.displayName} who={held.peer} style={st.sheetName} containerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }} />
             {[
-              { label: 'Mensagem', icon: 'comment', run: () => router.push(`/messages/${held.peer.username}` as never) },
-              { label: 'Chamada de voz', icon: 'phone', run: () => callBack({ ...held, video: false }) },
-              { label: 'Videochamada', icon: 'video', run: () => callBack({ ...held, video: true }) },
-              { label: 'Ver perfil', icon: 'user', run: () => router.push(`/u/${held.peer.username}` as never) },
-              ...(held.status === 'ringing' || held.status === 'active' ? [] : [{ label: 'Apagar do registo', icon: 'trash', run: () => remove(held), danger: true }]),
+              { label: 'Mensagem', icon: 'comment' as const, run: () => router.push(`/messages/${held.peer.username}` as never) },
+              { label: 'Chamada de voz', icon: 'phone' as const, run: () => callBack({ ...held, video: false }) },
+              { label: 'Videochamada', icon: 'video' as const, run: () => callBack({ ...held, video: true }) },
+              { label: 'Ver perfil', icon: 'user' as const, run: () => router.push(`/u/${held.peer.username}` as never) },
+              ...(held.status === 'ringing' || held.status === 'active' ? [] : [{ label: 'Apagar do registo', icon: 'trash' as const, run: () => remove(held), danger: true }]),
             ].map((o) => (
-              <Pressable key={o.label} onPress={() => { const c = o.run; setHeld(null); c(); }} style={({ pressed }) => [st.sheetRow, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
-                <Icon name={o.icon as never} size={22} color={'danger' in o && o.danger ? colors.red600 : colors.zinc800} />
-                <Text style={[st.sheetLabel, 'danger' in o && o.danger && { color: colors.red600 }]}>{o.label}</Text>
-              </Pressable>
+              <ActionRow key={o.label} icon={o.icon} title={o.label} danger={'danger' in o && o.danger} onPress={() => { const c = o.run; setHeld(null); c(); }} />
             ))}
           </View>
         </Sheet>
@@ -128,13 +139,8 @@ export default function Calls() {
 
 const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  sheetName: { fontSize: 17, fontWeight: '800', color: colors.zinc900, textAlign: 'center', paddingVertical: 12 },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingHorizontal: 14, borderRadius: 14 },
-  sheetLabel: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
+  sheetName: { ...typo.sheetTitle, color: colors.zinc900 },
   name: { fontSize: 16, fontWeight: '700', color: colors.zinc900 },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   sub: { fontSize: 14, color: colors.zinc500, flexShrink: 1 },
-  clear: { paddingHorizontal: 8, paddingVertical: 6 },
-  clearText: { fontSize: 15, fontWeight: '600', color: colors.brand },
-  callBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.zinc100 },
 });

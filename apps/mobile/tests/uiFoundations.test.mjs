@@ -179,3 +179,25 @@ test('StackPage: dark e center; BackButton aceita a cor', () => {
   assert.match(s, /<BackButton onPress=\{back\} color=\{dark \? D\.text : colors\.zinc900\} \/>/);
   assert.match(read('components', 'BackButton.tsx'), /color = colors\.zinc900/);
 });
+
+test('carregamento: nenhum ficheiro importa a roda do sistema (ActivityIndicator vem sempre do PontoLoader)', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const walk = (d) => readdirSync(d).flatMap((n) => { const p = path.join(d, n); return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(n) ? [p] : []; });
+  const bad = walk(path.join(ROOT, 'src')).filter((p) => /import \{[^}]*\bActivityIndicator\b[^}]*\} from 'react-native'/.test(readFileSync(p, 'utf8')));
+  assert.deepEqual(bad.map((p) => path.relative(ROOT, p)), []);
+});
+
+test('rascunhos e chamadas: apagar deixa «Desfazer»; limpar o histórico pergunta antes', () => {
+  const d = read('app', 'drafts.tsx');
+  assert.match(d, /showToast\('Rascunho apagado', \{\n\s+label: 'Desfazer',/);
+  assert.match(d, /void restoreDraft\(d\)/);
+  assert.match(read('lib', 'drafts.ts'), /export async function restoreDraft\(d: DraftItem\)/);
+  const c = read('app', 'calls.tsx');
+  assert.match(c, /showToast\('Chamada apagada do registo', \{ label: 'Desfazer'/);
+  assert.match(c, /if \(undone\) return;\n\s+callsApi\.remove\(c\.id\)/);
+  assert.match(c, /await confirm\(\{ title: 'Limpar o histórico\?'[^)]*danger: true \}\)/);
+  assert.doesNotMatch(c, /Alert\.alert/);
+  // O nome no topo do menu da chamada leva o selo; o menu tem «Cancelar».
+  assert.match(c, /<Sheet onClose=\{\(\) => setHeld\(null\)\} cancel>/);
+  assert.match(c, /<NameWithBadge name=\{held\.peer\.displayName\} who=\{held\.peer\}/);
+});
