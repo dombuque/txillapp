@@ -83,6 +83,8 @@ const PROTECT = new RegExp(
   [
     '\\{[\\w.]+\\}',
     '</?[a-z][\\w-]*\\s*/?>',
+    // Os símbolos dos menus (⋯, →): o LibreTranslate perde os marcadores à volta deles nas frases longas.
+    '[⋯→]',
     'https?://\\S+',
     '@[\\p{L}\\p{N}_.]+',
     '\\p{Extended_Pictographic}(?:\\uFE0F|\\u200D\\p{Extended_Pictographic})*\\uFE0F?',
