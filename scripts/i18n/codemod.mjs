@@ -195,9 +195,17 @@ for (const [sf, res] of results) {
     if (!DRY) fs.writeFileSync(sf.fileName, res.text);
   }
   if (res.extra) { const prev = LOG[rel] ?? { done: [], skipped: [], doubts: [] }; LOG[rel] = { ...prev, doubts: [...prev.doubts, ...res.doubts] }; continue; }
-  if (res.done.length || res.skipped.length || res.doubts.length) LOG[rel] = { done: res.done, skipped: res.skipped, doubts: res.doubts, at: new Date().toISOString() };
+  // numa segunda passagem o que já está em t() não aparece outra vez: junta-se ao que o relatório já tinha
+  if (res.done.length || res.skipped.length || res.doubts.length) {
+    const prev = LOG[rel];
+    const key = (d) => `${d.kind}|${d.phrase}`;
+    const done = [...(prev?.done ?? []).filter((d) => !res.done.some((x) => key(x) === key(d))), ...res.done];
+    const doubts = [...(prev?.doubts ?? []).filter((d) => !res.doubts.some((x) => x.phrase === d.phrase && x.why === d.why)), ...res.doubts];
+    LOG[rel] = { done, skipped: res.skipped, doubts, at: new Date().toISOString() };
+  }
 }
-if (!DRY) { fs.mkdirSync(path.dirname(LOG_JSON), { recursive: true }); fs.writeFileSync(LOG_JSON, JSON.stringify(LOG, null, 1)); writeReport(LOG); }
+// a seco, o relatório só se escreve se for pedido (--report)
+if (!DRY || opt('--report')) { fs.mkdirSync(path.dirname(LOG_JSON), { recursive: true }); fs.writeFileSync(LOG_JSON, JSON.stringify(LOG, null, 1)); writeReport(LOG); }
 console.error(`${targets.length} ficheiros vistos, ${changedFiles} mudados${DRY ? ' (a seco)' : ''}`);
 
 function transformFile(sf, seed) {
