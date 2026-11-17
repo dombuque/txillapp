@@ -39,7 +39,6 @@ import Thread from './pages/Thread';
 import Profile from './pages/Profile';
 import Search from './pages/Search';
 import Settings from './pages/Settings';
-import { ComingSoon } from './pages/Simple';
 import Wallet from './pages/Wallet';
 
 const BoStats = lazy(() => import('./pages/backoffice/Stats'));

@@ -167,7 +167,7 @@ export default function Verification() {
                 <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>
                   {purchases.storeVerification
                     ? 'A moderação confirmou a tua identidade. O selo azul aparece quando ativares a subscrição, pela loja.'
-                    : 'A moderação confirmou a tua identidade. O selo azul ativa-se com uma subscrição na app do Txillapp da App Store ou do Google Play, quando estiver disponível.'}
+                    : 'A moderação confirmou a tua identidade. O selo azul ativa-se com uma subscrição na app do Txillapp da App Store ou do Google Play.'}
                 </Text>
               </View>
             )}

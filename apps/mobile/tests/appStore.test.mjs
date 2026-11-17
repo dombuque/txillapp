@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed, showComingSoon } from '../src/lib/storeRules.ts';
+import { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed } from '../src/lib/storeRules.ts';
 import { permissionView } from '../src/lib/cameraControls.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -48,13 +48,13 @@ test('4.8: o «Entrar com Google» só aparece na web, nunca na versão da App S
   assert.match(read('src/components/GoogleButton.tsx'), /if \(!googleSignInAllowed\(Platform\.OS, CHANNEL\)\) return null;/);
 });
 
-test('2.1/2.2: nas lojas não há «em breve» no ecrã do idioma', () => {
-  assert.equal(showComingSoon('appstore'), false);
-  assert.equal(showComingSoon('play'), false);
-  assert.equal(showComingSoon('web'), true);
-  const src = read('src/app/language.tsx');
-  assert.match(src, /const SOON = showComingSoon\(CHANNEL\)/);
-  assert.match(src, /\{SOON \? <Line icon="globe" label="English"/);
+test('2.1/2.2: o ecrã do idioma mostra só o português, sem idiomas nem traduções por vir (ver tests/semEmBreve.test.mjs)', () => {
+  for (const f of ['src/app/language.tsx', 'src/app/settings/aparencia.tsx']) {
+    const src = read(f);
+    assert.match(src, /Português \(Moçambique\)/, f);
+    assert.doesNotMatch(src, /showComingSoon|English|Traduzir publicações|anchor="theme"|modo escuro/, f);
+  }
+  assert.doesNotMatch(read('src/lib/storeRules.ts'), /showComingSoon/);
 });
 
 test('2.3.10: o aviso de nova versão (APK) só corre no Android (e só no APK beta: ver tests/googlePlay.test.mjs)', () => {

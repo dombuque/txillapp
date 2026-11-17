@@ -59,6 +59,9 @@ test('remixActions: dueto só nas tchekas e se o dono deixa; a lista quando já 
   assert.equal(r.remixActions({ media: [{ kind: 'video' }, { kind: 'video' }], canRemix: true }).duet, false);
   // Servidor antigo (sem canRemix): nada.
   assert.equal(r.remixActions({ media: video }).show, false);
+  // Sem gravação de duetos (app nativa): só a lista, nunca «Fazer dueto».
+  assert.deepEqual(r.remixActions({ media: video, canRemix: true, remixes: 0 }, false), { duet: false, list: false, count: 0, show: false });
+  assert.deepEqual(r.remixActions({ media: video, canRemix: true, remixes: 2 }, false), { duet: false, list: true, count: 2, show: true });
 });
 
 test('textos: contagem, «Respondeu com uma tcheka» e os avisos', () => {
@@ -121,8 +124,12 @@ test('os ecrãs ligam o remix: rota do estúdio, lista, botões, etiqueta, autoc
   assert.ok(existsSync(path.join(ROOT, 'src', 'app', 'tcheka', 'nova.tsx')));
   assert.match(read('app', 'tcheka', 'nova.tsx'), /remixStudioFor\(/);
   assert.ok(existsSync(path.join(ROOT, 'src', 'app', 'remixes', '[id].tsx')));
-  // O dueto no nativo diz que ainda só está no site; no web grava com canvas e MediaRecorder.
-  assert.match(read('components', 'remix', 'DuetStudio.tsx'), /O dueto ainda só está no site/);
+  // Na app nativa não há «Fazer dueto» (só a lista); quem chega por ligação vê que se grava no site. No web grava com canvas e MediaRecorder.
+  assert.match(read('components', 'remix', 'DuetStudio.tsx'), /Os duetos gravam-se no site/);
+  assert.doesNotMatch(read('components', 'remix', 'DuetStudio.tsx'), /[Ee]m breve/);
+  assert.match(read('components', 'remix', 'RemixParts.tsx'), /const RECORD_DUET = Platform\.OS === 'web';/);
+  assert.equal((read('components', 'remix', 'RemixParts.tsx').match(/remixActions\(post, RECORD_DUET\)/g) ?? []).length, 2);
+  assert.match(read('app', 'remixes', '[id].tsx'), /const canDuet = Platform\.OS === 'web' && /);
   const rec = read('components', 'remix', 'RemixRecorder.tsx');
   assert.match(rec, /captureStream/);
   assert.match(rec, /new MediaRecorder/);

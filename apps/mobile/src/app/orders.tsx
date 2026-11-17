@@ -15,7 +15,7 @@ import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 import { vibesWord } from '@/lib/vibes';
 
-/** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra nada de "em breve". */
+/** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra a secção de recarregar (nem a carregar). */
 const NATIVE = Platform.OS !== 'web';
 
 const n = (v: number) => v.toLocaleString('pt-PT');
@@ -129,10 +129,9 @@ function OrdersScreen() {
           <Button label="Ver movimentos e presentes" kind="ghost" dark size="sm" onPress={() => router.push('/wallet' as never)} style={st.balBtn} />
         </LinearGradient>
 
-        {(!NATIVE || providers.length > 0) && (
+        {((!NATIVE && cfg.isLoading) || providers.length > 0) && (
           <Group title="Recarregar vibes">
             {cfg.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
-            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar vibes" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
             {cfg.data && providers.length > 0 && !current ? (
               <View style={{ padding: 16, gap: 16 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

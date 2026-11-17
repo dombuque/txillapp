@@ -37,7 +37,7 @@ export const rtcSupported = () => !!rtc();
 /** `relayOnly`: só pelo TURN (o outro lado não vê o IP desta pessoa). */
 export function createPeer(iceServers: IceServer[], relayOnly = false): PeerLike {
   const m = rtc();
-  if (!m) throw new Error('As chamadas chegam na próxima versão da app. Atualiza o Txillapp.');
+  if (!m) throw new Error('As chamadas não funcionam nesta versão da app. Atualiza o Txillapp.');
   return new m.RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle', iceTransportPolicy: relayOnly ? 'relay' : 'all' }) as unknown as PeerLike;
 }
 
@@ -106,7 +106,7 @@ function within<T>(p: Promise<T>, ms: number, message: string, onLate?: (v: T) =
 /** Microfone (e câmara, se `video`). Sem câmara (ou recusada) numa videochamada entra só com voz, como no site. */
 export async function openMedia(video: boolean, front: boolean): Promise<unknown> {
   const m = rtc();
-  if (!m) throw new Error('As chamadas chegam na próxima versão da app. Atualiza o Txillapp.');
+  if (!m) throw new Error('As chamadas não funcionam nesta versão da app. Atualiza o Txillapp.');
   let cam = video;
   if (Platform.OS === 'android') {
     // Pedidas aqui, uma de cada vez, antes do getUserMedia: o pedido do próprio react-native-webrtc fica numa fila e,

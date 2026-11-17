@@ -1,15 +1,15 @@
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 
-/** Aparência e idioma: o idioma da app e as traduções; o tema (por agora só o claro). */
-export default function AppearanceSettings() {
+/**
+ * Idioma (o grupo `aparencia` das Definições; o id fica pelas ligações antigas). Só o que existe: a app está em português,
+ * sem tema nem traduções por vir (App Store 2.1/2.2, Google Play).
+ */
+export default function LanguageSettings() {
   return (
-    <SettingsPage title="Aparência e idioma">
-      <SettingsSection title="Idioma">
-        <SettingRow anchor="language" icon="globe" title="Idioma e traduções" value="Português" to="/language" />
-      </SettingsSection>
-      <SettingsSection title="Aparência">
-        <SettingRow anchor="theme" icon="sun" title="Tema" value="Claro" description="O modo escuro ainda não existe na app." locked />
+    <SettingsPage title="Idioma">
+      <SettingsSection title="Idioma da app">
+        <SettingRow anchor="language" icon="globe" title="Português (Moçambique)" description="A app está em português." />
       </SettingsSection>
     </SettingsPage>
   );

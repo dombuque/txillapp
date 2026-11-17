@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LANGS, lang, setLang, tr, locale } from '../lib/i18n';
-import { STORE_BUILD } from '../lib/build';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon, { type IconName } from '../components/Icon';
@@ -82,7 +81,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: tr('O que é a visualização única?'), a: tr('Fotos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat.') },
   { q: tr('Como bloqueio ou denuncio alguém?'), a: tr('No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.') },
   { q: tr('Como pedir o selo de verificado?'), a: tr('Em Definições, Verificação. A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.') },
-  { q: tr('O que querem dizer as cores do selo?'), a: tr('O selo vermelho é dado pelo Txillapp: quer dizer que a conta foi verificada por mérito ou porque o pedido de verificação foi aceite. A conta oficial do Txillapp também tem o selo vermelho. O selo azul é o da verificação paga, quando existir.') },
+  { q: tr('O que querem dizer as cores do selo?'), a: tr('O selo vermelho é dado pelo Txillapp: quer dizer que a conta foi verificada por mérito ou porque o pedido de verificação foi aceite. A conta oficial do Txillapp também tem o selo vermelho. O selo azul é o da verificação paga.') },
   { q: tr('Quem vê quando estou online?'), a: tr('Só quem também mostra a presença. Em Definições, "Mostrar quando estou online" desliga isso (e também deixas de ver os outros).') },
   { q: tr('Como mudo a privacidade da conta?'), a: tr('Em Definições, Privacidade da conta: perfil público ou privado, quem comenta, quem te menciona e quem te envia mensagens.') },
   { q: tr('Esqueci-me da senha. E agora?'), a: tr('No ecrã de entrada, toca em "Esqueci-me da senha". Enviamos-te um email para criares uma nova.') },
@@ -214,10 +213,9 @@ export function Orders() {
         <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">{tr('Ver movimentos e presentes')}</Link>
       </div>
 
-      {(!STORE_BUILD || providers.length > 0) && (
+      {(cfg.isLoading || providers.length > 0) && (
       <Group title={tr('Recarregar vibes')}>
         {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">{tr('A carregar…')}</p>}
-        {cfg.data && providers.length === 0 && !STORE_BUILD && <Line icon="wallet" label={tr('Comprar vibes')} value="Em breve: M-Pesa, e-Mola e cartão" />}
         {cfg.data && providers.length > 0 && !current && (
           <div className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-2.5">
@@ -290,10 +288,10 @@ export function Orders() {
   );
 }
 
-/** Idioma e traduções: o idioma da app (muda e recarrega) e a tradução de publicações. */
+/** Idioma: o idioma da app (muda e recarrega). Só os idiomas que existem. */
 export function Language() {
   return (
-    <StackPage title={tr('Idioma e traduções')}>
+    <StackPage title={tr('Idioma')}>
       <Group title={tr('Idioma da app')}>
         {LANGS.map((l) => (
           <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
@@ -301,14 +299,8 @@ export function Language() {
             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${lang === l.id ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{lang === l.id && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
-        {!STORE_BUILD && <Line icon="globe" label={tr('Français')} value={tr('em breve')} />}
       </Group>
-      {!STORE_BUILD && (
-      <Group title={tr('Traduções')}>
-        <Line icon="globe" label={tr('Traduzir publicações')} value={tr('Em breve: ver posts e comentários noutro idioma com um toque')} />
-      </Group>
-      )}
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.')}</p>
+      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês.')}</p>
     </StackPage>
   );
 }

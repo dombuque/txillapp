@@ -1,12 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { Post } from '@/lib/api';
 import { duetHref, remixActions, remixCount, remixesHref, remixLabel, remixTarget, stickerText, type RemixOf, type RemixPerson } from '@/lib/remix';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { Sheet } from '../Sheet';
+
+/** Só o site e o PWA gravam duetos (ver remixActions). */
+const RECORD_DUET = Platform.OS === 'web';
 
 /** O símbolo do dueto: dois ecrãs lado a lado (não há ícone Tx para isto). */
 export function DuetGlyph({ size = 26, color = '#fff' }: { size?: number; color?: string }) {
@@ -87,7 +90,7 @@ export function ReplyStickerOverlay({ remix }: { remix: RemixOf | null | undefin
 export function RemixButton({ post, variant = 'rail', circleStyle, labelStyle }: { post: Post; variant?: 'rail' | 'row'; circleStyle?: StyleProp<ViewStyle>; labelStyle?: object }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const a = remixActions(post);
+  const a = remixActions(post, RECORD_DUET);
   if (!a.show) return null;
   const go = (to: string) => { setOpen(false); router.push(to as never); };
   return (
@@ -143,7 +146,7 @@ export function RemixButton({ post, variant = 'rail', circleStyle, labelStyle }:
  */
 export function RemixesLink({ post }: { post: Post }) {
   const router = useRouter();
-  const a = remixActions(post);
+  const a = remixActions(post, RECORD_DUET);
   if (!a.show) return null;
   const to = a.list ? remixesHref(post.id) : duetHref(post.id);
   return (

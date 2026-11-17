@@ -116,7 +116,7 @@ export default function VenueScreen() {
             <Text style={st.reviewText}>
               {v.reviewStatus === 'rejected'
                 ? `${v.reviewNote ? `Motivo: ${v.reviewNote}. ` : ''}Corrige em Gerir e a página volta a ser analisada.`
-                : 'A equipa do Txillapp vai ver a página em breve. Até lá só tu e os gestores a veem: aproveita para pôr o logótipo, a morada e o horário.'}
+                : 'A equipa do Txillapp está a analisar a página. Até lá só tu e os gestores a veem: aproveita para pôr o logótipo, a morada e o horário.'}
             </Text>
           </View>
         </View>

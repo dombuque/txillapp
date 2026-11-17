@@ -55,9 +55,13 @@ export function remixTarget(r: RemixOf | null | undefined): string | null {
 }
 
 /** O que mostrar no botão «Remix» de uma publicação (dueto só nas tchekas e se o dono deixa; a lista se já houver algum). */
-export function remixActions(p: { canRemix?: boolean; remixes?: number; media: { kind?: string }[] }) {
+/**
+ * `recordDuet`: esta cópia grava duetos (só o site e o PWA: na app nativa não há gravação lado a lado, por isso nem se
+ * mostra «Fazer dueto»; a lista dos que já existem vê-se em todo o lado).
+ */
+export function remixActions(p: { canRemix?: boolean; remixes?: number; media: { kind?: string }[] }, recordDuet = true) {
   const tcheka = p.media.length === 1 && p.media[0]?.kind === 'video';
-  const duet = tcheka && p.canRemix === true;
+  const duet = tcheka && p.canRemix === true && recordDuet;
   const list = (p.remixes ?? 0) > 0;
   return { duet, list, count: p.remixes ?? 0, show: duet || list };
 }

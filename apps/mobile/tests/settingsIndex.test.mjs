@@ -82,7 +82,10 @@ test('pesquisa: pelo nome, por sinónimos, sem acentos nem maiúsculas', () => {
   assert.equal(first('eliminar'), 'deleteAccount');
   assert.equal(first('bloqueados'), 'blocked');
   assert.equal(first('bloq'), 'blocked');
-  assert.equal(first('modo escuro'), 'theme');
+  // Sem tema na app: a pesquisa não leva a uma opção que não existe.
+  assert.equal(m.searchSettings('modo escuro').length, 0);
+  assert.ok(m.searchSettings('idioma').every((h) => h.path.startsWith('/settings/aparencia')), 'o idioma leva ao ecrã do idioma');
+  assert.ok(m.searchSettings('idioma').some((h) => h.id === 'language'));
   assert.equal(first('visto por ultimo'), 'presence');
   assert.equal(first('ip'), 'relay');
   assert.equal(first('exportar'), 'exportData');
@@ -161,7 +164,7 @@ test('ligações antigas: /settings?s=…, ?section=…, /settings#… e nomes e
   assert.equal(m.settingsTargetFor('privacy'), '/settings/privacidade');
   assert.equal(m.settingsTargetFor('nada-disto'), null);
   // Cada destino é um ecrã que existe.
-  for (const k of Object.keys({ conta: 1, privacidade: 1, notifications: 1, wallet: 1, help: 1, theme: 1, devices: 1, feed: 1, calls: 1 })) {
+  for (const k of Object.keys({ conta: 1, privacidade: 1, notifications: 1, wallet: 1, help: 1, idioma: 1, devices: 1, feed: 1, calls: 1 })) {
     assert.ok(routeExists(m.settingsTargetFor(k)), k);
   }
 });
