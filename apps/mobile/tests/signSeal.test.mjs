@@ -75,7 +75,13 @@ test('as cores por nível: verificado e conta oficial a coral (vermelho do Txill
   assert.equal(w.sealPaint('paid'), 'blue');
   assert.equal(w.SEAL_BLUE, '#1d9bf0');
   assert.deepEqual([w.SEAL_CORAL.from, w.SEAL_CORAL.to], ['#ff6b81', '#d6334f']);
-  assert.deepEqual(w.SEAL_LABEL, { verified: 'Perfil verificado', official: 'Conta oficial do Txillapp', paid: 'Verificado com subscrição' });
+  // lib/wordmark.ts não importa nada (a API compila-o para comparar a assinatura); os rótulos do selo vivem no VerifiedBadge.
+  assert.equal(w.SEAL_LABEL, undefined);
+  const vb = read('components', 'VerifiedBadge.tsx');
+  assert.match(vb, /get verified\(\) \{ return tr\('Perfil verificado'\); \}/);
+  assert.match(vb, /get official\(\) \{ return tr\('Conta oficial do Txillapp'\); \}/);
+  assert.match(vb, /get paid\(\) \{ return tr\('Verificado com subscrição'\); \}/);
+  assert.doesNotMatch(read('lib', 'wordmark.ts'), /^import /m);
 });
 
 test('VerifiedBadge: o degradê coral para verified e official, o azul só para paid, e o texto do leitor de ecrã por nível', () => {
