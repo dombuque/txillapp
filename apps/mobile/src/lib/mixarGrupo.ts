@@ -144,7 +144,7 @@ export function groupChallengeLine(c: Pick<MixarChallenge, 'myPick' | 'match'> &
 }
 
 /** «1 escolheu» / «2 escolheram» (no resultado, em cada opção). */
-export const pickedLabel = (n: number) => (n === 1 ? '1 escolheu' : `${n} escolheram`);
+export const pickedLabel = (n: number) => (t('{count} escolheu', { count: n, other: '{count} escolheram' }));
 
 /** Quantos escolheram esta opção (só no resultado), ou null. */
 export function countOf(c: { group?: { counts: { postId: string; n: number }[] | null } | null }, postId: string): number | null {

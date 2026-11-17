@@ -167,7 +167,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
               {v.avatarUrl ? <Image source={{ uri: sized(abs(v.avatarUrl) ?? v.avatarUrl, 120) }} style={{ width: 44, height: 44, borderRadius: 12 }} /> : <View style={[ps.venueIcon]}><Icon name="store" size={20} color={colors.zinc600} /></View>}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={ps.rowName} numberOfLines={1}>{v.name}</Text>
-                <Text style={ps.rowSub} numberOfLines={1}>{[v.city, v.acceptsTxills ? 'Aceita vibes' : null].filter(Boolean).join(' · ') || `@${v.slug}`}</Text>
+                <Text style={ps.rowSub} numberOfLines={1}>{[v.city, v.acceptsTxills ? t('Aceita vibes') : null].filter(Boolean).join(' · ') || `@${v.slug}`}</Text>
               </View>
             </Pressable>
           )}

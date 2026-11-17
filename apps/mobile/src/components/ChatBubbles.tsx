@@ -849,7 +849,7 @@ export function Bubble({
       ) : waiting ? (
         // À espera de rede: a hora e o reloginho no lugar dos vistos (como no WhatsApp); vai sozinha quando a rede voltar.
         <View style={st.meta} accessibilityLiveRegion="polite">
-          <Text style={st.time}>{[clock(m.at), isLast ? (m.trying ? 'A enviar…' : 'À espera de rede') : null].filter(Boolean).join(' · ')}</Text>
+          <Text style={st.time}>{[clock(m.at), isLast ? (m.trying ? 'A enviar…' : t('À espera de rede')) : null].filter(Boolean).join(' · ')}</Text>
           <View accessible accessibilityLabel={t('À espera para enviar')} style={{ paddingRight: 2 }}><Icon name="clock" size={12} strokeWidth={2.2} color={colors.zinc500} /></View>
         </View>
       ) : m.state === 'sending' ? (

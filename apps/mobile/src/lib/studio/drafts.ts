@@ -66,7 +66,7 @@ export function clipsFromDraft(d: StudioDraft, urls: Map<string, string>): Proje
 export function draftLabel(d: Pick<StudioDraft, 'clips' | 'seconds'>): string {
   const n = d.clips?.length ?? 0;
   const s = d.seconds != null ? ` · ${Math.round(d.seconds)} s` : '';
-  return `${n} ${n === 1 ? 'clipe' : 'clipes'}${s}`;
+  return t('{count} clipe{s}', { count: n, s, other: '{count} clipes{s}' });
 }
 /** «agora mesmo», «há 5 min», «há 2 h», «ontem», «há 3 dias». */
 export function agoLabel(at: number, now = Date.now()): string {

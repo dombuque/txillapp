@@ -68,8 +68,8 @@ function contextOf(p: GroupCardProps): string {
   if (plan?.destination) parts.push(plan.destination);
   const dates = !passed ? dateRange(plan?.startsOn, plan?.endsOn) : null;
   if (dates) parts.push(dates.replace(' · ', ' a '));
-  if (plan?.going) parts.push(`${plan.going} ${plan.going === 1 ? 'vai' : 'vão'}`);
-  if (parts.length === 1) parts.push(`${p.members} ${p.members === 1 ? 'pessoa' : 'pessoas'}`);
+  if (plan?.going) parts.push(t('{count} vai', { count: plan.going, other: '{count} vão' }));
+  if (parts.length === 1) parts.push(t('{count} pessoa', { count: p.members, other: '{count} pessoas' }));
   return parts.join(' · ');
 }
 
@@ -105,13 +105,13 @@ export function GroupCard(p: GroupCardProps) {
 
   const label = [
     `${p.name}, TxillGroup${p.kind ? ` de ${kind.label.toLowerCase()}` : ''}`,
-    seal ? (p.access === 'public' ? 'público' : 'visível no mapa') : null,
+    seal ? (p.access === 'public' ? t('público') : t('visível no mapa')) : null,
     context.split(' · ').slice(1).join(', '),
     when,
-    `Última mensagem: ${p.lastMessage}, ${timeAgo(p.at).toLowerCase()}`,
-    unread ? `${p.unread} por ler` : null,
-    p.mixarNew ? 'Mixar do grupo com novidades' : null,
-    requests ? `${requests} ${requests === 1 ? 'pedido' : 'pedidos'} para entrar` : null,
+    t('Última mensagem: {lastMessage}, {timeAgo}', { lastMessage: p.lastMessage, timeAgo: timeAgo(p.at).toLowerCase() }),
+    unread ? t('{unread} por ler', { unread: p.unread }) : null,
+    p.mixarNew ? t('Mixar do grupo com novidades') : null,
+    requests ? t('{count} pedido para entrar', { count: requests, other: '{count} pedidos para entrar' }) : null,
   ].filter(Boolean).join('. ');
 
   return (

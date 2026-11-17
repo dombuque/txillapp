@@ -80,7 +80,7 @@ export const CLEARED_PREVIEW = () => t('Sem mensagens');
 export function emptyPreview(last: { empty?: boolean; cleared?: boolean }, group?: { members: number }): string | null {
   if (!last.empty) return null;
   if (!group || last.cleared) return CLEARED_PREVIEW();
-  return `${group.members} ${group.members === 1 ? 'pessoa' : 'pessoas'}`;
+  return t('{count} pessoa', { count: group.members, other: '{count} pessoas' });
 }
 
 /** Um aviso de sistema (kind 'system'): vai ao centro, sem bolha, sem menu. */

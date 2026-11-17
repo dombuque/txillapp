@@ -11,7 +11,7 @@ const count = (n: unknown): number => (typeof n === 'number' && Number.isFinite(
 /** "1 brinde", "12 brindes" (0 → "0 brindes"). */
 export function cheersCount(n: unknown): string {
   const k = count(n);
-  return `${k} ${k === 1 ? 'brinde' : 'brindes'}`;
+  return t('{count} brinde', { count: k, other: '{count} brindes' });
 }
 
 /**

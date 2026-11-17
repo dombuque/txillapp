@@ -191,7 +191,7 @@ export default function GroupThreadScreen() {
 
   const when = dateRange(group?.plan?.startsOn, group?.plan?.endsOn);
   // "8 pessoas · Tofo" (o Plano: destino ou datas; sem Plano, o tipo do grupo).
-  const count = group ? `${group.members.length} ${group.members.length === 1 ? 'pessoa' : 'pessoas'}` : '';
+  const count = group ? t('{count} pessoa', { count: group.members.length, other: '{count} pessoas' }) : '';
   const sub = group ? [count, group.plan?.destination || when || kindInfo(groupKindOf(group)).label].filter(Boolean).join(' · ') : '';
   const tabs = TABS.filter((t) => !(side && t.id === 'plan'));
 

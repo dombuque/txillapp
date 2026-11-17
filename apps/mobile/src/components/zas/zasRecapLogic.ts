@@ -26,7 +26,7 @@ export function daysLeft(iso: string, now = Date.now()): number {
 }
 
 /** «1 dia», «3 dias». */
-export const daysText = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`;
+export const daysText = (n: number) => t('{count} dia', { count: n, other: '{count} dias' });
 
 /** Até quando um Zás meu fica comigo: o guardado até `keepUntil` (ou o fim das 24 h, se o servidor não mandou). */
 export const keptUntil = (it: Kept) => it.keepUntil ?? it.expiresAt;

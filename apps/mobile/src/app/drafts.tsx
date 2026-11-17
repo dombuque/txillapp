@@ -45,7 +45,7 @@ export default function Drafts() {
         {items?.length === 0 && <EmptyState icon="file-text" title={t('Sem rascunhos')} text={t('Quando saíres de uma publicação sem a publicar, podes guardá-la aqui.')} />}
         {items?.map((d) => {
           const photos = d.photos.length;
-          const label = d.body.trim() || (photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : t('Sem texto'));
+          const label = d.body.trim() || (photos ? t('{count} foto', { count: photos, other: '{count} fotos' }) : t('Sem texto'));
           return (
             <View key={d.key} style={st.row}>
               <Pressable onPress={() => router.push({ pathname: '/new', params: { draft: d.key } } as never)} accessibilityRole="button" style={({ pressed }) => [st.open, pressed && { backgroundColor: colors.zinc100 }]}>

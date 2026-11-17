@@ -372,7 +372,8 @@ function transformFile(sf, seed) {
     const phrase = buildPhrase(parts, plusOps ? 'plus' : 'tpl', pt ? { subject: pt.subject, otherParts: pt.manyParts } : undefined);
     if (!phrase) return;
     if (phrase.plural) for (const p of parts) { const pc = p.e && isPluralCond(p.e); if (pc) { handled.add(skipOuter(skipOuter(p.e).whenTrue)); handled.add(skipOuter(skipOuter(p.e).whenFalse)); } }
-    let verdict = judge(phrase.staticText, ctx.strength);
+    // um plural evidente (`${n} ${n === 1 ? 'foto' : 'fotos'}`) já diz que é texto para ver
+    let verdict = judge(phrase.staticText, phrase.plural ? 'strong' : ctx.strength);
     // listas de textos (['janeiro', 'fevereiro', 'março', …]): decide-se a lista toda, para não ficar metade traduzida
     if (ctx.strength === 'weak') {
       let arr = u.parent; while (arr && ts.isParenthesizedExpression(arr)) arr = arr.parent;

@@ -143,12 +143,12 @@ function toItems(d: NearbyResult | undefined): Item[] {
   for (const v of d.venues ?? [])
     out.push({
       key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null, category: v.kind,
-      sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita vibes' : null].filter(Boolean).join(' · '),
+      sub: [KIND_LABEL[v.kind] ?? t('Local'), v.checkinsToday ? t('{count} check-in hoje', { count: v.checkinsToday, other: '{count} check-ins hoje' }) : null, v.acceptsTxills ? t('aceita vibes') : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
     out.push({
       key: `e:${e.id}`, kind: 'event', title: e.title, image: sized(e.coverUrl, 160) ?? null, distanceKm: e.distanceKm, lat: e.venue.lat, lng: e.venue.lng, date: e.startsAt, to: `/evento/${e.id}`, boost: e.boosted ?? null,
-      sub: [eventWhen(e.startsAt, e.endsAt), e.venue.name, e.interested ? `${e.interested} com interesse` : null].filter(Boolean).join(' · '),
+      sub: [eventWhen(e.startsAt, e.endsAt), e.venue.name, e.interested ? t('{interested} com interesse', { interested: e.interested }) : null].filter(Boolean).join(' · '),
     });
   for (const p of d.posts ?? [])
     out.push({
@@ -158,7 +158,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
   for (const g of d.groups ?? [])
     out.push({
       key: `g:${g.id}`, kind: 'group', title: g.name, image: sized(g.avatarUrl ?? g.coverUrl, 160) ?? null, distanceKm: g.distanceKm, lat: g.lat, lng: g.lng, group: g,
-      sub: ['TxillGroup', `${g.members} ${g.members === 1 ? 'membro' : 'membros'}`, g.destination].filter(Boolean).join(' · '),
+      sub: ['TxillGroup', t('{count} membro', { count: g.members, other: '{count} membros' }), g.destination].filter(Boolean).join(' · '),
     });
   for (const u of d.people ?? [])
     out.push({
@@ -1262,7 +1262,7 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
           <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
             <AccessBadge visibility={p?.visibility ?? group.visibility} />
             <Text style={st.cardText}>
-              {[GROUP_KIND[group.kind] ?? 'TxillGroup', `${members} ${members === 1 ? 'membro' : 'membros'}`, group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
+              {[GROUP_KIND[group.kind] ?? 'TxillGroup', t('{count} membro', { count: members, other: '{count} membros' }), group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
                 .filter(Boolean)
                 .join(' · ')}
             </Text>

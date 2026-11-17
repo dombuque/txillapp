@@ -38,13 +38,13 @@ export function applyItemCheer<T extends ShelfItem, G extends GeleiraLike<T>>(g:
 /** "12 gostos" / "1 gosto". */
 export function tastesCount(n: unknown): string {
   const k = count(n);
-  return `${k} ${k === 1 ? 'gosto' : 'gostos'}`;
+  return t('{count} gosto', { count: k, other: '{count} gostos' });
 }
 
 /** O que o leitor de ecrã diz num gosto do cartão (quem vê pode brindar; o dono só vê quantos brindes tem). */
 export function itemA11yLabel(i: { name: string; cheers?: number; cheered?: boolean; favorite?: boolean }, mine: boolean): string {
   const k = count(i.cheers);
-  const n = k ? `, ${k} ${k === 1 ? 'brinde' : 'brindes'}` : '';
+  const n = k ? t(', {count} brinde', { count: k, other: ', {count} brindes' }) : '';
   const fav = i.favorite ? ', favorito' : '';
   if (mine) return `${i.name}${fav}${n}`;
   return i.cheered ? t('{name}{fav}{n}. Tirar o brinde', { name: i.name, fav, n }) : `Brindar a ${i.name}${fav}${n}`;

@@ -133,7 +133,7 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
           </div>
         ) : rhythm ? (
           <div style={row} aria-label={t('Batidas da foto')}>
-            {PHOTO_BEATS.map((b) => chip(clip.beats === b, `${b}♪`, () => onPhoto({ beats: b }), `${b} ${b === 1 ? 'batida' : 'batidas'}`))}
+            {PHOTO_BEATS.map((b) => chip(clip.beats === b, `${b}♪`, () => onPhoto({ beats: b }), t('{count} batida', { count: b, other: '{count} batidas' })))}
             <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 4 }}>{t('{s} s ao ritmo', { s: fmtS(duration) })}</span>
           </div>
         ) : (

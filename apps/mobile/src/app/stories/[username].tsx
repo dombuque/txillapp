@@ -475,8 +475,8 @@ export default function StoryViewer() {
   // painel junta a altura do teclado por baixo (só falta o que a janela encolheu a mais).
   const panelBottom = Platform.OS === 'web' ? kbArea.cover : Math.max(0, kbArea.cover - kb);
   const sub = [
-    cur.audience === 'close_friends' ? 'Amigos próximos' : null,
-    cur.sharedFrom ? `Publicação de @${cur.sharedFrom.username}` : null,
+    cur.audience === 'close_friends' ? t('Amigos próximos') : null,
+    cur.sharedFrom ? t('Publicação de @{username}', { username: cur.sharedFrom.username }) : null,
     mine ? expiresIn(cur.expiresAt) : null,
   ].filter(Boolean).join(' · ');
   const fade = hideUi ? st.hidden : null;

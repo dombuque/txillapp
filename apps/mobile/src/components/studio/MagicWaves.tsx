@@ -25,7 +25,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
   privacy?: string;
 }) {
   const wave = waveById(value);
-  const count = [photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : '', videos ? `${videos} ${videos === 1 ? 'vídeo' : 'vídeos'}` : ''].filter(Boolean).join(' e ');
+  const count = [photos ? t('{count} foto', { count: photos, other: '{count} fotos' }) : '', videos ? t('{count} vídeo', { count: videos, other: '{count} vídeos' }) : ''].filter(Boolean).join(' e ');
   return (
     <View style={st.root}>
       <MagicBackdrop />

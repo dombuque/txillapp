@@ -71,7 +71,7 @@ export function togglePrivate(list: readonly string[], topic: string, on: boolea
 }
 
 /** «Nenhum» / «1 tema» / «3 temas» (na linha das definições). */
-export const privateCountLabel = (n: number) => (n <= 0 ? t('Nenhum') : n === 1 ? '1 tema' : `${n} temas`);
+export const privateCountLabel = (n: number) => (n <= 0 ? t('Nenhum') : t('{count} tema', { count: n, other: '{count} temas' }));
 
 /* ---------- Resumo da semana ---------- */
 

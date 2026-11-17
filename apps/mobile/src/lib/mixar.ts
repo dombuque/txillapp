@@ -88,9 +88,9 @@ export function matchLine(n: number | null | undefined): string {
 }
 
 /** «1 dia» / «3 dias». */
-export const daysLabel = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`;
+export const daysLabel = (n: number) => t('{count} dia', { count: n, other: '{count} dias' });
 /** «1 vez» / «4 vezes». */
-export const timesLabel = (n: number) => `${n} ${n === 1 ? 'vez' : 'vezes'}`;
+export const timesLabel = (n: number) => t('{count} vez', { count: n, other: '{count} vezes' });
 
 /* ---------- O cartão do chat (kind 'mixar') ---------- */
 

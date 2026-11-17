@@ -44,7 +44,7 @@ export function FollowVenueButton({ venue, compact = false }: { venue: Venue; co
 export function VenueRow({ venue, onPress, right }: { venue: Venue; onPress?: () => void; right?: 'follow' | 'role' | 'none' }) {
   const router = useRouter();
   const go = onPress ?? (() => router.push({ pathname: '/v/[slug]', params: { slug: venue.slug } }));
-  const sub = [KIND_LABEL[venue.kind] ?? 'Outro', venue.city, `${venue.followers} ${venue.followers === 1 ? 'seguidor' : 'seguidores'}`].filter(Boolean).join(' · ');
+  const sub = [KIND_LABEL[venue.kind] ?? t('Outro'), venue.city, t('{count} seguidor', { count: venue.followers, other: '{count} seguidores' })].filter(Boolean).join(' · ');
   return (
     <View style={st.row}>
       <Pressable onPress={go} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="link" accessibilityLabel={venue.name}>
