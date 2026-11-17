@@ -4,13 +4,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TERMS_UPDATED, type LegalBlock } from '@/lib/legalText';
 import { colors } from '@/lib/theme';
 import { StackPage } from './StackPage';
-import { t } from '@/lib/i18n';
+import { currentLanguage, formatDate, monthNames, SOURCE_LANG, t } from '@/lib/i18n';
 
-const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')];
 /** "2026-10" -> "outubro de 2026". */
 const updated = (v: string) => {
   const [y, m] = v.split('-');
-  return `${MONTHS()[Number(m) - 1] ?? ''} de ${y}`;
+  if (currentLanguage() !== SOURCE_LANG && Number(m) >= 1 && Number(m) <= 12) return formatDate(new Date(Number(y), Number(m) - 1, 1), { month: 'long', year: 'numeric' });
+  return `${monthNames()[Number(m) - 1] ?? ''} de ${y}`;
 };
 
 /** Texto com **negrito** e __itálico__. */

@@ -2,7 +2,7 @@
 // mensagens de localização e de erro, e que tipos se pedem ao servidor).
 // Sem dependências (os testes correm em Node: tests/nearbyView.test.mjs).
 
-import { t } from '@/lib/i18n';
+import { monthNames, t, weekdayNames } from '@/lib/i18n';
 export type NearbyKind = 'venues' | 'events' | 'posts' | 'groups' | 'people';
 export type NearbyWhen = 'now' | 'today' | 'week';
 export type NearbyFilter = 'all' | 'venues' | 'events' | 'people' | 'posts' | 'groups';
@@ -69,8 +69,6 @@ export function kmLabel(km: number): string {
 /** Um evento sem hora de fim conta como "a decorrer" durante 4 horas (a mesma regra do servidor). */
 export const DEFAULT_EVENT_HOURS = 4;
 
-const WD = () => [t('dom'), t('seg'), t('ter'), t('qua'), t('qui'), t('sex'), t('sáb')];
-const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 /** "Hoje · 21:00", "Amanhã · 18:30", "sáb, 14 nov · 22:00", "A decorrer · 21:00 até 23:00". */
@@ -83,7 +81,7 @@ export function eventWhen(startsAt: string, endsAt?: string | null, now: Date = 
   const hasEnd = !!e && !isNaN(e.getTime());
   const end = hasEnd ? e!.getTime() : d.getTime() + DEFAULT_EVENT_HOURS * 3_600_000;
   const live = d.getTime() <= now.getTime() && now.getTime() <= end;
-  const head = live ? 'A decorrer' : diff === 0 ? 'Hoje' : diff === 1 ? 'Amanhã' : `${WD()[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]}`;
+  const head = live ? 'A decorrer' : diff === 0 ? 'Hoje' : diff === 1 ? 'Amanhã' : `${weekdayNames()[d.getDay()]}, ${d.getDate()} ${monthNames('short')[d.getMonth()]}`;
   return `${head} · ${hm(d)}${hasEnd ? (' ' + t('até {hm}', { hm: hm(e!) })) : ''}`;
 }
 

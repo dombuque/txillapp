@@ -206,3 +206,41 @@ export function formatNumber(n: number, opts?: Intl.NumberFormatOptions): string
     return String(n);
   }
 }
+
+const PT_MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const PT_WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+const capital = (s: string) => (s ? s[0].toLocaleUpperCase() + s.slice(1) : s);
+
+/** Os nomes pelo Intl (UTC, para o dia não mudar com o fuso); null se o Intl não os tiver. */
+function intlNames(count: number, at: (i: number) => Date, opts: Intl.DateTimeFormatOptions): string[] | null {
+  try {
+    const f = new Intl.DateTimeFormat(localeOf(), { ...opts, timeZone: 'UTC' });
+    return Array.from({ length: count }, (_, i) => f.format(at(i)));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Os nomes dos meses (0 = janeiro) no idioma ativo. Em português são os da casa: «novembro», e curtos «nov» (sem ponto);
+ * nos outros idiomas vêm do Intl («November», «Nov»). `capital` põe a primeira letra em maiúscula.
+ */
+export function monthNames(width: 'long' | 'short' = 'long', opts: { capital?: boolean } = {}): string[] {
+  const pt = width === 'long' ? PT_MONTHS : PT_MONTHS.map((m) => m.slice(0, 3));
+  const names = active === SOURCE_LANG ? pt : intlNames(12, (i) => new Date(Date.UTC(2024, i, 15)), { month: width }) ?? pt;
+  return opts.capital ? names.map(capital) : names;
+}
+
+/**
+ * Os nomes dos dias da semana (0 = domingo, como `Date.getDay()`) no idioma ativo. Em português: «segunda-feira», e
+ * curtos «seg» (sem ponto); nos outros idiomas vêm do Intl («Monday», «Mon»). `capital` põe a primeira letra em maiúscula.
+ */
+export function weekdayNames(width: 'long' | 'short' = 'short', opts: { capital?: boolean } = {}): string[] {
+  const pt = width === 'long' ? PT_WEEKDAYS : PT_WEEKDAYS.map((d) => d.slice(0, 3));
+  // 7 de janeiro de 2024 foi um domingo.
+  const names = active === SOURCE_LANG ? pt : intlNames(7, (i) => new Date(Date.UTC(2024, 0, 7 + i)), { weekday: width }) ?? pt;
+  return opts.capital ? names.map(capital) : names;
+}
+
+/** Abreviatura com ponto só em português («seg.», «nov.»); nos outros idiomas fica como o Intl a dá. */
+export const abbr = (s: string) => (active === SOURCE_LANG ? `${s}.` : s);

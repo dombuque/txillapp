@@ -4,12 +4,9 @@
  * (UTC+2, sem hora de verão), como o servidor que gera o resumo ao domingo à noite.
  */
 
-import { t } from '@/lib/i18n';
+import { currentLanguage, formatDate, monthNames, SOURCE_LANG, t, weekdayNames } from '@/lib/i18n';
 const DAY = 86_400_000;
 const MZ_OFFSET = 2 * 3_600_000;
-const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')];
-const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const WEEKDAYS = () => [t('dom'), t('seg'), t('ter'), t('qua'), t('qui'), t('sex'), t('sáb')];
 
 type Kept = { active?: boolean; keepUntil?: string | null; expiresAt: string };
 type Recap = { label: string; count: number; expiresAt: string; published: { audience: 'all' | 'close_friends' } | null };
@@ -40,13 +37,14 @@ export function gridBadge(it: Kept, now = Date.now()): string {
 /** «ter., 10 nov» (hora de Moçambique). */
 export function shortDay(iso: string): string {
   const d = mz(iso);
-  return `${WEEKDAYS()[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]}`;
+  return `${weekdayNames()[d.getUTCDay()]}, ${d.getUTCDate()} ${monthNames('short')[d.getUTCMonth()]}`;
 }
 
 /** «22 de novembro» (hora de Moçambique). */
 export function longDay(iso: string): string {
   const d = mz(iso);
-  return `${d.getUTCDate()} de ${MONTHS()[d.getUTCMonth()]}`;
+  if (currentLanguage() !== SOURCE_LANG) return formatDate(d, { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  return `${d.getUTCDate()} de ${monthNames()[d.getUTCMonth()]}`;
 }
 
 /** No visor dos meus, por baixo do Zás guardado: «só tu vês · apaga-se daqui a 3 dias» (amanhã / hoje no fim). */

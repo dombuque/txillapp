@@ -1,8 +1,7 @@
 // A linha de uma conversa na lista de Mensagens: a hora à direita do nome e o contador de por ler.
 // Sem dependências (os testes correm em Node: tests/inboxRow.test.mjs).
 
-import { t } from '@/lib/i18n';
-const DAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
+import { t, weekdayNames } from '@/lib/i18n';
 const two = (n: number) => String(n).padStart(2, '0');
 
 /** Meia-noite local do dia de `d`. */
@@ -22,7 +21,7 @@ export function listTime(iso: string, now: Date = new Date()): string {
   const days = Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
   if (days <= 0) return `${two(d.getHours())}:${two(d.getMinutes())}`;
   if (days === 1) return t('Ontem');
-  if (days < 7) return DAYS()[d.getDay()];
+  if (days < 7) return weekdayNames('short', { capital: true })[d.getDay()];
   const dm = `${two(d.getDate())}/${two(d.getMonth() + 1)}`;
   return d.getFullYear() === now.getFullYear() ? dm : `${dm}/${two(d.getFullYear() % 100)}`;
 }

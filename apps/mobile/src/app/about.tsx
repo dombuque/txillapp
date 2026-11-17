@@ -8,13 +8,13 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { buildId } from '@/lib/push';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { currentLanguage, formatDate, monthNames, SOURCE_LANG, t } from '@/lib/i18n';
 
 const SUPPORT = 'suporte@txillapp.com';
-const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')];
 const longDate = (iso: string) => {
   const d = new Date(iso);
-  return t('{date} de {month} de {fullYear}', { date: d.getDate(), month: MONTHS()[d.getMonth()], fullYear: d.getFullYear() });
+  if (currentLanguage() !== SOURCE_LANG) return formatDate(d, { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${d.getDate()} de ${monthNames()[d.getMonth()]} de ${d.getFullYear()}`;
 };
 
 /** Sobre: a tua conta, a política de privacidade, os termos e a versão. */

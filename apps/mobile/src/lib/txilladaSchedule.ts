@@ -6,7 +6,7 @@
  * Os testes em tests/txilladaAgendar.test.mjs importam este ficheiro diretamente.
  */
 import { formatVibes } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { abbr, currentLanguage, formatDate, monthNames, SOURCE_LANG, t, weekdayNames } from '@/lib/i18n';
 
 /** Pelo menos 15 min à frente, no máximo 30 dias; a grelha de 15 em 15 min; «Começar» a partir de 60 min antes. */
 export const LEAD_MIN = 15;
@@ -21,10 +21,10 @@ export const MAX_SCHEDULED = 5;
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
 
-export const WEEKDAYS = () => ['domingo', 'segunda-feira', t('terça-feira'), 'quarta-feira', 'quinta-feira', 'sexta-feira', t('sábado')] as const;
-export const WEEKDAYS_SHORT = () => [t('dom.'), t('seg.'), t('ter.'), t('qua.'), t('qui.'), t('sex.'), t('sáb.')] as const;
-export const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')] as const;
-export const MONTHS_SHORT = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'] as const;
+export const WEEKDAYS = () => weekdayNames('long');
+export const WEEKDAYS_SHORT = () => weekdayNames('short').map(abbr);
+export const MONTHS = () => monthNames('long');
+export const MONTHS_SHORT = () => monthNames('short').map(abbr);
 /** A semana do calendário começa à segunda (como em Moçambique e em Portugal). */
 export const WEEK_INITIALS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
 
@@ -119,7 +119,8 @@ export function monthGrid(year: number, month: number, now: number): (CalendarCe
   return weeks;
 }
 /** «Novembro de 2026». */
-export const monthTitle = (year: number, month: number): string => `${cap(MONTHS()[((month % 12) + 12) % 12])} de ${year}`;
+export const monthTitle = (year: number, month: number): string =>
+  currentLanguage() !== SOURCE_LANG ? cap(formatDate(new Date(year, ((month % 12) + 12) % 12, 1), { month: 'long', year: 'numeric' })) : `${cap(MONTHS()[((month % 12) + 12) % 12])} de ${year}`;
 /** Os meses que o calendário mostra: do de hoje ao de daqui a 30 dias. */
 export function monthRange(now: number): { first: { year: number; month: number }; last: { year: number; month: number } } {
   const a = new Date(now);
@@ -167,7 +168,7 @@ export function fmtWhen(at: number | string, now: number, long = false): string 
   const diff = dayDiff(now, d);
   const wd = long ? WEEKDAYS()[d.getDay()] : WEEKDAYS_SHORT()[d.getDay()];
   if (diff >= -1 && diff <= 6) return `${wd}, ${hhmm(d)}`;
-  return long ? `${wd}, ${d.getDate()} de ${MONTHS()[d.getMonth()]}, ${hhmm(d)}` : `${wd}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${hhmm(d)}`;
+  return long ? t('{wd}, {date} de {month}, {hhmm}', { wd, date: d.getDate(), month: MONTHS()[d.getMonth()], hhmm: hhmm(d) }) : `${wd}, ${d.getDate()} ${MONTHS_SHORT()[d.getMonth()]}, ${hhmm(d)}`;
 }
 /** «Hoje às 20:00», «Amanhã às 20:00», «Sábado às 20:00» ou «Sábado, 28 de novembro às 20:00». */
 export function fmtDay(at: number | string, now: number): string {

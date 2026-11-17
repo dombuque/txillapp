@@ -14,9 +14,8 @@ import { locaisApi } from '@/lib/api.locais';
 import { nearbyApi } from '@/lib/api.nearby';
 import { formatAddress, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { t, weekdayNames } from '@/lib/i18n';
 
-const WD = () => [t('dom'), t('seg'), t('ter'), t('qua'), t('qui'), t('sex'), t('sáb')];
 const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DAYS = 45;
 /** "21:30" → [21, 30]; aceita "2130" e "21h30". */
@@ -172,7 +171,7 @@ export default function NovoEvento() {
                 const on = i === day;
                 return (
                   <Pressable key={i} onPress={() => setDay(i)} style={[st.day, on && st.dayOn]} accessibilityRole="radio" accessibilityState={{ selected: on }}>
-                    <Text style={[st.dayTop, on && { color: colors.white }]}>{i === 0 ? t('Hoje') : i === 1 ? t('Amanhã') : WD()[d.getDay()]}</Text>
+                    <Text style={[st.dayTop, on && { color: colors.white }]}>{i === 0 ? t('Hoje') : i === 1 ? t('Amanhã') : weekdayNames()[d.getDay()]}</Text>
                     <Text style={[st.dayNum, on && { color: colors.white }]}>{d.getDate()}</Text>
                     <Text style={[st.dayTop, on && { color: colors.white }]}>{MO[d.getMonth()]}</Text>
                   </Pressable>

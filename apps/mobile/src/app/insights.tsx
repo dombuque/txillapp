@@ -12,11 +12,10 @@ import { StackPage } from '@/components/StackPage';
 import { extraApi } from '@/lib/api.extra';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { t, weekdayNames } from '@/lib/i18n';
 
 type Period = 7 | 30 | 90;
 const num = (n: number) => n.toLocaleString('pt-PT');
-const DAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
 const GENDER: Record<string, string> = { get female() { return t('Mulheres'); }, get male() { return t('Homens'); }, get other() { return t('Outro'); } };
 
 function Card({ children, style }: { children: ReactNode; style?: object }) {
@@ -126,7 +125,7 @@ export default function Insights() {
             <Card>
               <Text style={st.bold}>{t('Quando a malta reage mais')}</Text>
               {bestHour && bestHour.value > 0 && bestDay ? (
-                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Melhor hora: {hour}h · melhor dia: {day}', { hour: bestHour.hour, day: DAYS()[bestDay.dow] })}</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Melhor hora: {hour}h · melhor dia: {day}', { hour: bestHour.hour, day: weekdayNames('short', { capital: true })[bestDay.dow] })}</Text>
               ) : (
                 <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc500 }}>{t('Ainda sem dados suficientes.')}</Text>
               )}

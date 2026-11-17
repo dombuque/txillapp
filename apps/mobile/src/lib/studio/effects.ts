@@ -13,7 +13,7 @@
  */
 
 /** Versão do contrato JSON (sobe quando um campo muda de significado). */
-import { t } from '@/lib/i18n';
+import { abbr, monthNames, t, weekdayNames } from '@/lib/i18n';
 export const FX_VERSION = 1;
 /** O quadro da tcheka: 9:16 a 30 fps. Todas as medidas em px das camadas são deste quadro. */
 export const FRAME = { w: 1080, h: 1920, fps: 30 } as const;
@@ -587,13 +587,11 @@ export function contrastOn(hex: string): '#111111' | '#ffffff' {
   const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
   return L > 0.4 ? '#111111' : '#ffffff';
 }
-const DIAS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
-const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
 /** O texto do sticker da hora, na hora de Moçambique (UTC+2, sem hora de verão): «22:41», «Qui, 12 nov.». */
 export function timeLabel(format: 'hora' | 'data' | 'hora-data', at: number): string[] {
   const d = new Date(at + 2 * 3600 * 1000);
   const hora = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  const data = `${DIAS()[d.getUTCDay()]}, ${d.getUTCDate()} ${MESES[d.getUTCMonth()]}`;
+  const data = `${weekdayNames('short', { capital: true })[d.getUTCDay()]}, ${d.getUTCDate()} ${abbr(monthNames('short')[d.getUTCMonth()])}`;
   return format === 'hora' ? [hora] : format === 'data' ? [data] : [hora, data];
 }
 

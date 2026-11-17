@@ -10,7 +10,7 @@
  */
 
 /** Mais do que isto entre duas mensagens: separador de hora. */
-import { t } from '@/lib/i18n';
+import { monthNames, t, weekdayNames } from '@/lib/i18n';
 export const GAP_MS = 15 * 60_000;
 /** Mensagens seguidas da mesma pessoa até isto: juntam-se (cantos interiores e 2 pt entre elas). */
 export const JOIN_MS = 3 * 60_000;
@@ -34,8 +34,7 @@ export interface TimelineRow {
   nextSame: boolean;
 }
 
-const WEEKDAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
-const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const WEEKDAYS = () => weekdayNames('short', { capital: true });
 
 const tv = (iso: string) => new Date(iso).getTime();
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -44,7 +43,7 @@ const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(
 /** Dias de calendário entre `d` e `now` (0 = hoje, 1 = ontem; negativo = no futuro). Arredonda por causa da hora de verão. */
 const daysAgo = (d: Date, now: Date) => Math.round((midnight(now) - midnight(d)) / 86_400_000);
 const sameDay = (a: string, b: string) => midnight(new Date(a)) === midnight(new Date(b));
-const dayMonth = (d: Date, now: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() !== now.getFullYear() ? ` ${d.getFullYear()}` : ''}`;
+const dayMonth = (d: Date, now: Date) => `${d.getDate()} ${monthNames('short')[d.getMonth()]}${d.getFullYear() !== now.getFullYear() ? ` ${d.getFullYear()}` : ''}`;
 
 /** O dia (separador quando muda o dia): "Hoje, 10 nov", "Ontem", "Seg, 9 nov" (últimos 7 dias), "12 nov", "12 nov 2025". */
 export function dayLabel(iso: string, now: Date = new Date()): string {
