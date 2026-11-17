@@ -59,7 +59,8 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
-  // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174).
+  // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174) e os avisos da Txillada
+  // agendada (0176): o txillada_live a quem pediu lembrete, txillada_scheduled_cancelled e, ao anfitrião, _soon e _now.
   txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, os convites para transmitir ou para vir ver quando te mencionam, e as Txilladas agendadas: quando começa uma que pediste para lembrar (ou a cancelam ou mudam de hora) e os avisos das tuas, 15 min antes e na hora'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
@@ -81,7 +82,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
   remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
-  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir', 'reabrir', 'angariação', 'menção na txillada', 'vem ver'],
+  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir', 'reabrir', 'angariação', 'menção na txillada', 'vem ver', 'agendar', 'agendada', 'txillada agendada', 'lembrar-me', 'em breve'],
   zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
   mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar', 'mixar do grupo', 'mixar de grupo', 'propôs um mixar'],
 };
