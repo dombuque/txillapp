@@ -87,8 +87,9 @@ livekit/livekit-server --dev --bind 0.0.0.0` (chave `devkey`, segredo `secret`, 
 - **«@fulano entrou»:** quando alguém (que não o anfitrião) faz `join`, o anfitrião e quem vê recebem `txillada.joined`
   (menos o próprio e quem tem bloqueio com quem entrou), no máximo uma vez por pessoa por Txillada a cada 60 s (as
   religações não repetem). Sai do `join` da API (o webhook pode não estar ligado).
-- **Fim:** o anfitrião termina; ou o LiveKit avisa `room_finished` (webhook); ou ninguém publica vídeo há 60 s; ou a
-  moderação corta (`cut`). Ao acabar, todos os espectadores recebem `txillada.ended`. Acaba para todos: os convidados
+- **Fim:** o anfitrião termina; ou o anfitrião está fora da sala há mais de 3 min (a ligação caiu, saiu, a sala fechou ou
+  ficou sem nenhuma faixa; desligar só a câmara não conta), com `endReason: 'lost'` (ver «Ligação do anfitrião (0180)»); ou
+  passam as 4 h; ou a moderação corta (`cut`). Ao acabar, todos os espectadores recebem `txillada.ended`. Acaba para todos: os convidados
   deixam de transmitir (`left`) e os pedidos e convites à espera caem (`cancelled`).
 
 ## Convidados (0165): até 4 pessoas a transmitir
@@ -219,7 +220,7 @@ Uma Txillada com Angariação que o anfitrião acabou (`status: 'ended'`, não c
   ofereceu, as entradas pagas, `peakViewers`, os brindes e os comentários (o histórico continua).
 - **O que muda:** `status: 'live'`, `endedAt: null`, `startedAt` = agora (as 4 h contam outra vez), `viewers: 0`, uma **sala
   nova** no LiveKit (`tx-<id>-r<n>`: os tokens da sala antiga não voltam a entrar e o `room_finished` dela já não acaba esta),
-  o vídeo com os mesmos 60 s de folga de uma nova (a tarefa não a acaba logo), sem o fixado e sem convidados (ninguém fica a
+  a mesma margem de 3 min de uma nova para o anfitrião entrar (a tarefa não a acaba logo), sem o fixado e sem convidados (ninguém fica a
   transmitir nem à espera). As expulsões ficam.
 - **Numa paga:** quem já pagou entra sem pagar outra vez (`txilladaTicket`); acabar e reabrir não devolve nem cobra nada (só
   uma Txillada cortada devolve as entradas).
@@ -238,6 +239,46 @@ Uma Txillada com Angariação que o anfitrião acabou (`status: 'ended'`, não c
   dois avisos `txillada_live` da mesma Txillada em 10 min. No telemóvel: «@anfitrião reabriu a Txillada: <título>». Só quem
   pode ver a Txillada, não expulso e sem «Txilladas» desligado.
 - Testes: `apps/api/src/txillada/txillada-reabrir.e2e.spec.ts`.
+
+### Ligação do anfitrião (0180)
+
+Uma ligação fraca do anfitrião não pode acabar a Txillada à primeira. Migração `0180_txillada_fim_motivo.sql`:
+`host_gone_at` (desde quando o anfitrião está fora; NULL quando está lá), `end_reason` ('lost' ou NULL) e `resumes`.
+
+- **Câmara desligada (0174) não acaba:** o anfitrião continua na sala com o microfone; só conta como fora sem nenhuma faixa.
+- **Fora da sala:** `participant_left`, `participant_connection_aborted` e `room_finished` do anfitrião, e o
+  `track_unpublished` que o deixa sem nenhuma faixa (perguntado ao LiveKit), põem `host_gone_at` (se ainda não estava). Ao
+  criar (e ao reabrir ou continuar), `host_gone_at` = agora: ainda não entrou. `participant_joined` e `track_published`
+  (qualquer faixa) do anfitrião tiram-no: a margem cai.
+- **A tarefa (de 20 em 20 s):** com `host_gone_at` há mais de 3 min (`HOST_GONE_MS = 180_000`), pergunta ao LiveKit
+  (`participants`): se o anfitrião lá está com alguma faixa, a margem cai; se não (ou a sala já não existe), acaba com
+  `end_reason = 'lost'`. Sem notícias do webhook há mais de 60 s (`HOST_CHECK_MS`), também pergunta: fora, a margem começa
+  aí; lá, conta outra vez. O LiveKit sem responder: tenta na volta seguinte (as 4 h travam o resto).
+- **`room_finished` já não acaba logo:** a sala fecha vazia e cria-se outra vez quando o anfitrião volta (`auto_create`).
+  A API cria cada sala (`createRoom` em `livekit.ts`) com `emptyTimeout` e `departureTimeout` de 300 s, e o
+  `infra/live/livekit.yaml.example` tem os mesmos 300 s (antes 60 e 20), para a sala não morrer durante uma religação.
+- **Fim por 'lost':** `txillada.ended` leva `reason: 'lost'`. Quem tinha a Txillada aberta fica no conjunto de quem vê
+  (até ~5 h), para receber `txillada.resumed`; quem está na sala sai da contagem.
+- **No DTO (todos):** `endReason: 'lost' | null` e `resumeUntil: string | null` (com 'lost', até quando o anfitrião ainda
+  pode continuar: `endedAt` + 10 min; null quando já passou). Só para o anfitrião, `canReopen` e `reopenUntil` também valem
+  nesse caso (`reopenUntil` = `resumeUntil`; depois dos 10 min, uma Angariação volta às regras de «Reabrir (0174)»).
+- **Continuar (`POST /txilladas/:id/reopen`):** com 'lost' e dentro dos 10 min, qualquer tipo, sem gastar as reaberturas da
+  Angariação e sem avisar os seguidores. A mesma Txillada volta a 'live' numa **sala nova** (`tx-<id>-c<n>`; os tokens da
+  antiga não entram), `startedAt` igual (as 4 h contam do início), o fixado fica, sem convidados (saíram ao acabar),
+  `viewers: 0`, `resumes + 1`. Quem tinha a Txillada aberta recebe `{ type: 'txillada.resumed', txilladaId }` e volta a
+  entrar com `POST /join`. Erros: 403 a quem não é o anfitrião; 409 `other_live` (com outra a decorrer),
+  `not_reopenable` (corrida); 410 `too_late` «Já passaram mais de 10 minutos desde que a ligação caiu: já não se pode
+  continuar. Abre uma Txillada nova.» (sem Angariação) ou «Esta Txillada já chegou às 4 horas…»; 429 (o mesmo limite).
+- **Ações depois do fim:** todos os 409 «A Txillada já acabou.» (e o 410 do `join`) levam `code: 'ended'`. A app passa
+  logo ao fim, sem ficar «AO VIVO».
+- **App:** ao receber `txillada.ended` ou um erro com `code: 'ended'`, mostra o fim. O anfitrião, com 'lost' e
+  `canReopen`, vê «A tua ligação caiu e a Txillada parou. Podes continuar até às HH:MM.» e «Continuar a Txillada» (chama
+  o reopen e volta a ligar à sala nova). Quem vê lê «A ligação do anfitrião caiu» e «Se ele continuar, voltas a entrar
+  sozinho.»: com `txillada.resumed` (ou perguntando o `GET` de 10 em 10 s até `resumeUntil`), volta a entrar. Enquanto
+  a sala está «a voltar a ligar», as ações do anfitrião que mexem no servidor (tirar, aceitar, recusar, convidar, fixar,
+  apagar, expulsar) não vão e dizem «A ligação está fraca. Espera que volte a ligar e tenta outra vez.»; cada ação vai uma
+  vez de cada vez (o botão fica ocupado). Os erros da folha dos Convidados aparecem dentro dela e no aviso por cima.
+- Testes: `apps/api/src/txillada/txillada-ligacao.e2e.spec.ts`; na app, `apps/mobile/tests/txilladaLigacao.test.mjs`.
 
 ## Tipos e Angariação (0167)
 
@@ -268,7 +309,7 @@ M.' }` (a app aponta para a carteira; as vibes não se compram aqui nem se levan
 backoffice ou pela fila de queixas): cada entrada volta a quem pagou, uma vez só (tipo 'txillada_refund', chave
 `txillada_refund:<id da entrada>` do anfitrião); sai da carteira do anfitrião e, se ele já gastou parte, a diferença sai da
 emissão (quem pagou recebe sempre tudo). A tarefa de 20 em 20 s volta a tentar as que falharem. O anfitrião terminar (ou o
-fim sem vídeo, as 4 h, o webhook) não devolve.
+fim por a ligação dele cair, as 4 h) não devolve, nem ao continuar.
 
 **Angariação** (qualquer tipo): ao abrir, `goal` (10 a 1 000 000 vibes) e `purpose` (0 a 80, pelo filtro de palavras, como
 o título). **Ofertas** (`POST /txilladas/:id/gifts` `{ amount: 1..5000, key }`, com ou sem meta): quem vê (com a entrada,
@@ -315,7 +356,7 @@ Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na
 | `GET /txilladas/:id` | quem pode ver | `TxilladaDto` |
 | `POST /txilladas/:id/join` | quem pode ver | `{ token, url }` (só `canSubscribe`, visível na sala — sem `hidden`; o anfitrião recebe `canPublish`); manda `txillada.joined` |
 | `POST /txilladas/:id/end` | anfitrião | `TxilladaDto` (status 'ended') |
-| `POST /txilladas/:id/reopen` | anfitrião | 200 `TxilladaDto` (a mesma Txillada outra vez 'live'; o token vem do `POST /join`). 403 a quem não é o anfitrião; 409 com `code` (`still_live`, `cut`, `no_goal`, `goal_reached`, `reopens_max`, `other_live` com `id`, `not_reopenable`); 410 `too_late` (mais de 24 h); 429. Ver «Reabrir (0174)» |
+| `POST /txilladas/:id/reopen` | anfitrião | 200 `TxilladaDto` (a mesma Txillada outra vez 'live'; o token vem do `POST /join`). 403 a quem não é o anfitrião; 409 com `code` (`still_live`, `cut`, `no_goal`, `goal_reached`, `reopens_max`, `other_live` com `id`, `not_reopenable`); 410 `too_late` (mais de 24 h); 429. Ver «Reabrir (0174)». Com `endReason: 'lost'` e dentro dos 10 min: continuar, qualquer tipo (ver «Ligação do anfitrião (0180)») |
 | `GET /txilladas/:id/comments?after=<id>&before=<id>` | quem pode ver | `{ items: TxilladaComment[], more }` (no máximo 50, do mais antigo para o mais recente: sem nada, os mais recentes; `after`, os mais recentes depois desse; `before`, os 50 antes desse, o histórico; `more`: há mais antigos do que a página) |
 | `POST /txilladas/:id/comments` `{ body }` | quem pode comentar | `TxilladaComment & { invited: string[] }` (os @ mencionados que receberam agora o aviso-convite; ver «Menções (txillada-voltar)») |
 | `DELETE /txilladas/:id/comments/:commentId` | anfitrião ou autor | 204 |
@@ -327,14 +368,14 @@ Carteira: o histórico mostra «Entrada na Txillada de @x» / «Entrada de @x na
 | `POST /txilladas/:id/comments/:commentId/report` `{ reason, note? }` | quem pode ver | 204 (fila de denúncias, `target_type = 'txillada_comment'`; 30 por hora) — deixa de aparecer a quem denunciou (lista, balões e fixado); fica guardado até à decisão; 404 se já foi apagado |
 | `POST /txilladas/:id/pin` `{ commentId: uuid \| null }` | anfitrião | 200 `{ pinned: TxilladaComment \| null }` — fixa (troca o que estava) ou tira com null; só a decorrer (409), só um comentário desta Txillada que ainda se vê (404), 403 a quem não é anfitrião; 60 por minuto. Manda `txillada.pinned` se mudou |
 | `POST /txilladas/:id/report` `{ reason }` | quem pode ver | 204 (entra na fila de denúncias, `target_type = 'txillada'`) |
-| `POST /txilladas/livekit-webhook` | LiveKit (assinado) | 200 — `participant_joined/left` atualiza `viewers`/`peak_viewers`; `room_finished` acaba |
+| `POST /txilladas/livekit-webhook` | LiveKit (assinado) | 200 — `participant_joined/left` atualiza `viewers`/`peak_viewers`; do anfitrião, `participant_*`, `track_*` e `room_finished` dão ou tiram a margem de 3 min (ver «Ligação do anfitrião (0180)») |
 | `GET /admin/txilladas` | backoffice | as que estão a decorrer, com denúncias |
 | `POST /admin/txilladas/:id/cut` `{ reason }` | backoffice | 204 — apaga a sala no LiveKit, status 'cut' |
 
 `TxilladaDto`: `{ id, host: { id, username, displayName, avatarUrl, verified, verifiedTier }, title, audience, status,
 startedAt, endedAt, viewers, peakViewers, cheers, comments, isHost, canComment, pinned }` (e, desde a 0167, `kind`, `closeOnly`,
 `price`, `hasTicket`, `locked`, `viewersHidden`, `goal`, `goalPurpose`, `raised`, `topGivers`, `tickets`: ver «Tipos e
-Angariação»; desde a 0174, só para o anfitrião, `canReopen` e `reopenUntil`: ver «Reabrir (0174)») (`pinned`: o comentário fixado
+Angariação»; desde a 0174, só para o anfitrião, `canReopen` e `reopenUntil`: ver «Reabrir (0174)»; desde a 0180, `endReason` e `resumeUntil`: ver «Ligação do anfitrião (0180)») (`pinned`: o comentário fixado
 como eu o vejo, `TxilladaComment | null`; null se não há, se o apagaram, se a conta do autor não está ativa, se há bloqueio
 entre mim e o autor ou se o denunciei).
 
@@ -344,7 +385,7 @@ entre mim e o autor ou se o denunciei).
 
 Para cada espectador ligado e o anfitrião: `{ type: 'txillada.comment', txilladaId, comment }`,
 `{ type: 'txillada.cheer', txilladaId, cheers, from: { username, verified, verifiedTier } }`, `{ type: 'txillada.viewers', txilladaId, viewers }`,
-`{ type: 'txillada.ended', txilladaId, status }`, `{ type: 'txillada.comment_removed', txilladaId, commentId }`, `{ type: 'txillada.comment_cheer', txilladaId, commentId, cheers }` (a contagem nova de um comentário, sem dizer quem brindou; não vai a quem tem bloqueio com o autor do comentário). Quem está a
+`{ type: 'txillada.ended', txilladaId, status, reason? }` (`reason: 'lost'` quando a ligação do anfitrião caiu), `{ type: 'txillada.resumed', txilladaId }` (o anfitrião continuou: volta-se a entrar), `{ type: 'txillada.comment_removed', txilladaId, commentId }`, `{ type: 'txillada.comment_cheer', txilladaId, commentId, cheers }` (a contagem nova de um comentário, sem dizer quem brindou; não vai a quem tem bloqueio com o autor do comentário). Quem está a
 ver é quem fez `join` e não saiu (o webhook diz quem está na sala; guarda-se no Redis/RealtimeBus).
 
 - `{ type: 'txillada.reaction', txilladaId, kind, from: { username, displayName, avatarUrl, verified, verifiedTier, host },
