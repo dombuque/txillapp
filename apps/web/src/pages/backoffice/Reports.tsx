@@ -3,11 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/Icon';
 import { Badge, Empty, Kbd, PageHeader, ago, btn, btnGhost, useCan, when } from './bo';
-import { modApi, type ModAction, type ModQueueItem, type ModReason, type ModReportType, type ModSort } from './ui/mod-api';
+import { modApi, type ModAction, type ModNote, type ModQueueItem, type ModReason, type ModReportType, type ModSort } from './ui/mod-api';
 import { AuthorCard, DecideDialog, Field, MediaThumb, NsfwBadge, REASON, REASONS, REASON_PRESETS, RESOLUTION, SEVERE, Segmented, SeverityPill, TYPE, TYPE_ICON, TextHits, inputCls, selectCls, useDebounced, useToast } from './ui/mod-kit';
 
 type Status = 'open' | 'actioned' | 'dismissed';
-const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'txillada_schedule', 'txillada_comment', 'mixar_comment', 'message', 'user', 'venue', 'media'];
+const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'txillada_schedule', 'txillada_comment', 'mixar_comment', 'note', 'message', 'user', 'venue', 'media'];
 const SORTS: { value: ModSort; label: string }[] = [
   { value: 'severity', label: 'Mais graves primeiro' },
   { value: 'oldest', label: 'Mais antigas primeiro' },
@@ -29,6 +29,7 @@ const actionLabel = (a: ModAction, items: { type: ModReportType }[]) => (a === '
 const actionVerb = (a: ModAction, items: { type: ModReportType }[]) => (a === 'remove' && onlySchedules(items) ? 'Retirar' : ACTIONS[a].verb);
 const SCHEDULE_STATUS: Record<string, string> = { scheduled: 'À espera', started: 'Já começou', cancelled: 'Cancelada pelo anfitrião', expired: 'Não chegou a começar', removed: 'Retirada pela equipa' };
 const SCHEDULE_AUDIENCE: Record<string, string> = { everyone: 'Pública', friends: 'Para amigos', close: 'Só amigos próximos', paid: 'Privada (paga)' };
+const NOTE_AUDIENCE: Record<ModNote['audience'], string> = { mutual: 'Seguidores', close_friends: 'Amigos próximos' };
 const sensitive = (it: ModQueueItem) => it.reasons.some((r) => r === 'nudity' || r === 'minor' || r === 'violence') || (it.nsfw ?? 0) >= 0.5;
 
 function MessageBody({ m }: { m: { kind: string; body: string; placeName: string | null; placeAddress: string | null; gifUrl: string | null } }) {
@@ -42,6 +43,33 @@ function MessageBody({ m }: { m: { kind: string; body: string; placeName: string
   );
 }
 
+/** Uma nota denunciada (a cópia guardada na denúncia): o texto e, como no bloco da Txillada agendada, o resto. */
+function NoteBody({ n, blur }: { n: ModNote; blur: boolean }) {
+  return (
+    <>
+      <p className="whitespace-pre-wrap break-words px-4 py-3 text-[15px] leading-relaxed text-zinc-800">
+        {n.body || <span className="text-zinc-400">(sem texto)</span>}
+      </p>
+      <dl className="mx-4 mb-4 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-xl bg-zinc-50 px-4 py-3 text-sm">
+        {n.placeName && <><dt className="text-zinc-500">Local</dt><dd className="break-words text-zinc-800">{n.placeName}</dd></>}
+        {n.gifUrl && (
+          <>
+            <dt className="text-zinc-500">GIF</dt>
+            <dd className="flex flex-wrap items-start gap-2 text-zinc-800">
+              <img src={n.gifUrl} alt="GIF da nota" className={`max-h-24 max-w-[8rem] rounded-lg object-cover ${blur ? 'blur-md hover:blur-none' : ''}`} />
+              {n.gifRating && <Badge tone={n.gifRating === 'g' ? 'zinc' : 'amber'}>{n.gifRating.toUpperCase()}</Badge>}
+            </dd>
+          </>
+        )}
+        {n.musicTitle && <><dt className="text-zinc-500">Música</dt><dd className="break-words text-zinc-800">{n.musicTitle}</dd></>}
+        <dt className="text-zinc-500">Público</dt><dd className="text-zinc-800">{NOTE_AUDIENCE[n.audience] ?? n.audience}</dd>
+        <dt className="text-zinc-500">Publicada</dt><dd className="text-zinc-800">{when(n.createdAt)}</dd>
+        <dt className="text-zinc-500">Deixa de se ver</dt><dd className="text-zinc-800">{when(n.expiresAt)}</dd>
+      </dl>
+    </>
+  );
+}
+
 /** O conteúdo denunciado: fotos (desfocadas quando o motivo é sensível), texto e, nas mensagens, a cópia guardada na denúncia. */
 function Preview({ item }: { item: ModQueueItem }) {
   return (
@@ -51,7 +79,12 @@ function Preview({ item }: { item: ModQueueItem }) {
           {item.media.map((m) => <MediaThumb key={m.id} m={m} size={item.media.length === 1 ? 'lg' : 'md'} blur={sensitive(item)} />)}
         </div>
       )}
-      {item.type === 'message' && item.reported ? (
+      {item.type === 'note' && item.note ? (
+        <div className="rounded-xl border border-zinc-200">
+          <p className="border-b border-zinc-100 px-4 py-2 text-xs font-semibold text-zinc-500">Cópia guardada na denúncia</p>
+          <NoteBody n={item.note} blur={sensitive(item)} />
+        </div>
+      ) : item.type === 'message' && item.reported ? (
         <div className="rounded-xl border border-zinc-200">
           <p className="flex flex-wrap items-center justify-between gap-x-2 border-b border-zinc-100 px-4 py-2 text-xs font-semibold text-zinc-500">
             <span>Cópia guardada na denúncia</span>
@@ -90,6 +123,8 @@ function Preview({ item }: { item: ModQueueItem }) {
 }
 
 const REMOVED: Record<string, string> = { moderation: 'Já removido pela equipa', author: 'Apagado pelo autor', expired: 'Já expirou', gone: 'Já não existe' };
+/** Numa nota: 'gone' = o autor apagou-a ou já foi limpa; 'expired' = passaram as 24 h. */
+const REMOVED_NOTE: Record<string, string> = { moderation: 'Já removida pela equipa', expired: 'Já expirou (passaram as 24 h)', gone: 'Já não existe (o autor apagou-a ou já foi limpa)' };
 const HISTORY: Record<string, string> = {
   'backoffice.suspend': 'Conta suspensa', 'moderation.suspend': 'Conta suspensa (queixa)', 'backoffice.reactivate': 'Conta reativada',
   'moderation.warn': 'Avisado', 'moderation.remove': 'Conteúdo removido (queixa)', 'moderation.content_remove': 'Conteúdo removido', 'moderation.content_restore': 'Conteúdo reposto',
@@ -130,7 +165,7 @@ function Detail({ item, status, onAct, onBack }: { item: ModQueueItem; status: S
           A verificação automática recusou esta foto e o dono pediu revisão. Ninguém a vê. <b>Dispensar</b> aprova-a: fica pronta a publicar e o dono é avisado. <b>Remover</b> apaga-a.
         </p>
       )}
-      {item.removed && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">{REMOVED[item.removed]}</p>}
+      {item.removed && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">{(item.type === 'note' ? REMOVED_NOTE[item.removed] : undefined) ?? REMOVED[item.removed]}</p>}
       {!item.removed && item.hiddenByAuthor && <p className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700">Oculta pelo autor: só ele e a equipa a veem</p>}
       {status !== 'open' && item.resolution && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">

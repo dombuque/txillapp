@@ -8,7 +8,7 @@ import { tchekaPost } from '../posts/feed';
 import { SearchIndexer } from '../search/search-index';
 import { StaffService } from '../staff/staff.service';
 import { REMOVABLE_TYPES, type RemovableType, removeContent, restoreContent } from './content-removal';
-import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, afterTxilladaCommentRemoved, afterTxilladaCut, afterTxilladaScheduleRemoved, removeReported, settleRejectedMedia, SCHEDULE_PREVIEW } from './moderation.service';
+import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, noteProof, NOTE_PREVIEW, afterAppealDecision, afterTxilladaCommentRemoved, afterTxilladaCut, afterTxilladaScheduleRemoved, removeReported, settleRejectedMedia, SCHEDULE_PREVIEW } from './moderation.service';
 import { ModuleRef } from '@nestjs/core';
 import { TEXT_FILTER_PATTERN, TEXT_RULES, textHits } from './text-filter';
 
@@ -146,6 +146,7 @@ export class ModerationDeskService {
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), NULLIF(max(ins.caption), ''), max(tx.title), max(tc.body), max(mxc.body),
                        CASE WHEN r.target_type = 'txillada_schedule' THEN ${SCHEDULE_PREVIEW} END,
+                       ${NOTE_PREVIEW},
                        CASE WHEN r.target_type = 'media' THEN max(r.note) END,
                        CASE WHEN r.target_type = 'venue' THEN max(v.name) || coalesce(' · ' || max(v.about), '') END,
                        CASE WHEN r.target_type = 'user' THEN max(tu.display_name) END, '') AS preview,
@@ -157,6 +158,7 @@ export class ModerationDeskService {
               bool_or(mxc.id IS NOT NULL) AS mx_comment_exists, max(mxc.deleted_at) AS mx_comment_deleted_at,
               max(ts.status) AS schedule_status, max(ts.title) AS schedule_title, max(ts.goal_purpose) AS schedule_purpose,
               max(ts.starts_at) AS schedule_starts_at, max(ts.audience) AS schedule_audience,
+              bool_or(nt.id IS NOT NULL) AS note_exists, max(nt.expires_at) AS note_expires_at,
               (SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = r.target_type AND mr.target_id = r.target_id AND mr.restored_at IS NULL) AS mod_removed_at,
               (SELECT ma.nsfw_score FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_nsfw,
               (SELECT ma.appealed_at IS NOT NULL AND ma.status = 'rejected' FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_appeal,
@@ -175,6 +177,7 @@ export class ModerationDeskService {
          LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
          LEFT JOIN social.mixar_comments mxc ON r.target_type = 'mixar_comment' AND mxc.id = r.target_id
          LEFT JOIN content.txillada_schedules ts ON r.target_type = 'txillada_schedule' AND ts.id = r.target_id
+         LEFT JOIN social.notes nt ON r.target_type = 'note' AND nt.id = r.target_id
         WHERE r.status = $1 AND ($2::text[] IS NULL OR r.target_type = ANY($2::text[]))
           AND ($4::text IS NULL OR tu.username ILIKE $4 ESCAPE '\\' OR tu.display_name ILIKE $4 ESCAPE '\\')
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption,
@@ -197,6 +200,7 @@ export class ModerationDeskService {
   private queueItem(r: Record<string, any>, ctx: Awaited<ReturnType<ModerationDeskService['authorContext']>>, media: Awaited<ReturnType<ModerationDeskService['mediaOf']>>) {
     const type = r.target_type as ReportType;
     const proof = messageProof(r);
+    const note = noteProof(r);
     const items: MediaOut[] =
       type === 'post' ? media.posts.get(r.target_id) ?? []
       : type === 'story' ? media.stories.get(r.target_id) ?? []
@@ -219,6 +223,8 @@ export class ModerationDeskService {
       // Comentário do Mixar (0171): apagado pela moderação ou pelo autor (a linha fica até à decisão).
       : type === 'mixar_comment' ? (!r.mx_comment_exists ? 'gone' : r.mx_comment_deleted_at ? (r.resolution === 'remove' ? 'moderation' : 'author') : null)
       // Txillada agendada (0176): retirada pela moderação, cancelada pelo anfitrião ou que não chegou a começar.
+      // Nota (0178): apagada pela moderação; sem a linha (o autor apagou-a ou a limpeza já passou) ou passadas as 24 h.
+      : type === 'note' ? (!r.note_exists ? (r.resolution === 'remove' ? 'moderation' : 'gone') : new Date(r.note_expires_at) <= new Date() ? 'expired' : null)
       : type === 'txillada_schedule' ? (!r.schedule_status ? 'gone' : r.schedule_status === 'removed' ? 'moderation' : r.schedule_status === 'cancelled' ? 'author' : r.schedule_status === 'expired' ? 'expired' : null)
       : null;
     return {
@@ -250,6 +256,8 @@ export class ModerationDeskService {
       hiddenByAuthor: type === 'post' && !!r.post_hidden,
       reported: proof.reported,
       current: proof.current,
+      /** Nota (0178): a cópia guardada na denúncia (texto, local, GIF e classificação, música, público, horas); o autor é o `owner`. */
+      note,
       /** Txillada agendada (0176): o título, o motivo da meta, a hora e o estado (o anfitrião é o `owner`). */
       schedule: type === 'txillada_schedule' && r.schedule_status
         ? {

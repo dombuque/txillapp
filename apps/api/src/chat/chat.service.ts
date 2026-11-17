@@ -7,7 +7,8 @@ import { PostsService } from '../posts/posts.service';
 import { PushService } from '../push/push.service';
 import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
-import { readGif, type GifInput } from '../gifs/gif';
+import { gifForMinor, readGif, readRating, type GifInput } from '../gifs/gif';
+import { GifsService } from '../gifs/gifs.service';
 import { ChatEvents } from './chat.events';
 import { badge } from '../common/badge';
 import { requestCards, roundCards } from '../gelada/gelada-cards';
@@ -173,6 +174,7 @@ export class ChatService {
     private readonly posts: PostsService,
     private readonly filter: TextFilter,
     @Inject(RATE_STORE) private readonly rates: RateStore,
+    private readonly gifs: GifsService,
   ) {}
 
   private async userByName(username: string) {
@@ -464,7 +466,7 @@ export class ChatService {
   async list(me: string, opts: { hidden?: boolean } = {}) {
     const { rows } = await this.pool.query(
       `SELECT c.id, o.id AS other_id, (CASE WHEN c.user_a = $1 THEN c.hidden_at_a ELSE c.hidden_at_b END) AS hidden_at, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.verified, o.verified_tier, o.show_presence AS o_show, o.last_seen_at,
-              lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system,
+              lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system, lm.gif ->> 'rating' AS last_gif_rating,
               c.last_message_at, c.ttl_seconds,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = o.id) AS i_follow,
               (SELECT count(*) FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL AND sm.kind <> 'system')::int AS sent_by_me,
@@ -477,7 +479,7 @@ export class ChatService {
               (CASE WHEN c.user_a = $1 THEN c.unread_mark_a ELSE c.unread_mark_b END) AS unread_mark
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
-         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system, x.gif FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
           AND (CASE WHEN c.user_a = $1 THEN c.hidden_at_a ELSE c.hidden_at_b END) IS ${opts.hidden ? 'NOT NULL' : 'NULL'}
@@ -487,6 +489,7 @@ export class ChatService {
       [me],
     );
     const iShow = (await this.pool.query('SELECT show_presence FROM identity.users WHERE id = $1', [me])).rows[0]?.show_presence !== false;
+    const adult = rows.some((r) => r.last_kind === 'gif') ? await this.viewerAdult(me) : true;
     const online = iShow ? await this.events.onlineAmong(rows.filter((r) => r.o_show && r.status === 'active').map((r) => r.other_id as string)) : new Set<string>();
     return rows.map((r) => ({
       username: r.username,
@@ -501,6 +504,8 @@ export class ChatService {
             body: r.last_once ? '' : r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : r.last_kind === 'mixar' ? mixarCardText(r.last_sender === me) : (r.last_body as string),
             once: !!r.last_once,
             kind: r.last_kind as MessageKind,
+            /** Numa mensagem GIF, a classificação do GIPHY (null = desconhecida): a app esconde-o a menores se for acima de 'g'. */
+            ...(r.last_kind === 'gif' ? { gifRating: readRating(r.last_gif_rating), ...(!adult && !gifForMinor(r.last_gif_rating) ? { gifHidden: true } : {}) } : {}),
             fromMe: r.last_sender === me,
             at: r.last_at as string,
             empty: false,
@@ -626,9 +631,18 @@ export class ChatService {
       : m.kind === 'rodada' ? { rodada: rq.get(m.id as string) ?? null }
       : m.kind === 'mixar' ? { body: mixarCardText(m.sender_id === me), mixar: mq.get(m.id as string) ?? null }
       : {};
+    // GIFs a menores (e a quem não tem data de nascimento): um GIF acima de 'g', ou sem classificação, não lhes chega; vai
+    // `gif: null` e `gifHidden: true`, e a app mostra «GIF escondido» no lugar dele.
+    const adult = live.some((m) => m.kind === 'gif') ? await this.viewerAdult(me) : true;
+    const hideGif = (m: Record<string, any>) => (!adult && m.kind === 'gif' && !gifForMinor((m.gif as { rating?: unknown } | null)?.rating) ? { gif: null, gifHidden: true } : {});
     return Promise.all(
-      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : { ...(await this.item(me, m, reactions, quoted)), ...cards(m) }),
+      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : { ...(await this.item(me, m, reactions, quoted)), ...cards(m), ...hideGif(m) }),
     );
+  }
+
+  /** Quem vê é adulto (18 anos feitos, com data de nascimento): vê os GIFs até 'pg-13'; os outros só até 'g'. */
+  async viewerAdult(me: string): Promise<boolean> {
+    return (await this.gifs.ratingFor(me)) !== 'g';
   }
 
   /**
@@ -672,7 +686,7 @@ export class ChatService {
       placeAddress: ended ? null : ((m.place_address as string | null) ?? null),
       /** Presente enviado na conversa: quanto (a nota vai no texto). */
       giftAmount: (m.gift_amount as number | null) ?? null,
-      /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title? }; null nas outras. */
+      /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title?, rating? } (sem rating = desconhecida: a app esconde-o a menores); null nas outras. */
       gif: m.kind === 'gif' ? readGif(m.gif) : null,
       /** Localização em direto ainda a decorrer. */
       live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
@@ -736,6 +750,8 @@ export class ChatService {
       if (!msg.gif) throw new BadRequestException('Falta o GIF');
       // O título (vem do GIPHY, só para o leitor de ecrã) não pode ser usado para passar o que o filtro barra: sai.
       if (msg.gif.title && this.filter.check(msg.gif.title)) msg.gif = { ...msg.gif, title: undefined };
+      // A classificação é a que o GIPHY dá (a da app não conta); sai com a mensagem para a app esconder o GIF a menores.
+      msg.gif = await this.gifs.confirm(me, msg.gif);
     } else if (msg.kind === 'post') {
       // Só se partilha o que quem envia pode ver (e que ainda existe). Uma publicação oculta (0169) não se partilha, nem pelo autor.
       if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Publicação inválida');

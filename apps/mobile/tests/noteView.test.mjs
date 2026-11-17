@@ -56,7 +56,7 @@ test('noteLook: conteúdo, disposição, campo, aviso e tempo', () => {
   assert.equal(look.noteAgo('2026-11-17T11:59:30Z', now), 'agora');
   assert.equal(look.noteAgo('2026-11-17T11:55:00Z', now), 'há 5 min');
   assert.equal(look.noteAgo('2026-11-16T18:00:00Z', now), 'há 18 h');
-  assert.equal(look.noteAudienceLabel('mutual'), 'Partilhar com amigos');
+  assert.equal(look.noteAudienceLabel('mutual'), 'Seguidores', "'mutual' = quem me segue");
   assert.equal(look.noteAudienceLabel('close_friends'), 'Amigos próximos');
 });
 
@@ -181,4 +181,34 @@ test('Nota só com GIF e brindada: o selo do brinde vai para o canto do quadrado
   assert.match(body('NoteFace'), /\{gif \? <CheersBadge cheers=\{cheers\} \/> : null\}/, 'só no quadrado do GIF, nunca na foto redonda');
   assert.match(src, /gif=\{n\.gif\}[^>]*cheers=\{!hasBubble\(n\) && n\.cheered \? 1 : 0\}/, 'fila: amigo com nota só GIF');
   assert.match(src, /gif=\{mine\?\.gif\}[^>]*cheers=\{mine && !hasBubble\(mine\) \? mine\.cheers \?\? 0 : 0\}/, 'fila: a minha nota só GIF, com a contagem');
+});
+
+test('Público: «Seguidores» (quem me segue) ou «Amigos próximos», no botão, na folha e na minha nota', () => {
+  const ed = body('NoteEditor');
+  assert.match(ed, /<Text style=\{styles\.audText\}>\{noteAudienceLabel\(view\.audience\)\}<\/Text>/, 'a etiqueta da minha nota');
+  assert.match(ed, /title=\{noteAudienceLabel\(a\)\}/, 'a folha de escolha do público');
+  assert.match(ed, /'Os teus seguidores\.'/);
+  assert.doesNotMatch(src, /'Amigos'|Partilhar com amigos/);
+});
+
+test('Local da nota: só o nome do sítio, nunca a posição', () => {
+  const ed = body('NoteEditor');
+  assert.match(ed, /onChange=\{\(v\) => setPlace\(v\.trim\(\) \? \{ name: v\.trim\(\)\.slice\(0, 80\) \} : null\)\}/);
+  assert.doesNotMatch(ed, /lat: g\.lat|coarse/);
+});
+
+test('Denunciar a nota: «⋯» no cabeçalho (nunca na minha), menu com «Denunciar», uma folha de cada vez', () => {
+  const b = body('NoteView');
+  assert.match(b, /const mine = !!user && user\.username\.toLowerCase\(\) === note\.username\.toLowerCase\(\);/);
+  assert.match(b, /\{mine \? null : \(\s*<Pressable onPress=\{\(\) => setStep\('more'\)\}[^>]*accessibilityLabel="Mais opções da nota"[\s\S]*?<Icon name="more"/);
+  assert.match(b, /if \(step === 'more'\) return <NoteMoreSheet [^>]*onReport=\{\(\) => setStep\('report'\)\} onClose=\{\(\) => setStep\('view'\)\} \/>;/, 'o menu fica no lugar da nota');
+  assert.match(b, /<ReportSheet\s+type="note"\s+id=\{note\.username\}/);
+  assert.match(b, /reported\.current = true;\s*void qc\.invalidateQueries\(\{ queryKey: \['notes'\] \}\);/, 'denunciada, sai logo da fila');
+  assert.match(b, /onClose=\{\(\) => \(reported\.current \? onClose\(\) : setStep\('view'\)\)\}/, 'sem denúncia, volta à nota');
+  assert.match(body('NoteMoreSheet'), /<ActionRow icon="flag" title="Denunciar"[^>]*danger onPress=\{onReport\} \/>/);
+  const rs = readFileSync(path.join(ROOT, 'src', 'components', 'ReportSheet.tsx'), 'utf8');
+  assert.match(rs, /note: 'esta nota'/);
+  assert.match(rs, /else if \(type === 'note'\) await notesApi\.report\(id, reason, note\.trim\(\) \|\| undefined\);/);
+  const api = readFileSync(path.join(ROOT, 'src', 'lib', 'api.notes.ts'), 'utf8');
+  assert.match(api, /report: \(username: string, reason: ReportReason, note\?: string\): Promise<void> => raw\(`\/notes\/\$\{encodeURIComponent\(username\)\}\/report`, post\(\{ reason, note \}\)\)/);
 });

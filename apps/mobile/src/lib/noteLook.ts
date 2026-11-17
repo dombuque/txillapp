@@ -65,9 +65,10 @@ export function noteAgo(iso: string, now = Date.now()): string {
   return `há ${Math.floor(s / 86400)} d`;
 }
 
+/** Quem vê a nota: 'mutual' = quem me segue (os meus seguidores); 'close_friends' = a minha lista de amigos próximos. */
 export type NoteAudience = 'mutual' | 'close_friends';
 
-/** O botão do público, em baixo no editor. */
+/** O nome do público (o botão em baixo no editor, a folha de escolha e a etiqueta da minha nota). */
 export function noteAudienceLabel(a: NoteAudience): string {
-  return a === 'close_friends' ? 'Amigos próximos' : 'Partilhar com amigos';
+  return a === 'close_friends' ? 'Amigos próximos' : 'Seguidores';
 }

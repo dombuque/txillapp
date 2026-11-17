@@ -25,7 +25,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, photoBubbleSize, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
-import { gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
+import { GIF_HIDDEN_TEXT, gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
 import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
@@ -629,6 +629,15 @@ export function Bubble({
     );
   } else if (m.kind === 'sticker') {
     content = <View style={dimStyle}><Sticker id={m.body} size={120} /></View>;
+  } else if (m.kind === 'gif' && m.gifHidden) {
+    // GIF acima de «g» (ou sem classificação) para quem é menor: o servidor não o manda; um cartão discreto no lugar,
+    // que não se abre (segurar continua a abrir o menu, pelo Pressable de fora).
+    content = (
+      <View style={[st.bubble, st.deleted, radius, dimStyle]} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+        <Icon name="eye-off" size={15} color={colors.zinc500} />
+        <Text style={st.liveEndedText}>{GIF_HIDDEN_TEXT}</Text>
+      </View>
+    );
   } else if (m.kind === 'gif' && validGif(m.gif)) {
     content = <GifBubble gif={m.gif} radius={radius} dim={dimStyle} />;
   } else if (m.kind === 'post') {

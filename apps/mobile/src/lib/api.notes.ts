@@ -1,13 +1,13 @@
-import { post, raw, type Badged } from '@/lib/api';
+import { post, raw, type Badged, type ReportReason } from '@/lib/api';
 import { musicPayload, type Track } from '@/lib/api.music';
 import type { ChatGif } from '@/lib/gifs';
 import type { NoteAudience, NoteColor } from '@/lib/noteLook';
 
 export type { NoteAudience, NoteColor } from '@/lib/noteLook';
-/** O local de uma nota: o nome e, se houver, a posição (arredondada pelo servidor). */
-export interface NotePlace { name: string; lat?: number; lng?: number }
+/** O local de uma nota: só o nome do sítio (a posição nunca se guarda). */
+export interface NotePlace { name: string }
 /** O que se publica numa nota: texto (até 60), música, cor da bolha, local, GIF e público. */
-export interface NoteDraft { body: string; music?: Track | null; color?: NoteColor | null; place?: (NotePlace & { coarse?: boolean }) | null; gif?: ChatGif | null; audience?: NoteAudience }
+export interface NoteDraft { body: string; music?: Track | null; color?: NoteColor | null; place?: NotePlace | null; gif?: ChatGif | null; audience?: NoteAudience }
 /** Igual ao tipo `Note` do site. */
 export interface Note extends Badged { music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean; color?: NoteColor | null; place?: NotePlace | null; gif?: ChatGif | null }
 /** Alguém com quem já conversei, sem nota: aparece na faixa a seguir às notas. */
@@ -24,6 +24,8 @@ export const notesApi = {
   remove: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   cheer: (username: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/notes/${encodeURIComponent(username)}/cheer`, post({})),
   reply: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
+  /** Denunciar a nota de alguém (os motivos de sempre; a nota até 500). Quem denuncia deixa de a ver (o servidor esconde-a). */
+  report: (username: string, reason: ReportReason, note?: string): Promise<void> => raw(`/notes/${encodeURIComponent(username)}/report`, post({ reason, note })),
   /** Quem está online (o servidor aplica a privacidade). */
   online: (usernames: string[]): Promise<{ online: string[] }> => raw('/presence/online', post({ usernames })),
 };

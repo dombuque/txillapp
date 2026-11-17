@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, type ReportReason, type ReportType } from '@/lib/api';
+import { notesApi } from '@/lib/api.notes';
 import { txilladaApi } from '@/lib/api.txillada';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
@@ -18,19 +19,23 @@ const REASONS: { value: ReportReason; label: string; text: string }[] = [
   { value: 'other', label: 'Outro motivo', text: 'Algo que não está na lista.' },
 ];
 
+/** O que se pode denunciar: os tipos de POST /reports e os que têm rota própria (Txillada, agendada, comentário dela, nota). */
+type ReportWhat = ReportType | 'txillada' | 'txillada_comment' | 'txillada_schedule' | 'note';
+
 /** O que se está a denunciar, para o título da folha. */
-const WHAT: Record<ReportType | 'txillada' | 'txillada_comment' | 'txillada_schedule', string> = {
-  txillada: 'esta Txillada', txillada_schedule: 'esta Txillada agendada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local', mixar_comment: 'este comentário',
+const WHAT: Record<ReportWhat, string> = {
+  note: 'esta nota', txillada: 'esta Txillada', txillada_schedule: 'esta Txillada agendada', txillada_comment: 'este comentário', post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local', mixar_comment: 'este comentário',
 };
 
 /**
- * Denunciar uma publicação, comentário, mimo, Zás, mensagem, conta ou local. Fica para a moderação analisar; a outra pessoa
+ * Denunciar uma publicação, comentário, mimo, Zás, mensagem, nota, conta ou local. Fica para a moderação analisar; a outra pessoa
  * não é avisada, e o que denunciaste deixa de te aparecer (o servidor esconde-o; `onReported` deixa o ecrã escondê-lo já).
  * Uma Txillada (o live) vai por POST /txilladas/:id/report, só com o motivo (docs/txillada-contrato.md); um comentário
  * de uma Txillada ('txillada_comment', `id` = o comentário e `txilladaId` = a Txillada) por POST /txilladas/:id/comments/:c/report.
  * Uma Txillada agendada ('txillada_schedule', docs/txillada-agendar.md) por POST /txilladas/schedules/:id/report.
+ * Uma nota ('note', `id` = o username de quem a escreveu) por POST /notes/:username/report.
  */
-export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { type: ReportType | 'txillada' | 'txillada_comment' | 'txillada_schedule'; id: string; txilladaId?: string; onClose: () => void; onReported?: () => void }) {
+export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { type: ReportWhat; id: string; txilladaId?: string; onClose: () => void; onReported?: () => void }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,6 +49,7 @@ export function ReportSheet({ type, id, txilladaId, onClose, onReported }: { typ
     try {
       if (type === 'txillada') await txilladaApi.report(id, reason);
       else if (type === 'txillada_schedule') await txilladaApi.reportSchedule(id, reason, note.trim() || undefined);
+      else if (type === 'note') await notesApi.report(id, reason, note.trim() || undefined);
       else if (type === 'txillada_comment') await txilladaApi.reportComment(txilladaId ?? '', id, reason, note.trim() || undefined);
       else await api.report(type, id, reason, note.trim() || undefined);
       setDone(true);

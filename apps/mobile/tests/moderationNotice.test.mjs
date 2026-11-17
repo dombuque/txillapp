@@ -15,6 +15,7 @@ test('o que foi removido: publicação, tcheka, comentário, mimo e mensagem', (
   assert.equal(m.moderationVerb('content_removed', { type: 'comment' }).text, 'removeu o teu comentário por não cumprir as regras');
   assert.equal(m.moderationVerb('content_removed', { type: 'story' }).text, 'removeu o teu mimo por não cumprir as regras');
   assert.equal(m.moderationVerb('content_removed', { type: 'message' }).text, 'removeu a tua mensagem por não cumprir as regras');
+  assert.equal(m.moderationVerb('content_removed', { type: 'note' }).text, 'removeu a tua nota por não cumprir as regras');
 });
 
 test('o motivo vai por baixo; sem motivo, uma frase genérica (só na remoção)', () => {

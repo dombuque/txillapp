@@ -6,6 +6,7 @@ import { PotService } from '../groups/pot.service';
 import { PublicGroupsController } from '../groups/public-groups.controller';
 import { PublicGroupsService } from '../groups/public-groups.service';
 import { TxillGroupsController } from '../groups/txillgroups.controller';
+import { GifsModule } from '../gifs/gifs.module';
 import { MediaModule } from '../media/media.module';
 import { MusicModule } from '../music/music.module';
 import { PostsModule } from '../posts/posts.module';
@@ -21,7 +22,7 @@ import { NotesService } from './notes.service';
 import { PresenceController, PresenceService } from './presence.controller';
 
 @Module({
-  imports: [AuthModule, MediaModule, MusicModule, PostsModule, WalletModule, VenuesModule],
+  imports: [AuthModule, GifsModule, MediaModule, MusicModule, PostsModule, WalletModule, VenuesModule],
   // Os TxillGroups (plano, sondagens, lista, despesas, álbum, cofre e a porta de fora: ver, entrar e pedir) vivem em src/groups,
   // mas partilham este módulo com os grupos do chat.
   controllers: [ChatController, NotesController, PresenceController, TxillGroupsController, PublicGroupsController],

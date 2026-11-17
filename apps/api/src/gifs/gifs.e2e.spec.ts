@@ -20,6 +20,7 @@ const giphyGif = (id: string, title = `GIF ${id}`) => ({
   type: 'gif',
   id,
   title,
+  rating: 'PG ',
   images: {
     fixed_width: { url: `https://media2.giphy.com/media/v1.Y2lkPTc5/${id}/200w.gif?cid=abc&rid=200w.gif&ct=g`, width: '200', height: '150', webp: `https://media2.giphy.com/media/v1.Y2lkPTc5/${id}/200w.webp?cid=abc&ct=g`, mp4: `https://media2.giphy.com/media/v1.Y2lkPTc5/${id}/200w.mp4?cid=abc` },
     fixed_width_small: { url: `https://media2.giphy.com/media/${id}/100w.gif?cid=abc`, width: '100', height: '75', webp: `https://media2.giphy.com/media/${id}/100w.webp?cid=abc` },
@@ -51,6 +52,7 @@ describe('GIFs do GIPHY: lógica pura', () => {
       full: 'https://media2.giphy.com/media/v1.Y2lkPTc5/AaaA1/200w.webp',
       still: 'https://media2.giphy.com/media/AaaA1/200w_s.gif',
       mp4: 'https://media2.giphy.com/media/v1.Y2lkPTc5/AaaA1/200w.mp4',
+      rating: 'pg',
     });
     expect(p.next).toBe(3);
     expect(mapGiphy({ data: [giphyGif('AaaA1')], pagination: { total_count: 1, count: 1, offset: 0 } }, 0, 24).next).toBeNull();

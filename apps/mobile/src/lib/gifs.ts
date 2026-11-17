@@ -2,11 +2,25 @@
 // As listas vêm do nosso servidor (/api/v1/gifs/*: a chave do GIPHY fica lá e o GIPHY não vê quem pesquisa); as imagens
 // carregam-se diretamente da CDN do GIPHY (media*.giphy.com).
 
-/** Um GIF na grelha (o que o servidor manda). */
-export interface GifItem { id: string; title: string; w: number; h: number; preview: string; full: string; still?: string; mp4?: string }
+/** Um GIF na grelha (o que o servidor manda). `rating`: a classificação do GIPHY ('g', 'pg', 'pg-13', 'r'), se vier. */
+export interface GifItem { id: string; title: string; w: number; h: number; preview: string; full: string; still?: string; mp4?: string; rating?: string }
 export interface GifPage { items: GifItem[]; next: number | null; enabled?: false }
-/** O GIF de uma mensagem ou de um comentário (o que fica guardado). */
-export interface ChatGif { id: string; w: number; h: number; url: string; still?: string; title?: string }
+/**
+ * O GIF de uma mensagem ou de um comentário (o que fica guardado). `rating` vai com ele: nas notas, o servidor não mostra
+ * um GIF acima de 'g' (ou sem classificação) a quem tem menos de 18 anos ou não indicou a data de nascimento.
+ */
+export interface ChatGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: string }
+
+/**
+ * O cartão no lugar de um GIF que não se mostra: o servidor não manda o GIF (`gifHidden`) a quem é menor de 18 anos ou
+ * não tem data de nascimento quando a classificação do GIPHY é acima de «g» ou desconhecida (as mensagens antigas).
+ */
+export const GIF_HIDDEN_TEXT = 'GIF escondido';
+
+/** O texto de uma mensagem GIF na lista de conversas: «GIF» ou, se o servidor o escondeu, «GIF escondido». */
+export function gifPreviewText(m: { gifHidden?: boolean }): string {
+  return m.gifHidden ? GIF_HIDDEN_TEXT : 'GIF';
+}
 
 /** Os anfitriões de média do GIPHY (o servidor recusa os outros). */
 const HOST = /^media[0-9]?\.giphy\.com$/;
@@ -37,7 +51,8 @@ export function gifMessage(item: GifItem): { kind: 'gif'; gif: ChatGif } {
 /** O GIF de um comentário ou de uma mensagem, a partir de um item da grelha. */
 export function gifPayload(item: GifItem): ChatGif {
   const title = item.title.trim().slice(0, 100);
-  return { id: item.id, w: item.w, h: item.h, url: item.full, ...(item.still ? { still: item.still } : {}), ...(title ? { title } : {}) };
+  const rating = typeof item.rating === 'string' ? item.rating.trim().toLowerCase().slice(0, 10) : '';
+  return { id: item.id, w: item.w, h: item.h, url: item.full, ...(item.still ? { still: item.still } : {}), ...(title ? { title } : {}), ...(rating ? { rating } : {}) };
 }
 
 /** Quantas colunas tem a grelha para esta largura (2 no telemóvel, 3 a partir de ~420 px, 4 num ecrã largo). */

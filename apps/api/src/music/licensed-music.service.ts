@@ -216,7 +216,8 @@ export class LicensedMusicService implements OnModuleInit {
 
   /**
    * Retira uma faixa: deixa de aparecer e sai das publicações, dos mimos e das notas que a levavam (o texto e as fotos
-   * ficam; uma nota que era só música é apagada). Funciona mesmo com o fornecedor desligado.
+   * ficam; uma nota fica sem a música e só é apagada se não tiver mais nada: nem texto, nem GIF, nem local). Funciona mesmo
+   * com o fornecedor desligado.
    */
   async takedown(source: string, trackId: string, reason: string, origin: 'provider' | 'staff', actorId: string | null) {
     const client = await this.pool.connect();
@@ -229,7 +230,7 @@ export class LicensedMusicService implements OnModuleInit {
       const match = `music->>'kind' = 'licensed' AND music->>'source' = $1 AND music->>'id' = $2`;
       const posts = await client.query(`UPDATE content.posts SET music = NULL WHERE music IS NOT NULL AND ${match}`, [source, trackId]);
       const stories = await client.query(`UPDATE content.stories SET music = NULL WHERE music IS NOT NULL AND ${match}`, [source, trackId]);
-      const notesGone = await client.query(`DELETE FROM social.notes WHERE music IS NOT NULL AND ${match} AND char_length(body) = 0`, [source, trackId]);
+      const notesGone = await client.query(`DELETE FROM social.notes WHERE music IS NOT NULL AND ${match} AND char_length(body) = 0 AND gif IS NULL AND place IS NULL`, [source, trackId]);
       const notes = await client.query(`UPDATE social.notes SET music = NULL WHERE music IS NOT NULL AND ${match}`, [source, trackId]);
       const out = { new: (ins.rowCount ?? 0) > 0, posts: posts.rowCount ?? 0, stories: stories.rowCount ?? 0, notes: (notes.rowCount ?? 0) + (notesGone.rowCount ?? 0) };
       if (actorId) {

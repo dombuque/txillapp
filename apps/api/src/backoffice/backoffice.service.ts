@@ -4,7 +4,7 @@ import { tierOf, type VerifiedTier } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
-import { EVIDENCE_COLUMNS, messageProof } from '../moderation/moderation.service';
+import { EVIDENCE_COLUMNS, NOTE_PREVIEW, messageProof } from '../moderation/moderation.service';
 
 /** Backoffice: ver e agir sobre contas, queixas decididas e o registo de auditoria. Só para contas de moderação. */
 @Injectable()
@@ -123,7 +123,7 @@ export class BackofficeService {
       `SELECT r.target_type, r.target_id, count(*)::int AS reports, array_agg(DISTINCT r.reason) AS reasons,
               max(r.resolved_at) AS resolved_at, max(r.resolution) AS resolution, max(r.resolution_note) AS note,
               max(ad.username) AS decided_by, max(tu.username) AS owner_username,
-              COALESCE(max(p.body), max(c.body), max(s.caption), max(m.body), '') AS preview,
+              COALESCE(max(p.body), max(c.body), max(s.caption), max(m.body), ${NOTE_PREVIEW}, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users ad ON ad.id = r.resolved_by
