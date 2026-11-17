@@ -10,6 +10,7 @@
 // O anti-spam a sério é da API; a app não manda mais de um pedido a cada 5 s pela mesma conversa (ou pelo mesmo Zás).
 
 /** O intervalo mínimo entre dois avisos da mesma conversa (ou do mesmo Zás). */
+import { t } from '@/lib/i18n';
 export const SCREENSHOT_GAP_MS = 5_000;
 
 /**
@@ -50,9 +51,9 @@ export function systemText(m: { body?: string | null; fromMe?: boolean; system?:
   if (body) return body;
   const s = m.system;
   if (s?.type === 'screenshot') {
-    if (m.fromMe) return 'Fizeste uma captura de ecrã.';
+    if (m.fromMe) return t('Fizeste uma captura de ecrã.');
     const name = 'name' in s && typeof s.name === 'string' ? s.name.trim() : '';
-    return `${name || 'Alguém'} fez uma captura de ecrã.`;
+    return t('{name} fez uma captura de ecrã.', { name: name || t('Alguém') });
   }
   return '';
 }

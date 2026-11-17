@@ -3,6 +3,7 @@
 // a mensagem da API quando recusa (403), a linha nas Definições → Conteúdo e a pesquisa das Definições.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -23,13 +24,13 @@ test('canRepost falso esconde a opção; sem o campo (servidor antigo, cache) co
   assert.equal(rp.showRepostButton({ canRepost: false, reposted: true }), true);
   assert.equal(rp.showRepostButton({ canRepost: true }), true);
   assert.equal(rp.showRepostButton({}), true);
-  assert.equal(rp.REPOST_BLOCKED, 'Quem publicou não deixa repostar as suas publicações.');
+  assert.equal(rp.REPOST_BLOCKED(), 'Quem publicou não deixa repostar as suas publicações.');
 });
 
 test('os botões de repostar usam showRepostButton (cartão, visor de fotos, Tchekas)', () => {
   const card = read('components', 'PostCard.tsx');
   assert.match(card, /\{showRepostButton\(post\) \? <B icon="repeat"/);
-  assert.match(card, /\{showRepostButton\(post\) && <BarBtn hot={hot} label=\{post\.reposted \? 'Repostado' : 'Repostar'\}/);
+  assert.match(card, /\{showRepostButton\(post\) && <BarBtn hot={hot} label=\{post\.reposted \? t\('Repostado'\) : t\('Repostar'\)\}/);
   const reels = read('app', '(tabs)', 'reels.tsx');
   assert.match(reels, /\{showRepostButton\(post\) \? \(\n\s+<RailButton/);
 });
@@ -37,10 +38,10 @@ test('os botões de repostar usam showRepostButton (cartão, visor de fotos, Tch
 test('a folha de repostar: sem licença não mostra «Repostar» nem «Repostar com comentário»; o 403 mostra a mensagem da API', () => {
   const sheet = read('components', 'PostSheets.tsx');
   assert.match(sheet, /const allowed = canRepost\(post\);/);
-  assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon="repeat" title="Repostar"/);
-  assert.match(sheet, /\{allowed \? <MenuRow icon="pencil" title="Repostar com comentário"/);
+  assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon="repeat" title=\{t\('Repostar'\)\}/);
+  assert.match(sheet, /\{allowed \? <MenuRow icon="pencil" title=\{t\('Repostar com comentário'\)\}/);
   assert.match(sheet, /setErr\(\(x as Error\)\.message/);
-  assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\) onChange\(\{ canRepost: false \}\)/);
+  assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\(\)\) onChange\(\{ canRepost: false \}\)/);
   // O aviso antigo das contas privadas vinha da API; a app não o tem escrito.
   assert.doesNotMatch(sheet, /contas privadas não podem ser repostadas/);
 });
@@ -60,7 +61,7 @@ test('a definição: ligada, desligada e numa conta privada', () => {
 
 test('Definições → Conteúdo: a linha com o interruptor, a âncora e o cliente da API', () => {
   const screen = read('app', 'settings', 'conteudo.tsx');
-  assert.match(screen, /anchor="allowReposts" icon="repeat" title="Deixar repostar as minhas publicações"/);
+  assert.match(screen, /anchor="allowReposts" icon="repeat" title=\{t\('Deixar repostar as minhas publicações'\)\}/);
   assert.match(screen, /toggle=\{\{ on: rpRow\.on, disabled: rpRow\.disabled, onChange: \(v\) => void setReposts\(v\) \}\}/);
   assert.match(screen, /queryFn: settingsApi\.repostSettings/);
   const api = read('lib', 'api.settings.ts');

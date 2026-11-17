@@ -6,6 +6,7 @@
  * Sem o `URL` do React Native (o do Android/iPhone é feito à mão e falha em endereços simples): tudo por expressões.
  */
 
+import { t } from '@/lib/i18n';
 export type QrRead =
   | { kind: 'app'; path: string; label: string; href: string }
   | { kind: 'url'; href: string; host: string }
@@ -16,26 +17,26 @@ export const QR_OWN_HOSTS = ['txillapp.com', 'www.txillapp.com', 'app.txillapp.c
 
 /** O primeiro pedaço do caminho que é um ecrã da app, e o que se diz enquanto abre. */
 const ROUTES: Record<string, (id: string) => string> = {
-  u: (id) => `Perfil de @${id}`,
-  m: (id) => `Mimos de ${id.startsWith('@') ? id : `@${id}`}`,
-  p: () => 'Publicação',
-  r: () => 'Reel',
-  c: () => 'Convite',
+  u: (id) => t('Perfil de @{id}', { id }),
+  m: (id) => t('Mimos de {value}', { value: id.startsWith('@') ? id : `@${id}` }),
+  p: () => t('Publicação'),
+  r: () => t('Reel'),
+  c: () => t('Convite'),
   g: () => 'TxillGroup',
   t: (id) => `#${id}`,
   tag: (id) => `#${id}`,
-  v: () => 'Local',
-  evento: () => 'Evento',
-  place: () => 'Lugar',
+  v: () => t('Local'),
+  evento: () => t('Evento'),
+  place: () => t('Lugar'),
   txillada: () => 'Txillada',
-  reels: () => 'Reels',
+  reels: () => t('Reels'),
   stories: () => 'Mimos',
-  locais: () => 'Locais',
-  perto: () => 'À tua volta',
+  locais: () => t('Locais'),
+  perto: () => t('À tua volta'),
   geleira: () => 'Geleira',
-  invites: () => 'Convites',
-  termos: () => 'Termos', terms: () => 'Termos', privacidade: () => 'Privacidade', privacy: () => 'Privacidade',
-  help: () => 'Ajuda', suporte: () => 'Ajuda', about: () => 'Sobre o Txillapp', 'apagar-conta': () => 'Apagar a conta',
+  invites: () => t('Convites'),
+  termos: () => t('Termos'), terms: () => t('Termos'), privacidade: () => t('Privacidade'), privacy: () => t('Privacidade'),
+  help: () => t('Ajuda'), suporte: () => t('Ajuda'), about: () => t('Sobre o Txillapp'), 'apagar-conta': () => t('Apagar a conta'),
 };
 /** Ecrãs que só existem com um código depois (/u sozinho não é nada). */
 const NEEDS_ID = new Set(['u', 'm', 'p', 'r', 'c', 'g', 't', 'tag', 'v', 'evento', 'place', 'txillada']);
@@ -80,7 +81,7 @@ export function readQr(raw: string, extraHosts: readonly string[] = []): QrRead 
   if (!text) return { kind: 'text', text: '' };
   // @username sozinho: o perfil.
   const at = USERNAME.exec(text);
-  if (at) return { kind: 'app', path: `/u/${at[1]}`, label: `Perfil de @${at[1]}`, href: text };
+  if (at) return { kind: 'app', path: `/u/${at[1]}`, label: t('Perfil de @{at}', { at: at[1] }), href: text };
   // O esquema da app (txillapp://u/sara ou txillapp:///u/sara).
   const own = /^txillapp:\/\/\/?([^\s]*)$/i.exec(text);
   if (own) {

@@ -3,6 +3,7 @@
 // e o desenho num canvas falso (as mesmas chamadas, pela mesma ordem).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';

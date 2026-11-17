@@ -1,4 +1,5 @@
 import { badgePlace, cardLayout, sealSvg, whatsappUrl, type CardInput, type CardText } from './inviteCard';
+import { t } from '@/lib/i18n';
 
 /**
  * O cartão do convite no browser: desenhado num canvas (o fundo em SVG, a foto recortada em círculo e as letras do sistema)
@@ -66,7 +67,7 @@ export async function renderInviteCard(input: CardInput, avatarUrl: string | nul
   c.width = l.width;
   c.height = l.height;
   const g = c.getContext('2d');
-  if (!g) throw new Error('Não consegui desenhar o cartão');
+  if (!g) throw new Error(t('Não consegui desenhar o cartão'));
   g.drawImage(await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(l.svg)}`), 0, 0, l.width, l.height);
   if (bmp) {
     const { cx, cy, r } = l.avatar;
@@ -85,8 +86,8 @@ export async function renderInviteCard(input: CardInput, avatarUrl: string | nul
     // O selo de verificado a seguir ao nome (se a imagem não carregar, o cartão sai sem ele).
     if (b && t.badge) await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(sealSvg(t.badge, b.size))}`).then((img) => g.drawImage(img, b.x, b.y, b.size, b.size), () => undefined);
   }
-  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Não consegui criar a imagem'))), 'image/png'));
-  return { uri: URL.createObjectURL(blob), width: l.width, height: l.height, label: l.label, blob, name: `convite-txillapp-${input.code}-${input.format}.png` };
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error(t('Não consegui criar a imagem')))), 'image/png'));
+  return { uri: URL.createObjectURL(blob), width: l.width, height: l.height, label: l.label, blob, name: t('convite-txillapp-{code}-{format}.png', { code: input.code, format: input.format }) };
 }
 
 /** Liberta a imagem de um cartão antigo. */

@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { post, raw } from './api';
+import { t } from '@/lib/i18n';
 
 /**
  * Chamadas 1:1 a tocar com a app em segundo plano ou fechada (app nativa). Este ficheiro é a ponte entre as
@@ -107,8 +108,8 @@ export async function setupCallNotifications(): Promise<void> {
     if (Platform.OS === 'android') {
       // Atenção: no Android o som e a vibração de um canal ficam fixos depois de criado. Para mudar, usar um id novo.
       await Notifications.setNotificationChannelAsync(CALL_CHANNEL, {
-        name: 'Chamadas',
-        description: 'Toca quando alguém te liga no Txillapp.',
+        name: t('Chamadas'),
+        description: t('Toca quando alguém te liga no Txillapp.'),
         importance: Notifications.AndroidImportance.MAX,
         sound: 'ring.wav',
         audioAttributes: { usage: Notifications.AndroidAudioUsage.NOTIFICATION_RINGTONE, contentType: Notifications.AndroidAudioContentType.SONIFICATION },
@@ -122,8 +123,8 @@ export async function setupCallNotifications(): Promise<void> {
     // Recusar também abre a app: o expo-notifications só corre código com a app fechada através do expo-task-manager,
     // que não está instalado. Assim a recusa chega sempre ao servidor (a app abre, recusa e fica no início).
     await Notifications.setNotificationCategoryAsync(CALL_CATEGORY, [
-      { identifier: CALL_ANSWER, buttonTitle: 'Atender', options: { opensAppToForeground: true } },
-      { identifier: CALL_DECLINE, buttonTitle: 'Recusar', options: { opensAppToForeground: true, isDestructive: true } },
+      { identifier: CALL_ANSWER, buttonTitle: t('Atender'), options: { opensAppToForeground: true } },
+      { identifier: CALL_DECLINE, buttonTitle: t('Recusar'), options: { opensAppToForeground: true, isDestructive: true } },
     ]);
   } catch {
     /* sem suporte neste aparelho: as chamadas chegam pelo canal normal */

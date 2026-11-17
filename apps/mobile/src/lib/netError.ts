@@ -1,5 +1,6 @@
 /** A frase que se mostra quando o pedido nem chegou ao servidor (sem rede, rede a cair, servidor inalcançável). */
-export const OFFLINE_TEXT = 'Sem ligação à internet. Verifica a rede e tenta outra vez.';
+import { t } from '@/lib/i18n';
+export const OFFLINE_TEXT = () => t('Sem ligação à internet. Verifica a rede e tenta outra vez.');
 
 /**
  * O fetch falha sem rede com um TypeError em inglês, diferente em cada sítio: "Failed to fetch" (Chrome/Android),
@@ -11,5 +12,5 @@ export const OFFLINE_TEXT = 'Sem ligação à internet. Verifica a rede e tenta 
 export function friendlyFetchError(e: unknown): unknown {
   if (!(e instanceof TypeError)) return e;
   if (!/failed to fetch|load failed|networkerror|network request failed|network error|internet/i.test(e.message)) return e;
-  return new TypeError(OFFLINE_TEXT);
+  return new TypeError(OFFLINE_TEXT());
 }

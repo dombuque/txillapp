@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { CHANNEL } from '@/lib/distribution';
 import { googleSignInAllowed } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Dados do passo "escolher o @" depois do Google (não são sensíveis). Passam em memória entre ecrãs. */
 let pending: GoogleNeedsUsername | null = null;
@@ -30,7 +31,7 @@ function loadGoogleScript() {
     s.onload = () => resolve();
     s.onerror = () => {
       gisLoading = null;
-      reject(new Error('Não consegui carregar o login com Google'));
+      reject(new Error(t('Não consegui carregar o login com Google')));
     };
     document.head.appendChild(s);
   }));
@@ -72,7 +73,7 @@ function WebGoogleButton({ mode, onError }: { mode: 'login' | 'register'; onErro
               signInWith(r);
               router.replace('/');
             } catch (x) {
-              onError(x instanceof ApiError ? x.message : 'Não consegui entrar com a Google');
+              onError(x instanceof ApiError ? x.message : t('Não consegui entrar com a Google'));
             }
           },
         });
@@ -92,7 +93,7 @@ function WebGoogleButton({ mode, onError }: { mode: 'login' | 'register'; onErro
     <View style={{ marginTop: 20 }}>
       <View style={{ marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityElementsHidden>
         <View style={{ height: 1, flex: 1, backgroundColor: colors.zinc300 }} />
-        <Text style={{ fontSize: 14, color: colors.zinc600 }}>ou</Text>
+        <Text style={{ fontSize: 14, color: colors.zinc600 }}>{t('ou')}</Text>
         <View style={{ height: 1, flex: 1, backgroundColor: colors.zinc300 }} />
       </View>
       {createElement('div', { ref: holder, style: { display: 'flex', justifyContent: 'center', minHeight: 44 } })}

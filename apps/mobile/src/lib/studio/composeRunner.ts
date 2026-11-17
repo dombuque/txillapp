@@ -11,6 +11,7 @@ import {
   withSent, withoutSent, type JobRecord, type PollOutcome, type RunState, type UploadFile,
 } from './composeJob';
 import type { ComposeRequest } from './composeRequest';
+import { t } from '@/lib/i18n';
 
 export interface Signal { cancelled: boolean }
 export class Cancelled extends Error { constructor() { super('cancelado'); } }
@@ -98,7 +99,7 @@ export async function uploadAll(files: UploadFile[], rec: JobRecord, o: { signal
 /** Pede a montagem (202 { jobId }). Os erros vêm como ApiError (400 com a dica, 409, 429…). */
 export async function requestCompose(body: ComposeRequest): Promise<string> {
   const r = (await raw('/tchekas/compose', post(body))) as { jobId?: string };
-  if (!r?.jobId) throw new ApiError(500, 'O servidor não respondeu com a montagem.');
+  if (!r?.jobId) throw new ApiError(500, t('O servidor não respondeu com a montagem.'));
   return r.jobId;
 }
 

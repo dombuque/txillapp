@@ -17,6 +17,7 @@ import type { ClockStore } from './clockStore';
 import { mediaSize, rememberSize, useMediaSizes } from './mediaSize';
 import { cachedVideoThumb } from './NativeTimeline';
 import { canOpenSkia, fxEffect, onSkiaFail, resetSkiaVideos, skiaFailed, SkiaPhoto, SkiaVideoLayer } from './SkiaVideo';
+import { t } from '@/lib/i18n';
 
 /** Os vídeos com o filtro completo pela Skia (false: todos pelo caminho antigo, o expo-video com as camadas). */
 const SKIA_VIDEO = true;
@@ -114,7 +115,7 @@ function useStagePhoto(uri: string, w: number, h: number, want: ClipFit | undefi
         rememberSize(uri, sw, sh);
         const fit = clipFit({ fit: want, video: false, fx: focus ? { focus: true } : null }, sw, sh);
         const surface = Skia.Surface.MakeOffscreen(pw, ph) ?? Skia.Surface.Make(pw, ph);
-        if (!surface) throw new Error('superfície');
+        if (!surface) throw new Error(t('superfície'));
         // Cobre o palco, ao centro. No «Inteiro» este é o fundo: desfocado (sigma 40 em 1080, à escala) e a 70 % do brilho.
         const c = coverSource(sw, sh, pw, ph);
         const paint = Skia.Paint();
@@ -131,7 +132,7 @@ function useStagePhoto(uri: string, w: number, h: number, want: ClipFit | undefi
           const r = containRect(sw, sh, pw, ph);
           const fw = Math.max(1, Math.round(r.w)), fh = Math.max(1, Math.round(r.h));
           const fs = Skia.Surface.MakeOffscreen(fw, fh) ?? Skia.Surface.Make(fw, fh);
-          if (!fs) throw new Error('superfície');
+          if (!fs) throw new Error(t('superfície'));
           fs.getCanvas().drawImageRect(src, Skia.XYWHRect(0, 0, sw, sh), Skia.XYWHRect(0, 0, fw, fh), Skia.Paint());
           fg = { img: snapshot(fs), rect: { x: r.x / pd, y: r.y / pd, w: r.w / pd, h: r.h / pd } };
         }
@@ -474,5 +475,5 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
 /** «A imagem final fica com o filtro completo»: o aviso honesto por baixo da pré-visualização, quando um vídeo com filtro não vai pela Skia. */
 export function LookNote({ show }: { show: boolean }) {
   if (!show) return null;
-  return <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 }} numberOfLines={2}>Nos vídeos o filtro aqui é aproximado: a imagem final fica com o filtro completo.</Text>;
+  return <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 }} numberOfLines={2}>{t('Nos vídeos o filtro aqui é aproximado: a imagem final fica com o filtro completo.')}</Text>;
 }

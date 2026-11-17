@@ -6,6 +6,7 @@ import { Icon } from '../Icon';
 import { MAGIC_PHASES, waveById, type MagicPhase, type MagicPhaseInfo, type WaveId } from '@/lib/studio/magic';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { CORAL_GRADIENT, MagicBackdrop, MagicRound, MagicTag, mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 /**
  * O ecrã «a montar»: o pano da onda a rodar e as fases a aparecer uma a uma («A ver os teus vídeos…», «A apanhar o
@@ -32,7 +33,7 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0, phas
       <MagicBackdrop />
       <View style={[st.top, { paddingTop: topInset + 12 }]}>
         <MagicTag hot label={w.name} icon={<Icon name="cam-magic" size={16} color="#fff" strokeWidth={2} />} />
-        <MagicRound onPress={onCancel} a11y="Cancelar a montagem"><X size={22} color="#fff" /></MagicRound>
+        <MagicRound onPress={onCancel} a11y={t('Cancelar a montagem')}><X size={22} color="#fff" /></MagicRound>
       </View>
 
       <View style={st.center}>
@@ -48,8 +49,8 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0, phas
           </View>
         </View>
 
-        <Text style={st.title} accessibilityRole="header">A montar a tua tcheka</Text>
-        <Text style={st.sub}>{sub ?? 'Só uns segundos. Fica tudo no teu telemóvel.'}</Text>
+        <Text style={st.title} accessibilityRole="header">{t('A montar a tua tcheka')}</Text>
+        <Text style={st.sub}>{sub ?? t('Só uns segundos. Fica tudo no teu telemóvel.')}</Text>
 
         <View style={st.list}>
           {shown.map((p) => {

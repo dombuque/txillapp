@@ -1,6 +1,7 @@
 // Testes dos avisos da moderação nas notificações (src/lib/moderationNotice.ts): o texto, o motivo e o destino.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

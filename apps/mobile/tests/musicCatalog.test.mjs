@@ -5,6 +5,7 @@
 // E: o componente (folha escura, linhas com capa e marcador, menu com «Não gosto desta») e o que vai para o servidor.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -225,7 +226,7 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(src, /<Chip key=\{id\} dark label=\{label\} selected=\{tab === id\} onPress=\{\(\) => setTab\(id\)\} \/>/);
   assert.match(src, /Em alta no Txillapp/);
   // «Para ti»: destaques com o gradiente da capa e pontos; pastilhas pequenas; a lista do estilo sugerido e das guardadas.
-  assert.match(src, /<LinearGradient colors=\{highlightColors\(t\)/);
+  assert.match(src, /<LinearGradient colors=\{highlightColors\(track\d*\)/);
   assert.match(src, /pagingEnabled/);
   assert.match(src, /const chips = forYouChips\(home\.data, allowLocal, suggestion\?\.genre\);/);
   assert.match(src, /const autoStyle = forYouStyle\(suggestion\?\.genre, favs\.data\);/);
@@ -261,13 +262,13 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(src, /<SoundBars /);
   assert.match(src, /onMutate: \(t\) => qc\.setQueryData<Track\[\]>\(\['music-favorites'\], \(old\) => toggleSaved\(old, t\)\)/);
   // «Não gosto desta» no menu de manter premido (e no «⋯» e no botão direito do computador), com Desfazer.
-  assert.match(src, /onLongPress=\{\(\) => onMenu\(t, null\)\}/);
+  assert.match(src, /onLongPress=\{\(\) => onMenu\(track\d*, null\)\}/);
   assert.match(src, /onContextMenu: /);
-  assert.match(src, /label="Não gosto desta"/);
+  assert.match(src, /label=\{t\('Não gosto desta'\)\}/);
   assert.match(src, /<Sheet title=\{track\.title\} onClose=\{onClose\} dark variant="menu" anchor=\{anchor\}>/);
   assert.match(src, /musicApi\.dislike\(/);
   assert.match(src, /musicApi\.undislike\(/);
-  assert.match(src, />Desfazer</);
+  assert.match(src, />\{t\('Desfazer'\)\}</);
   assert.match(src, /musicApi\.home/);
   assert.match(src, /musicApi\.search\(/);
   assert.doesNotMatch(src, /GENRES/); // acabaram os géneros fixos na app

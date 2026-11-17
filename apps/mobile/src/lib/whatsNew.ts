@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { IconName } from '@/components/Icon';
 import { kvGet, kvSet } from './kv';
+import { t } from '@/lib/i18n';
 
 /**
  * Funções novas que as pessoas ainda não descobriram. Enquanto alguém não a usar, aparece só um "NOVA" no botão dela
@@ -17,10 +18,10 @@ export interface Feature {
 }
 
 export const FEATURES: Feature[] = [
-  { id: 'zas', icon: 'bolt', title: 'Zás!', text: 'Fotos na hora que duram 24 h e só se veem uma vez. Está no canto das mensagens.', path: '/messages' },
-  { id: 'reacoes', icon: 'heart', title: 'Reage e responde nas mensagens', text: 'Segura numa mensagem para reagir ou responder.', path: '/messages' },
-  { id: 'stickers', icon: 'sticker', title: 'Mais de 550 stickers', text: 'Desenhos novos e mais engraçados para as conversas.', path: '/messages' },
-  { id: 'video-longo', icon: 'video', title: 'Grava vídeo com o dedo', text: 'Na câmara, segura o botão para gravar e larga para parar.', path: '/new' },
+  { id: 'zas', icon: 'bolt', title: 'Zás!', get text() { return t('Fotos na hora que duram 24 h e só se veem uma vez. Está no canto das mensagens.'); }, path: '/messages' },
+  { id: 'reacoes', icon: 'heart', get title() { return t('Reage e responde nas mensagens'); }, get text() { return t('Segura numa mensagem para reagir ou responder.'); }, path: '/messages' },
+  { id: 'stickers', icon: 'sticker', get title() { return t('Mais de 550 stickers'); }, get text() { return t('Desenhos novos e mais engraçados para as conversas.'); }, path: '/messages' },
+  { id: 'video-longo', icon: 'video', get title() { return t('Grava vídeo com o dedo'); }, get text() { return t('Na câmara, segura o botão para gravar e larga para parar.'); }, path: '/new' },
 ];
 
 const KEY = 'tx_seen_features';

@@ -27,6 +27,7 @@ import {
 } from '@/lib/txilladaGuests';
 import { invitedNotice, mentionNotice, oldestId, parseMentionEvent } from '@/lib/txilladaChat';
 import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
+import { t } from '@/lib/i18n';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
 
@@ -68,7 +69,7 @@ async function openTracks(front: boolean): Promise<LiveTracks> {
   const audio = made.find((t) => t.kind === lk.Track.Kind.Audio) as LocalAudioTrack | undefined;
   if (!video || !audio) {
     made.forEach((t) => t.stop());
-    throw new Error('Não consegui abrir a câmara e o microfone.');
+    throw new Error(t('Não consegui abrir a câmara e o microfone.'));
   }
   // No browser de um telemóvel, a imagem tem de sair ao alto (o Safari do iPhone podia dar uma faixa deitada).
   await ensurePortrait(video, front);
@@ -361,7 +362,7 @@ export function useTxillada(id: string) {
         room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(audioNeedsTap && !room.canPlaybackAudio));
         room.on(lk.RoomEvent.Disconnected, (reason) => {
           if (dead) return;
-          if (reason === lk.DisconnectReason.PARTICIPANT_REMOVED && !amHost) setError('Saíste desta Txillada: o anfitrião tirou-te.');
+          if (reason === lk.DisconnectReason.PARTICIPANT_REMOVED && !amHost) setError(t('Saíste desta Txillada: o anfitrião tirou-te.'));
           else if (reason === lk.DisconnectReason.ROOM_DELETED) dispatch({ t: 'event', ev: { type: 'txillada.ended', txilladaId: id, status: 'ended' }, me });
           else setConn('failed');
           void qc.invalidateQueries({ queryKey: txilladaKey(id) });
@@ -468,7 +469,7 @@ export function useTxillada(id: string) {
           if (dead) return;
           // A permissão não chegou (o updateParticipant falhou?): volta-se a entrar, com um token que já publica (uma vez).
           if (rejoined.current++ < 1) { setAttempt((n) => n + 1); return; }
-          throw new Error('Não consegui começar a transmitir. Tenta outra vez.');
+          throw new Error(t('Não consegui começar a transmitir. Tenta outra vez.'));
         }
         if (dead) return;
         await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] });
@@ -476,7 +477,7 @@ export function useTxillada(id: string) {
       } catch (e) {
         if (dead) return;
         console.warn('[txillada] guest', e);
-        const msg = e instanceof Error && /^(Sem acesso|A câmara|Não consegui|Não encontrei|Este browser)/.test(e.message) ? e.message : 'Não consegui começar a transmitir. Tenta outra vez.';
+        const msg = e instanceof Error && /^(Sem acesso|A câmara|Não consegui|Não encontrei|Este browser)/.test(e.message) ? e.message : t('Não consegui começar a transmitir. Tenta outra vez.');
         setNotice((o) => ({ n: (o?.n ?? 0) + 1, text: msg }));
         gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
         void txilladaApi.guestLeave(id).catch(() => undefined);
@@ -609,7 +610,7 @@ export function useTxillada(id: string) {
       setCam(!cam);
       return null;
     } catch {
-      return cam ? 'Não consegui desligar a câmara.' : 'Não consegui ligar a câmara. Tenta outra vez.';
+      return cam ? t('Não consegui desligar a câmara.') : t('Não consegui ligar a câmara. Tenta outra vez.');
     }
   }
   /** Ler para trás: os 50 comentários antes do mais antigo que tenho (se a API tiver mais). */
@@ -665,7 +666,7 @@ export function useTxillada(id: string) {
     const text = body.trim();
     if (!text) return null;
     const gate = commentGate(lastComment.current, Date.now());
-    if (!gate.ok) return 'Calma! Espera um bocadinho antes de comentar outra vez.';
+    if (!gate.ok) return t('Calma! Espera um bocadinho antes de comentar outra vez.');
     lastComment.current = Date.now();
     try {
       const r = await txilladaApi.comment(id, text);

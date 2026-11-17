@@ -29,6 +29,7 @@ import { gifPayload, validGif } from '@/lib/gifs';
 import { InlineBadge, NameWithBadge } from './NameWithBadge';
 import { useRouter } from 'expo-router';
 import { replyHref, tchekaRepliesLabel } from '@/lib/remix';
+import { t } from '@/lib/i18n';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
 // As mesmas reações rápidas do site (vão para o texto do comentário).
@@ -112,7 +113,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
     }
   }
   async function confirmDelete() {
-    if (!(await confirm({ title: 'Apagar o comentário?', message: 'O comentário desaparece e não dá para o recuperar.', confirm: 'Apagar', danger: true }))) return;
+    if (!(await confirm({ title: t('Apagar o comentário?'), message: t('O comentário desaparece e não dá para o recuperar.'), confirm: t('Apagar'), danger: true }))) return;
     setGone(true);
     try {
       await api.deleteComment(c.id);
@@ -143,7 +144,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       onLongPress={openMenu}
       delayLongPress={380}
       style={[styles.row, highlighted && { backgroundColor: colors.rose50 }, desktop && over && !highlighted && { backgroundColor: '#fafafa' }]}
-      accessibilityHint={desktop ? 'Botão direito para mais opções' : 'Segura para mais opções'}
+      accessibilityHint={desktop ? t('Botão direito para mais opções') : t('Segura para mais opções')}
       {...(desktop ? {
         onMouseEnter: () => setOver(true),
         onMouseLeave: () => setOver(false),
@@ -160,15 +161,15 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <NameWithBadge name={c.author.username} who={c.author} style={styles.user} gap={4}>
-          <Text style={[styles.ago, { flexShrink: 0 }]}>{timeAgo(c.createdAt)}{text.editedAt ? ' · editado' : ''}</Text>
+          <Text style={[styles.ago, { flexShrink: 0 }]}>{timeAgo(c.createdAt)}{text.editedAt ? (' ' + t('· editado')) : ''}</Text>
         </NameWithBadge>
         {editing ? (
           <View style={{ marginTop: 4 }}>
-            <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
+            <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel={t('Editar comentário')} />
             {editErr ? <Text style={styles.err}>{editErr}</Text> : null}
             <View style={styles.editBtns}>
-              <Button label="Cancelar" kind="ghost" size="sm" onPress={() => { setEditing(false); setEditErr(''); }} />
-              <Button label="Guardar" size="sm" onPress={() => void saveEdit()} loading={saving} disabled={!draft.trim()} />
+              <Button label={t('Cancelar')} kind="ghost" size="sm" onPress={() => { setEditing(false); setEditErr(''); }} />
+              <Button label={t('Guardar')} size="sm" onPress={() => void saveEdit()} loading={saving} disabled={!draft.trim()} />
             </View>
           </View>
         ) : (
@@ -182,18 +183,18 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
               <Text style={styles.askTitle} numberOfLines={1}>{ask.title}</Text>
               <Text style={styles.askHint}>{ask.hint}</Text>
             </View>
-            <Button label="Oferecer" size="sm" onPress={() => onGift(c, ask.amount, ask.note)} accessibilityLabel={`Oferecer vibes a ${c.author.displayName}`} />
-            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityRole="button" accessibilityLabel="Dispensar sugestão"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+            <Button label={t('Oferecer')} size="sm" onPress={() => onGift(c, ask.amount, ask.note)} accessibilityLabel={t('Oferecer vibes a {displayName}', { displayName: c.author.displayName })} />
+            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityRole="button" accessibilityLabel={t('Dispensar sugestão')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
         <View style={styles.links}>
-          {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
-          <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder</Text></Pressable>
+          {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>}
+          <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>{t('Responder')}</Text></Pressable>
           {/* Remix: responder com uma tcheka (o comentário vai num autocolante por cima do vídeo). */}
-          {c.canRemix ? <Pressable onPress={() => router.push(replyHref(c.id) as never)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder com tcheka</Text></Pressable> : null}
+          {c.canRemix ? <Pressable onPress={() => router.push(replyHref(c.id) as never)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>{t('Responder com tcheka')}</Text></Pressable> : null}
         </View>
         {c.tchekaReplies ? (
-          <Pressable onPress={() => router.push(`/p/${c.tchekaReplies!.postId}` as never)} style={styles.tchekaReply} accessibilityRole="link" accessibilityLabel={`${tchekaRepliesLabel(c.tchekaReplies.count)}. Ver a tcheka`}>
+          <Pressable onPress={() => router.push(`/p/${c.tchekaReplies!.postId}` as never)} style={styles.tchekaReply} accessibilityRole="link" accessibilityLabel={t('{tchekaRepliesLabel}. Ver a tcheka', { tchekaRepliesLabel: tchekaRepliesLabel(c.tchekaReplies.count) })}>
             <Icon name="video" size={14} color={colors.brand} />
             <Text style={styles.tchekaReplyText}>{tchekaRepliesLabel(c.tchekaReplies.count)}</Text>
             <Icon name="chevron-right" size={14} color={colors.brand} />
@@ -201,11 +202,11 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         ) : null}
       </View>
       {desktop ? (
-        <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções do comentário" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
+        <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções do comentário')} {...({ dataSet: { tip: t('Mais opções') } } as object)}>
           <Icon name="more" size={18} color={colors.zinc600} />
         </Pressable>
       ) : null}
-      <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
+      <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? t('Tirar o brinde') : t('Brindar comentário')}>
         <Animated.View style={popStyle}><Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} /></Animated.View>
       </Pressable>
       <CheersPour n={burst} size={120} />
@@ -213,10 +214,10 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       {menu && (
         <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={[styles.menu, desktop && menuAt ? { paddingHorizontal: 6 } : null]}>
-            <ActionRow icon="reply" title="Responder" onPress={() => { setMenu(false); onReply(c); }} />
-            {mine && !editing && <ActionRow icon="pencil" title="Editar" onPress={() => { setMenu(false); startEdit(); }} />}
-            {canDelete && <ActionRow icon="trash" title="Apagar" danger onPress={() => { setMenu(false); setTimeout(() => void confirmDelete(), 250); }} />}
-            {!mine && <ActionRow icon="flag" title="Denunciar" danger onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} />}
+            <ActionRow icon="reply" title={t('Responder')} onPress={() => { setMenu(false); onReply(c); }} />
+            {mine && !editing && <ActionRow icon="pencil" title={t('Editar')} onPress={() => { setMenu(false); startEdit(); }} />}
+            {canDelete && <ActionRow icon="trash" title={t('Apagar')} danger onPress={() => { setMenu(false); setTimeout(() => void confirmDelete(), 250); }} />}
+            {!mine && <ActionRow icon="flag" title={t('Denunciar')} danger onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} />}
           </View>
         </Sheet>
       )}
@@ -238,7 +239,7 @@ function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, 
     <View style={{ marginLeft: 48 }}>
       <Pressable onPress={toggle} style={styles.thread}>
         <View style={styles.threadLine} />
-        <Text style={styles.link}>{expanded ? 'Ocultar respostas' : `Ver ${c.replyCount} ${c.replyCount === 1 ? 'resposta' : 'respostas'}`}</Text>
+        <Text style={styles.link}>{expanded ? t('Ocultar respostas') : t('Ver {count} resposta', { count: c.replyCount, other: 'Ver {count} respostas' })}</Text>
       </Pressable>
       {expanded && (
         <View>
@@ -249,7 +250,7 @@ function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, 
           {q.hasNextPage && (
             <Pressable onPress={() => void q.fetchNextPage()} style={styles.thread}>
               <View style={styles.threadLine} />
-              <Text style={styles.link}>Ver mais respostas</Text>
+              <Text style={styles.link}>{t('Ver mais respostas')}</Text>
             </Pressable>
           )}
         </View>
@@ -345,8 +346,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
   const gift = (c: Comment, amount: number, note: string) => onGift({ username: c.author.username, displayName: c.author.displayName }, amount, note);
 
   return (
-    <Sheet title="Comentários" onClose={onClose} full plain variant="panel" dim={dim}>
-      <View style={styles.head}><Text style={styles.headTitle} accessibilityRole="header">Comentários</Text></View>
+    <Sheet title={t('Comentários')} onClose={onClose} full plain variant="panel" dim={dim}>
+      <View style={styles.head}><Text style={styles.headTitle} accessibilityRole="header">{t('Comentários')}</Text></View>
       <FlatList
         ref={list}
         onScrollToIndexFailed={() => undefined}
@@ -373,9 +374,9 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
         )}
         ListEmptyComponent={
           q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
-            <ErrorState what="os comentários" onRetry={() => void q.refetch()} />
+            <ErrorState what={t('os comentários')} onRetry={() => void q.refetch()} />
           ) : (
-            <EmptyState icon="comment-off" title="Ainda ninguém disse nada" text="Sê o primeiro a puxar conversa." />
+            <EmptyState icon="comment-off" title={t('Ainda ninguém disse nada')} text={t('Sê o primeiro a puxar conversa.')} />
           )
         }
         onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
@@ -384,32 +385,32 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
       {!post.canComment && post.author.id !== user?.id ? (
         <View style={styles.off}>
           <Icon name="bell-off" size={16} color={colors.zinc600} />
-          <Text style={styles.offText}><Text style={{ fontWeight: '700' }}>{post.author.displayName}</Text><InlineBadge who={post.author} fontSize={14} /> desativou os comentários nesta publicação.</Text>
+          <Text style={styles.offText}><Text style={{ fontWeight: '700' }}>{post.author.displayName}</Text><InlineBadge who={post.author} fontSize={14} /> {t('desativou os comentários nesta publicação.')}</Text>
         </View>
       ) : (
         <KeyboardAvoidingView behavior="padding" style={styles.bar}>
           {replyTo && (
             <View style={styles.replying}>
-              <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text><InlineBadge who={replyTo.author} fontSize={14} /></Text>
-              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancelar resposta" style={{ paddingHorizontal: 8 }}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
+              <Text style={styles.replyingText}>{t('A responder a')} <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text><InlineBadge who={replyTo.author} fontSize={14} /></Text>
+              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Cancelar resposta')} style={{ paddingHorizontal: 8 }}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
             </View>
           )}
           {typing.length > 0 && (
             <Text style={styles.typing} accessibilityLiveRegion="polite">
-              {typing.length === 1 ? `${typing[0]} está a escrever…` : typing.length === 2 ? `${typing[0]} e ${typing[1]} estão a escrever…` : `${typing[0]} e mais ${typing.length - 1} estão a escrever…`}
+              {typing.length === 1 ? t('{typing} está a escrever…', { typing: typing[0] }) : typing.length === 2 ? t('{typing} e {typing2} estão a escrever…', { typing: typing[0], typing2: typing[1] }) : t('{typing} e mais {n} estão a escrever…', { typing: typing[0], n: typing.length - 1 })}
             </Text>
           )}
           {stickers && <View style={{ maxHeight: gifs.enabled ? 340 : 300 }}><StickerPanel key={stickers} start={stickers} onPick={(id) => { setStickers(null); void submit(`[sticker:${id}]`); }} onGif={(g) => { setStickers(null); void submit(undefined, gifPayload(g)); }} /></View>}
           <View style={styles.quick}>
             {QUICK.map((e) => (
-              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
+              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={t('Adicionar {e}', { e })} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
-            <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers === 'stickers' }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers === 'stickers' && { backgroundColor: colors.rose50 }]}>
+            <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} accessibilityRole="button" accessibilityLabel={t('Stickers')} accessibilityState={{ expanded: stickers === 'stickers' }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers === 'stickers' && { backgroundColor: colors.rose50 }]}>
               <Icon name="sticker" size={24} color={stickers === 'stickers' ? colors.brand : colors.zinc700} />
             </Pressable>
             {gifs.enabled && (
               // GIF do GIPHY no comentário (vai com o texto que estiver escrito, ou sozinho).
-              <Pressable onPress={() => setStickers((v) => (v === 'gif' ? null : 'gif'))} hitSlop={6} accessibilityRole="button" accessibilityLabel="GIF" accessibilityHint="Escolher um GIF para o comentário" accessibilityState={{ expanded: stickers === 'gif' }} style={[styles.gifBtn, stickers === 'gif' && { backgroundColor: colors.rose50, borderColor: colors.brand }]}>
+              <Pressable onPress={() => setStickers((v) => (v === 'gif' ? null : 'gif'))} hitSlop={6} accessibilityRole="button" accessibilityLabel="GIF" accessibilityHint={t('Escolher um GIF para o comentário')} accessibilityState={{ expanded: stickers === 'gif' }} style={[styles.gifBtn, stickers === 'gif' && { backgroundColor: colors.rose50, borderColor: colors.brand }]}>
                 <Text style={[styles.gifBtnText, stickers === 'gif' && { color: colors.brand }]}>GIF</Text>
               </Pressable>
             )}
@@ -418,8 +419,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
           <View style={styles.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <View style={styles.field}>
-              <TextInput ref={input} value={text} onChangeText={onType} {...mention.inputProps} maxLength={1000} placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Escrever comentário" returnKeyType="send" onSubmitEditing={() => void submit()} />
-              <Pressable onPress={() => void submit()} disabled={!text.trim() || busy} hitSlop={6}><Text style={[styles.publish, (!text.trim() || busy) && { opacity: 0.6 }]}>Publicar</Text></Pressable>
+              <TextInput ref={input} value={text} onChangeText={onType} {...mention.inputProps} maxLength={1000} placeholder={replyTo ? t('Responder a {username}…', { username: replyTo.author.username }) : t('Diz lá…')} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel={t('Escrever comentário')} returnKeyType="send" onSubmitEditing={() => void submit()} />
+              <Pressable onPress={() => void submit()} disabled={!text.trim() || busy} hitSlop={6}><Text style={[styles.publish, (!text.trim() || busy) && { opacity: 0.6 }]}>{t('Publicar')}</Text></Pressable>
             </View>
           </View>
           {err ? <Text style={[styles.err, { textAlign: 'center', paddingHorizontal: 16 }]}>{err}</Text> : null}

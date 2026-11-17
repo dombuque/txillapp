@@ -15,6 +15,7 @@ import {
 } from '@/lib/txilladaGuests';
 import type { StageTile } from '@/lib/txilladaRoom';
 import { CAM_OFF } from '@/lib/txilladaChat';
+import { t } from '@/lib/i18n';
 
 /**
  * A Txillada com convidados (0165, docs/txillada-contrato.md): o ecrã com até 4 pessoas, o cartão do convite e a lista dos
@@ -39,7 +40,7 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
           <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={96} />
           <View style={st.camOffTag}>
             <CallIcon name="video-off" size={15} color="#fff" />
-            <Text style={st.camOffText}>{CAM_OFF}</Text>
+            <Text style={st.camOffText}>{CAM_OFF()}</Text>
           </View>
         </View>
       );
@@ -48,7 +49,7 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
   }
   const rects = stageLayout(tiles.length, w, h);
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityLabel={`${tiles.length} pessoas a transmitir`}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityLabel={t('{n} pessoas a transmitir', { n: tiles.length })}>
       {tiles.map((t, i) => {
         const r = rects[i];
         if (!r) return null;
@@ -59,7 +60,7 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
             {!t.track || !t.cam ? (
               <View style={[StyleSheet.absoluteFill, st.center, !t.cam && st.camOff]}>
                 <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={small ? 52 : 72} />
-                {!t.cam ? <Text style={[st.camOffText, { marginTop: 8 }]}>{CAM_OFF}</Text> : null}
+                {!t.cam ? <Text style={[st.camOffText, { marginTop: 8 }]}>{CAM_OFF()}</Text> : null}
               </View>
             ) : null}
             {t.speaking ? <View style={[StyleSheet.absoluteFill, st.speaking]} /> : null}
@@ -82,15 +83,15 @@ export function InviteCard({ inviter, busy, onAccept, onDecline }: { inviter: { 
         {inviter ? <Avatar name={inviter.displayName} username={inviter.avatarUrl ? inviter.username : undefined} size={52} /> : null}
         <View style={st.inviteWho}>
           {inviter ? <NameWithBadge name={`@${inviter.username}`} who={inviter} style={st.inviteName} center /> : null}
-          <Text style={st.inviteText}>convidou-te para transmitir na Txillada</Text>
-          <Text style={st.inviteSub}>A tua câmara e o teu microfone passam a aparecer a quem está a ver.</Text>
+          <Text style={st.inviteText}>{t('convidou-te para transmitir na Txillada')}</Text>
+          <Text style={st.inviteSub}>{t('A tua câmara e o teu microfone passam a aparecer a quem está a ver.')}</Text>
         </View>
         <View style={st.inviteRow}>
           <Pressable onPress={onDecline} disabled={busy} style={({ pressed }) => [st.btn, st.btnGhost, pressed && st.pressed]} accessibilityRole="button">
-            <Text style={st.btnGhostText}>Recusar</Text>
+            <Text style={st.btnGhostText}>{t('Recusar')}</Text>
           </Pressable>
           <Pressable onPress={onAccept} disabled={busy} style={({ pressed }) => [st.btn, st.btnBrand, pressed && st.pressed, busy && { opacity: 0.6 }]} accessibilityRole="button">
-            <Text style={st.btnBrandText}>{busy ? 'A abrir a câmara…' : 'Aceitar'}</Text>
+            <Text style={st.btnBrandText}>{busy ? t('A abrir a câmara…') : t('Aceitar')}</Text>
           </Pressable>
         </View>
       </View>
@@ -160,13 +161,13 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
   }
   return (
     <View>
-      <Text style={st.section}>Convidar por @</Text>
+      <Text style={st.section}>{t('Convidar por @')}</Text>
       <View style={st.atField}>
         <Text style={st.atSign}>@</Text>
         <TextInput
           value={text}
           onChangeText={(t) => { setText(inviteInput(t)); if (msg) setMsg(null); }}
-          placeholder="nome de utilizador"
+          placeholder={t('nome de utilizador')}
           placeholderTextColor={D.sub}
           autoCapitalize="none"
           autoCorrect={false}
@@ -175,12 +176,12 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
           onSubmitEditing={() => { if (handle) void send(handle); }}
           style={st.atInput}
           maxLength={30}
-          accessibilityLabel="Convidar por @: o nome de utilizador"
+          accessibilityLabel={t('Convidar por @: o nome de utilizador')}
         />
-        <Small label={busy && busy === handle ? 'A convidar…' : 'Convidar'} kind="brand" disabled={!handle || !!busy || full} onPress={() => { if (handle) void send(handle); }} />
+        <Small label={busy && busy === handle ? t('A convidar…') : t('Convidar')} kind="brand" disabled={!handle || !!busy || full} onPress={() => { if (handle) void send(handle); }} />
       </View>
       <Text style={[st.hint, { marginTop: 6 }]}>
-        {full ? `Já há ${GUESTS_MAX} a transmitir contigo: tira alguém para convidares outra pessoa.` : `Também quem ainda não entrou: recebe um aviso para entrar${paid ? ' sem pagar' : ''}.`}
+        {full ? t('Já há {guestsMax} a transmitir contigo: tira alguém para convidares outra pessoa.', { guestsMax: GUESTS_MAX }) : t('Também quem ainda não entrou: recebe um aviso para entrar{value}.', { value: paid ? (' ' + t('sem pagar')) : '' })}
       </Text>
       {msg ? <Text style={[st.atMsg, msg.ok ? st.atOk : st.atErr]} accessibilityRole="alert">{msg.text}</Text> : null}
       {res.isFetching && !items.length ? <View style={{ paddingVertical: 10 }}><ActivityIndicator color={colors.brand} /></View> : null}
@@ -190,7 +191,7 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
         return (
           <Row key={p.username} p={{ user }}>
             {row.can
-              ? <Small label={busy === p.username ? 'A convidar…' : row.label} kind="brand" disabled={!!busy} onPress={() => void send(p.username)} />
+              ? <Small label={busy === p.username ? t('A convidar…') : row.label} kind="brand" disabled={!!busy} onPress={() => void send(p.username)} />
               : <Text style={st.rowState}>{row.label}</Text>}
           </Row>
         );
@@ -211,27 +212,27 @@ export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, 
   return (
     <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
       <InviteByAt s={s} paid={paid} onInvite={onInvite} />
-      <Text style={st.section}>A transmitir contigo · {s.guests.length}/{GUESTS_MAX}</Text>
+      <Text style={st.section}>{t('A transmitir contigo · {n}/{guestsMax}', { n: s.guests.length, guestsMax: GUESTS_MAX })}</Text>
       {s.guests.length ? s.guests.map((g) => (
-        <Row key={g.user.id} p={g}><Small label="Tirar" kind="danger" onPress={() => onRemove(g.user.username)} /></Row>
-      )) : <Text style={st.empty}>Ninguém está a transmitir contigo.</Text>}
-      <Text style={st.section}>Pedidos para entrar{s.requests.length ? ` · ${s.requests.length}` : ''}</Text>
+        <Row key={g.user.id} p={g}><Small label={t('Tirar')} kind="danger" onPress={() => onRemove(g.user.username)} /></Row>
+      )) : <Text style={st.empty}>{t('Ninguém está a transmitir contigo.')}</Text>}
+      <Text style={st.section}>{t('Pedidos para entrar')}{s.requests.length ? ` · ${s.requests.length}` : ''}</Text>
       {s.requests.length ? s.requests.map((g) => (
         <Row key={g.user.id} p={g}>
-          <Small label="Recusar" onPress={() => onDecline(g.user.username)} />
-          <Small label="Aceitar" kind="brand" disabled={full} onPress={() => onAccept(g.user.username)} />
+          <Small label={t('Recusar')} onPress={() => onDecline(g.user.username)} />
+          <Small label={t('Aceitar')} kind="brand" disabled={full} onPress={() => onAccept(g.user.username)} />
         </Row>
-      )) : <Text style={st.empty}>Ainda ninguém pediu para entrar.</Text>}
-      {full && s.requests.length ? <Text style={st.hint}>Já há {GUESTS_MAX} a transmitir: tira alguém para aceitares outro pedido.</Text> : null}
+      )) : <Text style={st.empty}>{t('Ainda ninguém pediu para entrar.')}</Text>}
+      {full && s.requests.length ? <Text style={st.hint}>{t('Já há {guestsMax} a transmitir: tira alguém para aceitares outro pedido.', { guestsMax: GUESTS_MAX })}</Text> : null}
       {s.invites.length ? (
         <>
-          <Text style={st.section}>Convites à espera</Text>
-          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label="Retirar" kind="danger" onPress={() => onRemove(g.user.username)} /></Row>)}
+          <Text style={st.section}>{t('Convites à espera')}</Text>
+          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label={t('Retirar')} kind="danger" onPress={() => onRemove(g.user.username)} /></Row>)}
         </>
       ) : null}
       <Pressable onPress={onOpenViewers} style={({ pressed }) => [st.viewersLink, pressed && { opacity: 0.7 }]} accessibilityRole="button">
         <Icon name="user-plus" size={18} color={colors.brandWarm} strokeWidth={2} />
-        <Text style={st.viewersLinkText}>Convidar alguém de «A ver agora»</Text>
+        <Text style={st.viewersLinkText}>{t('Convidar alguém de «A ver agora»')}</Text>
       </Pressable>
     </ScrollView>
   );

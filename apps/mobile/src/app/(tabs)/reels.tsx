@@ -42,6 +42,7 @@ import { compactCount } from '@/lib/musicCatalog';
 import { colors } from '@/lib/theme';
 import { reelResets, reelShouldPlay } from '@/lib/reelPlayback';
 import { captionIsLong, REEL_TABS, reelSound, reelsKey, showFollowPlus, speedLabel, stepTime, type ReelSound, type ReelTab } from '@/lib/reelView';
+import { t } from '@/lib/i18n';
 
 type SheetName = null | 'comments' | 'repost' | 'gift' | 'menu' | 'share' | 'hold' | 'report';
 type PeopleKind = 'cheers' | 'reposts';
@@ -156,11 +157,11 @@ function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: PeopleKi
     retry: false,
   });
   return (
-    <Sheet title={kind === 'cheers' ? 'Quem brindou' : 'Quem repostou'} onClose={onClose}>
+    <Sheet title={kind === 'cheers' ? t('Quem brindou') : t('Quem repostou')} onClose={onClose}>
       <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
         {q.isLoading && <ActivityIndicator style={{ paddingVertical: 24 }} />}
-        {q.isError && <Text style={st.peopleMsg}>Esta lista não está disponível</Text>}
-        {q.isSuccess && q.data.length === 0 && <Text style={st.peopleMsg}>{kind === 'cheers' ? 'Ainda ninguém brindou.' : 'Ainda ninguém repostou.'}</Text>}
+        {q.isError && <Text style={st.peopleMsg}>{t('Esta lista não está disponível')}</Text>}
+        {q.isSuccess && q.data.length === 0 && <Text style={st.peopleMsg}>{kind === 'cheers' ? t('Ainda ninguém brindou.') : t('Ainda ninguém repostou.')}</Text>}
         {q.data?.map((p) => (
           <Pressable key={p.username} onPress={() => { onClose(); router.push(`/u/${p.username}` as never); }} style={st.person} accessibilityRole="button">
             <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
@@ -201,20 +202,20 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
       </View>
 
       <View style={{ alignItems: 'center', gap: 20 }}>
-        <Pressable onPress={replay} style={({ pressed }) => [st.replay, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Ver outra vez">
+        <Pressable onPress={replay} style={({ pressed }) => [st.replay, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={t('Ver outra vez')}>
           <Animated.View pointerEvents="none" style={[st.pingRing, { opacity: ping.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0] }), transform: [{ scale: ping.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }] }]} />
           <Icon name="undo" size={34} strokeWidth={2.2} color="#fff" />
         </Pressable>
-        <Text style={st.endReplay}>Ver outra vez</Text>
+        <Text style={st.endReplay}>{t('Ver outra vez')}</Text>
         <Pressable onPress={more} style={({ pressed }) => [st.endNext, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
-          <Text style={st.endNextText}>Seguinte</Text>
+          <Text style={st.endNextText}>{t('Seguinte')}</Text>
           <Icon name="arrow-up" size={18} strokeWidth={2.6} color="#fff" />
         </Pressable>
       </View>
 
       <View style={{ alignItems: 'center', gap: 4 }}>
         <Wordmark height={28} color="#fff" />
-        <Text style={st.endBrand}>Txilla com a malta</Text>
+        <Text style={st.endBrand}>{t('Txilla com a malta')}</Text>
       </View>
     </Animated.View>
   );
@@ -260,12 +261,12 @@ function AuthorBubble({ post, mine, onChange }: { post: ReelPost; mine: boolean;
   }
   return (
     <View style={st.authorBubble}>
-      <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={st.avatarRing} accessibilityRole="button" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+      <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={st.avatarRing} accessibilityRole="button" accessibilityLabel={t('Perfil de {displayName}', { displayName: post.author.displayName })}>
         <Avatar name={post.author.displayName} username={post.author.username} size={46} />
       </Pressable>
       {(plus || tick) && (
         <Animated.View style={[st.plusWrap, { transform: [{ scale: pop }] }]}>
-          <Pressable onPress={() => void follow()} disabled={!plus} hitSlop={10} style={[st.plus, tick && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={`Seguir ${post.author.displayName}`}>
+          <Pressable onPress={() => void follow()} disabled={!plus} hitSlop={10} style={[st.plus, tick && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={t('Seguir {displayName}', { displayName: post.author.displayName })}>
             <Icon name={tick ? 'check' : 'plus'} size={13} strokeWidth={3.2} color={tick ? colors.brand : '#fff'} />
           </Pressable>
         </Animated.View>
@@ -528,7 +529,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   async function save() {
     const next = !post.saved;
     onChange({ saved: next });
-    say(next ? 'Guardado' : 'Tirado dos guardados', 1000);
+    say(next ? t('Guardado') : t('Tirado dos guardados'), 1000);
     try {
       await (next ? api.savePost(post.id) : api.unsavePost(post.id));
     } catch {
@@ -538,7 +539,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   /** «Não me interessa»: ensina o algoritmo (o mesmo do «Não interessado» do feed) e passa à seguinte. */
   function notInterested() {
     setSheet(null);
-    say('Ok, vamos mostrar menos disto.', 1200);
+    say(t('Ok, vamos mostrar menos disto.'), 1200);
     void feedApi.setInterest(post.id, -1).catch(() => undefined);
     setTimeout(() => onMore?.(), 900); // dá para ler o aviso antes de passar à seguinte
   }
@@ -587,19 +588,19 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   const longCaption = captionIsLong(post.body);
 
   return (
-    <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always', userSelect: 'none', WebkitTouchCallout: 'none' } as object)]} accessibilityLabel={`Tcheka de ${post.author.displayName}`}>
+    <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always', userSelect: 'none', WebkitTouchCallout: 'none' } as object)]} accessibilityLabel={t('Tcheka de {displayName}', { displayName: post.author.displayName })}>
       {isWeb ? (
-        <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} onLongPress={openHold} delayLongPress={HOLD_MS} accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar, segurar para mais opções)">{fit}</Pressable>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} onLongPress={openHold} delayLongPress={HOLD_MS} accessibilityRole="button" accessibilityLabel={t('Tocar ou pausar (duplo toque para brindar, segurar para mais opções)')}>{fit}</Pressable>
       ) : (
         <GestureDetector gesture={taps}>
-          <View style={StyleSheet.absoluteFill} collapsable={false} accessible accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar, segurar para mais opções)">{fit}</View>
+          <View style={StyleSheet.absoluteFill} collapsable={false} accessible accessibilityRole="button" accessibilityLabel={t('Tocar ou pausar (duplo toque para brindar, segurar para mais opções)')}>{fit}</View>
         </GestureDetector>
       )}
 
       <Animated.View style={[st.shade, { opacity: chrome }]} pointerEvents="none">
         <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']} style={StyleSheet.absoluteFill} />
       </Animated.View>
-      {captionOpen && <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} onPress={() => setCaptionOpen(false)} accessibilityLabel="Fechar a legenda" />}
+      {captionOpen && <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} onPress={() => setCaptionOpen(false)} accessibilityLabel={t('Fechar a legenda')} />}
       {burst > 0 && (
         <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 15, opacity: burstAnim.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 0] }), transform: [{ scale: burstAnim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.5, 1.15, 1.4] }) }] }}>
           <Icon name="cheers" size={110} strokeWidth={1.6} color="#fff" />
@@ -611,7 +612,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
       {(userPaused || flash === 'play') && !scrubbing && (
         <View style={st.flashWrap} pointerEvents="box-none">
           {userPaused && (
-            <Pressable onPress={() => setReelMuted(!chosen)} style={({ pressed }) => [st.muteCenter, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={chosen ? 'Ligar o som' : 'Desligar o som'}>
+            <Pressable onPress={() => setReelMuted(!chosen)} style={({ pressed }) => [st.muteCenter, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={chosen ? t('Ligar o som') : t('Desligar o som')}>
               <Icon name={chosen ? 'volume-off' : 'volume'} size={22} color="#fff" />
             </Pressable>
           )}
@@ -620,10 +621,10 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
           </Animated.View>
         </View>
       )}
-      {failed && <View style={st.flashWrap} pointerEvents="none"><Text style={st.failed}>Não consegui carregar este vídeo.</Text></View>}
+      {failed && <View style={st.flashWrap} pointerEvents="none"><Text style={st.failed}>{t('Não consegui carregar este vídeo.')}</Text></View>}
       {toast && <View style={st.toastWrap} pointerEvents="none" accessibilityRole="alert"><Text style={st.toast}>{toast}</Text></View>}
       {speed !== 1 && !comments && (
-        <Pressable onPress={() => setSheet('hold')} style={st.speedChip} accessibilityRole="button" accessibilityLabel={`Velocidade ${speedLabel(speed)}`}>
+        <Pressable onPress={() => setSheet('hold')} style={st.speedChip} accessibilityRole="button" accessibilityLabel={t('Velocidade {speedLabel}', { speedLabel: speedLabel(speed) })}>
           <Text style={st.speedChipText}>{speedLabel(speed)}</Text>
         </Pressable>
       )}
@@ -644,15 +645,15 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
         {post.body ? (
           captionOpen ? (
             <ScrollView style={{ marginTop: 6, maxHeight: Math.round(height * 0.4) }} showsVerticalScrollIndicator={false}>
-              <Pressable onPress={() => setCaptionOpen(false)} accessibilityRole="button" accessibilityLabel="Encolher a legenda">
+              <Pressable onPress={() => setCaptionOpen(false)} accessibilityRole="button" accessibilityLabel={t('Encolher a legenda')}>
                 <RichText text={post.body} style={st.body} />
-                <Text style={st.more}>menos</Text>
+                <Text style={st.more}>{t('menos')}</Text>
               </Pressable>
             </ScrollView>
           ) : (
-            <Pressable onPress={() => setCaptionOpen(true)} disabled={!longCaption} style={{ marginTop: 6 }} accessibilityRole={longCaption ? 'button' : undefined} accessibilityLabel={longCaption ? 'Ver a legenda toda' : undefined}>
+            <Pressable onPress={() => setCaptionOpen(true)} disabled={!longCaption} style={{ marginTop: 6 }} accessibilityRole={longCaption ? 'button' : undefined} accessibilityLabel={longCaption ? t('Ver a legenda toda') : undefined}>
               <RichText text={post.body} style={st.body} numberOfLines={2} />
-              {longCaption && <Text style={st.more}>mais</Text>}
+              {longCaption && <Text style={st.more}>{t('mais')}</Text>}
             </Pressable>
           )
         ) : null}
@@ -672,11 +673,11 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
           label={compactCount(post.cheers)}
           onPress={() => void cheer()}
           selected={!!post.cheered}
-          accessibilityLabel={post.cheered ? 'Tirar o brinde' : 'Brindar'}
+          accessibilityLabel={post.cheered ? t('Tirar o brinde') : t('Brindar')}
           onLabelPress={post.lists?.cheers && post.cheers > 0 ? () => setPeople('cheers') : undefined}
-          labelA11y="Ver quem brindou"
+          labelA11y={t('Ver quem brindou')}
         />
-        <RailButton icon={<View style={railStyles.circle}><Icon name="comment" size={28} color="#fff" /></View>} label={compactCount(post.comments)} onPress={() => setSheet('comments')} accessibilityLabel={`Comentários (${post.comments})`} />
+        <RailButton icon={<View style={railStyles.circle}><Icon name="comment" size={28} color="#fff" /></View>} label={compactCount(post.comments)} onPress={() => setSheet('comments')} accessibilityLabel={t('Comentários ({comments})', { comments: post.comments })} />
         {/* Quem publicou não deixa repostar (lib/repost): sem o botão, a não ser que haja um repost meu para desfazer. */}
         {showRepostButton(post) ? (
           <RailButton
@@ -684,13 +685,13 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
             label={compactCount(post.reposts)}
             onPress={() => setSheet('repost')}
             selected={!!post.reposted}
-            accessibilityLabel={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`}
+            accessibilityLabel={post.reposted ? t('Reposte feito ({reposts})', { reposts: post.reposts }) : t('Repostar ({reposts})', { reposts: post.reposts })}
             onLabelPress={post.lists?.reposts && post.reposts > 0 ? () => setPeople('reposts') : undefined}
-            labelA11y="Ver quem repostou"
+            labelA11y={t('Ver quem repostou')}
           />
         ) : null}
-        <RailButton icon={<View style={railStyles.circle}><BookmarkIcon on={!!post.saved} size={28} color={post.saved ? '#f5c518' : '#fff'} /></View>} onPress={() => void save()} selected={!!post.saved} accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} />
-        <RailButton icon={<View style={railStyles.circle}><Icon name="share" size={28} color="#fff" /></View>} onPress={() => setSheet('share')} accessibilityLabel="Partilhar" />
+        <RailButton icon={<View style={railStyles.circle}><BookmarkIcon on={!!post.saved} size={28} color={post.saved ? '#f5c518' : '#fff'} /></View>} onPress={() => void save()} selected={!!post.saved} accessibilityLabel={post.saved ? t('Tirar dos guardados') : t('Guardar')} />
+        <RailButton icon={<View style={railStyles.circle}><Icon name="share" size={28} color="#fff" /></View>} onPress={() => setSheet('share')} accessibilityLabel={t('Partilhar')} />
         {extraActions ?? <ReelExtraActions post={post} active={active} />}
         {sound && <SoundDisc sound={sound} spinning={shouldPlay} onPress={goSound} />}
       </Animated.View>
@@ -716,7 +717,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
           speed={speed}
           captions={captions.has}
           captionsOn={captions.on}
-          onSpeed={(r) => { setSpeed(r); setSheet(null); if (r !== 1) say(`Velocidade ${speedLabel(r)}`, 900); }}
+          onSpeed={(r) => { setSpeed(r); setSheet(null); if (r !== 1) say(t('Velocidade {speedLabel}', { speedLabel: speedLabel(r) }), 900); }}
           onClose={() => setSheet(null)}
           onPick={(it) => {
             if (it === 'not-interested') return notInterested();
@@ -738,7 +739,7 @@ function ReelsTop({ tab, onTab, top }: { tab: ReelTab; onTab: (t: ReelTab) => vo
   return (
     <View style={[st.top, { paddingTop: top }]} pointerEvents="box-none">
       {/* Sem seta de voltar: nas tchekas o deslize para os lados muda de aba. */}
-      <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Nova tcheka"><Icon name="plus" size={24} color="#fff" strokeWidth={2.4} /></Pressable>
+      <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={t('Nova tcheka')}><Icon name="plus" size={24} color="#fff" strokeWidth={2.4} /></Pressable>
       <View style={st.tabs} accessibilityRole="tablist">
         {REEL_TABS.map((t) => {
           const on = t.id === tab;
@@ -750,7 +751,7 @@ function ReelsTop({ tab, onTab, top }: { tab: ReelTab; onTab: (t: ReelTab) => vo
           );
         })}
       </View>
-      <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Filtros das tchekas"><Icon name="sliders" size={24} color="#fff" /></Pressable>
+      <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={t('Filtros das tchekas')}><Icon name="sliders" size={24} color="#fff" /></Pressable>
     </View>
   );
 }
@@ -897,15 +898,15 @@ export default function Reels() {
             ListEmptyComponent={
               loading ? <View style={[st.center, { height }]}><ActivityIndicator color="#fff" /></View> : q.isError ? (
                 <View style={[st.center, { height }]} accessibilityRole="alert">
-                  <ErrorState dark what="as tchekas" onRetry={() => void q.refetch()} style={{ marginTop: 0 }} />
+                  <ErrorState dark what={t('as tchekas')} onRetry={() => void q.refetch()} style={{ marginTop: 0 }} />
                 </View>
               ) : tab === 'following' ? (
                 <View style={[st.center, { height }]}>
-                  <EmptyState dark icon="users" title="Nada de quem segues" text="Quando a malta que segues publicar tchekas, aparecem aqui." action={{ label: 'Ver «Para ti»', onPress: () => pickTab('foryou') }} style={{ marginTop: 0 }} />
+                  <EmptyState dark icon="users" title={t('Nada de quem segues')} text={t('Quando a malta que segues publicar tchekas, aparecem aqui.')} action={{ label: t('Ver «Para ti»'), onPress: () => pickTab('foryou') }} style={{ marginTop: 0 }} />
                 </View>
               ) : (
                 <View style={[st.center, { height }]}>
-                  <EmptyState dark icon="film" title="Ainda sem tchekas" text="Sê tu a começar: grava um vídeo até 60 segundos." action={{ label: 'Publicar um vídeo', onPress: () => router.push('/new' as never) }} style={{ marginTop: 0 }} />
+                  <EmptyState dark icon="film" title={t('Ainda sem tchekas')} text={t('Sê tu a começar: grava um vídeo até 60 segundos.')} action={{ label: t('Publicar um vídeo'), onPress: () => router.push('/new' as never) }} style={{ marginTop: 0 }} />
                 </View>
               )
             }

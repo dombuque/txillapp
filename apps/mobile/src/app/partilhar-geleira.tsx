@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { shareBlockReason, visibilityNote } from '@/lib/geleiraPost';
 import { goBack } from '@/lib/nav';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * «Partilhar a minha geleira» (0143): o ecrã de publicar já com o cartão da geleira e uma legenda opcional. O servidor tira o
@@ -56,7 +57,7 @@ export default function PartilharGeleira() {
       void Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] })]);
       router.replace(`/p/${(p as { code?: string; id: string }).code ?? (p as { id: string }).id}` as never);
     } catch (e) {
-      setErr(e instanceof ApiError && e.message ? e.message : 'Não consegui publicar agora. Tenta outra vez.');
+      setErr(e instanceof ApiError && e.message ? e.message : t('Não consegui publicar agora. Tenta outra vez.'));
       setBusy(false);
     }
   }
@@ -64,28 +65,28 @@ export default function PartilharGeleira() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior="padding">
       <View style={st.top}>
-        <Pressable onPress={() => goBack(router, '/profile')} style={st.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
-        <Text style={st.title}>Partilhar a geleira</Text>
+        <Pressable onPress={() => goBack(router, '/profile')} style={st.x} accessibilityRole="button" accessibilityLabel={t('Cancelar')}><Icon name="x" size={24} strokeWidth={2} /></Pressable>
+        <Text style={st.title}>{t('Partilhar a geleira')}</Text>
         <Pressable onPress={() => void publish()} disabled={!canPost} style={[st.publish, !canPost && { backgroundColor: 'rgba(214,51,79,0.4)' }]} accessibilityRole="button" accessibilityState={{ disabled: !canPost }}>
-          {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={st.publishText}>Publicar</Text>}
+          {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={st.publishText}>{t('Publicar')}</Text>}
         </Pressable>
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }} showsVerticalScrollIndicator={false}>
         {mine.isLoading ? (
-          <View style={[st.card, { height: 360, alignItems: 'center', justifyContent: 'center' }]} accessibilityLabel="A carregar a geleira"><ActivityIndicator color={colors.brand} /></View>
+          <View style={[st.card, { height: 360, alignItems: 'center', justifyContent: 'center' }]} accessibilityLabel={t('A carregar a geleira')}><ActivityIndicator color={colors.brand} /></View>
         ) : mine.isError ? (
           <View style={[st.card, st.empty]} accessibilityRole="alert">
-            <Text style={st.emptyText}>Não consegui abrir a tua geleira.</Text>
-            <Pressable onPress={() => void mine.refetch()} style={st.ghostBtn} accessibilityRole="button"><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+            <Text style={st.emptyText}>{t('Não consegui abrir a tua geleira.')}</Text>
+            <Pressable onPress={() => void mine.refetch()} style={st.ghostBtn} accessibilityRole="button"><Text style={st.ghostText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         ) : why ? (
           // Geleira vazia: não se partilha, e diz-se porquê (e como a encher).
           <View style={[st.card, st.empty]}>
             <FridgeArt count={0} level={0} invite size={84} />
-            <Text style={st.emptyTitle}>Ainda não há o que partilhar</Text>
+            <Text style={st.emptyTitle}>{t('Ainda não há o que partilhar')}</Text>
             <Text style={st.emptyText}>{why}</Text>
-            <Pressable onPress={() => router.replace('/geleira' as never)} style={st.fill} accessibilityRole="button"><Text style={st.fillText}>Encher a geleira</Text></Pressable>
+            <Pressable onPress={() => router.replace('/geleira' as never)} style={st.fill} accessibilityRole="button"><Text style={st.fillText}>{t('Encher a geleira')}</Text></Pressable>
           </View>
         ) : (
           <View style={st.card}>
@@ -100,12 +101,12 @@ export default function PartilharGeleira() {
               <TextInput
                 value={body}
                 onChangeText={setBody}
-                placeholder="Diz alguma coisa sobre a tua geleira (opcional)"
+                placeholder={t('Diz alguma coisa sobre a tua geleira (opcional)')}
                 placeholderTextColor={colors.zinc500}
                 multiline
                 maxLength={2000}
                 style={st.input}
-                accessibilityLabel="Legenda (opcional)"
+                accessibilityLabel={t('Legenda (opcional)')}
               />
               {left < 200 ? <Text style={[st.left, left < 50 && { color: colors.brand, fontWeight: '600' }]} accessibilityLiveRegion="polite">{left}</Text> : null}
             </View>
@@ -114,16 +115,16 @@ export default function PartilharGeleira() {
               <View style={st.notes}>
                 <View style={st.noteRow}>
                   <Icon name="snowflake" size={16} color="#0369a1" />
-                  <Text style={st.noteText}>O post leva a tua geleira tal como está agora. Se a mudares depois, o post fica igual, com a ligação para a geleira de agora.</Text>
+                  <Text style={st.noteText}>{t('O post leva a tua geleira tal como está agora. Se a mudares depois, o post fica igual, com a ligação para a geleira de agora.')}</Text>
                 </View>
                 <View style={st.noteRow}>
                   <Icon name="cheers" size={16} color={colors.amber600} />
-                  <Text style={st.noteText}>Quem vir o post pode brindar a cada gosto: os brindes contam também na geleira do teu perfil.</Text>
+                  <Text style={st.noteText}>{t('Quem vir o post pode brindar a cada gosto: os brindes contam também na geleira do teu perfil.')}</Text>
                 </View>
                 {alcohol ? (
                   <View style={st.noteRow}>
                     <Icon name="lock" size={16} color={colors.zinc600} />
-                    <Text style={st.noteText}>As bebidas com álcool só aparecem a quem tem 18 anos ou mais.</Text>
+                    <Text style={st.noteText}>{t('As bebidas com álcool só aparecem a quem tem 18 anos ou mais.')}</Text>
                   </View>
                 ) : null}
                 {note ? (

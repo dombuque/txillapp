@@ -33,6 +33,7 @@ import { discardCopy, mimoEdited } from '@/lib/discardGuard';
 import { goBack } from '@/lib/nav';
 import { overlayOpen as anyOverlay } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
+import { t } from '@/lib/i18n';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -57,7 +58,7 @@ export default function NewStory() {
     try {
       if (source === 'camera') {
         const p = await ImagePicker.requestCameraPermissionsAsync();
-        if (!p.granted) return setErr('Preciso de acesso à câmara.');
+        if (!p.granted) return setErr(t('Preciso de acesso à câmara.'));
       }
       // Sem o recorte do sistema (allowsEditing obrigava a cortar a 9:16, com zoom): a foto e o vídeo entram inteiros e o
       // zoom e o enquadramento fazem-se no editor, com o que se vê na moldura a ser o que se publica.
@@ -67,7 +68,7 @@ export default function NewStory() {
       if (a) setAsset({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg') });
       else if (!asset) goBack(router);
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui abrir a câmara');
+      setErr((e as Error).message || t('Não consegui abrir a câmara'));
     }
   }
   useEffect(() => {
@@ -151,14 +152,14 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
 
   function addSticker(id: string) {
     setPickSticker(false);
-    if (counts.stickers >= MAX_STICKERS) return setErr(`Até ${MAX_STICKERS} stickers por mimo`);
+    if (counts.stickers >= MAX_STICKERS) return setErr(t('Até {maxStickers} stickers por mimo', { maxStickers: MAX_STICKERS }));
     setStickers((l) => [...l, newPlaced(id)]);
     setSel(stickers.length);
   }
   /** «Aa»: escrever um texto novo por cima. */
   function addText() {
     setSel(null);
-    if (counts.texts >= MAX_TEXT_LAYERS) return setErr(`Até ${MAX_TEXT_LAYERS} textos por mimo`);
+    if (counts.texts >= MAX_TEXT_LAYERS) return setErr(t('Até {maxTextLayers} textos por mimo', { maxTextLayers: MAX_TEXT_LAYERS }));
     setErr('');
     setTextEdit({ index: null, layer: newTextLayer() });
   }
@@ -206,7 +207,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       }, qc, (mediaId) => ({ kind: 'story', payload: { mediaId, caption: text, audience: who, music: musicPayload(track), stickers: placed } }));
     } catch (e) {
       setBusy(false);
-      return setErr((e as Error).message || 'Não consegui enviar o mimo. Tenta outra vez.');
+      return setErr((e as Error).message || t('Não consegui enviar o mimo. Tenta outra vez.'));
     }
     if (router.canGoBack()) router.back();
     else router.replace('/' as never);
@@ -278,17 +279,17 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. box-none: entre os
           botões, os dedos chegam à foto (zoom e arrastar). */}
       <View pointerEvents="box-none" style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
-        <Pressable onPress={confirmClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={confirmClose} style={st.tool} accessibilityRole="button" accessibilityLabel={t('Cancelar')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {sel !== null && stickers[sel] ? <StickerToolbar item={stickers[sel]} onChange={updateSel} onDelete={deleteSel} onDone={() => setSel(null)} /> : <View />}
         <View style={{ gap: 10 }}>
-          {tool('camera', 'Tirar outra', () => confirmRetake(onCamera ?? onRetake))}
-          {onCamera ? tool('images', 'Galeria', () => confirmRetake(onRetake)) : null}
+          {tool('camera', t('Tirar outra'), () => confirmRetake(onCamera ?? onRetake))}
+          {onCamera ? tool('images', t('Galeria'), () => confirmRetake(onRetake)) : null}
           {/* «Preencher o ecrã»: a foto a cobrir a moldura, ao centro; depois de mexer, «Mostrar a foto inteira» volta a inteira. */}
-          {!asset.video && (canFill || !whole) ? tool('expand', whole ? 'Preencher o ecrã' : 'Mostrar a foto inteira', () => { if (img) setView(whole ? fillView(img, fsize) : WHOLE); }, !whole) : null}
-          {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
-          {tool('sticker', 'Stickers', () => setPickSticker(true), counts.stickers > 0)}
-          <Pressable onPress={addText} style={[st.tool, counts.texts > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" accessibilityState={{ selected: counts.texts > 0 }}>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>Aa</Text>
+          {!asset.video && (canFill || !whole) ? tool('expand', whole ? t('Preencher o ecrã') : t('Mostrar a foto inteira'), () => { if (img) setView(whole ? fillView(img, fsize) : WHOLE); }, !whole) : null}
+          {tool('music', music ? t('Mudar a música') : t('Adicionar música'), () => setPickMusic(true), !!music)}
+          {tool('sticker', t('Stickers'), () => setPickSticker(true), counts.stickers > 0)}
+          <Pressable onPress={addText} style={[st.tool, counts.texts > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={t('Texto')} accessibilityHint={t('Escrever por cima do mimo')} accessibilityState={{ selected: counts.texts > 0 }}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>{t('Aa')}</Text>
           </Pressable>
         </View>
       </View>
@@ -298,8 +299,8 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
         {music ? (
           <View style={st.musicChip}>
             <Icon name="music" size={16} color="#fff" />
-            <Text style={{ flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
-            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
+            <Text style={{ flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || t('Autor desconhecido')}`}</Text>
+            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
           </View>
         ) : null}
         <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
@@ -310,32 +311,32 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
           {...mention.inputProps}
           onFocus={() => { setTyping(true); mention.inputProps.onFocus(); }}
           onBlur={() => { setTyping(false); mention.inputProps.onBlur(); }}
-          placeholder="Escreve uma legenda…"
+          placeholder={t('Escreve uma legenda…')}
           placeholderTextColor="rgba(255,255,255,0.75)"
           style={[st.caption, typing && { backgroundColor: 'rgba(0,0,0,0.6)' }]}
-          accessibilityLabel="Legenda do mimo"
+          accessibilityLabel={t('Legenda do mimo')}
         />
         {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
         <View style={st.sendRow}>
-          <View style={{ flex: 1, flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Para quem vai">
+          <View style={{ flex: 1, flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={t('Para quem vai')}>
             <Pressable onPress={() => setAudience('all')} style={[st.aud, { flex: 1.25 }, !close && st.audOn]} accessibilityRole="radio" accessibilityState={{ checked: !close }}>
               <Avatar name={user?.displayName ?? ''} username={user?.username} size={26} />
-              <Text style={[st.audText, !close && { color: colors.zinc900 }]} numberOfLines={1}>Teu mimo</Text>
+              <Text style={[st.audText, !close && { color: colors.zinc900 }]} numberOfLines={1}>{t('Teu mimo')}</Text>
               {!close && <Icon name="check" size={16} color={colors.zinc900} strokeWidth={3} />}
             </Pressable>
             <Pressable onPress={() => setAudience('close_friends')} style={[st.aud, close && { backgroundColor: EMERALD }]} accessibilityRole="radio" accessibilityState={{ checked: close }}>
               <View style={st.heart}><Icon name="heart" size={15} solid color="#fff" /></View>
-              <Text style={st.audText} numberOfLines={1}>Próximos</Text>
+              <Text style={st.audText} numberOfLines={1}>{t('Próximos')}</Text>
               {close && <Icon name="check" size={16} color="#fff" strokeWidth={3} />}
             </Pressable>
           </View>
-          <Pressable onPress={() => void publish()} disabled={busy} style={({ pressed }) => [st.send, close && { backgroundColor: EMERALD }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={close ? 'Partilhar com amigos próximos' : 'Partilhar no mimo'}>
+          <Pressable onPress={() => void publish()} disabled={busy} style={({ pressed }) => [st.send, close && { backgroundColor: EMERALD }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={close ? t('Partilhar com amigos próximos') : t('Partilhar no mimo')}>
             {busy ? <ActivityIndicator color="#fff" /> : <Icon name="send" size={24} color="#fff" strokeWidth={2.2} />}
           </Pressable>
         </View>
         {close && (
           <Pressable onPress={() => setListOpen(true)} style={{ marginTop: 8 }} accessibilityRole="button">
-            <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#6ee7b7' }}>{friends.data?.length ? `${friends.data.length} na lista · gerir` : 'A tua lista está vazia · adicionar amigos'}</Text>
+            <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#6ee7b7' }}>{friends.data?.length ? t('{n} na lista · gerir', { n: friends.data.length }) : t('A tua lista está vazia · adicionar amigos')}</Text>
           </Pressable>
         )}
       </View>

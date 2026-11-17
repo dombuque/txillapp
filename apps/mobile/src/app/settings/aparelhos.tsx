@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { detalheAparelho, eTelemovel, ordenarAparelhos, type Aparelho } from '@/lib/aparelhos';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Pergunta antes de terminar, na caixa da app (igual no telemóvel e no site). */
 async function confirmar(title: string, text: string, ok: string, go: () => void) {
@@ -27,7 +28,7 @@ function DeviceRow({ d, busy, onEnd }: { d: Aparelho; busy?: boolean; onEnd?: ()
         <Text style={st.desc}>{detalheAparelho(d)}</Text>
       </View>
       {onEnd ? (
-        <Button label="Terminar" kind="secondary" size="sm" loading={busy} onPress={onEnd} accessibilityLabel={`Terminar sessão em ${d.device}`} />
+        <Button label={t('Terminar')} kind="secondary" size="sm" loading={busy} onPress={onEnd} accessibilityLabel={t('Terminar sessão em {device}', { device: d.device })} />
       ) : null}
     </View>
   );
@@ -45,13 +46,13 @@ export default function Aparelhos() {
   const one = useMutation({
     mutationFn: (id: string) => api.revokeSession(id),
     onMutate: () => setErr(''),
-    onError: (e) => setErr((e as Error).message || 'Não foi possível terminar a sessão.'),
+    onError: (e) => setErr((e as Error).message || t('Não foi possível terminar a sessão.')),
     onSettled: () => void refresh(),
   });
   const others = useMutation({
     mutationFn: () => api.revokeOtherSessions(),
     onMutate: () => setErr(''),
-    onError: (e) => setErr((e as Error).message || 'Não foi possível terminar as sessões.'),
+    onError: (e) => setErr((e as Error).message || t('Não foi possível terminar as sessões.')),
     onSettled: () => void refresh(),
   });
   const list = ordenarAparelhos(q.data ?? []);
@@ -59,21 +60,21 @@ export default function Aparelhos() {
   const rest = list.filter((d) => !d.current);
 
   return (
-    <SettingsPage title="Os teus aparelhos">
-      <Text style={st.lead}>Onde a tua conta tem sessão iniciada, com a data em que entraste e a última atividade. Não reconheces algum? Termina a sessão nele e muda a senha.</Text>
+    <SettingsPage title={t('Os teus aparelhos')}>
+      <Text style={st.lead}>{t('Onde a tua conta tem sessão iniciada, com a data em que entraste e a última atividade. Não reconheces algum? Termina a sessão nele e muda a senha.')}</Text>
       {q.isLoading && <PageLoader style={{ paddingTop: 24 }} />}
-      {q.isError && <ErrorState what="os teus aparelhos" onRetry={() => void q.refetch()} />}
-      {q.isSuccess && list.length === 0 && <Text style={s.none}>Sem sessões iniciadas.</Text>}
-      <SettingsSection title="Este aparelho">
+      {q.isError && <ErrorState what={t('os teus aparelhos')} onRetry={() => void q.refetch()} />}
+      {q.isSuccess && list.length === 0 && <Text style={s.none}>{t('Sem sessões iniciadas.')}</Text>}
+      <SettingsSection title={t('Este aparelho')}>
         {here.map((d) => <DeviceRow key={d.id} d={d} />)}
       </SettingsSection>
-      <SettingsSection title="Outros aparelhos">
+      <SettingsSection title={t('Outros aparelhos')}>
         {rest.map((d) => (
           <DeviceRow
             key={d.id}
             d={d}
             busy={one.isPending && one.variables === d.id}
-            onEnd={() => void confirmar('Terminar sessão?', `${d.device} deixa de ter acesso à tua conta dentro de poucos minutos.`, 'Terminar', () => one.mutate(d.id))}
+            onEnd={() => void confirmar(t('Terminar sessão?'), t('{device} deixa de ter acesso à tua conta dentro de poucos minutos.', { device: d.device }), t('Terminar'), () => one.mutate(d.id))}
           />
         ))}
       </SettingsSection>
@@ -81,15 +82,15 @@ export default function Aparelhos() {
       {rest.length > 1 && (
         <View style={{ paddingHorizontal: 16 }}>
           <Button
-            label="Terminar sessão em todos os outros"
+            label={t('Terminar sessão em todos os outros')}
             kind="secondary"
             loading={others.isPending}
-            onPress={() => void confirmar('Terminar todas as outras?', 'Ficas só com a sessão deste aparelho.', 'Terminar todas', () => others.mutate())}
+            onPress={() => void confirmar(t('Terminar todas as outras?'), t('Ficas só com a sessão deste aparelho.'), t('Terminar todas'), () => others.mutate())}
             style={{ marginTop: 16 }}
           />
         </View>
       )}
-      {q.isSuccess ? <Text style={st.note}>Nas sessões não guardamos o endereço IP: só o tipo de aparelho e de browser, a versão da app e as datas.</Text> : null}
+      {q.isSuccess ? <Text style={st.note}>{t('Nas sessões não guardamos o endereço IP: só o tipo de aparelho e de browser, a versão da app e as datas.')}</Text> : null}
     </SettingsPage>
   );
 }

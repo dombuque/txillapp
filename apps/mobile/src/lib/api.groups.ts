@@ -8,15 +8,16 @@ import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
 import type { GroupVisibility, JoinMode, JoinState, MapPlace } from '@/lib/groupAccess';
 import { formatVibes } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 export type GroupKind = 'viagem' | 'festa' | 'fim_de_semana' | 'outro';
 export type Rsvp = 'going' | 'maybe' | 'not_going';
 
 export const GROUP_KINDS: { id: GroupKind; label: string; icon: IconName }[] = [
-  { id: 'viagem', label: 'Viagem', icon: 'map' },
-  { id: 'festa', label: 'Festa', icon: 'party' },
-  { id: 'fim_de_semana', label: 'Fim de semana', icon: 'sun' },
-  { id: 'outro', label: 'Outro', icon: 'sparkles' },
+  { id: 'viagem', get label() { return t('Viagem'); }, icon: 'map' },
+  { id: 'festa', get label() { return t('Festa'); }, icon: 'party' },
+  { id: 'fim_de_semana', get label() { return t('Fim de semana'); }, icon: 'sun' },
+  { id: 'outro', get label() { return t('Outro'); }, icon: 'sparkles' },
 ];
 export const kindInfo = (k: GroupKind | null | undefined) => GROUP_KINDS.find((x) => x.id === k) ?? GROUP_KINDS[3];
 
@@ -224,9 +225,9 @@ export function countdown(start: string | null | undefined, end?: string | null)
   const s = dayOf(start).getTime();
   const e = end ? dayOf(end).getTime() : s;
   const days = Math.round((s - today.getTime()) / 86_400_000);
-  if (days > 1) return `Daqui a ${days} dias`;
+  if (days > 1) return t('Daqui a {days} dias', { days });
   if (days === 1) return 'Amanhã';
-  if (today.getTime() <= e) return days === 0 ? 'É hoje' : 'A decorrer';
+  if (today.getTime() <= e) return days === 0 ? t('É hoje') : 'A decorrer';
   return 'Já passou';
 }
 export const toIsoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

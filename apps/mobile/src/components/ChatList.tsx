@@ -10,6 +10,7 @@ import { colors } from '@/lib/theme';
 import { Bubble, TypingBubble, type MenuAt, type MenuMode, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
 import { SystemNotice } from './ChatTemporary';
+import { t } from '@/lib/i18n';
 
 const NONE: readonly PendingMsg[] = [];
 
@@ -184,7 +185,7 @@ export function ChatList({
             <View>
               {hasNext && (
                 <Pressable onPress={() => void fetchNext()} disabled={fetchingNext} style={st.older} accessibilityRole="button">
-                  {fetchingNext ? <ActivityIndicator color={colors.zinc500} /> : <Text style={st.olderText}>Ver mensagens anteriores</Text>}
+                  {fetchingNext ? <ActivityIndicator color={colors.zinc500} /> : <Text style={st.olderText}>{t('Ver mensagens anteriores')}</Text>}
                 </Pressable>
               )}
               {top}
@@ -207,7 +208,7 @@ export function ChatList({
           onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
           style={({ pressed }) => [st.down, pressed && { backgroundColor: colors.zinc100 }]}
           accessibilityRole="button"
-          accessibilityLabel={freshCount ? `Ir para o fim, ${freshCount} ${freshCount === 1 ? 'mensagem nova' : 'mensagens novas'}` : 'Ir para o fim'}
+          accessibilityLabel={freshCount ? t('Ir para o fim, {count} mensagem nova', { count: freshCount, other: 'Ir para o fim, {count} mensagens novas' }) : t('Ir para o fim')}
         >
           <View style={{ transform: [{ rotate: '90deg' }] }}><Icon name="chevron-right" size={20} color={colors.zinc800} strokeWidth={2.2} /></View>
           {freshCount > 0 ? <View style={st.badge}><Text style={st.badgeText}>{freshCount > 99 ? '99+' : freshCount}</Text></View> : null}
@@ -229,9 +230,9 @@ function TimeDivider({ label }: { label: string }) {
 /** "Mensagens novas": uma linha fina da marca com o texto ao meio. */
 function NewMark() {
   return (
-    <View style={st.newMark} accessibilityRole="header" accessibilityLabel="Mensagens novas">
+    <View style={st.newMark} accessibilityRole="header" accessibilityLabel={t('Mensagens novas')}>
       <View style={st.newLine} />
-      <Text style={st.newText}>Mensagens novas</Text>
+      <Text style={st.newText}>{t('Mensagens novas')}</Text>
       <View style={st.newLine} />
     </View>
   );

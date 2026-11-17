@@ -9,6 +9,7 @@
  * Só importa tipos (o node corre este ficheiro direto).
  */
 
+import { t } from '@/lib/i18n';
 export const JOB_VERSION = 1;
 /** A montagem tem 480 s de prazo no servidor e pode esperar na fila: passado este tempo, um registo já não se retoma. */
 export const JOB_MAX_AGE_MS = 20 * 60_000;
@@ -124,36 +125,36 @@ export function serverPhase(status: string, progress: number): RunPhase {
 }
 
 const PHASE_TITLE: Record<RunPhase, string> = {
-  enviar: 'A enviar os clipes…',
-  'preparar-ficheiros': 'A preparar os vídeos…',
-  pedir: 'A pedir a montagem…',
-  fila: 'Na fila da montagem…',
-  preparar: 'A preparar a montagem…',
+  get enviar() { return t('A enviar os clipes…'); },
+  get 'preparar-ficheiros'() { return t('A preparar os vídeos…'); },
+  get pedir() { return t('A pedir a montagem…'); },
+  get fila() { return t('Na fila da montagem…'); },
+  get preparar() { return t('A preparar a montagem…'); },
   clipes: 'A montar os clipes…',
-  final: 'A juntar o vídeo final…',
-  acabar: 'Quase pronto…',
+  get final() { return t('A juntar o vídeo final…'); },
+  get acabar() { return t('Quase pronto…'); },
 };
 
 /** O estado durante os envios: `index` é o ficheiro que está a ir (a contar do 0), `part` o progresso dele (0 a 1). */
 export function uploadState(index: number, count: number, part: number, kind: UploadFile['kind'] = 'photo', retry = 0): RunState {
   const n = Math.max(1, count);
   const p = Math.max(0, Math.min(1, (index + Math.max(0, Math.min(1, part))) / n));
-  const what = kind === 'voice' ? 'a voz-off' : kind === 'video' ? `o vídeo ${Math.min(index + 1, n)} de ${n}` : `o ficheiro ${Math.min(index + 1, n)} de ${n}`;
+  const what = kind === 'voice' ? 'a voz-off' : kind === 'video' ? t('o vídeo {n} de {n2}', { n: Math.min(index + 1, n), n2: n }) : t('o ficheiro {n} de {n2}', { n: Math.min(index + 1, n), n2: n });
   return {
     phase: 'enviar', progress: p * UPLOAD_SHARE, title: PHASE_TITLE.enviar,
-    detail: retry > 0 ? `A rede caiu. A tentar outra vez (${retry} de ${UPLOAD_RETRIES})…` : `A enviar ${what} · ${Math.round(Math.max(0, Math.min(1, part)) * 100)}%`,
+    detail: retry > 0 ? t('A rede caiu. A tentar outra vez ({retry} de {uploadRetries})…', { retry, uploadRetries: UPLOAD_RETRIES }) : t('A enviar {what} · {n}%', { what, n: Math.round(Math.max(0, Math.min(1, part)) * 100) }),
   };
 }
 /** Os vídeos enviados estão a ser convertidos no servidor. */
-export const preparingState = (): RunState => ({ phase: 'preparar-ficheiros', progress: UPLOAD_SHARE, title: PHASE_TITLE['preparar-ficheiros'], detail: 'O servidor está a converter os vídeos enviados.' });
-export const requestingState = (): RunState => ({ phase: 'pedir', progress: UPLOAD_SHARE, title: PHASE_TITLE.pedir, detail: 'Os ficheiros já estão no servidor.' });
+export const preparingState = (): RunState => ({ phase: 'preparar-ficheiros', progress: UPLOAD_SHARE, title: PHASE_TITLE['preparar-ficheiros'], detail: t('O servidor está a converter os vídeos enviados.') });
+export const requestingState = (): RunState => ({ phase: 'pedir', progress: UPLOAD_SHARE, title: PHASE_TITLE.pedir, detail: t('Os ficheiros já estão no servidor.') });
 /** O estado durante a montagem no servidor. */
 export function serverState(status: string, progress: number, waitedMs = 0): RunState {
   const p = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
   const phase = serverPhase(status, p);
   const detail = phase === 'fila'
-    ? 'Há outras tchekas à frente. A tua começa logo a seguir.'
-    : waitedMs > 90_000 ? 'Está a demorar um pouco mais. Podes sair da app: a montagem continua no servidor.' : 'A montagem faz-se no servidor. Podes sair da app e voltar.';
+    ? t('Há outras tchekas à frente. A tua começa logo a seguir.')
+    : waitedMs > 90_000 ? t('Está a demorar um pouco mais. Podes sair da app: a montagem continua no servidor.') : t('A montagem faz-se no servidor. Podes sair da app e voltar.');
   return { phase, progress: UPLOAD_SHARE + (1 - UPLOAD_SHARE) * p, title: PHASE_TITLE[phase], detail };
 }
 
@@ -171,16 +172,16 @@ export interface ComposeProblem {
 /** A mensagem de um erro do pedido de montagem (o servidor já escreve em português as dicas das regras). */
 export function composeProblem(status: number, message?: string | null): ComposeProblem {
   const msg = (message ?? '').trim();
-  if (status === 400) return { kind: 'corrigir', message: msg || 'A tcheka ainda não cumpre as regras.', unknownField: /^Pedido inválido/i.test(msg) };
-  if (status === 422) return { kind: 'corrigir', message: msg || 'Um texto ou um ficheiro desta tcheka não pode ser publicado.' };
-  if (status === 403 || status === 404) return { kind: 'corrigir', message: msg || 'Um dos ficheiros já não está disponível.' };
-  if (status === 409) return { kind: 'ocupado', message: msg || 'Já tens uma tcheka a montar. Espera que acabe.' };
+  if (status === 400) return { kind: 'corrigir', message: msg || t('A tcheka ainda não cumpre as regras.'), unknownField: /^Pedido inválido/i.test(msg) };
+  if (status === 422) return { kind: 'corrigir', message: msg || t('Um texto ou um ficheiro desta tcheka não pode ser publicado.') };
+  if (status === 403 || status === 404) return { kind: 'corrigir', message: msg || t('Um dos ficheiros já não está disponível.') };
+  if (status === 409) return { kind: 'ocupado', message: msg || t('Já tens uma tcheka a montar. Espera que acabe.') };
   // O servidor diz qual dos limites foi (as montagens por hora ou os vídeos enviados por hora): a frase dele, quando a há.
-  if (status === 429) return { kind: 'limite', message: msg && !/too many requests|throttl/i.test(msg) ? msg : 'Fizeste muitas montagens na última hora. Tenta outra vez daqui a pouco.' };
-  if (status === 401) return { kind: 'sessao', message: 'A sessão acabou. Entra outra vez para montar a tcheka.' };
-  if (status === 413) return { kind: 'corrigir', message: msg || 'Um dos ficheiros é pesado demais.' };
-  if (status === 0) return { kind: 'rede', message: 'Sem ligação. Vê a rede e tenta outra vez: os clipes já enviados não voltam a ir.' };
-  return { kind: 'servidor', message: status >= 500 ? 'O servidor não conseguiu montar a tcheka agora. Tenta outra vez.' : msg || 'Não consegui montar a tcheka. Tenta outra vez.' };
+  if (status === 429) return { kind: 'limite', message: msg && !/too many requests|throttl/i.test(msg) ? msg : t('Fizeste muitas montagens na última hora. Tenta outra vez daqui a pouco.') };
+  if (status === 401) return { kind: 'sessao', message: t('A sessão acabou. Entra outra vez para montar a tcheka.') };
+  if (status === 413) return { kind: 'corrigir', message: msg || t('Um dos ficheiros é pesado demais.') };
+  if (status === 0) return { kind: 'rede', message: t('Sem ligação. Vê a rede e tenta outra vez: os clipes já enviados não voltam a ir.') };
+  return { kind: 'servidor', message: status >= 500 ? t('O servidor não conseguiu montar a tcheka agora. Tenta outra vez.') : msg || t('Não consegui montar a tcheka. Tenta outra vez.') };
 }
 
 /** Um erro de rede (sem resposta do servidor): vale a pena tentar outra vez sozinho. */
@@ -200,6 +201,6 @@ export function pollOutcome(status: number, body: { status?: string; mediaId?: s
   if (status === 404) return { kind: 'gone' };
   if (!body || status < 200 || status >= 300) return { kind: 'wait' };
   if (body.status === 'done' && body.mediaId) return { kind: 'done', mediaId: body.mediaId, ...(typeof body.durationMs === 'number' ? { durationMs: body.durationMs } : {}) };
-  if (body.status === 'failed') return { kind: 'failed', message: body.error || 'Não consegui montar a tcheka. Tenta outra vez.' };
+  if (body.status === 'failed') return { kind: 'failed', message: body.error || t('Não consegui montar a tcheka. Tenta outra vez.') };
   return { kind: 'wait' };
 }

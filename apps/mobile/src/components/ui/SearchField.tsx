@@ -2,6 +2,7 @@ import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { colors, dark as D, iconSize } from '@/lib/theme';
 import { Icon } from '../Icon';
+import { t } from '@/lib/i18n';
 
 export type SearchFieldProps = Omit<TextInputProps, 'style' | 'value' | 'onChangeText'> & {
   value: string;
@@ -14,7 +15,7 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'value' | 'onChang
 };
 
 /** Caixa de pesquisa: 44 de altura, pílula, lupa e X de 18 (iconSize.field), o X «Limpar a pesquisa» quando há texto. */
-export function SearchField({ value, onChangeText, onClear, dark = false, style, placeholder = 'Pesquisar', ref, ...rest }: SearchFieldProps) {
+export function SearchField({ value, onChangeText, onClear, dark = false, style, placeholder = t('Pesquisar'), ref, ...rest }: SearchFieldProps) {
   const fg = dark ? D.sub : colors.zinc500;
   return (
     <View style={[st.box, dark && { backgroundColor: D.raised }, style]}>
@@ -33,7 +34,7 @@ export function SearchField({ value, onChangeText, onClear, dark = false, style,
         style={[st.input, dark && { color: D.text }]}
       />
       {value ? (
-        <Pressable onPress={() => { onChangeText(''); onClear?.(); }} hitSlop={10} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+        <Pressable onPress={() => { onChangeText(''); onClear?.(); }} hitSlop={10} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
           <Icon name="x" size={iconSize.field} color={fg} />
         </Pressable>
       ) : null}

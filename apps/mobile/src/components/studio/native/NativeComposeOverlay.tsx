@@ -5,6 +5,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { abs } from '@/lib/config';
 import type { ComposeProblem, RunState } from '@/lib/studio/composeJob';
 import { limitBuffer } from '@/lib/videoMemory';
+import { t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 
@@ -14,14 +15,14 @@ function Result({ mediaId, onPublish, onEdit, note, topInset, bottomInset }: { m
   useEffect(() => () => { try { player.pause(); } catch { /* já libertado */ } }, [player]);
   return (
     <View style={[StyleSheet.absoluteFill, st.root, { paddingTop: topInset + 8, paddingBottom: bottomInset + 12 }]}>
-      <Text style={st.title}>A tua tcheka está pronta</Text>
+      <Text style={st.title}>{t('A tua tcheka está pronta')}</Text>
       <View style={st.videoBox}>
         <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
       </View>
       {note ? <Text style={st.note}>{note}</Text> : null}
       <View style={st.row}>
-        <Pressable onPress={onEdit} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>Voltar a editar</Text></Pressable>
-        <Pressable onPress={onPublish} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>Seguinte</Text></Pressable>
+        <Pressable onPress={onEdit} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>{t('Voltar a editar')}</Text></Pressable>
+        <Pressable onPress={onPublish} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>{t('Seguinte')}</Text></Pressable>
       </View>
     </View>
   );
@@ -49,12 +50,12 @@ export function NativeComposeOverlay({ run, problem, result, note, onCancel, onR
     return (
       <View style={[StyleSheet.absoluteFill, st.dim]} accessibilityViewIsModal>
         <View style={st.card}>
-          <Text style={st.cardTitle}>{problem.kind === 'corrigir' ? 'Falta uma coisa' : problem.kind === 'ocupado' ? 'Uma de cada vez' : 'Não deu para montar'}</Text>
+          <Text style={st.cardTitle}>{problem.kind === 'corrigir' ? t('Falta uma coisa') : problem.kind === 'ocupado' ? t('Uma de cada vez') : t('Não deu para montar')}</Text>
           <Text style={st.cardText} accessibilityRole="alert">{problem.message}</Text>
           <View style={st.row}>
-            <Pressable onPress={onDismiss} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>{problem.kind === 'corrigir' ? 'Corrigir' : 'Fechar'}</Text></Pressable>
+            <Pressable onPress={onDismiss} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>{problem.kind === 'corrigir' ? t('Corrigir') : t('Fechar')}</Text></Pressable>
             {problem.kind === 'rede' || problem.kind === 'servidor' || problem.kind === 'ocupado' ? (
-              <Pressable onPress={onRetry} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>Tentar outra vez</Text></Pressable>
+              <Pressable onPress={onRetry} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>{t('Tentar outra vez')}</Text></Pressable>
             ) : null}
           </View>
         </View>
@@ -71,7 +72,7 @@ export function NativeComposeOverlay({ run, problem, result, note, onCancel, onR
         <View style={st.track}><View style={[st.fill, { width: `${Math.max(2, pct)}%` }]} /></View>
         <Text style={st.pct}>{pct}%</Text>
         <Text style={st.cardText}>{run.detail}</Text>
-        <Pressable onPress={onCancel} style={[st.btn, st.ghost, { alignSelf: 'center', marginTop: 6 }]} accessibilityRole="button" accessibilityLabel="Parar a montagem"><Text style={st.btnText}>Parar</Text></Pressable>
+        <Pressable onPress={onCancel} style={[st.btn, st.ghost, { alignSelf: 'center', marginTop: 6 }]} accessibilityRole="button" accessibilityLabel={t('Parar a montagem')}><Text style={st.btnText}>{t('Parar')}</Text></Pressable>
       </View>
     </View>
   );

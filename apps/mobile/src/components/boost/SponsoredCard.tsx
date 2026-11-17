@@ -12,6 +12,7 @@ import { sized } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
 import { eventWhen } from '@/lib/nearbyView';
 import { cardShadow, colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Um destaque pago (Bombar) no feed: a publicação do local (o PostCard com a etiqueta) ou o cartão do evento.
@@ -35,7 +36,7 @@ function EventCard({ slot, a11y, onOpen }: { slot: SponsoredSlot; a11y: string; 
   if (hidden) {
     return (
       <View style={[st.card, cardShadow, { paddingBottom: 16 }]}>
-        <Text style={st.gone}>Ok, deixas de ver os destaques de {slot.venue.name}.</Text>
+        <Text style={st.gone}>{t('Ok, deixas de ver os destaques de {name}.', { name: slot.venue.name })}</Text>
       </View>
     );
   }
@@ -50,25 +51,25 @@ function EventCard({ slot, a11y, onOpen }: { slot: SponsoredSlot; a11y: string; 
           onPress={() => { setHidden(true); void boostsApi.hide(slot.campaignId).catch(() => undefined); }}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`Não mostrar destaques de ${slot.venue.name}`}
+          accessibilityLabel={t('Não mostrar destaques de {name}', { name: slot.venue.name })}
         >
           <Icon name="x" size={18} color={colors.zinc500} />
         </Pressable>
       </View>
-      <Pressable onPress={venue} style={st.venueRow} accessibilityRole="link" accessibilityLabel={`Página de ${slot.venue.name}`}>
+      <Pressable onPress={venue} style={st.venueRow} accessibilityRole="link" accessibilityLabel={t('Página de {name}', { name: slot.venue.name })}>
         <VenueLogo venue={slot.venue} size={40} />
         <Text style={st.venueName} numberOfLines={1}>{slot.venue.name}</Text>
         {slot.venue.verified ? <VerifiedBadge size={15} tier="verified" /> : null}
       </Pressable>
-      <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={`Abrir o evento ${e.title}, ${eventWhen(e.startsAt, e.endsAt)}`} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
+      <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={t('Abrir o evento {title}, {eventWhen}', { title: e.title, eventWhen: eventWhen(e.startsAt, e.endsAt) })} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
         {e.coverUrl ? (
           <Image source={{ uri: sized(e.coverUrl, 1080) }} style={st.cover} contentFit="cover" {...listImageProps(Platform.OS, 0)} accessibilityIgnoresInvertColors />
         ) : (
           <View style={[st.cover, st.coverEmpty]}><Icon name="calendar" size={40} color="#fff" /></View>
         )}
         <Text style={st.title} numberOfLines={2}>{e.title}</Text>
-        <Text style={st.when}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? ` · ${e.interested} com interesse` : ''}</Text>
-        <View style={st.cta}><Text style={st.ctaText}>Ver o evento</Text></View>
+        <Text style={st.when}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? (' ' + t('· {interested} com interesse', { interested: e.interested })) : ''}</Text>
+        <View style={st.cta}><Text style={st.ctaText}>{t('Ver o evento')}</Text></View>
       </Pressable>
     </View>
   );

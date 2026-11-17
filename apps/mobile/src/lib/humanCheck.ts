@@ -11,6 +11,7 @@
  * A chave do site, ou null (prova desligada). Quem chama passa `process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY` escrito assim
  * mesmo: o Expo só põe o valor na app quando a variável aparece por extenso no código.
  */
+import { t } from '@/lib/i18n';
 export function turnstileSiteKey(raw: string | undefined): string | null {
   const k = (raw ?? '').trim();
   return /^[A-Za-z0-9_-]{10,100}$/.test(k) ? k : null;
@@ -42,14 +43,14 @@ const SERVER_TEXT = new Set(['login_locked', 'login_ip_locked', 'register_limit'
  * `where`: no login, o 401 é «credenciais erradas».
  */
 export function securityErrorText(e: ServerError | null | undefined, where: 'login' | 'register' | 'forgot'): string {
-  if (!e) return 'Não deu agora. Tenta outra vez.';
+  if (!e) return t('Não deu agora. Tenta outra vez.');
   if (e.code && SERVER_TEXT.has(e.code) && e.message) return e.message;
-  if (e.code === 'human_check') return 'Não conseguimos confirmar que és uma pessoa. Tenta outra vez.';
-  if (e.status === 503) return 'Estamos com muita gente a entrar ao mesmo tempo. Tenta outra vez daqui a pouco.';
+  if (e.code === 'human_check') return t('Não conseguimos confirmar que és uma pessoa. Tenta outra vez.');
+  if (e.status === 503) return t('Estamos com muita gente a entrar ao mesmo tempo. Tenta outra vez daqui a pouco.');
   // O limite geral por minuto do servidor responde em inglês («Too Many Requests»).
-  if (e.status === 429) return 'Muitas tentativas seguidas. Espera um minuto e tenta outra vez.';
-  if (where === 'login' && e.status === 401) return 'Hmm, essas credenciais não batem';
-  return e.message || 'Não deu agora. Tenta outra vez.';
+  if (e.status === 429) return t('Muitas tentativas seguidas. Espera um minuto e tenta outra vez.');
+  if (where === 'login' && e.status === 401) return t('Hmm, essas credenciais não batem');
+  return e.message || t('Não deu agora. Tenta outra vez.');
 }
 
 /** O passo do registo a que se volta: o email temporário volta ao passo do email. */

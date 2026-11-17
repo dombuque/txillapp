@@ -5,6 +5,7 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { pendingConvs, pendingPreview, subscribePending, type PendingConv } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Sem rede, na lista de Mensagens (que não carregou): as conversas com mensagens à espera (lib/chatPending), com o nome
@@ -16,7 +17,7 @@ export function PendingConvs() {
   if (!convs.length) return null;
   return (
     <View style={st.wrap}>
-      <Text style={st.head} accessibilityRole="header">Por enviar</Text>
+      <Text style={st.head} accessibilityRole="header">{t('Por enviar')}</Text>
       {convs.map((c) => <Row key={c.conv} c={c} onPress={() => router.push((c.conv.startsWith('g:') ? `/messages/g/${c.conv.slice(2)}` : `/messages/${c.conv.slice(2)}`) as never)} />)}
     </View>
   );
@@ -25,9 +26,9 @@ export function PendingConvs() {
 function Row({ c, onPress }: { c: PendingConv; onPress: () => void }) {
   const group = c.conv.startsWith('g:');
   const name = c.title?.name ?? (group ? 'TxillGroup' : `@${c.conv.slice(2)}`);
-  const status = c.failed ? 'Não enviada' : c.count > 1 ? `${c.count} à espera de rede` : 'À espera de rede';
+  const status = c.failed ? t('Não enviada') : t('À espera de rede', { count: c.count, other: '{count} à espera de rede' });
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.row, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${name}. ${status}. Abrir a conversa`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.row, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('{name}. {status}. Abrir a conversa', { name, status })}>
       <Avatar name={name} username={!group && c.title?.hasAvatar ? c.conv.slice(2) : undefined} size={48} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={st.name} numberOfLines={1}>{name}</Text>

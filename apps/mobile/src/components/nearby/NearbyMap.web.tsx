@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { LEAFLET_CSS } from './leafletCss';
 import { createNearbyMap, type MapHandle } from './mapRuntime';
 import type { NearbyMapProps } from './types';
+import { t } from '@/lib/i18n';
 
 /** Mapa do "À tua volta" no site: o Leaflet do npm (o CSP do site não deixa scripts de fora), desenhado num div. */
 export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, showMe = true, coverBottom = 0, style }: NearbyMapProps) {
@@ -39,5 +40,5 @@ export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId
     handle.current?.update({ center, radiusKm, markers, selectedId, showMe, coverBottom });
   }, [center, radiusKm, markers, selectedId, showMe, coverBottom]);
 
-  return <View ref={host} style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel="Mapa do que há à tua volta" />;
+  return <View ref={host} style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel={t('Mapa do que há à tua volta')} />;
 }

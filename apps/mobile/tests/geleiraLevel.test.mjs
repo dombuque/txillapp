@@ -1,6 +1,7 @@
 // Testes do «Como subo?» do nível da geleira (src/lib/geleiraLevel.ts).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,9 +62,9 @@ test('stepNeeds e needsText', () => {
 });
 
 test('a regra diz que o álcool e as vibes da carteira não contam', () => {
-  assert.match(L.LEVEL_RULES, /álcool não conta/);
-  assert.match(L.LEVEL_RULES, /vibes da carteira também não/);
-  assert.match(L.LEVEL_RULES, /90 dias/);
+  assert.match(L.LEVEL_RULES(), /álcool não conta/);
+  assert.match(L.LEVEL_RULES(), /vibes da carteira também não/);
+  assert.match(L.LEVEL_RULES(), /90 dias/);
 });
 
 test('a frase antiga («Bebidas com álcool e vibes de festa valem mais») já não existe em lado nenhum da app', () => {

@@ -6,6 +6,7 @@ import { showToast } from '@/lib/toast';
 import { ApiError } from '@/lib/api';
 import { mixarApi, mixarKeys } from '@/lib/api.mixar';
 import { existingMixarId, firstName, mixarErrorText } from '@/lib/mixar';
+import { t } from '@/lib/i18n';
 
 /**
  * «Mixar com Fulano» (menu da conversa, menu «+» do chat, menu da lista de Mensagens): se já há um Mixar com essa pessoa
@@ -47,9 +48,9 @@ export function useOpenMixar() {
         throw e;
       });
       if (m) return open(m.id);
-      if (await confirm({ title: `Mixar com ${name}?`, message: `Juntam os gostos dos dois num feed só vosso, com uma seleção nova todos os dias. ${name} recebe o convite nesta conversa.`, confirm: 'Convidar', cancel: 'Agora não' })) void invite(username);
+      if (await confirm({ title: t('Mixar com {name}?', { name }), message: t('Juntam os gostos dos dois num feed só vosso, com uma seleção nova todos os dias. {name} recebe o convite nesta conversa.', { name }), confirm: t('Convidar'), cancel: t('Agora não') })) void invite(username);
     } catch (e) {
-      showToast(mixarErrorText(e, 'Não consegui ver o Mixar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, t('Não consegui ver o Mixar agora. Tenta outra vez.')));
     } finally {
       running.current = false;
       setBusy(false);

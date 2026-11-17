@@ -30,15 +30,15 @@ test('Row: nenhum hook depois de um return antecipado', () => {
 });
 
 test('erro ao carregar: tem Tentar outra vez (o ErrorState partilhado)', () => {
-  assert.match(src, /<ErrorState what="os comentários" onRetry=\{\(\) => void q\.refetch\(\)\} \/>/);
+  assert.match(src, /<ErrorState what=\{t\('os comentários'\)\} onRetry=\{\(\) => void q\.refetch\(\)\} \/>/);
 });
 
 test('menu do comentário: ActionRow, «Cancelar» no fim e vermelho só em Apagar e Denunciar; apagar pergunta com confirm()', () => {
   assert.match(src, /variant="menu" anchor=\{desktop \? menuAt : null\} cancel>/);
-  assert.match(src, /<ActionRow icon="trash" title="Apagar" danger /);
-  assert.match(src, /<ActionRow icon="flag" title="Denunciar" danger /);
-  assert.match(src, /<ActionRow icon="reply" title="Responder" onPress=/);
-  assert.match(src, /await confirm\(\{ title: 'Apagar o comentário\?'[^}]*danger: true \}\)/);
+  assert.match(src, /<ActionRow icon="trash" title=\{t\('Apagar'\)\} danger /);
+  assert.match(src, /<ActionRow icon="flag" title=\{t\('Denunciar'\)\} danger /);
+  assert.match(src, /<ActionRow icon="reply" title=\{t\('Responder'\)\} onPress=/);
+  assert.match(src, /await confirm\(\{ title: t\('Apagar o comentário\?'\)[^}]*danger: true \}\)/);
   assert.doesNotMatch(src, /Alert\.alert/);
 });
 

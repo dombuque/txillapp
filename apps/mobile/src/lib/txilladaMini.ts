@@ -8,6 +8,7 @@
  */
 
 /** A Txillada aberta fica lembrada este tempo depois da última vez que se viu ligada (renova-se de minuto a minuto). */
+import { t } from '@/lib/i18n';
 export const OPEN_KEEP_MS = 30 * 60_000;
 export const OPEN_KEY = 'tx_txillada_open';
 /** De quanto em quanto tempo se renova a lembrança enquanto está ligada. */
@@ -57,10 +58,10 @@ export function miniMode(o: { onScreen: boolean; kind: string; host: boolean; on
 
 /** O texto da pílula (o anfitrião, quem transmite e a Txillada acabada). */
 export function miniPillText(mode: MiniMode, o: { host: boolean; hostUsername: string }): string {
-  if (mode === 'ended') return o.host ? 'A tua Txillada acabou · Ver o resumo' : 'A Txillada acabou';
-  if (mode === 'host') return o.host ? 'Estás ao vivo · Voltar' : 'Estás a transmitir · Voltar';
-  if (mode === 'connecting') return `A ligar à Txillada de @${o.hostUsername}`;
-  return `Ao vivo · @${o.hostUsername} · Voltar`;
+  if (mode === 'ended') return o.host ? t('A tua Txillada acabou · Ver o resumo') : t('A Txillada acabou');
+  if (mode === 'host') return o.host ? t('Estás ao vivo · Voltar') : t('Estás a transmitir · Voltar');
+  if (mode === 'connecting') return t('A ligar à Txillada de @{hostUsername}', { hostUsername: o.hostUsername });
+  return t('Ao vivo · @{hostUsername} · Voltar', { hostUsername: o.hostUsername });
 }
 
 export type Box = { w: number; h: number };

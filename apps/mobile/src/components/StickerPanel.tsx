@@ -5,11 +5,12 @@ import { STICKERS, STICKER_CATS, stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
 import { GifPanel, useGifsConfig } from './GifPanel';
 import { StickerArt } from './Stickers';
+import { t } from '@/lib/i18n';
 
 /** Sticker pelo id (o mesmo desenho em todo o lado; os animados mexem-se). Sem o id, mostra o texto. */
 export function Sticker({ id, size = 132, animate = true }: { id: string; size?: number; animate?: boolean }) {
   const s = stickerById(id);
-  if (!s) return <Text style={{ fontSize: 14, color: colors.zinc500 }}>Sticker</Text>;
+  if (!s) return <Text style={{ fontSize: 14, color: colors.zinc500 }}>{t('Sticker')}</Text>;
   return <StickerArt def={s} size={size} animate={animate} />;
 }
 
@@ -33,7 +34,7 @@ export function StickerPanel({ onPick, onGif, start = 'stickers' }: { onPick: (i
   const withGif = !!onGif && gifs.enabled;
   const [recent, setRecent] = useState<string[]>(readRecent);
   const [cat, setCat] = useState<string>(() => (readRecent().length ? 'recentes' : STICKER_CATS[0].id));
-  const tabs = [...(recent.length ? [{ id: 'recentes', label: 'Recentes' }] : []), ...STICKER_CATS];
+  const tabs = [...(recent.length ? [{ id: 'recentes', label: t('Recentes') }] : []), ...STICKER_CATS];
   const shown = useMemo(() => (cat === 'recentes' ? recent.map((id) => stickerById(id)!).filter(Boolean) : STICKERS.filter((s) => s.cat === cat)), [cat, recent]);
   function pick(id: string) {
     const next = [id, ...recent.filter((x) => x !== id)].slice(0, 8);
@@ -43,11 +44,11 @@ export function StickerPanel({ onPick, onGif, start = 'stickers' }: { onPick: (i
     onPick(id);
   }
   return (
-    <View style={styles.wrap} accessibilityLabel={withGif ? 'Stickers e GIFs' : 'Stickers'}>
+    <View style={styles.wrap} accessibilityLabel={withGif ? t('Stickers e GIFs') : t('Stickers')}>
       {withGif && (
         <View style={styles.modes} accessibilityRole="tablist">
-          {([['stickers', 'Stickers'], ['gif', 'GIF']] as const).map(([id, label]) => (
-            <Pressable key={id} onPress={() => setMode(id)} style={[styles.mode, mode === id && styles.modeOn]} accessibilityRole="tab" accessibilityState={{ selected: mode === id }} accessibilityLabel={id === 'gif' ? 'GIFs' : 'Stickers'}>
+          {([['stickers', t('Stickers')], ['gif', 'GIF']] as const).map(([id, label]) => (
+            <Pressable key={id} onPress={() => setMode(id)} style={[styles.mode, mode === id && styles.modeOn]} accessibilityRole="tab" accessibilityState={{ selected: mode === id }} accessibilityLabel={id === 'gif' ? t('GIFs') : t('Stickers')}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: mode === id ? colors.zinc900 : colors.zinc500 }}>{label}</Text>
             </Pressable>
           ))}
@@ -68,7 +69,7 @@ export function StickerPanel({ onPick, onGif, start = 'stickers' }: { onPick: (i
         style={{ maxHeight: 224 }}
         contentContainerStyle={{ padding: 8 }}
         renderItem={({ item }) => (
-          <Pressable onPress={() => pick(item.id)} style={({ pressed }) => [styles.cell, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={`Enviar sticker ${item.text}`}>
+          <Pressable onPress={() => pick(item.id)} style={({ pressed }) => [styles.cell, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={t('Enviar sticker {text}', { text: item.text })}>
             <StickerArt def={item} size={72} />
           </Pressable>
         )}

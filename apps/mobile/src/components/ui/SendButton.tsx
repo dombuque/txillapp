@@ -2,6 +2,7 @@ import { useRef, type RefObject } from 'react';
 import { Platform, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
+import { t } from '@/lib/i18n';
 
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
 
@@ -11,7 +12,7 @@ const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
  * `keep`: o campo de escrever. Enviar não fecha o teclado: no site (PWA) tocar num botão tira o foco ao campo e o
  * teclado do telemóvel fecha a cada mensagem; o mousedown fica sem efeito e, se o foco sair na mesma, volta ao campo.
  */
-export function SendButton({ label = 'Enviar', onPress, disabled, keep, style }: { label?: string; onPress: () => void; disabled?: boolean; keep?: RefObject<{ focus: () => void; isFocused?: () => boolean } | null>; style?: StyleProp<ViewStyle> }) {
+export function SendButton({ label = t('Enviar'), onPress, disabled, keep, style }: { label?: string; onPress: () => void; disabled?: boolean; keep?: RefObject<{ focus: () => void; isFocused?: () => boolean } | null>; style?: StyleProp<ViewStyle> }) {
   const had = useRef(false);
   return (
     <Pressable

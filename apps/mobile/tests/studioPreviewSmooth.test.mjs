@@ -1,6 +1,7 @@
 // Estúdio nativo: a pré-visualização lisa (o relógio no fio da interface, as transições, o ritmo dos vídeos da Skia).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';

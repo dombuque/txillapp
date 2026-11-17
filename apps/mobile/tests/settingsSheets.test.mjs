@@ -33,7 +33,7 @@ test('PersonRow (Mostrar, Desbloquear): um toque só e o erro é dito', () => {
   const row = sheets.slice(sheets.indexOf('export function PersonRow'), sheets.indexOf('/** Como te identificas'));
   assert.match(row, /if \(busy\) return;/);
   assert.match(row, /disabled=\{busy\}/);
-  assert.match(row, /Alert\.alert\('Não deu'/);
+  assert.match(row, /Alert\.alert\(t\('Não deu'\)/);
 });
 
 test('Alterar senha: seguinte → seguinte → ir, e sem dois envios', () => {

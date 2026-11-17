@@ -14,8 +14,9 @@ import { locaisApi } from '@/lib/api.locais';
 import { nearbyApi } from '@/lib/api.nearby';
 import { formatAddress, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
-const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const WD = () => [t('dom'), t('seg'), t('ter'), t('qua'), t('qui'), t('sex'), t('sáb')];
 const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DAYS = 45;
 /** "21:30" → [21, 30]; aceita "2130" e "21h30". */
@@ -62,22 +63,22 @@ export default function NovoEvento() {
       const a = r.canceled ? null : r.assets[0];
       if (a) setCover({ uri: a.uri, mime: a.mimeType ?? 'image/jpeg' });
     } catch {
-      setErr('Não consegui abrir as fotos.');
+      setErr(t('Não consegui abrir as fotos.'));
     }
   };
 
   const submit = async () => {
     if (busy) return;
     setErr(null);
-    if (!slug) return setErr('Falta o local.');
-    if (title.trim().length < 3) return setErr('Dá um nome ao evento (pelo menos 3 letras).');
+    if (!slug) return setErr(t('Falta o local.'));
+    if (title.trim().length < 3) return setErr(t('Dá um nome ao evento (pelo menos 3 letras).'));
     const s = parseTime(start);
-    if (!s) return setErr('A hora de início não está certa. Escreve assim: 21:30 (ou 2130).');
+    if (!s) return setErr(t('A hora de início não está certa. Escreve assim: 21:30 (ou 2130).'));
     const e = end.trim() ? parseTime(end) : null;
-    if (end.trim() && !e) return setErr('A hora do fim não está certa. Escreve assim: 02:00 (ou 0200).');
+    if (end.trim() && !e) return setErr(t('A hora do fim não está certa. Escreve assim: 02:00 (ou 0200).'));
     const d = days[day];
     const startsAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), s[0], s[1]);
-    if (startsAt.getTime() < Date.now() - 5 * 60_000) return setErr('Essa hora já passou. Escolhe outra.');
+    if (startsAt.getTime() < Date.now() - 5 * 60_000) return setErr(t('Essa hora já passou. Escolhe outra.'));
     let endsAt: Date | undefined;
     if (e) {
       endsAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), e[0], e[1]);
@@ -105,73 +106,73 @@ export default function NovoEvento() {
       void qc.invalidateQueries({ queryKey: ['nearby'] });
       router.replace(`/evento/${r.id}` as never);
     } catch (x) {
-      setErr(x instanceof ApiError && x.message ? x.message : 'Não consegui criar o evento. Tenta outra vez.');
+      setErr(x instanceof ApiError && x.message ? x.message : t('Não consegui criar o evento. Tenta outra vez.'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (slug && venue.isLoading) return <StackPage title="Criar evento"><View style={st.center}><ActivityIndicator /></View></StackPage>;
+  if (slug && venue.isLoading) return <StackPage title={t('Criar evento')}><View style={st.center}><ActivityIndicator /></View></StackPage>;
   if (!slug || (venue.data && !venue.data.canPost && !venue.data.mine)) {
     return (
-      <StackPage title="Criar evento">
+      <StackPage title={t('Criar evento')}>
         <View style={st.center}>
           <Icon name="lock" size={34} color={colors.zinc300} />
-          <Text style={st.emptyTitle}>Só quem gere o local pode criar eventos</Text>
-          <Text style={st.hint}>Abre a página do teu local e cria o evento a partir de lá.</Text>
+          <Text style={st.emptyTitle}>{t('Só quem gere o local pode criar eventos')}</Text>
+          <Text style={st.hint}>{t('Abre a página do teu local e cria o evento a partir de lá.')}</Text>
         </View>
       </StackPage>
     );
   }
 
   return (
-    <StackPage title="Criar evento">
+    <StackPage title={t('Criar evento')}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 48, maxWidth: 640, width: '100%', alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
-          {venue.data ? <Text style={st.hint}>Em {venue.data.name}</Text> : null}
+          {venue.data ? <Text style={st.hint}>{t('Em {name}', { name: venue.data.name })}</Text> : null}
 
           {venue.data && venueAt ? (
             <View style={{ gap: 6 }}>
-              <Text style={st.label}>Onde</Text>
-              <PlaceMiniMap lat={venueAt.lat} lng={venueAt.lng} label={`Mapa com o pino em ${venue.data.name}`} />
+              <Text style={st.label}>{t('Onde')}</Text>
+              <PlaceMiniMap lat={venueAt.lat} lng={venueAt.lng} label={t('Mapa com o pino em {name}', { name: venue.data.name })} />
               <Text style={[st.hint, { textAlign: 'left' }]}>{venue.data.name}{formatAddress(venueAt) ? ` · ${formatAddress(venueAt)}` : ''}</Text>
             </View>
           ) : venue.data?.canEdit ? (
             <View style={{ gap: 6 }}>
-              <PlaceField label="Onde é?" value={place} onChange={setPlace} initialQuery={venue.data.address ? formatAddress(venue.data) : ''} placeholder="Procurar o sítio do local…" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
-              <Text style={[st.hint, { textAlign: 'left' }]}>{place ? 'Este sítio fica guardado no local ao criar o evento.' : `${venue.data.name} ainda não está no mapa. Marca onde fica para o evento aparecer no À tua volta.`}</Text>
+              <PlaceField label={t('Onde é?')} value={place} onChange={setPlace} initialQuery={venue.data.address ? formatAddress(venue.data) : ''} placeholder={t('Procurar o sítio do local…')} mapHint={t('Arrasta o mapa até o alfinete ficar na porta do local.')} />
+              <Text style={[st.hint, { textAlign: 'left' }]}>{place ? t('Este sítio fica guardado no local ao criar o evento.') : t('{name} ainda não está no mapa. Marca onde fica para o evento aparecer no À tua volta.', { name: venue.data.name })}</Text>
             </View>
           ) : venue.data ? (
-            <Text style={[st.hint, { textAlign: 'left' }]}>{venue.data.name} ainda não está no mapa: o evento só aparece no À tua volta quando o dono marcar onde fica, em Gerir.</Text>
+            <Text style={[st.hint, { textAlign: 'left' }]}>{t('{name} ainda não está no mapa: o evento só aparece no À tua volta quando o dono marcar onde fica, em Gerir.', { name: venue.data.name })}</Text>
           ) : null}
 
-          <Pressable onPress={() => void pickCover()} style={st.cover} accessibilityRole="button" accessibilityLabel={cover ? 'Trocar a capa' : 'Pôr uma capa'}>
+          <Pressable onPress={() => void pickCover()} style={st.cover} accessibilityRole="button" accessibilityLabel={cover ? t('Trocar a capa') : t('Pôr uma capa')}>
             {cover ? (
               <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <>
                 <Icon name="image" size={30} color={colors.zinc500} />
-                <Text style={st.hint}>Capa (opcional)</Text>
+                <Text style={st.hint}>{t('Capa (opcional)')}</Text>
               </>
             )}
           </Pressable>
           {cover ? (
-            <Pressable onPress={() => setCover(null)} style={{ alignSelf: 'flex-start' }} hitSlop={8}><Text style={st.link}>Tirar a capa</Text></Pressable>
+            <Pressable onPress={() => setCover(null)} style={{ alignSelf: 'flex-start' }} hitSlop={8}><Text style={st.link}>{t('Tirar a capa')}</Text></Pressable>
           ) : null}
 
           <View style={{ gap: 6 }}>
-            <Text style={st.label}>Nome do evento</Text>
-            <TextInput value={title} onChangeText={setTitle} placeholder="Ex.: Noite de marrabenta" placeholderTextColor={colors.zinc500} style={st.input} maxLength={80} accessibilityLabel="Nome do evento" />
+            <Text style={st.label}>{t('Nome do evento')}</Text>
+            <TextInput value={title} onChangeText={setTitle} placeholder={t('Ex.: Noite de marrabenta')} placeholderTextColor={colors.zinc500} style={st.input} maxLength={80} accessibilityLabel={t('Nome do evento')} />
           </View>
 
           <View style={{ gap: 6 }}>
-            <Text style={st.label}>Dia</Text>
+            <Text style={st.label}>{t('Dia')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {days.map((d, i) => {
                 const on = i === day;
                 return (
                   <Pressable key={i} onPress={() => setDay(i)} style={[st.day, on && st.dayOn]} accessibilityRole="radio" accessibilityState={{ selected: on }}>
-                    <Text style={[st.dayTop, on && { color: colors.white }]}>{i === 0 ? 'Hoje' : i === 1 ? 'Amanhã' : WD[d.getDay()]}</Text>
+                    <Text style={[st.dayTop, on && { color: colors.white }]}>{i === 0 ? t('Hoje') : i === 1 ? t('Amanhã') : WD()[d.getDay()]}</Text>
                     <Text style={[st.dayNum, on && { color: colors.white }]}>{d.getDate()}</Text>
                     <Text style={[st.dayTop, on && { color: colors.white }]}>{MO[d.getMonth()]}</Text>
                   </Pressable>
@@ -182,24 +183,24 @@ export default function NovoEvento() {
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1, gap: 6 }}>
-              <Text style={st.label}>Começa às</Text>
-              <TextInput value={start} onChangeText={setStart} placeholder="21:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel="Começa às" />
+              <Text style={st.label}>{t('Começa às')}</Text>
+              <TextInput value={start} onChangeText={setStart} placeholder="21:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel={t('Começa às')} />
             </View>
             <View style={{ flex: 1, gap: 6 }}>
-              <Text style={st.label}>Acaba às (opcional)</Text>
-              <TextInput value={end} onChangeText={setEnd} placeholder="02:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel="Acaba às (opcional)" />
+              <Text style={st.label}>{t('Acaba às (opcional)')}</Text>
+              <TextInput value={end} onChangeText={setEnd} placeholder="02:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel={t('Acaba às (opcional)')} />
             </View>
           </View>
 
           <View style={{ gap: 6 }}>
-            <Text style={st.label}>Descrição (opcional)</Text>
-            <TextInput value={desc} onChangeText={setDesc} placeholder="Quem toca, o que há, entrada…" placeholderTextColor={colors.zinc500} style={[st.input, { height: 110, paddingTop: 12, textAlignVertical: 'top' }]} multiline maxLength={1000} />
+            <Text style={st.label}>{t('Descrição (opcional)')}</Text>
+            <TextInput value={desc} onChangeText={setDesc} placeholder={t('Quem toca, o que há, entrada…')} placeholderTextColor={colors.zinc500} style={[st.input, { height: 110, paddingTop: 12, textAlignVertical: 'top' }]} multiline maxLength={1000} />
           </View>
 
           {err ? <Text style={st.err}>{err}</Text> : null}
 
           <Pressable onPress={() => void submit()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color={colors.white} /> : <Text style={st.primaryText}>Criar evento</Text>}
+            {busy ? <ActivityIndicator color={colors.white} /> : <Text style={st.primaryText}>{t('Criar evento')}</Text>}
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

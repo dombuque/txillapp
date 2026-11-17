@@ -8,6 +8,7 @@ import { abs } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
 import { feedVideoLive, limitBuffer } from '@/lib/videoMemory';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /**
  * Som dos vídeos dos posts: começam sem som (o telemóvel e o browser só deixam arrancar sozinho assim). Se a pessoa liga
@@ -72,7 +73,7 @@ function Overlay({ playing, muted, durationMs, showSound }: { playing: boolean; 
 /** O botão do som no canto do vídeo (tem a sua própria área de toque, para não abrir a Tcheka). */
 function SoundButton({ muted, onPress }: { muted: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} hitSlop={10} style={st.soundBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Ligar o som' : 'Tirar o som'}>
+    <Pressable onPress={onPress} hitSlop={10} style={st.soundBtn} accessibilityRole="button" accessibilityLabel={muted ? t('Ligar o som') : t('Tirar o som')}>
       <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
     </Pressable>
   );
@@ -158,7 +159,7 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
     );
   }
   return (
-    <Pressable onPress={press} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={muted ? 'Ligar o som' : 'Tirar o som'}>
+    <Pressable onPress={press} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={muted ? t('Ligar o som') : t('Tirar o som')}>
       {video}
       {coverImg}
       <Overlay playing={playing} muted={muted} durationMs={durationMs} showSound={!mute} />
@@ -188,7 +189,7 @@ function NativeVideoIdle({ cover, durationMs, width, height, passive, onDouble }
     );
   }
   return (
-    <Pressable onPress={() => void isDouble()} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel="Vídeo">
+    <Pressable onPress={() => void isDouble()} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={t('Vídeo')}>
       {body}
       <Overlay playing={false} muted durationMs={durationMs} showSound={false} />
     </Pressable>
@@ -252,7 +253,7 @@ function NativeVideoLive({ src, cover, durationMs, width, height, active, inView
     );
   }
   return (
-    <Pressable onPress={press} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={muted ? 'Ligar o som' : 'Tirar o som'}>
+    <Pressable onPress={press} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={muted ? t('Ligar o som') : t('Tirar o som')}>
       {body}
       <Overlay playing={playing} muted={muted} durationMs={durationMs} showSound={!mute} />
     </Pressable>
@@ -268,7 +269,7 @@ export function VideoPreview({ uri, onClose }: { uri: string; onClose: () => voi
         {Platform.OS === 'web'
           ? createElement('video', { src: uri, controls: true, autoPlay: true, playsInline: true, style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block' } })
           : <NativePreview uri={uri} />}
-        <Pressable onPress={onClose} style={[st.close, { top: Math.max(insets.top, 12) + 4 }]} accessibilityRole="button" accessibilityLabel="Fechar">
+        <Pressable onPress={onClose} style={[st.close, { top: Math.max(insets.top, 12) + 4 }]} accessibilityRole="button" accessibilityLabel={t('Fechar')}>
           <Icon name="x" size={22} color="#fff" />
         </Pressable>
       </View>

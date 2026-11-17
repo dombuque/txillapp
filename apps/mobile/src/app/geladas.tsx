@@ -29,6 +29,7 @@ import { bookSummary, debtLine, debtState, geladaErrorText, momentText, venueTag
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { t } from '@/lib/i18n';
 
 const AMBER_INK = '#92400e';
 
@@ -69,7 +70,7 @@ export default function GeladasScreen() {
       after?.(r);
       refresh();
     } catch (e) {
-      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+      Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui agora. Tenta outra vez.')));
     } finally {
       setBusy(null);
     }
@@ -80,7 +81,7 @@ export default function GeladasScreen() {
     if (photo) {
       try {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted && perm.canAskAgain === false) return Alert.alert('Sem acesso às fotos', 'Dá acesso às fotos nas definições do telemóvel.');
+        if (!perm.granted && perm.canAskAgain === false) return Alert.alert(t('Sem acesso às fotos'), t('Dá acesso às fotos nas definições do telemóvel.'));
         const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
         const a = r.canceled ? null : r.assets[0];
         if (!a) return;
@@ -88,7 +89,7 @@ export default function GeladasScreen() {
         mediaId = await uploadMedia(a.uri, a.mimeType ?? 'image/jpeg', 'public');
       } catch (e) {
         setBusy(null);
-        return Alert.alert('Não deu', geladaErrorText(e, 'Não consegui carregar a foto.'));
+        return Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui carregar a foto.')));
       }
       setBusy(null);
     }
@@ -106,7 +107,7 @@ export default function GeladasScreen() {
   const items = (b?.items ?? []).filter((d) => (tab === 'open' ? d.status === 'open' : d.status !== 'open'));
   const mine = !other || b?.scope === 'between';
   return (
-    <StackPage title={other ? `Geladas · @${other}` : 'O livro das geladas'}>
+    <StackPage title={other ? t('Geladas · @{others}', { others: other }) : t('O livro das geladas')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48, gap: 12 }}>
         <View style={st.hero}>
           <Icon name="cheers" size={30} color={colors.amber600} />
@@ -114,24 +115,24 @@ export default function GeladasScreen() {
             <Text style={st.heroTitle} accessibilityRole="header">{b ? bookSummary(b.owe, b.owed, mine) : ' '}</Text>
             <Text style={st.heroSub}>
               {other
-                ? b?.scope === 'all' ? `O livro de @${other}, que o mostra a quem vê a geleira.` : `Só o que há entre ti e @${other}. Só vocês os dois veem isto.`
-                : b?.public ? 'Quem vê a tua geleira vê este livro (muda em Definições › Conteúdo).' : 'Só tu e a outra pessoa veem cada dívida.'}
+                ? b?.scope === 'all' ? t('O livro de @{others}, que o mostra a quem vê a geleira.', { others: other }) : t('Só o que há entre ti e @{others}. Só vocês os dois veem isto.', { others: other })
+                : b?.public ? t('Quem vê a tua geleira vê este livro (muda em Definições › Conteúdo).') : t('Só tu e a outra pessoa veem cada dívida.')}
             </Text>
           </View>
         </View>
         {!other && (
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pill icon="cheers" label="Pede uma gelada" onPress={() => setAsking(true)} primary />
-            <Pill icon="plus" label="Fico a dever" onPress={() => setOwing(true)} />
+            <Pill icon="cheers" label={t('Pede uma gelada')} onPress={() => setAsking(true)} primary />
+            <Pill icon="plus" label={t('Fico a dever')} onPress={() => setOwing(true)} />
           </View>
         )}
-        <SegmentedTabs tabs={[{ value: 'open', label: 'Por pagar' }, { value: 'closed', label: 'Pagas e perdoadas' }]} value={tab} onChange={setTab} />
+        <SegmentedTabs tabs={[{ value: 'open', label: t('Por pagar') }, { value: 'closed', label: t('Pagas e perdoadas') }]} value={tab} onChange={setTab} />
         {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 32 }} />}
-        {q.isError && <ErrorState what="o livro" onRetry={() => void q.refetch()} style={{ marginTop: 16 }} />}
+        {q.isError && <ErrorState what={t('o livro')} onRetry={() => void q.refetch()} style={{ marginTop: 16 }} />}
         {q.isSuccess && items.length === 0 && (
           tab === 'open'
-            ? <EmptyState icon="check-circle" title="Tudo em dia por aqui" text="Ninguém te deve e não deves a ninguém." style={{ marginTop: 16 }} />
-            : <EmptyState icon="cheers" title="Ainda nenhuma gelada paga" text="A sexta está aí!" style={{ marginTop: 16 }} />
+            ? <EmptyState icon="check-circle" title={t('Tudo em dia por aqui')} text={t('Ninguém te deve e não deves a ninguém.')} style={{ marginTop: 16 }} />
+            : <EmptyState icon="cheers" title={t('Ainda nenhuma gelada paga')} text={t('A sexta está aí!')} style={{ marginTop: 16 }} />
         )}
         {items.map((d) => (
           <DebtCard
@@ -141,21 +142,21 @@ export default function GeladasScreen() {
             onClaim={() => setClaiming(d)}
             onConfirm={() => void act(d, () => geladaApi.confirm(d.id), (r) => { setBurst((n) => n + 1); setMoment(r); })}
             onReject={() => void act(d, () => geladaApi.reject(d.id))}
-            onForgive={() => void confirm({ title: 'Perdoar esta gelada?', message: `${debtLine(d)}. Fica fechada no livro.`, confirm: 'Perdoar' }).then((ok) => { if (ok) void act(d, () => geladaApi.forgive(d.id)); })}
+            onForgive={() => void confirm({ title: t('Perdoar esta gelada?'), message: t('{debtLine}. Fica fechada no livro.', { debtLine: debtLine(d) }), confirm: t('Perdoar') }).then((ok) => { if (ok) void act(d, () => geladaApi.forgive(d.id)); })}
             onMoment={() => setMoment(d)}
           />
         ))}
-        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação.</Text>
+        <Text style={st.fine}>{t('Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação.')}</Text>
       </ScrollView>
       <CheersPour n={burst} size={220} />
       {claiming && <PaidSheet debt={claiming} onClose={() => setClaiming(null)} onClaim={(c) => void claim(claiming, c)} />}
       {moment && (
-        <Sheet title="Gelada paga" onClose={() => setMoment(null)}>
+        <Sheet title={t('Gelada paga')} onClose={() => setMoment(null)}>
           <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
             <Text style={st.sheetText}>{momentText(moment)}</Text>
             {moment.venue ? <VenueLine v={moment.venue} /> : null}
-            <Pill icon="compose" label="Publicar o momento" onPress={() => void publishMoment(moment)} primary wide />
-            <Pill icon="x" label="Agora não" onPress={() => setMoment(null)} wide />
+            <Pill icon="compose" label={t('Publicar o momento')} onPress={() => void publishMoment(moment)} primary wide />
+            <Pill icon="x" label={t('Agora não')} onPress={() => setMoment(null)} wide />
           </View>
         </Sheet>
       )}
@@ -187,17 +188,17 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
       </View>
       {photo || d.venue ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {photo ? <Image source={{ uri: photo }} style={st.photo} contentFit="cover" accessibilityLabel="A foto do pagamento" /> : null}
+          {photo ? <Image source={{ uri: photo }} style={st.photo} contentFit="cover" accessibilityLabel={t('A foto do pagamento')} /> : null}
           {d.venue ? <VenueLine v={d.venue} /> : null}
         </View>
       ) : null}
       {busy ? <ActivityIndicator color={colors.brand} /> : (
         <View style={st.actions}>
-          {d.canClaim && <Small label="Já paguei" onPress={onClaim} primary />}
-          {d.canConfirm && <Small label="Confirmar" onPress={onConfirm} primary />}
-          {d.canConfirm && <Small label="Ainda não" onPress={onReject} />}
-          {d.canForgive && <Small label="Perdoar" onPress={onForgive} />}
-          {d.status === 'paid' && (d.iOwe || d.owedToMe) && <Small label="Publicar o momento" onPress={onMoment} />}
+          {d.canClaim && <Small label={t('Já paguei')} onPress={onClaim} primary />}
+          {d.canConfirm && <Small label={t('Confirmar')} onPress={onConfirm} primary />}
+          {d.canConfirm && <Small label={t('Ainda não')} onPress={onReject} />}
+          {d.canForgive && <Small label={t('Perdoar')} onPress={onForgive} />}
+          {d.status === 'paid' && (d.iOwe || d.owedToMe) && <Small label={t('Publicar o momento')} onPress={onMoment} />}
         </View>
       )}
     </View>
@@ -207,10 +208,10 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
 /** O local da gelada: o alfinete e «no Bar X» e, se estiveram mesmo lá, o selo «estiveram lá» com o visto. Só as duas pessoas o recebem. */
 function VenueLine({ v }: { v: NonNullable<GeladaDebt['venue']> }) {
   return (
-    <View style={st.venue} accessibilityLabel={`${venueTag(v)}${v.there ? ', estiveram lá' : ''}`}>
+    <View style={st.venue} accessibilityLabel={`${venueTag(v)}${v.there ? t(', estiveram lá') : ''}`}>
       <Icon name="map-pin" size={15} color={colors.zinc600} />
       <Text style={st.venueText} numberOfLines={1}>{venueTag(v)}</Text>
-      {v.there ? <View style={st.thereBadge}><Icon name="check" size={12} strokeWidth={2.6} color={colors.green700} /><Text style={st.thereText}>estiveram lá</Text></View> : null}
+      {v.there ? <View style={st.thereBadge}><Icon name="check" size={12} strokeWidth={2.6} color={colors.green700} /><Text style={st.thereText}>{t('estiveram lá')}</Text></View> : null}
     </View>
   );
 }
@@ -229,14 +230,14 @@ function OweFlow({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   if (who) {
     return (
       <DrinkSheet
-        title={`Que deves a @${who}?`}
+        title={t('Que deves a @{who}?', { who })}
         to={[who]}
         onPick={async (d) => {
           try {
             await geladaApi.owe(who, d.id);
             onDone();
           } catch (e) {
-            Alert.alert('Não deu', geladaErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+            Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui agora. Tenta outra vez.')));
           }
         }}
         onClose={onClose}
@@ -244,10 +245,10 @@ function OweFlow({ onClose, onDone }: { onClose: () => void; onDone: () => void 
     );
   }
   return (
-    <Sheet title="Fico a dever-te uma" onClose={onClose} full>
+    <Sheet title={t('Fico a dever-te uma')} onClose={onClose} full>
       <View style={{ paddingHorizontal: 16, gap: 8, flex: 1 }}>
-        <Text style={st.sheetText}>A quem ficas a dever? Só tu crias estas dívidas.</Text>
-        <SearchField value={search} onChangeText={setSearch} placeholder="Procurar amigos…" accessibilityLabel="Procurar amigos" />
+        <Text style={st.sheetText}>{t('A quem ficas a dever? Só tu crias estas dívidas.')}</Text>
+        <SearchField value={search} onChangeText={setSearch} placeholder={t('Procurar amigos…')} accessibilityLabel={t('Procurar amigos')} />
         {friends.isLoading && <ActivityIndicator color={colors.brand} />}
         <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
           {(friends.data?.items ?? []).map((p) => (

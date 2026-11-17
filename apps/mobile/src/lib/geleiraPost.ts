@@ -1,6 +1,7 @@
 // A geleira partilhada num post (0143): as prateleiras do cartão, os brindes a cada gosto (resposta já, confirma depois) e os
 // textos. Sem dependências (os testes correm em Node: tests/geleiraPost.test.mjs).
 
+import { t } from '@/lib/i18n';
 export interface ShelfItem { id: string; kind: string; cheers?: number; cheered?: boolean }
 export interface GeleiraLike<T extends ShelfItem = ShelfItem> { total: number; items: T[] }
 
@@ -37,27 +38,27 @@ export function applyItemCheer<T extends ShelfItem, G extends GeleiraLike<T>>(g:
 /** "12 gostos" / "1 gosto". */
 export function tastesCount(n: unknown): string {
   const k = count(n);
-  return `${k} ${k === 1 ? 'gosto' : 'gostos'}`;
+  return t('{count} gosto', { count: k, other: '{count} gostos' });
 }
 
 /** O que o leitor de ecrã diz num gosto do cartão (quem vê pode brindar; o dono só vê quantos brindes tem). */
 export function itemA11yLabel(i: { name: string; cheers?: number; cheered?: boolean; favorite?: boolean }, mine: boolean): string {
   const k = count(i.cheers);
-  const n = k ? `, ${k} ${k === 1 ? 'brinde' : 'brindes'}` : '';
+  const n = k ? t(', {count} brinde', { count: k, other: ', {count} brindes' }) : '';
   const fav = i.favorite ? ', favorito' : '';
   if (mine) return `${i.name}${fav}${n}`;
-  return i.cheered ? `${i.name}${fav}${n}. Tirar o brinde` : `Brindar a ${i.name}${fav}${n}`;
+  return i.cheered ? t('{name}{fav}{n}. Tirar o brinde', { name: i.name, fav, n }) : `Brindar a ${i.name}${fav}${n}`;
 }
 
 /** Porque é que não dá para partilhar (ou null se dá): só se partilha com bebidas ou comidas aprovadas na geleira. */
 export function shareBlockReason(items: { kind: string; pending?: boolean }[] | null | undefined): string | null {
   const ok = (items ?? []).some((i) => !i.pending && (i.kind === 'bebida' || i.kind === 'comida'));
-  return ok ? null : 'A tua geleira está vazia. Junta bebidas ou comidas (as que sugeriste só contam depois de aprovadas) e depois partilha-a.';
+  return ok ? null : t('A tua geleira está vazia. Junta bebidas ou comidas (as que sugeriste só contam depois de aprovadas) e depois partilha-a.');
 }
 
 /** Aviso no ecrã de publicar quando a geleira não está à vista de todos: o post segue a visibilidade das publicações. */
 export function visibilityNote(v: string | null | undefined, isPrivate: boolean): string | null {
-  if (v === 'everyone' || !v) return isPrivate ? 'A tua conta é privada: só quem te segue vê este post.' : null;
-  const who = v === 'followers' ? 'só para quem te segue' : v === 'close_friends' ? 'só para os teus amigos próximos' : 'só para ti';
-  return `No perfil, a tua geleira está ${who}. Este post mostra-a a quem puder ver as tuas publicações${isPrivate ? ' (a tua conta é privada: quem te segue)' : ''}.`;
+  if (v === 'everyone' || !v) return isPrivate ? t('A tua conta é privada: só quem te segue vê este post.') : null;
+  const who = v === 'followers' ? t('só para quem te segue') : v === 'close_friends' ? t('só para os teus amigos próximos') : t('só para ti');
+  return t('No perfil, a tua geleira está {who}. Este post mostra-a a quem puder ver as tuas publicações{value}.', { who, value: isPrivate ? (' ' + t('(a tua conta é privada: quem te segue)')) : '' });
 }

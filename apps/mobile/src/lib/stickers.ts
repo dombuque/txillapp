@@ -1,6 +1,7 @@
 import chat from '../assets/stickers.json';
 import mimo from '../assets/mimo-stickers.json';
 import type { TextLayer } from './textLayers';
+import { t } from '@/lib/i18n';
 
 /** Como o sticker se mexe no mimo ('none' = parado). */
 export type StickerAnim = 'none' | 'pulse' | 'bounce' | 'wiggle' | 'spin' | 'swing' | 'float' | 'shake' | 'flicker' | 'twinkle' | 'pop';
@@ -30,7 +31,7 @@ const ratioOf = (svg: string) => {
   return vb && vb[2] && vb[3] ? vb[3] / vb[2] : 1;
 };
 
-export const STICKER_CATS: { id: string; label: string }[] = [{ id: 'animados', label: 'Animados' }, ...(chat.cats as { id: string; label: string }[])];
+export const STICKER_CATS: { id: string; label: string }[] = [{ id: 'animados', get label() { return t('Animados'); } }, ...(chat.cats as { id: string; label: string }[])];
 
 /** Todos os stickers: os animados dos mimos primeiro, depois a biblioteca do chat (parados). */
 export const STICKERS: StickerDef[] = [

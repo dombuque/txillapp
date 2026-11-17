@@ -4,6 +4,7 @@ import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { clearPrompt, liveItems, nextExpiryIn, TTL_CHOICES, TTL_TITLE, ttlExplain } from '@/lib/chatTemporary';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Mensagens temporárias e "Limpar conversa" nos ecrãs das conversas (a dois e TxillGroups). A lógica está em
@@ -30,13 +31,13 @@ export function TtlSheet({ ttl, group = false, canChange, onPick, onClose }: {
       await onPick(next);
       onClose();
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui mudar. Tenta outra vez.');
+      setErr((e as Error).message || t('Não consegui mudar. Tenta outra vez.'));
     } finally {
       setBusy(undefined);
     }
   }
   return (
-    <Sheet title={TTL_TITLE} onClose={onClose}>
+    <Sheet title={TTL_TITLE()} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }} accessibilityRole="radiogroup">
         <View style={st.hero}>
           <View style={st.heroIcon}><Icon name="clock" size={26} color={colors.zinc800} /></View>
@@ -115,7 +116,7 @@ export function useLiveItems<T extends { expiresAt?: string | null }>(items: T[]
 export function confirmClear(group: boolean, run: () => void) {
   const p = clearPrompt(group);
   const ask = () => Alert.alert(p.title, p.message, [
-    { text: 'Cancelar', style: 'cancel' },
+    { text: t('Cancelar'), style: 'cancel' },
     { text: p.confirm, style: 'destructive', onPress: run },
   ]);
   if (Platform.OS === 'ios') setTimeout(ask, 350);

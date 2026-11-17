@@ -1,7 +1,8 @@
 import type { StoreAdapter } from './core';
+import { t } from '@/lib/i18n';
 
 /** Na web (o site e o PWA) não há loja: nada se compra por aqui e nada se carrega da biblioteca das lojas. */
-const none = () => Promise.reject(Object.assign(new Error('Sem loja na web'), { code: 'iap-not-available' }));
+const none = () => Promise.reject(Object.assign(new Error(t('Sem loja na web')), { code: 'iap-not-available' }));
 
 export const nativeStore: StoreAdapter = {
   available: false,

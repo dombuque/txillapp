@@ -6,6 +6,7 @@
  */
 import type { Post } from './api';
 import type { Mixar, MixarChallenge, MixarFeedPage, MixarItem, MixarReactionId, MixarSummary, mixarApi } from './api.mixar';
+import { t } from '@/lib/i18n';
 
 export const MIXAR_PREVIEW_ID = 'exemplo';
 declare const __DEV__: boolean | undefined;
@@ -20,7 +21,7 @@ function post(i: number, author: string, body: string, video: string): Post {
     id: `exemplo-${i}`,
     code: `exemplo${i}`,
     body,
-    locationLabel: i % 2 ? 'Maputo' : null,
+    locationLabel: i % 2 ? t('Maputo') : null,
     media: [{ url: `${SAMPLE}/${video}`, kind: 'video', width: 1280, height: 720 }],
     createdAt: now(),
     author: { id: `autor-${i}`, username: author, displayName: author },
@@ -56,22 +57,22 @@ const state = {
     createdAt: now(),
     acceptedAt: now(),
     match: 72,
-    common: [{ topic: 'musica', label: 'Música', score: 0.9 }, { topic: 'comedia', label: 'Comédia', score: 0.7 }, { topic: 'comida', label: 'Comida', score: 0.4 }],
-    onlyMe: [{ topic: 'futebol', label: 'Futebol' }],
-    onlyThem: [{ topic: 'moda', label: 'Moda' }, { topic: 'danca', label: 'Dança' }],
+    common: [{ topic: 'musica', get label() { return t('Música'); }, score: 0.9 }, { topic: 'comedia', get label() { return t('Comédia'); }, score: 0.7 }, { topic: 'comida', get label() { return t('Comida'); }, score: 0.4 }],
+    onlyMe: [{ topic: 'futebol', get label() { return t('Futebol'); } }],
+    onlyThem: [{ topic: 'moda', get label() { return t('Moda'); } }, { topic: 'danca', get label() { return t('Dança'); } }],
     streak: 3,
     matches: 2,
   } as Mixar,
   items: [
-    { post: POSTS[0], from: 'both', topic: { topic: 'musica', label: 'Música' }, mine: null, theirs: 'fogo', seenByThem: true },
-    { post: POSTS[1], from: 'me', topic: { topic: 'futebol', label: 'Futebol' }, mine: null, theirs: null, seenByThem: false },
-    { post: POSTS[2], from: 'them', topic: { topic: 'comedia', label: 'Comédia' }, mine: 'kkk', theirs: 'kkk', seenByThem: true },
+    { post: POSTS[0], from: 'both', topic: { topic: 'musica', get label() { return t('Música'); } }, mine: null, theirs: 'fogo', seenByThem: true },
+    { post: POSTS[1], from: 'me', topic: { topic: 'futebol', get label() { return t('Futebol'); } }, mine: null, theirs: null, seenByThem: false },
+    { post: POSTS[2], from: 'them', topic: { topic: 'comedia', get label() { return t('Comédia'); } }, mine: 'kkk', theirs: 'kkk', seenByThem: true },
     { post: POSTS[3], from: 'both', topic: null, mine: null, theirs: null, seenByThem: false },
   ] as MixarItem[],
   challenge: {
     id: 'desafio-exemplo',
     kind: 'mais_engracado',
-    question: 'Qual é o mais engraçado?',
+    get question() { return t('Qual é o mais engraçado?'); },
     day: now().slice(0, 10),
     options: POSTS.slice(0, 4),
     myPick: null,

@@ -1,6 +1,7 @@
 // «A chamar…» / «A tocar…» de quem liga (src/lib/calls/outgoing.ts) e onde a app confirma a entrega: o ecrã e a sessão.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

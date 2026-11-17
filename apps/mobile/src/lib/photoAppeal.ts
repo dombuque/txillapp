@@ -8,6 +8,7 @@
  * pending: pedido feito sem rascunho (a app continua a publicação quando a foto for aprovada, se estiver aberta) ·
  * published: aprovada e publicada pelo servidor · refused: a moderação manteve a recusa · failed: o pedido falhou.
  */
+import { t } from '@/lib/i18n';
 export type AppealState = 'available' | 'sending' | 'held' | 'pending' | 'published' | 'refused' | 'failed';
 
 /** O rascunho que acompanha o pedido: o tipo e o mesmo corpo do endpoint de publicar (POST /posts, /stories, /instants). */
@@ -24,11 +25,11 @@ export function rejectedPhotoId(e: unknown): string | null {
 /** O texto da faixa enquanto há um pedido de revisão (null: fica a mensagem de erro do servidor). */
 export function appealText(state: AppealState): string | null {
   switch (state) {
-    case 'sending': return 'A pedir a revisão…';
-    case 'held': return 'Pedido enviado. Publicamos sozinhos quando a equipa aprovar; podes fechar a app.';
-    case 'pending': return 'Pedido de revisão enviado. Se a moderação aprovar a foto, a publicação segue sozinha.';
-    case 'published': return 'A equipa aprovou a foto: já está publicado.';
-    case 'refused': return 'A moderação reviu a foto e manteve a recusa.';
+    case 'sending': return t('A pedir a revisão…');
+    case 'held': return t('Pedido enviado. Publicamos sozinhos quando a equipa aprovar; podes fechar a app.');
+    case 'pending': return t('Pedido de revisão enviado. Se a moderação aprovar a foto, a publicação segue sozinha.');
+    case 'published': return t('A equipa aprovou a foto: já está publicado.');
+    case 'refused': return t('A moderação reviu a foto e manteve a recusa.');
     default: return null;
   }
 }

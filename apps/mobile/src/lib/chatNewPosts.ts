@@ -1,20 +1,21 @@
 // "1 publicação nova" por baixo do nome, no cabeçalho da conversa (como no Instagram): o que a pessoa publicou e eu
 // ainda não vi. Sem dependências (os testes correm em Node: tests/chatNewPosts.test.mjs).
 
+import { t } from '@/lib/i18n';
 export interface NewPosts { count: number; latestId: string | null }
 
 /** "1 publicação nova", "3 publicações novas"; a partir de 10, "9+ publicações novas". Vazio quando não há. */
 export function newPostsText(count: number | null | undefined): string {
   if (!count || !(count > 0)) return '';
-  if (count >= 10) return '9+ publicações novas';
+  if (count >= 10) return t('9+ publicações novas');
   const n = Math.floor(count);
-  return n === 1 ? '1 publicação nova' : `${n} publicações novas`;
+  return t('{count} publicação nova', { count: n, other: '{count} publicações novas' });
 }
 
 /** O que o leitor de ecrã diz: "1 publicação nova de Ana, abrir". */
 export function newPostsLabel(count: number | null | undefined, name: string): string {
   const text = newPostsText(count);
-  return text ? `${text} de ${name}, abrir` : '';
+  return text ? t('{text} de {name}, abrir', { text, name }) : '';
 }
 
 /** Para onde vai o toque: uma só → a publicação; várias (ou sem id) → o perfil da pessoa. null quando não há nada. */

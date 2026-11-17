@@ -2,6 +2,7 @@
 // «♪ Título · Artista», o que vai para o servidor e os avisos da equipa.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -114,7 +115,7 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
 
 test('ecrãs: Sou artista nas Definições e na pesquisa, o perfil com a etiqueta «Artista» (sem o selo de verificado)', () => {
   assert.match(read('app', 'settings', 'conta.tsx'), /anchor="artist"[^\n]*to="\/artista"/);
-  assert.match(read('lib', 'settingsIndex.ts'), /id: 'artist', group: 'conta', title: 'Sou artista'/);
+  assert.match(read('lib', 'settingsIndex.ts'), /id: 'artist', group: 'conta', get title\(\) \{ return t\('Sou artista'\); \}/);
   const pv = read('components', 'ProfileView.tsx');
   assert.match(pv, /\{p\.artist \? <ArtistTag \/> : null\}/);
   assert.doesNotMatch(read('components', 'ArtistUi.tsx'), /VerifiedBadge/);

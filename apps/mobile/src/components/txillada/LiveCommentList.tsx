@@ -10,6 +10,7 @@ import { MentionText } from '@/components/txillada/MentionText';
 import { colors } from '@/lib/theme';
 import { commentCheersLabel, type TxilladaComment } from '@/lib/txillada';
 import { atEnd, keepOffset, nearTop, newLabel, newSince } from '@/lib/txilladaChat';
+import { t } from '@/lib/i18n';
 
 const GLASS = 'rgba(14,14,18,0.5)';
 const GIFT_GLASS = 'rgba(214,51,79,0.88)';
@@ -59,7 +60,7 @@ export function LiveComments(p: Props) {
   if (!p.comments.length) return null;
   if (reading) return <ReadingList {...p} pull={pull} onDone={() => setReading(false)} />;
   return (
-    <View style={[st.zone, { bottom: p.bottom, width: p.width + 12, height: p.height }]} {...zone.panHandlers} testID="txillada-comments-zone" accessibilityHint="Arrasta para ler os comentários anteriores">
+    <View style={[st.zone, { bottom: p.bottom, width: p.width + 12, height: p.height }]} {...zone.panHandlers} testID="txillada-comments-zone" accessibilityHint={t('Arrasta para ler os comentários anteriores')}>
       <LiveFloatComments comments={p.comments} bottom={0} left={12} width={p.width} height={p.height} onOpen={p.onOpen} onCheer={p.onCheer} hidden={p.hidden} onMention={p.onMention} />
     </View>
   );
@@ -148,9 +149,9 @@ function ReadingList({ comments, bottom, width, listHeight, onOpen, onMention, m
         onTouchStart={arm}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        accessibilityLabel="Comentários da Txillada"
+        accessibilityLabel={t('Comentários da Txillada')}
       >
-        {busy ? <View style={st.loading}><ActivityIndicator color="#fff" /></View> : more ? <View style={{ height: 28 }} /> : <Text style={st.start}>Início da conversa</Text>}
+        {busy ? <View style={st.loading}><ActivityIndicator color="#fff" /></View> : more ? <View style={{ height: 28 }} /> : <Text style={st.start}>{t('Início da conversa')}</Text>}
         {comments.map((c) => <Row key={c.id} c={c} onOpen={onOpen} onMention={onMention} />)}
       </ScrollView>
       {fresh > 0 ? (
@@ -168,7 +169,7 @@ function Row({ c, onOpen, onMention }: { c: TxilladaComment; onOpen?: (c: Txilla
   const pill = commentCheersLabel(c.cheers ?? 0);
   const open = onOpen && !gift ? () => onOpen(c) : undefined;
   return (
-    <Pressable onPress={open} onLongPress={open} delayLongPress={400} disabled={!open} style={st.row} accessibilityRole={open ? 'button' : undefined} accessibilityLabel={`Comentário de ${c.author.username}: ${c.body}`}>
+    <Pressable onPress={open} onLongPress={open} delayLongPress={400} disabled={!open} style={st.row} accessibilityRole={open ? 'button' : undefined} accessibilityLabel={t('Comentário de {username}: {body}', { username: c.author.username, body: c.body })}>
       <View style={st.ring}>
         <Avatar name={c.author.displayName} username={c.author.avatarUrl ? c.author.username : undefined} size={26} />
       </View>

@@ -23,6 +23,7 @@ import { androidPace, applePace, containTransform, coverTransform, FX_SKSL, fxUn
 import { smoothNow } from '@/lib/studio/previewClock';
 import type { ClockStore } from './clockStore';
 import { rememberSize } from './mediaSize';
+import { t } from '@/lib/i18n';
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const IS_ANDROID = Platform.OS === 'android';
@@ -108,11 +109,11 @@ function useSkiaVideoFile(uri: string, onFail: (why: string) => void): Meta | nu
       const ok = (video: Video, iw: number, ih: number, rot: number, dur: number, fps: number) => {
         const m: Meta = { video, iw, ih, rot, dur, fps: fps > 1 && fps < 241 ? fps : 30 };
         if (off) { give(uri, m); return; }
-        if (!(iw > 0 && ih > 0)) { disposeOnUI(video); failRef.current('sem tamanho'); return; }
+        if (!(iw > 0 && ih > 0)) { disposeOnUI(video); failRef.current(t('sem tamanho')); return; }
         mine = m;
         setMeta(m);
       };
-      const bad = (why: string) => { if (!off) failRef.current(`não abriu: ${why}`); };
+      const bad = (why: string) => { if (!off) failRef.current(t('não abriu: {why}', { why })); };
       try {
         scheduleOnRuntime(rt(), (src: string) => {
           'worklet';
@@ -186,7 +187,7 @@ export function SkiaVideoLayer({ seg, role, clock, w, h, poster, onFail }: { seg
   // Sem frame em 5 s: este ficheiro não serve na Skia.
   useEffect(() => {
     if (!meta || hasFrame) return;
-    const id = setTimeout(() => fail('sem frames em 5 s'), 5000);
+    const id = setTimeout(() => fail(t('sem frames em 5 s')), 5000);
     return () => clearTimeout(id);
   }, [meta, hasFrame]); // eslint-disable-line react-hooks/exhaustive-deps
 

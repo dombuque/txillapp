@@ -15,6 +15,7 @@ import { Sheet } from '../Sheet';
 import { Button } from '../ui/Button';
 import { DrinkSheet } from './DrinkSheet';
 import { AMBER_INK } from './GeladaCard';
+import { t } from '@/lib/i18n';
 
 const face = (p: GeladaPerson, size = 30) => <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={size} />;
 
@@ -43,7 +44,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
     return (
       <View style={[st.card, st.gone]}>
         <Icon name="cheers" size={18} color={colors.zinc500} />
-        <Text style={st.goneText}>Esta rodada já não existe</Text>
+        <Text style={st.goneText}>{t('Esta rodada já não existe')}</Text>
       </View>
     );
   }
@@ -61,7 +62,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
       void qc.invalidateQueries({ queryKey: ['chat-group', round.groupId] });
       void qc.invalidateQueries({ queryKey: geladaKeys.round(round.id) });
     } catch (e) {
-      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui mudar a rodada. Tenta outra vez.'));
+      Alert.alert(t('Não deu'), geladaErrorText(e, t('Não consegui mudar a rodada. Tenta outra vez.')));
     } finally {
       setBusy(false);
     }
@@ -77,13 +78,13 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
   const drinkers = round.entries;
   const hint = suggestLine(round.suggestedPayer);
   return (
-    <View style={st.card} accessibilityLabel={`Rodada ${open ? 'aberta' : 'fechada'}. ${round.payer ? `Paga ${handleOf(round.payer)}.` : 'Ainda ninguém paga.'} ${drinkers.length} a beber.`}>
+    <View style={st.card} accessibilityLabel={t('Rodada {value}. {value2} {n} a beber.', { value: open ? t('aberta') : t('fechada'), value2: round.payer ? t('Paga {handleOf}.', { handleOf: handleOf(round.payer) }) : t('Ainda ninguém paga.'), n: drinkers.length })}>
       <LinearGradient colors={['#fff7e6', '#fde68a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.head}>
         <View style={st.badge}><Icon name="cheers" size={20} color={AMBER_INK} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.kicker}>{open ? 'RODADA ABERTA' : 'RODADA FECHADA'}</Text>
+          <Text style={st.kicker}>{open ? t('RODADA ABERTA') : t('RODADA FECHADA')}</Text>
           <Text style={st.title} numberOfLines={2}>
-            {round.payer ? `Esta paga ${round.payer.username ? `@${round.payer.username}` : 'Conta eliminada'}` : open ? 'Quem paga esta?' : 'Rodada sem quem pagasse'}
+            {round.payer ? t('Esta paga {value}', { value: round.payer.username ? `@${round.payer.username}` : t('Conta eliminada') }) : open ? t('Quem paga esta?') : t('Rodada sem quem pagasse')}
             {round.payer?.username ? <InlineBadge who={round.payer} fontSize={16} /> : null}
           </Text>
         </View>
@@ -92,13 +93,13 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
 
       <View style={st.body}>
         {open && !round.payer && hint ? <Text style={st.hint}>{hint}</Text> : null}
-        {round.lastPayer ? <Text style={st.meta}>A última foi paga por {handleOf(round.lastPayer)}</Text> : null}
+        {round.lastPayer ? <Text style={st.meta}>{t('A última foi paga por {handleOf}', { handleOf: handleOf(round.lastPayer) })}</Text> : null}
 
-        <Text style={st.section}>{drinkers.length ? `A beber · ${drinkers.length}` : 'Ainda ninguém entrou'}</Text>
+        <Text style={st.section}>{drinkers.length ? t('A beber · {n}', { n: drinkers.length }) : t('Ainda ninguém entrou')}</Text>
         {drinkers.map((e) => (
-          <View key={e.person.username || e.drink.slug} style={st.entry} accessibilityLabel={`${e.mine ? 'Tu' : handleOf(e.person)}: ${drinkLabel(e.drink)}`}>
+          <View key={e.person.username || e.drink.slug} style={st.entry} accessibilityLabel={`${e.mine ? t('Tu') : handleOf(e.person)}: ${drinkLabel(e.drink)}`}>
             {face(e.person)}
-            <Text style={st.who} numberOfLines={1}>{e.mine ? 'Tu' : e.person.displayName.split(' ')[0] || handleOf(e.person)}</Text>
+            <Text style={st.who} numberOfLines={1}>{e.mine ? t('Tu') : e.person.displayName.split(' ')[0] || handleOf(e.person)}</Text>
             <Text style={st.drinkName} numberOfLines={1}>{drinkLabel(e.drink)}</Text>
             <DrinkArt slug={e.drink.slug} category={e.drink.category} size={30} />
           </View>
@@ -107,40 +108,40 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
         {open ? (
           <View style={{ marginTop: 10, gap: 8 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable disabled={busy} onPress={() => setPicking(true)} style={({ pressed }) => [st.btn, st.primary, { flex: 1 }, pressed && st.pressed]} accessibilityRole="button" accessibilityLabel={round.me.joined ? `Mudar a bebida (tens ${drinkLabel(round.me.drink!)})` : 'Eu entro: escolher a bebida'}>
-                <Text style={st.primaryText} numberOfLines={1}>{round.me.joined ? 'Mudar' : 'Eu entro'}</Text>
+              <Pressable disabled={busy} onPress={() => setPicking(true)} style={({ pressed }) => [st.btn, st.primary, { flex: 1 }, pressed && st.pressed]} accessibilityRole="button" accessibilityLabel={round.me.joined ? t('Mudar a bebida (tens {drinkLabel})', { drinkLabel: drinkLabel(round.me.drink!) }) : t('Eu entro: escolher a bebida')}>
+                <Text style={st.primaryText} numberOfLines={1}>{round.me.joined ? t('Mudar') : t('Eu entro')}</Text>
               </Pressable>
               {round.me.payer ? (
                 <Pressable disabled={busy} onPress={() => void run(() => geladaApi.pay(round.id, false))} style={({ pressed }) => [st.btn, st.ghost, { flex: 1 }, pressed && st.pressed]} accessibilityRole="button">
-                  <Text style={st.ghostText} numberOfLines={1}>Já não pago</Text>
+                  <Text style={st.ghostText} numberOfLines={1}>{t('Já não pago')}</Text>
                 </Pressable>
               ) : !round.payer ? (
                 <Pressable disabled={busy} onPress={() => void run(() => geladaApi.pay(round.id, true))} style={({ pressed }) => [st.btn, st.pay, { flex: 1 }, pressed && st.pressed]} accessibilityRole="button">
-                  <Text style={st.payText} numberOfLines={1}>Esta pago eu</Text>
+                  <Text style={st.payText} numberOfLines={1}>{t('Esta pago eu')}</Text>
                 </Pressable>
               ) : null}
             </View>
             {round.me.joined ? (
               <Pressable disabled={busy} onPress={() => void run(() => geladaApi.leave(round.id))} style={({ pressed }) => [st.small, pressed && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={st.smallText}>Sair da rodada</Text>
+                <Text style={st.smallText}>{t('Sair da rodada')}</Text>
               </Pressable>
             ) : null}
             {round.canClose ? (
               <Pressable disabled={busy} onPress={() => setClosing(true)} style={({ pressed }) => [st.btn, st.ghost, pressed && st.pressed]} accessibilityRole="button">
                 <Icon name="check" size={18} color={colors.zinc800} />
-                <Text style={st.ghostText}>Fechar rodada</Text>
+                <Text style={st.ghostText}>{t('Fechar rodada')}</Text>
               </Pressable>
             ) : null}
           </View>
         ) : (
-          <Text style={[st.meta, { marginTop: 8 }]}>Saúde!</Text>
+          <Text style={[st.meta, { marginTop: 8 }]}>{t('Saúde!')}</Text>
         )}
       </View>
       <CheersPour n={burst} size={180} />
 
       {picking && (
         <DrinkSheet
-          title="Eu entro com…"
+          title={t('Eu entro com…')}
           selected={null}
           onClose={() => setPicking(false)}
           onPick={(d) => {
@@ -150,21 +151,21 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
         />
       )}
       {closing && (
-        <Sheet title="Fechar a rodada?" onClose={() => setClosing(false)}>
+        <Sheet title={t('Fechar a rodada?')} onClose={() => setClosing(false)}>
           <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
             <Text style={{ fontSize: 15, lineHeight: 21, color: colors.zinc700 }}>
-              {round.payer ? `Fica no histórico que ${round.me.payer ? 'pagaste tu' : `pagou ${handleOf(round.payer)}`}: a próxima é de outro.` : 'Ninguém disse «Esta pago eu»: a rodada fecha sem ficar no histórico.'}
+              {round.payer ? t('Fica no histórico que {value}: a próxima é de outro.', { value: round.me.payer ? t('pagaste tu') : t('pagou {handleOf}', { handleOf: handleOf(round.payer) }) }) : t('Ninguém disse «Esta pago eu»: a rodada fecha sem ficar no histórico.')}
             </Text>
             {round.canBill ? (
               <View style={st.switchRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Pôr no livro das geladas</Text>
-                  <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>Quem bebeu fica a dever-te a sua bebida.</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{t('Pôr no livro das geladas')}</Text>
+                  <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>{t('Quem bebeu fica a dever-te a sua bebida.')}</Text>
                 </View>
-                <Switch value={bill} onValueChange={setBill} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel="Pôr no livro das geladas" />
+                <Switch value={bill} onValueChange={setBill} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel={t('Pôr no livro das geladas')} />
               </View>
             ) : null}
-            <Button label="Fechar e brindar" block loading={busy} onPress={() => void closeNow()} />
+            <Button label={t('Fechar e brindar')} block loading={busy} onPress={() => void closeNow()} />
           </View>
         </Sheet>
       )}

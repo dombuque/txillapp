@@ -2,6 +2,7 @@ import { createElement, useEffect, useRef, useState, type ReactNode } from 'reac
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { peaks, suggestStart, type StartMode, type StartSuggestion } from '@/lib/studio/audioMix';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const CORAL = colors.brand;
@@ -169,16 +170,16 @@ export function AudioWave({ analysis, startMs, windowS, playT, suggestion, onScr
     <View style={st.wrap} onLayout={(e: LayoutChangeEvent) => setW(Math.round(e.nativeEvent.layout.width))}>
       <View style={st.head}>
         <Text style={st.range}>{mmss(start)} a {mmss(start + win)}</Text>
-        <Text style={st.hint}>{drag !== null ? 'A ouvir daqui…' : 'Arrasta a onda para escolher o trecho'}</Text>
+        <Text style={st.hint}>{drag !== null ? t('A ouvir daqui…') : t('Arrasta a onda para escolher o trecho')}</Text>
       </View>
       {dom('div', {
         role: 'slider',
         tabIndex: disabled ? -1 : 0,
-        'aria-label': 'Início do trecho da música',
+        'aria-label': t('Início do trecho da música'),
         'aria-valuemin': 0,
         'aria-valuemax': Math.round(maxStart),
         'aria-valuenow': Math.round(start),
-        'aria-valuetext': `Começa aos ${mmss(start)}`,
+        'aria-valuetext': t('Começa aos {mmss}', { mmss: mmss(start) }),
         'aria-disabled': disabled || undefined,
         ...handlers,
         style: { position: 'relative', height: HEIGHT, touchAction: 'none', cursor: disabled ? 'default' : drag !== null ? 'grabbing' : 'grab', userSelect: 'none', outline: 'none', borderRadius: 14, overflow: 'hidden', background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))' },

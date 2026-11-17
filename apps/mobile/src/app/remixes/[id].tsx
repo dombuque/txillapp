@@ -17,8 +17,9 @@ import { remixApi } from '@/lib/api.remix';
 import { abs } from '@/lib/config';
 import { duetHref, remixCount, type RemixKind } from '@/lib/remix';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
-const TABS: { id: RemixKind | null; label: string }[] = [{ id: null, label: 'Todos' }, { id: 'duet', label: 'Duetos' }, { id: 'reply', label: 'Respostas' }];
+const TABS: { id: RemixKind | null; label: string }[] = [{ id: null, get label() { return t('Todos'); } }, { id: 'duet', get label() { return t('Duetos'); } }, { id: 'reply', get label() { return t('Respostas'); } }];
 
 /** «Duetos e respostas» de uma tcheka (ou publicação): as tchekas que a remisturaram, as mais recentes primeiro. */
 export default function RemixesPage() {
@@ -45,16 +46,16 @@ export default function RemixesPage() {
     const m = item.media[0];
     const poster = m?.posterUrl ?? (m?.kind === 'image' ? m.url : undefined);
     return (
-      <Pressable onPress={() => router.push(`/p/${item.id}` as never)} style={{ width: side, height: side * (16 / 9) * 0.75, margin: 1 }} accessibilityRole="link" accessibilityLabel={`${item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'} de @${item.author.username}`}>
+      <Pressable onPress={() => router.push(`/p/${item.id}` as never)} style={{ width: side, height: side * (16 / 9) * 0.75, margin: 1 }} accessibilityRole="link" accessibilityLabel={t('{value} de @{username}', { value: item.remixOf?.kind === 'reply' ? t('Resposta') : t('Dueto'), username: item.author.username })}>
         {poster ? <Image source={{ uri: abs(poster) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc800 }]} />}
-        <View style={st.badge}>{item.remixOf?.kind === 'reply' ? <Icon name="reply" size={12} color="#fff" /> : <DuetGlyph size={14} />}<Text style={st.badgeText}>{item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'}</Text></View>
+        <View style={st.badge}>{item.remixOf?.kind === 'reply' ? <Icon name="reply" size={12} color="#fff" /> : <DuetGlyph size={14} />}<Text style={st.badgeText}>{item.remixOf?.kind === 'reply' ? t('Resposta') : t('Dueto')}</Text></View>
         <NameWithBadge name={`@${item.author.username}`} who={item.author} style={st.who} containerStyle={st.whoRow} />
       </Pressable>
     );
   };
 
   return (
-    <StackPage title="Duetos e respostas">
+    <StackPage title={t('Duetos e respostas')}>
       <FlatList
         data={items}
         keyExtractor={(x) => x.id}
@@ -68,24 +69,24 @@ export default function RemixesPage() {
               <Pressable onPress={() => router.push(`/p/${p.id}` as never)} style={st.orig} accessibilityRole="link">
                 {p.media[0]?.posterUrl || p.media[0]?.kind === 'image' ? <Image source={{ uri: abs(p.media[0].posterUrl ?? p.media[0].url) }} style={st.origThumb} contentFit="cover" /> : <View style={[st.origThumb, { backgroundColor: colors.zinc200 }]} />}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={st.origTitle} numberOfLines={1}>{p.body || `Tcheka de @${p.author.username}`}</Text>
+                  <Text style={st.origTitle} numberOfLines={1}>{p.body || t('Tcheka de @{username}', { username: p.author.username })}</Text>
                   <NameWithBadge name={`@${p.author.username}`} who={p.author} style={st.origSub}><Text style={[st.origSub, { flexShrink: 0 }]}>· {remixCount(p.remixes ?? items.length)}</Text></NameWithBadge>
                 </View>
               </Pressable>
             ) : null}
             {canDuet ? (
-              <Button label="Fazer dueto" icon={<DuetGlyph size={20} />} size="md" onPress={() => router.push(duetHref(id) as never)} style={{ marginHorizontal: 16, marginTop: 12 }} />
+              <Button label={t('Fazer dueto')} icon={<DuetGlyph size={20} />} size="md" onPress={() => router.push(duetHref(id) as never)} style={{ marginHorizontal: 16, marginTop: 12 }} />
             ) : null}
             <SegmentedTabs tabs={TABS.map((t) => ({ value: t.id ?? 'all', label: t.label }))} value={tab ?? 'all'} onChange={(v) => setTab(v === 'all' ? null : (v as RemixKind))} style={{ marginHorizontal: 16, marginVertical: 12 }} />
           </View>
         }
         ListEmptyComponent={
           q.isLoading ? <View style={st.empty}><ActivityIndicator /></View>
-            : q.isError ? <EmptyState icon="film" title="Esta tcheka já não está disponível" />
-            : <EmptyState icon="film" title={`Ainda não há ${tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}`} text="Quando alguém fizer, aparece aqui." />
+            : q.isError ? <EmptyState icon="film" title={t('Esta tcheka já não está disponível')} />
+            : <EmptyState icon="film" title={t('Ainda não há {value}', { value: tab === 'reply' ? t('respostas') : tab === 'duet' ? t('duetos') : t('duetos nem respostas') })} text={t('Quando alguém fizer, aparece aqui.')} />
         }
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
-        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }} loading={q.isFetchingNextPage} label="Ver mais duetos e respostas" /> : undefined}
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }} loading={q.isFetchingNextPage} label={t('Ver mais duetos e respostas')} /> : undefined}
       />
     </StackPage>
   );

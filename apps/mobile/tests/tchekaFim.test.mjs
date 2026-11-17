@@ -6,6 +6,7 @@
 // - o estúdio avisa a API de que a música já vai no vídeo (`musicInFile`), para não ficar a dobrar.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -77,7 +78,7 @@ test('o menu ⋯ e a folha de partilha têm «Guardar o vídeo» (no site «Desc
   assert.match(share, /canDownload\(post\) \? action\('download'/);
   assert.match(share, /await saveTcheka\(post\)/);
   const save = read('lib', 'saveTcheka.ts');
-  assert.match(save, /saveToGallery\(downloadPath\(t\), downloadName\(t\)\)/);
+  assert.match(save, /saveToGallery\(downloadPath\((\w+)\), downloadName\(\1\)\)/);
   // No telemóvel vai para a galeria; no site, saveToGallery.web descarrega (ou abre a partilha do sistema).
   assert.match(read('lib', 'saveToGallery.ts'), /MediaLibrary\.saveToLibraryAsync/);
   assert.match(read('lib', 'saveToGallery.web.ts'), /a\.download = name/);

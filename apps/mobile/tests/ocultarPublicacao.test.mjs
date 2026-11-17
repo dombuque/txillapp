@@ -4,6 +4,7 @@
 // perfil usam estas peças.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -44,9 +45,9 @@ test('hideToastText: o aviso curto de cada caso', () => {
 });
 
 test('hideErrorText: o Bombar (409) diz porquê; 404, 429 e a falta de rede têm o seu texto', () => {
-  assert.equal(h.hideErrorText(409, null), h.HIDE_BOOSTED);
+  assert.equal(h.hideErrorText(409, null), h.HIDE_BOOSTED());
   assert.equal(h.hideErrorText(409, 'Outra razão do servidor.'), 'Outra razão do servidor.');
-  assert.equal(h.HIDE_BOOSTED, 'Esta publicação está a bombar. Podes ocultá-la quando o Bombar acabar.');
+  assert.equal(h.HIDE_BOOSTED(), 'Esta publicação está a bombar. Podes ocultá-la quando o Bombar acabar.');
   assert.match(h.hideErrorText(404), /já não existe/);
   assert.match(h.hideErrorText(429), /Espera/);
   assert.match(h.hideErrorText(null), /ligação/);
@@ -100,7 +101,7 @@ test('toast: «Desfazer» fecha o aviso e corre a ação (uma vez)', () => {
 });
 
 test('textos: português de Moçambique, sem travessões nem emojis', () => {
-  const all = [h.HIDE_BOOSTED, h.HIDDEN_BANNER, h.hideToastText(true), h.hideToastText(false), h.hideToastText(true, true), h.hideMenuRow(post('a')).text, h.hideMenuRow(post('a', { hidden: true })).text, h.hideMenuRow(post('a'), true).text];
+  const all = [h.HIDE_BOOSTED(), h.HIDDEN_BANNER(), h.hideToastText(true), h.hideToastText(false), h.hideToastText(true, true), h.hideMenuRow(post('a')).text, h.hideMenuRow(post('a', { hidden: true })).text, h.hideMenuRow(post('a'), true).text];
   for (const s of all) {
     assert.ok(!/[—–]/.test(s), s);
     assert.ok(!/\p{Extended_Pictographic}/u.test(s), s);

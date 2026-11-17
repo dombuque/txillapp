@@ -2,6 +2,7 @@
 // («Dueto com @x»), para onde leva cada coisa, a montagem lado a lado e onde fica o autocolante do comentário.
 // Sem dependências (os testes correm em Node: tests/remix.test.mjs). Servidor: apps/api/src/posts/remix.ts (0134).
 
+import { t } from '@/lib/i18n';
 export type RemixKind = 'duet' | 'reply';
 export interface RemixPerson { username: string; displayName: string; hasAvatar?: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 /** A ligação do remix numa publicação (`post.remixOf`). */
@@ -42,9 +43,9 @@ export function remixMode(params: { dueto?: string | string[]; resposta?: string
 /** «Dueto com @ana» / «Resposta a @rui» / original que já não se vê. */
 export function remixLabel(r: RemixOf | null | undefined): string | null {
   if (!r) return null;
-  if (!r.available || !r.author) return r.kind === 'duet' ? 'Dueto com uma tcheka que já não está disponível' : 'Resposta a um comentário que já não está disponível';
-  if (r.kind === 'duet') return `Dueto com @${r.author.username}`;
-  return r.comment ? `Resposta a @${r.comment.author.username}` : `Resposta numa tcheka de @${r.author.username}`;
+  if (!r.available || !r.author) return r.kind === 'duet' ? t('Dueto com uma tcheka que já não está disponível') : t('Resposta a um comentário que já não está disponível');
+  if (r.kind === 'duet') return t('Dueto com @{username}', { username: r.author.username });
+  return r.comment ? `Resposta a @${r.comment.author.username}` : t('Resposta numa tcheka de @{username}', { username: r.author.username });
 }
 
 /** Para onde leva tocar na etiqueta ou no autocolante: o original (na resposta, aberto no comentário). */
@@ -67,10 +68,10 @@ export function remixActions(p: { canRemix?: boolean; remixes?: number; media: {
 }
 
 /** «3 duetos e respostas». */
-export const remixCount = (n: number) => (n === 1 ? '1 dueto ou resposta' : `${n.toLocaleString('pt-PT')} duetos e respostas`);
+export const remixCount = (n: number) => (n === 1 ? t('1 dueto ou resposta') : t('{n} duetos e respostas', { n: n.toLocaleString('pt-PT') }));
 
 /** No comentário: «Respondeu com uma tcheka» (ou «3 tchekas responderam»). */
-export const tchekaRepliesLabel = (n: number) => (n <= 1 ? 'Respondeu com uma tcheka' : `${n} tchekas responderam`);
+export const tchekaRepliesLabel = (n: number) => (t('Respondeu com uma tcheka', { count: n, other: '{count} tchekas responderam' }));
 
 /** Quanto se grava num dueto: o tempo do original, no máximo 60 s (sem duração conhecida, 60 s). */
 export const duetLimitMs = (originalMs: number | null | undefined) => Math.min(60_000, originalMs && originalMs > 0 ? originalMs : 60_000);
@@ -105,24 +106,24 @@ export const STICKER_START = { x: 0.06, y: 0.16 } as const;
 
 /** O texto do comentário no autocolante: uma linha limpa e curta (os stickers [sticker:id] e GIF viram uma palavra). */
 export function stickerText(body: string, max = 90): string {
-  const t = (body ?? '').trim();
-  if (!t) return 'GIF';
-  if (/^\[sticker:[a-z0-9-]+\]$/.test(t)) return 'Sticker';
-  const flat = t.replace(/\s+/g, ' ');
+  const txt = (body ?? '').trim();
+  if (!txt) return 'GIF';
+  if (/^\[sticker:[a-z0-9-]+\]$/.test(txt)) return t('Sticker');
+  const flat = txt.replace(/\s+/g, ' ');
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
 /** O aviso nas notificações (data do servidor: remixKind, role). */
 export function remixVerb(d: { remixKind?: string; role?: string }): string {
-  if (d.remixKind === 'duet') return 'fez um dueto com a tua tcheka';
-  return d.role === 'comment' ? 'respondeu ao teu comentário com uma tcheka' : 'respondeu com uma tcheka a um comentário na tua publicação';
+  if (d.remixKind === 'duet') return t('fez um dueto com a tua tcheka');
+  return d.role === 'comment' ? t('respondeu ao teu comentário com uma tcheka') : t('respondeu com uma tcheka a um comentário na tua publicação');
 }
 /** Abre a tcheka de quem fez o remix. */
 export const remixNoticeTarget = (d: { postId?: string }) => (d.postId ? `/p/${d.postId}` : null);
 
 /** «Retirar o dueto»: o aviso antes de confirmar (só o autor da tcheka original vê esta ação, e só em duetos). */
-export const takedownTitle = 'Retirar este dueto?';
+export const takedownTitle = () => t('Retirar este dueto?');
 export const takedownText = (owner: string | null | undefined) =>
-  `O teu vídeo e o teu som estão gravados neste dueto. Deixa de aparecer para todos e ${owner ? `@${owner}` : 'quem o fez'} recebe um aviso. Não dá para desfazer.`;
+  t('O teu vídeo e o teu som estão gravados neste dueto. Deixa de aparecer para todos e {value} recebe um aviso. Não dá para desfazer.', { value: owner ? `@${owner}` : t('quem o fez') });
 /** O aviso a quem fez o dueto (kind 'remix_takedown'). */
-export const takedownVerb = () => ({ text: 'pediu para retirar o teu dueto', sub: 'O dueto deixou de aparecer: o vídeo e o som dessa pessoa estavam gravados nele.' });
+export const takedownVerb = () => ({ text: t('pediu para retirar o teu dueto'), sub: t('O dueto deixou de aparecer: o vídeo e o som dessa pessoa estavam gravados nele.') });

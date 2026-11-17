@@ -28,6 +28,7 @@ import { resyncDraft } from '@/lib/draftSync';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
+import { t } from '@/lib/i18n';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'bombar' | 'painel';
 
@@ -43,22 +44,22 @@ export default function ManageVenue() {
   const askPin = (what: 'map' | 'search') => { setSection('perfil'); setPinAsk((o) => ({ what, n: (o?.n ?? 0) + 1 })); };
   // A notificação de pagamento abre ?s=txills: se a página já estava aberta, muda de secção.
   useEffect(() => { if (s) setSection(s); }, [s]);
-  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Vibes'], ['bombar', 'Bombar'], ['painel', 'Painel']];
+  const sections: [Section, string][] = [['perfil', t('Perfil')], ['gestores', t('Gestores')], ['eventos', t('Eventos')], ['qr', 'QR'], ['txills', 'Vibes'], ['bombar', t('Bombar')], ['painel', t('Painel')]];
   // Puxar para atualizar: o local (saldo, estado) e, na secção Txills, os pagamentos recebidos.
   const pull = usePullToRefresh(() => Promise.all([q.refetch(), section === 'txills' ? qc.invalidateQueries({ queryKey: venuePaymentsKey(slug) }) : section === 'eventos' ? qc.invalidateQueries({ queryKey: ['venue-events', slug] }) : section === 'bombar' ? qc.invalidateQueries({ queryKey: boostKey(slug) }) : null]), q.isRefetching);
 
   return (
-    <StackPage title={v ? `Gerir ${v.name}` : 'Gerir o local'}>
+    <StackPage title={v ? t('Gerir {name}', { name: v.name }) : t('Gerir o local')}>
       {q.isLoading ? (
         <View style={{ alignItems: 'center', paddingVertical: 64 }}><PontoLoader size={20} /></View>
       ) : !v && q.isError && !(q.error instanceof ApiError && (q.error.status === 404 || q.error.status === 403)) ? (
         // Sem rede ou o servidor em baixo: não é "só os gestores", é tentar outra vez.
         <View style={{ alignItems: 'center' }}>
-          <Empty icon="alert" title="Não consegui abrir o local" text="Verifica a internet e tenta outra vez." />
-          <Pressable onPress={() => void q.refetch()} style={[st.secondary, { marginTop: 20 }]} accessibilityRole="button"><Text style={st.secondaryText}>Tentar outra vez</Text></Pressable>
+          <Empty icon="alert" title={t('Não consegui abrir o local')} text={t('Verifica a internet e tenta outra vez.')} />
+          <Pressable onPress={() => void q.refetch()} style={[st.secondary, { marginTop: 20 }]} accessibilityRole="button"><Text style={st.secondaryText}>{t('Tentar outra vez')}</Text></Pressable>
         </View>
       ) : !v || !v.mine ? (
-        <Empty icon="lock" title="Só os gestores entram aqui" />
+        <Empty icon="lock" title={t('Só os gestores entram aqui')} />
       ) : (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <PullView pull={pull}>
@@ -67,10 +68,10 @@ export default function ManageVenue() {
               <View style={st.mapNotice} accessibilityRole="alert">
                 <Icon name="map-pin" size={20} color="#b45309" />
                 <View style={{ flex: 1, gap: 8 }}>
-                  <Text style={st.mapNoticeText}>Este local ainda não está no mapa. Marca onde fica.</Text>
+                  <Text style={st.mapNoticeText}>{t('Este local ainda não está no mapa. Marca onde fica.')}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <Pressable onPress={() => askPin('map')} style={st.noticeBtn} accessibilityRole="button"><Icon name="map" size={15} color="#fff" /><Text style={st.noticeBtnText}>Marcar no mapa</Text></Pressable>
-                    <Pressable onPress={() => askPin('search')} style={[st.noticeBtn, { backgroundColor: colors.white }]} accessibilityRole="button"><Icon name="search" size={15} color={colors.zinc900} /><Text style={[st.noticeBtnText, { color: colors.zinc900 }]}>Procurar o sítio</Text></Pressable>
+                    <Pressable onPress={() => askPin('map')} style={st.noticeBtn} accessibilityRole="button"><Icon name="map" size={15} color="#fff" /><Text style={st.noticeBtnText}>{t('Marcar no mapa')}</Text></Pressable>
+                    <Pressable onPress={() => askPin('search')} style={[st.noticeBtn, { backgroundColor: colors.white }]} accessibilityRole="button"><Icon name="search" size={15} color={colors.zinc900} /><Text style={[st.noticeBtnText, { color: colors.zinc900 }]}>{t('Procurar o sítio')}</Text></Pressable>
                   </View>
                 </View>
               </View>
@@ -168,7 +169,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       const id = await uploadMedia(a.uri, a.mimeType ?? 'image/jpeg', 'public');
       await save(what === 'avatar' ? { avatarMediaId: id } : { coverMediaId: id });
     } catch (e) {
-      Alert.alert('Não consegui enviar a foto', (e as Error).message || 'Tenta outra vez.');
+      Alert.alert(t('Não consegui enviar a foto'), (e as Error).message || t('Tenta outra vez.'));
     } finally {
       setUploading(null);
     }
@@ -177,7 +178,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
   if (!v.canEdit) {
     return (
       <View style={{ paddingHorizontal: 16 }}>
-        <Text style={st.hint}>Só o dono e os administradores editam o perfil. Tu és {ROLE_LABEL[v.role ?? 'editor'].toLowerCase()}: podes publicar como a página.</Text>
+        <Text style={st.hint}>{t('Só o dono e os administradores editam o perfil. Tu és {roleLabel}: podes publicar como a página.', { roleLabel: ROLE_LABEL[v.role ?? 'editor'].toLowerCase() })}</Text>
       </View>
     );
   }
@@ -186,42 +187,42 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
   );
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
-      <Pressable onPress={() => void pick('cover')} style={st.coverPick} accessibilityRole="button" accessibilityLabel="Mudar a capa">
+      <Pressable onPress={() => void pick('cover')} style={st.coverPick} accessibilityRole="button" accessibilityLabel={t('Mudar a capa')}>
         {v.coverUrl ? <Image source={{ uri: sized(v.coverUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
-        <View style={st.pickBadge}><Icon name="camera" size={16} color="#fff" /><Text style={st.pickText}>{uploading === 'cover' ? 'A enviar…' : v.coverUrl ? 'Mudar a capa' : 'Pôr uma capa'}</Text></View>
+        <View style={st.pickBadge}><Icon name="camera" size={16} color="#fff" /><Text style={st.pickText}>{uploading === 'cover' ? t('A enviar…') : v.coverUrl ? t('Mudar a capa') : t('Pôr uma capa')}</Text></View>
       </Pressable>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <VenueLogo venue={v} size={72} />
-        <Pressable onPress={() => void pick('avatar')} style={st.secondary} accessibilityRole="button"><Icon name="image" size={18} color={colors.zinc900} /><Text style={st.secondaryText}>{uploading === 'avatar' ? 'A enviar…' : v.avatarUrl ? 'Mudar o logótipo' : 'Pôr o logótipo'}</Text></Pressable>
+        <Pressable onPress={() => void pick('avatar')} style={st.secondary} accessibilityRole="button"><Icon name="image" size={18} color={colors.zinc900} /><Text style={st.secondaryText}>{uploading === 'avatar' ? t('A enviar…') : v.avatarUrl ? t('Mudar o logótipo') : t('Pôr o logótipo')}</Text></Pressable>
       </View>
 
-      <Text style={st.label}>Nome e tipo</Text>
-      {input('name', 'Nome do local', { maxLength: 80 })}
+      <Text style={st.label}>{t('Nome e tipo')}</Text>
+      {input('name', t('Nome do local'), { maxLength: 80 })}
       <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {KINDS.map((k) => <Chip key={k} label={KIND_LABEL[k]} selected={f.kind === k} onPress={() => setF((o) => ({ ...o, kind: k }))} />)}
       </View>
-      <Text style={st.label}>Onde e quando</Text>
-      <PlaceField ref={placeRef} label="Onde fica?" value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
-      {!place && (v.address || v.city) ? <Text style={st.hint}>Em texto: {formatAddress(v)}. Escolhe o sítio para o local aparecer no mapa.</Text> : null}
+      <Text style={st.label}>{t('Onde e quando')}</Text>
+      <PlaceField ref={placeRef} label={t('Onde fica?')} value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder={t('Procurar o sítio… (nome, rua ou bairro)')} mapHint={t('Arrasta o mapa até o alfinete ficar na porta do local.')} />
+      {!place && (v.address || v.city) ? <Text style={st.hint}>{t('Em texto: {address}. Escolhe o sítio para o local aparecer no mapa.', { address: formatAddress(v) })}</Text> : null}
       {canMap ? (
         <View style={st.switchRow}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
-            <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta e em perto de mim. Desligado, continua na pesquisa pelo nome, sem o ponto no mapa. Desliga se não tiver porta aberta ao público.</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{t('Mostrar no mapa')}</Text>
+            <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>{t('O teu local aparece no mapa do À tua volta e em perto de mim. Desligado, continua na pesquisa pelo nome, sem o ponto no mapa. Desliga se não tiver porta aberta ao público.')}</Text>
           </View>
-          <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
+          <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Mostrar no mapa do À tua volta')} />
         </View>
       ) : null}
-      {input('hours', 'Horário (ex.: Ter a Dom, 18h às 2h)', { maxLength: 300 })}
-      <Text style={st.label}>Contactos</Text>
-      {input('phone', 'Telefone', { keyboardType: 'phone-pad', maxLength: 30 })}
-      {input('whatsapp', 'WhatsApp (com indicativo, ex.: +258 84…)', { keyboardType: 'phone-pad', maxLength: 30 })}
+      {input('hours', t('Horário (ex.: Ter a Dom, 18h às 2h)'), { maxLength: 300 })}
+      <Text style={st.label}>{t('Contactos')}</Text>
+      {input('phone', t('Telefone'), { keyboardType: 'phone-pad', maxLength: 30 })}
+      {input('whatsapp', t('WhatsApp (com indicativo, ex.: +258 84…)'), { keyboardType: 'phone-pad', maxLength: 30 })}
       {input('website', 'Site (https://…)', { autoCapitalize: 'none', keyboardType: 'url', maxLength: 200 })}
-      <Text style={st.label}>Sobre</Text>
-      {input('about', 'Conta o que é o local, o ambiente, o que a malta vem cá fazer', { multiline: true, maxLength: 1000 })}
+      <Text style={st.label}>{t('Sobre')}</Text>
+      {input('about', t('Conta o que é o local, o ambiente, o que a malta vem cá fazer'), { multiline: true, maxLength: 1000 })}
       <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: msg === 'Guardado.' ? colors.green700 : colors.red600 }}>{msg}</Text>
       <Pressable onPress={() => void save()} disabled={busy || f.name.trim().length < 2} style={[st.cta, (busy || f.name.trim().length < 2) && { opacity: 0.5 }]} accessibilityRole="button">
-        <Text style={st.ctaText}>{busy ? 'A guardar…' : 'Guardar'}</Text>
+        <Text style={st.ctaText}>{busy ? t('A guardar…') : t('Guardar')}</Text>
       </Pressable>
     </View>
   );
@@ -249,41 +250,41 @@ function Managers({ v }: { v: Venue }) {
     setBusy(false);
     return done;
   }
-  const invite = () => run(() => locaisApi.invite(v.slug, username.trim().replace(/^@/, ''), role), 'Convite enviado. A pessoa recebe uma notificação para aceitar.').then((sent) => { if (sent) setUsername(''); });
+  const invite = () => run(() => locaisApi.invite(v.slug, username.trim().replace(/^@/, ''), role), t('Convite enviado. A pessoa recebe uma notificação para aceitar.')).then((sent) => { if (sent) setUsername(''); });
   const remove = (u: string, self: boolean) => {
     const go = () => run(async () => {
       const r = await locaisApi.removeManager(v.slug, u);
       if ('left' in r) { void qc.invalidateQueries({ queryKey: ['venue', v.slug] }); void qc.invalidateQueries({ queryKey: ['venues-mine'] }); goBack(router, '/locais'); }
       return r;
-    }, self ? 'Saíste da página.' : 'Gestor removido.');
+    }, self ? t('Saíste da página.') : t('Gestor removido.'));
     void confirm({
-      title: self ? 'Sair da página?' : `Tirar @${u}?`,
-      message: self ? 'Deixas de poder publicar como este local.' : 'Deixa de poder gerir ou publicar como este local.',
-      confirm: self ? 'Sair' : 'Tirar',
+      title: self ? t('Sair da página?') : t('Tirar @{u}?', { u }),
+      message: self ? t('Deixas de poder publicar como este local.') : t('Deixa de poder gerir ou publicar como este local.'),
+      confirm: self ? t('Sair') : t('Tirar'),
       danger: true,
     }).then((ok) => { if (ok) void go(); });
   };
 
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
-      <Text style={st.hint}>Administradores editam o perfil e gerem os gestores. Editores publicam como a página. Só o dono não pode ser tirado.</Text>
+      <Text style={st.hint}>{t('Administradores editam o perfil e gerem os gestores. Editores publicam como a página. Só o dono não pode ser tirado.')}</Text>
       {(q.data ?? []).map((m) => {
         const self = m.username === user?.username;
         return (
           <View key={m.username} style={st.mRow}>
             <Pressable onPress={() => router.push(`/u/${m.username}` as never)} accessibilityRole="link"><Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} /></Pressable>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <NameWithBadge name={m.displayName} who={m} style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{self ? <Text style={{ flexShrink: 0, fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>(tu)</Text> : null}</NameWithBadge>
-              <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>@{m.username} · {ROLE_LABEL[m.role]}{m.status === 'pending' ? ' · convite por aceitar' : ''}</Text>
+              <NameWithBadge name={m.displayName} who={m} style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{self ? <Text style={{ flexShrink: 0, fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{t('(tu)')}</Text> : null}</NameWithBadge>
+              <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>@{m.username} · {ROLE_LABEL[m.role]}{m.status === 'pending' ? (' ' + t('· convite por aceitar')) : ''}</Text>
             </View>
             {m.role !== 'owner' && (v.canEdit || self) ? (
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {v.canEdit && m.status === 'active' ? (
-                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), 'Papel alterado.')} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? 'Passar a editor' : 'Passar a administrador'}>
+                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), t('Papel alterado.'))} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? t('Passar a editor') : t('Passar a administrador')}>
                     <Icon name={m.role === 'admin' ? 'user' : 'shield'} size={18} color={colors.zinc800} />
                   </Pressable>
                 ) : null}
-                <Pressable onPress={() => remove(m.username, self)} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? 'Sair da página' : 'Tirar da página'}>
+                <Pressable onPress={() => remove(m.username, self)} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? t('Sair da página') : t('Tirar da página')}>
                   <Icon name={self ? 'logout' : 'x'} size={18} color={colors.red600} />
                 </Pressable>
               </View>
@@ -293,13 +294,13 @@ function Managers({ v }: { v: Venue }) {
       })}
       {v.canEdit ? (
         <View style={st.inviteBox}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.zinc900 }}>Convidar um gestor</Text>
-          <TextInput value={username} onChangeText={setUsername} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Nome de utilizador" style={st.input} />
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.zinc900 }}>{t('Convidar um gestor')}</Text>
+          <TextInput value={username} onChangeText={setUsername} placeholder={t('@utilizador')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('Nome de utilizador')} style={st.input} />
           <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
             {(['editor', 'admin'] as const).map((r) => <Chip key={r} label={ROLE_LABEL[r]} selected={role === r} onPress={() => setRole(r)} />)}
           </View>
           <Pressable onPress={() => void invite()} disabled={busy || username.trim().length < 3} style={[st.cta, (busy || username.trim().length < 3) && { opacity: 0.5 }]} accessibilityRole="button">
-            <Text style={st.ctaText}>{busy ? 'A enviar…' : 'Enviar convite'}</Text>
+            <Text style={st.ctaText}>{busy ? t('A enviar…') : t('Enviar convite')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -316,29 +317,29 @@ function Events({ v }: { v: Venue }) {
   const list = q.data ?? [];
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
-      <Text style={st.hint}>Anuncia o que vai acontecer: uma noite de kizomba, o jogo no ecrã grande, um concerto. Aparece na página do local e no mapa À tua volta.</Text>
+      <Text style={st.hint}>{t('Anuncia o que vai acontecer: uma noite de kizomba, o jogo no ecrã grande, um concerto. Aparece na página do local e no mapa À tua volta.')}</Text>
       <Pressable onPress={() => router.push(`/evento/novo?venue=${encodeURIComponent(v.slug)}` as never)} style={[st.cta, { flexDirection: 'row', gap: 8 }]} accessibilityRole="button">
         <Icon name="plus" size={18} color="#fff" />
-        <Text style={st.ctaText}>Criar evento</Text>
+        <Text style={st.ctaText}>{t('Criar evento')}</Text>
       </Pressable>
       {q.isLoading ? (
         <View style={{ alignItems: 'center', paddingVertical: 24 }}><PontoLoader size={20} /></View>
       ) : list.length ? (
         <View style={{ gap: 8 }}>
-          <Text style={st.label}>Próximos</Text>
+          <Text style={st.label}>{t('Próximos')}</Text>
           {list.map((e) => (
             <Pressable key={e.id} onPress={() => router.push(`/evento/${e.id}` as never)} style={st.mRow} accessibilityRole="link">
               <View style={st.iconBtn}><Icon name="calendar" size={18} color={colors.zinc800} /></View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{e.title}</Text>
-                <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? ` · ${e.interested} com interesse` : ''}</Text>
+                <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? (' ' + t('· {interested} com interesse', { interested: e.interested })) : ''}</Text>
               </View>
               <Icon name="chevron-right" size={18} color={colors.zinc500} />
             </Pressable>
           ))}
         </View>
       ) : (
-        <Text style={[st.hint, { textAlign: 'center', paddingVertical: 16 }]}>Ainda não há eventos marcados.</Text>
+        <Text style={[st.hint, { textAlign: 'center', paddingVertical: 16 }]}>{t('Ainda não há eventos marcados.')}</Text>
       )}
     </View>
   );
@@ -350,8 +351,8 @@ function Insights({ v }: { v: Venue }) {
   if (!d && q.isError) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 16, gap: 12 }}>
-        <Text style={[st.hint, { textAlign: 'center' }]}>Não consegui carregar o painel.</Text>
-        <Pressable onPress={() => void q.refetch()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Tentar outra vez</Text></Pressable>
+        <Text style={[st.hint, { textAlign: 'center' }]}>{t('Não consegui carregar o painel.')}</Text>
+        <Pressable onPress={() => void q.refetch()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>{t('Tentar outra vez')}</Text></Pressable>
       </View>
     );
   }
@@ -367,24 +368,24 @@ function Insights({ v }: { v: Venue }) {
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {stat(d.followers, 'Seguidores', `+${d.followersWeek} esta semana`)}
-        {stat(d.checkins, 'Check-ins', `${d.checkinsWeek} esta semana`)}
-        {stat(d.peopleMonth, 'Pessoas no último mês')}
-        {stat(d.posts, 'Publicações da página', `${d.cheers} brindes · ${d.comments} comentários`)}
-        {stat(d.mentions, 'Posts da malta aqui')}
+        {stat(d.followers, t('Seguidores'), t('+{followersWeek} esta semana', { followersWeek: d.followersWeek }))}
+        {stat(d.checkins, t('Check-ins'), t('{checkinsWeek} esta semana', { checkinsWeek: d.checkinsWeek }))}
+        {stat(d.peopleMonth, t('Pessoas no último mês'))}
+        {stat(d.posts, t('Publicações da página'), t('{cheers} brindes · {comments} comentários', { cheers: d.cheers, comments: d.comments }))}
+        {stat(d.mentions, t('Posts da malta aqui'))}
       </View>
       <View style={st.chart}>
-        <Text style={{ fontSize: 14, fontWeight: '700', color: colors.zinc900, marginBottom: 10 }}>Check-ins nos últimos 14 dias</Text>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: colors.zinc900, marginBottom: 10 }}>{t('Check-ins nos últimos 14 dias')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 90 }}>
           {d.days.map((x) => (
-            <View key={x.day} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }} accessibilityLabel={`${x.day}: ${x.checkins} check-ins`}>
+            <View key={x.day} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }} accessibilityLabel={t('{day}: {checkins} check-ins', { day: x.day, checkins: x.checkins })}>
               <View style={{ width: '100%', height: `${Math.max(4, Math.round((x.checkins / max) * 100))}%`, borderRadius: 4, backgroundColor: x.checkins ? colors.brand : colors.zinc200 }} />
             </View>
           ))}
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
           <Text style={{ fontSize: 11, color: colors.zinc500 }}>{d.days[0]?.day.slice(5).split('-').reverse().join('/')}</Text>
-          <Text style={{ fontSize: 11, color: colors.zinc500 }}>hoje</Text>
+          <Text style={{ fontSize: 11, color: colors.zinc500 }}>{t('hoje')}</Text>
         </View>
       </View>
     </View>

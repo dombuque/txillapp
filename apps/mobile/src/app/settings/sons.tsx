@@ -16,6 +16,7 @@ import { mySoundStatus, RETIRE_SOUND_TEXT, RETIRE_SOUND_TITLE, soundHref, usesLi
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
+import { t } from '@/lib/i18n';
 
 /**
  * Definições › Conteúdo › «Os meus sons»: os sons originais das minhas tchekas (docs/sons.md), quantas tchekas os usam, o
@@ -28,28 +29,28 @@ export default function MySounds() {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function retire(x: MySound) {
-    if (!(await confirm({ title: RETIRE_SOUND_TITLE, message: RETIRE_SOUND_TEXT, confirm: 'Retirar', danger: true }))) return;
+    if (!(await confirm({ title: RETIRE_SOUND_TITLE(), message: RETIRE_SOUND_TEXT(), confirm: t('Retirar'), danger: true }))) return;
     setBusy(x.id);
     soundsApi
       .retire(x.id)
       .then(() => qc.invalidateQueries({ queryKey: ['sounds'] }))
-      .catch((e) => showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui retirar o som. Tenta outra vez daqui a pouco.'))
+      .catch((e) => showToast(e instanceof ApiError && e.message ? e.message : t('Não consegui retirar o som. Tenta outra vez daqui a pouco.')))
       .finally(() => setBusy(null));
   }
 
   const items = q.data ?? [];
   return (
-    <SettingsPage title="Os meus sons">
-      <SettingsSection note="O som de cada tcheka que publicaste com o som do próprio vídeo. Retirar um som tira-o de todo o lado: as tchekas que o usam ficam sem som. A tcheka de onde saiu fica como está.">
+    <SettingsPage title={t('Os meus sons')}>
+      <SettingsSection note={t('O som de cada tcheka que publicaste com o som do próprio vídeo. Retirar um som tira-o de todo o lado: as tchekas que o usam ficam sem som. A tcheka de onde saiu fica como está.')}>
         {q.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
-        {q.isError ? <ErrorState what="os teus sons" onRetry={() => void q.refetch()} style={{ marginTop: 24, marginBottom: 24 }} /> : null}
-        {q.isSuccess && !items.length ? <Text style={st.empty}>Ainda não tens sons. Publica uma tcheka com o som do vídeo.</Text> : null}
+        {q.isError ? <ErrorState what={t('os teus sons')} onRetry={() => void q.refetch()} style={{ marginTop: 24, marginBottom: 24 }} /> : null}
+        {q.isSuccess && !items.length ? <Text style={st.empty}>{t('Ainda não tens sons. Publica uma tcheka com o som do vídeo.')}</Text> : null}
         {items.map((x) => {
           const st8 = mySoundStatus(x);
           const open = x.status === 'active' || x.status === 'held';
           return (
             <View key={x.id} style={st.row}>
-              <Pressable onPress={open ? () => router.push(soundHref(x.id) as never) : undefined} disabled={!open} style={st.cover} accessibilityRole={open ? 'link' : undefined} accessibilityLabel={open ? 'Abrir a página do som' : undefined}>
+              <Pressable onPress={open ? () => router.push(soundHref(x.id) as never) : undefined} disabled={!open} style={st.cover} accessibilityRole={open ? 'link' : undefined} accessibilityLabel={open ? t('Abrir a página do som') : undefined}>
                 {x.cover ? <Image source={{ uri: sized(x.cover, 120) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <Icon name="music" size={18} color={colors.zinc500} />}
               </Pressable>
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -57,7 +58,7 @@ export default function MySounds() {
                 <Text style={st.desc}>{st8.text}</Text>
               </View>
               {st8.canRetire ? (
-                <Button label="Retirar o som" kind="danger" size="sm" loading={busy === x.id} onPress={() => void retire(x)} />
+                <Button label={t('Retirar o som')} kind="danger" size="sm" loading={busy === x.id} onPress={() => void retire(x)} />
               ) : null}
             </View>
           );

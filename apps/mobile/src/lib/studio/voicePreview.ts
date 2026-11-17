@@ -10,6 +10,7 @@
  * Só o primeiro minuto de cada ficheiro (a tcheka tem no máximo 60 s): um corte que passe daí ouve-se sem efeito.
  */
 import type { VoiceFxId } from './audioDsp';
+import { t } from '@/lib/i18n';
 
 export const VOICE_PREVIEW_MAX_S = 60;
 
@@ -42,11 +43,11 @@ export type FxStatus = { state: 'loading' } | { state: 'ready'; file: string } |
 
 /** A nota curta quando não deu (e se vale a pena tentar outra vez quando se volta a escolher o efeito). */
 export function failNote(status: number | null | undefined, message?: string): { note: string; retry: boolean } {
-  if (status === 0 || status == null) return { note: 'Sem rede: ouve-se sem o efeito.', retry: true };
-  if (status === 429) return { note: message || 'Já ouviste muitos efeitos de voz na última hora. Tenta daqui a um bocado.', retry: true };
-  if (status === 422) return { note: message || 'Este som não deu para o efeito: ouve-se sem ele.', retry: false };
-  if (status === 401 || status === 403) return { note: 'Entra outra vez na conta para ouvir o efeito.', retry: true };
-  return { note: 'Não deu para preparar o efeito: ouve-se sem ele.', retry: true };
+  if (status === 0 || status == null) return { note: t('Sem rede: ouve-se sem o efeito.'), retry: true };
+  if (status === 429) return { note: message || t('Já ouviste muitos efeitos de voz na última hora. Tenta daqui a um bocado.'), retry: true };
+  if (status === 422) return { note: message || t('Este som não deu para o efeito: ouve-se sem ele.'), retry: false };
+  if (status === 401 || status === 403) return { note: t('Entra outra vez na conta para ouvir o efeito.'), retry: true };
+  return { note: t('Não deu para preparar o efeito: ouve-se sem ele.'), retry: true };
 }
 
 /** O estado de um grupo (a voz-off, ou o som original de todos os vídeos) para o botão do efeito e a nota. */

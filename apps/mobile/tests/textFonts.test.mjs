@@ -3,6 +3,7 @@
 // Uma fonte desconhecida ou em falta lê-se como 'classica'.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -194,8 +195,8 @@ test('«Tirar outra» também pergunta quando só há textos', () => {
 
 test('editor do mimo: «Aa» abre o texto, Feito pousa, tocar reescreve, e vai tudo em `stickers`', () => {
   const src = read('app', 'stories', 'new.tsx');
-  assert.match(src, /accessibilityLabel="Texto"/);
-  assert.match(src, />Aa</);
+  assert.match(src, /accessibilityLabel=\{t\('Texto'\)\}/);
+  assert.match(src, />\{t\('Aa'\)\}</);
   assert.match(src, /<TextLayerEditor initial=\{textEdit\.layer\} boxW=\{frame\.w\} onDone=\{textDone\} \/>/);
   assert.match(src, /onEdit=\{editText\} hidden=\{textEdit\?\.index \?\? null\}/);
   assert.match(src, /counts\.texts >= MAX_TEXT_LAYERS/);
@@ -217,7 +218,7 @@ test('o visor desenha os textos com o mesmo tamanho relativo (StickerLayer), e o
   assert.match(tl, /const slack = /);
   assert.match(tl, /sForFontPx\(next, tw, px, boxW\)/);
   assert.match(tl, /wrapLayerText\(l\.text\)/);
-  assert.match(tl, /accessibilityLabel="Feito"/);
+  assert.match(tl, /accessibilityLabel=\{t\('Feito'\)\}/);
 });
 
 test('fontes no telemóvel: só a família (sem peso, que no Android inventa negrito); na web só ficheiros do próprio site', () => {
@@ -236,7 +237,7 @@ test('fontes no telemóvel: só a família (sem peso, que no Android inventa neg
 test('a fila das letras: cada uma no seu nome e na sua letra, botões de 44 px', () => {
   const src = read('components', 'FontChips.tsx');
   assert.match(src, /height: 44/);
-  assert.match(src, /accessibilityLabel=\{`Letra \$\{f\.name\}`\}/);
+  assert.match(src, /accessibilityLabel=\{t\('Letra \{name\}', \{ name: f\.name \}\)\}/);
   assert.match(src, /useTextFontStyle\(id\)/);
   assert.match(src, /accessibilityRole="tab"/);
 });

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Peças comuns dos ecrãs do programa de artistas (Sou artista, Carregar música, Gerir as minhas músicas). */
 
@@ -71,9 +72,9 @@ export function Pill({ tone, children }: { tone: keyof typeof TONE; children: Re
 /** A etiqueta «Artista» do perfil (não é o selo de verificado). */
 export function ArtistTag() {
   return (
-    <View style={ast.tag} accessibilityLabel="Artista">
+    <View style={ast.tag} accessibilityLabel={t('Artista')}>
       <Icon name="music" size={12} color={colors.brand} strokeWidth={2.2} />
-      <Text style={ast.tagTxt}>Artista</Text>
+      <Text style={ast.tagTxt}>{t('Artista')}</Text>
     </View>
   );
 }

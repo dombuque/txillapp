@@ -71,8 +71,8 @@ test('acertos em todos os estados não são passos', () => {
 
 test('o estúdio tem ↶ ↷ no topo e os atalhos (Ctrl+Z, Ctrl+Shift+Z)', () => {
   const studio = readFileSync(path.join(ROOT, 'src', 'components', 'TchekaStudio.tsx'), 'utf8');
-  assert.match(studio, /accessibilityLabel="Desfazer"/);
-  assert.match(studio, /accessibilityLabel="Refazer"/);
+  assert.match(studio, /accessibilityLabel=\{t\('Desfazer'\)\}/);
+  assert.match(studio, /accessibilityLabel=\{t\('Refazer'\)\}/);
   const keys = readFileSync(path.join(ROOT, 'src', 'lib', 'studio', 'keys.ts'), 'utf8');
   assert.match(keys, /'undo'/);
   assert.match(keys, /'redo'/);

@@ -6,6 +6,7 @@ import { fitLabel, type ClipFit } from '@/lib/studio/fit';
 import type { ProjectClip } from '@/lib/studio/project';
 import { fmtS, speedLabel } from '@/lib/tchekaRules';
 import { RangeSlider } from '../../RangeSlider';
+import { t } from '@/lib/i18n';
 
 const PHOTO_SECONDS = [1, 2, 3, 5, 8] as const;
 const PHOTO_BEATS = [1, 2, 4] as const;
@@ -53,26 +54,26 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
 }) {
   const [open, setOpen] = useState<'tempo' | 'som' | 'enquadrar' | null>(null);
   const off = locked || !clip;
-  if (!clip) return <Text style={st.hint}>Toca num clipe da linha do tempo para o cortar, dividir ou mudar.</Text>;
+  if (!clip) return <Text style={st.hint}>{t('Toca num clipe da linha do tempo para o cortar, dividir ou mudar.')}</Text>;
   const soundOn = clip.sound !== false;
   // Um vídeo sem som não tem «Som do vídeo» para ligar ou calar.
   const mute = clip.video && clip.hasAudio === false;
   return (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} keyboardShouldPersistTaps="handled">
-        <Btn label="Dividir" icon={<Scissors size={20} color="#fff" />} onPress={onSplit} disabled={off} />
-        <Btn label="Duplicar" icon={<Copy size={20} color="#fff" />} onPress={onDuplicate} disabled={off} />
+        <Btn label={t('Dividir')} icon={<Scissors size={20} color="#fff" />} onPress={onSplit} disabled={off} />
+        <Btn label={t('Duplicar')} icon={<Copy size={20} color="#fff" />} onPress={onDuplicate} disabled={off} />
         {clip.video ? (
-          <Btn label={`Velocidade ${speedLabel(clip.speed)}`} icon={<Gauge size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'tempo' ? null : 'tempo'))} on={open === 'tempo'} disabled={off} />
+          <Btn label={t('Velocidade {speedLabel}', { speedLabel: speedLabel(clip.speed) })} icon={<Gauge size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'tempo' ? null : 'tempo'))} on={open === 'tempo'} disabled={off} />
         ) : (
-          <Btn label={`Duração ${fmtS(duration)} s`} icon={<Timer size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'tempo' ? null : 'tempo'))} on={open === 'tempo'} disabled={off} />
+          <Btn label={t('Duração {s} s', { s: fmtS(duration) })} icon={<Timer size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'tempo' ? null : 'tempo'))} on={open === 'tempo'} disabled={off} />
         )}
         {clip.video ? (
-          <Btn label={mute ? 'Sem som' : soundOn ? 'Som do vídeo' : 'Calado'} icon={soundOn && !mute ? <Volume2 size={20} color="#fff" /> : <VolumeX size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'som' ? null : 'som'))} on={open === 'som' && !mute} disabled={off || mute} />
+          <Btn label={mute ? t('Sem som') : soundOn ? t('Som do vídeo') : t('Calado')} icon={soundOn && !mute ? <Volume2 size={20} color="#fff" /> : <VolumeX size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'som' ? null : 'som'))} on={open === 'som' && !mute} disabled={off || mute} />
         ) : null}
         {fitOff ? null : <Btn label={fitLabel(fit)} icon={fit === 'blur' ? <Minimize2 size={20} color="#fff" /> : <Maximize2 size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'enquadrar' ? null : 'enquadrar'))} on={open === 'enquadrar'} disabled={off} />}
-        <Btn label="Substituir" icon={<Replace size={20} color="#fff" />} onPress={onReplace} disabled={off} />
-        <Btn label="Apagar" icon={<Trash2 size={20} color="#fecaca" />} onPress={onDelete} disabled={off} danger />
+        <Btn label={t('Substituir')} icon={<Replace size={20} color="#fff" />} onPress={onReplace} disabled={off} />
+        <Btn label={t('Apagar')} icon={<Trash2 size={20} color="#fecaca" />} onPress={onDelete} disabled={off} danger />
       </ScrollView>
       {open === 'tempo' ? (
         <View style={st.panel}>
@@ -80,7 +81,7 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
             COMPOSE_SPEEDS.map((s) => <Chip key={s} label={speedLabel(s)} on={clip.speed === s} onPress={() => onSpeed(s)} />)
           ) : rhythm ? (
             <>
-              <Text style={st.label}>Batidas</Text>
+              <Text style={st.label}>{t('Batidas')}</Text>
               {PHOTO_BEATS.map((b) => <Chip key={b} label={`${b}`} on={clip.beats === b} onPress={() => onPhoto({ beats: b })} />)}
             </>
           ) : (
@@ -92,20 +93,20 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
         <View style={[st.panel, { flexDirection: 'column', alignItems: 'stretch' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip label="Auto" on={!fitChosen} onPress={() => onFit(null)} />
-            <Chip label="Encher" on={fitChosen && fit === 'cover'} onPress={() => onFit('cover')} />
-            <Chip label="Inteiro" on={fitChosen && fit === 'blur'} onPress={() => onFit('blur')} />
+            <Chip label={t('Encher')} on={fitChosen && fit === 'cover'} onPress={() => onFit('cover')} />
+            <Chip label={t('Inteiro')} on={fitChosen && fit === 'blur'} onPress={() => onFit('blur')} />
           </View>
-          <Text style={[st.hint2, { paddingTop: 6 }]}>{fitChosen ? (fit === 'blur' ? 'A imagem toda, sobre ela própria desfocada.' : 'Enche o ecrã ao alto (corta as pontas).') : `Automático: ${fitLabel(fit)} (as imagens deitadas ficam inteiras).`}</Text>
+          <Text style={[st.hint2, { paddingTop: 6 }]}>{fitChosen ? (fit === 'blur' ? t('A imagem toda, sobre ela própria desfocada.') : t('Enche o ecrã ao alto (corta as pontas).')) : t('Automático: {fitLabel} (as imagens deitadas ficam inteiras).', { fitLabel: fitLabel(fit) })}</Text>
         </View>
       ) : null}
       {open === 'som' && clip.video && !mute ? (
         <View style={[st.panel, { flexDirection: 'column', alignItems: 'stretch' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-            <Chip label="Ligado" on={soundOn} onPress={() => onSound({ on: true })} />
-            <Chip label="Calado" on={!soundOn} onPress={() => onSound({ on: false })} />
-            {clip.hasAudio === false ? <Text style={st.hint2}>Este vídeo não tem som</Text> : null}
+            <Chip label={t('Ligado')} on={soundOn} onPress={() => onSound({ on: true })} />
+            <Chip label={t('Calado')} on={!soundOn} onPress={() => onSound({ on: false })} />
+            {clip.hasAudio === false ? <Text style={st.hint2}>{t('Este vídeo não tem som')}</Text> : null}
           </View>
-          {soundOn ? <RangeSlider label="Volume deste vídeo" value={Math.round((clip.volume ?? 1) * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onSound({ volume: v / 100 })} /> : null}
+          {soundOn ? <RangeSlider label={t('Volume deste vídeo')} value={Math.round((clip.volume ?? 1) * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onSound({ volume: v / 100 })} /> : null}
         </View>
       ) : null}
     </View>

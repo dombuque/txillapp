@@ -55,6 +55,7 @@ import { TextPanel } from './studio/TextPanel';
 import { Timeline, type TimelineLayer } from './studio/Timeline';
 import { TimelineActions } from './studio/TimelineActions';
 import { GalleryPick, stampTxillapp, type Shot } from './TxCamera';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 1080;
@@ -141,14 +142,14 @@ function fitOverlays(list: Overlay[], total: number): Overlay[] {
 }
 /** O nome curto de uma camada na linha do tempo. */
 function layerLabel(o: Overlay): string {
-  if (o.kind === 'text') return o.text.trim().split('\n')[0].slice(0, 40) || 'Texto';
+  if (o.kind === 'text') return o.text.trim().split('\n')[0].slice(0, 40) || t('Texto');
   const s = o.sticker;
   if (s.type === 'mention') return `@${s.username}`;
   if (s.type === 'location') return s.name;
   if (s.type === 'gif') return 'GIF';
-  if (s.type === 'time') return 'Hora';
-  if (s.type === 'txill') return 'Sticker';
-  return 'Emoji';
+  if (s.type === 'time') return t('Hora');
+  if (s.type === 'txill') return t('Sticker');
+  return t('Emoji');
 }
 /** Uma miniatura pequena do frame que está no canvas (para a lista dos rascunhos). */
 function posterOf(c: HTMLCanvasElement | null): string | undefined {
@@ -643,7 +644,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const id = setTimeout(() => void (async () => {
       try {
         const m = await loadMusic(music);
-        if (!m) throw new Error('sem web audio');
+        if (!m) throw new Error(t('sem web audio'));
         const info = beatsFrom(m.buf, music.url, musicStartMs);
         if (!off) setBeatInfo(info);
       } catch {
@@ -1073,18 +1074,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   /** Sair do estúdio pára logo a pré-visualização (o resto liberta-se ao desmontar). */
   function close() {
     if (progressRef.current !== null) {
-      Alert.alert('Cancelar a montagem?', 'O que editaste fica como está e podes montar outra vez.', [
-        { text: 'Continuar a montar', style: 'cancel' },
-        { text: 'Cancelar a montagem', style: 'destructive', onPress: cancelBuild },
+      Alert.alert(t('Cancelar a montagem?'), t('O que editaste fica como está e podes montar outra vez.'), [
+        { text: t('Continuar a montar'), style: 'cancel' },
+        { text: t('Cancelar a montagem'), style: 'destructive', onPress: cancelBuild },
       ]);
       return;
     }
     if (playingRef.current) pause();
     if (!items.length) { dropDraftNow(); onClose(); return; }
-    Alert.alert('Sair do estúdio?', 'Guarda um rascunho neste aparelho para continuares depois, ou apaga o que editaste.', [
-      { text: 'Continuar a editar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: () => { dropDraftNow(); onClose(); } },
-      { text: 'Guardar rascunho', onPress: () => { keepDraftNow(); onClose(); } },
+    Alert.alert(t('Sair do estúdio?'), t('Guarda um rascunho neste aparelho para continuares depois, ou apaga o que editaste.'), [
+      { text: t('Continuar a editar'), style: 'cancel' },
+      { text: t('Apagar'), style: 'destructive', onPress: () => { dropDraftNow(); onClose(); } },
+      { text: t('Guardar rascunho'), onPress: () => { keepDraftNow(); onClose(); } },
     ]);
   }
   /** Pára a montagem em curso: o ciclo sai no frame seguinte e a edição volta a ficar ativa. */
@@ -1183,7 +1184,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     };
     // A pré-visualização já gravou esta montagem inteira: segue logo.
     if (ready.current && ready.current.sig === fullSig) { gen.current += 1; finish(ready.current.blob, ready.current.mime, true); return; }
-    if (typeof MediaRecorder === 'undefined' || !(canvasRef.current as (HTMLCanvasElement & { captureStream?: unknown }) | null)?.captureStream) { setErr('Este browser não consegue montar o vídeo'); return; }
+    if (typeof MediaRecorder === 'undefined' || !(canvasRef.current as (HTMLCanvasElement & { captureStream?: unknown }) | null)?.captureStream) { setErr(t('Este browser não consegue montar o vídeo')); return; }
     setProgress(0);
     try {
       cancelled.current = false;
@@ -1193,12 +1194,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       if (!alive.current) return;
       // Cancelada no ×: volta à edição tal como estava, sem aviso de erro.
       if (cancelled.current) { cancelled.current = false; play(0); return; }
-      if (!out.blob || !out.blob.size) { setErr('Não consegui montar a tcheka. Tenta outra vez.'); play(0); return; }
+      if (!out.blob || !out.blob.size) { setErr(t('Não consegui montar a tcheka. Tenta outra vez.')); play(0); return; }
       finish(out.blob, out.blob.type || 'video/mp4', false);
     } catch {
       setProgress(null);
       if (cancelled.current) { cancelled.current = false; play(0); return; }
-      setErr('Não consegui montar a tcheka');
+      setErr(t('Não consegui montar a tcheka'));
     }
   }
 
@@ -1252,16 +1253,16 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   async function freezeFrame() {
     if (locked || freezing) return;
     const list = cfg.current.segs;
-    const t = nowT();
-    const s = list[segAt(list, t)];
-    if (!s?.video) { setErr('Põe a pré-visualização num vídeo para congelar um frame.'); return; }
+    const tv = nowT();
+    const s = list[segAt(list, tv)];
+    if (!s?.video) { setErr(t('Põe a pré-visualização num vídeo para congelar um frame.')); return; }
     setErr('');
     pause();
     setFreezing(true);
     const base = items;
     const baseDurs = durations;
     try {
-      const tl = Math.max(0, Math.min(s.dur - 0.01, t - s.start));
+      const tl = Math.max(0, Math.min(s.dur - 0.01, tv - s.start));
       const fx = fxOf(s);
       const at = srcAt(s, tl);
       const rf = fx?.reverse ? reverseFor(s) : null;
@@ -1285,14 +1286,14 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       setItems((l) => {
         const k = l.findIndex((x) => x.key === s.key);
         if (k < 0) return l;
-        const split = plain && l === base ? splitAt(l, t, { durations: baseDurs }) : null;
+        const split = plain && l === base ? splitAt(l, tv, { durations: baseDurs }) : null;
         if (!split) return [...l.slice(0, k + 1), photo, ...l.slice(k + 1)];
         const j = split.clips.findIndex((x) => x.key === split.right);
         return [...split.clips.slice(0, j), photo, hardCut(split.clips[j]), ...split.clips.slice(j + 1)];
       });
       setSelKey(photo.key);
     } catch {
-      setErr('Não consegui congelar este frame.');
+      setErr(t('Não consegui congelar este frame.'));
     } finally {
       setFreezing(false);
     }
@@ -1343,8 +1344,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const out: TimelineLayer[] = overlays.map((o) => ({ id: o.id, kind: o.kind, label: layerLabel(o), start: o.start, end: o.end, trim: true }));
     // O som: a voz-off (muda-se de sítio) e os efeitos sonoros (losangos).
     const v = mix.voice;
-    if (v) out.push({ id: 'voice', kind: 'voice', label: 'Voz-off', start: v.at, end: Math.min(playTotal || v.at + v.duration, v.at + v.duration) });
-    for (const x of mix.sfx) out.push({ id: `sfx:${x.key}`, kind: 'sfx', label: SFX.find((d) => d.id === x.id)?.name ?? 'Efeito sonoro', start: x.at, end: x.at, point: true });
+    if (v) out.push({ id: 'voice', kind: 'voice', label: t('Voz-off'), start: v.at, end: Math.min(playTotal || v.at + v.duration, v.at + v.duration) });
+    for (const x of mix.sfx) out.push({ id: `sfx:${x.key}`, kind: 'sfx', label: SFX.find((d) => d.id === x.id)?.name ?? t('Efeito sonoro'), start: x.at, end: x.at, point: true });
     return out;
   }, [overlays, mix.voice, mix.sfx, playTotal]);
   /** A faixa do som escolhida na linha do tempo (a voz-off ou um efeito sonoro). */
@@ -1418,10 +1419,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
    * nova (sem transição a meio do mesmo plano). Ao contrário, a primeira parte é o fim do ficheiro.
    */
   const splitHere = () => {
-    const t = nowT();
-    const r = splitAt(items, t, { durations });
-    if (!r) { say('Põe o cursor dentro de um clipe, longe das pontas'); return; }
-    restartFrom.current = t;
+    const tv2 = nowT();
+    const r = splitAt(items, tv2, { durations });
+    if (!r) { say(t('Põe o cursor dentro de um clipe, longe das pontas')); return; }
+    restartFrom.current = tv2;
     setItems(() => r.clips.map((c) => {
       if (c.key !== r.left && c.key !== r.right) return c;
       const src = items.find((x) => x.key === r.left);
@@ -1437,7 +1438,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   };
   const duplicate = (key: string) => {
     const r = duplicateClip(items, key, { durations });
-    if (!r) { say(`Não cabe: a tcheka vai até ${TCHEKA_MAX_S} s`); return; }
+    if (!r) { say(t('Não cabe: a tcheka vai até {tchekaMaxS} s', { tchekaMaxS: TCHEKA_MAX_S })); return; }
     const i = indexOf(key);
     restartFrom.current = (segs[i]?.start ?? 0) + (durations[i] ?? 0);
     setItems(() => r.clips);
@@ -1646,8 +1647,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     setTimeout(() => { if (resumeAfterPick.current && alive.current && progressRef.current === null) { resumeAfterPick.current = false; restartFrom.current = 0; play(at); } }, 700);
   }
   const fitNote = !music
-    ? 'Escolhe uma música primeiro'
-    : `${Math.round(beatInfo?.bpm ?? 120)} BPM${beatInfo && !beatInfo.detected ? ' (fixo)' : ''}: as fotos e os cortes dos vídeos caem nas batidas do trecho`;
+    ? t('Escolhe uma música primeiro')
+    : t('{bpm} BPM{value}: as fotos e os cortes dos vídeos caem nas batidas do trecho', { bpm: Math.round(beatInfo?.bpm ?? 120), value: beatInfo && !beatInfo.detected ? ' (fixo)' : '' });
   // ---------------------------------------------------------------- Montagem mágica (components/studio/MagicMontage)
   /** Os ficheiros para a montagem: um por ficheiro (as partes divididas e as cópias contam uma vez; os frames congelados não). */
   const magicSources: MagicSource[] = useMemo(() => {
@@ -1678,7 +1679,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     setSelKey(list[0]?.key ?? null);
     setTab('clipes');
     replayFrom(0);
-    if (r.left.length) say(`${r.left.length} ${r.left.length === 1 ? 'ficheiro não coube' : 'ficheiros não couberam'} nos 60 s`);
+    if (r.left.length) say(t('{count} ficheiro não coube nos 60 s', { count: r.left.length, other: '{count} ficheiros não couberam nos 60 s' }));
   }
   // ---------------------------------------------------------------- Capulana (components/studio/CapulanaPanel)
   const selFx = cur?.fx;
@@ -1694,13 +1695,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       frame={!!selFx?.moldura}
       canFrame={!!cur && !cur.video}
       onFrame={(on) => { if (sel >= 0) setFx(sel, (f) => sanitizeFx({ ...f, moldura: on ? pano : undefined })); }}
-      onBand={() => addLayer({ ...newText(nowT(), playTotal, 'O teu texto'), bg: 'pano', pano })}
+      onBand={() => addLayer({ ...newText(nowT(), playTotal, t('O teu texto')), bg: 'pano', pano })}
       onText={() => addLayer({ ...newText(nowT(), playTotal, 'TXILL'), pano, size: 150 })}
       onSticker={(shape: CapulanaShapeId) => addLayer(newSticker({ type: 'capulana', shape, pano }, nowT(), playTotal))}
     />
   );
   /** Os vídeos, cada um com o som dele (para o misturador). */
-  const clipSounds = items.flatMap((it, i) => (it.video ? [{ key: it.key, label: `Vídeo ${i + 1}`, on: it.sound !== false, volume: it.volume ?? 1, hasAudio: it.hasAudio }] : []));
+  const clipSounds = items.flatMap((it, i) => (it.video ? [{ key: it.key, label: t('Vídeo {n}', { n: i + 1 }), on: it.sound !== false, volume: it.volume ?? 1, hasAudio: it.hasAudio }] : []));
 
   const topPad = Math.max(insets.top, 12);
   const botPad = Math.max(insets.bottom, 12);
@@ -1714,7 +1715,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const locked = editLocked(progress);
   const prepared = readyTick > 0 && ready.current?.sig === fullSig;
   const left = Math.max(0, Math.ceil(playTotal * (1 - (progress ?? 0))));
-  const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'stickers', label: 'Stickers' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
+  const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: t('Clipes') }, { id: 'som', label: t('Som') }, { id: 'texto', label: t('Texto') }, { id: 'stickers', label: t('Stickers') }, { id: 'efeitos', label: t('Efeitos') }, { id: 'capa', label: t('Capa') }];
   // No computador (≥ 1024 px de largura) o estúdio usa a janela toda (o DesktopShell larga a coluna e a barra lateral).
   const wide = useDesktop();
   useEffect(() => { if (!wide) return; setStudioFull(true); return () => setStudioFull(false); }, [wide]);
@@ -1775,24 +1776,24 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   return (
     <View style={[st.root, fullScreen, { paddingTop: wide ? topPad : Math.max(insets.top, 6), paddingBottom: wide ? botPad : Math.max(insets.bottom, 4) }]} accessibilityViewIsModal>
       <View style={[st.top, !wide && st.topPhone]}>
-        <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel={t('Voltar')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {/* Num telemóvel estreito (menos de 380 px) o título sai: os botões precisam do espaço todo. */}
-        <Text style={[st.title, !wide && { fontSize: 16 }, !wide && win.width < 380 && { opacity: 0 }]} numberOfLines={1}>Nova tcheka</Text>
+        <Text style={[st.title, !wide && { fontSize: 16 }, !wide && win.width < 380 && { opacity: 0 }]} numberOfLines={1}>{t('Nova tcheka')}</Text>
         <View style={st.history}>
-          <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.histBtn, (locked || !canUndo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel="Desfazer" accessibilityHint="Ctrl+Z">
+          <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.histBtn, (locked || !canUndo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel={t('Desfazer')} accessibilityHint={t('Ctrl+Z')}>
             <Icon name="undo" size={20} color="#fff" strokeWidth={2.1} />
           </Pressable>
-          <Pressable onPress={redo} disabled={locked || !canRedo(hist)} style={[st.histBtn, (locked || !canRedo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel="Refazer" accessibilityHint="Ctrl+Shift+Z">
+          <Pressable onPress={redo} disabled={locked || !canRedo(hist)} style={[st.histBtn, (locked || !canRedo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel={t('Refazer')} accessibilityHint={t('Ctrl+Shift+Z')}>
             <View style={{ transform: [{ scaleX: -1 }] }}><Icon name="undo" size={20} color="#fff" strokeWidth={2.1} /></View>
           </Pressable>
         </View>
-        <Pressable onPress={() => void build()} disabled={!rules.ok || busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel={busy ? `A montar, ${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}>
-          <Text style={st.ctaText}>{busy ? `${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}</Text>
+        <Pressable onPress={() => void build()} disabled={!rules.ok || busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel={busy ? t('A montar, {n}%', { n: Math.round((progress ?? 0) * 100) }) : t('Seguinte')}>
+          <Text style={st.ctaText}>{busy ? `${Math.round((progress ?? 0) * 100)}%` : t('Seguinte')}</Text>
         </Pressable>
       </View>
       {rules.hint ? (
         <View style={[st.hintWrap, !wide && { paddingBottom: 4 }]}>
-          <Pressable onPress={() => setTab(rules.problem === 'som' ? 'som' : 'clipes')} disabled={locked} style={st.hint} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
+          <Pressable onPress={() => setTab(rules.problem === 'som' ? 'som' : 'clipes')} disabled={locked} style={st.hint} accessibilityRole="button" accessibilityLabel={t('Para seguir: {hint}', { hint: rules.hint })}>
             <Icon name="info" size={15} color="#fff" />
             <Text style={st.hintText} accessibilityLiveRegion="polite">{rules.hint}</Text>
           </Pressable>
@@ -1806,8 +1807,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar na imagem alterna tocar/pausa.
           A barra do tempo fica logo por baixo da imagem, com a largura dela: não tapa o texto nem a assinatura. Um só play
           à vista: o grande ao centro só em pausa; a tocar, o pequeno da barra é a pausa. */}
-      <Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
-        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${barH}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
+      <Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? t('Pausa') : t('Tocar')}>
+        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': t('Pré-visualização da tcheka'), style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${barH}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
         {/* Os GIFs dos stickers ficam aqui (quase invisíveis) para o browser os animar; o canvas desenha o frame de agora. */}
         {dom('div', { ref: (el: HTMLDivElement | null) => { gifBox.current = el; }, 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, width: 2, height: 2, overflow: 'hidden', opacity: 0.01, pointerEvents: 'none' } })}
         {/* Mexer nos textos e stickers (mover, rodar, escalar), com a zona segura e as guias; fora deles, tocar pausa. */}
@@ -1816,16 +1817,16 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
             onGesture={(ph) => { ovGesture.current = ph === 'start' ? { on: true, pushed: false } : { on: false, pushed: false }; }}
             onEdit={(id) => { selectOverlay(id); setEditTick((n) => n + 1); }} showSafe={tab === 'texto' || tab === 'stickers'} tick={stageTick} />
         </View>
-        {loading && items.length ? <View style={[st.center, { bottom: barH }]} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
+        {loading && items.length ? <View style={[st.center, { bottom: barH }]} pointerEvents="none"><Text style={st.loadText}>{t('A preparar…')}</Text></View> : null}
         {!playing && !busy && !selOv ? <View style={[st.center, { bottom: barH }]} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
         {dense ? null : (
         <View style={[st.controls, { left: imgBox.left, width: imgBox.w }]} pointerEvents="box-none">
           {!busy && playing ? (
-            <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
+            <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={playing ? t('Pausar a pré-visualização') : t('Tocar a pré-visualização')}>
               <Icon name={playing ? 'pause' : 'play'} size={18} color="#fff" solid />
             </Pressable>
           ) : null}
-          {!busy ? <Text style={st.clock} numberOfLines={1} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text> : null}
+          {!busy ? <Text style={st.clock} numberOfLines={1} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? (' ' + t('· pronto')) : ''}</Text> : null}
           <View style={st.timeline} pointerEvents="none">
             <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
             {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
@@ -1835,10 +1836,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         )}
         {busy && (
           <View style={st.building} pointerEvents="none">
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar a tcheka…</Text>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{t('A montar a tcheka…')}</Text>
             <View style={st.track}><View style={[st.fill, { width: `${Math.round((progress ?? 0) * 100)}%` }]} /></View>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center' }}>Faltam {left} s. Não feches a app.</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' }}>Dica: vê a pré-visualização até ao fim e fica logo pronto.</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center' }}>{t('Faltam {left} s. Não feches a app.', { left })}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' }}>{t('Dica: vê a pré-visualização até ao fim e fica logo pronto.')}</Text>
           </View>
         )}
       </Pressable>
@@ -1868,7 +1869,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         dense={dense}
         lead={dense ? (
           <>
-            <Pressable onPress={togglePlay} disabled={busy} style={st.leadPlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Tocar'}>
+            <Pressable onPress={togglePlay} disabled={busy} style={st.leadPlay} accessibilityRole="button" accessibilityLabel={playing ? t('Pausar') : t('Tocar')}>
               <Icon name={playing ? 'pause' : 'play'} size={18} color="#fff" solid />
             </Pressable>
             <Text style={st.leadClock} numberOfLines={1}>{previewClock(playT, playTotal).split(' / ')[0]}</Text>
@@ -1896,7 +1897,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         aria-disabled={locked}
       >
       {wide ? null : dom('div', {
-        role: 'slider', 'aria-label': 'Altura dos painéis (arrasta)', 'aria-valuetext': sheet === 'closed' ? 'fechada' : sheet === 'mid' ? 'média' : 'alta',
+        role: 'slider', 'aria-label': t('Altura dos painéis (arrasta)'), 'aria-valuetext': sheet === 'closed' ? t('fechada') : sheet === 'mid' ? t('média') : t('alta'),
         onPointerDown: onGrab, onPointerMove: onGrabMove, onPointerUp: onGrabEnd, onPointerCancel: onGrabEnd,
         // cursor: pointer: o browser trata a pega como alvo de toque (senão o dedo «escorrega» para o separador por baixo).
         style: { height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px 16px 0 0', background: '#0b0b11' },
@@ -1920,7 +1921,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           <>
             {/* A Montagem mágica: a tcheka feita a partir dos ficheiros (depois afina-se aqui). */}
             <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-              <MagicButton onPress={openMagic} disabled={magicSources.length < 2 || locked} hint={magicSources.length < 2 ? 'Junta pelo menos 2 fotos ou vídeos' : undefined} />
+              <MagicButton onPress={openMagic} disabled={magicSources.length < 2 || locked} hint={magicSources.length < 2 ? t('Junta pelo menos 2 fotos ou vídeos') : undefined} />
             </View>
             {/* As ações do clipe escolhido na linha do tempo. */}
             <TimelineActions
@@ -1946,40 +1947,40 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               const eff: ClipFit = dims ? clipFit({ ...cur, fit: undefined }, dims.w, dims.h) : 'cover';
               return (
                 <View style={st.rowWrap}>
-                  <Text style={st.label}>Enquadrar</Text>
-                  {chip(!cur.fit, `Auto · ${eff === 'blur' ? 'Inteiro' : 'Encher'}`, () => setClipFit(cur.key, null))}
-                  {chip(cur.fit === 'cover', 'Encher', () => setClipFit(cur.key, 'cover'))}
-                  {chip(cur.fit === 'blur', 'Inteiro', () => setClipFit(cur.key, 'blur'))}
+                  <Text style={st.label}>{t('Enquadrar')}</Text>
+                  {chip(!cur.fit, `Auto · ${eff === 'blur' ? t('Inteiro') : t('Encher')}`, () => setClipFit(cur.key, null))}
+                  {chip(cur.fit === 'cover', t('Encher'), () => setClipFit(cur.key, 'cover'))}
+                  {chip(cur.fit === 'blur', t('Inteiro'), () => setClipFit(cur.key, 'blur'))}
                 </View>
               );
             })() : null}
-            <Text style={st.meta}>{items.length} {items.length === 1 ? 'clipe' : 'clipes'} · {fmtS(total)} s de {TCHEKA_MAX_S} s · arrasta as pontas para cortar, toque longo para mudar a ordem</Text>
+            <Text style={st.meta}>{t('{count} clipe · {s} s de {tchekaMaxS} s · arrasta as pontas para cortar, toque longo para mudar a ordem', { count: items.length, s: fmtS(total), tchekaMaxS: TCHEKA_MAX_S, other: '{count} clipes · {s} s de {tchekaMaxS} s · arrasta as pontas para cortar, toque longo para mudar a ordem' })}</Text>
 
             {music && items.some((i) => !i.video) ? (
               <View style={st.rowWrap}>
-                <Text style={st.label}>Fotos</Text>
-                {chip(useRhythm, 'Ao ritmo', () => { restartFrom.current = nowT(); setRhythm(true); })}
-                {chip(!useRhythm, 'Manual', () => { restartFrom.current = nowT(); setRhythm(false); })}
-                <Text style={st.small}>{useRhythm ? `${beatInfo ? `${Math.round(beatInfo.bpm ?? 120)} BPM${beatInfo.detected ? '' : ' (fixo)'}` : 'a ouvir a música…'} · a duração de uma foto está em Duração` : 'a duração de uma foto está em Duração ou nas pontas'}</Text>
+                <Text style={st.label}>{t('Fotos')}</Text>
+                {chip(useRhythm, t('Ao ritmo'), () => { restartFrom.current = nowT(); setRhythm(true); })}
+                {chip(!useRhythm, t('Manual'), () => { restartFrom.current = nowT(); setRhythm(false); })}
+                <Text style={st.small}>{useRhythm ? t('{value} · a duração de uma foto está em Duração', { value: beatInfo ? t('{bpm} BPM{value}', { bpm: Math.round(beatInfo.bpm ?? 120), value: beatInfo.detected ? '' : (' ' + t('(fixo)')) }) : t('a ouvir a música…') }) : t('a duração de uma foto está em Duração ou nas pontas')}</Text>
               </View>
             ) : null}
 
             {cur?.video ? (
               <>
                 <View style={st.trimBox}>
-                  <Text style={st.label}>Cortar com precisão · clipe {sel + 1}</Text>
-                  <Text style={st.small}>Início · {fmtS(cur.trim.start)} s</Text>
-                  <RangeSlider label="Início do clipe" value={cur.trim.start} min={0} max={Math.max(0.1, cur.length - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`}
+                  <Text style={st.label}>{t('Cortar com precisão · clipe {n}', { n: sel + 1 })}</Text>
+                  <Text style={st.small}>{t('Início · {s} s', { s: fmtS(cur.trim.start) })}</Text>
+                  <RangeSlider label={t('Início do clipe')} value={cur.trim.start} min={0} max={Math.max(0.1, cur.length - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`}
                     onChange={(v) => edit(sel, (it) => ({ ...it, trim: clampTrim({ start: v, end: it.trim.end }, it.length) }))} />
-                  <Text style={st.small}>Fim · {fmtS(cur.trim.end)} s</Text>
-                  <RangeSlider label="Fim do clipe" value={cur.trim.end} min={Math.min(cur.length, 0.5)} max={Math.max(0.6, cur.length)} step={0.1} format={(v) => `${fmtS(v)} s`}
+                  <Text style={st.small}>{t('Fim · {s} s', { s: fmtS(cur.trim.end) })}</Text>
+                  <RangeSlider label={t('Fim do clipe')} value={cur.trim.end} min={Math.min(cur.length, 0.5)} max={Math.max(0.6, cur.length)} step={0.1} format={(v) => `${fmtS(v)} s`}
                     onChange={(v) => edit(sel, (it) => ({ ...it, trim: clampTrim({ start: Math.min(it.trim.start, v - 0.5), end: v }, it.length) }))} />
-                  <Text style={st.small}>Fica com {fmtS(durations[sel] ?? 0)} s{cur.speed !== 1 ? ` a ${speedLabel(cur.speed)}` : ''}</Text>
+                  <Text style={st.small}>{t('Fica com {s} s', { s: fmtS(durations[sel] ?? 0) })}{cur.speed !== 1 ? ` a ${speedLabel(cur.speed)}` : ''}</Text>
                 </View>
               </>
             ) : null}
 
-            {items.length > 1 ? <Text style={[st.small, { paddingHorizontal: 16, marginTop: 8 }]}>Transições, filtros e rampas de cada clipe: no separador Efeitos.</Text> : null}
+            {items.length > 1 ? <Text style={[st.small, { paddingHorizontal: 16, marginTop: 8 }]}>{t('Transições, filtros e rampas de cada clipe: no separador Efeitos.')}</Text> : null}
           </>
         ) : null}
 
@@ -1988,11 +1989,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
             <View style={st.musicRow}>
               <Icon name="music" size={20} color="#fff" />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{music ? music.title : reference ? 'Som do dueto' : 'Sem música'}</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} numberOfLines={1}>{music ? music.artist || 'Toca em ciclo' : photosOnly ? 'Só com fotos, escolhe uma música' : 'Fica o som dos vídeos'}</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{music ? music.title : reference ? t('Som do dueto') : t('Sem música')}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} numberOfLines={1}>{music ? music.artist || t('Toca em ciclo') : photosOnly ? t('Só com fotos, escolhe uma música') : t('Fica o som dos vídeos')}</Text>
               </View>
-              <Pressable onPress={openPicker} style={st.smallBtn} accessibilityRole="button"><Text style={st.smallBtnText}>{music ? 'Trocar' : 'Escolher'}</Text></Pressable>
-              {music ? <Pressable onPress={() => { restartFrom.current = nowT(); setMusic(null); if (origVol === 0) setOrigVol(1); }} style={st.smallBtn} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.4} /></Pressable> : null}
+              <Pressable onPress={openPicker} style={st.smallBtn} accessibilityRole="button"><Text style={st.smallBtnText}>{music ? t('Trocar') : t('Escolher')}</Text></Pressable>
+              {music ? <Pressable onPress={() => { restartFrom.current = nowT(); setMusic(null); if (origVol === 0) setOrigVol(1); }} style={st.smallBtn} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><Icon name="x" size={16} color="#fff" strokeWidth={2.4} /></Pressable> : null}
             </View>
             {/* Trecho pela onda, misturador (volumes, o som de cada vídeo, fades, ducking), voz-off, efeitos e moldes. */}
             <AudioPanel
@@ -2007,7 +2008,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               playT={playT}
               playing={playing}
               hasVideo={items.some((i) => i.video)}
-              origNote={items.some((i) => i.video && i.hasAudio === false) ? (items.every((i) => !i.video || i.hasAudio === false) ? 'Os vídeos não têm som' : 'Alguns vídeos não têm som') : null}
+              origNote={items.some((i) => i.video && i.hasAudio === false) ? (items.every((i) => !i.video || i.hasAudio === false) ? t('Os vídeos não têm som') : t('Alguns vídeos não têm som')) : null}
               origVol={origVol}
               setOrigVol={setOrigVol}
               musicVol={musicVol}
@@ -2033,9 +2034,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         ) : null}
 
         {tab === 'efeitos' ? (
-          <View style={[st.rowWrap, { marginTop: 4 }]} accessibilityRole="tablist" accessibilityLabel="Efeitos ou capulana">
-            {chip(fxMode === 'efeitos', 'Efeitos do clipe', () => setFxMode('efeitos'), 'fxm-efeitos')}
-            {chip(fxMode === 'capulana', 'Capulana', () => setFxMode('capulana'), 'fxm-capulana')}
+          <View style={[st.rowWrap, { marginTop: 4 }]} accessibilityRole="tablist" accessibilityLabel={t('Efeitos ou capulana')}>
+            {chip(fxMode === 'efeitos', t('Efeitos do clipe'), () => setFxMode('efeitos'), 'fxm-efeitos')}
+            {chip(fxMode === 'capulana', t('Capulana'), () => setFxMode('capulana'), 'fxm-capulana')}
           </View>
         ) : null}
         {tab === 'efeitos' && fxMode === 'capulana' ? capulanaPanel : null}
@@ -2058,10 +2059,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
 
         {tab === 'capa' ? (
           <View style={st.trimBox}>
-            <Text style={st.label}>Capa</Text>
-            <RangeSlider label="Momento da capa" value={coverAt} min={0} max={Math.max(0.2, playTotal - 0.1)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={setCoverAt} onCommit={(v) => void showAt(v)} />
-            <Text style={st.small}>A capa é o frame aos {fmtS(coverAt)} s: é o que aparece no feed e no perfil.</Text>
-            <Pressable onPress={() => void showAt(coverAt)} style={[st.smallBtn, { alignSelf: 'flex-start', marginTop: 6 }]} accessibilityRole="button" accessibilityLabel="Ver a capa"><Text style={st.smallBtnText}>Ver a capa</Text></Pressable>
+            <Text style={st.label}>{t('Capa')}</Text>
+            <RangeSlider label={t('Momento da capa')} value={coverAt} min={0} max={Math.max(0.2, playTotal - 0.1)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={setCoverAt} onCommit={(v) => void showAt(v)} />
+            <Text style={st.small}>{t('A capa é o frame aos {s} s: é o que aparece no feed e no perfil.', { s: fmtS(coverAt) })}</Text>
+            <Pressable onPress={() => void showAt(coverAt)} style={[st.smallBtn, { alignSelf: 'flex-start', marginTop: 6 }]} accessibilityRole="button" accessibilityLabel={t('Ver a capa')}><Text style={st.smallBtnText}>{t('Ver a capa')}</Text></Pressable>
           </View>
         ) : null}
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}

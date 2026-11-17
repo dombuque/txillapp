@@ -35,7 +35,7 @@ import { useIapRuntime } from '@/lib/iap';
 import { colors } from '@/lib/theme';
 import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
-import { onLanguageChange } from '@/lib/i18n';
+import { onLanguageChange, t } from '@/lib/i18n';
 
 void SplashScreen.preventAutoHideAsync();
 // As caixas de confirmação (Alert.alert) abrem a caixa da app em todo o lado (AlertHost): igual no APK e no site.
@@ -81,8 +81,8 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
   useEffect(() => reportRenderError(error), [error]);
   return (
     <View style={styles.center}>
-      <ErrorState title="Ups, algo correu mal" text="Já tomámos nota. Tenta outra vez." onRetry={() => void retry()} style={styles.state} />
-      {Platform.OS === 'web' ? <Button label="Recarregar a página" kind="ghost" size="md" onPress={() => window.location.reload()} /> : null}
+      <ErrorState title={t('Ups, algo correu mal')} text={t('Já tomámos nota. Tenta outra vez.')} onRetry={() => void retry()} style={styles.state} />
+      {Platform.OS === 'web' ? <Button label={t('Recarregar a página')} kind="ghost" size="md" onPress={() => window.location.reload()} /> : null}
       {__DEV__ ? <Text style={[styles.sub, { marginTop: 16, fontSize: 12 }]}>{error.message}</Text> : null}
     </View>
   );
@@ -165,7 +165,7 @@ function Gate() {
   if (offline && !isPublicSegment(segments[0])) {
     return (
       <View style={styles.center}>
-        <ErrorState title="Sem ligação" text="Não consegui ligar ao Txillapp. Verifica a ligação e tenta outra vez." onRetry={retry} style={styles.state} />
+        <ErrorState title={t('Sem ligação')} text={t('Não consegui ligar ao Txillapp. Verifica a ligação e tenta outra vez.')} onRetry={retry} style={styles.state} />
       </View>
     );
   }

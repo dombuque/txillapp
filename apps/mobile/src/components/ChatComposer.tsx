@@ -30,6 +30,7 @@ import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
 import { sendChatMedia, type ChatMediaItem } from '@/lib/chatMediaSend';
+import { t } from '@/lib/i18n';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -147,7 +148,7 @@ export function ChatComposer({
     try {
       if (source === 'camera') {
         const p = await ImagePicker.requestCameraPermissionsAsync();
-        if (!p.granted) return setErr('Preciso de acesso à câmara para tirar a foto.');
+        if (!p.granted) return setErr(t('Preciso de acesso à câmara para tirar a foto.'));
       }
       // Da galeria escolhem-se vários de uma vez (até CHAT_PICK_MAX, pela ordem dos toques): cada um vai como uma mensagem.
       const r = await (source === 'camera'
@@ -158,7 +159,7 @@ export function ChatComposer({
       if (picks.length === 1) return await sendMedia(picks[0].uri, picks[0].mime, picks[0].video);
       await sendMany(picks);
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar');
+      setErr((e as Error).message || t('Não consegui enviar'));
     }
   }
   /** Vários da galeria: um de cada vez, pela ordem escolhida; a legenda da caixa vai só com o primeiro. Se algum falhar, segue com os outros. */
@@ -210,7 +211,7 @@ export function ChatComposer({
     try {
       await sendMedia(p.uri, p.type, false, caption);
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar');
+      setErr((e as Error).message || t('Não consegui enviar'));
     } finally {
       paste.release(p);
     }
@@ -236,7 +237,7 @@ export function ChatComposer({
   async function startRecording() {
     try {
       const p = await requestRecordingPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso ao microfone para gravar.');
+      if (!p.granted) return setErr(t('Preciso de acesso ao microfone para gravar.'));
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -244,7 +245,7 @@ export function ChatComposer({
       setRecording(true);
       timer.current = setInterval(() => setSecs((s) => s + 1), 1000);
     } catch {
-      setErr('Não consegui gravar.');
+      setErr(t('Não consegui gravar.'));
     }
   }
   async function finishRecording(send: boolean) {
@@ -259,7 +260,7 @@ export function ChatComposer({
       // Sem rede não se perde: fica guardada neste aparelho, na conversa com o reloginho, e vai sozinha (lib/chatMediaSend).
       await sendItem({ kind: 'voice', uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, once });
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
+      setErr((e as Error).message || t('Não consegui enviar a mensagem de voz'));
     } finally {
       setBusy(false);
     }
@@ -279,16 +280,16 @@ export function ChatComposer({
     return (
       <View style={[st.wrap, pad]}>
         <View style={[st.pill, { alignItems: 'center' }]}>
-          <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={st.recX} accessibilityRole="button" accessibilityLabel="Cancelar a gravação">
+          <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={st.recX} accessibilityRole="button" accessibilityLabel={t('Cancelar a gravação')}>
             <Icon name="trash" size={21} color={colors.zinc700} />
           </Pressable>
-          <View style={st.recMid} accessibilityLiveRegion="polite" accessibilityLabel={`A gravar, ${mmss}`}>
+          <View style={st.recMid} accessibilityLiveRegion="polite" accessibilityLabel={t('A gravar, {mmss}', { mmss })}>
             <RecDot />
             <Text style={st.recTime}>{mmss}</Text>
-            <Text style={st.recHint}>A gravar…</Text>
+            <Text style={st.recHint}>{t('A gravar…')}</Text>
           </View>
           <Pop>
-            <SendButton label="Enviar a mensagem de voz" onPress={() => void finishRecording(true)} />
+            <SendButton label={t('Enviar a mensagem de voz')} onPress={() => void finishRecording(true)} />
           </Pop>
         </View>
       </View>
@@ -303,34 +304,34 @@ export function ChatComposer({
       {once && onceHelp && (
         <View style={st.help} accessibilityRole="alert">
           <Icon name="once" size={18} color="#fff" />
-          <Text style={st.helpText}>Ver uma vez: a próxima foto, vídeo ou voz só se abre uma vez.</Text>
-          <Pressable onPress={() => setOnceHelp(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar a explicação"><Icon name="x" size={16} color="#fff" /></Pressable>
+          <Text style={st.helpText}>{t('Ver uma vez: a próxima foto, vídeo ou voz só se abre uma vez.')}</Text>
+          <Pressable onPress={() => setOnceHelp(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Fechar a explicação')}><Icon name="x" size={16} color="#fff" /></Pressable>
         </View>
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
-        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
+        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : t('A enviar…')}</Text> : null}
         {replyTo && (
           <View style={st.reply}>
             <View style={st.replyBar} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.replyWho} numberOfLines={1}>A responder a {replyTo.who ?? ''}</Text>
+              <Text style={st.replyWho} numberOfLines={1}>{t('A responder a {who}', { who: replyTo.who ?? '' })}</Text>
               <Text style={st.replyText} numberOfLines={1}>{replyTo.text}</Text>
             </View>
-            <Pressable onPress={onClearReply} hitSlop={6} style={st.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+            <Pressable onPress={onClearReply} hitSlop={6} style={st.replyX} accessibilityRole="button" accessibilityLabel={t('Cancelar resposta')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
         <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
         <View ref={pill} collapsable={false} onLayout={(e) => setPillW(e.nativeEvent.layout.width)} style={[st.pill, once && st.pillOnce]}>
-          <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
+          <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel={t('Abrir a câmara')} accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.camera}>
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
           {once && (
-            <Pressable onPress={toggleOnce} hitSlop={SLOP} style={st.onceChip} accessibilityRole="switch" accessibilityState={{ checked: true }} accessibilityLabel="Ver uma vez ligado. Toca para desligar">
+            <Pressable onPress={toggleOnce} hitSlop={SLOP} style={st.onceChip} accessibilityRole="switch" accessibilityState={{ checked: true }} accessibilityLabel={t('Ver uma vez ligado. Toca para desligar')}>
               <Icon name="once" size={16} color={colors.brand} strokeWidth={2.2} />
-              <Text style={st.onceText}>Uma vez</Text>
+              <Text style={st.onceText}>{t('Uma vez')}</Text>
             </Pressable>
           )}
           <TextInput
@@ -345,24 +346,24 @@ export function ChatComposer({
             multiline
             numberOfLines={1}
             maxLength={2000}
-            placeholder="Mensagem…"
+            placeholder={t('Mensagem…')}
             placeholderTextColor={colors.zinc500}
             onContentSizeChange={grow.onContentSizeChange}
             style={[st.input, grow.style]}
-            accessibilityLabel="Mensagem"
+            accessibilityLabel={t('Mensagem')}
           />
           {hasText ? (
             <Pop key="send">
-              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} keep={input} />
+              <SendButton label={t('Enviar')} onPress={() => void sendText()} disabled={busy} keep={input} />
             </Pop>
           ) : (
             <Pop key="tools" style={st.tools}>
-              <Tool w={fit.toolW} icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
-              {fit.gallery ? <Tool w={fit.toolW} icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} /> : null}
+              <Tool w={fit.toolW} icon="mic" label={t('Gravar mensagem de voz')} onPress={() => void startRecording()} />
+              {fit.gallery ? <Tool w={fit.toolW} icon="image" label={t('Enviar foto ou vídeo da galeria')} onPress={() => void pick('library')} disabled={busy} /> : null}
               <Tool
                 w={fit.toolW}
                 icon="sticker"
-                label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
+                label={`${gifs.enabled ? t('Stickers e GIFs') : t('Stickers')}${stickersNew ? (' ' + t('(novos)')) : ''}`}
                 on={panel === 'stickers'}
                 dot={stickersNew}
                 onPress={() => {
@@ -372,7 +373,7 @@ export function ChatComposer({
                 }}
               />
               {/* O teclado fica como está: o menu abre por cima da barra e cabe no espaço que sobra. */}
-              <Tool w={fit.toolW} icon={more ? 'x' : 'plus'} label={more ? 'Fechar o menu' : 'Mais: câmara, foto e vídeo, localização, presente e ver uma vez'} on={more} expanded={more} onPress={() => { setPanel(null); setMore(!more); }} />
+              <Tool w={fit.toolW} icon={more ? 'x' : 'plus'} label={more ? t('Fechar o menu') : t('Mais: câmara, foto e vídeo, localização, presente e ver uma vez')} on={more} expanded={more} onPress={() => { setPanel(null); setMore(!more); }} />
             </Pop>
           )}
         </View>

@@ -3,6 +3,7 @@
 // As contas estão em src/lib/reelView.ts; o resto confirma-se no código dos ecrãs.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -52,7 +53,7 @@ test('ecrã: o disco e o letreiro abrem a página do som; sem som ficam escondid
   const disc = read('components', 'reel', 'ReelSound.tsx');
   assert.match(disc, /if \(!spinning\) return;/, 'o disco só roda enquanto toca');
   assert.match(disc, /if \(!overflow \|\| !running\) return;/, 'o letreiro só corre se não couber e estiver a tocar');
-  assert.match(disc, /accessibilityRole="link" accessibilityLabel=\{`Som: \$\{sound\.label\}`\}/);
+  assert.match(disc, /accessibilityRole="link" accessibilityLabel=\{t\('Som: \{label\}', \{ label: sound\.label \}\)\}/);
 });
 
 test('barra de progresso: o tempo e o sítio para onde salta ao arrastar', () => {
@@ -117,7 +118,7 @@ test('menu de segurar: abre ao segurar (telemóvel e browser) e cada opção faz
   assert.match(reels, /captions=\{captions\.has\}/);
   const menu = read('components', 'reel', 'HoldMenu.tsx');
   assert.match(menu, /const items = holdMenu\(\{ mine, captions, canGift \}\);/);
-  for (const t of ["'Não me interessa'", "'Denunciar'", "'Guardar'", '>Velocidade<', "'Legendas'"]) assert.ok(menu.includes(t), t);
+  for (const t of ["'Não me interessa'", "'Denunciar'", "'Guardar'", ">{t('Velocidade')}<", "'Legendas'"]) assert.ok(menu.includes(t), t);
 });
 
 test('«Não me interessa» ensina o feed (o mesmo do «Não interessado») e passa à seguinte', () => {
@@ -133,7 +134,7 @@ test('ações do lado: avatar com «+» (seguir), brindar, comentários, reposta
   assert.equal(v.showFollowPlus({ mine: false, authorFollowed: false, followedNow: true }), false);
   assert.equal(v.showFollowPlus({ mine: false }), false, 'sem saber se segue, não mostra');
   assert.match(reels, /await api\.follow\(post\.author\.username\);/);
-  const order = ['<AuthorBubble', "accessibilityLabel={post.cheered ? 'Tirar o brinde' : 'Brindar'}", "onPress={() => setSheet('comments')}", "onPress={() => setSheet('repost')}", 'onPress={() => void save()}', "onPress={() => setSheet('share')}", '{extraActions ?? <ReelExtraActions post={post} active={active} />}', '{sound && <SoundDisc'];
+  const order = ['<AuthorBubble', "accessibilityLabel={post.cheered ? t('Tirar o brinde') : t('Brindar')}", "onPress={() => setSheet('comments')}", "onPress={() => setSheet('repost')}", 'onPress={() => void save()}', "onPress={() => setSheet('share')}", '{extraActions ?? <ReelExtraActions post={post} active={active} />}', '{sound && <SoundDisc'];
   let at = reels.indexOf('<Animated.View style={[st.rails');
   assert.ok(at > 0);
   for (const s of order) {

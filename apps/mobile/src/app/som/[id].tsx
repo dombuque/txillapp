@@ -17,6 +17,7 @@ import { sized } from '@/lib/config';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { isSoundId, mergePages, RETIRE_SOUND_TEXT, RETIRE_SOUND_TITLE, soundMeta, unavailableText, usesLine, studioHref } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * A página de um som (como no TikTok): a capa, o título, o autor com o selo, quantas tchekas o usam, ouvir, o botão grande
@@ -65,30 +66,30 @@ export default function SoundScreen() {
       soundsApi
         .report(s.id, reason)
         .then(() => {
-          Alert.alert('Obrigado', 'A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.');
+          Alert.alert(t('Obrigado'), t('A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.'));
           void sound.refetch();
         })
-        .catch((e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.'));
-    Alert.alert('Denunciar este som', 'Porquê?', [
-      { text: 'Tem música protegida', onPress: () => void send('copyright') },
-      { text: 'Outro motivo', onPress: () => void send('other') },
-      { text: 'Cancelar', style: 'cancel' },
+        .catch((e) => Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Tenta outra vez daqui a pouco.')));
+    Alert.alert(t('Denunciar este som'), t('Porquê?'), [
+      { text: t('Tem música protegida'), onPress: () => void send('copyright') },
+      { text: t('Outro motivo'), onPress: () => void send('other') },
+      { text: t('Cancelar'), style: 'cancel' },
     ]);
   }
 
   // «Retirar o som» (só o autor): deixa de tocar em todo o lado e o áudio é apagado. Não se desfaz.
   function retire() {
     if (!s) return;
-    Alert.alert(RETIRE_SOUND_TITLE, RETIRE_SOUND_TEXT, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Retirar', style: 'destructive', onPress: () => void soundsApi.retire(s.id)
+    Alert.alert(RETIRE_SOUND_TITLE(), RETIRE_SOUND_TEXT(), [
+      { text: t('Cancelar'), style: 'cancel' },
+      { text: t('Retirar'), style: 'destructive', onPress: () => void soundsApi.retire(s.id)
         .then(() => {
           stopTrack(me.current);
           void qc.invalidateQueries({ queryKey: ['sounds'] });
-          Alert.alert('Som retirado', 'Deixou de tocar em todo o lado.');
+          Alert.alert(t('Som retirado'), t('Deixou de tocar em todo o lado.'));
           goBack(router, '/settings/sons');
         })
-        .catch((e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.')) },
+        .catch((e) => Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Tenta outra vez daqui a pouco.'))) },
     ]);
   }
 
@@ -99,7 +100,7 @@ export default function SoundScreen() {
   const header = s ? (
     <View style={st.head}>
       <View style={st.top}>
-        <Pressable onPress={() => void toggle()} style={st.cover} accessibilityRole="button" accessibilityLabel={playing ? 'Parar o som' : 'Ouvir o som'} disabled={!s.previewUrl}>
+        <Pressable onPress={() => void toggle()} style={st.cover} accessibilityRole="button" accessibilityLabel={playing ? t('Parar o som') : t('Ouvir o som')} disabled={!s.previewUrl}>
           {s.cover ? <Image source={{ uri: sized(s.cover, 320) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.brand }]} />}
           <View style={st.play}><Icon name={playing ? 'pause' : 'play'} size={26} color="#fff" solid /></View>
         </Pressable>
@@ -119,21 +120,21 @@ export default function SoundScreen() {
         accessibilityState={{ disabled: !s.canUse }}
       >
         <Icon name="video" size={20} color="#fff" />
-        <Text style={st.useText}>Usar este som</Text>
+        <Text style={st.useText}>{t('Usar este som')}</Text>
       </Pressable>
       {why ? <Text style={st.why}>{why}</Text> : null}
       {s.kind === 'original' && s.mine ? (
         <Pressable onPress={retire} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
-          <Text style={{ color: colors.red600, fontSize: 13, fontWeight: '700' }}>Retirar o som</Text>
+          <Text style={{ color: colors.red600, fontSize: 13, fontWeight: '700' }}>{t('Retirar o som')}</Text>
         </Pressable>
       ) : null}
       {s.kind === 'original' && !s.mine ? (
         <Pressable onPress={report} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
-          <Text style={{ color: colors.zinc500, fontSize: 13, fontWeight: '600' }}>Denunciar este som</Text>
+          <Text style={{ color: colors.zinc500, fontSize: 13, fontWeight: '600' }}>{t('Denunciar este som')}</Text>
         </Pressable>
       ) : null}
       <View style={st.tabs} accessibilityRole="tablist">
-        {([['top', 'Mais vistas'], ['recent', 'Recentes']] as const).map(([k, label]) => (
+        {([['top', t('Mais vistas')], ['recent', t('Recentes')]] as const).map(([k, label]) => (
           <Pressable key={k} onPress={() => setSort(k)} style={[st.pill, sort === k && { backgroundColor: colors.zinc900 }]} accessibilityRole="tab" accessibilityState={{ selected: sort === k }}>
             <Text style={[st.pillText, sort === k && { color: '#fff' }]}>{label}</Text>
           </Pressable>
@@ -144,14 +145,14 @@ export default function SoundScreen() {
 
   if (!valid || sound.isError) {
     return (
-      <StackPage title="Som">
-        <Empty icon="music" title="Este som já não está disponível" text="Pode ter sido apagado, ou a conta não deixa vê-lo." />
+      <StackPage title={t('Som')}>
+        <Empty icon="music" title={t('Este som já não está disponível')} text={t('Pode ter sido apagado, ou a conta não deixa vê-lo.')} />
       </StackPage>
     );
   }
 
   return (
-    <StackPage title="Som">
+    <StackPage title={t('Som')}>
       <FlatList
         data={items}
         key={cols}
@@ -160,13 +161,13 @@ export default function SoundScreen() {
         columnWrapperStyle={{ gap: 2 }}
         contentContainerStyle={{ gap: 2, paddingBottom: 32 }}
         ListHeaderComponent={sound.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : header ?? undefined}
-        ListEmptyComponent={sound.isSuccess ? (grid.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : <Empty icon="film" title="Ainda ninguém usou este som" text="Sê a primeira pessoa." />) : undefined}
+        ListEmptyComponent={sound.isSuccess ? (grid.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : <Empty icon="film" title={t('Ainda ninguém usou este som')} text={t('Sê a primeira pessoa.')} />) : undefined}
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
-        ListFooterComponent={grid.hasNextPage ? <LoadMore onLoad={() => { if (grid.hasNextPage && !grid.isFetchingNextPage) void grid.fetchNextPage(); }} loading={grid.isFetchingNextPage} label="Ver mais tchekas" /> : undefined}
+        ListFooterComponent={grid.hasNextPage ? <LoadMore onLoad={() => { if (grid.hasNextPage && !grid.isFetchingNextPage) void grid.fetchNextPage(); }} loading={grid.isFetchingNextPage} label={t('Ver mais tchekas')} /> : undefined}
         onEndReached={() => grid.hasNextPage && !grid.isFetchingNextPage && void grid.fetchNextPage()}
         renderItem={({ item, index }) => <Cell post={item} size={cell} original={index === 0 && sort === 'top' && s?.sourcePost?.id === item.id} onPress={() => setViewing(item.id)} />}
       />
-      {viewing && <ExploreViewer items={items} startId={viewing} title={s?.title ?? 'Som'} onClose={() => setViewing(null)} />}
+      {viewing && <ExploreViewer items={items} startId={viewing} title={s?.title ?? t('Som')} onClose={() => setViewing(null)} />}
     </StackPage>
   );
 }
@@ -174,9 +175,9 @@ export default function SoundScreen() {
 function Cell({ post, size, original, onPress }: { post: Post; size: number; original: boolean; onPress: () => void }) {
   const m = post.media[0];
   return (
-    <Pressable onPress={onPress} style={{ width: size, height: Math.round(size * 1.6), backgroundColor: colors.zinc100 }} accessibilityRole="button" accessibilityLabel={`Abrir a tcheka de ${post.author.displayName}`}>
+    <Pressable onPress={onPress} style={{ width: size, height: Math.round(size * 1.6), backgroundColor: colors.zinc100 }} accessibilityRole="button" accessibilityLabel={t('Abrir a tcheka de {displayName}', { displayName: post.author.displayName })}>
       {m ? <Image source={{ uri: sized(m.posterUrl ?? m.url, 360) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors /> : null}
-      {original ? <View style={st.badge}><Text style={st.badgeText}>Original</Text></View> : null}
+      {original ? <View style={st.badge}><Text style={st.badgeText}>{t('Original')}</Text></View> : null}
     </Pressable>
   );
 }

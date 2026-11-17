@@ -49,6 +49,7 @@ import { useTextFontStyle } from '@/lib/useTextFonts';
 import { vibesWord } from '@/lib/vibes';
 import { HIDDEN_BANNER } from '@/lib/hidePost';
 import { setPostHidden } from '@/lib/hidePostAction';
+import { t } from '@/lib/i18n';
 
 /**
  * A letra de uma publicação só com texto (`textFont`, lib/textLayers): o tamanho acertado à fonte (as de cartaz são
@@ -121,7 +122,7 @@ function DoubleTapArea({ onDouble, label, children }: { onDouble: () => void; la
     el.addEventListener('dblclick', (e) => { e.preventDefault(); tapRef.current.dbl(); });
   }, []);
   return (
-    <Pressable ref={Platform.OS === 'web' ? (dblRef as never) : undefined} onPress={() => tap()} accessibilityLabel={label} accessibilityHint="Toca duas vezes para brindar">
+    <Pressable ref={Platform.OS === 'web' ? (dblRef as never) : undefined} onPress={() => tap()} accessibilityLabel={label} accessibilityHint={t('Toca duas vezes para brindar')}>
       {children}
     </Pressable>
   );
@@ -193,8 +194,8 @@ function PostCardBase({ post, me, detail, openComments, highlightComment, sponso
           </View>
           <Pressable onPress={() => pushOnce(router, profileOf(post.author, me))} accessibilityRole="link" style={{ flexShrink: 1 }}>
             {post.author.id === me
-              ? <Text style={styles.repostText} numberOfLines={1}>Repostaste</Text>
-              : <NameWithBadge name={post.author.displayName} who={post.author} style={styles.repostText}><Text style={[styles.repostText, { flexShrink: 0 }]}>repostou</Text></NameWithBadge>}
+              ? <Text style={styles.repostText} numberOfLines={1}>{t('Repostaste')}</Text>
+              : <NameWithBadge name={post.author.displayName} who={post.author} style={styles.repostText}><Text style={[styles.repostText, { flexShrink: 0 }]}>{t('repostou')}</Text></NameWithBadge>}
           </Pressable>
         </View>
         <PostCard post={post.repostOf} me={me} myRepost={post.author.id === me ? post : null} />
@@ -255,13 +256,13 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   if (gone) {
     return (
       <View style={[styles.gone, { marginHorizontal: 16 }]} accessibilityRole="alert">
-        <Text style={styles.goneText}>Ok, vamos mostrar menos disto.</Text>
+        <Text style={styles.goneText}>{t('Ok, vamos mostrar menos disto.')}</Text>
       </View>
     );
   }
 
   const menuBtn = (
-    <Pressable onPress={(e) => openMenu(anchorOf(e))} hitSlop={6} style={(st) => [styles.more, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel="Mais opções da publicação" {...tip('Mais opções')}>
+    <Pressable onPress={(e) => openMenu(anchorOf(e))} hitSlop={6} style={(st) => [styles.more, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel={t('Mais opções da publicação')} {...tip(t('Mais opções'))}>
       <Icon name="more" size={24} />
     </Pressable>
   );
@@ -297,9 +298,9 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         // Oculta (0169): só o autor a vê assim; um toque volta a mostrá-la (no mesmo sítio, com tudo o que tinha).
         <View style={styles.hiddenBar} accessibilityRole="text">
           <Icon name="eye-off" size={16} color={colors.zinc600} />
-          <Text style={styles.hiddenText} numberOfLines={2}>{HIDDEN_BANNER}</Text>
-          <Pressable onPress={() => void setPostHidden(qc, post, false)} hitSlop={8} style={(s) => [styles.hiddenBtn, (s as Hover).pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Voltar a mostrar a publicação">
-            <Text style={styles.hiddenBtnText}>Voltar a mostrar</Text>
+          <Text style={styles.hiddenText} numberOfLines={2}>{HIDDEN_BANNER()}</Text>
+          <Pressable onPress={() => void setPostHidden(qc, post, false)} hitSlop={8} style={(s) => [styles.hiddenBtn, (s as Hover).pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Voltar a mostrar a publicação')}>
+            <Text style={styles.hiddenBtnText}>{t('Voltar a mostrar')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -310,11 +311,11 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           <QuotedOriginal original={post.repostOf ?? null} me={me} onOpen={openPost} onPhoto={(o) => setViewer({ of: o, start: 0 })} onDouble={() => void brindar()} />
           <View style={styles.qHead}>
             {post.venue ? (
-              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={`Página de ${post.venue.name}`}>
+              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={t('Página de {name}', { name: post.venue.name })}>
                 <VenueLogo venue={post.venue} size={THREAD_AVATAR} />
               </Pressable>
             ) : (
-              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={t('Perfil de {displayName}', { displayName: post.author.displayName })}>
                 <Avatar name={post.author.displayName} username={post.author.username} size={THREAD_AVATAR} />
               </Pressable>
             )}
@@ -324,13 +325,13 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
                 {post.venue ? (post.venue.verified && <VerifiedBadge size={15} tier="verified" />) : (post.author.verified && <VerifiedBadge size={15} tier={post.author.verifiedTier} />)}
               </Pressable>
               <Text style={styles.qMeta} numberOfLines={1}>
-                {post.venue ? 'página' : `@${post.author.username}`} · {timeAgo(post.createdAt)}
-                {post.editedAt ? ' · editado' : ''}
+                {post.venue ? t('página') : `@${post.author.username}`} · {timeAgo(post.createdAt)}
+                {post.editedAt ? (' ' + t('· editado')) : ''}
               </Text>
             </View>
             {menuBtn}
           </View>
-          <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
+          <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel={t('Abrir a publicação (duplo toque para brindar)')}>
             <RichText text={post.body} style={styles.qBody} />
           </Pressable>
         </>
@@ -339,11 +340,11 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           <View style={styles.header}>
             {post.venue ? (
               // Publicada como um local: a página é a voz (logótipo, nome e selo); quem publicou fica por trás.
-              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={`Página de ${post.venue.name}`}>
+              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={t('Página de {name}', { name: post.venue.name })}>
                 <VenueLogo venue={post.venue} size={52} />
               </Pressable>
             ) : (
-              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={t('Perfil de {displayName}', { displayName: post.author.displayName })}>
                 <Avatar name={post.author.displayName} username={post.author.username} size={52} />
               </Pressable>
             )}
@@ -353,7 +354,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
                 {post.venue ? (post.venue.verified && <VerifiedBadge size={16} tier="verified" />) : (post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />)}
               </Pressable>
               {post.venue ? (
-                <Text style={styles.handle} numberOfLines={1}>{KIND_LABEL[post.venue.kind] ?? 'Local'} · página</Text>
+                <Text style={styles.handle} numberOfLines={1}>{t('{kindLabel} · página', { kindLabel: KIND_LABEL[post.venue.kind] ?? t('Local') })}</Text>
               ) : post.locationLabel ? (
                 <Pressable onPress={() => pushOnce(router, `/place/${encodeURIComponent(post.locationLabel as string)}`)} style={styles.locRow} accessibilityRole="link">
                   <Icon name="map-pin" size={14} color={colors.zinc600} />
@@ -365,15 +366,15 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
             </View>
             <Text style={styles.time}>
               {timeAgo(post.createdAt)}
-              {post.editedAt ? ' · editado' : ''}
+              {post.editedAt ? (' ' + t('· editado')) : ''}
             </Text>
-            <Pressable onPress={() => void toggleSave()} hitSlop={6} style={(st) => [styles.save, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} {...tip(post.saved ? 'Tirar dos guardados' : 'Guardar')}>
+            <Pressable onPress={() => void toggleSave()} hitSlop={6} style={(st) => [styles.save, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel={post.saved ? t('Tirar dos guardados') : t('Guardar')} {...tip(post.saved ? t('Tirar dos guardados') : t('Guardar'))}>
               <BookmarkIcon on={!!post.saved} size={24} />
             </Pressable>
             {menuBtn}
           </View>
           {post.body ? (
-            <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
+            <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel={t('Abrir a publicação (duplo toque para brindar)')}>
               <RichText text={post.body} style={bodyFont ? [styles.body, bodyFont.size, bodyFace] : styles.body} customFont={!!bodyFont} />
             </Pressable>
           ) : null}
@@ -387,12 +388,12 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {/* A geleira partilhada (0143): o frigorífico com os gostos; tocar num gosto brinda-o, o botão Brindar brinda o post todo. */}
       {/* «Paga-me uma» publicado (0145): a bebida, quem foi identificado e o estado de cada um; os botões só para quem foi identificado. */}
       {!quote && post.gelada ? (
-        <DoubleTapArea onDouble={() => void brindar()} label="Pedido de gelada (toca duas vezes para brindar)">
+        <DoubleTapArea onDouble={() => void brindar()} label={t('Pedido de gelada (toca duas vezes para brindar)')}>
           <GeladaPostCard post={post} onOpen={detail ? undefined : goPost} />
           <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
         </DoubleTapArea>
       ) : !quote && post.geleira ? (
-        <DoubleTapArea onDouble={() => void brindar()} label="Geleira (toca duas vezes para brindar)">
+        <DoubleTapArea onDouble={() => void brindar()} label={t('Geleira (toca duas vezes para brindar)')}>
           <GeleiraPostCard post={post} me={me} detail={detail} onOpen={goPost} />
           <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
         </DoubleTapArea>
@@ -509,13 +510,13 @@ function ViewerBar({ post, full, mine, onOpen, onCheered }: { post: Post; full: 
   );
   return (
     <View style={styles.vBar}>
-      <B icon="cheers" n={mine2.cheers} on={mine2.cheered} label={mine2.cheered ? 'Tirar o brinde' : 'Brindar'} onPress={() => void cheer()} />
+      <B icon="cheers" n={mine2.cheers} on={mine2.cheered} label={mine2.cheered ? t('Tirar o brinde') : t('Brindar')} onPress={() => void cheer()} />
       {full && (
         <>
-          <B icon="comment" n={post.comments} label="Comentar" onPress={() => onOpen('comments')} />
-          {showRepostButton(post) ? <B icon="repeat" n={post.reposts} on={post.reposted} label="Repostar" onPress={() => onOpen('repost')} /> : null}
-          {!mine && post.canGift ? <B icon="gift" n={post.gifts} label="Oferecer vibes" onPress={() => onOpen('gift')} /> : null}
-          <B icon="share" label="Partilhar" onPress={() => onOpen('share')} />
+          <B icon="comment" n={post.comments} label={t('Comentar')} onPress={() => onOpen('comments')} />
+          {showRepostButton(post) ? <B icon="repeat" n={post.reposts} on={post.reposted} label={t('Repostar')} onPress={() => onOpen('repost')} /> : null}
+          {!mine && post.canGift ? <B icon="gift" n={post.gifts} label={t('Oferecer vibes')} onPress={() => onOpen('gift')} /> : null}
+          <B icon="share" label={t('Partilhar')} onPress={() => onOpen('share')} />
         </>
       )}
     </View>
@@ -530,17 +531,17 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
   const rec = (g as unknown as GiftExtra).recipient;
   const go = (u: string) => router.push((u === (me ?? '') ? '/profile' : `/u/${u}`) as never);
   return (
-    <Pressable onPress={() => tap()} style={[styles.giftCard, compact && { marginTop: 0, paddingTop: 16, paddingBottom: 14, borderRadius: 18 }]} accessibilityLabel="Presente (toca duas vezes para brindar)">
+    <Pressable onPress={() => tap()} style={[styles.giftCard, compact && { marginTop: 0, paddingTop: 16, paddingBottom: 14, borderRadius: 18 }]} accessibilityLabel={t('Presente (toca duas vezes para brindar)')}>
       <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <View style={[styles.giftDot, { left: -24, top: -24, width: 96, height: 96, borderRadius: 48 }]} />
       <View style={[styles.giftDot, { right: -16, bottom: -32, width: 112, height: 112, borderRadius: 56 }]} />
       <View style={[styles.giftDot, { right: 32, top: 16, width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' }]} />
       <View style={[styles.giftDot, { left: 40, top: 64, width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' }]} />
       <View style={{ width: compact ? 104 : 132, height: compact ? 60 : 76, alignSelf: 'center' }}>
-        <Pressable onPress={() => go(rec.username)} style={[styles.giftAva, { right: 0 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={`Perfil de ${rec.displayName}`}>
+        <Pressable onPress={() => go(rec.username)} style={[styles.giftAva, { right: 0 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={t('Perfil de {displayName}', { displayName: rec.displayName })}>
           <Avatar name={rec.displayName} username={rec.username} size={compact ? 52 : 68} />
         </Pressable>
-        <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={`Perfil de ${sender.displayName}`}>
+        <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={t('Perfil de {displayName}', { displayName: sender.displayName })}>
           <Avatar name={sender.displayName} username={sender.username} size={compact ? 52 : 68} />
         </Pressable>
         <View style={[styles.giftBadge, compact && { left: 36, width: 30, height: 30, borderRadius: 15 }]}><Icon name="gift" size={20} color={colors.brand} /></View>
@@ -548,7 +549,7 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
       <View style={styles.giftLineRow}>
         <Text style={styles.giftLine} onPress={() => go(sender.username)}><Text style={{ fontWeight: '800' }}>{sender.displayName}</Text></Text>
         {sender.verified ? <VerifiedBadge size={15} tier={sender.verifiedTier} /> : null}
-        <Text style={styles.giftLine}>ofereceu a</Text>
+        <Text style={styles.giftLine}>{t('ofereceu a')}</Text>
         <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
         {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
       </View>
@@ -566,10 +567,10 @@ function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g:
       <View style={styles.giftHead}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon name="gift" size={15} color={colors.brand} />
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Presente</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>{t('Presente')}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(post.createdAt)}{post.editedAt ? ' · editado' : ''}</Text>
+          <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(post.createdAt)}{post.editedAt ? (' ' + t('· editado')) : ''}</Text>
           {menu}
         </View>
       </View>
@@ -712,7 +713,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inVie
               onPress={() => tap(m.kind === 'video' ? (reelId ? () => pushOnce(router, `/r/${reelId}`) : undefined) : () => onOpen?.(index))}
               onLongPress={onHold}
               accessibilityRole="button"
-              accessibilityLabel={m.kind === 'video' ? 'Abrir a tcheka' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
+              accessibilityLabel={m.kind === 'video' ? t('Abrir a tcheka') : t('Ver a foto {n} de {n2} em ecrã inteiro (toca duas vezes para brindar)', { n: index + 1, n2: media.length })}
             >
               {m.kind === 'video' ? (
                 // Tcheka no feed: corre sozinha sem som enquanto está à vista; um toque abre-a no ecrã da Tcheka (com som).
@@ -727,7 +728,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inVie
         {overlay}
         {tags.length > 0 && (
           <>
-            <Pressable onPress={() => setShowTags((v) => !v)} style={[styles.tagsBtn, overlay ? styles.tagsRight : null]} accessibilityRole="button" accessibilityLabel={`${tags.length} pessoa(s) identificadas`}>
+            <Pressable onPress={() => setShowTags((v) => !v)} style={[styles.tagsBtn, overlay ? styles.tagsRight : null]} accessibilityRole="button" accessibilityLabel={t('{n} pessoa(s) identificadas', { n: tags.length })}>
               <Icon name="users" size={16} color="#fff" />
               <Text style={styles.counterText}>{tags.length}</Text>
             </Pressable>
@@ -745,12 +746,12 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inVie
         {desktop && over && media.length > 1 ? (
           <>
             {i > 0 ? (
-              <Pressable onPress={() => goTo(i - 1)} style={(st) => [styles.arrow, { left: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel="Foto anterior" {...tip('Foto anterior (←)')}>
+              <Pressable onPress={() => goTo(i - 1)} style={(st) => [styles.arrow, { left: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel={t('Foto anterior')} {...tip(t('Foto anterior (←)'))}>
                 <Icon name="chevron-left" size={22} color={colors.zinc900} strokeWidth={2.4} />
               </Pressable>
             ) : null}
             {i < media.length - 1 ? (
-              <Pressable onPress={() => goTo(i + 1)} style={(st) => [styles.arrow, { right: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel="Foto seguinte" {...tip('Foto seguinte (→)')}>
+              <Pressable onPress={() => goTo(i + 1)} style={(st) => [styles.arrow, { right: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel={t('Foto seguinte')} {...tip(t('Foto seguinte (→)'))}>
                 <Icon name="chevron-right" size={22} color={colors.zinc900} strokeWidth={2.4} />
               </Pressable>
             ) : null}
@@ -786,9 +787,9 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
     onError: () => patch({ cheered: post.cheered, cheers: post.cheers }),
   });
   const chips = [
-    { kind: 'cheers' as const, n: post.cheers, icon: 'cheers' as const, label: post.cheers === 1 ? 'brinde' : 'brindes' },
-    { kind: 'reposts' as const, n: post.reposts, icon: 'repeat' as const, label: post.reposts === 1 ? 'repost' : 'reposts' },
-    { kind: 'gifts' as const, n: post.gifts, icon: 'gift' as const, label: post.gifts === 1 ? 'presente' : 'presentes' },
+    { kind: 'cheers' as const, n: post.cheers, icon: 'cheers' as const, label: post.cheers === 1 ? t('brinde') : t('brindes') },
+    { kind: 'reposts' as const, n: post.reposts, icon: 'repeat' as const, label: post.reposts === 1 ? 'repost' : t('reposts') },
+    { kind: 'gifts' as const, n: post.gifts, icon: 'gift' as const, label: post.gifts === 1 ? t('presente') : t('presentes') },
   ].filter((c) => c.n > 0);
   // Só se pode ver quem foi se o dono deixar (e num repost só os brindes).
   const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
@@ -806,7 +807,7 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
         <View style={styles.chips}>
           {shown.map((c) =>
             canSee(c.kind) ? (
-              <Pressable key={c.icon} onPress={() => people(c.kind)} hitSlop={8} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
+              <Pressable key={c.icon} onPress={() => people(c.kind)} hitSlop={8} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={t('{n} {label}: ver quem', { n: c.n, label: c.label })}>
                 <Icon name={c.icon} size={18} color={colors.zinc700} />
                 <Text style={styles.chipText}>{c.n}</Text>
               </Pressable>
@@ -820,18 +821,18 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
         </View>
         {post.comments > 0 && (
           <Pressable onPress={() => open('comments')} hitSlop={12} accessibilityRole="button">
-            <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}</Text>
+            <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? t('Comentário') : t('Comentários')}</Text>
           </Pressable>
         )}
       </View>
       )}
       <View style={[styles.bar, hot && styles.barHot, byNames && !shown.length && post.comments <= 0 && { marginTop: 10 }]}>
-        <BarBtn hot={hot} label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
-        <BarBtn hot={hot} label="Comentar" icon="comment" onPress={() => open('comments')} />
+        <BarBtn hot={hot} label={post.cheered ? t('Brindou') : t('Brindar')} icon="cheers" color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
+        <BarBtn hot={hot} label={t('Comentar')} icon="comment" onPress={() => open('comments')} />
         {/* Quem publicou não deixa repostar (lib/repost): o botão some, a não ser que haja um repost meu para desfazer. */}
-        {showRepostButton(post) && <BarBtn hot={hot} label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
-        {!mine && post.canGift && <BarBtn hot={hot} label="Oferecer" a11y="Oferecer vibes" icon="gift" onPress={() => open('gift')} />}
-        <BarBtn hot={hot} label="Partilhar" icon="share" onPress={() => open('share')} />
+        {showRepostButton(post) && <BarBtn hot={hot} label={post.reposted ? t('Repostado') : t('Repostar')} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
+        {!mine && post.canGift && <BarBtn hot={hot} label={t('Oferecer')} a11y={t('Oferecer vibes')} icon="gift" onPress={() => open('gift')} />}
+        <BarBtn hot={hot} label={t('Partilhar')} icon="share" onPress={() => open('share')} />
       </View>
     </>
   );

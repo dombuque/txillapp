@@ -14,6 +14,7 @@ import { Avatar, bumpAvatars } from './Avatar';
 import { Icon, type IconName } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
+import { t } from '@/lib/i18n';
 
 /** Editar foto, nome, bio, cidade, link e tipo de perfil (público ou privado). */
 export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClose: () => void }) {
@@ -48,14 +49,14 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     setLocating(true);
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
-      if (!perm.granted) return setErr('Sem acesso à localização. Dá permissão ou escreve o sítio');
+      if (!perm.granted) return setErr(t('Sem acesso à localização. Dá permissão ou escreve o sítio'));
       const pos = await currentDevicePosition(false);
       const r = await api.nearbyPlaces(pos.lat, pos.lng);
       const label = [r.area, r.city].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
       if (label) setCity(label.slice(0, 40));
-      else setErr('Não consegui saber o nome do sítio. Escreve-o tu');
+      else setErr(t('Não consegui saber o nome do sítio. Escreve-o tu'));
     } catch {
-      setErr('Não consegui saber a localização. Escreve o sítio');
+      setErr(t('Não consegui saber a localização. Escreve o sítio'));
     } finally {
       setLocating(false);
     }
@@ -65,7 +66,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     setErr('');
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted && perm.canAskAgain === false) return setErr('Dá acesso às fotos nas definições do telemóvel');
+      if (!perm.granted && perm.canAskAgain === false) return setErr(t('Dá acesso às fotos nas definições do telemóvel'));
       const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
       const a = r.canceled ? null : r.assets[0];
       if (!a) return;
@@ -76,7 +77,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
       bumpAvatars();
       void qc.invalidateQueries({ queryKey: ['profile'] });
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui mudar a foto');
+      setErr((e as Error).message || t('Não consegui mudar a foto'));
     } finally {
       setPhotoBusy(false);
     }
@@ -95,7 +96,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     }
   }
   async function save() {
-    if (!displayName.trim()) return setErr('Diz-nos o teu nome');
+    if (!displayName.trim()) return setErr(t('Diz-nos o teu nome'));
     setBusy(true);
     setErr('');
     try {
@@ -132,89 +133,89 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
   );
 
   return (
-    <Sheet title="Editar perfil" onClose={onClose} full>
+    <Sheet title={t('Editar perfil')} onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 16 }}>
         <View style={{ alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => void pick()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel="Mudar foto de perfil">
+          <Pressable onPress={() => void pick()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('Mudar foto de perfil')}>
             <Avatar name={displayName || profile.displayName} username={hasPhoto ? profile.username : undefined} size={96} />
             <View style={st.cam}><Icon name="camera" size={18} color="#fff" /></View>
             {photoBusy && <View style={st.busy}><ActivityIndicator color={colors.brand} /></View>}
           </Pressable>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable onPress={() => void pick()} disabled={photoBusy} style={st.ghost}><Text style={st.ghostText}>{hasPhoto ? 'Mudar foto' : 'Pôr uma foto'}</Text></Pressable>
-            {hasPhoto && <Pressable onPress={() => void remove()} disabled={photoBusy} style={st.ghost}><Text style={st.ghostText}>Tirar foto</Text></Pressable>}
+            <Pressable onPress={() => void pick()} disabled={photoBusy} style={st.ghost}><Text style={st.ghostText}>{hasPhoto ? t('Mudar foto') : t('Pôr uma foto')}</Text></Pressable>
+            {hasPhoto && <Pressable onPress={() => void remove()} disabled={photoBusy} style={st.ghost}><Text style={st.ghostText}>{t('Tirar foto')}</Text></Pressable>}
           </View>
         </View>
 
-        <View>{label('Nome')}<TextInput value={displayName} onChangeText={setDisplayName} maxLength={60} autoComplete="name" style={st.input} accessibilityLabel="Nome" /></View>
+        <View>{label(t('Nome'))}<TextInput value={displayName} onChangeText={setDisplayName} maxLength={60} autoComplete="name" style={st.input} accessibilityLabel={t('Nome')} /></View>
         <View>
-          {label('Bio', `${bio.length}/150`, bio.length > 140)}
-          <TextInput value={bio} onChangeText={setBio} maxLength={150} multiline placeholder="Conta à malta quem és…" placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel="Bio" />
+          {label(t('Bio'), `${bio.length}/150`, bio.length > 140)}
+          <TextInput value={bio} onChangeText={setBio} maxLength={150} multiline placeholder={t('Conta à malta quem és…')} placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel={t('Bio')} />
         </View>
         <View>
-          {label('Cidade ou bairro')}
+          {label(t('Cidade ou bairro'))}
           <View>
-            <TextInput value={city} onChangeText={setCity} maxLength={40} placeholder="Maputo, Polana…" placeholderTextColor={colors.zinc500} style={[st.input, { paddingRight: 52 }]} accessibilityLabel="Cidade ou bairro" />
-            <Pressable onPress={() => void useMyLocation()} disabled={locating} hitSlop={6} style={st.locate} accessibilityRole="button" accessibilityLabel="Usar a minha localização">
+            <TextInput value={city} onChangeText={setCity} maxLength={40} placeholder={t('Maputo, Polana…')} placeholderTextColor={colors.zinc500} style={[st.input, { paddingRight: 52 }]} accessibilityLabel={t('Cidade ou bairro')} />
+            <Pressable onPress={() => void useMyLocation()} disabled={locating} hitSlop={6} style={st.locate} accessibilityRole="button" accessibilityLabel={t('Usar a minha localização')}>
               {locating ? <ActivityIndicator color={colors.brand} /> : <Icon name="locate" size={22} color={colors.brand} />}
             </Pressable>
           </View>
         </View>
-        <View>{label('Link')}<TextInput value={website} onChangeText={setWebsite} maxLength={100} placeholder="o-teu-site.com" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={st.input} accessibilityLabel="Link" /></View>
+        <View>{label(t('Link'))}<TextInput value={website} onChangeText={setWebsite} maxLength={100} placeholder="o-teu-site.com" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={st.input} accessibilityLabel={t('Link')} /></View>
         <View>
-          {label('Tipo de perfil')}
+          {label(t('Tipo de perfil'))}
           <View style={{ flexDirection: 'row', gap: 12 }} accessibilityRole="radiogroup">
-            {option(false, 'globe', 'Público', 'Qualquer pessoa vê as tuas publicações e mimos e pode seguir-te.')}
-            {option(true, 'lock', 'Privado', 'Só vê quem aprovares. Seguir passa a ser um pedido.')}
+            {option(false, 'globe', t('Público'), t('Qualquer pessoa vê as tuas publicações e mimos e pode seguir-te.'))}
+            {option(true, 'lock', t('Privado'), t('Só vê quem aprovares. Seguir passa a ser um pedido.'))}
           </View>
-          {profile.isPrivate && !isPrivate && <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc600 }}>Ao passar a público, os pedidos pendentes são aceites.</Text>}
+          {profile.isPrivate && !isPrivate && <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc600 }}>{t('Ao passar a público, os pedidos pendentes são aceites.')}</Text>}
         </View>
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Icon name="snowflake" size={16} color="#0284c7" />
-            <Text style={st.label}>A minha geleira · quem vê</Text>
+            <Text style={st.label}>{t('A minha geleira · quem vê')}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole="radiogroup">
-            {([['everyone', 'globe', 'Todos'], ['followers', 'users', 'Seguidores'], ['close_friends', 'heart', 'Amigos próximos'], ['me', 'lock', 'Só eu']] as const).map(([v, ic, text]) => (
+            {([['everyone', 'globe', t('Todos')], ['followers', 'users', t('Seguidores')], ['close_friends', 'heart', t('Amigos próximos')], ['me', 'lock', t('Só eu')]] as const).map(([v, ic, text]) => (
               <Pressable key={v} onPress={() => setGVis(v)} disabled={gVis === null} accessibilityRole="radio" accessibilityState={{ checked: gVis === v, disabled: gVis === null }} style={[st.gopt, gVis === v && { borderColor: colors.brand, backgroundColor: colors.rose50 }, gVis === null && { opacity: 0.5 }]}>
                 <Icon name={ic} size={18} />
                 <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{text}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={{ marginTop: 6, fontSize: 12, color: colors.zinc600 }}>A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.</Text>
+          <Text style={{ marginTop: 6, fontSize: 12, color: colors.zinc600 }}>{t('A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.')}</Text>
           {gPub !== null && (
             <View style={st.gswitch}>
               <Icon name="cheers" size={20} color={colors.amber600} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Mostrar quem brindou a minha geleira</Text>
-                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>Quem pode ver a tua geleira passa a ver quem a brindou.</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>{t('Mostrar quem brindou a minha geleira')}</Text>
+                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>{t('Quem pode ver a tua geleira passa a ver quem a brindou.')}</Text>
               </View>
-              <Switch value={gPub} onValueChange={setGPub} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar quem brindou a minha geleira" />
+              <Switch value={gPub} onValueChange={setGPub} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Mostrar quem brindou a minha geleira')} />
             </View>
           )}
           {gBook !== null && (
             <View style={st.gswitch}>
               <Icon name="beer" size={20} color={colors.amber600} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Mostrar o livro das geladas a quem vê a geleira</Text>
-                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>Desligado, cada pessoa só vê o que há entre vocês os dois.</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>{t('Mostrar o livro das geladas a quem vê a geleira')}</Text>
+                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>{t('Desligado, cada pessoa só vê o que há entre vocês os dois.')}</Text>
               </View>
-              <Switch value={gBook} onValueChange={setGBook} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar o livro das geladas a quem vê a geleira" />
+              <Switch value={gBook} onValueChange={setGBook} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Mostrar o livro das geladas a quem vê a geleira')} />
             </View>
           )}
           <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="button">
             <View style={st.gicon}><Icon name="snowflake" size={22} color="#fff" /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Escolher os meus gostos</Text>
-              <Text style={{ fontSize: 14, color: colors.zinc600 }}>Ambientes, bebidas, comidas e sítios de que gostas.</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{t('Escolher os meus gostos')}</Text>
+              <Text style={{ fontSize: 14, color: colors.zinc600 }}>{t('Ambientes, bebidas, comidas e sítios de que gostas.')}</Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.zinc500} />
           </Pressable>
         </View>
         <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text>
         <Pressable onPress={() => void save()} disabled={busy || photoBusy} style={({ pressed }) => [st.save, (busy || photoBusy) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.saveText}>Guardar</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.saveText}>{t('Guardar')}</Text>}
         </Pressable>
       </ScrollView>
     </Sheet>
@@ -232,10 +233,10 @@ export function RequestsSheet({ username, onClose }: { username: string; onClose
   }
   const list = q.data ?? [];
   return (
-    <Sheet title="Pedidos para seguir" onClose={onClose}>
+    <Sheet title={t('Pedidos para seguir')} onClose={onClose}>
       <ScrollView style={{ maxHeight: 420 }}>
         {q.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
-        {q.isSuccess && list.length === 0 && <Text style={{ textAlign: 'center', color: colors.zinc600, paddingVertical: 32, fontSize: 16 }}>Sem pedidos pendentes</Text>}
+        {q.isSuccess && list.length === 0 && <Text style={{ textAlign: 'center', color: colors.zinc600, paddingVertical: 32, fontSize: 16 }}>{t('Sem pedidos pendentes')}</Text>}
         {list.map((r) => (
           <View key={r.username} style={st.req}>
             <Avatar name={r.displayName} username={r.username} size={44} />
@@ -243,8 +244,8 @@ export function RequestsSheet({ username, onClose }: { username: string; onClose
               <NameWithBadge name={r.displayName} who={r} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{r.username}</Text>
             </View>
-            <Pressable onPress={() => void answer(r.username, true)} style={st.accept} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Aceitar</Text></Pressable>
-            <Pressable onPress={() => void answer(r.username, false)} style={st.decline} accessibilityRole="button"><Text style={{ fontWeight: '600', fontSize: 14, color: colors.zinc900 }}>Recusar</Text></Pressable>
+            <Pressable onPress={() => void answer(r.username, true)} style={st.accept} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>{t('Aceitar')}</Text></Pressable>
+            <Pressable onPress={() => void answer(r.username, false)} style={st.decline} accessibilityRole="button"><Text style={{ fontWeight: '600', fontSize: 14, color: colors.zinc900 }}>{t('Recusar')}</Text></Pressable>
           </View>
         ))}
       </ScrollView>

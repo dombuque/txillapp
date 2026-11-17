@@ -12,12 +12,13 @@ import { isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { reelMounted } from '@/lib/videoMemory';
+import { t } from '@/lib/i18n';
 
 /**
  * Abre uma publicação do Explorar em ecrã inteiro (não numa folha), como no site.
  * Tcheka: desliza-se para cima para a seguinte. Foto, carrossel ou texto: só aquela publicação.
  */
-export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: { items: Post[]; startId: string; onClose: () => void; title?: string }) {
+export function ExploreViewer({ items, startId, onClose, title = t('Explorar') }: { items: Post[]; startId: string; onClose: () => void; title?: string }) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
   const { user } = useAuth();
@@ -101,7 +102,7 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
               )}
             />
             <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
-              <Pressable onPress={onClose} style={st.topBtn} accessibilityRole="button" accessibilityLabel="Voltar ao Explorar"><Icon name="back" size={24} color="#fff" /></Pressable>
+              <Pressable onPress={onClose} style={st.topBtn} accessibilityRole="button" accessibilityLabel={t('Voltar ao Explorar')}><Icon name="back" size={24} color="#fff" /></Pressable>
               <Text style={st.topTitle}>{title}</Text>
               <View style={{ width: 44, height: 44 }} />
             </View>
@@ -116,8 +117,8 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
       {swipeBack(<View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576, backgroundColor: colors.white }}>
           <View style={st.header}>
-            <Pressable onPress={onClose} style={st.back} accessibilityRole="button" accessibilityLabel="Voltar ao Explorar"><Icon name="back" size={24} /></Pressable>
-            <Text style={st.title}>Publicação</Text>
+            <Pressable onPress={onClose} style={st.back} accessibilityRole="button" accessibilityLabel={t('Voltar ao Explorar')}><Icon name="back" size={24} /></Pressable>
+            <Text style={st.title}>{t('Publicação')}</Text>
           </View>
           <ScrollView style={{ flex: 1, backgroundColor: colors.canvas }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}>
             {list.map((p) => <PostCard key={p.id} post={p} me={user?.id} />)}

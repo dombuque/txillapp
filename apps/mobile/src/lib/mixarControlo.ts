@@ -5,16 +5,17 @@
  */
 import type { MixarTopic } from './api.mixar';
 import type { MixarLessResult, MixarShareTo, MixarTopics, MixarWeek } from './api.mixarControlo';
+import { t } from '@/lib/i18n';
 
 /* ---------- Afinar os temas ---------- */
 
 /** O texto da ação de tirar um tema. */
-export const offActionText = (label: string) => `Não quero «${label}» no nosso Mixar`;
+export const offActionText = (label: string) => t('Não quero «{label}» no nosso Mixar', { label });
 
 /** O aviso depois de «Menos disto». */
 export function lessToast(r: Pick<MixarLessResult, 'topic' | 'author'>): string {
   const who = `@${r.author.username}`;
-  return r.topic ? `Vais ver menos de ${r.topic.label} e de ${who} neste Mixar` : `Vais ver menos de ${who} neste Mixar`;
+  return r.topic ? t('Vais ver menos de {label} e de {who} neste Mixar', { label: r.topic.label, who }) : t('Vais ver menos de {who} neste Mixar', { who });
 }
 
 export type TopicRowAction = 'restore' | 'normal' | 'off' | 'none';
@@ -32,30 +33,30 @@ export interface TopicSections { off: TopicRow[]; less: TopicRow[]; rest: TopicR
  * A folha «Temas do Mixar»: os tirados (os meus voltam a pôr-se; os do outro só se mostram), os que têm «menos» e os
  * outros (primeiro os deste Mixar: em comum, só meus, só do outro; depois o catálogo). Nada se repete.
  */
-export function topicSections(t: MixarTopics | null | undefined, mixar: { common?: MixarTopic[]; onlyMe?: MixarTopic[]; onlyThem?: MixarTopic[] } | null | undefined, partner: string): TopicSections {
+export function topicSections(tv: MixarTopics | null | undefined, mixar: { common?: MixarTopic[]; onlyMe?: MixarTopic[]; onlyThem?: MixarTopic[] } | null | undefined, partner: string): TopicSections {
   const out: TopicSections = { off: [], less: [], rest: [] };
-  if (!t) return out;
+  if (!tv) return out;
   const used = new Set<string>();
-  for (const m of t.mine.filter((x) => x.mode === 'off')) {
+  for (const m of tv.mine.filter((x) => x.mode === 'off')) {
     used.add(m.topic);
-    out.off.push({ topic: m.topic, label: m.label, line: 'Tiraste do vosso Mixar', action: 'restore', button: 'Voltar a pôr' });
+    out.off.push({ topic: m.topic, label: m.label, line: t('Tiraste do vosso Mixar'), action: 'restore', button: t('Voltar a pôr') });
   }
-  for (const m of t.theirsOff) {
+  for (const m of tv.theirsOff) {
     if (used.has(m.topic)) continue;
     used.add(m.topic);
-    out.off.push({ topic: m.topic, label: m.label, line: `${partner} tirou do vosso Mixar`, action: 'none', button: '' });
+    out.off.push({ topic: m.topic, label: m.label, line: t('{partner} tirou do vosso Mixar', { partner }), action: 'none', button: '' });
   }
-  for (const m of t.mine.filter((x) => x.mode === 'less')) {
+  for (const m of tv.mine.filter((x) => x.mode === 'less')) {
     if (used.has(m.topic)) continue;
     used.add(m.topic);
-    out.less.push({ topic: m.topic, label: m.label, line: 'Aparece menos neste Mixar', action: 'normal', button: 'Voltar ao normal' });
+    out.less.push({ topic: m.topic, label: m.label, line: t('Aparece menos neste Mixar'), action: 'normal', button: t('Voltar ao normal') });
   }
-  const lines: [MixarTopic[] | undefined, string][] = [[mixar?.common, 'Em comum'], [mixar?.onlyMe, 'Do teu gosto'], [mixar?.onlyThem, `Do gosto de ${partner}`], [t.all, '']];
+  const lines: [MixarTopic[] | undefined, string][] = [[mixar?.common, t('Em comum')], [mixar?.onlyMe, t('Do teu gosto')], [mixar?.onlyThem, t('Do gosto de {partner}', { partner })], [tv.all, '']];
   for (const [list, line] of lines) {
     for (const m of list ?? []) {
       if (used.has(m.topic)) continue;
       used.add(m.topic);
-      out.rest.push({ topic: m.topic, label: m.label, line, action: 'off', button: 'Tirar' });
+      out.rest.push({ topic: m.topic, label: m.label, line, action: 'off', button: t('Tirar') });
     }
   }
   return out;
@@ -70,7 +71,7 @@ export function togglePrivate(list: readonly string[], topic: string, on: boolea
 }
 
 /** «Nenhum» / «1 tema» / «3 temas» (na linha das definições). */
-export const privateCountLabel = (n: number) => (n <= 0 ? 'Nenhum' : n === 1 ? '1 tema' : `${n} temas`);
+export const privateCountLabel = (n: number) => (n <= 0 ? t('Nenhum') : t('{count} tema', { count: n, other: '{count} temas' }));
 
 /* ---------- Resumo da semana ---------- */
 
@@ -93,29 +94,29 @@ export function withWeekPage<P extends { kind: string; key: string }>(pages: rea
 /** Os números do cartão (os mesmos textos da imagem desenhada no servidor, mixar-week-card.ts). */
 export function weekStats(w: Pick<MixarWeek, 'streak' | 'challenge' | 'videos'>): { key: 'streak' | 'challenge' | 'videos'; value: string; label: string }[] {
   return [
-    { key: 'streak', value: String(w.streak), label: w.streak === 1 ? 'dia de série' : 'dias de série' },
+    { key: 'streak', value: String(w.streak), label: w.streak === 1 ? t('dia de série') : t('dias de série') },
     w.challenge.played > 0
-      ? { key: 'challenge', value: `${w.challenge.matches} de ${w.challenge.played}`, label: 'acertos no Mixa Challenge' }
-      : { key: 'challenge', value: '0', label: 'desafios jogados' },
-    { key: 'videos', value: String(w.videos), label: w.videos === 1 ? 'vídeo visto esta semana' : 'vídeos vistos esta semana' },
+      ? { key: 'challenge', value: `${w.challenge.matches} de ${w.challenge.played}`, label: t('acertos no Mixa Challenge') }
+      : { key: 'challenge', value: '0', label: t('desafios jogados') },
+    { key: 'videos', value: String(w.videos), label: w.videos === 1 ? t('vídeo visto esta semana') : t('vídeos vistos esta semana') },
   ];
 }
 
 /** A frase de baixo do cartão. */
 export function weekLine(w: Pick<MixarWeek, 'together' | 'challenge'>, partner: string): string {
-  if (w.challenge.played > 0 && w.challenge.matches === w.challenge.played) return `Tu e ${partner} escolheram sempre o mesmo. Que sintonia!`;
-  if (w.together > 0) return w.together === 1 ? `Viram 1 vídeo os dois.` : `Viram ${w.together} vídeos os dois.`;
-  return 'Reajam e joguem o Mixa Challenge para a semana ficar cheia.';
+  if (w.challenge.played > 0 && w.challenge.matches === w.challenge.played) return t('Tu e {partner} escolheram sempre o mesmo. Que sintonia!', { partner });
+  if (w.together > 0) return t('Viram {count} vídeo os dois.', { count: w.together, other: 'Viram {count} vídeos os dois.' });
+  return t('Reajam e joguem o Mixa Challenge para a semana ficar cheia.');
 }
 
 /** Depois de partilhar. */
-export const shareDoneText = (to: MixarShareTo) => (to === 'zas' ? 'Está no teu Zás' : 'Está nos teus mimos');
+export const shareDoneText = (to: MixarShareTo) => (to === 'zas' ? t('Está no teu Zás') : t('Está nos teus mimos'));
 
 /** O texto de um erro ao partilhar. */
 export function shareErrorText(e: unknown): string {
   const status = (e as { status?: number } | null)?.status;
-  if (status === 403) return 'Confirma o teu email para partilhar.';
-  if (status === 429) return 'Partilhaste muitas vezes seguidas. Espera um bocadinho.';
-  if (status === 404) return 'Este Mixar já não existe.';
-  return 'Não consegui partilhar agora. Tenta outra vez.';
+  if (status === 403) return t('Confirma o teu email para partilhar.');
+  if (status === 429) return t('Partilhaste muitas vezes seguidas. Espera um bocadinho.');
+  if (status === 404) return t('Este Mixar já não existe.');
+  return t('Não consegui partilhar agora. Tenta outra vez.');
 }

@@ -17,6 +17,7 @@ import { colors } from '@/lib/theme';
 import { usePurchases } from '@/lib/purchases';
 import { timeAgo } from '@/lib/time';
 import { ConfirmSheet, ErrText, Field, Pill, Section, VenuePickerSheet } from './GroupParts';
+import { t } from '@/lib/i18n';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const intOf = (t: string) => {
@@ -47,8 +48,8 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
   if (!q.data) {
     return (
       <View style={st.center}>
-        <Text style={st.muted}>{(q.error as Error | null)?.message || 'Não consegui abrir as vibes do TxillGroup.'}</Text>
-        <Pill label="Tentar outra vez" kind="soft" small onPress={() => void q.refetch()} style={{ marginTop: 12 }} />
+        <Text style={st.muted}>{(q.error as Error | null)?.message || t('Não consegui abrir as vibes do TxillGroup.')}</Text>
+        <Pill label={t('Tentar outra vez')} kind="soft" small onPress={() => void q.refetch()} style={{ marginTop: 12 }} />
       </View>
     );
   }
@@ -61,41 +62,41 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.zinc50 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
       <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
-        <Text style={st.heroLabel}>Vibes do TxillGroup</Text>
+        <Text style={st.heroLabel}>{t('Vibes do TxillGroup')}</Text>
         <Text style={st.heroValue}>{pot.balance.toLocaleString('pt-PT')}</Text>
         {pot.goal ? (
           <View style={{ marginTop: 10 }}>
             <View style={st.track}><View style={[st.fill, { width: `${pct}%` }]} /></View>
-            <Text style={st.heroSub}>{pct}% da meta de {txills(pot.goal)}{pot.balance >= pot.goal ? ' · meta batida!' : ` · faltam ${(pot.goal - pot.balance).toLocaleString('pt-PT')}`}</Text>
+            <Text style={st.heroSub}>{t('{pct}% da meta de {txills}', { pct, txills: txills(pot.goal) })}{pot.balance >= pot.goal ? (' ' + t('· meta batida!')) : (' ' + t('· faltam {n}', { n: (pot.goal - pot.balance).toLocaleString('pt-PT') }))}</Text>
           </View>
         ) : (
-          <Text style={st.heroSub}>{admin ? 'Sem meta. Põe uma para a malta saber até onde vai.' : 'Sem meta definida.'}</Text>
+          <Text style={st.heroSub}>{admin ? t('Sem meta. Põe uma para a malta saber até onde vai.') : t('Sem meta definida.')}</Text>
         )}
-        {mine > 0 && <Text style={[st.heroSub, { marginTop: 4 }]}>Já meteste {txills(mine)}</Text>}
-        <Pill label="Meter vibes" icon="plus" kind="soft" onPress={() => setSheet('contribute')} style={{ marginTop: 14, backgroundColor: '#fff' }} />
+        {mine > 0 && <Text style={[st.heroSub, { marginTop: 4 }]}>{t('Já meteste {txills}', { txills: txills(mine) })}</Text>}
+        <Pill label={t('Meter vibes')} icon="plus" kind="soft" onPress={() => setSheet('contribute')} style={{ marginTop: 14, backgroundColor: '#fff' }} />
       </LinearGradient>
 
-      <Section title="Para onde vão" icon="store" style={{ marginTop: 14 }} action={admin ? <Pill label={pot.venue ? 'Trocar' : 'Escolher'} kind="soft" small onPress={() => setSheet('venue')} /> : undefined}>
+      <Section title={t('Para onde vão')} icon="store" style={{ marginTop: 14 }} action={admin ? <Pill label={pot.venue ? t('Trocar') : t('Escolher')} kind="soft" small onPress={() => setSheet('venue')} /> : undefined}>
         {pot.venue ? (
           <VenueLine venue={pot.venue} onPress={() => router.push(`/v/${pot.venue!.slug}` as never)} />
         ) : (
-          <Text style={st.muted}>{admin ? 'Escolhe o local (que aceite vibes) onde a malta vai gastar a vaquinha.' : 'Ainda sem local escolhido.'}</Text>
+          <Text style={st.muted}>{admin ? t('Escolhe o local (que aceite vibes) onde a malta vai gastar a vaquinha.') : t('Ainda sem local escolhido.')}</Text>
         )}
       </Section>
 
       {admin && (
-        <Section title="Gerir" icon="settings">
+        <Section title={t('Gerir')} icon="settings">
           <View style={{ gap: 8 }}>
-            <Pill label={pot.goal ? `Mudar a meta · ${txills(pot.goal)}` : 'Pôr uma meta'} kind="soft" icon="flag" onPress={() => setSheet('goal')} />
-            <Pill label="Pagar ao local" icon="wallet" disabled={!pot.venue || pot.balance <= 0} onPress={() => setSheet('pay')} />
-            {!pot.venue && <Text style={st.muted}>Para pagar, escolhe primeiro o local.</Text>}
-            <Pill label="Devolver tudo a quem meteu" kind="danger" icon="undo" disabled={pot.balance <= 0} onPress={() => setSheet('refund')} />
+            <Pill label={pot.goal ? t('Mudar a meta · {txills}', { txills: txills(pot.goal) }) : t('Pôr uma meta')} kind="soft" icon="flag" onPress={() => setSheet('goal')} />
+            <Pill label={t('Pagar ao local')} icon="wallet" disabled={!pot.venue || pot.balance <= 0} onPress={() => setSheet('pay')} />
+            {!pot.venue && <Text style={st.muted}>{t('Para pagar, escolhe primeiro o local.')}</Text>}
+            <Pill label={t('Devolver tudo a quem meteu')} kind="danger" icon="undo" disabled={pot.balance <= 0} onPress={() => setSheet('refund')} />
           </View>
         </Section>
       )}
 
       {ranking.length > 0 && (
-        <Section title="Quem já meteu" icon="users">
+        <Section title={t('Quem já meteu')} icon="users">
           {ranking.map((m) => (
             <View key={m.username} style={st.row}>
               <Avatar name={m.displayName} username={m.username} size={36} />
@@ -107,12 +108,12 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
       )}
 
       {pot.payments.length > 0 && (
-        <Section title="Pagamentos" icon="wallet">
+        <Section title={t('Pagamentos')} icon="wallet">
           {pot.payments.map((p, i) => (
             <View key={`${p.at}-${i}`} style={st.row}>
               <View style={st.payIcon}><Icon name="store" size={16} color={colors.zinc700} /></View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.rowName} numberOfLines={1}>{p.venue?.name ?? 'Local'}</Text>
+                <Text style={st.rowName} numberOfLines={1}>{p.venue?.name ?? t('Local')}</Text>
                 <Text style={st.muted} numberOfLines={1}>{[p.note, p.by ? `por ${p.by.username === me ? 'ti' : p.by.displayName}` : null, timeAgo(p.at)].filter(Boolean).join(' · ')}</Text>
               </View>
               <Text style={[st.amount, { color: colors.red600 }]}>-{p.amount.toLocaleString('pt-PT')}</Text>
@@ -121,9 +122,9 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
         </Section>
       )}
 
-      <Section title="Movimentos" icon="clock">
+      <Section title={t('Movimentos')} icon="clock">
         {!pot.contributions.length ? (
-          <Text style={st.muted}>Ainda ninguém meteu vibes. Abre tu a vaquinha.</Text>
+          <Text style={st.muted}>{t('Ainda ninguém meteu vibes. Abre tu a vaquinha.')}</Text>
         ) : pot.contributions.map((c, i) => (
           <View key={`${c.at}-${c.username}-${i}`} style={st.row}>
             <Avatar name={c.displayName} username={c.username} size={32} />
@@ -138,7 +139,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
           <View key={`r-${r.at}-${i}`} style={st.row}>
             <View style={st.payIcon}><Icon name="undo" size={16} color={colors.zinc700} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.rowName} numberOfLines={1}>Devolução a quem meteu</Text>
+              <Text style={st.rowName} numberOfLines={1}>{t('Devolução a quem meteu')}</Text>
               <Text style={st.muted}>{[r.by ? `por ${r.by.username === me ? 'ti' : r.by.displayName}` : null, timeAgo(r.at)].filter(Boolean).join(' · ')}</Text>
             </View>
             <Text style={[st.amount, { color: colors.zinc600 }]}>-{r.amount.toLocaleString('pt-PT')}</Text>
@@ -148,11 +149,11 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
 
       {sheet === 'contribute' && <ContributeSheet groupId={groupId} onClose={() => setSheet(null)} onDone={refresh} />}
       {sheet === 'goal' && <GoalSheet groupId={groupId} goal={pot.goal} onClose={() => setSheet(null)} onDone={refresh} />}
-      {sheet === 'venue' && <VenuePickerSheet title="Local da vaquinha" txillsOnly onPick={(v) => setVenuePick(v)} onClose={() => setSheet(null)} />}
+      {sheet === 'venue' && <VenuePickerSheet title={t('Local da vaquinha')} txillsOnly onPick={(v) => setVenuePick(v)} onClose={() => setSheet(null)} />}
       {venuePick && (
         <ConfirmSheet
-          title={`Usar ${venuePick.name} na vaquinha?`}
-          lines={[pot.venue ? `As vibes do TxillGroup passam a ser para ${venuePick.name} em vez de ${pot.venue.name}. Toda a malta vê a mudança.` : `As vibes do TxillGroup passam a ser para ${venuePick.name}. Toda a malta vê o local escolhido.`]}
+          title={t('Usar {name} na vaquinha?', { name: venuePick.name })}
+          lines={[pot.venue ? t('As vibes do TxillGroup passam a ser para {name} em vez de {name2}. Toda a malta vê a mudança.', { name: venuePick.name, name2: pot.venue.name }) : t('As vibes do TxillGroup passam a ser para {name}. Toda a malta vê o local escolhido.', { name: venuePick.name })]}
           onConfirm={async () => { await groupsApi.setPot(groupId, { venueSlug: venuePick.slug }); refresh(); }}
           onClose={() => setVenuePick(null)}
         />
@@ -205,22 +206,22 @@ function ContributeSheet({ groupId, onClose, onDone }: { groupId: string; onClos
   }
   if (done) {
     return (
-      <Sheet title="Feito" onClose={onClose}>
+      <Sheet title={t('Feito')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24, alignItems: 'center', gap: 8 }}>
           <View style={st.okIcon}><Icon name="check" size={30} strokeWidth={3} color="#fff" /></View>
-          <Text style={st.big}>{txills(value)} na vaquinha</Text>
-          <Text style={[st.muted, { textAlign: 'center' }]}>A malta já vê. Obrigado por puxares pela malta.</Text>
-          <Pill label="Fechar" onPress={onClose} style={{ alignSelf: 'stretch', marginTop: 8 }} />
+          <Text style={st.big}>{t('{txills} na vaquinha', { txills: txills(value) })}</Text>
+          <Text style={[st.muted, { textAlign: 'center' }]}>{t('A malta já vê. Obrigado por puxares pela malta.')}</Text>
+          <Pill label={t('Fechar')} onPress={onClose} style={{ alignSelf: 'stretch', marginTop: 8 }} />
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet title="Meter vibes" onClose={onClose}>
+    <Sheet title={t('Meter vibes')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         <View style={st.walletRow}>
           <Icon name="wallet" size={18} color={colors.zinc700} />
-          <Text style={{ flex: 1, fontSize: 15, color: colors.zinc700 }}>Na tua carteira</Text>
+          <Text style={{ flex: 1, fontSize: 15, color: colors.zinc700 }}>{t('Na tua carteira')}</Text>
           <Text style={st.amount}>{balance == null ? (wallet.isLoading ? '…' : '?') : txills(balance)}</Text>
         </View>
         {!confirm ? (
@@ -235,21 +236,21 @@ function ContributeSheet({ groupId, onClose, onDone }: { groupId: string; onClos
                 );
               })}
             </View>
-            <Field value={custom} onChangeText={(t) => setCustom(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={7} placeholder="Outro valor" accessibilityLabel="Outro valor em vibes" />
-            {short && <Text style={[st.muted, { color: colors.red600 }]}>{purchases.buyTxills ? 'Não tens vibes suficientes. Carrega a carteira primeiro.' : 'Não tens vibes suficientes.'}</Text>}
-            {tooSmall && <Text style={st.muted}>O mínimo são 10 vibes.</Text>}
+            <Field value={custom} onChangeText={(t) => setCustom(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={7} placeholder={t('Outro valor')} accessibilityLabel={t('Outro valor em vibes')} />
+            {short && <Text style={[st.muted, { color: colors.red600 }]}>{purchases.buyTxills ? t('Não tens vibes suficientes. Carrega a carteira primeiro.') : t('Não tens vibes suficientes.')}</Text>}
+            {tooSmall && <Text style={st.muted}>{t('O mínimo são 10 vibes.')}</Text>}
             <ErrText text={err} />
-            <Pill label={value ? `Meter ${txills(value)}` : 'Escolhe um valor'} disabled={!value || short || tooSmall || value > 100000} onPress={() => setConfirm(true)} />
+            <Pill label={value ? t('Meter {txills}', { txills: txills(value) }) : t('Escolhe um valor')} disabled={!value || short || tooSmall || value > 100000} onPress={() => setConfirm(true)} />
 
           </>
         ) : (
           <>
-            <Text style={st.big}>Meter {txills(value)}?</Text>
-            <Text style={st.muted}>Saem da tua carteira para a vaquinha do TxillGroup. Só quem administra pode pagar ao local ou devolver.</Text>
+            <Text style={st.big}>{t('Meter {txills}?', { txills: txills(value) })}</Text>
+            <Text style={st.muted}>{t('Saem da tua carteira para a vaquinha do TxillGroup. Só quem administra pode pagar ao local ou devolver.')}</Text>
             <ErrText text={err} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pill label="Voltar" kind="ghost" onPress={() => setConfirm(false)} />
-              <Pill label="Confirmar" busy={busy} onPress={() => void go()} style={{ flex: 1 }} />
+              <Pill label={t('Voltar')} kind="ghost" onPress={() => setConfirm(false)} />
+              <Pill label={t('Confirmar')} busy={busy} onPress={() => void go()} style={{ flex: 1 }} />
             </View>
           </>
         )}
@@ -275,13 +276,13 @@ function GoalSheet({ groupId, goal, onClose, onDone }: { groupId: string; goal: 
     }
   }
   return (
-    <Sheet title="Meta da vaquinha" onClose={onClose}>
+    <Sheet title={t('Meta da vaquinha')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <Field value={text} onChangeText={(t) => setText(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} autoFocus placeholder="Quantas vibes?" accessibilityLabel="Meta em vibes" />
+        <Field value={text} onChangeText={(t) => setText(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} autoFocus placeholder={t('Quantas vibes?')} accessibilityLabel={t('Meta em vibes')} />
         <ErrText text={err} />
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {goal ? <Pill label="Tirar a meta" kind="ghost" disabled={busy} onPress={() => void save(null)} /> : null}
-          <Pill label="Guardar" busy={busy} disabled={!intOf(text)} onPress={() => void save(intOf(text))} style={{ flex: 1 }} />
+          {goal ? <Pill label={t('Tirar a meta')} kind="ghost" disabled={busy} onPress={() => void save(null)} /> : null}
+          <Pill label={t('Guardar')} busy={busy} disabled={!intOf(text)} onPress={() => void save(intOf(text))} style={{ flex: 1 }} />
         </View>
       </View>
     </Sheet>
@@ -312,25 +313,25 @@ function PaySheet({ groupId, pot, venue, onClose, onDone }: { groupId: string; p
     }
   }
   return (
-    <Sheet title={`Pagar a ${venue.name}`} onClose={onClose}>
+    <Sheet title={t('Pagar a {name}', { name: venue.name })} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         {!confirm ? (
           <>
-            <Text style={st.muted}>Na vaquinha: {txills(pot.balance)}</Text>
-            <Field value={text} onChangeText={(t) => setText(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} placeholder="Quantas vibes?" accessibilityLabel="Valor a pagar em vibes" />
-            <Field value={note} onChangeText={setNote} maxLength={120} placeholder="Nota · ex.: Mesa de fim de ano" accessibilityLabel="Nota do pagamento" />
-            {over && <Text style={[st.muted, { color: colors.red600 }]}>A vaquinha não tem tanto.</Text>}
+            <Text style={st.muted}>{t('Na vaquinha: {txills}', { txills: txills(pot.balance) })}</Text>
+            <Field value={text} onChangeText={(t) => setText(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} placeholder={t('Quantas vibes?')} accessibilityLabel={t('Valor a pagar em vibes')} />
+            <Field value={note} onChangeText={setNote} maxLength={120} placeholder={t('Nota · ex.: Mesa de fim de ano')} accessibilityLabel={t('Nota do pagamento')} />
+            {over && <Text style={[st.muted, { color: colors.red600 }]}>{t('A vaquinha não tem tanto.')}</Text>}
             <ErrText text={err} />
-            <Pill label={value ? `Pagar ${txills(value)}` : 'Escolhe um valor'} disabled={!value || over} onPress={() => setConfirm(true)} />
+            <Pill label={value ? t('Pagar {txills}', { txills: txills(value) }) : t('Escolhe um valor')} disabled={!value || over} onPress={() => setConfirm(true)} />
           </>
         ) : (
           <>
-            <Text style={st.big}>Pagar {txills(value)} a {venue.name}?</Text>
-            <Text style={st.muted}>Sai da vaquinha do TxillGroup e a malta vê o pagamento. Não dá para desfazer.</Text>
+            <Text style={st.big}>{t('Pagar {txills} a {name}?', { txills: txills(value), name: venue.name })}</Text>
+            <Text style={st.muted}>{t('Sai da vaquinha do TxillGroup e a malta vê o pagamento. Não dá para desfazer.')}</Text>
             <ErrText text={err} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pill label="Voltar" kind="ghost" onPress={() => setConfirm(false)} />
-              <Pill label="Pagar" busy={busy} onPress={() => void go()} style={{ flex: 1 }} />
+              <Pill label={t('Voltar')} kind="ghost" onPress={() => setConfirm(false)} />
+              <Pill label={t('Pagar')} busy={busy} onPress={() => void go()} style={{ flex: 1 }} />
             </View>
           </>
         )}
@@ -355,12 +356,12 @@ function RefundSheet({ groupId, balance, onClose, onDone }: { groupId: string; b
     }
   }
   return (
-    <Sheet title="Devolver as vibes?" onClose={onClose}>
+    <Sheet title={t('Devolver as vibes?')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <Text style={{ fontSize: 16, lineHeight: 22, color: colors.zinc600 }}>Os {txills(balance)} da vaquinha voltam para a carteira de cada pessoa, na parte que meteu.</Text>
+        <Text style={{ fontSize: 16, lineHeight: 22, color: colors.zinc600 }}>{t('Os {txills} da vaquinha voltam para a carteira de cada pessoa, na parte que meteu.', { txills: txills(balance) })}</Text>
         <ErrText text={err} />
-        <Pill label="Devolver" kind="danger" busy={busy} onPress={() => void go()} />
-        <Pill label="Cancelar" kind="ghost" onPress={onClose} />
+        <Pill label={t('Devolver')} kind="danger" busy={busy} onPress={() => void go()} />
+        <Pill label={t('Cancelar')} kind="ghost" onPress={onClose} />
       </View>
     </Sheet>
   );

@@ -10,6 +10,7 @@
  * folha mostra «Mostrar outra vez» (`hidden`). Silenciar e afixar ainda não existem na API: quando existirem, entram aqui.
  */
 
+import { t } from '@/lib/i18n';
 export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear' | 'mixar' | 'hide' | 'unhide';
 
 /** O que a linha precisa de saber para escolher as ações. */
@@ -48,24 +49,24 @@ const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread
 const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true, mixar: false, hide: false, unhide: false };
 
 /** O texto curto do botão que aparece ao deslizar (cabe em 84 px). */
-const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar', mixar: 'Mixar', hide: 'Esconder', unhide: 'Mostrar' };
+const SWIPE_LABEL: Record<InboxAction, string> = { get read() { return t('Lida'); }, get unread() { return t('Por ler'); }, get profile() { return t('Perfil'); }, get delete() { return t('Apagar'); }, get info() { return t('Info'); }, get leave() { return t('Sair'); }, get ttl() { return t('Temporárias'); }, get clear() { return t('Limpar'); }, mixar: 'Mixar', get hide() { return t('Esconder'); }, get unhide() { return t('Mostrar'); } };
 
 /** O texto inteiro (folha e leitor de ecrã). "Lida" de uma conversa, "lido" de um grupo. `name`: «Mixar com Ana». */
 export function actionLabel(a: InboxAction, group: boolean, name?: string): string {
   switch (a) {
-    case 'read': return group ? 'Marcar como lido' : 'Marcar como lida';
-    case 'unread': return 'Marcar como por ler';
-    case 'profile': return 'Ver perfil';
-    case 'delete': return 'Apagar conversa';
-    case 'info': return 'Info do grupo';
-    case 'leave': return 'Sair do grupo';
-    case 'ttl': return 'Mensagens temporárias';
-    case 'clear': return 'Limpar conversa';
-    case 'hide': return 'Ocultar conversa';
-    case 'unhide': return 'Mostrar outra vez';
+    case 'read': return group ? t('Marcar como lido') : t('Marcar como lida');
+    case 'unread': return t('Marcar como por ler');
+    case 'profile': return t('Ver perfil');
+    case 'delete': return t('Apagar conversa');
+    case 'info': return t('Info do grupo');
+    case 'leave': return t('Sair do grupo');
+    case 'ttl': return t('Mensagens temporárias');
+    case 'clear': return t('Limpar conversa');
+    case 'hide': return t('Ocultar conversa');
+    case 'unhide': return t('Mostrar outra vez');
     case 'mixar': {
       const first = (name ?? '').trim().split(/\s+/)[0];
-      return first ? `Mixar com ${first}` : 'Mixar';
+      return first ? t('Mixar com {first}', { first }) : 'Mixar';
     }
   }
 }
@@ -99,7 +100,7 @@ export function inboxMenu(r: InboxMenuRow): InboxAction[] {
 export function inboxMenuItems(r: InboxMenuRow): InboxMenuItem[] {
   return [
     ...inboxDeskMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group, r.name), icon: ICON[a], danger: DANGER[a] })),
-    { id: 'cancel', label: 'Cancelar', icon: 'x', danger: false },
+    { id: 'cancel', label: t('Cancelar'), icon: 'x', danger: false },
   ];
 }
 
@@ -129,7 +130,7 @@ export function inboxDeskMenuItems(r: InboxMenuRow): InboxMenuItem[] {
 export function inboxA11yActions(r: InboxMenuRow): { name: string; label: string }[] {
   const acts = inboxMenu(r);
   if (!acts.length) return [];
-  return [...acts.map((a) => ({ name: a, label: actionLabel(a, r.group) })), { name: MORE_ACTION, label: 'Mais opções' }];
+  return [...acts.map((a) => ({ name: a, label: actionLabel(a, r.group) })), { name: MORE_ACTION, label: t('Mais opções') }];
 }
 
 /**

@@ -5,6 +5,7 @@
 // As funções das ondas levam 'worklet': correm no fio da interface (Reanimated) e também em Node.
 
 /** O gradiente da marca, para as faixas sem as cores da capa. */
+import { t } from '@/lib/i18n';
 export const BRAND_GRADIENT: readonly [string, string] = ['#d6334f', '#5b1426'];
 /** As duas cores possíveis do texto sobre a capa: branco ou quase preto (o zinc-900 da app). */
 export const TEXT_LIGHT = '#ffffff';
@@ -118,17 +119,17 @@ export function soundHref(p: { sound?: unknown } | null | undefined): string | n
 }
 
 /** O artista da faixa: o nome a mostrar, se é do programa de artistas e para onde leva (o perfil, só com um @ válido). */
-export function trackArtist(t: { kind?: string; artist?: string | null; source?: string; artistUsername?: string | null }) {
-  const local = t.source === 'local';
-  const href = local && t.artistUsername && /^[a-z0-9._]{2,40}$/i.test(t.artistUsername) ? `/u/${t.artistUsername}` : null;
-  const name = t.kind === 'clip' ? 'Áudio original' : (t.artist || '').trim() || (local && t.artistUsername ? `@${t.artistUsername}` : 'Autor desconhecido');
+export function trackArtist(tv: { kind?: string; artist?: string | null; source?: string; artistUsername?: string | null }) {
+  const local = tv.source === 'local';
+  const href = local && tv.artistUsername && /^[a-z0-9._]{2,40}$/i.test(tv.artistUsername) ? `/u/${tv.artistUsername}` : null;
+  const name = tv.kind === 'clip' ? t('Áudio original') : (tv.artist || '').trim() || (local && tv.artistUsername ? `@${tv.artistUsername}` : t('Autor desconhecido'));
   return { name, local, href };
 }
 
 /** O que o leitor de ecrã diz do cartão e do selo. */
-export function musicA11yLabel(t: { kind?: string; title: string; artist?: string | null; source?: string; artistUsername?: string | null }, muted = false): string {
-  const { name } = trackArtist(t);
-  return `Música: ${t.title}, de ${name}. ${muted ? 'Sem som. ' : ''}Toca para silenciar ou ligar o som`;
+export function musicA11yLabel(tv: { kind?: string; title: string; artist?: string | null; source?: string; artistUsername?: string | null }, muted = false): string {
+  const { name } = trackArtist(tv);
+  return t('Música: {title}, de {name}. {value}Toca para silenciar ou ligar o som', { title: tv.title, name, value: muted ? (t('Sem som.') + ' ') : '' });
 }
 
 /** «♪ Título · Artista», a linha do selo. */

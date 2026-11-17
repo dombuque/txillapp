@@ -3,6 +3,7 @@
 // bloqueia a edição (esbatida, sem toques nem teclado) com o × a pedir «Cancelar a montagem?».
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -31,7 +32,7 @@ test('o botão tocar/pausar está sempre na pré-visualização (fora dos separa
   const preview = studio.indexOf('<Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay}');
   const tabs = studio.indexOf('<View style={[st.tabs');
   assert.ok(preview > 0 && tabs > preview, 'a pré-visualização vem antes dos separadores e é comum a todos');
-  const btn = studio.indexOf("accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}");
+  const btn = studio.indexOf("accessibilityLabel={playing ? t('Pausar a pré-visualização') : t('Tocar a pré-visualização')}");
   assert.ok(btn > preview && btn < tabs, 'o botão está dentro da pré-visualização');
   assert.match(studio, /<Icon name=\{playing \? 'pause' : 'play'\}/);
   assert.match(studio, /\{previewClock\(playT, playTotal\)\}/);
@@ -48,8 +49,8 @@ test('cada mudança vê-se logo, sem voltar ao início', () => {
   assert.match(studio, /e\.musicGain!\.gain\.value = musicVol; e\.origGain!\.gain\.value = origVol;/);
   // Corte, duração de uma foto e velocidade: continuam do clipe mexido; ritmo e tirar a música: do ponto de agora.
   assert.match(studio, /const edit = \(i: number, patch: \(it: Item\) => Item\) => \{ restartFrom\.current = segs\[i\]\?\.start \?\? 0;/);
-  assert.match(studio, /'Ao ritmo', \(\) => \{ restartFrom\.current = nowT\(\);/);
-  assert.match(studio, /'Manual', \(\) => \{ restartFrom\.current = nowT\(\);/);
+  assert.match(studio, /t\('Ao ritmo'\), \(\) => \{ restartFrom\.current = nowT\(\);/);
+  assert.match(studio, /t\('Manual'\), \(\) => \{ restartFrom\.current = nowT\(\);/);
   assert.match(studio, /restartFrom\.current = nowT\(\); setMusic\(null\);/);
   assert.doesNotMatch(studio, /restartFrom\.current = 0; set(Rhythm|Music)/, 'nenhuma mudança manda para o início');
   // Ao recomeçar segue o estado (a tocar ou em pausa).
@@ -110,8 +111,8 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
 });
 
 test('o × durante a montagem pede confirmação; cancelar ou falhar volta à edição sem perder nada', () => {
-  assert.match(studio, /Alert\.alert\('Cancelar a montagem\?'/);
-  assert.match(studio, /\{ text: 'Cancelar a montagem', style: 'destructive', onPress: cancelBuild \}/);
+  assert.match(studio, /Alert\.alert\(t\('Cancelar a montagem\?'\)/);
+  assert.match(studio, /\{ text: t\('Cancelar a montagem'\), style: 'destructive', onPress: cancelBuild \}/);
   assert.match(studio, /function cancelBuild\(\) \{ if \(progressRef\.current === null\) return; cancelled\.current = true; gen\.current \+= 1; \}/);
   // Depois: a montagem acaba (progress volta a null, a edição fica ativa) e o que se editou fica (o estado não muda).
   assert.match(studio, /if \(cancelled\.current\) \{ cancelled\.current = false; play\(0\); return; \}/);

@@ -11,6 +11,7 @@ import { useDesktop } from '@/lib/desktop';
 import { emitTabPress } from '@/lib/tabPress';
 import { Avatar } from './Avatar';
 import { Icon, type IconName } from './Icon';
+import { t } from '@/lib/i18n';
 
 const badge = (n: number) => (n > 9 ? '9+' : String(n));
 
@@ -59,7 +60,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
                 }}
                 style={({ pressed }) => [styles.plus, { backgroundColor: focused ? colors.green600 : colors.white, transform: [{ scale: pressed ? 0.9 : 1 }] }]}
                 accessibilityRole="button"
-                accessibilityLabel="Nova publicação"
+                accessibilityLabel={t('Nova publicação')}
               >
                 <Icon name="square-plus" size={38} strokeWidth={2.2} color={focused ? colors.white : colors.green600} />
               </Pressable>
@@ -82,7 +83,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
                 }}
                 style={styles.tab}
                 accessibilityRole="button"
-                accessibilityLabel="Perfil (toca duas vezes para trocar de conta)"
+                accessibilityLabel={t('Perfil (toca duas vezes para trocar de conta)')}
               >
                 <View style={[styles.ava, { borderColor: focused ? ink : 'transparent' }]}>
                   <Avatar name={user?.displayName ?? '?'} username={user?.username} size={26} />
@@ -91,7 +92,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
             );
           }
           const icon: IconName = r.name === 'index' ? 'home' : r.name === 'reels' ? 'film' : 'messages';
-          const label = r.name === 'index' ? 'Início' : r.name === 'reels' ? 'Tcheka' : 'Mensagens';
+          const label = r.name === 'index' ? 'Início' : r.name === 'reels' ? 'Tcheka' : t('Mensagens');
           return (
             <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel={label}>
               <View>

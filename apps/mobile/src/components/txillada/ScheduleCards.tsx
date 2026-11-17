@@ -13,6 +13,7 @@ import { navTap } from '@/lib/tapGuard';
 import { colors } from '@/lib/theme';
 import { fmtShort, fmtSoon, remindersShort, scheduleRoute, type NextTxillada, type ScheduledTxillada } from '@/lib/txilladaSchedule';
 import { useClock, useRemindToggle } from './TxilladaSchedule';
+import { t } from '@/lib/i18n';
 
 /**
  * O cartão «Txillada agendada» do perfil (docs/txillada-agendar.md), por baixo da bio: o ícone da Txillada, o título, «Sáb.,
@@ -38,11 +39,11 @@ export function NextTxilladaCard({ username, isMe, next }: { username: string; i
         onPress={() => open(shown.id)}
         style={(s) => [st.card, (s as { hovered?: boolean }).hovered && { backgroundColor: '#ffe4e8' }, s.pressed && { opacity: 0.9 }]}
         accessibilityRole="button"
-        accessibilityLabel={`${isMe ? 'A tua Txillada agendada' : `Txillada agendada de @${username}`}: ${title ? `${title}, ` : ''}${fmtSoon(shown.startsAt, now)}`}
+        accessibilityLabel={`${isMe ? t('A tua Txillada agendada') : t('Txillada agendada de @{username}', { username })}: ${title ? `${title}, ` : ''}${fmtSoon(shown.startsAt, now)}`}
       >
         <View style={st.icon}><Icon name="txillada" size={24} color="#fff" strokeWidth={2.1} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.label} numberOfLines={1}>{isMe ? 'A tua Txillada agendada' : 'Txillada agendada'}</Text>
+          <Text style={st.label} numberOfLines={1}>{isMe ? t('A tua Txillada agendada') : t('Txillada agendada')}</Text>
           {title ? <Text style={st.title} numberOfLines={1}>{title}</Text> : null}
           <Text style={st.when} numberOfLines={1}>{fmtSoon(shown.startsAt, now)}</Text>
         </View>
@@ -52,23 +53,23 @@ export function NextTxilladaCard({ username, isMe, next }: { username: string; i
       {!isMe ? (
         <View style={{ marginTop: 8 }}>
           {shown.reminded
-            ? <Button label="Vais ser lembrado" icon="check" kind="secondary" size="sm" block onPress={() => void remind(shown.id, false)} accessibilityHint="Toca para deixares de ser lembrado" />
-            : <Button label="Lembrar-me" icon="bell" size="sm" block onPress={() => void remind(shown.id, true)} />}
+            ? <Button label={t('Vais ser lembrado')} icon="check" kind="secondary" size="sm" block onPress={() => void remind(shown.id, false)} accessibilityHint={t('Toca para deixares de ser lembrado')} />
+            : <Button label={t('Lembrar-me')} icon="bell" size="sm" block onPress={() => void remind(shown.id, true)} />}
         </View>
       ) : null}
       {isMe && items.length > 1 ? (
         <Pressable onPress={() => setAll(true)} hitSlop={8} style={st.all} accessibilityRole="button">
-          <Text style={st.allText}>Ver todas ({items.length})</Text>
+          <Text style={st.allText}>{t('Ver todas ({n})', { n: items.length })}</Text>
         </Pressable>
       ) : null}
       {all ? (
-        <Sheet title="As tuas Txilladas agendadas" onClose={() => setAll(false)}>
+        <Sheet title={t('As tuas Txilladas agendadas')} onClose={() => setAll(false)}>
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 4 }}>
             {items.map((x) => (
               <Pressable key={x.id} onPress={() => { setAll(false); open(x.id); }} style={(s) => [st.row, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc50 }, s.pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                 <View style={[st.icon, { width: 40, height: 40, borderRadius: 20 }]}><Icon name="calendar" size={20} color="#fff" strokeWidth={2.1} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={st.title} numberOfLines={1}>{(x.title ?? '').trim() || 'Sem título'}</Text>
+                  <Text style={st.title} numberOfLines={1}>{(x.title ?? '').trim() || t('Sem título')}</Text>
                   <Text style={st.when} numberOfLines={1}>{`${fmtShort(x.startsAt, now)} · ${remindersShort(x.reminders)}`}</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color={colors.zinc500} />
@@ -103,16 +104,16 @@ export function UpcomingRow() {
   if (!on || !items.length) return null;
   const open = (id: string) => { const to = scheduleRoute(id); if (navTap(to)) router.push(to as never); };
   return (
-    <View style={{ marginBottom: 16 }} accessibilityLabel="Txilladas em breve">
+    <View style={{ marginBottom: 16 }} accessibilityLabel={t('Txilladas em breve')}>
       <View style={st.head}>
         <Icon name="calendar" size={16} color={colors.brand} strokeWidth={2.2} />
-        <Text style={st.headText}>Em breve</Text>
+        <Text style={st.headText}>{t('Em breve')}</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={desktop} contentContainerStyle={st.rowList}>
         {items.map((x) => {
           const title = (x.title ?? '').trim();
           return (
-            <Pressable key={x.id} onPress={() => open(x.id)} style={(s) => [st.small, (s as { hovered?: boolean }).hovered && { borderColor: colors.zinc300 }, s.pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`Txillada de @${x.host.username}, ${fmtSoon(x.startsAt, now)}${title ? `: ${title}` : ''}`}>
+            <Pressable key={x.id} onPress={() => open(x.id)} style={(s) => [st.small, (s as { hovered?: boolean }).hovered && { borderColor: colors.zinc300 }, s.pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={t('Txillada de @{username}, {soon}{value}', { username: x.host.username, soon: fmtSoon(x.startsAt, now), value: title ? `: ${title}` : '' })}>
               <View style={st.who}>
                 <Avatar name={x.host.displayName} username={x.host.avatarUrl ? x.host.username : undefined} size={34} />
                 <NameWithBadge name={x.host.username} who={x.host} style={st.whoName} containerStyle={{ flex: 1, minWidth: 0 }} size={12} />
@@ -121,8 +122,8 @@ export function UpcomingRow() {
               <Text style={st.smallTitle} numberOfLines={1}>{title || 'Txillada'}</Text>
               <View style={{ flex: 1 }} />
               {x.reminded
-                ? <Button label="Lembrado" icon="check" kind="secondary" size="sm" block onPress={() => void remind(x.id, false)} accessibilityLabel="Vais ser lembrado. Toca para deixares de ser lembrado" />
-                : <Button label="Lembrar-me" icon="bell" size="sm" block onPress={() => void remind(x.id, true)} />}
+                ? <Button label={t('Lembrado')} icon="check" kind="secondary" size="sm" block onPress={() => void remind(x.id, false)} accessibilityLabel={t('Vais ser lembrado. Toca para deixares de ser lembrado')} />
+                : <Button label={t('Lembrar-me')} icon="bell" size="sm" block onPress={() => void remind(x.id, true)} />}
             </Pressable>
           );
         })}

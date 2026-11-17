@@ -15,6 +15,7 @@ import { NameWithBadge } from '../NameWithBadge';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { PairAvatars, ReactionGlyph, TopicChips } from './MixarBits';
+import { t } from '@/lib/i18n';
 
 type Api = typeof mixarControloApi;
 type Who = { name: string; username?: string };
@@ -41,7 +42,7 @@ export function WeekCard({ week, me, them, partner, onOpenTop }: { week: MixarWe
       <LinearGradient colors={['#2a0b12', '#4a1020', '#120608']} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(214,51,79,0.45)', 'rgba(214,51,79,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.5 }} style={StyleSheet.absoluteFill} />
       <Text style={wc.kicker}>MIXAR</Text>
-      <Text style={wc.title} accessibilityRole="header">Resumo da semana</Text>
+      <Text style={wc.title} accessibilityRole="header">{t('Resumo da semana')}</Text>
       <Text style={wc.dates}>{week.label}</Text>
       <View style={{ alignItems: 'center', marginTop: 14 }}>
         <PairAvatars me={me} them={them} size={44} ring="#2a0b12" />
@@ -61,16 +62,16 @@ export function WeekCard({ week, me, them, partner, onOpenTop }: { week: MixarWe
         ))}
       </View>
       {top ? (
-        <Pressable onPress={onOpenTop ? () => onOpenTop(top.post) : undefined} disabled={!onOpenTop} style={({ pressed }) => [wc.top, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`O que mais vos fez reagir: a publicação de ${top.post.author.displayName}. Toca para abrir`}>
+        <Pressable onPress={onOpenTop ? () => onOpenTop(top.post) : undefined} disabled={!onOpenTop} style={({ pressed }) => [wc.top, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('O que mais vos fez reagir: a publicação de {displayName}. Toca para abrir', { displayName: top.post.author.displayName })}>
           <View style={wc.thumb}>
             {thumbOf(top.post) ? <Image source={{ uri: thumbOf(top.post) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
             {top.post.media[0]?.kind === 'video' ? <View style={wc.play}><Icon name="play" size={12} color="#fff" solid /></View> : null}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={wc.topKicker}>O QUE MAIS VOS FEZ REAGIR</Text>
+            <Text style={wc.topKicker}>{t('O QUE MAIS VOS FEZ REAGIR')}</Text>
             <NameWithBadge name={`@${top.post.author.username}`} who={top.post.author} style={wc.topName} />
             <View style={wc.reacts}>
-              {mine ? <View style={wc.react}><ReactionGlyph r={mine} size={18} /><Text style={wc.reactWho}>Tu</Text></View> : null}
+              {mine ? <View style={wc.react}><ReactionGlyph r={mine} size={18} /><Text style={wc.reactWho}>{t('Tu')}</Text></View> : null}
               {theirs ? <View style={wc.react}><ReactionGlyph r={theirs} size={18} /><Text style={wc.reactWho} numberOfLines={1}>{them.name}</Text></View> : null}
             </View>
           </View>
@@ -79,7 +80,7 @@ export function WeekCard({ week, me, them, partner, onOpenTop }: { week: MixarWe
       ) : null}
       {week.topics.length ? (
         <View style={{ marginTop: 16 }}>
-          <Text style={wc.topKicker}>OS VOSSOS TEMAS DA SEMANA</Text>
+          <Text style={wc.topKicker}>{t('OS VOSSOS TEMAS DA SEMANA')}</Text>
           <View style={{ marginTop: 8 }}><TopicChips topics={week.topics} tone="dark" /></View>
         </View>
       ) : null}
@@ -120,17 +121,17 @@ export function WeekShare({ mixarId, api, dark = false }: { mixarId: string; api
       {busy === to ? <ActivityIndicator color={primary || dark ? '#fff' : colors.zinc900} /> : (
         <>
           <Icon name={done[to] ? 'check' : icon} size={18} color={primary || dark || done[to] ? '#fff' : colors.zinc900} solid={icon === 'bolt' && !done[to]} strokeWidth={2.4} />
-          <Text style={[ws.text, { color: primary || dark || done[to] ? '#fff' : colors.zinc900 }]}>{done[to] ? (to === 'zas' ? 'No teu Zás' : 'Nos teus mimos') : text}</Text>
+          <Text style={[ws.text, { color: primary || dark || done[to] ? '#fff' : colors.zinc900 }]}>{done[to] ? (to === 'zas' ? t('No teu Zás') : t('Nos teus mimos')) : text}</Text>
         </>
       )}
     </Pressable>
   );
   return (
     <View style={{ gap: 10, width: '100%' }}>
-      {btn('zas', 'bolt', 'Partilhar no Zás', true)}
-      {btn('story', 'plus', 'Partilhar nos mimos', false)}
+      {btn('zas', 'bolt', t('Partilhar no Zás'), true)}
+      {btn('story', 'plus', t('Partilhar nos mimos'), false)}
       {msg ? <Text style={[ws.msg, { color: msg.ok ? (dark ? '#6ee7b7' : colors.green700) : dark ? '#fca5a5' : colors.red600 }]} accessibilityLiveRegion="polite">{msg.text}</Text> : null}
-      <Text style={[ws.note, dark && { color: 'rgba(255,255,255,0.6)' }]}>A imagem leva a série, os acertos, os vídeos vistos e os temas da semana. Nunca os temas privados.</Text>
+      <Text style={[ws.note, dark && { color: 'rgba(255,255,255,0.6)' }]}>{t('A imagem leva a série, os acertos, os vídeos vistos e os temas da semana. Nunca os temas privados.')}</Text>
     </View>
   );
 }
@@ -151,7 +152,7 @@ export function WeekPage({ height, mixarId, api, me, them, partner, onOpenTop, t
             <WeekCard week={w.data} me={me} them={them} partner={partner} onOpenTop={onOpenTop} />
             <WeekShare mixarId={mixarId} api={api} dark />
           </View>
-        ) : w.isError ? <Text style={ws.err}>O resumo da semana não carregou.</Text> : <ActivityIndicator color="#fff" />}
+        ) : w.isError ? <Text style={ws.err}>{t('O resumo da semana não carregou.')}</Text> : <ActivityIndicator color="#fff" />}
       </ScrollView>
     </View>
   );
@@ -161,14 +162,14 @@ export function WeekPage({ height, mixarId, api, me, them, partner, onOpenTop, t
 export function WeekSheet({ mixarId, api, me, them, partner, onOpenTop, onClose }: { mixarId: string; api: Api; me: Who; them: Who; partner: MixarPerson; onOpenTop: (p: Post) => void; onClose: () => void }) {
   const w = useWeek(mixarId, api);
   return (
-    <Sheet title="Resumo da semana" onClose={onClose}>
+    <Sheet title={t('Resumo da semana')} onClose={onClose}>
       <ScrollView style={{ maxHeight: 640 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 16 }}>
         {w.data ? (
           <>
             <WeekCard week={w.data} me={me} them={them} partner={partner} onOpenTop={(p) => { onClose(); onOpenTop(p); }} />
             <WeekShare mixarId={mixarId} api={api} />
           </>
-        ) : w.isError ? <Text style={[ws.err, { color: colors.zinc600 }]}>O resumo da semana não carregou. Tenta outra vez daqui a pouco.</Text> : <ActivityIndicator style={{ margin: 32 }} color={colors.brand} />}
+        ) : w.isError ? <Text style={[ws.err, { color: colors.zinc600 }]}>{t('O resumo da semana não carregou. Tenta outra vez daqui a pouco.')}</Text> : <ActivityIndicator style={{ margin: 32 }} color={colors.brand} />}
       </ScrollView>
     </Sheet>
   );

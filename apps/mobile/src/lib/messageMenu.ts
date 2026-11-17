@@ -10,6 +10,7 @@
  * Até quando (ms depois de enviar) se pode apagar para todos. `null` = sem limite, que é a regra do servidor
  * (apps/api chat.service `remove`: só quem enviou, a qualquer altura). Se o servidor passar a ter limite, muda-se aqui.
  */
+import { t } from '@/lib/i18n';
 export const DELETE_FOR_ALL_LIMIT_MS: number | null = null;
 
 /** Até quando (ms depois de enviar) se edita uma mensagem de texto. O servidor tem o mesmo (chat.service EDIT_WINDOW_MS). */
@@ -21,7 +22,7 @@ export const HOLD_MS = 420;
 export const HOLD_SLOP = 10;
 
 /** O aviso que fica no lugar de uma mensagem apagada para todos (o servidor manda o mesmo texto). */
-export const deletedText = (mine: boolean) => (mine ? 'Apagaste esta mensagem' : 'Esta mensagem foi apagada');
+export const deletedText = (mine: boolean) => (mine ? t('Apagaste esta mensagem') : t('Esta mensagem foi apagada'));
 
 export type MenuMsg = {
   id: string;
@@ -173,8 +174,8 @@ export const recentlyHeld = (heldAt: number, now = Date.now()) => heldAt > 0 && 
 /** As ações da bolha para o leitor de ecrã (o mesmo que deslizar e que segurar). Nomes livres, não são `accessibilityRole`. */
 export function bubbleA11yActions(o: { reply: boolean; menu: boolean; remove: boolean }): { name: string; label: string }[] {
   return [
-    ...(o.reply ? [{ name: 'reply', label: 'Responder' }] : []),
-    ...(o.remove ? [{ name: 'delete', label: 'Apagar' }] : []),
-    ...(o.menu ? [{ name: 'longpress', label: 'Mais opções' }] : []),
+    ...(o.reply ? [{ name: 'reply', label: t('Responder') }] : []),
+    ...(o.remove ? [{ name: 'delete', label: t('Apagar') }] : []),
+    ...(o.menu ? [{ name: 'longpress', label: t('Mais opções') }] : []),
   ];
 }

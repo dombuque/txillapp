@@ -3,6 +3,7 @@
  * browser (sobrevivem a fechar e abrir a app). Se o IndexedDB não der (modo privado, sem espaço), ficam em memória:
  * valem enquanto a página está aberta. Ver chatMediaStore.ts.
  */
+import { t } from '@/lib/i18n';
 const DB = 'txill-chat-media';
 const STORE = 'files';
 const mem = new Map<string, Blob>();
@@ -27,7 +28,7 @@ function db(): Promise<IDBDatabase | null> {
 
 function run<T>(mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return db().then((d) => new Promise<T>((ok, ko) => {
-    if (!d) return ko(new Error('sem IndexedDB'));
+    if (!d) return ko(new Error(t('sem IndexedDB')));
     try {
       const t = d.transaction(STORE, mode);
       const req = f(t.objectStore(STORE));

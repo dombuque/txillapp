@@ -3,6 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { api, type Conversation, type GroupSummary } from '@/lib/api';
 import { gruposApi } from '@/lib/api.grupos';
 import { HIDDEN_KEYS, HIDDEN_QUERY_KEY, hideAsk } from '@/lib/chatHidden';
+import { t } from '@/lib/i18n';
 
 /** Que conversa: a dois (o @ do outro lado) ou um TxillGroup (o id). */
 export type HideTarget = { username: string } | { groupId: string };
@@ -12,7 +13,7 @@ type HiddenData = { conversations: Conversation[]; groups: GroupSummary[] };
 export function confirmHide(name: string, group: boolean, run: () => void) {
   const p = hideAsk(name, group);
   const ask = () => Alert.alert(p.title, p.body, [
-    { text: 'Cancelar', style: 'cancel' },
+    { text: t('Cancelar'), style: 'cancel' },
     { text: p.ok, onPress: run },
   ]);
   if (Platform.OS === 'ios') setTimeout(ask, 350);
@@ -26,9 +27,9 @@ export function confirmHide(name: string, group: boolean, run: () => void) {
 export function useChatHiding() {
   const qc = useQueryClient();
   const threadKey = (t: HideTarget) => ('username' in t ? ['chat-thread', t.username] : ['chat-group', t.groupId]);
-  async function set(t: HideTarget, hidden: boolean) {
-    const isChat = 'username' in t;
-    const out = <T extends { username?: string; id?: string }>(xs: T[] | undefined) => xs?.filter((x) => (isChat ? x.username !== t.username : x.id !== t.groupId));
+  async function set(hideTarget: HideTarget, hidden: boolean) {
+    const isChat = 'username' in hideTarget;
+    const out = <T extends { username?: string; id?: string }>(xs: T[] | undefined) => xs?.filter((x) => (isChat ? x.username !== hideTarget.username : x.id !== hideTarget.groupId));
     if (hidden) {
       if (isChat) qc.setQueryData<Conversation[]>(['chat-list'], (d) => out(d));
       else qc.setQueryData<GroupSummary[]>(['chat-groups'], (d) => out(d));
@@ -36,13 +37,13 @@ export function useChatHiding() {
       qc.setQueryData<HiddenData>(HIDDEN_QUERY_KEY, (d) => d && (isChat ? { ...d, conversations: out(d.conversations) ?? [] } : { ...d, groups: out(d.groups) ?? [] }));
     }
     try {
-      if (isChat) await api.chatSetHidden(t.username, hidden);
-      else await gruposApi.setHidden(t.groupId, hidden);
+      if (isChat) await api.chatSetHidden(hideTarget.username, hidden);
+      else await gruposApi.setHidden(hideTarget.groupId, hidden);
     } catch {
-      Alert.alert(hidden ? 'Não consegui esconder a conversa' : 'Não consegui mostrar a conversa', 'Tenta outra vez.');
+      Alert.alert(hidden ? t('Não consegui esconder a conversa') : t('Não consegui mostrar a conversa'), t('Tenta outra vez.'));
     } finally {
       for (const k of HIDDEN_KEYS) void qc.invalidateQueries({ queryKey: k });
-      void qc.invalidateQueries({ queryKey: threadKey(t) });
+      void qc.invalidateQueries({ queryKey: threadKey(hideTarget) });
     }
   }
   return {

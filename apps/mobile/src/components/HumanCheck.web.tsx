@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSiteKey } from '@/lib/turnstileKey';
 import { colors } from '@/lib/theme';
 import type { HumanCheck } from './HumanCheck';
+import { t } from '@/lib/i18n';
 
 const WAIT_MS = 20_000;
 const WAIT_INTERACTIVE_MS = 120_000;
@@ -93,7 +94,7 @@ export function useHumanCheck(): HumanCheck {
   const node = SITE_KEY ? (
     <View style={interactive ? st.overlay : st.hidden} pointerEvents={interactive ? 'auto' : 'none'} aria-hidden={!interactive}>
       <View style={interactive ? st.card : undefined}>
-        {interactive ? <Text style={st.title}>Confirma que és uma pessoa</Text> : null}
+        {interactive ? <Text style={st.title}>{t('Confirma que és uma pessoa')}</Text> : null}
         <View ref={(v) => { box.current = v as unknown as El; }} />
       </View>
     </View>

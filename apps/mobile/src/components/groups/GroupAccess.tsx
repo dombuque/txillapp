@@ -25,6 +25,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { ConfirmSheet, ErrText, Pill, VenuePickerSheet } from './GroupParts';
 import { MapPointSheet, PlaceRow, PlaceStep } from './GroupPlace';
+import { t } from '@/lib/i18n';
 
 const ICON: Record<GroupAccess, IconName> = { private: 'lock', map: 'map-pin', public: 'globe' };
 
@@ -112,7 +113,7 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
       void qc.invalidateQueries({ queryKey: ['nearby'] });
       onChanged();
     } catch (e) {
-      const msg = (e as Error).message || 'Não consegui mudar. Tenta outra vez.';
+      const msg = (e as Error).message || t('Não consegui mudar. Tenta outra vez.');
       if (e instanceof ApiError && isNeedPlaceError(e)) {
         // Falta o sítio: o modo marcado fica, o passo "Onde é o grupo?" volta e a mensagem do servidor fica por baixo.
         setChoice(null);
@@ -140,8 +141,8 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
   const point = choice?.kind === 'point' ? choice : mp ? { lat: mp.lat, lng: mp.lng, label: mp.label } : null;
   return (
     <View style={{ gap: 8, marginBottom: 8 }}>
-      <Text style={s.head}>QUEM VÊ E QUEM ENTRA</Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Quem vê e quem entra no grupo" style={{ gap: 8 }}>
+      <Text style={s.head}>{t('QUEM VÊ E QUEM ENTRA')}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={t('Quem vê e quem entra no grupo')} style={{ gap: 8 }}>
         {ACCESS_OPTIONS.map((o) => {
           const on = o.id === access;
           return (
@@ -152,11 +153,11 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
               style={({ pressed }) => [s.opt, on && s.optOn, busy && { opacity: 0.6 }, pressed && !on && { backgroundColor: colors.zinc100 }]}
               accessibilityRole="radio"
               accessibilityState={{ selected: on, disabled: busy }}
-              accessibilityLabel={`${o.title}${o.id === saved ? ' (atual)' : ''}. ${o.text}`}
+              accessibilityLabel={`${o.title}${o.id === saved ? (' ' + t('(atual)')) : ''}. ${o.text}`}
             >
               <Icon name={ICON[o.id]} size={20} color={on ? colors.brand : colors.zinc600} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.optTitle}>{o.title}{o.id === saved && access !== saved ? <Text style={s.optNow}>  · atual</Text> : null}</Text>
+                <Text style={s.optTitle}>{o.title}{o.id === saved && access !== saved ? <Text style={s.optNow}>  {t('· atual')}</Text> : null}</Text>
                 <Text style={s.optText}>{o.text}</Text>
               </View>
               <View style={[s.radio, on && { borderColor: colors.brand }]}>{on && <View style={s.radioDot} />}</View>
@@ -171,15 +172,15 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
       ) : null}
       {change ? (
         <View style={s.change} accessibilityLiveRegion="polite">
-          <Text style={s.changeText}>{ask ? 'Escolhe onde é o grupo para poderes guardar.' : change.summary}</Text>
+          <Text style={s.changeText}>{ask ? t('Escolhe onde é o grupo para poderes guardar.') : change.summary}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pill label="Cancelar" kind="soft" onPress={cancel} disabled={busy} style={{ flex: 1 }} />
-            <Pill label="Guardar" busy={busy} disabled={!savable} onPress={() => { setErr(''); setAsking(true); }} style={{ flex: 1 }} />
+            <Pill label={t('Cancelar')} kind="soft" onPress={cancel} disabled={busy} style={{ flex: 1 }} />
+            <Pill label={t('Guardar')} busy={busy} disabled={!savable} onPress={() => { setErr(''); setAsking(true); }} style={{ flex: 1 }} />
           </View>
         </View>
       ) : ask ? (
         // Já estava no mapa sem sítio (grupo de antes desta versão): pede-se o sítio; o "Guardar" aparece quando houver um.
-        <Text style={s.changeText}>Este grupo ainda não aparece em À tua volta: escolhe onde é.</Text>
+        <Text style={s.changeText}>{t('Este grupo ainda não aparece em À tua volta: escolhe onde é.')}</Text>
       ) : null}
       <ErrText text={err} />
       {showRequests(saved, group.pendingRequests) ? <JoinRequests groupId={group.id} hint={group.pendingRequests} onChanged={onChanged} /> : null}
@@ -187,7 +188,7 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
         <ConfirmSheet title={change.title} lines={change.lines} hint={change.hint} onConfirm={save} onClose={() => setAsking(false)} />
       ) : null}
       {picking === 'venue' ? (
-        <VenuePickerSheet title="Local do plano" onPick={(v) => chose({ kind: 'venue', slug: v.slug, name: v.name })} onClose={() => setPicking(null)} />
+        <VenuePickerSheet title={t('Local do plano')} onPick={(v) => chose({ kind: 'venue', slug: v.slug, name: v.name })} onClose={() => setPicking(null)} />
       ) : null}
       {picking === 'map' ? <MapPointSheet initial={point} onPick={chose} onClose={() => setPicking(null)} /> : null}
     </View>
@@ -211,7 +212,7 @@ function JoinRequests({ groupId, hint, onChanged }: { groupId: string; hint?: nu
     } catch (e) {
       // 404/409: o pedido já foi respondido (por outro administrador) ou foi cancelado; sai da lista na mesma.
       if (!(e instanceof ApiError && (e.status === 404 || e.status === 409))) {
-        setErr((e as Error).message || 'Não consegui responder. Tenta outra vez.');
+        setErr((e as Error).message || t('Não consegui responder. Tenta outra vez.'));
         setBusy(null);
         return;
       }
@@ -226,15 +227,15 @@ function JoinRequests({ groupId, hint, onChanged }: { groupId: string; hint?: nu
   return (
     <View style={{ gap: 4, marginTop: 4 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Text style={s.head}>PEDIDOS PARA ENTRAR</Text>
+        <Text style={s.head}>{t('PEDIDOS PARA ENTRAR')}</Text>
         {count > 0 && <View style={s.count}><Text style={s.countText}>{count}</Text></View>}
       </View>
       {q.isLoading ? (
-        <Text style={s.none}>A carregar…</Text>
+        <Text style={s.none}>{t('A carregar…')}</Text>
       ) : q.isError ? (
-        <Pressable onPress={() => void q.refetch()} accessibilityRole="button"><Text style={s.none}>Não consegui carregar os pedidos. Toca para tentar outra vez.</Text></Pressable>
+        <Pressable onPress={() => void q.refetch()} accessibilityRole="button"><Text style={s.none}>{t('Não consegui carregar os pedidos. Toca para tentar outra vez.')}</Text></Pressable>
       ) : list.length === 0 ? (
-        <Text style={s.none}>Sem pedidos por agora.</Text>
+        <Text style={s.none}>{t('Sem pedidos por agora.')}</Text>
       ) : (
         list.map((r) => (
           <View key={r.username} style={s.req}>
@@ -243,11 +244,11 @@ function JoinRequests({ groupId, hint, onChanged }: { groupId: string; hint?: nu
               <NameWithBadge name={r.displayName} who={r} style={s.reqName} />
               <Text style={s.reqSub} numberOfLines={1}>@{r.username} · {timeAgo(r.createdAt)}</Text>
             </View>
-            <Pressable disabled={!!busy} onPress={() => void answer(r, true)} style={[s.accept, busy === r.username && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Aceitar ${r.displayName}`}>
-              <Text style={s.acceptText}>Aceitar</Text>
+            <Pressable disabled={!!busy} onPress={() => void answer(r, true)} style={[s.accept, busy === r.username && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Aceitar {displayName}', { displayName: r.displayName })}>
+              <Text style={s.acceptText}>{t('Aceitar')}</Text>
             </Pressable>
-            <Pressable disabled={!!busy} onPress={() => void answer(r, false)} style={[s.decline, busy === r.username && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Recusar ${r.displayName}`}>
-              <Text style={s.declineText}>Recusar</Text>
+            <Pressable disabled={!!busy} onPress={() => void answer(r, false)} style={[s.decline, busy === r.username && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Recusar {displayName}', { displayName: r.displayName })}>
+              <Text style={s.declineText}>{t('Recusar')}</Text>
             </Pressable>
           </View>
         ))

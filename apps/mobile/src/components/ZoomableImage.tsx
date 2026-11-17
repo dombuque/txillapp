@@ -3,6 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { atRest, doubleTapTarget, DOUBLE_TAP_MS, panStep, pinchStep, ringOpacity, settle, type Box, type Zoom } from '@/lib/zoomMath';
+import { t } from '@/lib/i18n';
 
 export type ZoomableImageProps = {
   /** A foto boa (grande). */
@@ -125,7 +126,7 @@ export function ZoomableImage({ uri, placeholderUri, size, onClose, accessibilit
           accessible
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
-          accessibilityHint="Dois dedos para ampliar. Um toque fecha."
+          accessibilityHint={t('Dois dedos para ampliar. Um toque fecha.')}
           onAccessibilityTap={onClose}
           onAccessibilityEscape={onClose}
         >

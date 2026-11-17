@@ -1,4 +1,5 @@
 import { post, raw, type Badged, type Post } from '@/lib/api';
+import { t } from '@/lib/i18n';
 
 export type VenueKind = 'bar' | 'restaurante' | 'discoteca' | 'cafe' | 'hotel' | 'evento' | 'outro';
 export type ManagerRole = 'admin' | 'editor';
@@ -100,9 +101,9 @@ export const shortTx = (id: string) => id.replace(/-/g, '').slice(0, 8).toUpperC
 
 export interface PlacePage { label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }
 
-export const KIND_LABEL: Record<string, string> = { bar: 'Bar', restaurante: 'Restaurante', discoteca: 'Discoteca', cafe: 'Café', hotel: 'Hotel', evento: 'Evento', outro: 'Outro' };
+export const KIND_LABEL: Record<string, string> = { get bar() { return t('Bar'); }, get restaurante() { return t('Restaurante'); }, get discoteca() { return t('Discoteca'); }, get cafe() { return t('Café'); }, get hotel() { return t('Hotel'); }, get evento() { return t('Evento'); }, get outro() { return t('Outro'); } };
 export const KINDS = ['bar', 'restaurante', 'discoteca', 'cafe', 'hotel', 'evento', 'outro'] as const;
-export const ROLE_LABEL: Record<'owner' | ManagerRole, string> = { owner: 'Dono', admin: 'Administrador', editor: 'Editor' };
+export const ROLE_LABEL: Record<'owner' | ManagerRole, string> = { get owner() { return t('Dono'); }, get admin() { return t('Administrador'); }, get editor() { return t('Editor'); } };
 
 const s = (slug: string) => encodeURIComponent(slug);
 

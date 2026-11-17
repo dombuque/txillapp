@@ -6,6 +6,7 @@ import { appealText, canAppeal } from '@/lib/photoAppeal';
 import { appealPublish, dropPublish, retryPublish, usePublishTasks } from '@/lib/publishQueue';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /** Faixa no topo do Início com as publicações a serem enviadas em segundo plano. */
 export function PublishBanner() {
@@ -14,34 +15,34 @@ export function PublishBanner() {
   if (!tasks.length) return null;
   return (
     <View style={{ gap: 8, marginHorizontal: 16, marginBottom: 10 }}>
-      {tasks.map((t) => (
-        <View key={t.id} style={st.row} role="status" accessibilityLiveRegion="polite">
+      {tasks.map((publishTask) => (
+        <View key={publishTask.id} style={st.row} role="status" accessibilityLiveRegion="polite">
           <View style={st.thumb}>
-            {t.thumb ? <Image source={{ uri: t.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name={t.video ? 'video' : 'file-text'} size={20} color={colors.zinc600} />}
+            {publishTask.thumb ? <Image source={{ uri: publishTask.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name={publishTask.video ? 'video' : 'file-text'} size={20} color={colors.zinc600} />}
           </View>
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <Text style={st.text} numberOfLines={t.status === 'error' ? 4 : 1}>
-              {t.status === 'error' && t.appeal && appealText(t.appeal.state) ? appealText(t.appeal.state) : t.status === 'done' ? (t.kind === 'mimo' ? 'Mimo publicado!' : t.kind === 'zas' ? 'Zás enviado!' : 'Publicado!') : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? (t.kind === 'mimo' ? 'A publicar o mimo…' : t.kind === 'zas' ? 'A enviar o Zás…' : 'A publicar…') : `${t.kind === 'mimo' ? 'A enviar o mimo' : t.kind === 'zas' ? 'A enviar o Zás' : 'A enviar'}… ${Math.round(t.progress * 100)}%`}
+            <Text style={st.text} numberOfLines={publishTask.status === 'error' ? 4 : 1}>
+              {publishTask.status === 'error' && publishTask.appeal && appealText(publishTask.appeal.state) ? appealText(publishTask.appeal.state) : publishTask.status === 'done' ? (publishTask.kind === 'mimo' ? t('Mimo publicado!') : publishTask.kind === 'zas' ? t('Zás enviado!') : t('Publicado!')) : publishTask.status === 'error' ? (publishTask.error ?? t('Não consegui publicar')) : publishTask.stage === 'prepare' ? t('A preparar o vídeo…') : publishTask.stage === 'post' ? (publishTask.kind === 'mimo' ? t('A publicar o mimo…') : publishTask.kind === 'zas' ? t('A enviar o Zás…') : t('A publicar…')) : `${publishTask.kind === 'mimo' ? t('A enviar o mimo') : publishTask.kind === 'zas' ? t('A enviar o Zás') : t('A enviar')}… ${Math.round(publishTask.progress * 100)}%`}
             </Text>
-            {t.status === 'uploading' && (
-              t.stage === 'prepare'
+            {publishTask.status === 'uploading' && (
+              publishTask.stage === 'prepare'
                 ? <Working />
-                : <View style={st.track}><View style={[st.fill, { width: `${Math.max(4, Math.round(t.progress * 100))}%` }]} /></View>
+                : <View style={st.track}><View style={[st.fill, { width: `${Math.max(4, Math.round(publishTask.progress * 100))}%` }]} /></View>
             )}
-            {t.status === 'error' && (
+            {publishTask.status === 'error' && (
               <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
                 {/* Foto recusada pela verificação automática: tentar outra vez dava o mesmo; pede-se a revisão. */}
-                {t.appeal ? (
-                  canAppeal(t.appeal.state) && <Pressable onPress={() => void appealPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Pedir revisão</Text></Pressable>
+                {publishTask.appeal ? (
+                  canAppeal(publishTask.appeal.state) && <Pressable onPress={() => void appealPublish(publishTask.id, qc)} accessibilityRole="button"><Text style={st.link}>{t('Pedir revisão')}</Text></Pressable>
                 ) : (
-                  <Pressable onPress={() => retryPublish(t.id, qc)} accessibilityRole="button"><Text style={st.link}>Tentar outra vez</Text></Pressable>
+                  <Pressable onPress={() => retryPublish(publishTask.id, qc)} accessibilityRole="button"><Text style={st.link}>{t('Tentar outra vez')}</Text></Pressable>
                 )}
                 {/* Com o rascunho guardado no servidor, fechar a faixa não cancela nada: o servidor publica quando a foto for aprovada. */}
-                <Pressable onPress={() => dropPublish(t.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>{t.appeal && (t.appeal.state === 'held' || t.appeal.state === 'published') ? 'Fechar' : 'Descartar'}</Text></Pressable>
+                <Pressable onPress={() => dropPublish(publishTask.id)} accessibilityRole="button"><Text style={[st.link, { color: colors.zinc600 }]}>{publishTask.appeal && (publishTask.appeal.state === 'held' || publishTask.appeal.state === 'published') ? t('Fechar') : t('Descartar')}</Text></Pressable>
               </View>
             )}
           </View>
-          {t.status === 'done' && <Icon name="check-circle" size={22} color="#16a34a" />}
+          {publishTask.status === 'done' && <Icon name="check-circle" size={22} color="#16a34a" />}
         </View>
       ))}
     </View>

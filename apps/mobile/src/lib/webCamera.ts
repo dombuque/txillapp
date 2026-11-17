@@ -5,6 +5,7 @@
  * Fica aqui para se poder testar em Node (tests/webCamera.test.mjs).
  */
 
+import { t } from '@/lib/i18n';
 export type Facing = 'environment' | 'user';
 /** O formato do sensor que se pede: 3:4 (foto, a imagem inteira do sensor) ou 16:9 (vídeo, mimo e tcheka). */
 export type SensorRatio = '3:4' | '16:9';
@@ -131,23 +132,23 @@ export function browserKind(ua: string, standalone = false, touchMac = false): B
 export function permissionSteps(kind: BrowserKind): string[] {
   switch (kind) {
     case 'ios-safari':
-      return ['Toca em «aA» (ou no botão ⋯) ao lado do endereço.', 'Escolhe Definições do site › Câmara › Permitir.', 'Volta aqui e toca em Tentar outra vez.'];
+      return [t('Toca em «aA» (ou no botão ⋯) ao lado do endereço.'), t('Escolhe Definições do site › Câmara › Permitir.'), t('Volta aqui e toca em Tentar outra vez.')];
     case 'ios-pwa':
-      return ['Abre as Definições do iPhone › Apps › Safari › Câmara.', 'Escolhe Permitir (ou Perguntar).', 'Fecha o Txillapp e volta a abri-lo.'];
+      return [t('Abre as Definições do iPhone › Apps › Safari › Câmara.'), t('Escolhe Permitir (ou Perguntar).'), t('Fecha o Txillapp e volta a abri-lo.')];
     case 'ios-other':
-      return ['Abre as Definições do iPhone e procura este browser na lista de apps.', 'Liga a Câmara (e o Microfone, para vídeo).', 'Volta aqui e toca em Tentar outra vez.'];
+      return [t('Abre as Definições do iPhone e procura este browser na lista de apps.'), t('Liga a Câmara (e o Microfone, para vídeo).'), t('Volta aqui e toca em Tentar outra vez.')];
     case 'android-chrome':
-      return ['Toca no ícone à esquerda do endereço (o cadeado ou as definições).', 'Abre Permissões › Câmara › Permitir.', 'Se não aparecer: Definições do Android › Apps › Chrome › Permissões › Câmara.'];
+      return [t('Toca no ícone à esquerda do endereço (o cadeado ou as definições).'), t('Abre Permissões › Câmara › Permitir.'), t('Se não aparecer: Definições do Android › Apps › Chrome › Permissões › Câmara.')];
     case 'android-other':
-      return ['Toca no cadeado ao lado do endereço e permite a Câmara.', 'Se não der: Definições do Android › Apps › este browser › Permissões › Câmara.'];
+      return [t('Toca no cadeado ao lado do endereço e permite a Câmara.'), t('Se não der: Definições do Android › Apps › este browser › Permissões › Câmara.')];
     case 'desktop-chrome':
-      return ['Clica no ícone à esquerda do endereço.', 'Põe a Câmara em Permitir.', 'Recarrega a página.'];
+      return [t('Clica no ícone à esquerda do endereço.'), t('Põe a Câmara em Permitir.'), t('Recarrega a página.')];
     case 'desktop-safari':
-      return ['No menu Safari › Definições › Websites › Câmara.', 'Escolhe Permitir para este site e recarrega a página.'];
+      return [t('No menu Safari › Definições › Websites › Câmara.'), t('Escolhe Permitir para este site e recarrega a página.')];
     case 'firefox':
-      return ['Clica no ícone da câmara riscada ao lado do endereço.', 'Tira o bloqueio e recarrega a página.'];
+      return [t('Clica no ícone da câmara riscada ao lado do endereço.'), t('Tira o bloqueio e recarrega a página.')];
     default:
-      return ['Abre as definições do site no teu browser (normalmente no cadeado ao lado do endereço).', 'Permite a Câmara e recarrega a página.'];
+      return [t('Abre as definições do site no teu browser (normalmente no cadeado ao lado do endereço).'), t('Permite a Câmara e recarrega a página.')];
   }
 }
 

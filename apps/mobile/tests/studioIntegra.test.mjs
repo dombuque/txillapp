@@ -1,6 +1,7 @@
 // Estúdio das tchekas: os encaixes entre a linha do tempo (projeto, desfazer, rascunhos), os efeitos e o som.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -70,7 +71,7 @@ test('ligação: «Ajustar ao ritmo» e os moldes passam pelas funções do proj
 });
 
 test('ligação: as faixas do som (voz-off e efeitos sonoros) e das camadas na linha do tempo', () => {
-  assert.match(studio, /kind: 'voice', label: 'Voz-off'/);
+  assert.match(studio, /kind: 'voice', (get )?label(\(\) \{ return |: )t\('Voz-off'\)/);
   assert.match(studio, /kind: 'sfx', [^\n]*point: true/);
   const tl = read('components', 'studio', 'Timeline.tsx');
   assert.match(tl, /data-tl="layer"/);
@@ -104,7 +105,7 @@ test('telemóvel: o estúdio cobre o ecrã (100dvh), a folha dos painéis tem al
 test('o som do vídeo na barra de ações do clipe (ligado/calado e volume)', () => {
   const actions = read('components', 'studio', 'TimelineActions.tsx');
   assert.match(actions, /Som do vídeo: ligado/);
-  assert.match(actions, /aria-label="Volume do som do vídeo"/);
+  assert.match(actions, /aria-label=\{t\('Volume do som do vídeo'\)\}/);
   assert.match(studio, /onSound=\{\(v\) => \{ if \(cur\) setClipSound\(cur\.key, v\); \}\}/);
 });
 

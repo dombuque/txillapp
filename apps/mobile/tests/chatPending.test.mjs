@@ -4,6 +4,7 @@
 // estão à espera ficam guardadas por conta e voltam ao abrir a app.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { afterEach, test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

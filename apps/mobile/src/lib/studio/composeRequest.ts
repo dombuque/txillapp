@@ -15,6 +15,7 @@
 import type { StudioMix } from './audioMix';
 import type { ClipFx, Overlay, TransitionId } from './effects';
 import type { ProjectClip } from './project';
+import { t } from '@/lib/i18n';
 
 /** As velocidades que a montagem aceita (as da câmara: `SPEEDS` em lib/tchekaRules). */
 export const COMPOSE_SPEEDS = [0.5, 1, 2, 3] as const;
@@ -190,10 +191,10 @@ export function missingMedia(clips: ProjectClip[], mediaIds: Record<string, stri
 
 /** O que impede a montagem no servidor antes de se enviar nada (frases para a pessoa); null quando está tudo bem. */
 export function composeBlocker(clips: ProjectClip[]): string | null {
-  if (clips.length > COMPOSE_MAX_CLIPS) return `No máximo ${COMPOSE_MAX_CLIPS} clipes numa tcheka`;
+  if (clips.length > COMPOSE_MAX_CLIPS) return t('No máximo {composeMaxClips} clipes numa tcheka', { composeMaxClips: COMPOSE_MAX_CLIPS });
   const odd = clips.find((c) => c.video && !(COMPOSE_SPEEDS as readonly number[]).includes(c.speed));
-  if (odd) return 'A velocidade de um vídeo tem de ser 0,5×, 1×, 2× ou 3×';
-  if (clips.some((c) => !c.video && c.seconds > PHOTO_MAX_MS / 1000 + 1e-6)) return `Uma foto fica no máximo ${PHOTO_MAX_MS / 1000} s`;
+  if (odd) return t('A velocidade de um vídeo tem de ser 0,5×, 1×, 2× ou 3×');
+  if (clips.some((c) => !c.video && c.seconds > PHOTO_MAX_MS / 1000 + 1e-6)) return t('Uma foto fica no máximo {n} s', { n: PHOTO_MAX_MS / 1000 });
   return null;
 }
 

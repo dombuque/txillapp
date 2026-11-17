@@ -18,6 +18,7 @@ import { HIDDEN_EMPTY, HIDDEN_NOTE, HIDDEN_QUERY_KEY, HIDDEN_TITLE, hiddenRows }
 import { emptyPreview } from '@/lib/chatTemporary';
 import { groupSenderPrefix, listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * O sítio do bloqueio extra das escondidas (impressão digital / PIN): ainda não existe (precisa de um pacote nativo novo,
@@ -42,7 +43,7 @@ export default function HiddenChats() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <View style={st.header}>
         <BackButton fallback="/messages" style={st.back} />
-        <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{HIDDEN_TITLE}</Text>
+        <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{HIDDEN_TITLE()}</Text>
         <View style={st.back} />
       </View>
       <HiddenLock>
@@ -53,7 +54,7 @@ export default function HiddenChats() {
           ListHeaderComponent={
             <View style={st.note}>
               <Icon name="eye-off" size={18} color={colors.zinc500} />
-              <Text style={st.noteText}>{HIDDEN_NOTE}</Text>
+              <Text style={st.noteText}>{HIDDEN_NOTE()}</Text>
             </View>
           }
           renderItem={({ item: r }) => {
@@ -97,8 +98,8 @@ export default function HiddenChats() {
             ) : q.isError && !q.data ? (
               <View style={st.empty}>
                 <Icon name="alert" size={40} color={colors.zinc300} />
-                <Text style={st.emptyTitle}>Não consegui carregar</Text>
-                <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+                <Text style={st.emptyTitle}>{t('Não consegui carregar')}</Text>
+                <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
               </View>
             ) : (
               <View style={st.empty}>
@@ -127,8 +128,8 @@ function HiddenRow({ photo, name, label, sub, at, unread, marked = false, onOpen
         style={({ pressed }) => [st.open, pressed && { backgroundColor: colors.zinc100 }]}
         accessibilityRole="button"
         accessibilityLabel={rowLabel(label, sub, time, unread, marked)}
-        accessibilityHint="Toca para abrir"
-        accessibilityActions={[{ name: 'show', label: 'Mostrar outra vez' }]}
+        accessibilityHint={t('Toca para abrir')}
+        accessibilityActions={[{ name: 'show', label: t('Mostrar outra vez') }]}
         onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'show') onShow(); }}
       >
         {photo}
@@ -143,9 +144,9 @@ function HiddenRow({ photo, name, label, sub, at, unread, marked = false, onOpen
           </View>
         </View>
       </Pressable>
-      <Pressable onPress={onShow} hitSlop={6} style={({ pressed }) => [st.show, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={`Mostrar outra vez a conversa com ${label}`}>
+      <Pressable onPress={onShow} hitSlop={6} style={({ pressed }) => [st.show, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={t('Mostrar outra vez a conversa com {label}', { label })}>
         <Icon name="eye" size={16} color={colors.zinc800} />
-        <Text style={st.showText}>Mostrar</Text>
+        <Text style={st.showText}>{t('Mostrar')}</Text>
       </Pressable>
     </View>
   );

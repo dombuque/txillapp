@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 import { useIsNew } from '@/lib/whatsNew';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Uma função nova mostra só isto: um pequeno "NOVA" no canto do botão dela (nada de cartões de novidades no Início).
@@ -11,9 +12,9 @@ export function NewBadge({ id }: { id: string }) {
   const isNew = useIsNew(id);
   if (!isNew) return null;
   return (
-    <View pointerEvents="none" accessibilityLabel="Nova" style={st.badge}>
+    <View pointerEvents="none" accessibilityLabel={t('Nova')} style={st.badge}>
       <LinearGradient colors={[colors.brand, colors.brandWarm]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-      <Text style={st.badgeText}>NOVA</Text>
+      <Text style={st.badgeText}>{t('NOVA')}</Text>
     </View>
   );
 }

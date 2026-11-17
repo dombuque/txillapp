@@ -8,6 +8,7 @@
  * - "mostrado": o que as pessoas conhecem (0,5× · 1× · 2× · 3×). mostrado = aparelho × multiplicador.
  */
 
+import { t } from '@/lib/i18n';
 export type CamPlatform = 'ios' | 'android';
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -115,7 +116,7 @@ export function formatStop(stop: number, sep = ','): string {
 
 /** Etiqueta de acessibilidade do zoom: "Zoom 1,6 vezes". */
 export function zoomA11y(display: number, sep = ','): string {
-  return `Zoom ${formatZoom(display, sep).replace('×', '')} vezes`;
+  return t('Zoom {zoom} vezes', { zoom: formatZoom(display, sep).replace('×', '') });
 }
 
 /** Pinça: o zoom segue a escala dos dedos (proporcional, por isso suave em todo o lado) e fica dentro dos limites. */
@@ -273,8 +274,8 @@ export function torchFor(f: FlashChoice, recording: boolean, hasTorch: boolean, 
 
 /** Texto do flash para o leitor de ecrã. */
 export function flashA11y(f: FlashChoice, screen: boolean): string {
-  const s = f === 'off' ? 'desligado' : f === 'on' ? 'ligado' : 'automático';
-  return `${screen ? 'Flash de ecrã' : 'Flash'}: ${s}`;
+  const s = f === 'off' ? 'desligado' : f === 'on' ? 'ligado' : t('automático');
+  return `${screen ? t('Flash de ecrã') : t('Flash')}: ${s}`;
 }
 
 /** O ícone próprio do flash (Tx): riscado quando desligado, com o «A» no automático. */
@@ -336,12 +337,12 @@ export type PermView = { title: string; body: string; action: 'request' | 'setti
  */
 export function permissionView(status: PermStatus, refusedNow = false, platform: CamPlatform = 'android'): PermView {
   if (status === 'restricted') {
-    return { title: 'Câmara bloqueada', body: 'O acesso à câmara está bloqueado por restrições deste telemóvel (controlo parental ou do trabalho).', action: 'none', label: '' };
+    return { title: t('Câmara bloqueada'), body: t('O acesso à câmara está bloqueado por restrições deste telemóvel (controlo parental ou do trabalho).'), action: 'none', label: '' };
   }
   if (status === 'denied' || refusedNow) {
-    return { title: 'Sem acesso à câmara', body: 'Recusaste o acesso à câmara. Para tirar fotos e gravar vídeos aqui, ativa a Câmara nas definições do Txillapp.', action: 'settings', label: 'Abrir definições' };
+    return { title: t('Sem acesso à câmara'), body: t('Recusaste o acesso à câmara. Para tirar fotos e gravar vídeos aqui, ativa a Câmara nas definições do Txillapp.'), action: 'settings', label: t('Abrir definições') };
   }
-  return { title: 'A câmara do Txillapp', body: 'Dá acesso à câmara para tirar fotos e gravar vídeos aqui mesmo.', action: 'request', label: platform === 'ios' ? 'Continuar' : 'Permitir a câmara' };
+  return { title: t('A câmara do Txillapp'), body: t('Dá acesso à câmara para tirar fotos e gravar vídeos aqui mesmo.'), action: 'request', label: platform === 'ios' ? t('Continuar') : t('Permitir a câmara') };
 }
 
 export type CamProblem = { title: string; body: string; retry: boolean };
@@ -354,13 +355,13 @@ export function cameraProblem(
   const reason = opts.reason ?? '';
   const msg = (opts.message ?? '').toLowerCase();
   const busy = !!opts.usedByAnotherApp || reason === 'video-device-in-use-by-another-client' || reason === 'video-device-not-available-with-multiple-foreground-apps' || msg.includes('in use') || msg.includes('max_cameras') || msg.includes('maximum number of open cameras');
-  if (busy) return { title: 'A câmara está ocupada', body: 'Outra app está a usar a câmara. Fecha-a e volta aqui.', retry: kind === 'error' };
-  if (reason === 'video-device-not-available-due-to-system-pressure') return { title: 'O telemóvel está quente', body: 'A câmara parou um pouco para o telemóvel arrefecer.', retry: false };
-  if (reason === 'audio-device-in-use-by-another-client') return { title: 'Microfone ocupado', body: 'Outra app está a usar o microfone (uma chamada?). A câmara volta quando ela largar.', retry: false };
-  if (msg.includes('disabled') || msg.includes('policy')) return { title: 'Câmara desativada', body: 'A câmara está desativada neste telemóvel (política do aparelho).', retry: false };
-  if (msg.includes('do-not-disturb')) return { title: 'Modo Não incomodar', body: 'Este telemóvel não abre a câmara com o modo Não incomodar ligado.', retry: true };
-  if (kind === 'interruption') return { title: 'A câmara parou', body: 'Volta a ligar-se sozinha daqui a nada.', retry: false };
-  return { title: 'A câmara falhou', body: 'Alguma coisa correu mal com a câmara.', retry: true };
+  if (busy) return { title: t('A câmara está ocupada'), body: t('Outra app está a usar a câmara. Fecha-a e volta aqui.'), retry: kind === 'error' };
+  if (reason === 'video-device-not-available-due-to-system-pressure') return { title: t('O telemóvel está quente'), body: t('A câmara parou um pouco para o telemóvel arrefecer.'), retry: false };
+  if (reason === 'audio-device-in-use-by-another-client') return { title: t('Microfone ocupado'), body: t('Outra app está a usar o microfone (uma chamada?). A câmara volta quando ela largar.'), retry: false };
+  if (msg.includes('disabled') || msg.includes('policy')) return { title: t('Câmara desativada'), body: t('A câmara está desativada neste telemóvel (política do aparelho).'), retry: false };
+  if (msg.includes('do-not-disturb')) return { title: t('Modo Não incomodar'), body: t('Este telemóvel não abre a câmara com o modo Não incomodar ligado.'), retry: true };
+  if (kind === 'interruption') return { title: t('A câmara parou'), body: t('Volta a ligar-se sozinha daqui a nada.'), retry: false };
+  return { title: t('A câmara falhou'), body: t('Alguma coisa correu mal com a câmara.'), retry: true };
 }
 
 /**
@@ -399,8 +400,8 @@ export const DROP_VIDEO_MS = 400;
  */
 export function recordingNotice(durationMs: number, failed: boolean): string | null {
   const ms = finite(durationMs) ? durationMs : 0;
-  if (failed) return ms < MIN_VIDEO_MS ? 'Mantém carregado para gravar' : 'Não consegui gravar o vídeo. Tenta outra vez.';
-  return ms <= DROP_VIDEO_MS ? 'Mantém carregado para gravar' : null;
+  if (failed) return ms < MIN_VIDEO_MS ? t('Mantém carregado para gravar') : t('Não consegui gravar o vídeo. Tenta outra vez.');
+  return ms <= DROP_VIDEO_MS ? t('Mantém carregado para gravar') : null;
 }
 
 // ———————————————————————————————————————— Vários ————————————————————————————————————————

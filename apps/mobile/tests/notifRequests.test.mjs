@@ -20,7 +20,7 @@ test('a linha dos pedidos aparece no topo (Todas e Seguidores) só quando há pe
 test('o texto por baixo diz quem pediu', () => {
   const m = src.match(/export function requestsLine\(names: string\[\]\): string \{([\s\S]*?)\n\}/);
   assert.ok(m, 'requestsLine');
-  const fn = new Function('names', m[1]);
+  const fn = (names) => new Function('names', 't', m[1])(names, (s, v = {}) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k]))); // t(): o texto em português
   assert.equal(fn([]), 'Aprovar ou recusar pedidos');
   assert.equal(fn(['ana']), 'Aprovar ou recusar · @ana');
   assert.equal(fn(['ana', 'rui', 'zé']), 'Aprovar ou recusar · @ana e mais 2');

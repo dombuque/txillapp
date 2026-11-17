@@ -3,6 +3,7 @@
  * servidor estão em lib/api.sounds.ts. Testado em tests/sounds.test.mjs.
  */
 
+import { t } from '@/lib/i18n';
 export type SoundKind = 'original' | 'catalog' | 'local';
 export type SoundUnavailable = 'held' | 'off' | 'private' | 'minor' | 'unavailable';
 
@@ -46,18 +47,18 @@ export function compactCount(n: number | null | undefined): string {
 
 /** «1 tcheka», «12 tchekas», «1,2 mil tchekas»; sem nenhuma, «Ainda sem tchekas». */
 export function usesLine(n: number | null | undefined): string {
-  if (!n || n < 1) return 'Ainda sem tchekas';
+  if (!n || n < 1) return t('Ainda sem tchekas');
   return n === 1 ? '1 tcheka' : `${compactCount(n)} tchekas`;
 }
 
 /** Porque é que não se pode usar o som (o botão «Usar este som» fica desligado e mostra isto). */
 export function unavailableText(why: SoundUnavailable | null | undefined): string | null {
   switch (why) {
-    case 'held': return 'Este som está em análise e não pode ser usado agora.';
-    case 'off': return 'Quem publicou este som não deixa usá-lo.';
-    case 'private': return 'Este som é de uma conta privada e não pode ser usado.';
-    case 'minor': return 'Este som não pode ser usado por outras pessoas.';
-    case 'unavailable': return 'Esta música já não está disponível.';
+    case 'held': return t('Este som está em análise e não pode ser usado agora.');
+    case 'off': return t('Quem publicou este som não deixa usá-lo.');
+    case 'private': return t('Este som é de uma conta privada e não pode ser usado.');
+    case 'minor': return t('Este som não pode ser usado por outras pessoas.');
+    case 'unavailable': return t('Esta música já não está disponível.');
     default: return null;
   }
 }
@@ -85,47 +86,47 @@ export function mergePages<T extends { id: string }>(pages: { items: T[] }[] | n
 
 /** A definição «Deixar usar o meu som», numa frase (numa conta privada ou de menor fica desligada e não se muda). */
 export function reuseSetting(s: { reuse: boolean; effective: boolean; private: boolean; minor: boolean } | null | undefined): { on: boolean; disabled: boolean; description: string } {
-  if (!s) return { on: false, disabled: true, description: 'Outras pessoas podem usar o som das tuas tchekas nas delas.' };
-  if (s.private) return { on: false, disabled: true, description: 'A tua conta é privada: ninguém pode usar o som das tuas tchekas.' };
-  if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar usar o seu som.' };
-  return { on: s.reuse, disabled: false, description: 'Outras pessoas podem usar o som das tuas tchekas nas delas, com o teu nome no som. Desligado, as que já o usam continuam.' };
+  if (!s) return { on: false, disabled: true, description: t('Outras pessoas podem usar o som das tuas tchekas nas delas.') };
+  if (s.private) return { on: false, disabled: true, description: t('A tua conta é privada: ninguém pode usar o som das tuas tchekas.') };
+  if (s.minor) return { on: false, disabled: true, description: t('Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar usar o seu som.') };
+  return { on: s.reuse, disabled: false, description: t('Outras pessoas podem usar o som das tuas tchekas nas delas, com o teu nome no som. Desligado, as que já o usam continuam.') };
 }
 
 /** O contacto para contestar uma decisão sobre um som (ainda não há formulário na Ajuda). */
 export const SOUND_SUPPORT = 'suporte@txillapp.com';
 
 /** «Retirar o som»: o aviso antes de confirmar. */
-export const RETIRE_SOUND_TITLE = 'Retirar o som?';
-export const RETIRE_SOUND_TEXT = 'As tchekas que usam este som ficam sem som. Não dá para desfazer.';
+export const RETIRE_SOUND_TITLE = () => t('Retirar o som?');
+export const RETIRE_SOUND_TEXT = () => t('As tchekas que usam este som ficam sem som. Não dá para desfazer.');
 
 /** Uma tcheka que usava um som que foi tirado (`post.soundRemoved`): a linha no lugar do som. */
 export function soundRemovedText(why: string | null | undefined): string | null {
-  if (why === 'author') return 'Som retirado pelo autor';
-  if (why === 'rights') return 'Som retirado por direitos de autor';
+  if (why === 'author') return t('Som retirado pelo autor');
+  if (why === 'rights') return t('Som retirado por direitos de autor');
   return null;
 }
 
 /** O estado de um som meu (GET /sounds/me), numa frase, e se ainda o posso retirar. */
 export function mySoundStatus(s: { status: 'active' | 'held' | 'source_removed' | 'removed'; removedBy?: string | null }): { text: string; canRetire: boolean } {
   switch (s.status) {
-    case 'held': return { text: 'Em análise: ninguém o pode usar em tchekas novas', canRetire: true };
-    case 'source_removed': return { text: 'Apagaste a tcheka de onde saiu: continua a tocar nas que já o usam', canRetire: true };
-    case 'removed': return { text: s.removedBy === 'author' ? 'Retiraste este som' : 'Retirado pela equipa por direitos de autor', canRetire: false };
-    default: return { text: 'Ativo', canRetire: true };
+    case 'held': return { text: t('Em análise: ninguém o pode usar em tchekas novas'), canRetire: true };
+    case 'source_removed': return { text: t('Apagaste a tcheka de onde saiu: continua a tocar nas que já o usam'), canRetire: true };
+    case 'removed': return { text: s.removedBy === 'author' ? t('Retiraste este som') : t('Retirado pela equipa por direitos de autor'), canRetire: false };
+    default: return { text: t('Ativo'), canRetire: true };
   }
 }
 
 /** O aviso do Txillapp sobre um som meu (kind 'sound_review'): o texto, o motivo e o que posso fazer. */
 export interface SoundReviewData { soundId?: string; decision?: string; reason?: string; note?: string; postId?: string }
 export function soundReviewVerb(d: SoundReviewData): { text: string; sub?: string } {
-  const why = [d.reason?.trim() ? `Motivo: ${d.reason.trim()}.` : '', d.note?.trim() ? `Nota da equipa: ${d.note.trim()}.` : ''].filter(Boolean).join(' ');
-  const contest = `Se o som é teu ou tens autorização, escreve para ${SOUND_SUPPORT} com o assunto «Contestar som».`;
+  const why = [d.reason?.trim() ? t('Motivo: {reason}.', { reason: d.reason.trim() }) : '', d.note?.trim() ? t('Nota da equipa: {note}.', { note: d.note.trim() }) : ''].filter(Boolean).join(' ');
+  const contest = t('Se o som é teu ou tens autorização, escreve para {soundSupport} com o assunto «Contestar som».', { soundSupport: SOUND_SUPPORT });
   switch (d.decision) {
-    case 'held': return { text: 'suspendeu o teu som enquanto analisa uma denúncia: ninguém o pode usar em tchekas novas', sub: [why, contest].filter(Boolean).join(' ') };
-    case 'removed': return { text: 'retirou o teu som: deixou de tocar em todas as tchekas', sub: [why, contest].filter(Boolean).join(' ') };
-    case 'restored': return { text: 'repôs o teu som: voltou a tocar e a poder ser usado' };
-    case 'cleared': return { text: 'analisou a denúncia do teu som: voltou a poder ser usado' };
-    default: return { text: 'tem novidades sobre o teu som' };
+    case 'held': return { text: t('suspendeu o teu som enquanto analisa uma denúncia: ninguém o pode usar em tchekas novas'), sub: [why, contest].filter(Boolean).join(' ') };
+    case 'removed': return { text: t('retirou o teu som: deixou de tocar em todas as tchekas'), sub: [why, contest].filter(Boolean).join(' ') };
+    case 'restored': return { text: t('repôs o teu som: voltou a tocar e a poder ser usado') };
+    case 'cleared': return { text: t('analisou a denúncia do teu som: voltou a poder ser usado') };
+    default: return { text: t('tem novidades sobre o teu som') };
   }
 }
 /** Para onde leva: a página do som (se ainda existe) ou «Os meus sons». */

@@ -7,6 +7,7 @@ import { SITE_URL } from './config';
 import { uploadRequest } from './signedMedia';
 import { appealOutcome, type AppealState, type AppealStatus, type HeldDraft, rejectedPhotoId } from './photoAppeal';
 import { musicPayload } from './api.music';
+import { t } from '@/lib/i18n';
 
 /**
  * Publicar em segundo plano (como no Instagram): o cartão fecha logo e o envio continua aqui, com uma faixa no Início a
@@ -74,23 +75,23 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
 }
 
 async function run(id: string, qc: QueryClient) {
-  const t = tasks.find((x) => x.id === id);
-  if (!t) return;
+  const tv = tasks.find((x) => x.id === id);
+  if (!tv) return;
   patch(id, { status: 'uploading', stage: 'upload', error: null });
-  if (t.runner) {
+  if (tv.runner) {
     try {
-      await t.runner((p) => patch(id, { progress: p }), (stage) => patch(id, { stage }));
+      await tv.runner((p) => patch(id, { progress: p }), (stage) => patch(id, { stage }));
       patch(id, { status: 'done', progress: 1 });
       setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 2500);
     } catch (e) {
       const rid = rejectedPhotoId(e);
-      patch(id, { status: 'error', error: (e as Error).message || 'Não consegui enviar', appeal: rid ? { assetId: rid, state: 'available' } : undefined });
+      patch(id, { status: 'error', error: (e as Error).message || t('Não consegui enviar'), appeal: rid ? { assetId: rid, state: 'available' } : undefined });
     }
     return;
   }
-  const sent = [...t.sent];
+  const sent = [...tv.sent];
   try {
-    const n = t.job.assets.length;
+    const n = tv.job.assets.length;
     // Primeiro envia-se tudo; os vídeos convertem no servidor enquanto os outros ficheiros sobem.
     const pending: { i: number; state: MediaState }[] = [];
     let rejected: unknown = null;
@@ -102,7 +103,7 @@ async function run(id: string, qc: QueryClient) {
         try { state = (await raw(`/media/${known}/status`)) as MediaState; } catch (e) { if ((e as ApiError).status !== 404) throw e; }
         // Recusada pela verificação automática (à espera da revisão): não se volta a enviar.
         if (state?.status === 'rejected') {
-          rejected ??= new ApiError(422, state.error ?? 'Esta foto parece mostrar nudez e não pode ser publicada.', 'nudity_rejected', { assetId: known });
+          rejected ??= new ApiError(422, state.error ?? t('Esta foto parece mostrar nudez e não pode ser publicada.'), 'nudity_rejected', { assetId: known });
           continue;
         }
         if (state && state.status !== 'deleted') { pending.push({ i, state }); continue; }
@@ -111,7 +112,7 @@ async function run(id: string, qc: QueryClient) {
       patch(id, { stage: 'upload' });
       let up: { assetId: string; state: MediaState };
       try {
-        up = await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
+        up = await uploadWithProgress(tv.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
       } catch (e) {
         // Foto recusada: fica no servidor (7 dias) para o pedido de revisão. Os outros ficheiros sobem na mesma: o
         // rascunho que vai com o pedido leva-os todos (o servidor publica-o sozinho se a foto for aprovada).
@@ -138,7 +139,7 @@ async function run(id: string, qc: QueryClient) {
       }
     }
     patch(id, { progress: 1, stage: 'post' });
-    await composeApi.createPost({ ...t.job.post, mediaIds: sent as string[] });
+    await composeApi.createPost({ ...tv.job.post, mediaIds: sent as string[] });
     patch(id, { status: 'done' });
     void Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] })]);
     setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 3500);
@@ -146,7 +147,7 @@ async function run(id: string, qc: QueryClient) {
     const rid = rejectedPhotoId(e);
     const prev = tasks.find((x) => x.id === id)?.appeal;
     const appeal = rid ? (prev?.assetId === rid ? prev : { assetId: rid, state: 'available' as const }) : undefined;
-    patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || 'Não consegui publicar', appeal });
+    patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || t('Não consegui publicar'), appeal });
   }
 }
 
@@ -208,14 +209,14 @@ function draftOf(t: PublishTask, assetId: string): HeldDraft | null {
 function watchAppeal(id: string, qc: QueryClient) {
   stopWatching(id);
   const tick = async () => {
-    const t = tasks.find((x) => x.id === id);
-    if (!t?.appeal || (t.appeal.state !== 'pending' && t.appeal.state !== 'held')) return stopWatching(id);
+    const tv = tasks.find((x) => x.id === id);
+    if (!tv?.appeal || (tv.appeal.state !== 'pending' && tv.appeal.state !== 'held')) return stopWatching(id);
     let st: AppealStatus;
-    try { st = (await raw(`/media/${t.appeal.assetId}/status`)) as AppealStatus; } catch { return; /* sem rede: tenta no próximo */ }
+    try { st = (await raw(`/media/${tv.appeal.assetId}/status`)) as AppealStatus; } catch { return; /* sem rede: tenta no próximo */ }
     const out = appealOutcome(st);
     if (out === 'waiting') return;
     stopWatching(id);
-    if (out === 'refused') return setAppeal(id, 'refused', st.error ?? 'A moderação reviu a foto e manteve a recusa.');
+    if (out === 'refused') return setAppeal(id, 'refused', st.error ?? t('A moderação reviu a foto e manteve a recusa.'));
     if (out === 'published') {
       setAppeal(id, 'published');
       void Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] }), qc.invalidateQueries({ queryKey: ['stories'] })]);
@@ -224,7 +225,7 @@ function watchAppeal(id: string, qc: QueryClient) {
     }
     if (out === 'held_failed') {
       // Aprovada, mas o servidor não conseguiu publicar: fica «Tentar outra vez» (publica-se daqui, à mão).
-      return patch(id, { appeal: undefined, error: `A foto foi aprovada, mas não consegui publicar${st.held?.error ? ` (${st.held.error})` : ''}. Tenta outra vez.` });
+      return patch(id, { appeal: undefined, error: t('A foto foi aprovada, mas não consegui publicar{value}. Tenta outra vez.', { value: st.held?.error ? ` (${st.held.error})` : '' }) });
     }
     patch(id, { appeal: undefined });
     void run(id, qc);
@@ -237,11 +238,11 @@ function watchAppeal(id: string, qc: QueryClient) {
  * com o rascunho da publicação, que fica guardado no servidor e é publicado lá quando a foto for aprovada.
  */
 export async function appealPublish(id: string, qc: QueryClient) {
-  const t = tasks.find((x) => x.id === id);
-  if (!t?.appeal || !['available', 'failed'].includes(t.appeal.state)) return;
-  const assetId = t.appeal.assetId;
+  const tv = tasks.find((x) => x.id === id);
+  if (!tv?.appeal || !['available', 'failed'].includes(tv.appeal.state)) return;
+  const assetId = tv.appeal.assetId;
   setAppeal(id, 'sending');
-  const draft = draftOf(t, assetId);
+  const draft = draftOf(tv, assetId);
   let held = false;
   try {
     held = !!((await raw(`/media/${assetId}/appeal`, { method: 'POST', body: JSON.stringify(draft ? { draft } : {}) })) as { held?: boolean }).held;
@@ -252,11 +253,11 @@ export async function appealPublish(id: string, qc: QueryClient) {
       try {
         await raw(`/media/${assetId}/appeal`, { method: 'POST', body: '{}' });
       } catch (e2) {
-        if ((e2 as ApiError).status !== 409) return setAppeal(id, 'failed', (e2 as Error).message || 'Não consegui pedir a revisão. Tenta outra vez.');
+        if ((e2 as ApiError).status !== 409) return setAppeal(id, 'failed', (e2 as Error).message || t('Não consegui pedir a revisão. Tenta outra vez.'));
       }
     } else if (err.status !== 409) {
       // 409: já tinha sido pedido (noutro aparelho, ou a resposta perdeu-se): fica à espera na mesma.
-      return setAppeal(id, 'failed', err.message || 'Não consegui pedir a revisão. Tenta outra vez.');
+      return setAppeal(id, 'failed', err.message || t('Não consegui pedir a revisão. Tenta outra vez.'));
     }
   }
   setAppeal(id, held ? 'held' : 'pending');

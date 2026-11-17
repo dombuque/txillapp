@@ -10,6 +10,7 @@ import { VenueRow } from '@/components/VenueCard';
 import { KIND_LABEL, KINDS, ROLE_LABEL, locaisApi } from '@/lib/api.locais';
 import { createPlaceWarning, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** As minhas páginas de locais (as que criei e as que giro), os convites por aceitar e criar uma página nova. */
 export default function Locais() {
@@ -55,21 +56,21 @@ export default function Locais() {
   const list = mine.data ?? [];
   const pending = invites.data ?? [];
   return (
-    <StackPage title="Os meus locais">
+    <StackPage title={t('Os meus locais')}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontSize: 14, lineHeight: 20, color: colors.zinc600 }}>Tens um bar, restaurante, discoteca ou café? Cria a página do local, convida os teus gestores, publica como o local, imprime o QR e a malta faz check-in. A equipa verifica e dá o selo.</Text>
+          <Text style={{ fontSize: 14, lineHeight: 20, color: colors.zinc600 }}>{t('Tens um bar, restaurante, discoteca ou café? Cria a página do local, convida os teus gestores, publica como o local, imprime o QR e a malta faz check-in. A equipa verifica e dá o selo.')}</Text>
 
           {pending.length > 0 && (
             <View style={{ marginTop: 16, gap: 8 }}>
-              <Text style={st.h}>Convites para gerir</Text>
+              <Text style={st.h}>{t('Convites para gerir')}</Text>
               {pending.map((v) => (
                 <View key={v.slug} style={st.invite}>
                   <VenueRow venue={v} right="none" />
-                  <Text style={{ fontSize: 13, color: colors.zinc600 }}>Convidaram-te como {ROLE_LABEL[v.invite ?? 'editor'].toLowerCase()}.</Text>
+                  <Text style={{ fontSize: 13, color: colors.zinc600 }}>{t('Convidaram-te como {roleLabel}.', { roleLabel: ROLE_LABEL[v.invite ?? 'editor'].toLowerCase() })}</Text>
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <Pressable onPress={() => void answer(v.slug, true)} style={[st.cta, { flex: 1, height: 42 }]} accessibilityRole="button"><Text style={st.ctaText}>Aceitar</Text></Pressable>
-                    <Pressable onPress={() => void answer(v.slug, false)} style={[st.cta, { flex: 1, height: 42, backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.ctaText, { color: colors.zinc800 }]}>Recusar</Text></Pressable>
+                    <Pressable onPress={() => void answer(v.slug, true)} style={[st.cta, { flex: 1, height: 42 }]} accessibilityRole="button"><Text style={st.ctaText}>{t('Aceitar')}</Text></Pressable>
+                    <Pressable onPress={() => void answer(v.slug, false)} style={[st.cta, { flex: 1, height: 42, backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.ctaText, { color: colors.zinc800 }]}>{t('Recusar')}</Text></Pressable>
                   </View>
                 </View>
               ))}
@@ -78,34 +79,34 @@ export default function Locais() {
 
           {list.length > 0 && (
             <View style={{ marginTop: 16, gap: 4 }}>
-              <Text style={st.h}>As minhas páginas</Text>
+              <Text style={st.h}>{t('As minhas páginas')}</Text>
               {list.map((v) => (
                 <View key={v.slug} style={st.row}>
                   <VenueRow venue={v} right="role" />
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable onPress={() => router.push({ pathname: '/v/[slug]', params: { slug: v.slug } })} style={st.small} accessibilityRole="link"><Text style={st.smallText}>Ver página</Text></Pressable>
-                    <Pressable onPress={() => router.push({ pathname: '/v/[slug]/gerir', params: { slug: v.slug } })} style={[st.small, { backgroundColor: colors.zinc900 }]} accessibilityRole="link"><Icon name="settings" size={16} color="#fff" /><Text style={[st.smallText, { color: '#fff' }]}>Gerir</Text></Pressable>
-                    <Pressable onPress={() => router.push({ pathname: '/new', params: { as: v.slug } } as never)} style={st.small} accessibilityRole="link"><Icon name="compose" size={16} color={colors.zinc900} /><Text style={st.smallText}>Publicar</Text></Pressable>
+                    <Pressable onPress={() => router.push({ pathname: '/v/[slug]', params: { slug: v.slug } })} style={st.small} accessibilityRole="link"><Text style={st.smallText}>{t('Ver página')}</Text></Pressable>
+                    <Pressable onPress={() => router.push({ pathname: '/v/[slug]/gerir', params: { slug: v.slug } })} style={[st.small, { backgroundColor: colors.zinc900 }]} accessibilityRole="link"><Icon name="settings" size={16} color="#fff" /><Text style={[st.smallText, { color: '#fff' }]}>{t('Gerir')}</Text></Pressable>
+                    <Pressable onPress={() => router.push({ pathname: '/new', params: { as: v.slug } } as never)} style={st.small} accessibilityRole="link"><Icon name="compose" size={16} color={colors.zinc900} /><Text style={st.smallText}>{t('Publicar')}</Text></Pressable>
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.zinc500 }}>{v.verified ? 'Verificado' : 'Em análise'} · {v.checkins} check-ins · {v.posts} publicações</Text>
+                  <Text style={{ fontSize: 12, color: colors.zinc500 }}>{v.verified ? t('Verificado') : t('Em análise')} {t('· {checkins} check-ins · {posts} publicações', { checkins: v.checkins, posts: v.posts })}</Text>
                 </View>
               ))}
             </View>
           )}
 
           <View style={{ marginTop: 24, gap: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>Criar uma página de local</Text>
-            <TextInput value={name} onChangeText={setName} maxLength={80} placeholder="Nome do local" placeholderTextColor={colors.zinc500} accessibilityLabel="Nome do local" style={st.input} />
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>{t('Criar uma página de local')}</Text>
+            <TextInput value={name} onChangeText={setName} maxLength={80} placeholder={t('Nome do local')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Nome do local')} style={st.input} />
             <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {KINDS.map((k) => <Chip key={k} label={KIND_LABEL[k]} selected={kind === k} onPress={() => setKind(k)} />)}
             </View>
-            <PlaceField label="Onde fica?" value={place} onChange={setPlace} onTyped={setTyped} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
+            <PlaceField label={t('Onde fica?')} value={place} onChange={setPlace} onTyped={setTyped} placeholder={t('Procurar o sítio… (nome, rua ou bairro)')} mapHint={t('Arrasta o mapa até o alfinete ficar na porta do local.')} />
             <View style={st.switchRow}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
-                <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta e em perto de mim. Desligado, continua na pesquisa pelo nome, sem o ponto no mapa. Desliga se não tiver porta aberta ao público.</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{t('Mostrar no mapa')}</Text>
+                <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>{t('O teu local aparece no mapa do À tua volta e em perto de mim. Desligado, continua na pesquisa pelo nome, sem o ponto no mapa. Desliga se não tiver porta aberta ao público.')}</Text>
               </View>
-              <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
+              <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Mostrar no mapa do À tua volta')} />
             </View>
             {placeWarning ? (
               <View style={st.warn}>
@@ -113,12 +114,12 @@ export default function Locais() {
                 <Text style={st.warnText}>{placeWarning}</Text>
               </View>
             ) : null}
-            <TextInput value={about} onChangeText={setAbout} maxLength={1000} multiline numberOfLines={3} placeholder="Uma frase sobre o local (podes completar depois)" placeholderTextColor={colors.zinc500} accessibilityLabel="Sobre o local" style={[st.input, { height: 96, textAlignVertical: 'top' }]} />
+            <TextInput value={about} onChangeText={setAbout} maxLength={1000} multiline numberOfLines={3} placeholder={t('Uma frase sobre o local (podes completar depois)')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Sobre o local')} style={[st.input, { height: 96, textAlignVertical: 'top' }]} />
             <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text>
             <Pressable onPress={() => void create()} disabled={off} style={[st.cta, off && { opacity: 0.5 }]} accessibilityRole="button">
-              <Text style={st.ctaText}>{busy ? 'A criar…' : 'Criar a página'}</Text>
+              <Text style={st.ctaText}>{busy ? t('A criar…') : t('Criar a página')}</Text>
             </Pressable>
-            <Text style={{ fontSize: 12, lineHeight: 18, color: colors.zinc500 }}>Depois de criar, completa o perfil (logótipo, capa, horário, contactos) e convida os gestores em Gerir.</Text>
+            <Text style={{ fontSize: 12, lineHeight: 18, color: colors.zinc500 }}>{t('Depois de criar, completa o perfil (logótipo, capa, horário, contactos) e convida os gestores em Gerir.')}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

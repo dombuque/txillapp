@@ -3,6 +3,7 @@
 // (o iPhone pode mandar `paste` e `beforeinput` para o mesmo "Colar das capturas de ecrã").
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -148,5 +149,5 @@ test('as duas caixas de mensagem usam o colar e a pré-visualização; nada se e
   assert.doesNotMatch(hook, /uploadChatMedia|chatSend/);
   const sheet = readFileSync(path.join(ROOT, 'src', 'components', 'PastedImageSheet.tsx'), 'utf8');
   assert.match(sheet, /useState\(caption \?\? ''\)/);
-  assert.match(sheet, /placeholder="Adicionar uma legenda…"/);
+  assert.match(sheet, /placeholder=\{t\('Adicionar uma legenda…'\)\}/);
 });

@@ -2,6 +2,7 @@
  * Encontrar amigos nos contactos (só na web). Os contactos nunca saem do aparelho: só se envia o resumo (SHA-256) dos emails.
  * Porta de apps/web/src/lib/contacts.ts: Android (Chrome) tem o seletor do sistema; iPhone e computador importam um ficheiro (.vcf ou .csv).
  */
+import { t } from '@/lib/i18n';
 interface ContactsManager { select(props: string[], opts?: { multiple?: boolean }): Promise<{ email?: string[] }[]> }
 const manager = (): ContactsManager | null => {
   const c = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { contacts?: ContactsManager }).contacts;
@@ -15,12 +16,12 @@ export function emailsFromText(text: string): string[] {
 }
 export async function pickContactEmails(): Promise<string[]> {
   const m = manager();
-  if (!m) throw new Error('Este telemóvel não deixa escolher contactos pela app');
+  if (!m) throw new Error(t('Este telemóvel não deixa escolher contactos pela app'));
   const picked = await m.select(['email'], { multiple: true });
   return [...new Set(picked.flatMap((c) => c.email ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean))];
 }
 export async function emailsFromFile(file: File): Promise<string[]> {
-  if (file.size > 5 * 1024 * 1024) throw new Error('Esse ficheiro é grande demais (máximo 5 MB)');
+  if (file.size > 5 * 1024 * 1024) throw new Error(t('Esse ficheiro é grande demais (máximo 5 MB)'));
   return emailsFromText(await file.text());
 }
 export async function hashEmail(email: string): Promise<string> {

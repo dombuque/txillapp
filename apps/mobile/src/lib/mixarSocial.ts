@@ -5,6 +5,7 @@
  * resto do Mixar («Visto por Ana»), porque a app não sabe se é «o» ou «a».
  */
 import type { MixarReactionId } from './api.mixar';
+import { t } from '@/lib/i18n';
 
 /** O tamanho máximo de um comentário (o mesmo da API). */
 export const COMMENT_MAX = 500;
@@ -21,8 +22,8 @@ export const MORE_PER_DAY = 3;
 export const commentBadge = (n: number | null | undefined): string | null => (!n || n < 0 ? null : n > 99 ? '99+' : String(n));
 
 export function commentA11y(n: number | null | undefined, partner: string): string {
-  const c = n && n > 0 ? `, ${n} ${n === 1 ? 'comentário' : 'comentários'}` : '';
-  return `Conversa com ${partner} sobre este vídeo${c}`;
+  const c = n && n > 0 ? t(', {count} comentário', { count: n, other: ', {count} comentários' }) : '';
+  return t('Conversa com {partner} sobre este vídeo{c}', { partner, c });
 }
 
 /** Quantos caracteres faltam; `show` só perto do fim (como no chat). */
@@ -36,27 +37,27 @@ export const canSend = (text: string, busy = false) => !busy && text.trim().leng
 /** O texto de um erro ao comentar (422: o filtro de texto recusou). */
 export function commentErrorText(e: unknown): string {
   const x = e as { status?: number; message?: string } | null;
-  if (x?.status === 422) return x.message?.trim() || 'Este comentário não cumpre as regras do Txillapp.';
-  if (x?.status === 404) return 'Este vídeo já não está no Mixar.';
-  if (x?.status === 429) return 'Estás a escrever muito depressa. Espera um bocadinho.';
-  return 'Não consegui enviar. Tenta outra vez.';
+  if (x?.status === 422) return x.message?.trim() || t('Este comentário não cumpre as regras do Txillapp.');
+  if (x?.status === 404) return t('Este vídeo já não está no Mixar.');
+  if (x?.status === 429) return t('Estás a escrever muito depressa. Espera um bocadinho.');
+  return t('Não consegui enviar. Tenta outra vez.');
 }
 
-export const commentsEmpty = (partner: string) => ({ title: 'Ainda não há conversa', line: `Diz a ${partner} o que achaste deste vídeo. Só vocês os dois veem isto.` });
+export const commentsEmpty = (partner: string) => ({ title: t('Ainda não há conversa'), line: t('Diz a {partner} o que achaste deste vídeo. Só vocês os dois veem isto.', { partner }) });
 
 /* ---------- Ver juntos ---------- */
 
 export interface Presence { here: boolean; postId: string | null }
 
-export const togetherLine = (partner: string) => `${partner} está a ver contigo`;
-export const hereLine = (partner: string) => `${partner} está aqui`;
+export const togetherLine = (partner: string) => t('{partner} está a ver contigo', { partner });
+export const hereLine = (partner: string) => t('{partner} está aqui', { partner });
 
 /** A linha de baixo do «está a ver contigo»: no mesmo item, noutro (dá para ir lá) ou ainda a abrir. */
 export function togetherSub(p: Presence | null | undefined, myPostId: string | null, known: readonly string[]): { text: string; jump: string | null } {
   if (!p?.here) return { text: '', jump: null };
-  if (p.postId && p.postId === myPostId) return { text: 'No mesmo vídeo que tu', jump: null };
-  if (p.postId && known.includes(p.postId)) return { text: 'Noutro vídeo. Toca para ir', jump: p.postId };
-  return { text: 'Acabou de abrir o Mixar', jump: null };
+  if (p.postId && p.postId === myPostId) return { text: t('No mesmo vídeo que tu'), jump: null };
+  if (p.postId && known.includes(p.postId)) return { text: t('Noutro vídeo. Toca para ir'), jump: p.postId };
+  return { text: t('Acabou de abrir o Mixar'), jump: null };
 }
 
 /** Junta um evento de presença ao estado (o eco dos meus outros aparelhos não conta). */
@@ -87,35 +88,35 @@ export function theirChanges(prev: ReadonlyMap<string, MixarReactionId | null> |
 export const autoSaves = (mine: MixarReactionId | null | undefined, theirs: MixarReactionId | null | undefined) => !!mine && !!theirs && mine !== 'nah' && theirs !== 'nah';
 
 export function savedByText(by: 'me' | 'them' | 'both', partner: string): string {
-  if (by === 'me') return 'Guardaste tu';
-  if (by === 'them') return `Guardado por ${partner}`;
-  return 'Os dois reagiram';
+  if (by === 'me') return t('Guardaste tu');
+  if (by === 'them') return t('Guardado por {partner}', { partner });
+  return t('Os dois reagiram');
 }
 
-export const saveA11y = (saved: boolean) => (saved ? 'Tirar dos Guardados do Mixar' : 'Guardar nos Guardados do Mixar');
-export const SAVED_TOAST = { saved: 'Ficou nos vossos Guardados', removed: 'Saiu dos Guardados', both: 'Os dois reagiram: ficou nos vossos Guardados' };
+export const saveA11y = (saved: boolean) => (saved ? t('Tirar dos Guardados do Mixar') : t('Guardar nos Guardados do Mixar'));
+export const SAVED_TOAST = { get saved() { return t('Ficou nos vossos Guardados'); }, get removed() { return t('Saiu dos Guardados'); }, get both() { return t('Os dois reagiram: ficou nos vossos Guardados'); } };
 
 export const savedEmpty = (partner: string) => ({
-  title: 'Ainda não há Guardados',
-  line: `Quando tu e ${partner} reagirem ao mesmo vídeo (sem ser com nah), ele fica aqui. Também podes guardar à mão no marcador.`,
+  title: t('Ainda não há Guardados'),
+  line: t('Quando tu e {partner} reagirem ao mesmo vídeo (sem ser com nah), ele fica aqui. Também podes guardar à mão no marcador.', { partner }),
 });
-export const savedEnd = { title: 'São todos os vossos Guardados', line: 'Continuem a reagir no Mixar para a coleção crescer.' };
+export const savedEnd = { get title() { return t('São todos os vossos Guardados'); }, get line() { return t('Continuem a reagir no Mixar para a coleção crescer.'); } };
 
 /* ---------- «Mais 5» ---------- */
 
 export function moreLine(left: number | null | undefined): string {
   if (left == null) return '';
-  if (left <= 0) return 'Hoje já não dá para pedir mais.';
-  return `Podes pedir mais ${left} ${left === 1 ? 'vez' : 'vezes'} hoje`;
+  if (left <= 0) return t('Hoje já não dá para pedir mais.');
+  return t('Podes pedir mais {count} vez hoje', { count: left, other: 'Podes pedir mais {count} vezes hoje' });
 }
 
 export function moreResult(added: number): string {
-  if (added <= 0) return 'Por agora não há mais nada novo. Volta amanhã.';
-  return `${added} ${added === 1 ? 'vídeo novo' : 'vídeos novos'} na vossa seleção`;
+  if (added <= 0) return t('Por agora não há mais nada novo. Volta amanhã.');
+  return t('{count} vídeo novo na vossa seleção', { count: added, other: '{count} vídeos novos na vossa seleção' });
 }
 
 export function moreErrorText(e: unknown): string {
   const x = e as { status?: number; message?: string } | null;
-  if (x?.status === 429) return x.message?.trim() && !/throttler|too many/i.test(x.message) ? x.message.trim() : 'Já pediram mais 3 vezes hoje. Amanhã às 05:00 há uma seleção nova';
-  return 'Não deu agora. Tenta outra vez.';
+  if (x?.status === 429) return x.message?.trim() && !/throttler|too many/i.test(x.message) ? x.message.trim() : t('Já pediram mais 3 vezes hoje. Amanhã às 05:00 há uma seleção nova');
+  return t('Não deu agora. Tenta outra vez.');
 }

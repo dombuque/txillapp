@@ -3,6 +3,7 @@ import { startsOf, type ProjectClip, type TrimEdge } from '@/lib/studio/project'
 import { cachedThumb, videoThumb } from '@/lib/studio/thumbs';
 import { clampPps, cutPoints, fitPps, followScroll, pinchDistance, PPS_DEFAULT, preciseClock, reorderIndex, rulerTicks, snapTime, timeAtX, zoomAt } from '@/lib/studio/timeline';
 import { fmtS, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
+import { t } from '@/lib/i18n';
 
 /**
  * A linha do tempo do estúdio (só web: é o browser que corre o estúdio). Ao toque (PWA) e com o rato:
@@ -589,7 +590,7 @@ export function Timeline(p: TimelineProps) {
       <div
         data-tl={edge === 'start' ? 'h-start' : 'h-end'}
         data-key={c.key}
-        aria-label={edge === 'start' ? 'Cortar o início (arrasta)' : 'Cortar o fim (arrasta)'}
+        aria-label={edge === 'start' ? t('Cortar o início (arrasta)') : t('Cortar o fim (arrasta)')}
         style={{
           position: 'absolute', top: -2, bottom: -2, width: HANDLE_W, [edge === 'start' ? 'left' : 'right']: -HANDLE_W, zIndex: 3,
           background: fl === edge ? '#fff' : `linear-gradient(180deg, ${C.hot}, ${C.coral})`, cursor: 'ew-resize', touchAction: 'none',
@@ -609,7 +610,7 @@ export function Timeline(p: TimelineProps) {
         role="button"
         tabIndex={0}
         aria-pressed={sel}
-        aria-label={`Clipe ${i + 1}, ${c.video ? 'vídeo' : 'foto'}, ${fmtS(d)} s${sel ? ', escolhido' : ''}`}
+        aria-label={t('Clipe {n}, {value}, {s} s{value2}', { n: i + 1, value: c.video ? t('vídeo') : t('foto'), s: fmtS(d), value2: sel ? t(', escolhido') : '' })}
         onKeyDown={(ev) => { if (ev.key === 'Enter' && !locked) live.current.onSelect(c.key); }}
         style={{
           position: 'absolute', left, top: 0, width: w, height: TRACK_H, borderRadius: 9, zIndex: sel ? 2 : 1,
@@ -621,7 +622,7 @@ export function Timeline(p: TimelineProps) {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.55) 100%)' }} />
           {w > 34 ? <span style={{ position: 'absolute', left: labelL, bottom: 4, fontSize: 12, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums', letterSpacing: 0.2, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{fmtS(d)}s</span> : null}
           {c.video && c.speed !== 1 && w > 30 ? <span style={{ position: 'absolute', left: labelL - 1, top: 4, fontSize: 12, fontWeight: 900, color: '#0b0b0f', background: C.beat, borderRadius: 5, padding: '1px 4px' }}>{speedLabel(c.speed)}</span> : null}
-          {c.video && (c.hasAudio === false || c.sound === false) && w > 56 ? <span style={{ position: 'absolute', right: 5, top: 4, fontSize: 12, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 5, padding: '1px 5px' }}>{c.sound === false ? 'calado' : 'sem som'}</span> : null}
+          {c.video && (c.hasAudio === false || c.sound === false) && w > 56 ? <span style={{ position: 'absolute', right: 5, top: 4, fontSize: 12, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 5, padding: '1px 5px' }}>{c.sound === false ? t('calado') : t('sem som')}</span> : null}
         </div>
         <div style={{ position: 'absolute', inset: 0, borderRadius: 9, pointerEvents: 'none', boxShadow: sel ? `inset 0 0 0 2px ${C.hot}, 0 0 18px ${C.glow}` : 'inset 0 0 0 1px rgba(255,255,255,0.10)' }} />
         {sel && !reorder && !locked ? handle('start') : null}
@@ -644,7 +645,7 @@ export function Timeline(p: TimelineProps) {
     const [c1, c2] = LAYER_COLORS[l.kind];
     if (l.point) {
       return (
-        <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={`${l.label}, aos ${fmtS(l.start)} s`}
+        <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={t('{label}, aos {s} s', { label: l.label, s: fmtS(l.start) })}
           style={{ position: 'absolute', left: left - LAYER_H / 2, top, width: LAYER_H, height: LAYER_H, zIndex: on ? 3 : 2, cursor: locked ? 'default' : 'grab', touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: 11, height: 11, transform: 'rotate(45deg)', borderRadius: 2, background: c1, boxShadow: on ? `0 0 0 2px #fff, 0 0 10px ${c1}` : '0 0 0 1px rgba(0,0,0,0.5)' }} />
         </div>
@@ -652,13 +653,13 @@ export function Timeline(p: TimelineProps) {
     }
     const w = Math.max(6, (l.end - l.start) * pps);
     const edge = (side: 'start' | 'end') => (
-      <div data-tl={side === 'start' ? 'l-start' : 'l-end'} data-id={l.id} aria-label={side === 'start' ? 'Mudar o início (arrasta)' : 'Mudar o fim (arrasta)'}
+      <div data-tl={side === 'start' ? 'l-start' : 'l-end'} data-id={l.id} aria-label={side === 'start' ? t('Mudar o início (arrasta)') : t('Mudar o fim (arrasta)')}
         style={{ position: 'absolute', top: -1, bottom: -1, width: 12, [side === 'start' ? 'left' : 'right']: -6, zIndex: 3, cursor: 'ew-resize', touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 4, height: LAYER_H - 4, borderRadius: 2, background: '#fff', boxShadow: `0 0 6px ${c1}` }} />
       </div>
     );
     return (
-      <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={`${l.label}, de ${fmtS(l.start)} a ${fmtS(l.end)} s`}
+      <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={t('{label}, de {s} a {s2} s', { label: l.label, s: fmtS(l.start), s2: fmtS(l.end) })}
         style={{ position: 'absolute', left, top, width: w, height: LAYER_H, borderRadius: 6, zIndex: on ? 3 : 2, cursor: locked ? 'default' : 'grab', touchAction: 'none',
           background: `linear-gradient(90deg, ${c1}, ${c2})`, opacity: on ? 1 : 0.82, boxShadow: on ? `inset 0 0 0 1.5px #fff, 0 0 10px ${c1}` : 'inset 0 0 0 1px rgba(0,0,0,0.25)' }}>
         <span style={{ position: 'absolute', left: 6, right: 6, top: 0, lineHeight: `${LAYER_H}px`, fontSize: 12, fontWeight: 800, color: '#0b0b0f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{w > 26 ? l.label : ''}</span>
@@ -683,7 +684,7 @@ export function Timeline(p: TimelineProps) {
   );
 
   return (
-    <div ref={wrap} aria-label="Linha do tempo" onPointerDownCapture={onPointerDownCapture} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ position: 'relative', touchAction: 'none', background: `linear-gradient(180deg, ${C.bg}, #0b0b12)`, borderTop: `1px solid ${C.line}`, userSelect: 'none', WebkitUserSelect: 'none', fontFamily: font }}>
+    <div ref={wrap} aria-label={t('Linha do tempo')} onPointerDownCapture={onPointerDownCapture} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ position: 'relative', touchAction: 'none', background: `linear-gradient(180deg, ${C.bg}, #0b0b12)`, borderTop: `1px solid ${C.line}`, userSelect: 'none', WebkitUserSelect: 'none', fontFamily: font }}>
       {p.compact ? (p.note ? <span role="status" style={{ position: 'absolute', left: '50%', top: 2, transform: 'translateX(-50%)', zIndex: 9, color: '#fff', background: 'rgba(214,51,79,0.95)', borderRadius: 999, padding: '4px 12px', fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{p.note}</span> : null) : (
       <div style={{ height: HEAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.3 }}>
@@ -694,9 +695,9 @@ export function Timeline(p: TimelineProps) {
         <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center' }}>
           {p.note ? <span role="status" style={{ color: '#fff', background: 'rgba(214,51,79,0.9)', borderRadius: 999, padding: '3px 10px', fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.note}</span> : null}
         </div>
-        {zoomBtn('−', 'Afastar', () => zoomBy(1 / 1.6))}
-        {zoomBtn('Tudo', 'Ver tudo', fitAll, true)}
-        {zoomBtn('+', 'Aproximar', () => zoomBy(1.6))}
+        {zoomBtn('−', t('Afastar'), () => zoomBy(1 / 1.6))}
+        {zoomBtn(t('Tudo'), t('Ver tudo'), fitAll, true)}
+        {zoomBtn('+', t('Aproximar'), () => zoomBy(1.6))}
       </div>
       )}
       {p.lead ? <div data-tl="ui" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: LEAD_W, zIndex: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: C.bg, borderRight: `1px solid ${C.line}` }}>{p.lead}</div> : null}

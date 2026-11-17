@@ -5,6 +5,7 @@
 // - a TxillCam do site (TxCamera), o estúdio de tchekas e o editor do telemóvel (PhotoEditor) passam o selo de quem tem a sessão.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

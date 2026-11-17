@@ -3,6 +3,7 @@
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 // As datas são feitas em hora local (new Date(a, m, d, h, min)) para os testes darem o mesmo em qualquer fuso.
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

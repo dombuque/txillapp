@@ -3,6 +3,7 @@
  * vez (até CHAT_PICK_MAX, pela ordem em que se tocaram); cada um vai como uma mensagem, pela mesma ordem, e a legenda
  * escrita na caixa vai só com o primeiro.
  */
+import { t } from '@/lib/i18n';
 export const CHAT_PICK_MAX = 10;
 
 export type ChatPick = { uri: string; mime: string; video: boolean };
@@ -27,12 +28,12 @@ export function chatPicks(assets: readonly Asset[] | null | undefined, max = CHA
 /** O aviso enquanto se enviam: «A enviar…» com um, «A enviar 2 de 5…» com vários. */
 export function sendingLabel(done: number, total: number): string {
   if (total <= 1) return 'A enviar…';
-  return `A enviar ${Math.min(done + 1, total)} de ${total}…`;
+  return t('A enviar {n} de {total}…', { n: Math.min(done + 1, total), total });
 }
 
 /** O erro no fim, se algum não foi. */
 export function failedLabel(failed: number, total: number): string {
   if (failed <= 0) return '';
-  if (total <= 1) return 'Não consegui enviar';
-  return failed === total ? 'Não consegui enviar nenhum' : failed === 1 ? `Não consegui enviar 1 de ${total}` : `Não consegui enviar ${failed} de ${total}`;
+  if (total <= 1) return t('Não consegui enviar');
+  return failed === total ? t('Não consegui enviar nenhum') : t('Não consegui enviar 1 de {total}', { count: failed, total, other: 'Não consegui enviar {count} de {total}' });
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import { panBy, shownBox, toggleView, WHOLE, zoomAt, type MimoView, type Size } from '@/lib/mimoCrop';
+import { t } from '@/lib/i18n';
 
 /**
  * A foto do mimo dentro da moldura 9:16 do editor (lib/mimoCrop.ts): entra inteira; dois dedos aumentam ou diminuem e
@@ -100,7 +101,7 @@ export function MimoPhoto({ uri, width, height, view, onView, img, onImg }: {
 
   return (
     <GestureDetector gesture={gestures}>
-      <View ref={node} collapsable={false} style={[StyleSheet.absoluteFill, Platform.OS === 'web' ? ({ cursor: ready ? 'grab' : 'auto', touchAction: 'none' } as object) : null]} accessibilityLabel="Pré-visualização do mimo" accessibilityHint="Pinça com dois dedos para aumentar ou diminuir, arrasta para mover e toca duas vezes para alternar entre a foto inteira e preencher o ecrã">
+      <View ref={node} collapsable={false} style={[StyleSheet.absoluteFill, Platform.OS === 'web' ? ({ cursor: ready ? 'grab' : 'auto', touchAction: 'none' } as object) : null]} accessibilityLabel={t('Pré-visualização do mimo')} accessibilityHint={t('Pinça com dois dedos para aumentar ou diminuir, arrasta para mover e toca duas vezes para alternar entre a foto inteira e preencher o ecrã')}>
         <Image
           source={{ uri }}
           style={style}

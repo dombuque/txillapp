@@ -13,6 +13,7 @@ import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { GeleiraMini } from './GeleiraPostCard';
+import { t } from '@/lib/i18n';
 
 /** Tamanho do avatar no fio (a original em cima e quem citou por baixo) e o espaço até ao texto. */
 export const THREAD_AVATAR = 36;
@@ -61,10 +62,10 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
   const [open, setOpen] = useState(false);
   if (!original) {
     return (
-      <View style={styles.row} accessibilityRole="text" accessibilityLabel="Esta publicação não está disponível">
+      <View style={styles.row} accessibilityRole="text" accessibilityLabel={t('Esta publicação não está disponível')}>
         <Rail avatar={<View style={styles.goneDot}><Icon name="eye-off" size={18} color={colors.zinc500} /></View>} />
         <View style={styles.goneBox}>
-          <Text style={styles.goneText}>Esta publicação não está disponível</Text>
+          <Text style={styles.goneText}>{t('Esta publicação não está disponível')}</Text>
         </View>
       </View>
     );
@@ -90,7 +91,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
       onPress={() => (video ? onOpen?.(original) : tap(() => onPhoto?.(original)))}
       style={side ? styles.thumbSide : styles.thumbBelow}
       accessibilityRole="button"
-      accessibilityLabel={video ? 'Ver o vídeo' : 'Ver a foto em ecrã inteiro'}
+      accessibilityLabel={video ? t('Ver o vídeo') : t('Ver a foto em ecrã inteiro')}
     >
       {thumb ? <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150)} accessibilityIgnoresInvertColors /> : null}
       {video ? (
@@ -111,12 +112,12 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
       disabled={!live}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
       accessibilityRole={live ? 'link' : 'text'}
-      accessibilityLabel={`Publicação de ${name}: ${g ? `presente de ${formatVibes(g.amount)} a ${g.recipient.displayName}. ` : ''}${body || (m ? (video ? 'vídeo' : 'foto') : '')}`}
-      accessibilityHint={live ? 'Abre a publicação original' : undefined}
+      accessibilityLabel={t('Publicação de {name}: {value}{body}', { name, value: g ? (t('presente de {vibes} a {displayName}.', { vibes: formatVibes(g.amount), displayName: g.recipient.displayName }) + ' ') : '', body: body || (m ? (video ? t('vídeo') : t('foto')) : '') })}
+      accessibilityHint={live ? t('Abre a publicação original') : undefined}
     >
       <Rail
         avatar={
-          <Pressable onPress={goAuthor} disabled={!live} accessibilityRole="link" accessibilityLabel={`Perfil de ${name}`}>
+          <Pressable onPress={goAuthor} disabled={!live} accessibilityRole="link" accessibilityLabel={t('Perfil de {name}', { name })}>
             {original.venue ? <VenueLogo venue={original.venue} size={THREAD_AVATAR} /> : <Avatar name={a.displayName} username={a.username} size={THREAD_AVATAR} />}
           </Pressable>
         }
@@ -125,14 +126,14 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
         <View style={styles.head}>
           <NameWithBadge name={name} who={verified ? { verified: true, verifiedTier: verified } : null} size={14} style={styles.name} containerStyle={{ flexShrink: 1 }} />
           <Text style={styles.meta} numberOfLines={1}>
-            {original.venue ? 'página' : `@${a.username}`} · {timeAgo(original.createdAt)}
+            {original.venue ? t('página') : `@${a.username}`} · {timeAgo(original.createdAt)}
           </Text>
         </View>
         {g ? (
           <View style={styles.gift}>
             <Icon name="gift" size={15} color={colors.brand} />
             <NameWithBadge
-              name={<>Ofereceu {formatVibes(g.amount)} a <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text></>}
+              name={<>{t('Ofereceu {vibes} a', { vibes: formatVibes(g.amount) })} <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text></>}
               who={g.recipient}
               style={styles.giftText}
               containerStyle={{ flexShrink: 1 }}
@@ -145,8 +146,8 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
               <Text style={styles.body} numberOfLines={open ? undefined : LONG.lines}>{body}</Text>
             ) : null}
             {long && !open ? (
-              <Pressable onPress={() => setOpen(true)} disabled={!live} hitSlop={6} accessibilityRole="button" accessibilityLabel="Ver o texto todo">
-                <Text style={styles.seeMore}>Ver mais</Text>
+              <Pressable onPress={() => setOpen(true)} disabled={!live} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Ver o texto todo')}>
+                <Text style={styles.seeMore}>{t('Ver mais')}</Text>
               </Pressable>
             ) : null}
             {quoted ? (
@@ -164,13 +165,13 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
         {original.cheers > 0 || original.comments > 0 ? (
           <View style={styles.counts}>
             {original.cheers > 0 ? (
-              <View style={styles.count} accessibilityLabel={`${original.cheers} ${original.cheers === 1 ? 'brinde' : 'brindes'}`}>
+              <View style={styles.count} accessibilityLabel={t('{count} brinde', { count: original.cheers, other: '{count} brindes' })}>
                 <Icon name="cheers" size={15} color={colors.zinc500} />
                 <Text style={styles.countText}>{original.cheers}</Text>
               </View>
             ) : null}
             {original.comments > 0 ? (
-              <View style={styles.count} accessibilityLabel={`${original.comments} ${original.comments === 1 ? 'comentário' : 'comentários'}`}>
+              <View style={styles.count} accessibilityLabel={t('{count} comentário', { count: original.comments, other: '{count} comentários' })}>
                 <Icon name="comment" size={14} color={colors.zinc500} />
                 <Text style={styles.countText}>{original.comments}</Text>
               </View>

@@ -2,6 +2,7 @@
 // partilha, o progresso e o desenho do cartão.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,8 +15,8 @@ const { qrMatrix } = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'q
 const STICKERS = JSON.parse(readFileSync(path.join(ROOT, 'src', 'assets', 'stickers.json'), 'utf8')).items;
 
 test('as frases são as três pedidas, em calão da malta, e cada uma tem o seu Gelinho na biblioteca', () => {
-  assert.deepEqual([...c.INVITE_PHRASES], ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta']);
-  assert.equal(c.PHRASE_STICKERS.length, c.INVITE_PHRASES.length);
+  assert.deepEqual([...c.INVITE_PHRASES()], ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta']);
+  assert.equal(c.PHRASE_STICKERS.length, c.INVITE_PHRASES().length);
   for (const id of c.PHRASE_STICKERS) {
     const s = STICKERS.find((x) => x.id === id);
     assert.ok(s, `sticker ${id} existe`);
@@ -26,7 +27,7 @@ test('as frases são as três pedidas, em calão da malta, e cada uma tem o seu 
 test('phraseIndexOf: sempre a mesma frase para o mesmo código, dentro da lista; bate certo com o servidor', () => {
   for (const code of ['ABCD2345', 'ZZZK9QWE', '', 'X']) {
     const i = c.phraseIndexOf(code);
-    assert.ok(Number.isInteger(i) && i >= 0 && i < c.INVITE_PHRASES.length);
+    assert.ok(Number.isInteger(i) && i >= 0 && i < c.INVITE_PHRASES().length);
     assert.equal(c.phraseIndexOf(code), i);
   }
   // A mesma conta do servidor (api/src/invites/card.ts): h = h*31 + código da letra, sem sinal, módulo 3.

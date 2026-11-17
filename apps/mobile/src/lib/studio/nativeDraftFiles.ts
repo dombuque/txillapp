@@ -12,6 +12,7 @@
  * Só importa tipos (o node corre este ficheiro direto).
  */
 import type { DraftBackend, MediaValue, StudioDraft } from './drafts';
+import { t } from '@/lib/i18n';
 
 /** O pouco que é preciso do sistema de ficheiros (no telemóvel: expo-file-system; nos testes: um mapa em memória). */
 export interface DraftFs {
@@ -123,7 +124,7 @@ export function memoryFs(seed: Record<string, string> = {}): DraftFs & { files: 
     copies: 0,
     async readText(p: string) { return files.has(p) ? files.get(p)! : null; },
     async writeText(p: string, t: string) { files.set(p, t); },
-    async copy(from: string, to: string) { if (!files.has(from)) throw new Error(`sem ficheiro: ${from}`); files.set(to, files.get(from)!); api.copies += 1; },
+    async copy(from: string, to: string) { if (!files.has(from)) throw new Error(t('sem ficheiro: {from}', { from })); files.set(to, files.get(from)!); api.copies += 1; },
     async exists(p: string) { return files.has(p) || dirs.has(p) || [...files.keys()].some((k) => k.startsWith(`${p}/`)); },
     async remove(p: string) { files.delete(p); dirs.delete(p); for (const k of [...files.keys()]) if (k.startsWith(`${p}/`)) files.delete(k); },
     async list(d: string) {

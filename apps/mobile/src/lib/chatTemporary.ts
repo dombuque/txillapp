@@ -9,31 +9,32 @@
 // - POST /chat/with/:username/clear e POST /chat/groups/:id/clear: limpar só para mim (a conversa fica na lista, vazia).
 
 /** As escolhas, pela ordem do ecrã. `ttl` em segundos; null = desligadas. */
+import { t } from '@/lib/i18n';
 export const TTL_CHOICES: readonly { ttl: number | null; label: string }[] = [
-  { ttl: null, label: 'Desligadas' },
-  { ttl: 86_400, label: '24 horas' },
-  { ttl: 604_800, label: '7 dias' },
-  { ttl: 7_776_000, label: '90 dias' },
+  { ttl: null, get label() { return t('Desligadas'); } },
+  { ttl: 86_400, get label() { return t('24 horas'); } },
+  { ttl: 604_800, get label() { return t('7 dias'); } },
+  { ttl: 7_776_000, get label() { return t('90 dias'); } },
 ];
 
-export const TTL_TITLE = 'Mensagens temporárias';
+export const TTL_TITLE = () => t('Mensagens temporárias');
 
 /** "Desligadas", "24 horas", "7 dias", "90 dias" (um valor desconhecido conta em dias). */
 export function ttlLabel(ttl: number | null | undefined): string {
-  if (!ttl) return 'Desligadas';
+  if (!ttl) return t('Desligadas');
   return TTL_CHOICES.find((c) => c.ttl === ttl)?.label ?? `${Math.max(1, Math.round(ttl / 86_400))} dias`;
 }
 
 /** A explicação curta por baixo das escolhas (nos grupos, diz também quem pode mudar). */
 export function ttlExplain(group: boolean, canChange: boolean): string {
-  const base = 'As mensagens novas desaparecem para todos ao fim do tempo que escolheres. As que já lá estão ficam.';
-  const who = group ? (canChange ? ' Só quem administra o TxillGroup pode mudar.' : ' Só quem administra o TxillGroup pode mudar: pede a um administrador.') : ' Qualquer um dos dois pode mudar.';
-  return `${base}${who} Quem as vê pode sempre guardá-las antes.`;
+  const base = t('As mensagens novas desaparecem para todos ao fim do tempo que escolheres. As que já lá estão ficam.');
+  const who = group ? (canChange ? (' ' + t('Só quem administra o TxillGroup pode mudar.')) : (' ' + t('Só quem administra o TxillGroup pode mudar: pede a um administrador.'))) : (' ' + t('Qualquer um dos dois pode mudar.'));
+  return t('{base}{who} Quem as vê pode sempre guardá-las antes.', { base, who });
 }
 
 /** O que o leitor de ecrã diz do relógio no cabeçalho (vazio se estão desligadas). */
 export function ttlBadgeLabel(ttl: number | null | undefined): string {
-  return ttl ? `${TTL_TITLE}: ${ttlLabel(ttl)}` : '';
+  return ttl ? `${TTL_TITLE()}: ${ttlLabel(ttl)}` : '';
 }
 
 /** A mensagem ainda existe (sem `expiresAt`, ou com ele no futuro). */
@@ -63,14 +64,14 @@ export function nextExpiryIn(items: readonly { expiresAt?: string | null }[], no
 /** A confirmação do "Limpar conversa" (a dois e nos TxillGroups). */
 export function clearPrompt(group: boolean): { title: string; message: string; confirm: string } {
   return {
-    title: 'Limpar a conversa?',
-    message: group ? 'As mensagens desaparecem só para ti. Os outros continuam a vê-las.' : 'As mensagens desaparecem só para ti. A outra pessoa continua a vê-las.',
-    confirm: 'Limpar',
+    title: t('Limpar a conversa?'),
+    message: group ? t('As mensagens desaparecem só para ti. Os outros continuam a vê-las.') : t('As mensagens desaparecem só para ti. A outra pessoa continua a vê-las.'),
+    confirm: t('Limpar'),
   };
 }
 
 /** A pré-visualização de uma conversa vazia porque a limpei. */
-export const CLEARED_PREVIEW = 'Sem mensagens';
+export const CLEARED_PREVIEW = () => t('Sem mensagens');
 
 /**
  * A pré-visualização na lista de conversas quando não há nada para mostrar: "Sem mensagens" se a limpei; null se a
@@ -78,8 +79,8 @@ export const CLEARED_PREVIEW = 'Sem mensagens';
  */
 export function emptyPreview(last: { empty?: boolean; cleared?: boolean }, group?: { members: number }): string | null {
   if (!last.empty) return null;
-  if (!group || last.cleared) return CLEARED_PREVIEW;
-  return `${group.members} ${group.members === 1 ? 'pessoa' : 'pessoas'}`;
+  if (!group || last.cleared) return CLEARED_PREVIEW();
+  return t('{count} pessoa', { count: group.members, other: '{count} pessoas' });
 }
 
 /** Um aviso de sistema (kind 'system'): vai ao centro, sem bolha, sem menu. */

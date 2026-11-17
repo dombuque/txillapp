@@ -2,14 +2,15 @@
 // simuladas: src/lib/iap/core.ts não depende do React Native nem do expo-iap.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INTENTS_KEY, classifyIapError, createIap, doneMessage, iapMessage, iapPlatformFor, outcomeMessage, restoreBody, verifyBody, verifyFailedMessage } from '../src/lib/iap/core.ts';
-import { PRIVACY_URL, TERMS_URL, activeText, approvedForBlue, blueScreenState, blueSealEntry, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } from '../src/lib/iap/view.ts';
-import { IAP_READY, askStoreCatalog, helpFaqFor, purchaseRulesFor, storePurchasesOn } from '../src/lib/storeRules.ts';
-import { nativeStore as webStore } from '../src/lib/iap/store.web.ts';
+const { INTENTS_KEY, classifyIapError, createIap, doneMessage, iapMessage, iapPlatformFor, outcomeMessage, restoreBody, verifyBody, verifyFailedMessage } = await import('../src/lib/iap/core.ts');
+const { PRIVACY_URL, TERMS_URL, activeText, approvedForBlue, blueScreenState, blueSealEntry, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } = await import('../src/lib/iap/view.ts');
+const { IAP_READY, askStoreCatalog, helpFaqFor, purchaseRulesFor, storePurchasesOn } = await import('../src/lib/storeRules.ts');
+const { nativeStore: webStore } = await import('../src/lib/iap/store.web.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(path.join(ROOT, 'src', ...p), 'utf8').replace(/\r\n/g, '\n');
@@ -400,7 +401,7 @@ test('o ecrã do selo azul mostra o preço e o período da loja, as condições 
   assert.match(s, /subscriptionTerms\(platform\)/);
   assert.match(s, /Linking\.openURL\(TERMS_URL\)/);
   assert.match(s, /Linking\.openURL\(PRIVACY_URL\)/);
-  for (const b of ['label="Subscrever"', "'Restaurar compras'", 'label="Gerir subscrição"', 'label="Pedir a verificação"']) assert.ok(s.includes(b), b);
+  for (const b of ["label={t('Subscrever')}", "t('Restaurar compras')", "label={t('Gerir subscrição')}", "label={t('Pedir a verificação')}"]) assert.ok(s.includes(b), b);
   assert.match(s, /router\.push\('\/verification' as never\)/);
   assert.match(s, /activeText\(c\.verification\.active\)/);
   assert.match(s, /void iap\.recover\(\)/);
@@ -415,7 +416,7 @@ test('o ecrã do selo azul mostra o preço e o período da loja, as condições 
   assert.match(ver, /const entry = s && purchases\.storeVerification \? blueSealEntry\(s\) : null;/);
   assert.match(ver, /\{entry \? <BlueSealEntry/);
   // Aprovado para o selo azul (paid_eligible): diz-se, e o formulário do pedido já não aparece (o servidor dava 409).
-  assert.ok(ver.includes('>Aprovado para o selo azul<'));
+  assert.ok(ver.includes(">{t('Aprovado para o selo azul')}<"));
   assert.match(ver, /s\.eligible && !blueOk && s\.request\?\.status !== 'pending'/);
   // A camada nativa identifica sempre quem compra e leva o plano base no Android.
   const n = read('lib', 'iap', 'store.ts');
@@ -436,7 +437,7 @@ test('a Ajuda explica como cancelar a subscrição só quando o selo azul está 
   assert.equal(on[1].a, 'Em Gerir, Bombar. Escolhe o pacote. Pagas pela loja (App Store ou Google Play), com o preço que a loja mostra. Fim.');
   assert.deepEqual(helpFaqFor(purchaseRulesFor('web'), faq).map((f) => f.q), ['Como bombo o meu local?']);
   const help = read('app', 'help.tsx');
-  assert.match(help, /q: 'Como cancelo a subscrição do selo azul\?'/);
+  assert.match(help, /q\(\) \{ return t\('Como cancelo a subscrição do selo azul\?'\)/);
   assert.match(help, /e paga com as vibes da carteira do local\. Se parares, voltam à carteira/);
 });
 

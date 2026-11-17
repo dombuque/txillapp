@@ -6,6 +6,7 @@ import { MAX_FADE_S } from '@/lib/studio/audioDsp';
 import { meterLevel } from '@/lib/studio/audioEngine';
 import { fmtS } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 
@@ -79,44 +80,44 @@ export function AudioMixer({ channels, fadeIn, fadeOut, onFade, ducking, onDucki
                 <View style={[st.dot, { backgroundColor: on && c.value > 0 ? colors.brand : 'rgba(255,255,255,0.25)' }]}><Icon name={c.icon} size={13} color="#fff" strokeWidth={2.2} /></View>
                 <Text style={st.name} numberOfLines={1}>{c.label}</Text>
                 {c.note ? <Text style={st.note} numberOfLines={1}>{c.note}</Text> : null}
-                <Text style={st.val}>{on ? `${Math.round(c.value * 100)}%` : 'calado'}</Text>
-                <Pressable onPress={() => (c.onToggle ? c.onToggle() : c.onChange(c.value > 0 ? 0 : 1))} style={st.mute} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={on ? `Calar: ${c.label}` : `Ligar: ${c.label}`}>
+                <Text style={st.val}>{on ? `${Math.round(c.value * 100)}%` : t('calado')}</Text>
+                <Pressable onPress={() => (c.onToggle ? c.onToggle() : c.onChange(c.value > 0 ? 0 : 1))} style={st.mute} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={on ? t('Calar: {label}', { label: c.label }) : t('Ligar: {label}', { label: c.label })}>
                   <Icon name={on ? 'volume' : 'volume-off'} size={18} color={on ? '#fff' : 'rgba(255,255,255,0.5)'} />
                 </Pressable>
               </View>
               <View style={[st.fader, !on && { opacity: 0.45 }]}>
-                <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.value * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => c.onChange(v / 100)} />
+                <RangeSlider label={t('Volume: {label}', { label: c.label })} value={Math.round(c.value * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => c.onChange(v / 100)} />
               </View>
               {c.sub ? null : <Meter get={c.meter} />}
             </View>
           );
         })}
-        {!channels.length ? <Text style={st.empty}>Ainda não há som: escolhe uma música, grava uma voz-off ou junta um vídeo com som.</Text> : null}
+        {!channels.length ? <Text style={st.empty}>{t('Ainda não há som: escolhe uma música, grava uma voz-off ou junta um vídeo com som.')}</Text> : null}
       </View>
 
       {hasMusic ? (
         <View style={st.card}>
-          <Text style={st.cardTitle}>Fades da música</Text>
+          <Text style={st.cardTitle}>{t('Fades da música')}</Text>
           <View style={st.fadeRow}>
-            <Text style={st.fadeLabel}>Entrada</Text>
+            <Text style={st.fadeLabel}>{t('Entrada')}</Text>
             <View style={{ flex: 1 }}>
-              <RangeSlider label="Fade-in da música" value={fadeIn} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => onFade('in', v, false)} onCommit={(v) => onFade('in', v, true)} />
+              <RangeSlider label={t('Fade-in da música')} value={fadeIn} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => onFade('in', v, false)} onCommit={(v) => onFade('in', v, true)} />
             </View>
             <Text style={st.fadeVal}>{fmtS(fadeIn)} s</Text>
           </View>
           <View style={st.fadeRow}>
-            <Text style={st.fadeLabel}>Saída</Text>
+            <Text style={st.fadeLabel}>{t('Saída')}</Text>
             <View style={{ flex: 1 }}>
-              <RangeSlider label="Fade-out da música" value={fadeOut} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => onFade('out', v, false)} onCommit={(v) => onFade('out', v, true)} />
+              <RangeSlider label={t('Fade-out da música')} value={fadeOut} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => onFade('out', v, false)} onCommit={(v) => onFade('out', v, true)} />
             </View>
             <Text style={st.fadeVal}>{fmtS(fadeOut)} s</Text>
           </View>
           {hasVoice ? (
-            <Pressable onPress={() => onDucking(!ducking)} style={[st.toggle, ducking && st.toggleOn]} accessibilityRole="switch" accessibilityState={{ checked: ducking }} accessibilityLabel="Baixar a música quando há voz-off">
+            <Pressable onPress={() => onDucking(!ducking)} style={[st.toggle, ducking && st.toggleOn]} accessibilityRole="switch" accessibilityState={{ checked: ducking }} accessibilityLabel={t('Baixar a música quando há voz-off')}>
               <View style={[st.knobTrack, ducking && { backgroundColor: colors.brand }]}><View style={[st.knob, ducking && { transform: [{ translateX: 16 }] }]} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={st.toggleText}>Baixar a música quando falas</Text>
-                <Text style={st.toggleSub}>Ducking automático: a música desce uns 10 dB por baixo da voz-off</Text>
+                <Text style={st.toggleText}>{t('Baixar a música quando falas')}</Text>
+                <Text style={st.toggleSub}>{t('Ducking automático: a música desce uns 10 dB por baixo da voz-off')}</Text>
               </View>
             </Pressable>
           ) : null}

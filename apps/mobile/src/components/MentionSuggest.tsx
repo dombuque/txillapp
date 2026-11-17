@@ -7,6 +7,7 @@ import { api, type MentionSuggestContext, type MentionSuggestion } from '@/lib/a
 import { activeMention, applyMention, moveHighlight, reasonLabel } from '@/lib/mentions';
 import { suggestNote } from '@/lib/txilladaChat';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const ROW = 52;
 const DEBOUNCE_MS = 150;
@@ -145,7 +146,7 @@ export function MentionSuggest({ mention, style }: { mention: MentionSuggestStat
   }, [hi, open]);
   if (!open) return null;
   return (
-    <View style={[st.box, style]} accessibilityLabel="Pessoas para mencionar">
+    <View style={[st.box, style]} accessibilityLabel={t('Pessoas para mencionar')}>
       <ScrollView ref={scroll} style={{ maxHeight }} keyboardShouldPersistTaps="always" nestedScrollEnabled showsVerticalScrollIndicator={false}>
         {mention.items.map((p, i) => {
           const why = reasonLabel(p.reason);
@@ -157,7 +158,7 @@ export function MentionSuggest({ mention, style }: { mention: MentionSuggestStat
               onPress={() => mention.pick(p)}
               onHoverIn={web ? () => mention.setHi(i) : undefined}
               accessibilityRole="button"
-              accessibilityLabel={`Mencionar ${p.displayName}`}
+              accessibilityLabel={t('Mencionar {displayName}', { displayName: p.displayName })}
               style={({ pressed }) => [st.row, web && i === hi && st.rowOn, pressed && st.rowPressed]}
             >
               <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={36} />

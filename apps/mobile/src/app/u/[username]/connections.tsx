@@ -15,6 +15,7 @@ import { ApiError, api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
+import { t } from '@/lib/i18n';
 
 type Kind = 'followers' | 'following';
 
@@ -55,8 +56,8 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
       <View style={st.searchWrap}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc600} />
-          <TextInput value={text} onChangeText={setText} placeholder={kind === 'followers' ? 'Procurar seguidores' : 'Procurar quem sigo'} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={st.input} accessibilityLabel="Procurar" />
-          {text ? <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 20, color: colors.zinc600 }}>×</Text></Pressable> : null}
+          <TextInput value={text} onChangeText={setText} placeholder={kind === 'followers' ? t('Procurar seguidores') : t('Procurar quem sigo')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={st.input} accessibilityLabel={t('Procurar')} />
+          {text ? <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel={t('Limpar pesquisa')}><Text style={{ fontSize: 20, color: colors.zinc600 }}>×</Text></Pressable> : null}
         </View>
       </View>
       {/* Só para medir onde a lista começa; a altura vai na própria lista. */}
@@ -73,15 +74,15 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
           if (contentOffset.y + layoutMeasurement.height > contentSize.height - 400 && q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
         }}
       >
-        {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <ErrorState what="a lista" onRetry={() => void q.refetch()} /> : null}
-        {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : username === me ? 'Ainda não segues ninguém' : 'Ainda não segue ninguém'} /> : null}
+        {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <ErrorState what={t('a lista')} onRetry={() => void q.refetch()} /> : null}
+        {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? t('Ninguém com esse nome') : kind === 'followers' ? t('Ainda sem seguidores') : username === me ? t('Ainda não segues ninguém') : t('Ainda não segue ninguém')} /> : null}
         {people.map((x) => (
           <View key={x.username} style={st.row}>
             <Pressable onPress={() => router.push(x.username === me ? '/profile' : (`/u/${x.username}` as never))} style={st.who} accessibilityRole="link">
               <Avatar name={x.displayName} username={x.username} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <NameWithBadge name={x.displayName} who={x} style={st.name} />
-                <Text style={st.user} numberOfLines={1}>@{x.username}{x.followsYou && x.username !== me ? ' · segue-te' : ''}</Text>
+                <Text style={st.user} numberOfLines={1}>@{x.username}{x.followsYou && x.username !== me ? (' ' + t('· segue-te')) : ''}</Text>
               </View>
             </Pressable>
             {x.username !== me && (
@@ -190,17 +191,17 @@ export default function Connections() {
       {profile.isError && !p && (
         <View>
           {profile.error instanceof ApiError && profile.error.status === 404 ? (
-            <Empty icon="search" title="Essa pessoa não existe" />
+            <Empty icon="search" title={t('Essa pessoa não existe')} />
           ) : (
             <>
-              <Empty icon="alert" title="Não consegui abrir as listas" text="Verifica a internet e tenta outra vez." />
-              <Pressable onPress={() => void profile.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+              <Empty icon="alert" title={t('Não consegui abrir as listas')} text={t('Verifica a internet e tenta outra vez.')} />
+              <Pressable onPress={() => void profile.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
             </>
           )}
-          <Pressable onPress={() => goBack(router)} style={st.back} accessibilityRole="button"><Text style={{ textDecorationLine: 'underline', fontSize: 16, color: colors.zinc800 }}>Voltar</Text></Pressable>
+          <Pressable onPress={() => goBack(router)} style={st.back} accessibilityRole="button"><Text style={{ textDecorationLine: 'underline', fontSize: 16, color: colors.zinc800 }}>{t('Voltar')}</Text></Pressable>
         </View>
       )}
-      {p && !p.canSeeConnections && <Empty icon="lock" title="Estas listas são privadas" text={`${p.displayName} escolheu quem as pode ver.`} />}
+      {p && !p.canSeeConnections && <Empty icon="lock" title={t('Estas listas são privadas')} text={t('{displayName} escolheu quem as pode ver.', { displayName: p.displayName })} />}
       {p?.canSeeConnections && (
         <>
           <View style={st.tabs} accessibilityRole="tablist">

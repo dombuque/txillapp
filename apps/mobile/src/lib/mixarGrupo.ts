@@ -7,6 +7,7 @@
  */
 import type { MixarChallenge, MixarGroupInfo, MixarGroupItemInfo, MixarPerson, MixarSummary, MixarTopic } from '@/lib/api.mixar';
 import { firstName, latestIso, mixarHasNew } from '@/lib/mixar';
+import { t } from '@/lib/i18n';
 
 export const GROUP_MIN = 3;
 export const GROUP_MAX = 5;
@@ -36,12 +37,12 @@ export function groupReasonText(g: Pick<MixarGroupItemInfo, 'fans' | 'mine' | 'e
   const names = joinNames(firstNames(g?.fans));
   let whose: string;
   if (!g) whose = '';
-  else if (g.everyone) whose = 'do gosto de todos';
-  else if (g.mine && names) whose = `do teu gosto e de ${names}`;
-  else if (g.mine) whose = 'do teu gosto';
-  else if (names) whose = `do gosto de ${names}`;
+  else if (g.everyone) whose = t('do gosto de todos');
+  else if (g.mine && names) whose = t('do teu gosto e de {names}', { names });
+  else if (g.mine) whose = t('do teu gosto');
+  else if (names) whose = t('do gosto de {names}', { names });
   else whose = '';
-  if (!whose) return label ? `${label}, para o grupo` : 'Escolhido para o grupo';
+  if (!whose) return label ? t('{label}, para o grupo', { label }) : t('Escolhido para o grupo');
   return label ? `${label}, ${whose}` : `${whose[0].toUpperCase()}${whose.slice(1)}`;
 }
 
@@ -53,8 +54,8 @@ export const groupReasonIcon = (g: Pick<MixarGroupItemInfo, 'fans' | 'mine' | 'e
 export function groupSeenText(seenBy: readonly Pick<MixarPerson, 'displayName'>[] | null | undefined, others: number): string | null {
   const n = seenBy?.length ?? 0;
   if (!n) return null;
-  if (others > 1 && n >= others) return 'Visto por todos';
-  return `Visto por ${joinNames(firstNames(seenBy))}`;
+  if (others > 1 && n >= others) return t('Visto por todos');
+  return t('Visto por {joinNames}', { joinNames: joinNames(firstNames(seenBy)) });
 }
 
 /* ---------- Convite e entrada ---------- */
@@ -67,7 +68,7 @@ export interface GroupInviteView {
 }
 
 /** «Faltam 2 pessoas» / «Falta 1 pessoa». */
-export const needLabel = (n: number) => (n === 1 ? 'Falta 1 pessoa' : `Faltam ${n} pessoas`);
+export const needLabel = (n: number) => (t('Falta {count} pessoa', { count: n, other: 'Faltam {count} pessoas' }));
 
 /**
  * O que mostra quem abre um Mixar de grupo em que ainda não está (ou em que está, à espera de gente para começar).
@@ -78,27 +79,27 @@ export function groupInviteView(s: Pick<MixarSummary, 'status' | 'invitedByMe'> 
   const inIt = g.myState === 'in';
   const names = joinNames(firstNames(g.people));
   if (inIt && s.status === 'pending') {
-    return { tone: 'waiting', title: `${needLabel(g.need)} para começar`, line: `O Mixar de ${g.groupName} começa quando ${GROUP_MIN} pessoas entrarem. Já estão: ${names}.` };
+    return { tone: 'waiting', title: t('{needLabel} para começar', { needLabel: needLabel(g.need) }), line: t('O Mixar de {groupName} começa quando {groupMin} pessoas entrarem. Já estão: {names}.', { groupName: g.groupName, groupMin: GROUP_MIN, names }) };
   }
-  if (!g.canJoin) return { tone: 'full', title: 'Este Mixar já está cheio', line: `Já tem ${GROUP_MAX} pessoas: ${names}.` };
+  if (!g.canJoin) return { tone: 'full', title: t('Este Mixar já está cheio'), line: t('Já tem {groupMax} pessoas: {names}.', { groupMax: GROUP_MAX, names }) };
   const by = g.proposedBy ? firstName(g.proposedBy.displayName) : null;
-  const title = s.status === 'pending' ? (by ? `${by} propôs um Mixar do grupo` : 'Mixar do grupo') : `O Mixar de ${g.groupName} está a andar`;
-  const who = names ? (s.status === 'pending' ? ` Já estão: ${names}.` : ` Estão lá: ${names}.`) : '';
+  const title = s.status === 'pending' ? (by ? t('{by} propôs um Mixar do grupo', { by }) : t('Mixar do grupo')) : t('O Mixar de {groupName} está a andar', { groupName: g.groupName });
+  const who = names ? (s.status === 'pending' ? (' ' + t('Já estão: {names}.', { names })) : (' ' + t('Estão lá: {names}.', { names }))) : '';
   const line = s.status === 'pending'
-    ? `Um feed do grupo com os gostos de quem entrar. Começa com ${GROUP_MIN} pessoas.${who}`
-    : `Entra para veres a seleção de hoje com o grupo. Os teus gostos só contam se entrares.${who}`;
+    ? t('Um feed do grupo com os gostos de quem entrar. Começa com {groupMin} pessoas.{who}', { groupMin: GROUP_MIN, who })
+    : t('Entra para veres a seleção de hoje com o grupo. Os teus gostos só contam se entrares.{who}', { who });
   return { tone: 'join', title, line };
 }
 
 /** A linha de baixo de um Mixar de grupo na lista /mixar. */
 export function groupSummaryLine(s: Pick<MixarSummary, 'status' | 'newToday' | 'challengePending'> & { group: Pick<MixarGroupInfo, 'myState' | 'need' | 'people'> }): string {
   const g = s.group;
-  if (g.myState !== 'in') return s.status === 'pending' ? 'Propuseram um Mixar do grupo' : `${g.people.length} pessoas no Mixar. Entra quando quiseres`;
-  if (s.status === 'pending') return `${needLabel(g.need)} para começar`;
+  if (g.myState !== 'in') return s.status === 'pending' ? t('Propuseram um Mixar do grupo') : t('{n} pessoas no Mixar. Entra quando quiseres', { n: g.people.length });
+  if (s.status === 'pending') return t('{needLabel} para começar', { needLabel: needLabel(g.need) });
   const parts: string[] = [];
-  if (s.newToday > 0) parts.push(`${s.newToday} ${s.newToday === 1 ? 'novo' : 'novos'} hoje`);
-  if (s.challengePending) parts.push('Mixa Challenge à tua espera');
-  return parts.length ? parts.join(' · ') : 'Tudo visto por hoje';
+  if (s.newToday > 0) parts.push(t('{count} novo hoje', { count: s.newToday, other: '{count} novos hoje' }));
+  if (s.challengePending) parts.push(t('Mixa Challenge à tua espera'));
+  return parts.length ? parts.join(' · ') : t('Tudo visto por hoje');
 }
 
 /**
@@ -123,10 +124,10 @@ export function mixarOfGroup<T extends { group: Pick<MixarGroupInfo, 'groupId'> 
 /** O texto de um erro ao propor o Mixar do grupo (409 com `id` trata-se à parte: abre o que já existe). */
 export function groupProposeError(e: unknown): string {
   const x = e as { status?: number; message?: string } | null;
-  if (x?.status === 409) return x.message || `O Mixar de grupo é para grupos de ${GROUP_MIN} a ${GROUP_MAX} pessoas`;
-  if (x?.status === 429) return 'Já propuseste o Mixar deste grupo muitas vezes hoje. Tenta amanhã';
-  if (x?.status === 404) return 'Este grupo já não existe.';
-  return 'Não deu agora. Tenta outra vez.';
+  if (x?.status === 409) return x.message || t('O Mixar de grupo é para grupos de {groupMin} a {groupMax} pessoas', { groupMin: GROUP_MIN, groupMax: GROUP_MAX });
+  if (x?.status === 429) return t('Já propuseste o Mixar deste grupo muitas vezes hoje. Tenta amanhã');
+  if (x?.status === 404) return t('Este grupo já não existe.');
+  return t('Não deu agora. Tenta outra vez.');
 }
 
 /* ---------- Mixa Challenge em grupo ---------- */
@@ -137,13 +138,13 @@ export function groupProposeError(e: unknown): string {
  */
 export function groupChallengeLine(c: Pick<MixarChallenge, 'myPick' | 'match'> & { group: { picked: number; total: number; counts: unknown[] | null } }): { phase: 'pick' | 'waiting' | 'result'; line: string } {
   const g = c.group;
-  if (g.counts) return { phase: 'result', line: c.match ? 'Escolheram todos o mesmo!' : 'Vê quantos escolheram cada um' };
-  if (!c.myPick) return { phase: 'pick', line: g.picked ? `Já escolheram ${g.picked} de ${g.total}. Agora tu!` : 'Escolhe um. O resultado abre quando todos escolherem.' };
-  return { phase: 'waiting', line: `Já escolheram ${g.picked} de ${g.total}` };
+  if (g.counts) return { phase: 'result', line: c.match ? t('Escolheram todos o mesmo!') : t('Vê quantos escolheram cada um') };
+  if (!c.myPick) return { phase: 'pick', line: g.picked ? t('Já escolheram {picked} de {total}. Agora tu!', { picked: g.picked, total: g.total }) : t('Escolhe um. O resultado abre quando todos escolherem.') };
+  return { phase: 'waiting', line: t('Já escolheram {picked} de {total}', { picked: g.picked, total: g.total }) };
 }
 
 /** «1 escolheu» / «2 escolheram» (no resultado, em cada opção). */
-export const pickedLabel = (n: number) => (n === 1 ? '1 escolheu' : `${n} escolheram`);
+export const pickedLabel = (n: number) => (t('{count} escolheu', { count: n, other: '{count} escolheram' }));
 
 /** Quantos escolheram esta opção (só no resultado), ou null. */
 export function countOf(c: { group?: { counts: { postId: string; n: number }[] | null } | null }, postId: string): number | null {
@@ -155,30 +156,30 @@ export function countOf(c: { group?: { counts: { postId: string; n: number }[] |
 
 /** Nos Guardados do grupo: «Guardaste tu», «Guardado por Ana», «A maioria reagiu». */
 export function groupSavedByText(by: 'me' | 'them' | 'both', person: Pick<MixarPerson, 'displayName'> | null | undefined): string {
-  if (by === 'me') return 'Guardaste tu';
-  if (by === 'them') return person ? `Guardado por ${firstName(person.displayName)}` : 'Guardado no grupo';
-  return 'A maioria reagiu';
+  if (by === 'me') return t('Guardaste tu');
+  if (by === 'them') return person ? t('Guardado por {firstName}', { firstName: firstName(person.displayName) }) : t('Guardado no grupo');
+  return t('A maioria reagiu');
 }
 
 export const GROUP_SAVED_EMPTY = {
-  title: 'Ainda não há Guardados',
-  line: 'Quando a maioria do grupo reagir ao mesmo vídeo (sem ser com nah), ele fica aqui. Também podes guardar à mão no marcador.',
+  get title() { return t('Ainda não há Guardados'); },
+  get line() { return t('Quando a maioria do grupo reagir ao mesmo vídeo (sem ser com nah), ele fica aqui. Também podes guardar à mão no marcador.'); },
 };
 
 /** Os textos da conversa de um item no Mixar do grupo (só quem está no Mixar a vê). */
 export const GROUP_COMMENTS = {
-  private: 'Só quem está no Mixar do grupo vê isto',
-  placeholder: 'Escreve ao grupo…',
-  remove: 'Deixa de se ver para todos no Mixar do grupo.',
-  empty: { title: 'Ainda não há conversa', line: 'Diz ao grupo o que achaste deste vídeo. Só quem está no Mixar do grupo vê isto.' },
+  get private() { return t('Só quem está no Mixar do grupo vê isto'); },
+  get placeholder() { return t('Escreve ao grupo…'); },
+  get remove() { return t('Deixa de se ver para todos no Mixar do grupo.'); },
+  empty: { get title() { return t('Ainda não há conversa'); }, get line() { return t('Diz ao grupo o que achaste deste vídeo. Só quem está no Mixar do grupo vê isto.'); } },
 };
 
 /** Sair do Mixar do grupo (continuo no grupo). */
 export function groupLeaveText(peopleIn: number): { title: string; line: string } {
   return {
-    title: 'Sair do Mixar do grupo?',
+    title: t('Sair do Mixar do grupo?'),
     line: peopleIn - 1 < GROUP_MIN
-      ? `Continuas no grupo. Com menos de ${GROUP_MIN} pessoas, o Mixar acaba para todos.`
-      : 'Continuas no grupo e podes voltar a entrar enquanto o Mixar durar.',
+      ? t('Continuas no grupo. Com menos de {groupMin} pessoas, o Mixar acaba para todos.', { groupMin: GROUP_MIN })
+      : t('Continuas no grupo e podes voltar a entrar enquanto o Mixar durar.'),
   };
 }

@@ -9,6 +9,7 @@
  * - O que cada um vê (`guestUi`) e os avisos (`guestNotice`).
  */
 import type { TxilladaPerson } from '@/lib/txillada';
+import { t } from '@/lib/i18n';
 
 /** No máximo 3 convidados ao mesmo tempo (o servidor responde 409 acima disso). */
 export const GUESTS_MAX = 3;
@@ -162,18 +163,18 @@ export function guestsReduce(s: GuestsState, a: GuestsAct): GuestsState {
 export function guestNotice(ev: GuestEvent, me: string | null, host: boolean): string | null {
   switch (ev.type) {
     case 'txillada.request':
-      return host ? `@${ev.user.username} pediu para entrar` : null;
+      return host ? t('@{username} pediu para entrar', { username: ev.user.username }) : null;
     case 'txillada.invite_declined':
-      return host ? `@${ev.user.username} recusou o convite` : null;
+      return host ? t('@{username} recusou o convite', { username: ev.user.username }) : null;
     case 'txillada.request_declined':
-      return 'O anfitrião recusou o teu pedido';
+      return t('O anfitrião recusou o teu pedido');
     case 'txillada.invite_cancelled':
-      return 'O anfitrião retirou o convite';
+      return t('O anfitrião retirou o convite');
     case 'txillada.guest_joined':
-      return me && ev.guest.user.username === me ? 'Estás a transmitir' : `@${ev.guest.user.username} entrou no ecrã`;
+      return me && ev.guest.user.username === me ? t('Estás a transmitir') : t('@{username} entrou no ecrã', { username: ev.guest.user.username });
     case 'txillada.guest_left':
-      if (me && ev.user.username === me) return ev.reason === 'removed' ? 'O anfitrião tirou-te de transmitir' : null;
-      return host ? `@${ev.user.username} saiu do ecrã` : null;
+      if (me && ev.user.username === me) return ev.reason === 'removed' ? t('O anfitrião tirou-te de transmitir') : null;
+      return host ? t('@{username} saiu do ecrã', { username: ev.user.username }) : null;
     default:
       return null;
   }
@@ -237,16 +238,16 @@ export function inviteInput(text: string): string {
 export function inviteRow(s: GuestsState, username: string): { label: string; can: boolean } {
   const u = username.toLowerCase();
   const has = (list: readonly { user: { username: string } }[]) => list.some((g) => g.user.username.toLowerCase() === u);
-  if (has(s.guests)) return { label: 'A transmitir', can: false };
-  if (has(s.invites)) return { label: 'Convidado', can: false };
-  if (s.guests.length >= GUESTS_MAX) return { label: 'Sem lugar', can: false };
-  if (has(s.requests)) return { label: 'Aceitar', can: true };
-  return { label: 'Convidar', can: true };
+  if (has(s.guests)) return { label: t('A transmitir'), can: false };
+  if (has(s.invites)) return { label: t('Convidado'), can: false };
+  if (s.guests.length >= GUESTS_MAX) return { label: t('Sem lugar'), can: false };
+  if (has(s.requests)) return { label: t('Aceitar'), can: true };
+  return { label: t('Convidar'), can: true };
 }
 
 /** O aviso depois de convidar: a pessoa recebe o convite no ecrã (se está a ver) ou um aviso que abre a Txillada. */
 export function inviteSentText(username: string): string {
-  return `Convite enviado a @${username}`;
+  return t('Convite enviado a @{username}', { username });
 }
 
 /**
@@ -257,15 +258,15 @@ export function inviteErrorText(e: { status?: number; code?: string; message?: s
   const code = e?.code ?? (typeof e?.extra?.code === 'string' ? e.extra.code : undefined);
   const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
   switch (e?.status) {
-    case 404: return `Não encontrámos @${username}. Confirma o @ e tenta outra vez.`;
+    case 404: return t('Não encontrámos @{username}. Confirma o @ e tenta outra vez.', { username });
     case 409:
-      if (code === 'already_invited') return `Já convidaste @${username}. Espera pela resposta.`;
-      if (code === 'guests_full' || /Já há \d/.test(m)) return `Já há ${GUESTS_MAX} a transmitir contigo. Tira alguém para convidares outra pessoa.`;
-      return m || `Não deu para convidar @${username}.`;
-    case 403: return m || `Não podes convidar @${username} para transmitir.`;
-    case 400: return m || `Não deu para convidar @${username}.`;
-    case 429: return 'Calma! Muitos convites seguidos. Espera um bocadinho.';
-    default: return m || 'Não consegui enviar o convite. Verifica a internet e tenta outra vez.';
+      if (code === 'already_invited') return t('Já convidaste @{username}. Espera pela resposta.', { username });
+      if (code === 'guests_full' || /Já há \d/.test(m)) return t('Já há {guestsMax} a transmitir contigo. Tira alguém para convidares outra pessoa.', { guestsMax: GUESTS_MAX });
+      return m || t('Não deu para convidar @{username}.', { username });
+    case 403: return m || t('Não podes convidar @{username} para transmitir.', { username });
+    case 400: return m || t('Não deu para convidar @{username}.', { username });
+    case 429: return t('Calma! Muitos convites seguidos. Espera um bocadinho.');
+    default: return m || t('Não consegui enviar o convite. Verifica a internet e tenta outra vez.');
   }
 }
 

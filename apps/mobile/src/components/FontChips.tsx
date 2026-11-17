@@ -3,12 +3,13 @@ import { fontById } from '@/lib/studio/effects';
 import { colors } from '@/lib/theme';
 import { TEXT_FONT_IDS, normTextFont, type TextFontId } from '@/lib/textLayers';
 import { useTextFontStyle, useTextFonts } from '@/lib/useTextFonts';
+import { t } from '@/lib/i18n';
 
 /**
  * A fila das letras (as 10 do estúdio), na horizontal: cada uma escreve o próprio nome na sua letra. Serve nos textos dos
  * mimos, nas publicações só com texto e na legenda do Zás. `dark`: por cima da foto ou da câmara (pílulas de vidro).
  */
-export function FontChips({ value, onChange, dark = false, style, label = 'Letra' }: {
+export function FontChips({ value, onChange, dark = false, style, label = t('Letra') }: {
   value: string | null | undefined;
   onChange: (id: TextFontId) => void;
   dark?: boolean;
@@ -39,7 +40,7 @@ export function FontChips({ value, onChange, dark = false, style, label = 'Letra
             onPress={() => onChange(id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`Letra ${f.name}`}
+            accessibilityLabel={t('Letra {name}', { name: f.name })}
             style={({ pressed }) => [{ height: 44, minWidth: 44, borderRadius: 22, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }, dark && !on && { borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
             <ChipName id={id} color={fg} />

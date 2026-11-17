@@ -2,6 +2,7 @@
 // «Deixar usar o meu som», a página /som/[id] e «Sons em alta» no Explorar.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -103,7 +104,7 @@ test('«Sons em alta» no Explorar e a definição em Conteúdo', () => {
 });
 
 test('direitos (0140): «Retirar o som», a linha da tcheka sem som e o estado de cada som meu', () => {
-  assert.equal(s.RETIRE_SOUND_TEXT, 'As tchekas que usam este som ficam sem som. Não dá para desfazer.');
+  assert.equal(s.RETIRE_SOUND_TEXT(), 'As tchekas que usam este som ficam sem som. Não dá para desfazer.');
   assert.equal(s.soundRemovedText('author'), 'Som retirado pelo autor');
   assert.equal(s.soundRemovedText('rights'), 'Som retirado por direitos de autor');
   assert.equal(s.soundRemovedText(null), null);

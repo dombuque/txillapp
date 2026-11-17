@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Platform } from 'react-native';
 import { createPrefetcher } from './zasDeck';
+import { t } from '@/lib/i18n';
 
 /**
  * Pré-carregar as fotos dos próximos Zás (uma lista só para a app toda: a faixa e o visor partilham-na).
@@ -21,7 +22,7 @@ function loadWeb(url: string): Promise<void> {
     };
     img.onerror = () => {
       held.delete(url);
-      reject(new Error('não carregou'));
+      reject(new Error(t('não carregou')));
     };
     img.src = url;
     held.set(url, img);
@@ -31,7 +32,7 @@ function loadWeb(url: string): Promise<void> {
 
 async function loadNative(url: string): Promise<void> {
   const ok = await Image.prefetch(url, 'memory-disk');
-  if (!ok) throw new Error('não carregou');
+  if (!ok) throw new Error(t('não carregou'));
 }
 
 export const zasPrefetcher = createPrefetcher(Platform.OS === 'web' ? loadWeb : loadNative);

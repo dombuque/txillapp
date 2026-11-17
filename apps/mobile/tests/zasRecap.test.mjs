@@ -2,6 +2,7 @@
 // e onde entram na app («Os meus Zás», o ecrã do resumo, a rota /zas-resumo, a notificação, as Definições e a Ajuda).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -73,7 +74,7 @@ test('«Os meus Zás»: cartão com resumo; sem resumo, a linha só com a defini
   assert.equal(m.recapSlot(true, null), 'hint');
   assert.equal(m.recapSlot(false, null), null);
   assert.equal(m.recapSlot(undefined, undefined), null); // servidor antigo
-  assert.equal(m.RECAP_HINT, 'O teu resumo chega ao domingo à noite');
+  assert.equal(m.RECAP_HINT(), 'O teu resumo chega ao domingo à noite');
   assert.match(m.emptyText(true), /7 dias/);
   assert.equal(m.emptyText(false), 'Não tens Zás ativos. Os Zás duram 24 h.');
   assert.equal(m.emptyText(undefined), 'Não tens Zás ativos. Os Zás duram 24 h.');
@@ -93,7 +94,7 @@ test('apagar: o guardado diz «Apaga já o Zás guardado»', () => {
 });
 
 test('notificação zas_recap: texto, linha de baixo e destino', () => {
-  assert.equal(m.RECAP_NOTICE, 'O teu resumo dos Zás da semana está pronto');
+  assert.equal(m.RECAP_NOTICE(), 'O teu resumo dos Zás da semana está pronto');
   assert.equal(m.recapNoticeSub({ label: '8 a 15 nov', count: 12 }), '8 a 15 nov · 12 Zás');
   assert.equal(m.recapNoticeSub({ label: '8 a 15 nov' }), '8 a 15 nov');
   assert.equal(m.recapNoticeSub({}), undefined);
@@ -140,7 +141,7 @@ test('a app usa o arquivo, o ecrã do resumo e a rota', () => {
 
 test('notificação e definições: o tipo novo, a categoria `zas` e a pesquisa', () => {
   const notif = read('app', 'notifications.tsx');
-  assert.match(notif, /case 'zas_recap': return \{ text: RECAP_NOTICE/);
+  assert.match(notif, /case 'zas_recap': return \{ text: RECAP_NOTICE\(\)/);
   assert.match(notif, /case 'zas_recap': return recapNoticeTarget/);
   assert.match(read('lib', 'api.ts'), /\| 'zas_recap'/);
   assert.deepEqual(idx.NOTIFY_LABELS.zas, ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto']);

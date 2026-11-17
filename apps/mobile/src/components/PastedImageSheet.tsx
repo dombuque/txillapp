@@ -3,6 +3,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+import { t } from '@/lib/i18n';
 
 /**
  * A legenda só ganha o cursor sozinha no computador (rato). No iPhone o teclado abria logo por cima da folha e tapava
@@ -27,15 +28,15 @@ export function PastedImageSheet({ uri, caption, once, onCancel, onSend }: {
   const [legend, setLegend] = useState(caption ?? '');
   const send = () => onSend(legend);
   return (
-    <Sheet title="Enviar imagem" onClose={onCancel}>
+    <Sheet title={t('Enviar imagem')} onClose={onCancel}>
       <View style={st.body}>
         <View style={st.frame}>
-          <Image source={{ uri }} resizeMode="contain" style={st.img} accessibilityRole="image" accessibilityLabel="A imagem que colaste" />
+          <Image source={{ uri }} resizeMode="contain" style={st.img} accessibilityRole="image" accessibilityLabel={t('A imagem que colaste')} />
         </View>
         <TextInput
           value={legend}
           onChangeText={setLegend}
-          placeholder="Adicionar uma legenda…"
+          placeholder={t('Adicionar uma legenda…')}
           placeholderTextColor={colors.zinc500}
           maxLength={2000}
           multiline
@@ -43,20 +44,20 @@ export function PastedImageSheet({ uri, caption, once, onCancel, onSend }: {
           blurOnSubmit
           onSubmitEditing={send}
           style={st.caption}
-          accessibilityLabel="Legenda"
+          accessibilityLabel={t('Legenda')}
         />
         {once ? (
           <View style={st.once}>
             <Icon name="once" size={16} color={colors.brand} strokeWidth={2.2} />
-            <Text style={st.onceText}>Ver uma vez: só se abre uma vez.</Text>
+            <Text style={st.onceText}>{t('Ver uma vez: só se abre uma vez.')}</Text>
           </View>
         ) : null}
         <View style={st.row}>
-          <Pressable onPress={onCancel} style={({ pressed }) => [st.btn, st.cancel, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Cancelar">
-            <Text style={st.cancelText}>Cancelar</Text>
+          <Pressable onPress={onCancel} style={({ pressed }) => [st.btn, st.cancel, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Cancelar')}>
+            <Text style={st.cancelText}>{t('Cancelar')}</Text>
           </Pressable>
-          <Pressable onPress={send} style={({ pressed }) => [st.btn, st.send, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Enviar a imagem">
-            <Text style={st.sendText}>Enviar</Text>
+          <Pressable onPress={send} style={({ pressed }) => [st.btn, st.send, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={t('Enviar a imagem')}>
+            <Text style={st.sendText}>{t('Enviar')}</Text>
           </Pressable>
         </View>
       </View>

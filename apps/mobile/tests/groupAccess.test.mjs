@@ -1,6 +1,7 @@
 // Testes da lógica de quem vê e quem entra num TxillGroup (src/lib/groupAccess.ts).
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -113,7 +114,7 @@ test('cleanPlaceLabel / placeName / placeLine: até 80, o escolhido ganha ao gra
   assert.equal(ga.placeName(null, {}), null);
   assert.equal(ga.placeLine('Costa do Sol'), 'Aparece em À tua volta em Costa do Sol.');
   assert.equal(ga.placeLine(null), 'Aparece em À tua volta na zona que marcaste no mapa.');
-  assert.match(ga.PRIVACY_NOTE, /cerca de 1,5 km/);
+  assert.match(ga.PRIVACY_NOTE(), /cerca de 1,5 km/);
 });
 
 test('accessChange com sítio: a confirmação diz onde aparece; mudar só o sítio também pede confirmação', () => {
@@ -127,7 +128,7 @@ test('accessChange com sítio: a confirmação diz onde aparece; mudar só o sí
   assert.deepEqual(ga.accessChange('private', 'map', 0, null), ga.accessChange('private', 'map', 0));
   const only = ga.accessChange('map', 'map', 0, { label: 'Bilene', changed: true });
   assert.equal(only.title, 'Mudar o sítio do grupo?');
-  assert.deepEqual(only.lines, ['Aparece em À tua volta em Bilene.', ga.PRIVACY_NOTE]);
+  assert.deepEqual(only.lines, ['Aparece em À tua volta em Bilene.', ga.PRIVACY_NOTE()]);
   assert.equal(ga.accessChange('map', 'map', 0, { label: 'Bilene' }), null);
   assert.equal(ga.accessChange('private', 'private', 0, { label: 'Bilene', changed: true }), null);
 });

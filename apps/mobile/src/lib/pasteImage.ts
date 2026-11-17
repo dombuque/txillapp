@@ -11,6 +11,7 @@
  */
 
 /** O que se usa de um File (ou Blob com nome). */
+import { t } from '@/lib/i18n';
 export interface FileLike { readonly type: string; readonly size: number; readonly name?: string }
 /** O que se usa de um DataTransferItem. */
 export interface ItemLike { readonly kind: string; readonly type: string; getAsFile(): FileLike | null }
@@ -74,9 +75,9 @@ export function transferHasFiles(dt: TransferLike | null | undefined): boolean {
 
 /** Porque é que esta imagem não dá para enviar (texto para mostrar), ou null se dá. */
 export function pastedImageProblem(img: FoundImage): string | null {
-  if (img.type === 'image/gif') return 'Os GIFs que colas ou arrastas ainda não dão para enviar. Usa o separador GIF dos stickers.';
-  if (!SENDABLE_IMAGE_TYPES.includes(img.type)) return 'Esta imagem não dá para enviar: só JPEG, PNG ou WebP.';
-  if (img.file.size > MAX_PASTED_IMAGE_BYTES) return 'A imagem é grande demais (máximo 8 MB).';
+  if (img.type === 'image/gif') return t('Os GIFs que colas ou arrastas ainda não dão para enviar. Usa o separador GIF dos stickers.');
+  if (!SENDABLE_IMAGE_TYPES.includes(img.type)) return t('Esta imagem não dá para enviar: só JPEG, PNG ou WebP.');
+  if (img.file.size > MAX_PASTED_IMAGE_BYTES) return t('A imagem é grande demais (máximo 8 MB).');
   return null;
 }
 

@@ -19,6 +19,7 @@ import { colors } from '@/lib/theme';
 import { zasPhotoUrl } from './zasDeck';
 import { saveRecap, shareRecap } from './zasImage';
 import { audienceLabel, publishErrorText, recapCardSize, recapLine, recapPrivacyLine, recapTitle } from './zasRecapLogic';
+import { t } from '@/lib/i18n';
 
 /** A chave da cache de um resumo (`latest` = o mais recente, sem id). */
 export const recapKey = (id?: string) => ['zas-recap', id ?? 'latest'] as const;
@@ -79,7 +80,7 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
       const res = await instantsApi.publishRecap(r.id, audience);
       put(res.recap ?? { ...r, published: { storyId: res.storyId, audience, at: new Date().toISOString() } });
       setSheet(false);
-      flash('Está nos teus mimos');
+      flash(t('Está nos teus mimos'));
       void qc.invalidateQueries({ queryKey: ['stories'] });
     } catch (e) {
       const status = e instanceof ApiError ? e.status : undefined;
@@ -92,13 +93,13 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
 
   async function discard() {
     if (!r) return;
-    if (!(await confirm({ title: 'Descartar o resumo?', message: 'Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.', confirm: 'Descartar', danger: true }))) return;
+    if (!(await confirm({ title: t('Descartar o resumo?'), message: t('Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.'), confirm: t('Descartar'), danger: true }))) return;
     instantsApi.removeRecap(r.id).then(() => {
       qc.setQueryData<ZasRecap[]>(['zas-recaps'], (l) => (l ? l.filter((x) => x.id !== r.id) : l));
       void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
       qc.removeQueries({ queryKey: ['zas-recap'] });
       onClose();
-    }).catch((e) => setErr((e as Error).message || 'Não consegui descartar o resumo.'));
+    }).catch((e) => setErr((e as Error).message || t('Não consegui descartar o resumo.')));
   }
 
   // A área à volta: a partir de 820 px de largura, a imagem à esquerda e as ações ao lado.
@@ -121,7 +122,7 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
       {user ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
           <NameWithBadge name={`@${user.username}`} who={user} style={st.handle} containerStyle={{ flexShrink: 1 }} />
-          <Text style={st.handle}>· {r.count} Zás</Text>
+          <Text style={st.handle}>{t('· {total} Zás', { total: r.count })}</Text>
         </View>
       ) : <Text style={st.handle}>{recapLine(r)}</Text>}
     </View>
@@ -145,20 +146,20 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
         style={({ pressed }) => [st.primary, published && st.primaryDone, pressed && !published && { opacity: 0.85 }]}
       >
         <Icon name={published ? 'check' : 'plus'} size={20} color="#fff" strokeWidth={2.6} />
-        <Text style={st.primaryText}>{published ? 'Partilhado nos mimos' : 'Partilhar nos mimos'}</Text>
+        <Text style={st.primaryText}>{published ? t('Partilhado nos mimos') : t('Partilhar nos mimos')}</Text>
       </Pressable>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Pressable
-          onPress={() => void saveRecap(r, isWeb && finePointer() ? 'file' : 'gallery').then((x) => { if (x === 'saved') flash('Guardado na galeria'); else if (x === 'failed') setErr('Não consegui guardar o resumo.'); })}
+          onPress={() => void saveRecap(r, isWeb && finePointer() ? 'file' : 'gallery').then((x) => { if (x === 'saved') flash(t('Guardado na galeria')); else if (x === 'failed') setErr(t('Não consegui guardar o resumo.')); })}
           accessibilityRole="button"
           style={({ pressed }) => [st.glassBtn, pressed && { backgroundColor: 'rgba(255,255,255,0.22)' }]}
         >
           <Icon name="download" size={19} color="#fff" />
-          <Text style={st.glassText}>Guardar</Text>
+          <Text style={st.glassText}>{t('Guardar')}</Text>
         </Pressable>
         <Pressable onPress={() => void shareRecap(r)} accessibilityRole="button" style={({ pressed }) => [st.glassBtn, pressed && { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
           <Icon name="share" size={19} color="#fff" />
-          <Text style={st.glassText}>Partilhar</Text>
+          <Text style={st.glassText}>{t('Partilhar')}</Text>
         </Pressable>
       </View>
       {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
@@ -167,7 +168,7 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
 
   const image = r ? (
     <View style={[st.card, { width: card.w, height: card.h }]}>
-      <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`O teu resumo dos Zás, ${recapLine(r)}`} accessibilityIgnoresInvertColors />
+      <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={t('O teu resumo dos Zás, {recapLine}', { recapLine: recapLine(r) })} accessibilityIgnoresInvertColors />
       {note ? <Text style={st.toast} accessibilityLiveRegion="polite">{note}</Text> : null}
     </View>
   ) : null;
@@ -176,31 +177,31 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
     <View style={rootStyle}>
       {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
       <View style={st.top}>
-        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.small}><Icon name="x" size={24} color="#fff" /></Pressable>
+        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Fechar')} style={st.small}><Icon name="x" size={24} color="#fff" /></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon name="bolt" size={20} solid color={colors.brand} />
           <Text style={st.brand}>Zás</Text>
         </View>
         {r && !published ? (
-          <Pressable onPress={discard} accessibilityRole="button" accessibilityLabel="Descartar o resumo" style={st.small}><Icon name="trash" size={20} color="#fca5a5" /></Pressable>
+          <Pressable onPress={discard} accessibilityRole="button" accessibilityLabel={t('Descartar o resumo')} style={st.small}><Icon name="trash" size={20} color="#fca5a5" /></Pressable>
         ) : <View style={{ width: 44 }} />}
       </View>
 
       {gone || (!r && q.isError) ? (
         <View style={st.center}>
           <View style={st.goneIcon}><Icon name="bolt" size={28} solid color={colors.brand} /></View>
-          <Text style={st.goneTitle}>{gone ? (id ? 'Este resumo já não existe' : 'Ainda não tens um resumo') : 'Não consegui abrir o resumo'}</Text>
+          <Text style={st.goneTitle}>{gone ? (id ? t('Este resumo já não existe') : t('Ainda não tens um resumo')) : t('Não consegui abrir o resumo')}</Text>
           <Text style={st.goneText}>
             {gone
               ? id
-                ? 'Os resumos ficam uma semana e depois apagam-se (ou foi descartado).'
-                : 'O teu resumo chega ao domingo à noite, quando tiveres pelo menos 3 Zás na semana.'
-              : 'Verifica a internet e tenta outra vez.'}
+                ? t('Os resumos ficam uma semana e depois apagam-se (ou foi descartado).')
+                : t('O teu resumo chega ao domingo à noite, quando tiveres pelo menos 3 Zás na semana.')
+              : t('Verifica a internet e tenta outra vez.')}
           </Text>
           {!gone ? (
-            <Pressable onPress={() => void q.refetch()} accessibilityRole="button" style={st.goneBtn}><Text style={st.glassText}>Tentar outra vez</Text></Pressable>
+            <Pressable onPress={() => void q.refetch()} accessibilityRole="button" style={st.goneBtn}><Text style={st.glassText}>{t('Tentar outra vez')}</Text></Pressable>
           ) : (
-            <Pressable onPress={onClose} accessibilityRole="button" style={st.goneBtn}><Text style={st.glassText}>Voltar</Text></Pressable>
+            <Pressable onPress={onClose} accessibilityRole="button" style={st.goneBtn}><Text style={st.glassText}>{t('Voltar')}</Text></Pressable>
           )}
         </View>
       ) : !r ? (
@@ -227,14 +228,14 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
       )}
 
       {sheet && r && (
-        <Sheet title="Partilhar nos mimos" onClose={() => setSheet(false)}>
+        <Sheet title={t('Partilhar nos mimos')} onClose={() => setSheet(false)}>
           <View style={{ paddingHorizontal: 24 }}>
-            <Text style={st.sheetIntro}>O resumo fica nos teus mimos 24 horas. Escolhe quem o vê.</Text>
+            <Text style={st.sheetIntro}>{t('O resumo fica nos teus mimos 24 horas. Escolhe quem o vê.')}</Text>
             <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
               {(['all', 'close_friends'] as const).map((a) => {
                 const on = audience === a;
                 const none = a === 'close_friends' && friends.isSuccess && friends.data.length === 0;
-                const text = a === 'all' ? 'Quem pode ver os teus mimos.' : none ? 'Ainda não tens ninguém na lista. Toca para escolher.' : `Só a tua lista${friends.data ? ` (${friends.data.length})` : ''}.`;
+                const text = a === 'all' ? t('Quem pode ver os teus mimos.') : none ? t('Ainda não tens ninguém na lista. Toca para escolher.') : t('Só a tua lista{value}.', { value: friends.data ? ` (${friends.data.length})` : '' });
                 return (
                   <Pressable
                     key={a}
@@ -262,7 +263,7 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
               accessibilityRole="button"
               style={[st.sheetBtn, (busy || (audience === 'close_friends' && friends.isSuccess && friends.data.length === 0)) && { opacity: 0.5 }]}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.sheetBtnText}>Partilhar nos mimos</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.sheetBtnText}>{t('Partilhar nos mimos')}</Text>}
             </Pressable>
           </View>
         </Sheet>

@@ -7,6 +7,7 @@
  * da imagem original, por isso com mais píxeis por módulo do que na imagem inteira reduzida).
  */
 
+import { t } from '@/lib/i18n';
 export type QrEngine = 'native' | 'jsqr';
 
 /** O lado maior a que se reduz uma foto antes de procurar o QR (as fotos de 12 MP pesam e não ajudam). */
@@ -76,4 +77,4 @@ export function cameraPass(vw: number, vh: number): ScanPass | null {
 }
 
 /** O que dizer quando a imagem não tem QR nenhum que se consiga ler. */
-export const NO_QR_IN_IMAGE = 'Não encontrei nenhum QR nesta imagem. Experimenta outra, ou recorta-a à volta do QR.';
+export const NO_QR_IN_IMAGE = () => t('Não encontrei nenhum QR nesta imagem. Experimenta outra, ou recorta-a à volta do QR.');

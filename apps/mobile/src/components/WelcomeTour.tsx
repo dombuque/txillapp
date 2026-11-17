@@ -9,18 +9,19 @@ import { useOverlay } from '@/lib/overlays';
 import { colors, typo } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Button } from './ui/Button';
+import { t } from '@/lib/i18n';
 
 interface Step { icon: IconName; title: string; text: string }
 
 const STEPS: Step[] = [
-  { icon: 'sparkles', title: 'Bem-vindo ao Txillapp', text: 'Dois minutos e já sabes onde está tudo. Podes saltar quando quiseres.' },
-  { icon: 'home', title: 'Início', text: 'O feed da malta e dos sítios onde andam. Toca outra vez no ícone para voltar ao topo e atualizar.' },
-  { icon: 'search', title: 'Pesquisar', text: 'No canto de cima: procura pessoas, hashtags e sítios a bater perto de ti.' },
-  { icon: 'plus', title: 'Publicar', text: 'Foto, vídeo ou só texto, com sítio e malta identificada. A tua vibe, tu mandas.' },
-  { icon: 'messages', title: 'Mensagens', text: 'Conversas, TxillGroups e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.' },
-  { icon: 'film', title: 'Tchekas', text: 'Vídeos curtos a tocar sem parar. Brinda, comenta e oferece vibes sem sair do vídeo.' },
-  { icon: 'user', title: 'O teu perfil', text: 'Aqui moram as tuas publicações, as definições e a tua geleira.' },
-  { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
+  { icon: 'sparkles', get title() { return t('Bem-vindo ao Txillapp'); }, get text() { return t('Dois minutos e já sabes onde está tudo. Podes saltar quando quiseres.'); } },
+  { icon: 'home', get title() { return t('Início'); }, get text() { return t('O feed da malta e dos sítios onde andam. Toca outra vez no ícone para voltar ao topo e atualizar.'); } },
+  { icon: 'search', get title() { return t('Pesquisar'); }, get text() { return t('No canto de cima: procura pessoas, hashtags e sítios a bater perto de ti.'); } },
+  { icon: 'plus', get title() { return t('Publicar'); }, get text() { return t('Foto, vídeo ou só texto, com sítio e malta identificada. A tua vibe, tu mandas.'); } },
+  { icon: 'messages', get title() { return t('Mensagens'); }, get text() { return t('Conversas, TxillGroups e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.'); } },
+  { icon: 'film', title: 'Tchekas', get text() { return t('Vídeos curtos a tocar sem parar. Brinda, comenta e oferece vibes sem sair do vídeo.'); } },
+  { icon: 'user', get title() { return t('O teu perfil'); }, get text() { return t('Aqui moram as tuas publicações, as definições e a tua geleira.'); } },
+  { icon: 'snowflake', get title() { return t('Enche a tua geleira'); }, get text() { return t('Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.'); } },
 ];
 
 /** Visita guiada para quem acabou de registar: cartão passo a passo sobre o Início. Só aparece uma vez (o servidor guarda). */
@@ -44,7 +45,7 @@ export function WelcomeTour() {
 
   return (
     <Modal transparent visible animationType="fade" onRequestClose={() => finish(false)} statusBarTranslucent>
-      <View style={[st.back, { paddingBottom: insets.bottom + 96 }]} accessibilityViewIsModal accessibilityLabel="Visita guiada">
+      <View style={[st.back, { paddingBottom: insets.bottom + 96 }]} accessibilityViewIsModal accessibilityLabel={t('Visita guiada')}>
         <View style={st.card}>
           <View style={st.head}>
             <View style={st.iconWrap}><Icon name={step.icon} size={22} color={colors.brand} /></View>
@@ -52,18 +53,18 @@ export function WelcomeTour() {
           </View>
           <Text style={st.text}>{step.text}</Text>
           <View style={st.foot}>
-            <View style={st.dots} accessibilityLabel={`Passo ${i + 1} de ${STEPS.length}`}>
+            <View style={st.dots} accessibilityLabel={t('Passo {n} de {n2}', { n: i + 1, n2: STEPS.length })}>
               {STEPS.map((_, n) => <View key={n} style={[st.dot, n === i && st.dotOn]} />)}
             </View>
             <View style={st.actions}>
-              {!last && <Button label="Saltar" kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />}
+              {!last && <Button label={t('Saltar')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />}
               {last ? (
                 <>
-                  <Button label="Depois" kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />
-                  <Button label="Encher agora" size="md" onPress={() => finish(true)} />
+                  <Button label={t('Depois')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />
+                  <Button label={t('Encher agora')} size="md" onPress={() => finish(true)} />
                 </>
               ) : (
-                <Button label="Seguinte" size="md" onPress={() => setI(i + 1)} />
+                <Button label={t('Seguinte')} size="md" onPress={() => setI(i + 1)} />
               )}
             </View>
           </View>

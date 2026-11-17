@@ -8,6 +8,7 @@
  * Os dois modos do mapa precisam de um sítio (o local do Plano ou um ponto marcado no mapa): ver "onde é o grupo" mais abaixo.
  * Mudar de modo nunca grava ao primeiro toque: escolhe-se, "Guardar", e confirma-se com as consequências (`accessChange`).
  */
+import { t } from '@/lib/i18n';
 export type GroupVisibility = 'private' | 'public';
 export type GroupAccess = 'private' | 'map' | 'public';
 export type JoinMode = 'open' | 'request';
@@ -15,9 +16,9 @@ export type JoinMode = 'open' | 'request';
 export type JoinState = 'none' | 'pending' | 'member';
 
 export const ACCESS_OPTIONS: { id: GroupAccess; title: string; text: string }[] = [
-  { id: 'private', title: 'Privado', text: 'Só entra quem um administrador adicionar. Não aparece no mapa.' },
-  { id: 'map', title: 'Privado, visível no mapa', text: 'Aparece em À tua volta com o nome, a capa, a foto e o plano. Quem quiser entrar pede e um administrador aprova.' },
-  { id: 'public', title: 'Público', text: 'Aparece em À tua volta e qualquer pessoa pode entrar logo. Quem entra vê o que já foi partilhado no grupo.' },
+  { id: 'private', get title() { return t('Privado'); }, get text() { return t('Só entra quem um administrador adicionar. Não aparece no mapa.'); } },
+  { id: 'map', get title() { return t('Privado, visível no mapa'); }, get text() { return t('Aparece em À tua volta com o nome, a capa, a foto e o plano. Quem quiser entrar pede e um administrador aprova.'); } },
+  { id: 'public', get title() { return t('Público'); }, get text() { return t('Aparece em À tua volta e qualquer pessoa pode entrar logo. Quem entra vê o que já foi partilhado no grupo.'); } },
 ];
 
 const titleOf = (a: GroupAccess) => ACCESS_OPTIONS.find((o) => o.id === a)!.title;
@@ -34,34 +35,34 @@ export function accessChange(from: GroupAccess, to: GroupAccess, pending?: numbe
   const where = place && to !== 'private' ? placeLine(place.label) : null;
   if (from === to) {
     if (!where || !place?.changed) return null;
-    return { title: 'Mudar o sítio do grupo?', summary: where, lines: [where, PRIVACY_NOTE] };
+    return { title: t('Mudar o sítio do grupo?'), summary: where, lines: [where, PRIVACY_NOTE()] };
   }
   const withPlace = (c: AccessChange): AccessChange => (where ? { ...c, summary: `${c.summary} ${where}`, lines: [where, ...c.lines] } : c);
   const n = Math.max(0, pending ?? 0);
-  const passa = `Passa de ${titleOf(from)} para ${titleOf(to)}.`;
+  const passa = t('Passa de {titleOf} para {titleOf2}.', { titleOf: titleOf(from), titleOf2: titleOf(to) });
   if (to === 'public') {
     return withPlace({
-      title: 'Tornar o grupo público?',
-      summary: `${passa} Qualquer pessoa vai poder entrar sem aprovação.`,
-      lines: ['Qualquer pessoa pode entrar sem aprovação e, ao entrar, vê as mensagens, o álbum e as despesas que já existem no grupo.'],
-      hint: from === 'map' ? 'Se preferires aprovar quem entra, mantém Privado, visível no mapa.' : 'Se preferires aprovar quem entra, escolhe Privado, visível no mapa.',
+      title: t('Tornar o grupo público?'),
+      summary: t('{passa} Qualquer pessoa vai poder entrar sem aprovação.', { passa }),
+      lines: [t('Qualquer pessoa pode entrar sem aprovação e, ao entrar, vê as mensagens, o álbum e as despesas que já existem no grupo.')],
+      hint: from === 'map' ? t('Se preferires aprovar quem entra, mantém Privado, visível no mapa.') : t('Se preferires aprovar quem entra, escolhe Privado, visível no mapa.'),
     });
   }
   if (to === 'private') {
-    const declined = n === 0 ? null : n === 1 ? 'O pedido para entrar à espera vai ser recusado.' : `Os ${n} pedidos para entrar à espera vão ser recusados.`;
+    const declined = n === 0 ? null : t('O pedido para entrar à espera vai ser recusado.', { count: n, other: 'Os {count} pedidos para entrar à espera vão ser recusados.' });
     return {
-      title: 'Tornar o grupo privado?',
-      summary: [passa, 'Deixa de aparecer em À tua volta.', declined].filter(Boolean).join(' '),
-      lines: ['O grupo deixa de aparecer em À tua volta e quem não está no grupo deixa de o encontrar.', ...(declined ? [declined] : [])],
+      title: t('Tornar o grupo privado?'),
+      summary: [passa, t('Deixa de aparecer em À tua volta.'), declined].filter(Boolean).join(' '),
+      lines: [t('O grupo deixa de aparecer em À tua volta e quem não está no grupo deixa de o encontrar.'), ...(declined ? [declined] : [])],
     };
   }
   const fromPublic = from === 'public';
   return withPlace({
-    title: fromPublic ? 'Passar a aprovar quem entra?' : 'Mostrar o grupo no mapa?',
-    summary: `${passa} ${fromPublic ? 'Passa a ser preciso aprovar quem entra.' : 'Passa a aparecer em À tua volta.'}`,
+    title: fromPublic ? t('Passar a aprovar quem entra?') : t('Mostrar o grupo no mapa?'),
+    summary: `${passa} ${fromPublic ? t('Passa a ser preciso aprovar quem entra.') : t('Passa a aparecer em À tua volta.')}`,
     lines: [
-      'Aparece em À tua volta com o nome, a capa, a foto e o plano. Quem quiser entrar pede e um administrador aprova.',
-      ...(fromPublic ? ['A partir de agora é preciso aprovar quem entra.'] : []),
+      t('Aparece em À tua volta com o nome, a capa, a foto e o plano. Quem quiser entrar pede e um administrador aprova.'),
+      ...(fromPublic ? [t('A partir de agora é preciso aprovar quem entra.')] : []),
     ],
   });
 }
@@ -79,7 +80,7 @@ export function accessBody(a: GroupAccess): { visibility: GroupVisibility; showO
 
 /** O que diz o estado a quem não administra. */
 export function accessLabel(a: GroupAccess): string {
-  return a === 'public' ? 'Grupo público' : a === 'map' ? 'Grupo privado, visível no mapa' : 'Grupo privado';
+  return a === 'public' ? t('Grupo público') : a === 'map' ? t('Grupo privado, visível no mapa') : t('Grupo privado');
 }
 
 /** Como se entra: o servidor diz `joinMode`; sem ele, deduz-se da visibilidade. */
@@ -90,9 +91,9 @@ export function joinModeOf(g: { joinMode?: JoinMode | null; visibility?: GroupVi
 export type JoinAction = 'open' | 'join' | 'request' | 'cancel';
 /** O botão da página pública (e da folha do mapa) conforme o modo e a minha relação com o grupo. */
 export function joinButton(mode: JoinMode, me: JoinState): { action: JoinAction; label: string } {
-  if (me === 'member') return { action: 'open', label: 'Abrir conversa' };
-  if (me === 'pending') return { action: 'cancel', label: 'Pedido enviado · Cancelar' };
-  return mode === 'open' ? { action: 'join', label: 'Entrar no grupo' } : { action: 'request', label: 'Pedir para entrar' };
+  if (me === 'member') return { action: 'open', label: t('Abrir conversa') };
+  if (me === 'pending') return { action: 'cancel', label: t('Pedido enviado · Cancelar') };
+  return mode === 'open' ? { action: 'join', label: t('Entrar no grupo') } : { action: 'request', label: t('Pedir para entrar') };
 }
 
 // ----- onde é o grupo (o sítio no mapa) -----
@@ -105,7 +106,7 @@ export interface MapPlace { lat: number; lng: number; label?: string | null }
 export type PlaceChoice = { kind: 'venue'; slug: string; name: string } | { kind: 'point'; lat: number; lng: number; label: string | null };
 
 export const PLACE_LABEL_MAX = 80;
-export const PRIVACY_NOTE = 'Guardamos só a zona aproximada (cerca de 1,5 km), nunca o ponto exato.';
+export const PRIVACY_NOTE = () => t('Guardamos só a zona aproximada (cerca de 1,5 km), nunca o ponto exato.');
 
 /**
  * Se o grupo já tem sítio no mapa. O servidor diz em `mapReady`; o servidor antigo não o manda e então conta um ponto
@@ -136,7 +137,7 @@ export function placeName(choice: PlaceChoice | null | undefined, saved: { mapPl
 /** A frase do sítio na confirmação. */
 export function placeLine(label: string | null | undefined): string {
   const l = cleanPlaceLabel(label ?? '');
-  return l ? `Aparece em À tua volta em ${l}.` : 'Aparece em À tua volta na zona que marcaste no mapa.';
+  return l ? t('Aparece em À tua volta em {l}.', { l }) : t('Aparece em À tua volta na zona que marcaste no mapa.');
 }
 
 /** O nome do sítio escrito à mão: sem espaços a mais e até 80 caracteres. */

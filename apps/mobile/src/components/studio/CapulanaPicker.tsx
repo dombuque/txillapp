@@ -3,6 +3,7 @@ import { Shuffle } from 'lucide-react-native';
 import { CAPULANA_PALETTES, CAPULANA_PATTERNS, nextSeed, paletteById, patternById, type CapulanaSpec } from '@/lib/studio/capulana';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 /**
  * O seletor de panos: os 8 padrões e as 6 paletas em miniaturas (o pano a sério, não um ícone), e «Baralhar» para outra
@@ -18,14 +19,14 @@ export function CapulanaPicker({ value, onChange }: { value: CapulanaSpec; onCha
           <Text style={st.heroName} numberOfLines={1}>{pat.name} · {pal.name}</Text>
           <Text style={st.heroMood} numberOfLines={1}>{pat.mood}</Text>
         </View>
-        <Pressable onPress={() => onChange({ ...value, seed: nextSeed(value.seed) })} accessibilityRole="button" accessibilityLabel="Baralhar o pano" testID="baralhar" style={({ pressed }) => [st.shuffle, pressed && { transform: [{ scale: 0.95 }] }]}>
+        <Pressable onPress={() => onChange({ ...value, seed: nextSeed(value.seed) })} accessibilityRole="button" accessibilityLabel={t('Baralhar o pano')} testID="baralhar" style={({ pressed }) => [st.shuffle, pressed && { transform: [{ scale: 0.95 }] }]}>
           <Shuffle size={20} color="#fff" strokeWidth={2.4} />
-          <Text style={st.shuffleText}>Baralhar</Text>
+          <Text style={st.shuffleText}>{t('Baralhar')}</Text>
         </Pressable>
       </View>
 
       <View>
-        <Text style={st.label}>Padrão</Text>
+        <Text style={st.label}>{t('Padrão')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} accessibilityRole="radiogroup">
           {CAPULANA_PATTERNS.map((p) => {
             const on = p.id === value.pattern;
@@ -40,12 +41,12 @@ export function CapulanaPicker({ value, onChange }: { value: CapulanaSpec; onCha
       </View>
 
       <View>
-        <Text style={st.label}>Cores</Text>
+        <Text style={st.label}>{t('Cores')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} accessibilityRole="radiogroup">
           {CAPULANA_PALETTES.map((p) => {
             const on = p.id === value.palette;
             return (
-              <Pressable key={p.id} onPress={() => onChange({ ...value, palette: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Cores ${p.name}`} testID={`paleta-${p.id}`} style={st.item}>
+              <Pressable key={p.id} onPress={() => onChange({ ...value, palette: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={t('Cores {name}', { name: p.name })} testID={`paleta-${p.id}`} style={st.item}>
                 <View style={[st.dots, on && st.on]}>
                   {p.colors.map((c) => <View key={c} style={{ flex: 1, backgroundColor: c }} />)}
                 </View>

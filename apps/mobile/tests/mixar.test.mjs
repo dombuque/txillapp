@@ -3,6 +3,7 @@
 // feed, o fim do dia (05:00 de Maputo), o acesso nas Mensagens, os erros, o tempo real e as entradas nos ecrãs.
 // Correr em apps/mobile:  node --test tests/mixar.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -291,7 +292,7 @@ test('as entradas nos ecrãs: cartão no chat, menu da conversa, menu «+», ace
   assert.doesNotMatch(thread, /label: `Mixar com \$\{firstName\}`/);
   assert.match(thread, /onMixar=\{/);
   // O ícone do Mixar no cabeçalho da conversa, logo antes do «Ligar» (fora dos pedidos de mensagem).
-  assert.match(thread, /\{!request && !inMenu \? <HeaderButton label=\{`Mixar com[\s\S]{0,200}?<Icon name="mixar"[\s\S]{0,120}?<\/HeaderButton> : null\}\s*<HeaderButton label=\{`Ligar a/);
+  assert.match(thread, /\{!request && !inMenu \? <HeaderButton label=\{t\('Mixar com[\s\S]{0,200}?<Icon name="mixar"[\s\S]{0,120}?<\/HeaderButton> : null\}\s*<HeaderButton label=\{t\('Ligar a/);
   // Ecrã estreito (360 px ou menos): o Mixar passa para o menu «⋯» da conversa (lib/chatBars).
   assert.match(thread, /inMenu && person && !first\?\.blocked && !request \? \[\{ icon: 'mixar' as const, label: 'Mixar'/);
   const attach = read('components', 'ChatAttachSheet.tsx');

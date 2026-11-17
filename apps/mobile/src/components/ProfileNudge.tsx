@@ -6,6 +6,7 @@ import { feedApi } from '@/lib/api.feed';
 import { kvGet, kvSet } from '@/lib/kv';
 import { cardShadow, colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
+import { t } from '@/lib/i18n';
 
 const KEY = 'txill_profile_nudge';
 /** Dias até voltar a lembrar, depois de cada "agora não": cada vez mais espaçado (e deixa de aparecer quando o perfil chega aos 100%). */
@@ -21,11 +22,11 @@ async function read(): Promise<{ next: number; n: number }> {
 }
 
 const STEPS: Record<string, { icon: IconName; label: string; to: string }> = {
-  photo: { icon: 'camera', label: 'Pôr uma foto de perfil', to: '/profile' },
-  bio: { icon: 'pencil', label: 'Escrever uma bio', to: '/profile' },
-  post: { icon: 'plus', label: 'Fazer o primeiro post', to: '/new' },
-  follow: { icon: 'user-plus', label: 'Seguir 3 pessoas', to: '/search' },
-  geleira: { icon: 'cheers', label: 'Encher a geleira (3 gostos)', to: '/geleira' },
+  photo: { icon: 'camera', get label() { return t('Pôr uma foto de perfil'); }, to: '/profile' },
+  bio: { icon: 'pencil', get label() { return t('Escrever uma bio'); }, to: '/profile' },
+  post: { icon: 'plus', get label() { return t('Fazer o primeiro post'); }, to: '/new' },
+  follow: { icon: 'user-plus', get label() { return t('Seguir 3 pessoas'); }, to: '/search' },
+  geleira: { icon: 'cheers', get label() { return t('Encher a geleira (3 gostos)'); }, to: '/geleira' },
 };
 
 /**
@@ -55,13 +56,13 @@ export function ProfileNudge() {
   }
 
   return (
-    <View accessibilityLabel="Completa o teu perfil" style={[st.card, cardShadow]}>
+    <View accessibilityLabel={t('Completa o teu perfil')} style={[st.card, cardShadow]}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <View style={{ flex: 1 }}>
-          <Text style={st.title}>Falta pouco, malta!</Text>
-          <Text style={st.sub}>O teu perfil está a {d.percent}%. A malta agradece quando o completas.</Text>
+          <Text style={st.title}>{t('Falta pouco, malta!')}</Text>
+          <Text style={st.sub}>{t('O teu perfil está a {percent}%. A malta agradece quando o completas.', { percent: d.percent })}</Text>
         </View>
-        <Pressable onPress={() => void later()} hitSlop={6} style={st.x} accessibilityRole="button" accessibilityLabel="Agora não">
+        <Pressable onPress={() => void later()} hitSlop={6} style={st.x} accessibilityRole="button" accessibilityLabel={t('Agora não')}>
           <Icon name="x" size={18} color={colors.zinc500} />
         </Pressable>
       </View>
@@ -81,7 +82,7 @@ export function ProfileNudge() {
         })}
       </View>
       <Pressable onPress={() => void later()} style={{ marginTop: 8, paddingVertical: 8, alignItems: 'center' }} accessibilityRole="button">
-        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc500 }}>Agora não</Text>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc500 }}>{t('Agora não')}</Text>
       </Pressable>
     </View>
   );

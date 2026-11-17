@@ -6,6 +6,7 @@
  * Os testes em tests/txilladaAgendar.test.mjs importam este ficheiro diretamente.
  */
 import { formatVibes } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 /** Pelo menos 15 min à frente, no máximo 30 dias; a grelha de 15 em 15 min; «Começar» a partir de 60 min antes. */
 export const LEAD_MIN = 15;
@@ -20,9 +21,9 @@ export const MAX_SCHEDULED = 5;
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
 
-export const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'] as const;
-export const WEEKDAYS_SHORT = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'] as const;
-export const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'] as const;
+export const WEEKDAYS = () => ['domingo', 'segunda-feira', t('terça-feira'), 'quarta-feira', 'quinta-feira', 'sexta-feira', t('sábado')] as const;
+export const WEEKDAYS_SHORT = () => [t('dom.'), t('seg.'), t('ter.'), t('qua.'), t('qui.'), t('sex.'), t('sáb.')] as const;
+export const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')] as const;
 export const MONTHS_SHORT = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'] as const;
 /** A semana do calendário começa à segunda (como em Moçambique e em Portugal). */
 export const WEEK_INITIALS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
@@ -84,7 +85,7 @@ export function dayLabel(day: number, now: number): string {
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Amanhã';
   const d = new Date(day);
-  return `${WEEKDAYS_SHORT[d.getDay()].replace('.', '')} ${d.getDate()}`;
+  return `${WEEKDAYS_SHORT()[d.getDay()].replace('.', '')} ${d.getDate()}`;
 }
 
 export interface DayPill { key: string; day: number; label: string }
@@ -118,7 +119,7 @@ export function monthGrid(year: number, month: number, now: number): (CalendarCe
   return weeks;
 }
 /** «Novembro de 2026». */
-export const monthTitle = (year: number, month: number): string => `${cap(MONTHS[((month % 12) + 12) % 12])} de ${year}`;
+export const monthTitle = (year: number, month: number): string => `${cap(MONTHS()[((month % 12) + 12) % 12])} de ${year}`;
 /** Os meses que o calendário mostra: do de hoje ao de daqui a 30 dias. */
 export function monthRange(now: number): { first: { year: number; month: number }; last: { year: number; month: number } } {
   const a = new Date(now);
@@ -164,32 +165,32 @@ export function moveToDay(day: number, prev: number | null, now: number): number
 export function fmtWhen(at: number | string, now: number, long = false): string {
   const d = new Date(ms(at));
   const diff = dayDiff(now, d);
-  const wd = long ? WEEKDAYS[d.getDay()] : WEEKDAYS_SHORT[d.getDay()];
+  const wd = long ? WEEKDAYS()[d.getDay()] : WEEKDAYS_SHORT()[d.getDay()];
   if (diff >= -1 && diff <= 6) return `${wd}, ${hhmm(d)}`;
-  return long ? `${wd}, ${d.getDate()} de ${MONTHS[d.getMonth()]}, ${hhmm(d)}` : `${wd}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${hhmm(d)}`;
+  return long ? `${wd}, ${d.getDate()} de ${MONTHS()[d.getMonth()]}, ${hhmm(d)}` : `${wd}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${hhmm(d)}`;
 }
 /** «Hoje às 20:00», «Amanhã às 20:00», «Sábado às 20:00» ou «Sábado, 28 de novembro às 20:00». */
 export function fmtDay(at: number | string, now: number): string {
   const d = new Date(ms(at));
   const diff = dayDiff(now, d);
-  if (diff === 0) return `Hoje às ${hhmm(d)}`;
-  if (diff === 1) return `Amanhã às ${hhmm(d)}`;
-  if (diff === -1) return `Ontem às ${hhmm(d)}`;
-  if (diff > 1 && diff <= 6) return `${cap(WEEKDAYS[d.getDay()])} às ${hhmm(d)}`;
-  return `${cap(WEEKDAYS[d.getDay()])}, ${d.getDate()} de ${MONTHS[d.getMonth()]} às ${hhmm(d)}`;
+  if (diff === 0) return t('Hoje às {hhmm}', { hhmm: hhmm(d) });
+  if (diff === 1) return t('Amanhã às {hhmm}', { hhmm: hhmm(d) });
+  if (diff === -1) return t('Ontem às {hhmm}', { hhmm: hhmm(d) });
+  if (diff > 1 && diff <= 6) return t('{cap} às {hhmm}', { cap: cap(WEEKDAYS()[d.getDay()]), hhmm: hhmm(d) });
+  return t('{cap}, {date} de {month} às {hhmm}', { cap: cap(WEEKDAYS()[d.getDay()]), date: d.getDate(), month: MONTHS()[d.getMonth()], hhmm: hhmm(d) });
 }
 /** Numa frase: «hoje às 20:00», «amanhã às 20:00» ou «sáb., 20:00» (`long`: «sábado, 20:00»). */
 export function fmtFor(at: number | string, now: number, long = false): string {
   const diff = dayDiff(now, at);
-  if (diff === 0) return `hoje às ${hhmm(at)}`;
-  if (diff === 1) return `amanhã às ${hhmm(at)}`;
+  if (diff === 0) return t('hoje às {hhmm}', { hhmm: hhmm(at) });
+  if (diff === 1) return t('amanhã às {hhmm}', { hhmm: hhmm(at) });
   return fmtWhen(at, now, long);
 }
 /** A linha grande da capa do cartão: «Hoje, 20:00», «Amanhã, 20:00» ou «Sábado, 20:00». */
 export function coverWhen(at: number | string, now: number): string {
   const diff = dayDiff(now, at);
-  if (diff === 0) return `Hoje, ${hhmm(at)}`;
-  if (diff === 1) return `Amanhã, ${hhmm(at)}`;
+  if (diff === 0) return t('Hoje, {hhmm}', { hhmm: hhmm(at) });
+  if (diff === 1) return t('Amanhã, {hhmm}', { hhmm: hhmm(at) });
   return cap(fmtWhen(at, now, true));
 }
 /** A contagem só nas últimas 12 h (ou já passada a hora): antes, a capa já diz o dia e a hora. */
@@ -197,19 +198,19 @@ export const showCountdown = (at: number | string, now: number): boolean => ms(a
 /** «Sem lembretes», «1 lembrete», «12 lembretes» (a lista das minhas). */
 export function remindersShort(n: number | null | undefined): string {
   const v = Math.max(0, Math.round(n ?? 0));
-  return v === 0 ? 'Sem lembretes' : v === 1 ? '1 lembrete' : `${v.toLocaleString('pt-PT')} lembretes`;
+  return v === 0 ? t('Sem lembretes') : v === 1 ? '1 lembrete' : `${v.toLocaleString('pt-PT')} lembretes`;
 }
 /** A pastilha do perfil e da fila «Em breve»: «Hoje, 20:00», «Amanhã, 20:00» ou «Sáb., 20:00». */
 export function fmtShort(at: number | string, now: number): string {
   const d = new Date(ms(at));
   const diff = dayDiff(now, d);
-  if (diff === 0) return `Hoje, ${hhmm(d)}`;
-  if (diff === 1) return `Amanhã, ${hhmm(d)}`;
+  if (diff === 0) return t('Hoje, {hhmm}', { hhmm: hhmm(d) });
+  if (diff === 1) return t('Amanhã, {hhmm}', { hhmm: hhmm(d) });
   return cap(fmtWhen(d.getTime(), now));
 }
 /** «2 h 15 min», «45 min», «3 h», «menos de 1 min». */
 export function durationText(msLeft: number): string {
-  if (msLeft < MIN) return 'menos de 1 min';
+  if (msLeft < MIN) return t('menos de 1 min');
   const mins = Math.ceil(msLeft / MIN);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
@@ -222,23 +223,23 @@ export function durationText(msLeft: number): string {
 export function lateText(at: number | string, now: number): string | null {
   const past = now - ms(at);
   if (past < 0) return null;
-  return past < 5 * MIN ? 'A qualquer momento' : `Devia ter começado às ${hhmm(at)}`;
+  return past < 5 * MIN ? t('A qualquer momento') : t('Devia ter começado às {hhmm}', { hhmm: hhmm(at) });
 }
 /** A hora curta, ou o atraso se já passou: para a fila «Em breve» e o cartão do perfil. */
 export const fmtSoon = (at: number | string, now: number): string => lateText(at, now) ?? fmtShort(at, now);
 /** A contagem: «Começa daqui a 2 h 15 min» nas próximas 12 h; depois «Amanhã às 20:00»; passada a hora, o atraso. */
 export function countdown(at: number | string, now: number): string {
   const left = ms(at) - now;
-  if (left <= 0) return lateText(at, now) ?? 'A qualquer momento';
-  if (left < 12 * 60 * MIN) return `Começa daqui a ${durationText(left)}`;
+  if (left <= 0) return lateText(at, now) ?? t('A qualquer momento');
+  if (left < 12 * 60 * MIN) return t('Começa daqui a {durationText}', { durationText: durationText(left) });
   return fmtDay(at, now);
 }
 /** A confirmação depois de agendar: «Agendada para sábado, 20:00» (ou «para hoje às 20:00», «para amanhã às 20:00»). */
 export function scheduledText(at: number | string, now: number): string {
   const diff = dayDiff(now, at);
-  if (diff === 0) return `Agendada para hoje às ${hhmm(at)}`;
-  if (diff === 1) return `Agendada para amanhã às ${hhmm(at)}`;
-  return `Agendada para ${fmtWhen(at, now, true)}`;
+  if (diff === 0) return t('Agendada para hoje às {hhmm}', { hhmm: hhmm(at) });
+  if (diff === 1) return t('Agendada para amanhã às {hhmm}', { hhmm: hhmm(at) });
+  return t('Agendada para {when}', { when: fmtWhen(at, now, true) });
 }
 /** O anfitrião pode carregar em «Começar» (a partir de 60 min antes). */
 export const canStartNow = (at: number | string, now: number): boolean => now >= ms(at) - START_EARLY_MIN * MIN;
@@ -248,9 +249,9 @@ export const startIsEarly = (at: number | string, now: number): boolean => !canS
 /** «Ainda ninguém pediu para ser lembrado», «1 pessoa pediu para ser lembrada», «12 pessoas pediram para ser lembradas». */
 export function remindersText(n: number | null | undefined): string {
   const v = Math.max(0, Math.round(n ?? 0));
-  if (v === 0) return 'Ainda ninguém pediu para ser lembrado';
-  if (v === 1) return '1 pessoa pediu para ser lembrada';
-  return `${v.toLocaleString('pt-PT')} pessoas pediram para ser lembradas`;
+  if (v === 0) return t('Ainda ninguém pediu para ser lembrado');
+  if (v === 1) return t('1 pessoa pediu para ser lembrada');
+  return t('{v} pessoas pediram para ser lembradas', { v: v.toLocaleString('pt-PT') });
 }
 
 // ─── O agendamento ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -299,26 +300,26 @@ export function scheduleView(s: Pick<ScheduledTxillada, 'status' | 'live' | 'txi
   return 'scheduled';
 }
 /** O cartão de uma Txillada retirada pela moderação. */
-export const REMOVED_TEXT = 'Esta Txillada foi retirada por não cumprir as regras';
+export const REMOVED_TEXT = () => t('Esta Txillada foi retirada por não cumprir as regras');
 /** O cartão quando a ligação já não abre nada (404: apagada, a conta foi eliminada, ou não a podes ver). */
-export const GONE_TITLE = 'Esta Txillada já não existe';
+export const GONE_TITLE = () => t('Esta Txillada já não existe');
 /** O texto do estado (fora de 'scheduled'). */
 export function viewText(v: ScheduleView, isHost = false): string | null {
   switch (v) {
-    case 'live': return 'Está a decorrer';
-    case 'ended': return 'Já acabou';
-    case 'cancelled': return isHost ? 'Cancelaste esta Txillada' : 'O anfitrião cancelou esta Txillada';
-    case 'expired': return 'Não chegou a começar';
-    case 'removed': return REMOVED_TEXT;
+    case 'live': return t('Está a decorrer');
+    case 'ended': return t('Já acabou');
+    case 'cancelled': return isHost ? t('Cancelaste esta Txillada') : t('O anfitrião cancelou esta Txillada');
+    case 'expired': return t('Não chegou a começar');
+    case 'removed': return REMOVED_TEXT();
     default: return null;
   }
 }
 /** O tipo, como no preparar: «Pública», «Para amigos», «Só amigos próximos» ou «Privada, entrada de 50 vibes». */
 export function scheduleKindText(s: Pick<ScheduledTxillada, 'audience' | 'kind' | 'price'>): string {
-  if (s.audience === 'paid' || s.kind === 'paid') return s.price != null ? `Privada, entrada de ${formatVibes(s.price)}` : 'Privada';
-  if (s.audience === 'close') return 'Só amigos próximos';
-  if (s.audience === 'friends' || s.kind === 'friends') return 'Para amigos';
-  return 'Pública';
+  if (s.audience === 'paid' || s.kind === 'paid') return s.price != null ? t('Privada, entrada de {vibes}', { vibes: formatVibes(s.price) }) : t('Privada');
+  if (s.audience === 'close') return t('Só amigos próximos');
+  if (s.audience === 'friends' || s.kind === 'friends') return t('Para amigos');
+  return t('Pública');
 }
 /** O ícone do tipo. */
 export const scheduleKindIcon = (s: Pick<ScheduledTxillada, 'audience' | 'kind'>): 'lock' | 'users' | 'star' | 'globe' =>
@@ -327,11 +328,11 @@ export const scheduleKindIcon = (s: Pick<ScheduledTxillada, 'audience' | 'kind'>
 export function scheduleGoalText(s: Pick<ScheduledTxillada, 'goal' | 'goalPurpose'>): string | null {
   if (s.goal == null) return null;
   const why = (s.goalPurpose ?? '').trim();
-  return why ? `Angariação: meta de ${formatVibes(s.goal)}, ${why}` : `Angariação: meta de ${formatVibes(s.goal)}`;
+  return why ? t('Angariação: meta de {vibes}, {why}', { vibes: formatVibes(s.goal), why }) : t('Angariação: meta de {vibes}', { vibes: formatVibes(s.goal) });
 }
 /** O título que se mostra (sem título: «Txillada de @zeca»). */
 export const scheduleTitle = (s: { title?: string | null; host?: { username: string } | null }): string =>
-  (s.title ?? '').trim() || (s.host ? `Txillada de @${s.host.username}` : 'Txillada');
+  (s.title ?? '').trim() || (s.host ? t('Txillada de @{username}', { username: s.host.username }) : 'Txillada');
 
 /** A rota do cartão e a ligação para partilhar. */
 export const scheduleRoute = (id: string): string => `/txillada/agendada/${encodeURIComponent(id)}`;
@@ -340,8 +341,8 @@ export function scheduleShareLink(id: string, base = 'https://txillapp.com'): st
 }
 /** «@zeca vai fazer uma Txillada no Txillapp sábado, 20:00: Bom dia». */
 export function scheduleShareMessage(s: Pick<ScheduledTxillada, 'host' | 'title' | 'startsAt'>, now: number): string {
-  const t = (s.title ?? '').trim();
-  return `@${s.host.username} vai fazer uma Txillada no Txillapp ${fmtWhen(s.startsAt, now, true)}${t ? `: ${t}` : ''}`;
+  const txt = (s.title ?? '').trim();
+  return t('@{username} vai fazer uma Txillada no Txillapp {when}{value}', { username: s.host.username, when: fmtWhen(s.startsAt, now, true), value: txt ? `: ${txt}` : '' });
 }
 
 /** O `code` de um erro da API (vem no próprio erro ou no resto da resposta). */
@@ -355,19 +356,19 @@ export const isNotScheduled = (e: { status?: number; code?: string; extra?: Reco
 export function scheduleErrorText(e: { status?: number; code?: string; message?: string; extra?: Record<string, unknown> } | null | undefined): string {
   const code = errorCode(e);
   const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
-  if (code === 'too_many') return `Já tens ${MAX_SCHEDULED} Txilladas agendadas. Cancela uma para agendares outra.`;
-  if (code === 'too_close') return 'Já tens uma Txillada agendada perto dessa hora. Escolhe uma hora com pelo menos 30 min de diferença.';
-  if (code === 'too_early') return 'Ainda falta mais de uma hora para a hora marcada.';
-  if (code === 'not_scheduled') return m || 'Esta Txillada já não está agendada.';
+  if (code === 'too_many') return t('Já tens {maxScheduled} Txilladas agendadas. Cancela uma para agendares outra.', { maxScheduled: MAX_SCHEDULED });
+  if (code === 'too_close') return t('Já tens uma Txillada agendada perto dessa hora. Escolhe uma hora com pelo menos 30 min de diferença.');
+  if (code === 'too_early') return t('Ainda falta mais de uma hora para a hora marcada.');
+  if (code === 'not_scheduled') return m || t('Esta Txillada já não está agendada.');
   switch (e?.status) {
-    case 400: return m || 'Escolhe uma hora pelo menos 15 min à frente e no máximo daqui a 30 dias.';
-    case 403: return m || 'Não podes agendar uma Txillada.';
-    case 404: return 'Esta Txillada agendada não existe ou não a podes ver.';
-    case 409: return m || 'Esta Txillada já não está agendada.';
-    case 422: return m || 'Não deu. Verifica o que escreveste e tenta outra vez.';
-    case 429: return m || 'Calma! Espera um bocadinho e tenta outra vez.';
-    case 503: return m || 'A Txillada ainda não está disponível.';
-    default: return m || 'Não consegui ligar. Verifica a internet e tenta outra vez.';
+    case 400: return m || t('Escolhe uma hora pelo menos 15 min à frente e no máximo daqui a 30 dias.');
+    case 403: return m || t('Não podes agendar uma Txillada.');
+    case 404: return t('Esta Txillada agendada não existe ou não a podes ver.');
+    case 409: return m || t('Esta Txillada já não está agendada.');
+    case 422: return m || t('Não deu. Verifica o que escreveste e tenta outra vez.');
+    case 429: return m || t('Calma! Espera um bocadinho e tenta outra vez.');
+    case 503: return m || t('A Txillada ainda não está disponível.');
+    default: return m || t('Não consegui ligar. Verifica a internet e tenta outra vez.');
   }
 }
 
@@ -403,25 +404,25 @@ export function scheduleNoticeText(kind: string, data: NoticeData, now: number, 
   const at = str(data?.startsAt);
   const when = at && !Number.isNaN(new Date(at).getTime()) ? fmtWhen(at, now, true) : '';
   switch (kind) {
-    case 'txillada_scheduled_soon': return { text: 'A tua Txillada começa daqui a 15 min', sub: title ? `${title}. Toca para começar` : 'Toca para começar' };
+    case 'txillada_scheduled_soon': return { text: t('A tua Txillada começa daqui a 15 min'), sub: title ? t('{title}. Toca para começar', { title }) : t('Toca para começar') };
     case 'txillada_scheduled_now': {
       // A API junta `data.reminders` (quantos pediram lembrete): «Está na hora da tua Txillada. 12 pessoas pediram para ser lembradas.»
       const n = typeof data?.reminders === 'number' && data.reminders > 0 ? `${remindersText(data.reminders)}. ` : '';
-      return { text: 'Está na hora da tua Txillada', sub: `${title ? `${title}. ` : ''}${n}Toca para começar` };
+      return { text: t('Está na hora da tua Txillada'), sub: t('{value}{n}Toca para começar', { value: title ? `${title}. ` : '', n }) };
     }
     case 'txillada_scheduled_cancelled': {
       if (data?.removed === true) {
         const who = str(actor);
-        return { text: who ? `A Txillada de @${who} foi retirada` : 'Uma Txillada agendada foi retirada', sub: title || undefined };
+        return { text: who ? t('A Txillada de @{who} foi retirada', { who }) : t('Uma Txillada agendada foi retirada'), sub: title || undefined };
       }
       if (data?.moved === true) {
         const to = str(data?.newStartsAt);
         const whenTo = to && !Number.isNaN(new Date(to).getTime()) ? fmtWhen(to, now, true) : '';
-        return { text: whenTo ? `mudou a Txillada para ${whenTo}` : 'mudou a hora da Txillada', sub: title || undefined };
+        return { text: whenTo ? t('mudou a Txillada para {whenTo}', { whenTo }) : t('mudou a hora da Txillada'), sub: title || undefined };
       }
-      return { text: when ? `cancelou a Txillada de ${when}` : 'cancelou a Txillada', sub: title || undefined };
+      return { text: when ? t('cancelou a Txillada de {when}', { when }) : t('cancelou a Txillada'), sub: title || undefined };
     }
-    default: return { text: 'tem novidades para ti' };
+    default: return { text: t('tem novidades para ti') };
   }
 }
 /** O aviso de uma Txillada retirada pela moderação: a linha não leva o nome à frente (o texto já diz de quem era). */
@@ -438,4 +439,4 @@ export function scheduleNoticeTarget(data: NoticeData): string | null {
 export function fromReminder(data: { fromReminder?: unknown; reminder?: unknown; reminded?: unknown } | null | undefined): boolean {
   return data?.fromReminder === true || data?.reminder === true || data?.reminded === true;
 }
-export const REMINDER_LIVE_TEXT = 'começou a Txillada que pediste para lembrar';
+export const REMINDER_LIVE_TEXT = () => t('começou a Txillada que pediste para lembrar');

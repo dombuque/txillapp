@@ -6,6 +6,7 @@ import { bookSummary, debtLine, debtState } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
 import { TasteBubble } from '../TasteBubble';
+import { t } from '@/lib/i18n';
 
 const AMBER_INK = '#92400e';
 
@@ -25,7 +26,7 @@ export function GeladaSection({ username, isMe }: { username: string; isMe: bool
   const go = () => router.push((isMe ? '/geladas' : `/geladas?u=${encodeURIComponent(username)}`) as never);
   return (
     <View style={st.box} accessibilityLabel="Geladas">
-      <Pressable onPress={go} style={({ pressed }) => [st.head, pressed && { opacity: 0.7 }]} accessibilityRole="link" accessibilityLabel={`Geladas: ${bookSummary(b.owe, b.owed, mine)}. Ver o livro`}>
+      <Pressable onPress={go} style={({ pressed }) => [st.head, pressed && { opacity: 0.7 }]} accessibilityRole="link" accessibilityLabel={t('Geladas: {bookSummary}. Ver o livro', { bookSummary: bookSummary(b.owe, b.owed, mine) })}>
         <Icon name="cheers" size={18} color={colors.amber600} />
         <Text style={st.title}>Geladas</Text>
         <Text style={st.sum} numberOfLines={1}>{bookSummary(b.owe, b.owed, mine)}</Text>
@@ -38,8 +39,8 @@ export function GeladaSection({ username, isMe }: { username: string; isMe: bool
           <Text style={[st.state, d.claimed && { color: AMBER_INK }]} numberOfLines={1}>{debtState(d)}</Text>
         </View>
       ))}
-      {isMe && b.items.length === 0 ? <Text style={st.empty}>Ainda não há geladas no livro. Toca numa bebida e pede uma à malta!</Text> : null}
-      {!isMe && b.scope === 'between' ? <Text style={st.empty}>Só tu e {`@${username}`} veem isto.</Text> : null}
+      {isMe && b.items.length === 0 ? <Text style={st.empty}>{t('Ainda não há geladas no livro. Toca numa bebida e pede uma à malta!')}</Text> : null}
+      {!isMe && b.scope === 'between' ? <Text style={st.empty}>{t('Só tu e @{username} veem isto.', { username })}</Text> : null}
     </View>
   );
 }

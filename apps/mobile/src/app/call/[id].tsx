@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { acceptCall, callsApi, expandCall, getCall, openIncomingCall, useCall } from '@/lib/calls';
+import { t } from '@/lib/i18n';
 
 /**
  * /call/[id]: abre uma chamada a entrar por endereço (por exemplo a partir da notificação).
@@ -53,8 +54,8 @@ export default function CallRoute() {
     <View style={{ flex: 1, backgroundColor: '#0b0b0c', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       {!live ? (
         <>
-          <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' }}>Esta chamada já acabou</Text>
-          <Pressable onPress={leave} style={{ marginTop: 16 }} accessibilityRole="button"><Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textDecorationLine: 'underline' }}>Voltar</Text></Pressable>
+          <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' }}>{t('Esta chamada já acabou')}</Text>
+          <Pressable onPress={leave} style={{ marginTop: 16 }} accessibilityRole="button"><Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textDecorationLine: 'underline' }}>{t('Voltar')}</Text></Pressable>
         </>
       ) : null}
     </View>

@@ -204,7 +204,7 @@ test('o ecrã: preparar com os três tipos e a Angariação; o cadeado antes de 
   assert.match(prep, /KINDS\.map/);
   assert.match(prep, /Só amigos próximos/);
   assert.match(prep, /prepAudience\(txKind, closeOnly\)/);
-  assert.match(prep, /label="Angariação"/);
+  assert.match(prep, /label=\{t\('Angariação'\)\}/);
   const screen = read('src/app/txillada/[id].tsx');
   assert.match(screen, /if \(kind === 'locked'\)/);
   assert.match(screen, /<LockedView dto=\{dto\} onPay=\{tx\.pay\}/);
@@ -214,7 +214,7 @@ test('o ecrã: preparar com os três tipos e a Angariação; o cadeado antes de 
   assert.match(screen, /noViewers: !!dto\?\.viewersHidden && !host/);
   assert.match(screen, /router\.push\('\/wallet' as never\)/);
   const money = read('src/components/txillada/TxilladaMoney.tsx');
-  assert.match(money, /Entrar por \{formatVibes\(price, \{ short: true \}\)\}/);
+  assert.match(money, /t\('Entrar por \{vibes\}', \{ vibes: formatVibes\(price, \{ short: true \}\) \}\)/);
   assert.match(money, /Ver a carteira/);
   // Sem compras: os Txills vêm da carteira (nada de IAP aqui).
   assert.doesNotMatch(money + prep, /comprar|purchase|iap/i);

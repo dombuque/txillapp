@@ -28,6 +28,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { useDesktop } from '@/lib/desktop';
 import { gridColumns } from '@/lib/desktopKeys';
+import { t } from '@/lib/i18n';
 
 const RECENT_KEY = 'txill.recent-searches';
 const readRecent = async (): Promise<string[]> => {
@@ -51,7 +52,7 @@ const writeRecent = async (list: string[]) => {
     /* sem armazenamento: não faz mal */
   }
 };
-const NONE = ['Procurámos em tudo e nada. Tenta outra vibe.', 'Nada por aqui. Experimenta outra palavra.'];
+const NONE = () => [t('Procurámos em tudo e nada. Tenta outra vibe.'), t('Nada por aqui. Experimenta outra palavra.')];
 
 /** Pesquisa de pessoas, hashtags e publicações, mais o Explorar (temas e grelha), como no site. */
 export default function Search() {
@@ -71,7 +72,7 @@ export default function Search() {
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [opened, setOpened] = useState<Post | null>(null);
-  const [none] = useState(() => NONE[Math.floor(Math.random() * NONE.length)]);
+  const [none] = useState(() => NONE()[Math.floor(Math.random() * NONE().length)]);
 
   useEffect(() => {
     void readRecent().then(setRecent);
@@ -172,7 +173,7 @@ export default function Search() {
           const m = p.media[0];
           const size = w * cell + (w - 1) * 2;
           return (
-            <Pressable key={p.id} onPress={() => setViewing(p.id)} style={(s) => [{ position: 'absolute', left: c * (cell + 2), top: r * (cell + 2), width: size, height: size, backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação de ${p.author.displayName}`}>
+            <Pressable key={p.id} onPress={() => setViewing(p.id)} style={(s) => [{ position: 'absolute', left: c * (cell + 2), top: r * (cell + 2), width: size, height: size, backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={t('Abrir publicação de {displayName}', { displayName: p.author.displayName })}>
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, w > 1 ? 720 : 360) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
               {isTcheka(p) ? <View style={styles.tag}><Icon name="film" size={18} color="#fff" /></View> : p.media.length > 1 ? <View style={styles.tag}><Icon name="images" size={18} color="#fff" /></View> : null}
             </Pressable>
@@ -190,16 +191,16 @@ export default function Search() {
         <BackButton />
         <View style={styles.field}>
           <Icon name="search" size={18} color={colors.zinc600} />
-          <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Pesquisar" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
-          {text ? <Pressable onPress={() => setText('')} hitSlop={8} style={{ paddingHorizontal: 6 }} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc600} /></Pressable> : null}
+          <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder={t('Pesquisar')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel={t('Pesquisar')} />
+          {text ? <Pressable onPress={() => setText('')} hitSlop={8} style={{ paddingHorizontal: 6 }} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}><Icon name="x" size={18} color={colors.zinc600} /></Pressable> : null}
           {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
-          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={18} color={colors.zinc700} /></Pressable>
-          <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
+          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Ler um QR')}><Icon name="qr-scan" size={18} color={colors.zinc700} /></Pressable>
+          <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Abrir o SuperTxill')}><Bolt size={20} /></Pressable>
         </View>
         {focusMode ? (
-          <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Cancelar</Text></Pressable>
+          <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>{t('Cancelar')}</Text></Pressable>
         ) : (
-          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={24} color={colors.zinc900} /></Pressable>
+          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel={t('Guardados')}><BookmarkIcon on={false} size={24} color={colors.zinc900} /></Pressable>
         )}
       </View>
 
@@ -218,20 +219,20 @@ export default function Search() {
         }}
       >
         {focusMode && !searching && (
-          <View style={{ paddingTop: 4 }} accessibilityLabel="Pesquisas recentes">
+          <View style={{ paddingTop: 4 }} accessibilityLabel={t('Pesquisas recentes')}>
             <View style={{ paddingHorizontal: 20, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Recentes</Text>
-              {recent.length > 0 ? <Pressable onPress={forget} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Limpar tudo</Text></Pressable> : null}
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{t('Recentes')}</Text>
+              {recent.length > 0 ? <Pressable onPress={forget} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>{t('Limpar tudo')}</Text></Pressable> : null}
             </View>
             {recent.length === 0 ? (
-              <Text style={{ paddingHorizontal: 20, paddingVertical: 24, fontSize: 15, color: colors.zinc500 }}>Ainda não pesquisaste nada. Procura malta, hashtags ou sítios.</Text>
+              <Text style={{ paddingHorizontal: 20, paddingVertical: 24, fontSize: 15, color: colors.zinc500 }}>{t('Ainda não pesquisaste nada. Procura malta, hashtags ou sítios.')}</Text>
             ) : recent.map((r) => (
               <View key={r} style={styles.recentRow}>
-                <Pressable onPress={() => { setText(r); remember(r); }} style={({ pressed }) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Pesquisar ${r}`}>
+                <Pressable onPress={() => { setText(r); remember(r); }} style={({ pressed }) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={t('Pesquisar {r}', { r })}>
                   <View style={styles.recentIcon}><Icon name={r.startsWith('#') ? 'tag' : r.startsWith('@') ? 'user' : 'clock'} size={18} color={colors.zinc700} /></View>
                   <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{r}</Text>
                 </Pressable>
-                <Pressable onPress={() => forgetOne(r)} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={`Tirar ${r} das recentes`}>
+                <Pressable onPress={() => forgetOne(r)} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Tirar {r} das recentes', { r })}>
                   <Icon name="x" size={18} color={colors.zinc500} />
                 </Pressable>
               </View>
@@ -241,8 +242,8 @@ export default function Search() {
         {!focusMode && !searching && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={18} /></Pressable>
-              {[{ id: null as string | null, label: 'Para ti' }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: t.label }))].map((t) => (
+              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Filtros')}><Icon name="sliders" size={18} /></Pressable>
+              {[{ id: null as string | null, label: t('Para ti') }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: t.label }))].map((t) => (
                 <Pressable key={t.id ?? 'fy'} onPress={() => setTopic(t.id)} accessibilityRole="tab" accessibilityState={{ selected: topic === t.id }} style={[chipBase, { backgroundColor: topic === t.id ? colors.zinc900 : colors.zinc100 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: topic === t.id ? '#fff' : colors.zinc800 }}>{t.label}</Text>
                 </Pressable>
@@ -270,11 +271,11 @@ export default function Search() {
             <TrendingSounds />
 
             {/* À tua volta: o mapa do que há perto (locais, eventos, malta). */}
-            <Pressable onPress={() => router.push('/perto' as never)} style={styles.perto} accessibilityRole="link" accessibilityLabel="À tua volta: o que há perto de ti">
+            <Pressable onPress={() => router.push('/perto' as never)} style={styles.perto} accessibilityRole="link" accessibilityLabel={t('À tua volta: o que há perto de ti')}>
               <Icon name="map" size={22} color={colors.brand} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>À tua volta</Text>
-                <Text style={{ fontSize: 13, color: colors.zinc500 }}>Locais, eventos e malta perto de ti, no mapa</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{t('À tua volta')}</Text>
+                <Text style={{ fontSize: 13, color: colors.zinc500 }}>{t('Locais, eventos e malta perto de ti, no mapa')}</Text>
               </View>
               <Icon name="chevron-right" size={18} color={colors.zinc500} />
             </Pressable>
@@ -282,8 +283,8 @@ export default function Search() {
             {(venues.data?.popular.length ?? 0) > 0 && (
               <View style={{ paddingBottom: 16 }}>
                 <View style={{ paddingHorizontal: 20, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Locais para txillar</Text>
-                  <Pressable onPress={() => router.push('/locais' as never)} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Os meus</Text></Pressable>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{t('Locais para txillar')}</Text>
+                  <Pressable onPress={() => router.push('/locais' as never)} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>{t('Os meus')}</Text></Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
                   {venues.data!.popular.map((v) => <VenueTile key={v.slug} venue={v} />)}
@@ -297,10 +298,10 @@ export default function Search() {
             {grid.length > 9 && block(grid.slice(9), 9)}
             {explore.isError && grid.length === 0 && (
               // Antes, sem rede, o Explorar ficava em branco (nem grelha, nem aviso).
-              <ErrorState what="o Explorar" onRetry={() => void explore.refetch()} />
+              <ErrorState what={t('o Explorar')} onRetry={() => void explore.refetch()} />
             )}
             {explore.isSuccess && grid.length === 0 && (
-              <EmptyState icon="image" title="Ainda não há publicações para explorar" text="Quando a malta publicar, aparece aqui." />
+              <EmptyState icon="image" title={t('Ainda não há publicações para explorar')} text={t('Quando a malta publicar, aparece aqui.')} />
             )}
             {explore.hasNextPage && grid.length > 0 ? <LoadMore onLoad={loadExplore} loading={explore.isFetchingNextPage} /> : null}
           </>
@@ -310,7 +311,7 @@ export default function Search() {
           <>
             {/* Separadores numa linha que desliza (nunca partem em duas linhas); o número vai numa bolinha ao lado do nome. */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs} accessibilityRole="tablist">
-              {([['people', 'Pessoas', q.data ? people.length : null], ['venues', 'Locais', q.data ? foundVenues.length : null], ['tags', '#Tags', q.data ? tags.length : null], ['posts', 'Publicações', q.data ? posts.length : null], ['mentions', 'Menções', mq.data ? mentions.length : null]] as const).map(([k, label, n]) => {
+              {([['people', t('Pessoas'), q.data ? people.length : null], ['venues', t('Locais'), q.data ? foundVenues.length : null], ['tags', '#Tags', q.data ? tags.length : null], ['posts', t('Publicações'), q.data ? posts.length : null], ['mentions', t('Menções'), mq.data ? mentions.length : null]] as const).map(([k, label, n]) => {
                 const on = tab === k;
                 return (
                   <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={n == null ? label : `${label}, ${n}`} style={[chipBase, { backgroundColor: on ? colors.zinc900 : colors.zinc100 }]}>
@@ -326,12 +327,12 @@ export default function Search() {
             </ScrollView>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 40 }} />}
             {q.isError && (
-              <ErrorState title="Ups, a pesquisa falhou" onRetry={() => void q.refetch()} />
+              <ErrorState title={t('Ups, a pesquisa falhou')} onRetry={() => void q.refetch()} />
             )}
 
             {q.isSuccess && tab === 'people' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {people.length === 0 && <EmptyState icon="search" title="Ninguém com esse nome" />}
+                {people.length === 0 && <EmptyState icon="search" title={t('Ninguém com esse nome')} />}
                 {people.map((p) => (
                   <View key={p.username} style={styles.person}>
                     <Pressable onPress={() => { remember(term); router.push(`/u/${p.username}` as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -340,7 +341,7 @@ export default function Search() {
                         <NameWithBadge name={p.displayName} who={p} style={styles.pName} gap={4}>
                           {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
                         </NameWithBadge>
-                        <Text style={styles.pHandle} numberOfLines={1}>@{p.username}{p.followsYou ? ' · segue-te' : ''}</Text>
+                        <Text style={styles.pHandle} numberOfLines={1}>@{p.username}{p.followsYou ? (' ' + t('· segue-te')) : ''}</Text>
                       </View>
                     </Pressable>
                     <View style={{ width: 112, flexShrink: 0, flexDirection: 'row' }}>
@@ -353,20 +354,20 @@ export default function Search() {
 
             {q.isSuccess && tab === 'venues' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {foundVenues.length === 0 && <View style={styles.empty}><Icon name="map-pin" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Nenhum local com esse nome</Text><Text style={styles.emptySub}>Tens um bar ou restaurante? Cria a página em Definições.</Text></View>}
+                {foundVenues.length === 0 && <View style={styles.empty}><Icon name="map-pin" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>{t('Nenhum local com esse nome')}</Text><Text style={styles.emptySub}>{t('Tens um bar ou restaurante? Cria a página em Definições.')}</Text></View>}
                 {foundVenues.map((v) => <VenueRow key={v.slug} venue={v} onPress={() => { remember(term); router.push({ pathname: '/v/[slug]', params: { slug: v.slug } }); }} />)}
               </View>
             )}
 
             {q.isSuccess && tab === 'tags' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {tags.length === 0 && <EmptyState icon="tag" title="Nenhuma hashtag assim" />}
-                {tags.map((t) => (
-                  <Pressable key={t.tag} onPress={() => { remember(term); router.push(`/tag/${t.tag}` as never); }} style={({ pressed }) => [styles.person, { borderRadius: 12 }, pressed && { backgroundColor: colors.zinc100 }]}>
+                {tags.length === 0 && <EmptyState icon="tag" title={t('Nenhuma hashtag assim')} />}
+                {tags.map((tv) => (
+                  <Pressable key={tv.tag} onPress={() => { remember(term); router.push(`/tag/${tv.tag}` as never); }} style={({ pressed }) => [styles.person, { borderRadius: 12 }, pressed && { backgroundColor: colors.zinc100 }]}>
                     <View style={styles.hash}><Text style={styles.hashText}>#</Text></View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.pName, { fontSize: 17, fontWeight: '700' }]} numberOfLines={1}>#{t.tag}</Text>
-                      <Text style={[styles.pHandle, { color: colors.zinc500 }]}>{t.posts} {t.posts === 1 ? 'publicação' : 'publicações'}</Text>
+                      <Text style={[styles.pName, { fontSize: 17, fontWeight: '700' }]} numberOfLines={1}>#{tv.tag}</Text>
+                      <Text style={[styles.pHandle, { color: colors.zinc500 }]}>{tv.posts} {tv.posts === 1 ? t('publicação') : t('publicações')}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -386,7 +387,7 @@ export default function Search() {
                     )}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <NameWithBadge name={p.author.displayName} who={p.author} style={styles.pName} />
-                      <Text style={{ fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{p.body || (p.media.length ? 'Foto' : '')}</Text>
+                      <Text style={{ fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{p.body || (p.media.length ? t('Foto') : '')}</Text>
                       <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(p.createdAt)}{p.locationLabel ? ` · ${p.locationLabel}` : ''}</Text>
                     </View>
                   </Pressable>
@@ -398,7 +399,7 @@ export default function Search() {
       </ScrollView>
       </PullView>
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
-      {opened && <ExploreViewer items={[opened]} startId={opened.id} title="Publicação" onClose={() => setOpened(null)} />}
+      {opened && <ExploreViewer items={[opened]} startId={opened.id} title={t('Publicação')} onClose={() => setOpened(null)} />}
     </View>
   );
 }

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Wordmark } from './Wordmark';
+import { t } from '@/lib/i18n';
 
 /** As páginas de texto públicas que, no computador, abrem como página do site (e não na coluna de telemóvel). */
 export const SITE_PAGES = ['terms', 'termos', 'privacy', 'privacidade', 'help', 'suporte', 'apagar-conta'] as const;
@@ -24,10 +25,10 @@ export function siteTabOf(segment: string | undefined): 'terms' | 'privacy' | 'h
 }
 
 const NAV: { key: 'terms' | 'privacy' | 'help' | 'delete'; label: string; to: string }[] = [
-  { key: 'terms', label: 'Termos', to: '/termos' },
-  { key: 'privacy', label: 'Privacidade', to: '/privacidade' },
-  { key: 'help', label: 'Ajuda', to: '/suporte' },
-  { key: 'delete', label: 'Apagar a conta', to: '/apagar-conta' },
+  { key: 'terms', get label() { return t('Termos'); }, to: '/termos' },
+  { key: 'privacy', get label() { return t('Privacidade'); }, to: '/privacidade' },
+  { key: 'help', get label() { return t('Ajuda'); }, to: '/suporte' },
+  { key: 'delete', get label() { return t('Apagar a conta'); }, to: '/apagar-conta' },
 ];
 type Hover = { pressed: boolean; hovered?: boolean };
 
@@ -46,7 +47,7 @@ export function SiteFrame({ segment, children }: { segment: string | undefined; 
     <View style={st.root}>
       <View style={st.bar}>
         <View style={st.barIn}>
-          <Pressable onPress={() => router.replace('/' as never)} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial"><Wordmark height={28} /></Pressable>
+          <Pressable onPress={() => router.replace('/' as never)} accessibilityRole="link" accessibilityLabel={t('Txillapp, página inicial')}><Wordmark height={28} /></Pressable>
           <View style={st.nav} accessibilityRole="tablist">
             {NAV.map((n) => (
               <Pressable key={n.key} onPress={() => go(n.to)} accessibilityRole="tab" accessibilityState={{ selected: tab === n.key }} style={(s) => [st.navBtn, tab === n.key && st.navOn, (s as Hover).hovered && tab !== n.key && st.navHover]}>
@@ -56,11 +57,11 @@ export function SiteFrame({ segment, children }: { segment: string | undefined; 
           </View>
           <View style={st.right}>
             {user ? (
-              <Pressable onPress={() => router.replace('/' as never)} style={(s) => [st.cta, (s as Hover).hovered && { opacity: 0.9 }]} accessibilityRole="link"><Text style={st.ctaText}>Voltar ao Txillapp</Text></Pressable>
+              <Pressable onPress={() => router.replace('/' as never)} style={(s) => [st.cta, (s as Hover).hovered && { opacity: 0.9 }]} accessibilityRole="link"><Text style={st.ctaText}>{t('Voltar ao Txillapp')}</Text></Pressable>
             ) : (
               <>
-                <Pressable onPress={() => router.push('/login?entrar=1' as never)} style={(s) => [st.navBtn, (s as Hover).hovered && st.navHover]} accessibilityRole="link"><Text style={st.navText}>Entrar</Text></Pressable>
-                <Pressable onPress={() => router.push('/register' as never)} style={(s) => [st.cta, (s as Hover).hovered && { opacity: 0.9 }]} accessibilityRole="link"><Text style={st.ctaText}>Criar conta</Text></Pressable>
+                <Pressable onPress={() => router.push('/login?entrar=1' as never)} style={(s) => [st.navBtn, (s as Hover).hovered && st.navHover]} accessibilityRole="link"><Text style={st.navText}>{t('Entrar')}</Text></Pressable>
+                <Pressable onPress={() => router.push('/register' as never)} style={(s) => [st.cta, (s as Hover).hovered && { opacity: 0.9 }]} accessibilityRole="link"><Text style={st.ctaText}>{t('Criar conta')}</Text></Pressable>
               </>
             )}
           </View>

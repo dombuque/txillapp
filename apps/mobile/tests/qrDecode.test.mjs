@@ -2,6 +2,7 @@
 // (src/lib/qrDecode.ts). E um QR de verdade feito por src/lib/qr.ts lido pelo jsqr, inteiro e pequeno numa "captura".
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import path from 'node:path';

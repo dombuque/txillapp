@@ -7,6 +7,7 @@ import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { Sheet } from '../Sheet';
+import { t } from '@/lib/i18n';
 
 /** Só o site e o PWA gravam duetos (ver remixActions). */
 const RECORD_DUET = Platform.OS === 'web';
@@ -31,14 +32,14 @@ export function CommentSticker({ author, body, onPress, style, compact = false }
     <>
       <View style={st.stickerHead}>
         <Avatar name={author.displayName} username={author.username} size={compact ? 20 : 24} />
-        <Text style={st.stickerUser} numberOfLines={1}>Resposta a @{author.username}</Text>
+        <Text style={st.stickerUser} numberOfLines={1}>{t('Resposta a @{username}', { username: author.username })}</Text>
       </View>
       <Text style={[st.stickerBody, compact && { fontSize: 13 }]} numberOfLines={3}>{stickerText(body)}</Text>
     </>
   );
-  if (!onPress) return <View style={[st.sticker, style]} accessible accessibilityLabel={`Comentário de @${author.username}: ${stickerText(body)}`}>{inner}</View>;
+  if (!onPress) return <View style={[st.sticker, style]} accessible accessibilityLabel={t('Comentário de @{username}: {stickerText}', { username: author.username, stickerText: stickerText(body) })}>{inner}</View>;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.sticker, style, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="link" accessibilityLabel={`Comentário de @${author.username}: ${stickerText(body)}. Abrir o comentário`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.sticker, style, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="link" accessibilityLabel={t('Comentário de @{username}: {stickerText}. Abrir o comentário', { username: author.username, stickerText: stickerText(body) })}>
       {inner}
     </Pressable>
   );
@@ -59,7 +60,7 @@ export function RemixTag({ remix, dark = true }: { remix: RemixOf | null | undef
   );
   if (!to) return <View style={[st.tag, !dark && st.tagLight, { opacity: 0.8 }]}>{body}</View>;
   return (
-    <Pressable onPress={() => router.push(to as never)} style={({ pressed }) => [st.tag, !dark && st.tagLight, pressed && { opacity: 0.7 }]} accessibilityRole="link" accessibilityLabel={`${label}. Abrir o original`}>
+    <Pressable onPress={() => router.push(to as never)} style={({ pressed }) => [st.tag, !dark && st.tagLight, pressed && { opacity: 0.7 }]} accessibilityRole="link" accessibilityLabel={t('{label}. Abrir o original', { label })}>
       {body}
     </Pressable>
   );
@@ -99,40 +100,40 @@ export function RemixButton({ post, variant = 'rail', circleStyle, labelStyle }:
         onPress={() => setOpen(true)}
         style={({ pressed }) => [variant === 'rail' ? st.rail : st.rowBtn, pressed && { transform: [{ scale: 0.92 }] }]}
         accessibilityRole="button"
-        accessibilityLabel={a.count ? `Remix (${remixCount(a.count)})` : 'Remix: fazer dueto'}
+        accessibilityLabel={a.count ? t('Remix ({remixCount})', { remixCount: remixCount(a.count) }) : t('Remix: fazer dueto')}
       >
         {variant === 'rail' ? (
           <>
             <View style={[st.circle, circleStyle]}><DuetGlyph size={26} /></View>
-            <Text style={[st.railText, labelStyle]}>{a.count > 0 ? a.count : 'Remix'}</Text>
+            <Text style={[st.railText, labelStyle]}>{a.count > 0 ? a.count : t('Remix')}</Text>
           </>
         ) : (
           <>
             <DuetGlyph size={20} color={colors.zinc800} />
-            <Text style={st.rowText}>Remix{a.count > 0 ? ` · ${a.count}` : ''}</Text>
+            <Text style={st.rowText}>{t('Remix')}{a.count > 0 ? ` · ${a.count}` : ''}</Text>
           </>
         )}
       </Pressable>
       {open && (
-        <Sheet title="Remix" onClose={() => setOpen(false)} variant="menu">
+        <Sheet title={t('Remix')} onClose={() => setOpen(false)} variant="menu">
           <View style={st.menu}>
             {a.duet ? (
               <Pressable onPress={() => go(duetHref(post.id))} style={st.menuRow} accessibilityRole="button">
                 <DuetGlyph size={24} color={colors.zinc800} />
                 <View style={{ flex: 1 }}>
-                  <Text style={st.menuText}>Fazer dueto</Text>
-                  <Text style={st.menuSub}>O teu vídeo ao lado desta tcheka, com o som dela</Text>
+                  <Text style={st.menuText}>{t('Fazer dueto')}</Text>
+                  <Text style={st.menuSub}>{t('O teu vídeo ao lado desta tcheka, com o som dela')}</Text>
                 </View>
               </Pressable>
             ) : null}
             <Pressable onPress={() => go(remixesHref(post.id))} style={st.menuRow} accessibilityRole="button">
               <Icon name="film" size={24} />
               <View style={{ flex: 1 }}>
-                <Text style={st.menuText}>Duetos e respostas</Text>
-                <Text style={st.menuSub}>{a.count ? remixCount(a.count) : 'Ainda ninguém fez. Sê o primeiro!'}</Text>
+                <Text style={st.menuText}>{t('Duetos e respostas')}</Text>
+                <Text style={st.menuSub}>{a.count ? remixCount(a.count) : t('Ainda ninguém fez. Sê o primeiro!')}</Text>
               </View>
             </Pressable>
-            {!a.duet && post.canRemix === false ? <Text style={st.menuNote}>{post.author.displayName} não deixa fazer duetos com esta tcheka.</Text> : null}
+            {!a.duet && post.canRemix === false ? <Text style={st.menuNote}>{t('{displayName} não deixa fazer duetos com esta tcheka.', { displayName: post.author.displayName })}</Text> : null}
           </View>
         </Sheet>
       )}
@@ -152,7 +153,7 @@ export function RemixesLink({ post }: { post: Post }) {
   return (
     <Pressable onPress={() => router.push(to as never)} style={({ pressed }) => [st.link, pressed && { opacity: 0.7 }]} accessibilityRole="link">
       <DuetGlyph size={18} color={colors.zinc800} />
-      <Text style={st.linkText}>{a.list ? `Duetos e respostas · ${a.count}` : 'Fazer dueto com esta tcheka'}</Text>
+      <Text style={st.linkText}>{a.list ? t('Duetos e respostas · {total}', { total: a.count }) : t('Fazer dueto com esta tcheka')}</Text>
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );

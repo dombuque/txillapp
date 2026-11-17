@@ -48,6 +48,7 @@ import { markMixarSeen, useMixarSeen } from '@/lib/mixarSeen';
 import { markMixarOpened } from '@/lib/mixarOpen';
 import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
+import { t } from '@/lib/i18n';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
 export default function Thread() {
@@ -212,7 +213,7 @@ export default function Thread() {
       setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
-      Alert.alert('Não consegui abrir', (e as Error).message);
+      Alert.alert(t('Não consegui abrir'), (e as Error).message);
     }
   }
   async function acceptReq() {
@@ -247,7 +248,7 @@ export default function Thread() {
       qc.setQueryData<InfiniteData<ChatThread>>(['chat-thread', username], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
       void api.chatClearKeep(username)
         .then(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
-        .catch((e) => { setErr((e as Error).message || 'Não consegui limpar a conversa.'); void q.refetch(); });
+        .catch((e) => { setErr((e as Error).message || t('Não consegui limpar a conversa.')); void q.refetch(); });
     });
   }
 
@@ -259,10 +260,10 @@ export default function Thread() {
         <View style={st.header}><BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} /></View>
         <View style={{ marginHorizontal: 24, marginTop: 64, alignItems: 'center' }}>
           <Icon name="alert" size={44} color={colors.zinc300} />
-          <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' }}>Não consegui abrir esta conversa</Text>
+          <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' }}>{t('Não consegui abrir esta conversa')}</Text>
           <Text style={st.failText}>{threadErrorText(status)}</Text>
-          {status !== 404 && status !== 403 ? <Pressable onPress={() => void q.refetch()} disabled={q.isFetching} style={[st.failBtn, q.isFetching && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.failBtnText}>{q.isFetching ? 'A tentar…' : 'Tentar outra vez'}</Text></Pressable> : null}
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
+          {status !== 404 && status !== 403 ? <Pressable onPress={() => void q.refetch()} disabled={q.isFetching} style={[st.failBtn, q.isFetching && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.failBtnText}>{q.isFetching ? t('A tentar…') : t('Tentar outra vez')}</Text></Pressable> : null}
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>{t('Voltar')}</Text></Pressable>
         </View>
       </View>
     );
@@ -284,7 +285,7 @@ export default function Thread() {
       <ChatHeader
         raised={raised}
         onOpen={openProfile}
-        openLabel={person ? `Ver o perfil de ${person.displayName}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'Conversa'}
+        openLabel={person ? t('Ver o perfil de {displayName}{value}', { displayName: person.displayName, value: ttl ? `. ${ttlBadgeLabel(ttl)}` : '' }) : t('Conversa')}
         avatar={
           <View>
             {/* Enquanto carrega, o nome e a foto vêm da lista de conversas (o cabeçalho não aparece vazio e depois salta). */}
@@ -294,7 +295,7 @@ export default function Thread() {
             {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
           </View>
         }
-        avatarAction={person && bubble && !fold.open ? { label: `Mostrar a ${bubble.kind === 'bio' ? 'bio' : 'nota'} de ${person.displayName}`, onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
+        avatarAction={person && bubble && !fold.open ? { label: t('Mostrar a {value} de {displayName}', { value: bubble.kind === 'bio' ? 'bio' : t('nota'), displayName: person.displayName }), onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
         overlay={person && bubble ? (
           <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => { if (bubble.kind === 'bio') openProfile?.(); else { primeKeyboard(); setNoteOpen(true); } }} />
         ) : null}
@@ -302,9 +303,9 @@ export default function Thread() {
         titleWho={person ?? listed}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
-          line === 'typing' ? <HeaderStatus text="a escrever…" tone="typing" />
+          line === 'typing' ? <HeaderStatus text={t('a escrever…')} tone="typing" />
             : person && newPostsGo ? <HeaderStatus text={newPostsText(newPosts?.count)} />
-            : online ? <HeaderStatus text="Online" tone="online" />
+            : online ? <HeaderStatus text={t('Online')} tone="online" />
             : person ? <HeaderStatus text={activeLabel(person.presence?.lastSeen) ?? `@${person.username}`} />
             : null
         }
@@ -312,12 +313,12 @@ export default function Thread() {
           <>
             {person && !first?.blocked ? (
               <>
-                {!request && !inMenu ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><View><Icon name="mixar" size={23} color={colors.zinc800} />{mixarNew ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
-                <HeaderButton label={`Ligar a ${person.displayName}`} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
-                {!inMenu ? <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton> : null}
+                {!request && !inMenu ? <HeaderButton label={t('Mixar com {firstName}', { firstName: firstName || person.displayName })} onPress={() => void mixar.run(person.username, person.displayName)}><View><Icon name="mixar" size={23} color={colors.zinc800} />{mixarNew ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
+                <HeaderButton label={t('Ligar a {displayName}', { displayName: person.displayName })} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
+                {!inMenu ? <HeaderButton label={t('Videochamada a {displayName}', { displayName: person.displayName })} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton> : null}
               </>
             ) : null}
-            <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
+            <HeaderButton label={t('Mais opções')} onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
           </>
         }
       />
@@ -338,7 +339,7 @@ export default function Thread() {
         onScrollY={onScrollY}
         emptyArt={person ? <Avatar name={person.displayName} username={avatarOf} size={80} /> : null}
         emptyTitle={person?.displayName}
-        emptyText={`Ainda não há mensagens. Diz olá a ${firstName || 'esta pessoa'}.`}
+        emptyText={t('Ainda não há mensagens. Diz olá a {firstName}.', { firstName: firstName || t('esta pessoa') })}
         peerName={person?.displayName}
         peerHandle={username}
         peerAvatar={avatarOf}
@@ -356,9 +357,9 @@ export default function Thread() {
       {request && person ? (
         <RequestBar name={firstName} bottom={insets.bottom} onAccept={() => void acceptReq()} onDecline={() => void declineReq()} onBlock={() => void blockReq()} />
       ) : rel?.left === 0 ? (
-        <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>{firstName} ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.</Text>
+        <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>{t('{firstName} ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.', { firstName })}</Text>
       ) : first?.blocked ? (
-        <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>Não podes trocar mensagens com esta conta.</Text>
+        <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>{t('Não podes trocar mensagens com esta conta.')}</Text>
       ) : editing ? (
         <ChatEditBar
           key={editing.id}
@@ -395,23 +396,23 @@ export default function Thread() {
           items={[
             // Ecrã estreito: o que saiu do cabeçalho fica aqui, no topo.
             ...(inMenu && person && !first?.blocked && !request ? [{ icon: 'mixar' as const, label: 'Mixar', onPress: () => void mixar.run(person.username, person.displayName) }] : []),
-            ...(inMenu && person && !first?.blocked ? [{ icon: 'video' as const, label: 'Videochamada', onPress: () => call(true) }] : []),
-            { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
-            ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
+            ...(inMenu && person && !first?.blocked ? [{ icon: 'video' as const, label: t('Videochamada'), onPress: () => call(true) }] : []),
+            { icon: 'search', label: t('Procurar na conversa'), onPress: () => setSearching(true) },
+            ...(openProfile ? [{ icon: 'user' as const, label: t('Ver perfil'), onPress: openProfile }] : []),
             // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).
             // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
-            ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
+            ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE(), onPress: () => setTtlOpen(true) }] : []),
             // Esconder (sai da lista e do contador; fica em «Conversas ocultas») ou, se já está, mostrar outra vez.
             ...(first?.hidden !== undefined && (items.length || first.hidden)
               ? [{ icon: first.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.hidden), onPress: () => (first.hidden ? hiding.unhide({ username }) : hiding.hide({ username }, person?.displayName ?? username)) }]
               : []),
-            ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: clearChat }] : []),
+            ...(items.length ? [{ icon: 'trash' as const, label: t('Limpar conversa'), onPress: clearChat }] : []),
           ]}
         />
       )}
       {ttlOpen && <TtlSheet ttl={ttl} canChange onPick={pickTtl} onClose={() => setTtlOpen(false)} />}
       {searching && (
-        <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : person?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
+        <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? t('Tu') : person?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
       )}
       {noteOpen && person && peerNote && (
         <NoteView

@@ -2,12 +2,13 @@
 // app.json. Regras puras em src/lib/storeRules.ts; o resto lê os ficheiros.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed } from '../src/lib/storeRules.ts';
-import { permissionView } from '../src/lib/cameraControls.ts';
+const { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed } = await import('../src/lib/storeRules.ts');
+const { permissionView } = await import('../src/lib/cameraControls.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
@@ -37,7 +38,7 @@ test('5.1.1(iv): no iPhone os botões que levam ao pedido do sistema dizem «Con
   assert.equal(permissionView('not-determined').label, 'Permitir a câmara');
   assert.equal(permissionView('denied', false, 'ios').label, 'Abrir definições');
   assert.match(read('src/components/NativeCamera.tsx'), /permissionView\(perm\.status, refused, PLATFORM\)/);
-  assert.match(read('src/components/GalleryPicker.tsx'), /askButtonLabel\(Platform\.OS, 'Permitir a galeria'\)/);
+  assert.match(read('src/components/GalleryPicker.tsx'), /askButtonLabel\(Platform\.OS, t\('Permitir a galeria'\)\)/);
 });
 
 test('4.8: o «Entrar com Google» só aparece na web, nunca na versão da App Store', () => {

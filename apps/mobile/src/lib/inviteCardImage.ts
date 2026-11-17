@@ -3,6 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { Linking, Platform, Share } from 'react-native';
 import { badgePlace, cardLayout, sealSvg, whatsappUrl, type CardInput, type CardText } from './inviteCard';
+import { t } from '@/lib/i18n';
 
 /**
  * O cartão do convite no telemóvel: desenhado no aparelho com a Skia (o fundo em SVG, a foto recortada em círculo e as letras
@@ -10,7 +11,7 @@ import { badgePlace, cardLayout, sealSvg, whatsappUrl, type CardInput, type Card
  */
 export interface RenderedCard { uri: string; width: number; height: number; label: string }
 
-const FAMILY = Platform.select({ ios: 'Helvetica', default: 'sans-serif' });
+const FAMILY = Platform.select({ get ios() { return t('Helvetica'); }, default: 'sans-serif' });
 const fonts = new Map<string, SkFont>();
 const fontOf = (size: number, weight: CardText['weight']) => {
   const key = `${size}:${weight}`;
@@ -72,7 +73,7 @@ export async function renderInviteCard(input: CardInput, avatarUrl: string | nul
   }
   const l = cardLayout({ ...input, hasAvatar: !!img });
   const surface = Skia.Surface.MakeOffscreen(l.width, l.height) ?? Skia.Surface.Make(l.width, l.height);
-  if (!surface) throw new Error('Não consegui desenhar o cartão');
+  if (!surface) throw new Error(t('Não consegui desenhar o cartão'));
   const canvas = surface.getCanvas();
   const svg = Skia.SVG.MakeFromString(l.svg);
   if (svg) canvas.drawSvg(svg, l.width, l.height);

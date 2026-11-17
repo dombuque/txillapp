@@ -12,6 +12,7 @@ import { useDesktop } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 import { decodeOpen, isTap, miniMode, miniPillText, miniSize, miniSnap, miniStart, onTxilladaScreen, type OpenTxillada, type Pos } from '@/lib/txilladaMini';
 import { clearOpen, closeTxillada, readOpen, useActiveTxillada, useTxilladaSession, type TxilladaSession } from '@/lib/txilladaSession';
+import { t } from '@/lib/i18n';
 
 /**
  * A Txillada fora do ecrã dela (lib/txilladaSession): por cima de qualquer ecrã da app.
@@ -61,7 +62,7 @@ function MiniPill({ text, live, onOpen, onClose }: { text: string; live: boolean
           <Text style={st.pillText} numberOfLines={1}>{text}</Text>
         </Pressable>
         {onClose ? (
-          <Pressable onPress={onClose} hitSlop={8} style={st.pillX} accessibilityRole="button" accessibilityLabel="Sair da Txillada">
+          <Pressable onPress={onClose} hitSlop={8} style={st.pillX} accessibilityRole="button" accessibilityLabel={t('Sair da Txillada')}>
             <Icon name="x" size={16} color="#fff" strokeWidth={2.4} />
           </Pressable>
         ) : null}
@@ -111,7 +112,7 @@ function MiniPlayer({ tx, onOpen }: { tx: TxilladaSession; onOpen: () => void })
   const track = tx.tiles[0]?.track ?? null;
   return (
     <Animated.View style={[st.player, { width: size.w, height: size.h, transform: pos.getTranslateTransform() }]} testID="txillada-mini">
-      <View style={StyleSheet.absoluteFill} {...pan.panHandlers} accessibilityRole="button" accessibilityLabel={`Voltar à Txillada de ${dto.host.username}`}>
+      <View style={StyleSheet.absoluteFill} {...pan.panHandlers} accessibilityRole="button" accessibilityLabel={t('Voltar à Txillada de {username}', { username: dto.host.username })}>
         {track ? (
           <TxilladaVideo track={track} fit="cover" box={size} style={StyleSheet.absoluteFill} />
         ) : (
@@ -119,16 +120,16 @@ function MiniPlayer({ tx, onOpen }: { tx: TxilladaSession; onOpen: () => void })
             <Avatar name={dto.host.displayName} username={dto.host.avatarUrl ? dto.host.username : undefined} size={44} />
           </View>
         )}
-        <View style={st.live} pointerEvents="none"><Text style={st.liveText}>AO VIVO</Text></View>
+        <View style={st.live} pointerEvents="none"><Text style={st.liveText}>{t('AO VIVO')}</Text></View>
         <View style={st.who} pointerEvents="none">
           <NameWithBadge name={`@${dto.host.username}`} who={dto.host} style={st.whoText} containerStyle={{ flexShrink: 1 }} />
         </View>
       </View>
-      <Pressable onPress={() => closeTxillada()} hitSlop={8} style={st.x} accessibilityRole="button" accessibilityLabel="Sair da Txillada">
+      <Pressable onPress={() => closeTxillada()} hitSlop={8} style={st.x} accessibilityRole="button" accessibilityLabel={t('Sair da Txillada')}>
         <Icon name="x" size={15} color="#fff" strokeWidth={2.6} />
       </Pressable>
       {tx.audioBlocked ? (
-        <Pressable onPress={() => void tx.startAudio()} style={st.sound} accessibilityRole="button" accessibilityLabel="Ligar o som">
+        <Pressable onPress={() => void tx.startAudio()} style={st.sound} accessibilityRole="button" accessibilityLabel={t('Ligar o som')}>
           <Icon name="volume" size={14} color="#fff" strokeWidth={2.2} />
         </Pressable>
       ) : null}
@@ -158,7 +159,7 @@ function TxilladaResume({ pathname }: { pathname: string }) {
   const drop = () => { clearOpen(user?.username); setO(null); };
   return (
     <MiniPill
-      text={o.isHost ? 'A tua Txillada está ao vivo · Voltar' : `Estavas na Txillada de @${o.host} · Voltar`}
+      text={o.isHost ? t('A tua Txillada está ao vivo · Voltar') : t('Estavas na Txillada de @{host} · Voltar', { host: o.host })}
       live
       onOpen={() => { setO(null); router.push(`/txillada/${encodeURIComponent(o.id)}` as never); }}
       onClose={drop}

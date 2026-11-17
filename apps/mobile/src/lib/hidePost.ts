@@ -6,7 +6,8 @@
  */
 
 /** A resposta do servidor (409) quando há uma campanha do Bombar a decorrer nesta publicação. */
-export const HIDE_BOOSTED = 'Esta publicação está a bombar. Podes ocultá-la quando o Bombar acabar.';
+import { t } from '@/lib/i18n';
+export const HIDE_BOOSTED = () => t('Esta publicação está a bombar. Podes ocultá-la quando o Bombar acabar.');
 
 type Hideable = { hidden?: boolean; kind?: string; body?: string; author?: { id?: string } };
 
@@ -17,27 +18,27 @@ export function canHide(post: Hideable | null | undefined, me: string | null | u
 
 /** A linha do menu «⋯»: o que diz conforme a publicação já está oculta ou não. `repost`: é o meu repost simples. */
 export function hideMenuRow(post: Hideable, repost = false): { title: string; text: string } {
-  if (post.hidden) return { title: 'Voltar a mostrar', text: 'Volta ao mesmo sítio, com os brindes e os comentários.' };
-  if (repost) return { title: 'Ocultar o repost', text: 'Só tu o vês. Podes voltar a mostrá-lo quando quiseres.' };
-  return { title: 'Ocultar publicação', text: 'Só tu a vês. Podes voltar a mostrá-la quando quiseres.' };
+  if (post.hidden) return { title: t('Voltar a mostrar'), text: t('Volta ao mesmo sítio, com os brindes e os comentários.') };
+  if (repost) return { title: t('Ocultar o repost'), text: t('Só tu o vês. Podes voltar a mostrá-lo quando quiseres.') };
+  return { title: t('Ocultar publicação'), text: t('Só tu a vês. Podes voltar a mostrá-la quando quiseres.') };
 }
 
 /** O aviso curto depois de ocultar ou de voltar a mostrar (com «Desfazer»). */
 export function hideToastText(hidden: boolean, repost = false): string {
-  if (repost) return hidden ? 'Repost ocultado. Só tu o vês.' : 'O repost voltou a aparecer.';
-  return hidden ? 'Publicação ocultada. Só tu a vês.' : 'A publicação voltou a aparecer.';
+  if (repost) return hidden ? t('Repost ocultado. Só tu o vês.') : t('O repost voltou a aparecer.');
+  return hidden ? t('Publicação ocultada. Só tu a vês.') : t('A publicação voltou a aparecer.');
 }
 
 /** O texto de um erro ao ocultar: o do Bombar (409) tal como vem, a publicação que já não existe, ou a falta de rede. */
 export function hideErrorText(status: number | null | undefined, message?: string | null): string {
-  if (status === 409) return message || HIDE_BOOSTED;
-  if (status === 404) return 'Esta publicação já não existe.';
-  if (status === 429) return 'Muitas mudanças seguidas. Espera um bocadinho.';
-  return 'Não deu. Verifica a ligação e tenta outra vez.';
+  if (status === 409) return message || HIDE_BOOSTED();
+  if (status === 404) return t('Esta publicação já não existe.');
+  if (status === 429) return t('Muitas mudanças seguidas. Espera um bocadinho.');
+  return t('Não deu. Verifica a ligação e tenta outra vez.');
 }
 
 /** O aviso por cima da publicação oculta (só o autor a vê assim). */
-export const HIDDEN_BANNER = 'Oculta: só tu vês esta publicação.';
+export const HIDDEN_BANNER = () => t('Oculta: só tu vês esta publicação.');
 
 /** As listas de publicações em memória que deixam de a mostrar (ou que a voltam a mostrar). */
 export const HIDE_LIST_KEYS = ['feed', 'feed-peek', 'profile-posts', 'reels', 'explore', 'saved', 'tag', 'place', 'search', 'venue-posts', 'venue-page-posts', 'sound', 'remixes'] as const;

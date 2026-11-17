@@ -3,15 +3,16 @@ import { Platform } from 'react-native';
 import { useDesktop } from './desktop';
 import { composerKey, type KeyLike } from './deskChatKeys';
 import { colors } from './theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Mensagens no computador: o browser largo (useDesktop) E um rato (`(hover: hover) and (pointer: fine)`). Num iPad deitado
  * (largo, mas de toque) e no telemóvel fica tudo como no telemóvel: deslizar, segurar, folhas de baixo.
  */
-const FINE = '(hover: hover) and (pointer: fine)';
+const FINE = () => t('(hover: hover) and (pointer: fine)');
 
 export function finePointer(): boolean {
-  return Platform.OS === 'web' && typeof window !== 'undefined' && !!window.matchMedia?.(FINE).matches;
+  return Platform.OS === 'web' && typeof window !== 'undefined' && !!window.matchMedia?.(FINE()).matches;
 }
 
 export function useDeskChat(): boolean {
@@ -19,7 +20,7 @@ export function useDeskChat(): boolean {
   const [fine, setFine] = useState(finePointer);
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia(FINE);
+    const mq = window.matchMedia(FINE());
     const on = () => setFine(mq.matches);
     mq.addEventListener?.('change', on);
     return () => mq.removeEventListener?.('change', on);

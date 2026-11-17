@@ -20,6 +20,7 @@ import { SearchField } from '../ui/SearchField';
 import { DrinkSheet } from './DrinkSheet';
 import { MusicPicker } from '../MusicPicker';
 import { TrackCard } from '../TrackCard';
+import { t } from '@/lib/i18n';
 
 const AMBER_INK = '#92400e';
 type Friend = Badged & { username: string; displayName: string; mutual: boolean };
@@ -89,17 +90,17 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         onClose();
         router.push(`/messages/${names[0]}` as never);
       } else {
-        setDone(`Pedido enviado a ${names.length} amigos ${drinkEmoji(drink)}`);
+        setDone(t('Pedido enviado a {n} amigos {drinkEmoji}', { n: names.length, drinkEmoji: drinkEmoji(drink) }));
         doneTimer.current = setTimeout(onClose, 1400);
       }
     } catch (e) {
-      setErr(geladaErrorText(e, 'Não consegui enviar o pedido. Tenta outra vez.'));
+      setErr(geladaErrorText(e, t('Não consegui enviar o pedido. Tenta outra vez.')));
       setBusy(false);
     }
   }
 
   const who = chosen.length ? chosen.map((c) => `@${c.username}`).join(', ') : 'a malta';
-  const ask = drink ? `Paga-me ${drinkPhrase(drink)} ${drinkEmoji(drink)}` : 'Paga-me uma';
+  const ask = drink ? t('Paga-me {drinkPhrase} {drinkEmoji}', { drinkPhrase: drinkPhrase(drink), drinkEmoji: drinkEmoji(drink) }) : 'Paga-me uma';
 
   return (
     <>
@@ -109,19 +110,19 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         <LinearGradient colors={['#fffbeb', '#fef3c7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.preview}>
           {drink ? <TasteBubble item={{ slug: drink.slug, kind: 'bebida', category: drink.category }} size={72} /> : <View style={[st.bubbleSkel]} />}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.previewTo} numberOfLines={1}>Para {who}</Text>
+            <Text style={st.previewTo} numberOfLines={1}>{t('Para {who}', { who })}</Text>
             <Text style={st.previewText} accessibilityRole="header">{ask}</Text>
             {drink && !drink.alcoholic ? <Text style={st.previewSub} numberOfLines={1}>{drink.name}</Text> : null}
           </View>
-          <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [st.change, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={drink ? `Mudar a bebida, agora ${drink.name}` : 'Escolher a bebida'}>
-            <Text style={st.changeText}>Mudar</Text>
+          <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [st.change, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={drink ? t('Mudar a bebida, agora {name}', { name: drink.name }) : t('Escolher a bebida')}>
+            <Text style={st.changeText}>{t('Mudar')}</Text>
           </Pressable>
         </LinearGradient>
-        {swapped ? <Text style={st.note}>Há menores no pedido: vai um refresco no lugar.</Text> : drinks.data?.soft ? <Text style={st.note}>Só refrescos e sumos neste pedido.</Text> : null}
+        {swapped ? <Text style={st.note}>{t('Há menores no pedido: vai um refresco no lugar.')}</Text> : drinks.data?.soft ? <Text style={st.note}>{t('Só refrescos e sumos neste pedido.')}</Text> : null}
 
         {/* Por onde vai. */}
-        <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel="Por onde enviar">
-          {([['chat', 'messages', 'Enviar no chat'], ['post', 'compose', 'Publicar']] as const).map(([c, ic, label]) => {
+        <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel={t('Por onde enviar')}>
+          {([['chat', 'messages', t('Enviar no chat')], ['post', 'compose', t('Publicar')]] as const).map(([c, ic, label]) => {
             const on = channel === c;
             return (
               <Pressable key={c} onPress={() => setChannel(c)} style={[st.segBtn, on && st.segOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
@@ -132,30 +133,30 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
           })}
         </View>
         <Text style={st.hint}>
-          {channel === 'chat' ? 'Chega como um cartão na conversa, com «Bora!», «Hoje não» e «Fica a dever».' : 'Vai para o teu perfil com a malta identificada. Só quem pediste responde; os outros brindam e comentam.'}
+          {channel === 'chat' ? t('Chega como um cartão na conversa, com «Bora!», «Hoje não» e «Fica a dever».') : t('Vai para o teu perfil com a malta identificada. Só quem pediste responde; os outros brindam e comentam.')}
         </Text>
         {channel === 'post' && (
-          <TextInput value={caption} onChangeText={setCaption} maxLength={300} placeholder="Legenda (opcional) · ex.: É sexta, malta!" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="Legenda" multiline />
+          <TextInput value={caption} onChangeText={setCaption} maxLength={300} placeholder={t('Legenda (opcional) · ex.: É sexta, malta!')} placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel={t('Legenda')} multiline />
         )}
         {channel === 'post' && (hit ? (
           <View>
             <TrackCard track={hit} />
-            <Pressable onPress={() => setHit(null)} style={st.hitX} accessibilityRole="button" accessibilityLabel="Tirar o hit"><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
+            <Pressable onPress={() => setHit(null)} style={st.hitX} accessibilityRole="button" accessibilityLabel={t('Tirar o hit')}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
           </View>
         ) : (
-          <Pressable onPress={() => setPickHit(true)} style={({ pressed }) => [st.hitBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel="Adicionar um hit ao pedido">
+          <Pressable onPress={() => setPickHit(true)} style={({ pressed }) => [st.hitBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Adicionar um hit ao pedido')}>
             <Icon name="music" size={16} color={colors.zinc800} />
-            <Text style={st.hitText}>Adicionar um hit</Text>
+            <Text style={st.hitText}>{t('Adicionar um hit')}</Text>
           </Pressable>
         ))}
 
         {/* A quem. */}
         <View style={{ gap: 8 }}>
-          <Text style={st.label}>{lockTo ? 'A quem' : 'A quem pedes'}</Text>
+          <Text style={st.label}>{lockTo ? t('A quem') : t('A quem pedes')}</Text>
           {chosen.length > 0 && (
             <View style={st.chips}>
               {chosen.map((c) => (
-                <Pressable key={c.username} disabled={lockTo} onPress={() => toggle(c)} style={[st.chip, !lockTo && notMutual.includes(c) && { borderColor: colors.red600 }]} accessibilityRole="button" accessibilityLabel={lockTo ? `@${c.username}` : `Tirar @${c.username}`}>
+                <Pressable key={c.username} disabled={lockTo} onPress={() => toggle(c)} style={[st.chip, !lockTo && notMutual.includes(c) && { borderColor: colors.red600 }]} accessibilityRole="button" accessibilityLabel={lockTo ? `@${c.username}` : t('Tirar @{username}', { username: c.username })}>
                   <Avatar name={c.displayName} username={c.username} size={24} />
                   <NameWithBadge name={`@${c.username}`} who={c} style={st.chipText} containerStyle={{ flexShrink: 1 }} />
                   {!lockTo && <Icon name="x" size={14} color={colors.zinc600} />}
@@ -163,20 +164,20 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
               ))}
             </View>
           )}
-          {notMutual.length > 0 && <Text style={st.err}>Em público só pedes a quem te segue de volta. Tira {notMutual.map((n) => `@${n.username}`).join(', ')} ou envia no chat.</Text>}
+          {notMutual.length > 0 && <Text style={st.err}>{t('Em público só pedes a quem te segue de volta. Tira {map} ou envia no chat.', { map: notMutual.map((n) => `@${n.username}`).join(', ') })}</Text>}
           {!lockTo && (
             <>
-              <SearchField value={search} onChangeText={setSearch} placeholder="Procurar amigos…" accessibilityLabel="Procurar amigos" maxLength={40} />
+              <SearchField value={search} onChangeText={setSearch} placeholder={t('Procurar amigos…')} accessibilityLabel={t('Procurar amigos')} maxLength={40} />
               {friends.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 12 }} />}
-              {friends.isSuccess && people.length === 0 && <Text style={st.hint}>{channel === 'post' ? 'Ninguém mútuo com esse nome.' : 'Ninguém com esse nome entre quem segues.'}</Text>}
+              {friends.isSuccess && people.length === 0 && <Text style={st.hint}>{channel === 'post' ? t('Ninguém mútuo com esse nome.') : t('Ninguém com esse nome entre quem segues.')}</Text>}
               {people.slice(0, 30).map((p) => {
                 const on = chosen.some((c) => c.username === p.username);
                 return (
-                  <Pressable key={p.username} onPress={() => toggle(p)} style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`${p.displayName}, @${p.username}${p.mutual ? ', seguem-se os dois' : ''}`}>
+                  <Pressable key={p.username} onPress={() => toggle(p)} style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`${p.displayName}, @${p.username}${p.mutual ? t(', seguem-se os dois') : ''}`}>
                     <Avatar name={p.displayName} username={p.username} size={40} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <NameWithBadge name={p.displayName} who={p} style={st.personName} />
-                      <Text style={st.personHandle} numberOfLines={1}>@{p.username}{p.mutual ? ' · seguem-se' : ''}</Text>
+                      <Text style={st.personHandle} numberOfLines={1}>@{p.username}{p.mutual ? (' ' + t('· seguem-se')) : ''}</Text>
                     </View>
                     <View style={[st.tick, on && st.tickOn]}>{on && <Icon name="check" size={14} color="#fff" />}</View>
                   </Pressable>
@@ -187,25 +188,25 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         </View>
 
         <Text style={[st.hint, left <= 2 && { color: AMBER_INK, fontWeight: '600' }]} accessibilityLiveRegion="polite">
-          {left <= 0 ? 'Já fizeste os pedidos todos de hoje. Amanhã há mais.' : `Ainda podes fazer ${left} ${left === 1 ? 'pedido' : 'pedidos'} hoje (até 3 ao mesmo amigo).`}
+          {left <= 0 ? t('Já fizeste os pedidos todos de hoje. Amanhã há mais.') : t('Ainda podes fazer {count} pedido hoje (até 3 ao mesmo amigo).', { count: left, other: 'Ainda podes fazer {count} pedidos hoje (até 3 ao mesmo amigo).' })}
         </Text>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
         {done ? <Text style={st.done} accessibilityLiveRegion="polite">{done}</Text> : null}
         <Button
-          label={channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Enviar a ${chosen.length}` : 'Enviar'}
+          label={channel === 'post' ? t('Publicar o pedido') : t('Enviar', { count: chosen.length, other: 'Enviar a {count}' })}
           icon={channel === 'post' ? 'compose' : 'messages'}
           block
           loading={busy}
           disabled={!canSend && !busy}
           onPress={() => void send()}
         />
-        <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação.</Text>
+        <Text style={st.fine}>{t('Sem dinheiro nem vibes: é entre amigos. Bebe com moderação.')}</Text>
       </ScrollView>
     </Sheet>
-      {pickHit ? <MusicPicker hint={`${caption} bebidas sexta`} onClose={() => setPickHit(false)} onPick={(t) => { setHit(t); setPickHit(false); }} /> : null}
+      {pickHit ? <MusicPicker hint={t('{caption} bebidas sexta', { caption })} onClose={() => setPickHit(false)} onPick={(t) => { setHit(t); setPickHit(false); }} /> : null}
       {picking && (
         <DrinkSheet
-          title="Que bebida pedes?"
+          title={t('Que bebida pedes?')}
           to={names}
           selected={drink?.id ?? null}
           onPick={(d) => {

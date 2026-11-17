@@ -2,6 +2,7 @@
 // botão direito, o Sheet em modo de computador, sem deslizar com o rato, e nada a mudar no telemóvel.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -155,9 +156,9 @@ test('Sheet: no telemóvel é sempre a folha de baixo; no computador janela, men
   assert.match(s, /<ListReset><ModeCtx\.Provider value=\{mode\}>/);
   assert.match(read('components/ListReset.web.tsx'), /<VirtualizedListContextResetter>\{children\}<\/VirtualizedListContextResetter>/);
   // Os comentários abrem no painel à direita; os «⋯» como menu pendente.
-  assert.match(read('components/CommentsSheet.tsx'), /<Sheet title="Comentários" onClose=\{onClose\} full plain variant="panel" dim=\{dim\}>/);
+  assert.match(read('components/CommentsSheet.tsx'), /<Sheet title=\{t\('Comentários'\)\} onClose=\{onClose\} full plain variant="panel" dim=\{dim\}>/);
   // «Cancelar» no fim do menu no telemóvel (o Sheet só o mostra na folha de baixo).
-  assert.match(read('components/PostSheets.tsx'), /<Sheet title="Publicação" onClose=\{onClose\} variant="menu" anchor=\{anchor\} cancel>/);
+  assert.match(read('components/PostSheets.tsx'), /<Sheet title=\{t\('Publicação'\)\} onClose=\{onClose\} variant="menu" anchor=\{anchor\} cancel>/);
   assert.match(read('components/ProfileView.tsx'), /variant="menu" anchor=\{desktop \? menuAt : null\}/);
 });
 

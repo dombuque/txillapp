@@ -10,6 +10,7 @@ import {
 import { useTextFontStyle, useTextFonts } from '@/lib/useTextFonts';
 import { FontChips } from './FontChips';
 import { Modal } from './Modal';
+import { t } from '@/lib/i18n';
 
 /** A letra de um texto: a fonte se já carregou; senão a do sistema, em negrito (só aí: no Android a fonte própria com peso sai com negrito inventado). */
 const SYSTEM_BOLD: TextStyle = { fontWeight: '800' };
@@ -142,15 +143,15 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
         <Measure text={text} font={l.font} onWidth={setTw} />
         <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <RoundBtn label={`${ALIGN_LABEL[l.align]}. Mudar o alinhamento`} onPress={() => set({ align: nextAlign(l.align) })}>
+            <RoundBtn label={t('{alignLabel}. Mudar o alinhamento', { alignLabel: ALIGN_LABEL[l.align] })} onPress={() => set({ align: nextAlign(l.align) })}>
               <AlignGlyph align={l.align} />
             </RoundBtn>
-            <RoundBtn label={`${BG_LABEL[l.bg]}. Mudar o fundo`} onPress={() => set({ bg: nextBg(l.bg) })}>
+            <RoundBtn label={t('{bgLabel}. Mudar o fundo', { bgLabel: BG_LABEL[l.bg] })} onPress={() => set({ bg: nextBg(l.bg) })}>
               <BgGlyph bg={l.bg} />
             </RoundBtn>
           </View>
-          <Pressable onPress={done} accessibilityRole="button" accessibilityLabel="Feito" style={({ pressed }) => [st.done, pressed && { opacity: 0.7 }]}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Feito</Text>
+          <Pressable onPress={done} accessibilityRole="button" accessibilityLabel={t('Feito')} style={({ pressed }) => [st.done, pressed && { opacity: 0.7 }]}>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{t('Feito')}</Text>
           </Pressable>
         </View>
 
@@ -163,10 +164,10 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
             autoFocus
             multiline
             maxLength={TEXT_MAX_CHARS + 8}
-            placeholder="Escreve…"
+            placeholder={t('Escreve…')}
             placeholderTextColor="rgba(255,255,255,0.6)"
             onContentSizeChange={(e) => setH(e.nativeEvent.contentSize.height)}
-            accessibilityLabel="Texto por cima do mimo"
+            accessibilityLabel={t('Texto por cima do mimo')}
             style={[
               {
                 alignSelf: 'stretch',
@@ -190,11 +191,11 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
         </View>
 
         <View style={{ paddingBottom: lift > 0 ? lift + 10 : Math.max(insets.bottom, 10), gap: 10 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 4, paddingHorizontal: 12 }} accessibilityLabel="Cor">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 4, paddingHorizontal: 12 }} accessibilityLabel={t('Cor')}>
             {TEXT_LAYER_COLORS.map((c) => {
               const on = l.color === c;
               return (
-                <Pressable key={c} onPress={() => set({ color: c })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Cor ${COLOR_NAMES[c] ?? c}`} style={st.colorHit}>
+                <Pressable key={c} onPress={() => set({ color: c })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={t('Cor {colorName}', { colorName: COLOR_NAMES[c] ?? c })} style={st.colorHit}>
                   <View style={[st.color, { backgroundColor: c }, on && st.colorOn]} />
                 </Pressable>
               );

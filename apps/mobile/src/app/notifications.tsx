@@ -46,9 +46,10 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/Empty';
 import { Button } from '@/components/ui/Button';
 import { showToast } from '@/lib/toast';
+import { t } from '@/lib/i18n';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
-const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
+const FILTERS: () => [Filter, string][] = () => [['all', t('Todas')], ['following', t('Quem sigo')], ['comments', t('Comentários')], ['follows', t('Seguidores')], ['gifts', t('Presentes')]];
 const inFilter = (n: AppNotification, f: Filter) =>
   f === 'all' ? true
   : f === 'following' ? !!n.actor.following
@@ -64,43 +65,43 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
   const quote = !many && n.data.snippet ? `«${n.data.snippet}»` : undefined;
   const v = (stem: string) => pastVerb(stem, many);
   switch (n.kind) {
-    case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e mimos dela.' };
-    case 'follow': return { text: many ? 'começaram a seguir-te' : 'começou a seguir-te' };
-    case 'follow_request': return { text: 'pediu para te seguir' };
-    case 'request_accepted': return { text: `${v('aceit')} o teu pedido para seguir` };
-    case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text></>, sub: n.data.note || undefined };
-    case 'comment': return { text: `${v('coment')} a tua publicação`, sub: quote };
-    case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
+    case 'blocked': return { text: 'bloqueou-te', sub: t('Já não podes seguir esta conta nem ver as publicações e mimos dela.') };
+    case 'follow': return { text: many ? t('começaram a seguir-te') : t('começou a seguir-te') };
+    case 'follow_request': return { text: t('pediu para te seguir') };
+    case 'request_accepted': return { text: t('{v} o teu pedido para seguir', { v: v('aceit') }) };
+    case 'gift': return { text: <>{t('presenteou-te com')} <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text></>, sub: n.data.note || undefined };
+    case 'comment': return { text: t('{v} a tua publicação', { v: v('coment') }), sub: quote };
+    case 'reply': return { text: t('respondeu ao teu comentário'), sub: quote };
     case 'story_reply':
-      if (n.data.replyKind === 'comment') return { text: 'comentou o teu mimo', sub: quote };
-      if (n.data.replyKind === 'reaction') return { text: many ? 'reagiram ao teu mimo' : <>reagiu ao teu mimo <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
-      return { text: 'respondeu ao teu mimo', sub: quote };
-    case 'repost': return { text: `${v('repost')} a tua publicação` };
-    case 'tag': return { text: `${v('identific')}-te numa foto` };
-    case 'mention': return { text: `${v('mencion')}-te`, sub: quote };
-    case 'verified': return { text: many ? 'agora têm o selo de conta verificada' : 'agora tem o selo de conta verificada' };
-    case 'venue_invite': return { text: <>convidou-te para gerir <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'um local'}</Text> como {n.data.role === 'admin' ? 'administrador' : 'editor'}</> };
+      if (n.data.replyKind === 'comment') return { text: t('comentou o teu mimo'), sub: quote };
+      if (n.data.replyKind === 'reaction') return { text: many ? t('reagiram ao teu mimo') : <>{t('reagiu ao teu mimo')} <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
+      return { text: t('respondeu ao teu mimo'), sub: quote };
+    case 'repost': return { text: t('{v} a tua publicação', { v: v('repost') }) };
+    case 'tag': return { text: t('{v}-te numa foto', { v: v('identific') }) };
+    case 'mention': return { text: t('{v}-te', { v: v('mencion') }), sub: quote };
+    case 'verified': return { text: many ? t('agora têm o selo de conta verificada') : t('agora tem o selo de conta verificada') };
+    case 'venue_invite': return { text: <>{t('convidou-te para gerir')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('um local')}</Text> {t('como')} {n.data.role === 'admin' ? t('administrador') : t('editor')}</> };
     // Para os gestores: alguém pagou ao local com Txills.
     // Pago com o cofre de um TxillGroup: diz de que grupo veio.
-    case 'venue_payment': return { text: <>pagou <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text> ao <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'teu local'}</Text>{n.data.groupName ? <> com o cofre de <Text style={{ fontWeight: '700' }}>{n.data.groupName}</Text></> : null}</>, sub: n.data.note || undefined };
-    case 'missed_call': return { text: n.data.video ? 'tentou fazer-te uma videochamada' : 'tentou ligar-te' };
+    case 'venue_payment': return { text: <>{t('pagou')} <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text> {t('ao')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('teu local')}</Text>{n.data.groupName ? <> {t('com o cofre de')} <Text style={{ fontWeight: '700' }}>{n.data.groupName}</Text></> : null}</>, sub: n.data.note || undefined };
+    case 'missed_call': return { text: n.data.video ? t('tentou fazer-te uma videochamada') : t('tentou ligar-te') };
     // A equipa decidiu sobre um local que criaste.
     case 'venue_review': return n.data.decision === 'approved'
-      ? { text: <>aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text>: já está à vista de todos</> }
-      : { text: <>não aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text></>, sub: n.data.note ? `Motivo: ${n.data.note}` : 'Vê o motivo na página e corrige' };
+      ? { text: <>{t('aprovou')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('o teu local')}</Text>{t(': já está à vista de todos')}</> }
+      : { text: <>{t('não aprovou')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('o teu local')}</Text></>, sub: n.data.note ? t('Motivo: {note}', { note: n.data.note }) : t('Vê o motivo na página e corrige') };
     // TxillGroups: pedidos para entrar (para os administradores), a resposta (para quem pediu) e quem entrou num grupo público.
-    case 'group_join_request': return { text: <>pediu para entrar em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
-    case 'group_join_accepted': return { text: <>aceitou-te em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
-    case 'group_member_joined': return { text: <>{many ? 'entraram' : 'entrou'} em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
-    case 'group_admin_granted': return { text: <>fez-te administrador de <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_join_request': return { text: <>{t('pediu para entrar em')} <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_join_accepted': return { text: <>{t('aceitou-te em')} <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_member_joined': return { text: <>{many ? t('entraram') : t('entrou')} {t('em')} <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_admin_granted': return { text: <>{t('fez-te administrador de')} <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     // Brinde a um gosto (no perfil ou no post da geleira): diz qual.
     case 'geleira_cheer': return typeof n.data.itemName === 'string' && !many
-      ? { text: <>brindou <Text style={{ fontWeight: '700' }}>{n.data.itemName}</Text> na tua geleira</> }
-      : { text: many ? 'brindaram a tua geleira' : 'brindou a tua geleira' };
+      ? { text: <>{t('brindou')} <Text style={{ fontWeight: '700' }}>{n.data.itemName}</Text> {t('na tua geleira')}</> }
+      : { text: many ? t('brindaram a tua geleira') : t('brindou a tua geleira') };
     // Brindes numa publicação (ou tcheka) ou num comentário: o servidor já os juntou numa linha.
     case 'cheer': return { text: cheerVerb(n.data, many) };
     // Entrou com o meu convite (o prémio de quem convidou chega depois, com o seu próprio aviso no telemóvel).
-    case 'invite_joined': return { text: many ? 'entraram com o teu convite' : 'entrou com o teu convite' };
+    case 'invite_joined': return { text: many ? t('entraram com o teu convite') : t('entrou com o teu convite') };
     // A equipa do Txillapp removeu ou repôs um conteúdo meu, ou deixou-me um aviso (com o motivo por baixo).
     case 'content_removed':
     case 'content_restored':
@@ -128,7 +129,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     // sem estar a ver (txillada-voltar): «@ana mencionou-te na Txillada de @zeca: vem ver».
     case 'txillada_invite': return { text: txilladaInviteText(n.data, n.actor.username), sub: txilladaInviteSub(n.txillada, n.data as { mention?: unknown }) };
     // O resumo semanal dos Zás (do Txillapp; a linha não leva o nome do ator à frente): «8 a 15 nov · 12 Zás».
-    case 'zas_recap': return { text: RECAP_NOTICE, sub: recapNoticeSub(n.data) };
+    case 'zas_recap': return { text: RECAP_NOTICE(), sub: recapNoticeSub(n.data) };
     // Mixar (0170): «ana e tu: a vossa seleção de hoje está pronta», «zeca já escolheu no Mixa Challenge, falta tu» e o
     // resultado («também escolheu: acertaram no mesmo»), com o nome do Mixar por baixo.
     case 'mixar_daily':
@@ -136,7 +137,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'mixar_result':
     case 'mixar_group': return mixarNoticeText(n.kind, n.data);
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
-    default: return { text: 'tem novidades para ti' };
+    default: return { text: t('tem novidades para ti') };
   }
 }
 
@@ -212,7 +213,7 @@ function Names({ actors, total = actors.length }: { actors: AppNotification['act
   const rest = Math.max(total, actors.length) - 2;
   if (actors.length === 1) return b(actors[0]);
   if (rest <= 0) return <>{b(actors[0])} e {b(actors[1])}</>;
-  return <>{b(actors[0])}, {b(actors[1])} e {rest === 1 ? 'outra pessoa' : `${rest} outros`}</>;
+  return <>{b(actors[0])}, {b(actors[1])} e {t('outra pessoa', { count: rest, other: '{count} outros' })}</>;
 }
 
 function Row({ g, me }: { g: Group; me?: string }) {
@@ -274,7 +275,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
         setAnswer(accept ? 'accepted' : 'declined');
         void qc.invalidateQueries({ queryKey: ['requests'] });
       } else {
-        showToast((e as Error).message || 'Não consegui responder ao pedido. Verifica a ligação e tenta outra vez.');
+        showToast((e as Error).message || t('Não consegui responder ao pedido. Verifica a ligação e tenta outra vez.'));
         setAnswer(null);
       }
     } finally {
@@ -292,18 +293,18 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const txKind = n.kind === 'txillada_live' || n.kind === 'txillada_invite';
   const txLive = txKind && (!n.txillada || n.txillada.status === 'live');
   const right = txKind ? (
-    <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? 'Txillada ao vivo' : 'A Txillada já acabou'}>
+    <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? t('Txillada ao vivo') : t('A Txillada já acabou')}>
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
     </View>
   ) : n.kind === 'txillada_scheduled_cancelled' ? (
-    <View style={[styles.txIcon, { backgroundColor: colors.zinc100 }]} accessibilityLabel={removedNotice ? 'A Txillada foi retirada' : n.data.moved ? 'A Txillada mudou de hora' : 'A Txillada foi cancelada'}>
+    <View style={[styles.txIcon, { backgroundColor: colors.zinc100 }]} accessibilityLabel={removedNotice ? t('A Txillada foi retirada') : n.data.moved ? t('A Txillada mudou de hora') : t('A Txillada foi cancelada')}>
       <Icon name="calendar" size={22} color={colors.zinc600} strokeWidth={2} />
     </View>
   ) : isMixarNotice(n.kind) ? (
     // Mixar: o selo do Mixar à direita (a cara do outro já está à esquerda).
     <View accessibilityLabel="Mixar"><MixarBadge size={44} /></View>
   ) : thumb ? (
-    <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel={zasRecap ? 'Abrir o resumo' : 'Abrir a publicação'}>
+    <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel={zasRecap ? t('Abrir o resumo') : t('Abrir a publicação')}>
       {/* O resumo (1080×1920, endereço assinado do chat) pede-se pequeno, com &w=. */}
       <Image source={{ uri: zasRecap ? zasPhotoUrl(abs(thumb.url) ?? thumb.url, 160) : sized(thumb.url, 160) }} style={styles.thumb} contentFit="cover" />
       {thumb.video && <View style={styles.playDot}><Icon name="play" size={10} color="#fff" solid /></View>}
@@ -311,7 +312,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
   ) : followBack || back ? (
     <View style={{ width: 128 }}><FollowButton username={n.actor.username} following={false} requested={false} isPrivate={!!(back?.isPrivate ?? n.actor.isPrivate)} /></View>
   ) : n.kind === 'follow' && !many ? (
-    <Button label="Mensagem" kind="secondary" size="sm" onPress={() => router.push(`/messages/${n.actor.username}` as never)} />
+    <Button label={t('Mensagem')} kind="secondary" size="sm" onPress={() => router.push(`/messages/${n.actor.username}` as never)} />
   ) : null;
 
   return (
@@ -320,7 +321,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
         // O resumo dos Zás: o raio do Zás num círculo da cor da marca, em vez da cara.
         <View style={styles.zasIcon} accessibilityLabel="Zás"><Icon name="bolt" size={24} solid color="#fff" /></View>
       ) : hostNotice ? (
-        <View style={styles.zasIcon} accessibilityLabel="Txillada agendada"><Icon name="txillada" size={26} color="#fff" strokeWidth={2.1} /></View>
+        <View style={styles.zasIcon} accessibilityLabel={t('Txillada agendada')}><Icon name="txillada" size={26} color="#fff" strokeWidth={2.1} /></View>
       ) : (
         <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
           <Faces actors={people.actors} />
@@ -332,18 +333,18 @@ function Row({ g, me }: { g: Group; me?: string }) {
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
-          <Pressable onPress={() => go(single)} hitSlop={6} style={{ marginTop: 6, alignSelf: 'flex-start' }} accessibilityRole="button"><Text style={styles.reply}>Responder</Text></Pressable>
+          <Pressable onPress={() => go(single)} hitSlop={6} style={{ marginTop: 6, alignSelf: 'flex-start' }} accessibilityRole="button"><Text style={styles.reply}>{t('Responder')}</Text></Pressable>
         ) : null}
         {n.kind === 'venue_invite' && !answer && (
           <View style={styles.btns}>
-            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} />
-            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
+            <Button label={t('Aceitar')} size="sm" disabled={busy} onPress={() => void respond(true)} />
+            <Button label={t('Recusar')} kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
           </View>
         )}
         {n.kind === 'group_join_request' && !answer && notifGroup(n).id && (
           <View style={styles.btns}>
-            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} accessibilityLabel={`Aceitar ${n.actor.username} em ${notifGroup(n).name}`} />
-            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} accessibilityLabel={`Recusar ${n.actor.username}`} />
+            <Button label={t('Aceitar')} size="sm" disabled={busy} onPress={() => void respond(true)} accessibilityLabel={t('Aceitar {username} em {name}', { username: n.actor.username, name: notifGroup(n).name })} />
+            <Button label={t('Recusar')} kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} accessibilityLabel={t('Recusar {username}', { username: n.actor.username })} />
           </View>
         )}
         {geladaId && gelada.data?.canAnswer ? (
@@ -355,11 +356,11 @@ function Row({ g, me }: { g: Group; me?: string }) {
         ) : null}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
-            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} />
-            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
+            <Button label={t('Aceitar')} size="sm" disabled={busy} onPress={() => void respond(true)} />
+            <Button label={t('Recusar')} kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
           </View>
         )}
-        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? 'Agora geres esta página' : n.kind === 'group_join_request' ? 'Já está no grupo' : 'Pedido aceite') : (n.kind === 'venue_invite' ? 'Convite recusado' : 'Pedido recusado')}</Text> : null}
+        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? t('Agora geres esta página') : n.kind === 'group_join_request' ? t('Já está no grupo') : t('Pedido aceite')) : (n.kind === 'venue_invite' ? t('Convite recusado') : t('Pedido recusado'))}</Text> : null}
       </View>
       {right}
     </Pressable>
@@ -417,14 +418,14 @@ export default function Notifications() {
   type Entry = { kind: 'h'; id: string; label: string } | { kind: 'g'; g: Group } | { kind: 'req'; id: string };
   const data: Entry[] = [
     ...(showReq ? [{ kind: 'req' as const, id: 'req' }] : []),
-    ...(fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-new', label: 'Novas' }] : []),
+    ...(fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-new', label: t('Novas') }] : []),
     ...fresh.map((g) => ({ kind: 'g' as const, g })),
-    ...(older.length > 0 && fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-old', label: 'Anteriores' }] : []),
+    ...(older.length > 0 && fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-old', label: t('Anteriores') }] : []),
     ...older.map((g) => ({ kind: 'g' as const, g })),
   ];
 
   return (
-    <StackPage title="Notificações">
+    <StackPage title={t('Notificações')}>
       <PullView pull={pull}>
       <FlatList
         onScroll={pull.onScroll}
@@ -441,15 +442,15 @@ export default function Notifications() {
         ListHeaderComponent={
           <View style={styles.filters}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-              {FILTERS.map(([f, label]) => <Chip key={f} label={label} selected={filter === f} onPress={() => setFilter(f)} />)}
+              {FILTERS().map(([f, label]) => <Chip key={f} label={label} selected={filter === f} onPress={() => setFilter(f)} />)}
             </ScrollView>
           </View>
         }
         renderItem={({ item }) => (item.kind === 'req' ? (
-          <Pressable onPress={() => setReqOpen(true)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`Pedidos para seguir: ${reqList.length}`}>
+          <Pressable onPress={() => setReqOpen(true)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Pedidos para seguir: {n}', { n: reqList.length })}>
             <View style={styles.reqIcon}><Icon name="user-plus" size={22} color={colors.zinc800} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.reqTitle}>Pedidos para seguir</Text>
+              <Text style={styles.reqTitle}>{t('Pedidos para seguir')}</Text>
               <Text style={styles.reqSub} numberOfLines={1}>{requestsLine(reqList.map((r) => r.username))}</Text>
             </View>
             <View style={styles.reqN}><Text style={styles.reqNText}>{reqList.length > 99 ? '99+' : reqList.length}</Text></View>
@@ -462,14 +463,14 @@ export default function Notifications() {
           q.isPending || (q.hasNextPage && q.isFetchingNextPage) ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : q.isError ? (
-            <ErrorState what="as notificações" onRetry={() => void q.refetch()} />
+            <ErrorState what={t('as notificações')} onRetry={() => void q.refetch()} />
           ) : (
-            <EmptyState icon="bell-off" title={filter === 'all' ? 'Tudo calmo por aqui' : 'Nada por aqui'} text={filter === 'all' ? 'Quando alguém te seguir, comentar ou oferecer vibes, aparece aqui.' : 'Não há notificações deste tipo.'} />
+            <EmptyState icon="bell-off" title={filter === 'all' ? t('Tudo calmo por aqui') : t('Nada por aqui')} text={filter === 'all' ? t('Quando alguém te seguir, comentar ou oferecer vibes, aparece aqui.') : t('Não há notificações deste tipo.')} />
           )
         }
         ListFooterComponent={
           // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore); o botão fica de reserva.
-          q.hasNextPage && groups.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} label="Ver notificações anteriores" /> : <View style={{ height: 24 }} />
+          q.hasNextPage && groups.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} label={t('Ver notificações anteriores')} /> : <View style={{ height: 24 }} />
         }
       />
       </PullView>
@@ -480,9 +481,9 @@ export default function Notifications() {
 
 /** «Aprovar ou recusar · @ana e mais 2». */
 export function requestsLine(names: string[]): string {
-  if (!names.length) return 'Aprovar ou recusar pedidos';
+  if (!names.length) return t('Aprovar ou recusar pedidos');
   const who = names.length === 1 ? `@${names[0]}` : `@${names[0]} e mais ${names.length - 1}`;
-  return `Aprovar ou recusar · ${who}`;
+  return t('Aprovar ou recusar · {who}', { who });
 }
 
 const styles = StyleSheet.create({

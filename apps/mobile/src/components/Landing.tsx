@@ -7,14 +7,15 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
 import { Button } from '@/components/ui/Button';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'image', title: 'Feed da malta', text: 'Fotos e vídeos de quem segues e do que está a bombar. Sem algoritmo a enganar-te: tu mandas no que vês.' },
-  { icon: 'camera', title: 'Mimos', text: 'Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.' },
-  { icon: 'film', title: 'Tchekas', text: 'Vídeos curtos a rolar, um a seguir ao outro. Bora criar a tua.' },
-  { icon: 'comment', title: 'Chat em tempo real', text: 'Conversa com quem segues, manda fotos e vídeos. Só entra quem tu deixares.' },
-  { icon: 'gift', title: 'Vibes', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
-  { icon: 'shield', title: 'Privacidade a sério', text: 'Contas privadas, bloquear, silenciar, escolher quem te vê. Tu decides.' },
+  { icon: 'image', get title() { return t('Feed da malta'); }, get text() { return t('Fotos e vídeos de quem segues e do que está a bombar. Sem algoritmo a enganar-te: tu mandas no que vês.'); } },
+  { icon: 'camera', title: 'Mimos', get text() { return t('Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.'); } },
+  { icon: 'film', title: 'Tchekas', get text() { return t('Vídeos curtos a rolar, um a seguir ao outro. Bora criar a tua.'); } },
+  { icon: 'comment', get title() { return t('Chat em tempo real'); }, get text() { return t('Conversa com quem segues, manda fotos e vídeos. Só entra quem tu deixares.'); } },
+  { icon: 'gift', title: 'Vibes', get text() { return t('Oferece presentes à malta que segues e mostra quem está com tudo.'); } },
+  { icon: 'shield', get title() { return t('Privacidade a sério'); }, get text() { return t('Contas privadas, bloquear, silenciar, escolher quem te vê. Tu decides.'); } },
 ];
 
 /** A app instalada (PWA) abre direto no login: a apresentação é para quem chega pelo navegador. */
@@ -32,7 +33,7 @@ export function Landing() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const prev = document.title;
-    document.title = 'Txillapp · A rede social da malta';
+    document.title = t('Txillapp · A rede social da malta');
     return () => { document.title = prev; };
   }, []);
   const go = (path: string) => router.push(path as never);
@@ -45,20 +46,20 @@ export function Landing() {
       <View style={st.header}>
         <Wordmark height={32} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Button label="Entrar" kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
-          {width >= 640 ? <Button label="Criar conta" size="md" onPress={() => go('/register')} /> : null}
+          <Button label={t('Entrar')} kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
+          {width >= 640 ? <Button label={t('Criar conta')} size="md" onPress={() => go('/register')} /> : null}
         </View>
       </View>
 
       <View style={[st.hero, wide && { flexDirection: 'row', alignItems: 'center', paddingTop: 64 }]}>
         <View style={wide ? { flex: 1 } : undefined}>
-          <Text style={[st.h1, width >= 640 && { fontSize: 60, lineHeight: 63 }]} accessibilityRole="header">Posta. Mostra. <Text style={{ color: colors.brand }}>Txilla.</Text></Text>
-          <Text style={st.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
+          <Text style={[st.h1, width >= 640 && { fontSize: 60, lineHeight: 63 }]} accessibilityRole="header">{t('Posta. Mostra.')} <Text style={{ color: colors.brand }}>{t('Txilla.')}</Text></Text>
+          <Text style={st.lead}>{t('A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.')}</Text>
           <View style={st.cta}>
-            <Button label="Criar conta grátis" onPress={() => go('/register')} style={st.primary} />
-            <Button label="Já tenho conta" kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
+            <Button label={t('Criar conta grátis')} onPress={() => go('/register')} style={st.primary} />
+            <Button label={t('Já tenho conta')} kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
           </View>
-          <Text style={st.note}>Para maiores de 15 anos. Funciona no navegador e podes instalar no telemóvel.</Text>
+          <Text style={st.note}>{t('Para maiores de 15 anos. Funciona no navegador e podes instalar no telemóvel.')}</Text>
         </View>
 
         {/* Maqueta do telemóvel, só desenho (sem dados de ninguém). */}
@@ -87,7 +88,7 @@ export function Landing() {
 
       <View style={st.features}>
         <View style={{ width: '100%', maxWidth: 1152, paddingHorizontal: 20 }}>
-          <Text style={st.h2} accessibilityRole="header">Tudo o que a malta precisa</Text>
+          <Text style={st.h2} accessibilityRole="header">{t('Tudo o que a malta precisa')}</Text>
           <View style={st.grid}>
             {FEATURES.map((f) => (
               <View key={f.title} style={[st.card, { width: cols === 1 ? '100%' : cols === 2 ? '48.8%' : '32.4%' }]}>
@@ -101,25 +102,25 @@ export function Landing() {
       </View>
 
       <View style={st.last}>
-        <Text style={[st.h2, { textAlign: 'center', marginTop: 0 }]} accessibilityRole="header">Bora entrar na festa?</Text>
-        <Text style={st.lastSub}>É grátis e demora menos de um minuto.</Text>
-        <Button label="Criar a minha conta" onPress={() => go('/register')} style={[st.primary, { marginTop: 24, paddingHorizontal: 40 }]} />
+        <Text style={[st.h2, { textAlign: 'center', marginTop: 0 }]} accessibilityRole="header">{t('Bora entrar na festa?')}</Text>
+        <Text style={st.lastSub}>{t('É grátis e demora menos de um minuto.')}</Text>
+        <Button label={t('Criar a minha conta')} onPress={() => go('/register')} style={[st.primary, { marginTop: 24, paddingHorizontal: 40 }]} />
       </View>
 
       <View style={[st.footer, { paddingBottom: 32 + insets.bottom }]}>
         <View style={st.footLinks}>
-          <Link href="/login" style={st.footLink}>Entrar</Link>
-          <Link href="/register" style={st.footLink}>Criar conta</Link>
-          <Link href="/forgot-password" style={st.footLink}>Recuperar a senha</Link>
-          <Link href="/help" style={st.footLink}>Ajuda</Link>
-          <Link href="/terms" style={st.footLink}>Termos de Utilização</Link>
-          <Link href="/privacy" style={st.footLink}>Política de Privacidade</Link>
-          <Link href={'/apagar-conta' as never} style={st.footLink}>Apagar a conta</Link>
+          <Link href="/login" style={st.footLink}>{t('Entrar')}</Link>
+          <Link href="/register" style={st.footLink}>{t('Criar conta')}</Link>
+          <Link href="/forgot-password" style={st.footLink}>{t('Recuperar a senha')}</Link>
+          <Link href="/help" style={st.footLink}>{t('Ajuda')}</Link>
+          <Link href="/terms" style={st.footLink}>{t('Termos de Utilização')}</Link>
+          <Link href="/privacy" style={st.footLink}>{t('Política de Privacidade')}</Link>
+          <Link href={'/apagar-conta' as never} style={st.footLink}>{t('Apagar a conta')}</Link>
         </View>
         <Text style={[st.footText, { marginTop: 10 }]}>
           <Text onPress={() => void Linking.openURL('mailto:suporte@txillapp.com')} accessibilityRole="link">suporte@txillapp.com</Text>
         </Text>
-        <Text style={[st.footText, { marginTop: 8 }]}>© {year} Txillapp</Text>
+        <Text style={[st.footText, { marginTop: 8 }]}>{t('© {year} Txillapp', { year })}</Text>
       </View>
     </ScrollView>
   );
@@ -128,7 +129,7 @@ export function Landing() {
 /** Onde se instala a app Android (beta, fora da Play Store). */
 export const BETA_URL = '/app/beta/';
 /** Rodapé da entrada no computador: as ligações legais e de suporte. */
-export const LANDING_LEGAL: [string, string][] = [['Termos de Utilização', '/terms'], ['Política de Privacidade', '/privacy'], ['Apagar a conta', '/apagar-conta'], ['Suporte', '/suporte'], ['Ajuda', '/help']];
+export const LANDING_LEGAL: () => [string, string][] = () => [[t('Termos de Utilização'), '/terms'], [t('Política de Privacidade'), '/privacy'], [t('Apagar a conta'), '/apagar-conta'], [t('Suporte'), '/suporte'], [t('Ajuda'), '/help']];
 type Hover = { pressed: boolean; hovered?: boolean };
 
 /** A página de entrada no computador: até 1200 px, duas colunas e o rodapé com as ligações legais. */
@@ -142,37 +143,37 @@ function DesktopLanding({ go, year }: { go: (path: string) => void; year: number
       </View>
       <View style={dk.wrap}>
         <View style={dk.header}>
-          <Pressable onPress={() => go('/')} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial"><Wordmark height={34} /></Pressable>
+          <Pressable onPress={() => go('/')} accessibilityRole="link" accessibilityLabel={t('Txillapp, página inicial')}><Wordmark height={34} /></Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Button label="Ajuda" kind="ghost" size="md" onPress={() => go('/help')} />
-            <Button label="Entrar" kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
-            <Button label="Criar conta" size="md" onPress={() => go('/register')} />
+            <Button label={t('Ajuda')} kind="ghost" size="md" onPress={() => go('/help')} />
+            <Button label={t('Entrar')} kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
+            <Button label={t('Criar conta')} size="md" onPress={() => go('/register')} />
           </View>
         </View>
 
         <View style={[dk.hero, { gap: big ? 64 : 40 }]}>
           <View style={{ flex: 1.05, minWidth: 0 }}>
-            <View style={dk.pill}><View style={dk.pillDot} /><Text style={dk.pillText}>A rede social da malta</Text></View>
-            <Text style={[dk.h1, big && { fontSize: 68, lineHeight: 72 }]} accessibilityRole="header">Posta. Mostra.{'\n'}<Text style={{ color: colors.brand }}>Txilla.</Text></Text>
-            <Text style={dk.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
+            <View style={dk.pill}><View style={dk.pillDot} /><Text style={dk.pillText}>{t('A rede social da malta')}</Text></View>
+            <Text style={[dk.h1, big && { fontSize: 68, lineHeight: 72 }]} accessibilityRole="header">{t('Posta. Mostra.')}{'\n'}<Text style={{ color: colors.brand }}>{t('Txilla.')}</Text></Text>
+            <Text style={dk.lead}>{t('A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.')}</Text>
             <View style={dk.cta}>
-              <Button label="Criar conta grátis" onPress={() => go('/register')} style={st.primary} />
-              <Button label="Já tenho conta" kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
+              <Button label={t('Criar conta grátis')} onPress={() => go('/register')} style={st.primary} />
+              <Button label={t('Já tenho conta')} kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
             </View>
             <View style={dk.stores}>
-              <Pressable onPress={() => void Linking.openURL(BETA_URL)} style={(s) => [dk.store, (s as Hover).hovered && dk.storeHover]} accessibilityRole="link" accessibilityLabel="Descarregar a app para Android (beta)">
+              <Pressable onPress={() => void Linking.openURL(BETA_URL)} style={(s) => [dk.store, (s as Hover).hovered && dk.storeHover]} accessibilityRole="link" accessibilityLabel={t('Descarregar a app para Android (beta)')}>
                 <Icon name="download" size={22} color="#fff" />
                 <View>
-                  <Text style={dk.storeSmall}>Android · beta</Text>
-                  <Text style={dk.storeBig}>Descarregar a app</Text>
+                  <Text style={dk.storeSmall}>{t('Android · beta')}</Text>
+                  <Text style={dk.storeBig}>{t('Descarregar a app')}</Text>
                 </View>
               </Pressable>
               <View style={dk.storeNote}>
                 <Icon name="globe" size={20} color={colors.zinc600} />
-                <Text style={dk.storeNoteText}>No iPhone e no computador funciona no navegador. Podes instalar no ecrã principal.</Text>
+                <Text style={dk.storeNoteText}>{t('No iPhone e no computador funciona no navegador. Podes instalar no ecrã principal.')}</Text>
               </View>
             </View>
-            <Text style={st.note}>Para maiores de 15 anos.</Text>
+            <Text style={st.note}>{t('Para maiores de 15 anos.')}</Text>
           </View>
           <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <Montage />
@@ -195,10 +196,10 @@ function DesktopLanding({ go, year }: { go: (path: string) => void; year: number
         <View style={[dk.wrap, dk.footRow]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <Wordmark height={22} />
-            <Text style={dk.footText}>© {year} Txillapp</Text>
+            <Text style={dk.footText}>{t('© {year} Txillapp', { year })}</Text>
           </View>
-          <View style={dk.footLinks} accessibilityLabel="Ligações legais">
-            {LANDING_LEGAL.map(([label, to]) => <Link key={to} href={to as never} style={dk.footLink}>{label}</Link>)}
+          <View style={dk.footLinks} accessibilityLabel={t('Ligações legais')}>
+            {LANDING_LEGAL().map(([label, to]) => <Link key={to} href={to as never} style={dk.footLink}>{label}</Link>)}
             <Text onPress={() => void Linking.openURL('mailto:suporte@txillapp.com')} accessibilityRole="link" style={dk.footLink}>suporte@txillapp.com</Text>
           </View>
         </View>
@@ -242,15 +243,15 @@ function Montage() {
       </View>
       {/* Uma conversa, à direita. */}
       <View style={[dk.float, { right: 0, top: 150, width: 190, gap: 8, transform: [{ rotate: '4deg' }] }]}>
-        <View style={[dk.bubble, { alignSelf: 'flex-start', backgroundColor: colors.zinc100 }]}><Text style={{ fontSize: 13, color: colors.zinc900 }}>Bora txillar hoje?</Text></View>
-        <View style={[dk.bubble, { alignSelf: 'flex-end', backgroundColor: colors.brand }]}><Text style={{ fontSize: 13, color: '#fff', fontWeight: '600' }}>Já estou a caminho!</Text></View>
+        <View style={[dk.bubble, { alignSelf: 'flex-start', backgroundColor: colors.zinc100 }]}><Text style={{ fontSize: 13, color: colors.zinc900 }}>{t('Bora txillar hoje?')}</Text></View>
+        <View style={[dk.bubble, { alignSelf: 'flex-end', backgroundColor: colors.brand }]}><Text style={{ fontSize: 13, color: '#fff', fontWeight: '600' }}>{t('Já estou a caminho!')}</Text></View>
       </View>
       {/* Um presente (vibes), em baixo. */}
       <View style={[dk.float, { right: 30, bottom: 60, flexDirection: 'row', alignItems: 'center', gap: 10, transform: [{ rotate: '-3deg' }] }]}>
         <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' }}><Icon name="gift" size={20} color={colors.brand} /></View>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '800', color: colors.zinc900 }}>+50 vibes</Text>
-          <Text style={{ fontSize: 12, color: colors.zinc500 }}>Presente da malta</Text>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: colors.zinc900 }}>{t('+50 vibes')}</Text>
+          <Text style={{ fontSize: 12, color: colors.zinc500 }}>{t('Presente da malta')}</Text>
         </View>
       </View>
     </View>

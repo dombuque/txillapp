@@ -11,6 +11,7 @@
  *  • o Bombar cria primeiro a campanha em rascunho, compra o produto do pacote e manda o verify com o `campaignId`.
  */
 
+import { t } from '@/lib/i18n';
 export type IapPlatform = 'ios' | 'android';
 export type IapChannel = 'beta' | 'play' | 'appstore' | 'web';
 
@@ -68,12 +69,12 @@ export type IapEntitlement =
  */
 export function doneMessage(e: IapEntitlement | undefined, ok: string): { ok: boolean; text: string } {
   if (e?.kind === 'verification' && e.active === false) {
-    return { ok: false, text: e.status === 'refunded' || e.status === 'revoked' ? 'Esta subscrição foi reembolsada ou cancelada pela loja: o selo azul não fica ativo.' : 'A compra foi confirmada, mas a subscrição já terminou. Para voltar a ter o selo azul, subscreve outra vez.' };
+    return { ok: false, text: e.status === 'refunded' || e.status === 'revoked' ? t('Esta subscrição foi reembolsada ou cancelada pela loja: o selo azul não fica ativo.') : t('A compra foi confirmada, mas a subscrição já terminou. Para voltar a ter o selo azul, subscreve outra vez.') };
   }
   if (e?.kind === 'boost' && !e.campaignId) {
-    return { ok: false, text: 'A compra foi confirmada, mas não ficou ligada a nenhuma campanha (o rascunho já tinha expirado). Escreve-nos para suporte@txillapp.com antes de voltares a comprar.' };
+    return { ok: false, text: t('A compra foi confirmada, mas não ficou ligada a nenhuma campanha (o rascunho já tinha expirado). Escreve-nos para suporte@txillapp.com antes de voltares a comprar.') };
   }
-  if (e?.kind === 'boost' && e.campaignState === 'scheduled') return { ok: true, text: 'Pago! A campanha começa na data marcada e já aparece em Ativas.' };
+  if (e?.kind === 'boost' && e.campaignState === 'scheduled') return { ok: true, text: t('Pago! A campanha começa na data marcada e já aparece em Ativas.') };
   return { ok: true, text: ok };
 }
 
@@ -166,12 +167,12 @@ export function classifyIapError(e: unknown): IapErrorKind {
 export function iapMessage(kind: IapErrorKind | 'verify-failed' | 'retry'): string | null {
   switch (kind) {
     case 'cancelled': return null;
-    case 'pending': return 'A compra está à espera de aprovação (por exemplo, de quem gere a conta da família). Quando for aprovada, ativamos sozinhos.';
-    case 'network': return 'Sem ligação à internet. A compra ficou guardada e confirmamos quando voltares a ter rede.';
-    case 'retry': return 'Sem ligação à internet. A compra ficou guardada e confirmamos quando voltares a ter rede.';
-    case 'unavailable': return 'A loja não está disponível neste aparelho agora. Confirma que tens sessão iniciada na loja e tenta outra vez.';
-    case 'verify-failed': return 'Pagaste, mas ainda não conseguimos confirmar a compra. Não voltes a comprar: tentamos outra vez sozinhos da próxima vez que abrires a app.';
-    case 'failed': return 'Não deu para concluir a compra. Tenta outra vez.';
+    case 'pending': return t('A compra está à espera de aprovação (por exemplo, de quem gere a conta da família). Quando for aprovada, ativamos sozinhos.');
+    case 'network': return t('Sem ligação à internet. A compra ficou guardada e confirmamos quando voltares a ter rede.');
+    case 'retry': return t('Sem ligação à internet. A compra ficou guardada e confirmamos quando voltares a ter rede.');
+    case 'unavailable': return t('A loja não está disponível neste aparelho agora. Confirma que tens sessão iniciada na loja e tenta outra vez.');
+    case 'verify-failed': return t('Pagaste, mas ainda não conseguimos confirmar a compra. Não voltes a comprar: tentamos outra vez sozinhos da próxima vez que abrires a app.');
+    case 'failed': return t('Não deu para concluir a compra. Tenta outra vez.');
   }
 }
 
@@ -194,11 +195,11 @@ export function httpFailure(e: unknown): { code: number; message?: string } | nu
  */
 export function verifyFailedMessage(code?: number, message?: string): string {
   switch (code) {
-    case 403: return message ?? 'Esta compra não ficou ligada à tua conta. Se a tua identidade ainda não foi aprovada para o selo azul, a compra ficou guardada e o selo aparece quando for aprovada.';
-    case 409: return message ?? 'Esta compra já foi usada. Não voltes a comprar.';
-    case 422: return message ?? 'Esta compra não corresponde a esta campanha. Não voltes a comprar.';
-    case 502: return 'A loja não respondeu. A compra ficou guardada e confirmamos sozinhos daqui a pouco. Não voltes a comprar.';
-    case 503: return 'As compras pela loja estão em pausa. A compra ficou guardada e confirmamos quando voltarem. Não voltes a comprar.';
+    case 403: return message ?? t('Esta compra não ficou ligada à tua conta. Se a tua identidade ainda não foi aprovada para o selo azul, a compra ficou guardada e o selo aparece quando for aprovada.');
+    case 409: return message ?? t('Esta compra já foi usada. Não voltes a comprar.');
+    case 422: return message ?? t('Esta compra não corresponde a esta campanha. Não voltes a comprar.');
+    case 502: return t('A loja não respondeu. A compra ficou guardada e confirmamos sozinhos daqui a pouco. Não voltes a comprar.');
+    case 503: return t('As compras pela loja estão em pausa. A compra ficou guardada e confirmamos quando voltarem. Não voltes a comprar.');
     default: return iapMessage('verify-failed')!;
   }
 }
@@ -227,7 +228,7 @@ export function outcomeMessage(o: IapOutcome): string | null {
       return verifyFailedMessage(o.code, o.message);
     case 'error':
       // O rascunho do Bombar recusado: 503 (compras desligadas) ou a razão do servidor (local bloqueado, pacote…).
-      if (o.code === 503) return 'As compras pela loja estão em pausa. Tenta outra vez mais tarde.';
+      if (o.code === 503) return t('As compras pela loja estão em pausa. Tenta outra vez mais tarde.');
       if (o.code && o.code !== 401 && o.code < 500 && o.message) return o.message;
       return iapMessage(o.kind);
     default:
@@ -323,7 +324,7 @@ export function createIap(deps: IapDeps): Iap {
   }
 
   async function loadCatalog(): Promise<IapCatalog> {
-    if (!platform) throw new Error('Sem loja nesta versão');
+    if (!platform) throw new Error(t('Sem loja nesta versão'));
     catalogCache = await api.catalog(platform);
     return catalogCache;
   }
@@ -366,7 +367,7 @@ export function createIap(deps: IapDeps): Iap {
   }
 
   async function ensure(): Promise<void> {
-    if (!supported) throw Object.assign(new Error('Sem loja nesta versão'), { code: 'iap-not-available' });
+    if (!supported) throw Object.assign(new Error(t('Sem loja nesta versão')), { code: 'iap-not-available' });
     if (!connecting) {
       connecting = (async () => {
         await store.connect();
