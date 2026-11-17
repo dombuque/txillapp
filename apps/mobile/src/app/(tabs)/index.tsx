@@ -42,7 +42,7 @@ function Header() {
     <View style={styles.header}>
       <Pressable onPress={() => { if (navTap('/notifications')) router.push('/notifications'); }} style={[styles.hBtn, { left: 12 }]} accessibilityRole="button" accessibilityLabel={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'}>
         <View>
-          <Icon name="bell" size={26} />
+          <Icon name="bell" size={24} />
           {count > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
@@ -52,7 +52,7 @@ function Header() {
       </Pressable>
       <Wordmark height={32} />
       <Pressable onPress={() => { if (navTap('/search')) router.push('/search'); }} style={[styles.hBtn, { right: 12 }]} accessibilityRole="button" accessibilityLabel="Pesquisar">
-        <Icon name="search" size={26} />
+        <Icon name="search" size={24} />
       </Pressable>
     </View>
   );

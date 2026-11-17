@@ -180,17 +180,17 @@ export default function Search() {
       <View style={styles.bar}>
         <BackButton />
         <View style={styles.field}>
-          <Icon name="search" size={20} color={colors.zinc600} />
+          <Icon name="search" size={18} color={colors.zinc600} />
           <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
-          {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
+          {text ? <Pressable onPress={() => setText('')} hitSlop={8} style={{ paddingHorizontal: 6 }} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc600} /></Pressable> : null}
           {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
-          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={20} color={colors.zinc700} /></Pressable>
+          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={18} color={colors.zinc700} /></Pressable>
           <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
         {focusMode ? (
           <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Cancelar</Text></Pressable>
         ) : (
-          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={26} color={colors.zinc900} /></Pressable>
+          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={24} color={colors.zinc900} /></Pressable>
         )}
       </View>
 
@@ -219,7 +219,7 @@ export default function Search() {
         {!focusMode && !searching && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={20} /></Pressable>
+              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={18} /></Pressable>
               {[{ id: null as string | null, label: 'Para ti' }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: t.label }))].map((t) => (
                 <Pressable key={t.id ?? 'fy'} onPress={() => setTopic(t.id)} accessibilityRole="tab" accessibilityState={{ selected: topic === t.id }} style={[chipBase, { backgroundColor: topic === t.id ? colors.zinc900 : colors.zinc100 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: topic === t.id ? '#fff' : colors.zinc800 }}>{t.label}</Text>

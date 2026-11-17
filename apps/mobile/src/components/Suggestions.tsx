@@ -29,7 +29,7 @@ export function Suggestions() {
         {data.map((p) => (
           <View key={p.username} style={st.item}>
             <Pressable onPress={() => dismiss(p)} hitSlop={6} style={st.close} accessibilityRole="button" accessibilityLabel={`Não sugerir ${p.displayName}`}>
-              <Icon name="x" size={14} color={colors.zinc500} strokeWidth={2.4} />
+              <Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} />
             </Pressable>
             <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={{ width: '100%', alignItems: 'center' }} accessibilityRole="link">
               <Avatar name={p.displayName} username={p.username} size={64} />

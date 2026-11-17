@@ -187,8 +187,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
               <Text style={styles.askTitle} numberOfLines={1}>{ask.title}</Text>
               <Text style={styles.askHint}>{ask.hint}</Text>
             </View>
-            <Pressable onPress={() => onGift(c, ask.amount, ask.note)} style={styles.askBtn}><Text style={styles.askBtnText}>Presentear</Text></Pressable>
-            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityLabel="Dispensar sugestão"><Icon name="x" size={16} color={colors.zinc500} /></Pressable>
+            <Pressable onPress={() => onGift(c, ask.amount, ask.note)} style={styles.askBtn} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a ${c.author.displayName}`}><Text style={styles.askBtnText}>Oferecer</Text></Pressable>
+            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityRole="button" accessibilityLabel="Dispensar sugestão"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
         <View style={styles.links}>
@@ -207,7 +207,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       </View>
       {desktop ? (
         <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções do comentário" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
-          <Icon name="more" size={18} strokeWidth={2.6} color={colors.zinc600} />
+          <Icon name="more" size={18} color={colors.zinc600} />
         </Pressable>
       ) : null}
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
@@ -396,14 +396,14 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
       {!post.canComment && post.author.id !== user?.id ? (
         <View style={styles.off}>
           <Icon name="bell-off" size={16} color={colors.zinc600} />
-          <Text style={styles.offText}>{post.author.displayName} desativou os comentários nesta publicação.</Text>
+          <Text style={styles.offText}><Text style={{ fontWeight: '700' }}>{post.author.displayName}</Text><InlineBadge who={post.author} fontSize={14} /> desativou os comentários nesta publicação.</Text>
         </View>
       ) : (
         <KeyboardAvoidingView behavior="padding" style={styles.bar}>
           {replyTo && (
             <View style={styles.replying}>
               <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text><InlineBadge who={replyTo.author} fontSize={14} /></Text>
-              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityLabel="Cancelar resposta"><Text style={{ fontSize: 18, color: colors.zinc600, paddingHorizontal: 8 }}>×</Text></Pressable>
+              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancelar resposta" style={{ paddingHorizontal: 8 }}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
             </View>
           )}
           {typing.length > 0 && (
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: 16, color: colors.zinc500, textAlign: 'center', paddingVertical: 20 },
   emptyTitle: { marginTop: 8, fontSize: 18, fontWeight: '700', color: colors.zinc900 },
   off: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingHorizontal: 16, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  offText: { color: colors.zinc600, textAlign: 'center', flexShrink: 1 },
+  offText: { fontSize: 14, color: colors.zinc600, textAlign: 'center', flexShrink: 1 },
   bar: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingBottom: 4 },
   replying: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 8 },
   replyingText: { fontSize: 14, color: colors.zinc600 },

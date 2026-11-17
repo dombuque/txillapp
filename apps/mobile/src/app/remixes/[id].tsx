@@ -6,6 +6,7 @@ import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { DuetGlyph } from '@/components/remix/RemixParts';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { StackPage } from '@/components/StackPage';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { remixApi } from '@/lib/api.remix';
@@ -42,7 +43,7 @@ export default function RemixesPage() {
       <Pressable onPress={() => router.push(`/p/${item.id}` as never)} style={{ width: side, height: side * (16 / 9) * 0.75, margin: 1 }} accessibilityRole="link" accessibilityLabel={`${item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'} de @${item.author.username}`}>
         {poster ? <Image source={{ uri: abs(poster) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc800 }]} />}
         <View style={st.badge}>{item.remixOf?.kind === 'reply' ? <Icon name="reply" size={12} color="#fff" /> : <DuetGlyph size={14} />}<Text style={st.badgeText}>{item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'}</Text></View>
-        <Text style={st.who} numberOfLines={1}>@{item.author.username}</Text>
+        <NameWithBadge name={`@${item.author.username}`} who={item.author} style={st.who} containerStyle={st.whoRow} />
       </Pressable>
     );
   };
@@ -63,7 +64,7 @@ export default function RemixesPage() {
                 {p.media[0]?.posterUrl || p.media[0]?.kind === 'image' ? <Image source={{ uri: abs(p.media[0].posterUrl ?? p.media[0].url) }} style={st.origThumb} contentFit="cover" /> : <View style={[st.origThumb, { backgroundColor: colors.zinc200 }]} />}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={st.origTitle} numberOfLines={1}>{p.body || `Tcheka de @${p.author.username}`}</Text>
-                  <Text style={st.origSub} numberOfLines={1}>@{p.author.username} · {remixCount(p.remixes ?? items.length)}</Text>
+                  <NameWithBadge name={`@${p.author.username}`} who={p.author} style={st.origSub}><Text style={[st.origSub, { flexShrink: 0 }]}>· {remixCount(p.remixes ?? items.length)}</Text></NameWithBadge>
                 </View>
               </Pressable>
             ) : null}
@@ -106,7 +107,8 @@ const st = StyleSheet.create({
   tabText: { color: colors.zinc800, fontSize: 14, fontWeight: '700' },
   badge: { position: 'absolute', left: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  who: { position: 'absolute', left: 6, right: 6, bottom: 6, color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 },
+  whoRow: { position: 'absolute', left: 6, right: 6, bottom: 6 },
+  who: { color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32, gap: 6 },
   emptyTitle: { color: colors.zinc900, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   emptyText: { color: colors.zinc500, fontSize: 14, textAlign: 'center' },

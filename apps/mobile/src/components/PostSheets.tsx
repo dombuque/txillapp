@@ -30,7 +30,7 @@ const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
   { value: 'silent', icon: 'eye-off', title: 'Discreto', text: 'Só o presente. Sem mensagem, sem post.' },
   { value: 'private', icon: 'mail', title: 'No privado', text: 'Uma mensagem que só a pessoa vê.' },
-  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Post "presenteou" para a malta ver.' },
+  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Uma publicação no feed para a malta ver.' },
 ];
 
 export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
@@ -56,7 +56,7 @@ export function MenuRow({ icon, title, text, onPress, disabled }: { icon: ReactN
   );
 }
 
-/** Presentear com Txills: discreto, no privado ou no feed (igual ao do site). */
+/** Oferecer vibes: discreto, no privado ou no feed (igual ao do site). */
 export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: { username: string; displayName: string }; postId?: string; preset?: { amount?: number; note?: string; visibility?: 'silent' | 'private' | 'public' }; onClose: () => void }) {
   const qc = useQueryClient();
   const [amount, setAmount] = useState(preset?.amount && AMOUNTS.includes(preset.amount) ? preset.amount : 10);
@@ -106,7 +106,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
     return (
       <Sheet title="Presente enviado" onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.sentText}>Mandaste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
+          <Text style={styles.sentText}>Ofereceste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
           {sent.published ? <Text style={[styles.sentText, { color: colors.green700, fontSize: 16 }]}>Já está no feed.</Text> : (
             <Pressable onPress={() => void publishNow()} disabled={publishing} style={styles.ghost}><Text style={styles.ghostText}>{publishing ? 'A publicar…' : 'Publicar no feed agora'}</Text></Pressable>
           )}
@@ -118,7 +118,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
   }
 
   return (
-    <Sheet title={`Presentear ${name}`} onClose={onClose}>
+    <Sheet title={`Oferecer vibes a ${name}`} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
           {AMOUNTS.map((v) => {
@@ -147,7 +147,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
           <TextInput value={note} onChangeText={(t) => { setNote(t); fresh(); }} maxLength={280} multiline placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 16, minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel="Mensagem" />
         )}
         <Text style={styles.err} accessibilityRole="alert">{err}</Text>
-        <Pressable disabled={busy} onPress={() => void send()} style={[styles.primary, { height: 56 }, busy && { opacity: 0.5 }]}><Text style={[styles.primaryText, { fontSize: 18 }]}>{busy ? 'A enviar…' : `Mandar ${formatVibes(Number(custom || amount))}`}</Text></Pressable>
+        <Pressable disabled={busy} onPress={() => void send()} style={[styles.primary, { height: 56 }, busy && { opacity: 0.5 }]}><Text style={[styles.primaryText, { fontSize: 18 }]}>{busy ? 'A enviar…' : `Oferecer ${formatVibes(Number(custom || amount))}`}</Text></Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
     </Sheet>

@@ -113,7 +113,7 @@ export default function ReelPrefs() {
   const filled = (t: T, onX: () => void) => (
     <View key={t.id} style={[st.chip, { backgroundColor: colors.zinc100 }]}>
       <Text style={st.chipText}>{t.label}</Text>
-      <Pressable onPress={onX} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar ${t.label}`} style={{ marginRight: -4 }}><Icon name="x" size={16} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
+      <Pressable onPress={onX} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar ${t.label}`} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
     </View>
   );
   const outline = (key: string, text: string, onPress: () => void) => (
@@ -164,7 +164,7 @@ export default function ReelPrefs() {
           {(people.data ?? []).map((p) => (
             <View key={p.username} style={[st.chip, { backgroundColor: p.pref > 0 ? colors.rose50 : colors.zinc100 }]}>
               <Text style={st.chipText}>{p.pref > 0 ? 'Mais' : 'Menos'} · @{p.username}</Text>
-              <Pressable onPress={() => void removePerson(p.username)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar @${p.username}`} style={{ marginRight: -4 }}><Icon name="x" size={16} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
+              <Pressable onPress={() => void removePerson(p.username)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar @${p.username}`} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
             </View>
           ))}
         </View>
@@ -186,7 +186,7 @@ export default function ReelPrefs() {
         {picking === 'less' && allTopics((id) => { void set(id, -1); setPicking(null); })}
 
         <Pressable onPress={() => void reset()} disabled={busy} style={[st.reset, busy && { opacity: 0.6 }]} accessibilityRole="button"><Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc800 }}>Repor o algoritmo</Text></Pressable>
-        <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Apaga as tuas escolhas e o "Interessado / Não interessado" que deste.</Text>
+        <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Apaga as tuas escolhas e o «Interessado / Não interessado» que deste.</Text>
       </ScrollView>
     </StackPage>
   );

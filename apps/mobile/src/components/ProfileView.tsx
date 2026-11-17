@@ -292,13 +292,13 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {p.isMe ? (
         <View style={[styles.topMe, deskCol]}>
           <Text style={styles.handleTop}>@{p.username}</Text>
-          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={26} strokeWidth={2} /></Pressable>
+          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={24} strokeWidth={2} /></Pressable>
         </View>
       ) : (
         <View style={[styles.topOther, deskCol]}>
           <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
-          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
+          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} /></Pressable>
         </View>
       )}
 
@@ -390,7 +390,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                 <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} style={styles.rowFollow} />
                 {p.following && (
                   // Só o ícone, como os outros da fila (com o texto ficava «Pr…» cortado).
-                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Presentear ${p.displayName}`}>
+                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a ${p.displayName}`}>
                     <Icon name="gift" size={ROW_ICON} />
                   </Pressable>
                 )}
