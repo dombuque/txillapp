@@ -14,6 +14,7 @@ import { StickerArt } from '../../Stickers';
 import { CapulanaSticker } from '../CapulanaSticker';
 import { CapulanaSwatch } from '../CapulanaSwatch';
 import type { ClockStore } from './clockStore';
+import { t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 const HIDDEN: AnimFrame = { visible: false, alpha: 0, dx: 0, dy: 0, scale: 1, rot: 0, chars: 1, glow: 0, wave: 0 };
@@ -106,7 +107,7 @@ interface Drag { dx: number; dy: number; ds: number; dr: number }
 const NO_DRAG: Drag = { dx: 0, dy: 0, ds: 1, dr: 0 };
 
 /** Uma camada no palco: o desenho, na posição e com a animação do instante `t`, e os gestos para a mexer. */
-function OverlayItem({ o, f, t, W, H, selected, locked, onSelect, onEdit, onCommit, onGuides }: {
+function OverlayItem({ o, f, t: tv, W, H, selected, locked, onSelect, onEdit, onCommit, onGuides }: {
   o: Overlay; f: AnimFrame; t: number; W: number; H: number; selected: boolean; locked: boolean;
   onSelect: (id: string) => void; onEdit: (id: string) => void; onCommit: (o: Overlay) => void; onGuides: (g: { vx: number | null; hy: number | null } | null) => void;
 }) {
@@ -151,10 +152,10 @@ function OverlayItem({ o, f, t, W, H, selected, locked, onSelect, onEdit, onComm
         transform: [{ translateX: -size.w / 2 + f.dx * k }, { translateY: -size.h / 2 + f.dy * k }, { rotate: `${o.rot + f.rot + drag.dr}deg` }, { scale }],
       }, selected && !locked && st.selected]}
       accessibilityRole="button"
-      accessibilityLabel={o.kind === 'text' ? `Texto: ${o.text}` : 'Sticker'}
-      accessibilityHint="Arrasta para mudar de sítio; com dois dedos, roda e muda o tamanho"
+      accessibilityLabel={o.kind === 'text' ? t('Texto: {text}', { text: o.text }) : t('Sticker')}
+      accessibilityHint={t('Arrasta para mudar de sítio; com dois dedos, roda e muda o tamanho')}
     >
-      {o.kind === 'text' ? <TextBody o={o} f={f} k={k} t={t} /> : <StickerBody o={o} k={k} />}
+      {o.kind === 'text' ? <TextBody o={o} f={f} k={k} t={tv} /> : <StickerBody o={o} k={k} />}
     </View>
   );
   return (

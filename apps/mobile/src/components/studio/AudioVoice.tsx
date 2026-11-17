@@ -10,6 +10,7 @@ import { beep, monoOf, sliceBuffer, voiceRecorderType, type StudioGraph } from '
 import { peaks, voiceActivity, type VoiceTake } from '@/lib/studio/audioMix';
 import { fmtS, MIN_VOICE_S } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const CORAL = colors.brand;
@@ -113,13 +114,13 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
     if (locked || phase !== 'idle') return;
     setErr('');
     const g = ctl.graph();
-    if (!g || typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) { setErr('Este browser não deixa gravar a voz'); return; }
+    if (!g || typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) { setErr(t('Este browser não deixa gravar a voz')); return; }
     setPhase('asking');
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     } catch {
-      if (alive.current) { setPhase('idle'); setErr('Sem acesso ao microfone. Dá licença ao Txillapp nas definições do browser.'); }
+      if (alive.current) { setPhase('idle'); setErr(t('Sem acesso ao microfone. Dá licença ao Txillapp nas definições do browser.')); }
       return;
     }
     if (!alive.current) { stream.getTracks().forEach((t) => t.stop()); return; }
@@ -147,7 +148,7 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
     } catch { l.src = null; l.an = null; }
     const type = voiceRecorderType();
     let rec: MediaRecorder;
-    try { rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 128_000 } : undefined); } catch { release(); setPhase('idle'); setErr('Não consegui gravar a voz'); return; }
+    try { rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 128_000 } : undefined); } catch { release(); setPhase('idle'); setErr(t('Não consegui gravar a voz')); return; }
     l.rec = rec;
     rec.ondataavailable = (e) => { if (e.data.size) l.chunks.push(e.data); };
     const done = new Promise<Blob>((res) => { rec.onstop = () => res(new Blob(l.chunks, { type: (rec.mimeType || type || 'audio/webm').split(';')[0] })); });
@@ -226,7 +227,7 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
       setPhase('idle');
     } catch {
       setPhase('idle');
-      setErr('A gravação ficou vazia ou curta demais. Tenta outra vez.');
+      setErr(t('A gravação ficou vazia ou curta demais. Tenta outra vez.'));
     }
   }
 
@@ -247,10 +248,10 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
         {phase === 'rec' ? (
           <View style={st.recPill} accessibilityLiveRegion="polite">
             <View style={st.recDot} />
-            <Text style={st.recText}>A gravar · {mmss(elapsed)} / {mmss(limit)}</Text>
+            <Text style={st.recText}>{t('A gravar · {mmss} / {mmss2}', { mmss: mmss(elapsed), mmss2: mmss(limit) })}</Text>
           </View>
-        ) : <Text style={st.hudHint}>{phase === 'asking' ? 'A pedir o microfone…' : 'Prepara-te para falar'}</Text>}
-        {box ? null : <Text style={st.hudSub}>Usa auscultadores: assim a música não entra na voz</Text>}
+        ) : <Text style={st.hudHint}>{phase === 'asking' ? t('A pedir o microfone…') : t('Prepara-te para falar')}</Text>}
+        {box ? null : <Text style={st.hudSub}>{t('Usa auscultadores: assim a música não entra na voz')}</Text>}
       </View>,
       phase === 'count' ? (
         <View style={st.countWrap} key="count" pointerEvents="none">
@@ -261,16 +262,16 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
         {phase === 'rec' ? dom('canvas', { ref: (el: HTMLCanvasElement | null) => { liveCanvas.current = el; }, style: { width: '100%', maxWidth: 520, height: 46, display: 'block', margin: '0 auto' }, 'aria-hidden': true }) : null}
         {phase === 'rec' ? (
           <View style={st.hudBtns}>
-            <Pressable onPress={cancelNow} style={st.hudCancel} accessibilityRole="button" accessibilityLabel="Cancelar a gravação"><Text style={st.hudCancelText}>Cancelar</Text></Pressable>
-            <Pressable onPress={stopNow} style={st.stopBtn} accessibilityRole="button" accessibilityLabel="Parar a gravação da voz-off">
+            <Pressable onPress={cancelNow} style={st.hudCancel} accessibilityRole="button" accessibilityLabel={t('Cancelar a gravação')}><Text style={st.hudCancelText}>{t('Cancelar')}</Text></Pressable>
+            <Pressable onPress={stopNow} style={st.stopBtn} accessibilityRole="button" accessibilityLabel={t('Parar a gravação da voz-off')}>
               <View style={st.stopSquare} />
             </Pressable>
             <View style={{ width: 86 }} />
           </View>
         ) : (
-          <Pressable onPress={cancelNow} style={[st.hudCancel, { alignSelf: 'center' }]} accessibilityRole="button" accessibilityLabel="Cancelar a gravação"><Text style={st.hudCancelText}>Cancelar</Text></Pressable>
+          <Pressable onPress={cancelNow} style={[st.hudCancel, { alignSelf: 'center' }]} accessibilityRole="button" accessibilityLabel={t('Cancelar a gravação')}><Text style={st.hudCancelText}>{t('Cancelar')}</Text></Pressable>
         )}
-        {box ? <Text style={[st.hudSub, { textAlign: 'center' }]}>Usa auscultadores: assim a música não entra na voz</Text> : null}
+        {box ? <Text style={[st.hudSub, { textAlign: 'center' }]}>{t('Usa auscultadores: assim a música não entra na voz')}</Text> : null}
       </View>,
     )) as ReactNode,
     document.body,
@@ -282,13 +283,13 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
       {overlay}
       {!take ? (
         <View style={st.empty}>
-          <Pressable onPress={() => void start()} disabled={locked || phase !== 'idle'} style={({ pressed }) => [st.micBig, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel="Gravar voz-off">
+          <Pressable onPress={() => void start()} disabled={locked || phase !== 'idle'} style={({ pressed }) => [st.micBig, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={t('Gravar voz-off')}>
             <Icon name="mic" size={30} color="#fff" strokeWidth={2.2} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={st.title}>Gravar voz-off</Text>
-            <Text style={st.sub}>Fala por cima da tcheka a tocar, a partir de {mmss(ctl.nowT() >= ctl.total - 1 ? 0 : ctl.nowT())}. Contagem de 3 s antes de começar.</Text>
-            <Text style={st.sub}>Com {MIN_VOICE_S} s ou mais, a voz-off conta como o som da tcheka.</Text>
+            <Text style={st.title}>{t('Gravar voz-off')}</Text>
+            <Text style={st.sub}>{t('Fala por cima da tcheka a tocar, a partir de {mmss}. Contagem de 3 s antes de começar.', { mmss: mmss(ctl.nowT() >= ctl.total - 1 ? 0 : ctl.nowT()) })}</Text>
+            <Text style={st.sub}>{t('Com {minVoiceS} s ou mais, a voz-off conta como o som da tcheka.', { minVoiceS: MIN_VOICE_S })}</Text>
           </View>
         </View>
       ) : (
@@ -296,24 +297,24 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
           <View style={st.takeHead}>
             <View style={st.badge}><Icon name="mic" size={14} color="#fff" strokeWidth={2.2} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={st.title}>Voz-off · {fmtS(take.duration)} s</Text>
-              <Text style={st.sub}>Entra aos {fmtS(take.at)} s{hasVoiceSound ? ' · conta como som' : ` · grava ${MIN_VOICE_S} s para contar como som`}</Text>
+              <Text style={st.title}>{t('Voz-off · {s} s', { s: fmtS(take.duration) })}</Text>
+              <Text style={st.sub}>{t('Entra aos {s} s', { s: fmtS(take.at) })}{hasVoiceSound ? (' ' + t('· conta como som')) : (' ' + t('· grava {minVoiceS} s para contar como som', { minVoiceS: MIN_VOICE_S }))}</Text>
             </View>
-            <Pressable onPress={() => { ctl.play(take.at); }} disabled={locked} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Ouvir a voz-off"><Icon name="play" size={16} color="#fff" solid /></Pressable>
-            <Pressable onPress={() => void start()} disabled={locked || phase !== 'idle'} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Regravar a voz-off"><Icon name="repeat" size={16} color="#fff" strokeWidth={2.2} /></Pressable>
-            <Pressable onPress={onDelete} disabled={locked} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Apagar a voz-off"><Icon name="trash" size={16} color="#fecaca" strokeWidth={2.2} /></Pressable>
+            <Pressable onPress={() => { ctl.play(take.at); }} disabled={locked} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Ouvir a voz-off')}><Icon name="play" size={16} color="#fff" solid /></Pressable>
+            <Pressable onPress={() => void start()} disabled={locked || phase !== 'idle'} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Regravar a voz-off')}><Icon name="repeat" size={16} color="#fff" strokeWidth={2.2} /></Pressable>
+            <Pressable onPress={onDelete} disabled={locked} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Apagar a voz-off')}><Icon name="trash" size={16} color="#fecaca" strokeWidth={2.2} /></Pressable>
           </View>
-          {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { takeCanvas.current = el; if (el && take) requestAnimationFrame(() => drawPeaks(el, take.peaks, coralGrad)); }, style: { width: 'calc(100% - 28px)', height: 44, display: 'block', margin: '6px 14px 0' }, 'aria-label': 'Onda da voz-off' })}
+          {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { takeCanvas.current = el; if (el && take) requestAnimationFrame(() => drawPeaks(el, take.peaks, coralGrad)); }, style: { width: 'calc(100% - 28px)', height: 44, display: 'block', margin: '6px 14px 0' }, 'aria-label': t('Onda da voz-off') })}
           <View style={st.volRow}>
-            <Text style={st.volLabel}>Volume</Text>
+            <Text style={st.volLabel}>{t('Volume')}</Text>
             <View style={{ flex: 1 }}>
-              <RangeSlider label="Volume da voz-off" value={Math.round(take.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onVolume(v / 100)} />
+              <RangeSlider label={t('Volume da voz-off')} value={Math.round(take.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onVolume(v / 100)} />
             </View>
             <Text style={st.volVal}>{Math.round(take.volume * 100)}%</Text>
           </View>
         </View>
       )}
-      {phase === 'saving' ? <Text style={st.info}>A preparar a voz…</Text> : null}
+      {phase === 'saving' ? <Text style={st.info}>{t('A preparar a voz…')}</Text> : null}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
     </View>
   );

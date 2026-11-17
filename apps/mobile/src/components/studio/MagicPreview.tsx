@@ -3,6 +3,7 @@ import { Image, Platform, StyleSheet, View, type StyleProp, type ViewStyle } fro
 import { coverRect, type MagicClip, type MagicResult, type MagicText } from '@/lib/studio/magic';
 import { drawCapulanaFrame, drawCapulanaText, drawCapulanaTransition } from '@/lib/studio/capulanaRender';
 import { isCapulanaTransition } from '@/lib/studio/capulanaShapes';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 540, H = 960;
@@ -201,7 +202,7 @@ export function MagicPreview({ result, playing, musicUrl, onClip, style }: { res
   }
   return (
     <View style={[st.box, style]}>
-      {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { ref.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da montagem', style: { width: '100%', height: '100%', display: 'block', backgroundColor: '#000' } })}
+      {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { ref.current = el; }, width: W, height: H, 'aria-label': t('Pré-visualização da montagem'), style: { width: '100%', height: '100%', display: 'block', backgroundColor: '#000' } })}
     </View>
   );
 }

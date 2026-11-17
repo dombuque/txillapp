@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { peaks as peaksOf, type Region, type VoiceTake } from '@/lib/studio/audioMix';
 import { fmtS, MIN_VOICE_S } from '@/lib/tchekaRules';
 import { RangeSlider } from '../../RangeSlider';
+import { t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 /** Um bocado com voz: acima de -38 dB (o medidor do gravador), em blocos de 0,1 s; falhas de menos de 0,35 s juntam-se. */
@@ -62,7 +63,7 @@ export function NativeVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
     if (locked || phase !== 'idle') return;
     setErr('');
     const p = await requestRecordingPermissionsAsync().catch(() => null);
-    if (!p?.granted) { setErr('Sem licença para o microfone. Ativa-a nas definições do telemóvel.'); return; }
+    if (!p?.granted) { setErr(t('Sem licença para o microfone. Ativa-a nas definições do telemóvel.')); return; }
     let n = 3;
     setCount(n);
     setPhase('count');
@@ -103,7 +104,7 @@ export function NativeVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
       timers.current.push(iv);
     } catch {
       setPhase('idle');
-      setErr('Não consegui abrir o microfone.');
+      setErr(t('Não consegui abrir o microfone.'));
       void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     }
   }
@@ -119,14 +120,14 @@ export function NativeVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
       await recorder.stop();
       const uri = recorder.uri;
       const duration = Math.max(0, Math.min(ctl.total - at.current, (status.durationMillis ?? secs * 1000) / 1000));
-      if (!uri || duration < 0.5) { setErr('A gravação ficou curta demais. Tenta outra vez.'); return; }
+      if (!uri || duration < 0.5) { setErr(t('A gravação ficou curta demais. Tenta outra vez.')); return; }
       const lin = levels.current.map((db) => Math.pow(10, Math.max(-60, db) / 20));
       onTake({
         id: `voz-${Date.now().toString(36)}`, at: at.current, duration: Math.round(duration * 1000) / 1000, volume: take?.volume ?? 1, fx: take?.fx ?? 'normal',
         regions: regionsFromLevels(levels.current), peaks: peaksOf(lin, Math.max(8, Math.min(240, Math.round(duration * 20)))), uri, mime: 'audio/mp4',
       });
     } catch {
-      setErr('Não consegui guardar a gravação.');
+      setErr(t('Não consegui guardar a gravação.'));
     } finally {
       setPhase('idle');
       void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
@@ -141,26 +142,26 @@ export function NativeVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
         disabled={locked || phase === 'saving' || phase === 'count'}
         style={({ pressed }) => [st.rec, phase === 'rec' && st.recOn, (locked || phase === 'saving') && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.97 }] }]}
         accessibilityRole="button"
-        accessibilityLabel={phase === 'rec' ? 'Parar de gravar' : take ? 'Gravar a voz-off outra vez' : 'Gravar a voz-off'}
+        accessibilityLabel={phase === 'rec' ? t('Parar de gravar') : take ? t('Gravar a voz-off outra vez') : t('Gravar a voz-off')}
       >
         {phase === 'rec' ? <Square size={20} color="#fff" fill="#fff" /> : <Mic size={22} color="#fff" />}
         <Text style={st.recText}>
-          {phase === 'count' ? `A gravar daqui a ${count}…` : phase === 'rec' ? `A gravar · ${fmtS(secs)} s · toca para parar` : phase === 'saving' ? 'A guardar…' : take ? 'Gravar outra vez' : 'Gravar a voz-off'}
+          {phase === 'count' ? t('A gravar daqui a {total}…', { total: count }) : phase === 'rec' ? t('A gravar · {s} s · toca para parar', { s: fmtS(secs) }) : phase === 'saving' ? t('A guardar…') : take ? t('Gravar outra vez') : t('Gravar a voz-off')}
         </Text>
       </Pressable>
       {phase === 'count' ? <Text style={st.count} accessibilityLiveRegion="assertive">{count}</Text> : null}
       {phase === 'rec' ? <View style={st.meter}><View style={[st.meterFill, { width: `${Math.round(level * 100)}%` }]} /></View> : null}
-      {!busy ? <Text style={st.note}>A gravação começa onde está a pré-visualização e vai até ao fim da tcheka (ou até tocares outra vez). Com {MIN_VOICE_S} s ou mais, a voz-off conta como o som da tcheka.</Text> : null}
+      {!busy ? <Text style={st.note}>{t('A gravação começa onde está a pré-visualização e vai até ao fim da tcheka (ou até tocares outra vez). Com {minVoiceS} s ou mais, a voz-off conta como o som da tcheka.', { minVoiceS: MIN_VOICE_S })}</Text> : null}
       {take && !busy ? (
         <View style={st.card}>
           <View style={st.wave}>
             {take.peaks.map((v, i) => <View key={i} style={[st.bar, { height: Math.max(2, v * 34) }]} />)}
           </View>
-          <Text style={st.note}>Dos {fmtS(take.at)} aos {fmtS(take.at + take.duration)} s · muda o sítio na linha do tempo</Text>
-          <RangeSlider label="Volume da voz-off" value={Math.round(take.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onVolume(v / 100)} />
-          <Pressable onPress={onDelete} disabled={locked} style={st.del} accessibilityRole="button" accessibilityLabel="Apagar a voz-off">
+          <Text style={st.note}>{t('Dos {s} aos {s2} s · muda o sítio na linha do tempo', { s: fmtS(take.at), s2: fmtS(take.at + take.duration) })}</Text>
+          <RangeSlider label={t('Volume da voz-off')} value={Math.round(take.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => onVolume(v / 100)} />
+          <Pressable onPress={onDelete} disabled={locked} style={st.del} accessibilityRole="button" accessibilityLabel={t('Apagar a voz-off')}>
             <Trash2 size={18} color="#fecaca" />
-            <Text style={[st.recText, { color: '#fecaca' }]}>Apagar a voz-off</Text>
+            <Text style={[st.recText, { color: '#fecaca' }]}>{t('Apagar a voz-off')}</Text>
           </Pressable>
         </View>
       ) : null}

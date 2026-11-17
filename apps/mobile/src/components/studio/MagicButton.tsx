@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { Icon } from '../Icon';
 import { CORAL_GRADIENT, mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 /**
  * O botão «Montagem mágica» do estúdio (56 px de altura, à largura que o pai der). `hint` explica porque está desligado
@@ -15,16 +16,16 @@ export function MagicButton({ onPress, disabled, hint }: { onPress: () => void; 
       disabled={disabled}
       testID="montagem-magica"
       accessibilityRole="button"
-      accessibilityLabel="Montagem mágica"
-      accessibilityHint={hint ?? 'Um toque e a tcheka fica feita'}
+      accessibilityLabel={t('Montagem mágica')}
+      accessibilityHint={hint ?? t('Um toque e a tcheka fica feita')}
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [st.btn, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]}
     >
       <LinearGradient colors={CORAL_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <View style={st.icon}><Icon name="cam-magic" size={24} color={mg.coral} strokeWidth={2.3} /></View>
       <View style={{ flex: 1 }}>
-        <Text style={st.label} numberOfLines={1}>Montagem mágica</Text>
-        <Text style={st.sub} numberOfLines={1}>{hint ?? 'Um toque e a tcheka fica feita'}</Text>
+        <Text style={st.label} numberOfLines={1}>{t('Montagem mágica')}</Text>
+        <Text style={st.sub} numberOfLines={1}>{hint ?? t('Um toque e a tcheka fica feita')}</Text>
       </View>
       <View><ChevronRight size={22} color="#fff" /></View>
     </Pressable>

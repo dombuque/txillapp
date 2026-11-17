@@ -2,10 +2,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { TEMPLATES, type Template } from '@/lib/studio/audioMix';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const CORAL = colors.brand;
 const TRANSITION: Record<Template['transition'], string> = { none: 'seco', fade: 'fundir', slide: 'deslizar' };
-const START: Record<Template['start'], string> = { forte: 'refrão', subida: 'subida', calmo: 'parte calma', inicio: 'início' };
+const START: Record<Template['start'], string> = { get forte() { return t('refrão'); }, subida: 'subida', get calmo() { return t('parte calma'); }, get inicio() { return t('início'); } };
 
 /** O desenho do ritmo de um molde: uma barra por corte, com a largura da duração. */
 function Pattern({ t, on }: { t: Template; on: boolean }) {
@@ -34,27 +35,27 @@ export function AudioTemplates({ applied, onApply, onFit, canFit, fitNote, hasMu
 }) {
   return (
     <View style={{ paddingBottom: 6 }}>
-      <Pressable onPress={onFit} disabled={disabled || !canFit} style={({ pressed }) => [st.fit, (!canFit || disabled) && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityLabel="Ajustar ao ritmo" accessibilityHint={fitNote}>
+      <Pressable onPress={onFit} disabled={disabled || !canFit} style={({ pressed }) => [st.fit, (!canFit || disabled) && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityLabel={t('Ajustar ao ritmo')} accessibilityHint={fitNote}>
         <View style={st.fitIcon}><Icon name="waves" size={18} color="#fff" strokeWidth={2.2} /></View>
         <View style={{ flex: 1 }}>
-          <Text style={st.fitText}>Ajustar ao ritmo</Text>
+          <Text style={st.fitText}>{t('Ajustar ao ritmo')}</Text>
           <Text style={st.fitSub} numberOfLines={2}>{fitNote}</Text>
         </View>
         <Icon name="bolt" size={18} color="#ffd60a" strokeWidth={2.2} />
       </Pressable>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} accessibilityLabel="Moldes de ritmo">
-        {TEMPLATES.map((t) => {
-          const on = applied === t.id;
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} accessibilityLabel={t('Moldes de ritmo')}>
+        {TEMPLATES.map((template) => {
+          const on = applied === template.id;
           return (
-            <Pressable key={t.id} onPress={() => onApply(t)} disabled={disabled} style={({ pressed }) => [st.card, on && st.cardOn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Molde ${t.name}: ${t.desc}`}>
+            <Pressable key={template.id} onPress={() => onApply(template)} disabled={disabled} style={({ pressed }) => [st.card, on && st.cardOn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={t('Molde {name}: {desc}', { name: template.name, desc: template.desc })}>
               <View style={st.cardHead}>
-                <Text style={st.name}>{t.name}</Text>
+                <Text style={st.name}>{template.name}</Text>
                 {on ? <Icon name="check" size={14} color="#fff" strokeWidth={3} /> : null}
               </View>
-              <Pattern t={t} on={on} />
-              <Text style={st.desc} numberOfLines={2}>{t.desc}</Text>
+              <Pattern t={template} on={on} />
+              <Text style={st.desc} numberOfLines={2}>{template.desc}</Text>
               <Text style={st.meta} numberOfLines={1}>
-                {hasMusic ? `${t.photoBeats} ${t.photoBeats === 1 ? 'batida' : 'batidas'}` : `${t.photoSeconds} s`} · {TRANSITION[t.transition]}{hasMusic ? ` · ${START[t.start]}` : ''}
+                {hasMusic ? t('{count} batida', { count: template.photoBeats, other: '{count} batidas' }) : `${template.photoSeconds} s`} · {TRANSITION[template.transition]}{hasMusic ? ` · ${START[template.start]}` : ''}
               </Text>
             </Pressable>
           );

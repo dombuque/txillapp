@@ -11,6 +11,7 @@ import { useGifsConfig } from '../GifPanel';
 import { Icon } from '../Icon';
 import { StickerArt } from '../Stickers';
 import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from './FxUi';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 type Sub = 'emoji' | 'txill' | 'gif' | 'mention' | 'location' | 'time';
@@ -20,10 +21,10 @@ type Sub = 'emoji' | 'txill' | 'gif' | 'mention' | 'location' | 'time';
  */
 export const STUDIO_GIFS = false;
 const SUBS = ([
-  { id: 'emoji', label: 'Emoji' }, { id: 'txill', label: 'Txill' }, { id: 'gif', label: 'GIF' }, { id: 'mention', label: '@' }, { id: 'location', label: 'Local' }, { id: 'time', label: 'Hora' },
+  { id: 'emoji', get label() { return t('Emoji'); } }, { id: 'txill', label: 'Txill' }, { id: 'gif', label: 'GIF' }, { id: 'mention', label: '@' }, { id: 'location', get label() { return t('Local'); } }, { id: 'time', get label() { return t('Hora'); } },
 ] as { id: Sub; label: string }[]).filter((s) => STUDIO_GIFS || s.id !== 'gif');
 const EMOJIS = ['🔥', '😂', '❤️', '😍', '🥳', '🇲🇿', '🌴', '🌊', '☀️', '🎉', '💃', '🕺', '🎶', '✨', '💯', '👏', '🙌', '😎', '🤩', '😭', '🥰', '👀', '💥', '⚡', '🌶️', '🍻', '🥥', '🥭', '🏖️', '⚽', '🏆', '📍', '🎤', '🎧', '🫶', '💪', '🙏', '😜', '🤣', '😱', '👑', '🌅', '🦐', '🐠', '🛶', '🚀', '💐', '🎂'];
-const PLACES = ['Maputo', 'Matola', 'Costa do Sol', 'Beira', 'Nampula', 'Inhambane', 'Tofo', 'Vilankulo', 'Ponta do Ouro', 'Bilene', 'Xai-Xai', 'Ilha de Moçambique', 'Pemba', 'Quelimane', 'Tete', 'Chimoio', 'Lichinga'];
+const PLACES = () => [t('Maputo'), t('Matola'), t('Costa do Sol'), t('Beira'), t('Nampula'), t('Inhambane'), t('Tofo'), t('Vilankulo'), t('Ponta do Ouro'), t('Bilene'), 'Xai-Xai', t('Ilha de Moçambique'), t('Pemba'), t('Quelimane'), t('Tete'), t('Chimoio'), t('Lichinga')];
 
 /**
  * O separador «Stickers»: emojis grandes, os stickers do Txillapp, GIFs do GIPHY (pelo nosso servidor, como no chat), menções,
@@ -50,36 +51,36 @@ export function StickerTray({ stickers, selId, onSelect, onAdd, onChange, onDele
       {cur ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, padding: 4, paddingBottom: 10, borderRadius: 18, backgroundColor: 'rgba(255,92,108,0.07)', borderWidth: 1, borderColor: 'rgba(255,92,108,0.35)' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 6 }}>
-            <Text style={[ui.label, { flex: 1, color: '#fff' }]}>Sticker escolhido</Text>
-            <FxAction label="Pronto" onPress={() => onSelect('')} a11y="Deixar de mexer neste sticker" />
-            <FxAction label="Apagar" tone="danger" icon={<Icon name="trash" size={13} color="#fff" />} onPress={() => onDelete(cur.id)} a11y="Apagar este sticker" />
+            <Text style={[ui.label, { flex: 1, color: '#fff' }]}>{t('Sticker escolhido')}</Text>
+            <FxAction label={t('Pronto')} onPress={() => onSelect('')} a11y={t('Deixar de mexer neste sticker')} />
+            <FxAction label={t('Apagar')} tone="danger" icon={<Icon name="trash" size={13} color="#fff" />} onPress={() => onDelete(cur.id)} a11y={t('Apagar este sticker')} />
           </View>
           {isLabel ? (
-            <FxRow label="Estilo">
-              {(['branco', 'coral', 'escuro'] as const).map((v) => <FxChip key={v} small on={cur.variant === v} label={v === 'branco' ? 'Branco' : v === 'coral' ? 'Coral' : 'Escuro'} onPress={() => set({ variant: v })} />)}
+            <FxRow label={t('Estilo')}>
+              {(['branco', 'coral', 'escuro'] as const).map((v) => <FxChip key={v} small on={cur.variant === v} label={v === 'branco' ? t('Branco') : v === 'coral' ? t('Coral') : t('Escuro')} onPress={() => set({ variant: v })} />)}
             </FxRow>
           ) : null}
-          <FxRow label="Animação">
-            {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={a.name} onPress={() => set({ anim: { ...cur.anim, loop: a.id } })} a11y={`Em ciclo: ${a.name}`} />)}
+          <FxRow label={t('Animação')}>
+            {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={a.name} onPress={() => set({ anim: { ...cur.anim, loop: a.id } })} a11y={t('Em ciclo: {name}', { name: a.name })} />)}
             <View style={{ width: 10 }} />
-            {ANIMS.filter((a) => a.id !== 'maquina' && a.id !== 'ondulacao').map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={`Entra: ${a.name}`} onPress={() => set({ anim: { ...cur.anim, in: a.id as AnimIn } })} />)}
+            {ANIMS.filter((a) => a.id !== 'maquina' && a.id !== 'ondulacao').map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={t('Entra: {name}', { name: a.name })} onPress={() => set({ anim: { ...cur.anim, in: a.id as AnimIn } })} />)}
           </FxRow>
-          <FxSlider label="Aparece de" value={cur.start} min={0} max={Math.max(0.5, total - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ start: v, end: Math.max(cur.end, v + 0.5) })} />
-          <FxSlider label="Até" value={Math.min(cur.end, Math.max(0.6, total))} min={0.5} max={Math.max(0.6, total)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ end: v, start: Math.min(cur.start, v - 0.5) })} />
+          <FxSlider label={t('Aparece de')} value={cur.start} min={0} max={Math.max(0.5, total - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ start: v, end: Math.max(cur.end, v + 0.5) })} />
+          <FxSlider label={t('Até')} value={Math.min(cur.end, Math.max(0.6, total))} min={0.5} max={Math.max(0.6, total)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ end: v, start: Math.min(cur.start, v - 0.5) })} />
         </View>
       ) : null}
 
       <FxSegment items={SUBS} value={sub} onChange={setSub} />
       {stickers.length ? (
         <FxRow>
-          {stickers.map((s, k) => <FxChip key={s.id} small on={s.id === selId} label={stickerName(s.sticker) || `Sticker ${k + 1}`} onPress={() => onSelect(s.id)} />)}
+          {stickers.map((s, k) => <FxChip key={s.id} small on={s.id === selId} label={stickerName(s.sticker) || t('Sticker {n}', { n: k + 1 })} onPress={() => onSelect(s.id)} />)}
         </FxRow>
       ) : null}
 
       {sub === 'emoji' ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, marginTop: 8 }}>
           {EMOJIS.map((e) => (
-            <Pressable key={e} onPress={() => add({ type: 'emoji', emoji: e })} style={({ pressed }) => [{ width: '12.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, pressed && { backgroundColor: fxc.glass }]} accessibilityRole="button" accessibilityLabel={`Emoji ${e}`}>
+            <Pressable key={e} onPress={() => add({ type: 'emoji', emoji: e })} style={({ pressed }) => [{ width: '12.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, pressed && { backgroundColor: fxc.glass }]} accessibilityRole="button" accessibilityLabel={t('Emoji {e}', { e })}>
               <Text style={{ fontSize: 28 }}>{e}</Text>
             </Pressable>
           ))}
@@ -91,9 +92,9 @@ export function StickerTray({ stickers, selId, onSelect, onAdd, onChange, onDele
       {sub === 'location' ? <PlacePick onPick={(n) => add({ type: 'location', name: n })} /> : null}
       {sub === 'time' ? (
         <FxRow wrap>
-          <FxChip label="Hora" icon={<Icon name="clock" size={14} color="#fff" />} onPress={() => add({ type: 'time', format: 'hora', at: Date.now() })} a11y="Juntar a hora" />
-          <FxChip label="Data" icon={<Icon name="calendar" size={14} color="#fff" />} onPress={() => add({ type: 'time', format: 'data', at: Date.now() })} a11y="Juntar a data" />
-          <FxChip label="Hora e data" onPress={() => add({ type: 'time', format: 'hora-data', at: Date.now() })} />
+          <FxChip label={t('Hora')} icon={<Icon name="clock" size={14} color="#fff" />} onPress={() => add({ type: 'time', format: 'hora', at: Date.now() })} a11y={t('Juntar a hora')} />
+          <FxChip label={t('Data')} icon={<Icon name="calendar" size={14} color="#fff" />} onPress={() => add({ type: 'time', format: 'data', at: Date.now() })} a11y={t('Juntar a data')} />
+          <FxChip label={t('Hora e data')} onPress={() => add({ type: 'time', format: 'hora-data', at: Date.now() })} />
         </FxRow>
       ) : null}
     </View>
@@ -104,9 +105,9 @@ function stickerName(s: StickerContent): string {
   switch (s.type) {
     case 'emoji': return s.emoji;
     case 'mention': return `@${s.username}`;
-    case 'capulana': return 'Capulana';
+    case 'capulana': return t('Capulana');
     case 'location': return s.name;
-    case 'time': return s.format === 'data' ? 'Data' : 'Hora';
+    case 'time': return s.format === 'data' ? t('Data') : t('Hora');
     case 'gif': return 'GIF';
     case 'txill': return 'Txill';
   }
@@ -122,7 +123,7 @@ function TxillGrid({ onPick }: { onPick: (id: string) => void }) {
       </FxRow>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, marginTop: 6 }}>
         {shown.map((s) => (
-          <Pressable key={s.id} onPress={() => onPick(s.id)} style={({ pressed }) => [{ width: '20%', height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, pressed && { backgroundColor: fxc.glass }]} accessibilityRole="button" accessibilityLabel={`Sticker ${s.text}`}>
+          <Pressable key={s.id} onPress={() => onPick(s.id)} style={({ pressed }) => [{ width: '20%', height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, pressed && { backgroundColor: fxc.glass }]} accessibilityRole="button" accessibilityLabel={t('Sticker {text}', { text: s.text })}>
             <StickerArt def={s} size={58} animate={false} />
           </Pressable>
         ))}
@@ -148,11 +149,11 @@ function GifGrid({ onPick }: { onPick: (g: GifItem) => void }) {
     }, 350);
     return () => { off = true; clearTimeout(id); };
   }, [q, enabled]);
-  if (!enabled) return <Text style={[ui.note, { marginTop: 12 }]}>Os GIFs não estão ligados neste momento.</Text>;
+  if (!enabled) return <Text style={[ui.note, { marginTop: 12 }]}>{t('Os GIFs não estão ligados neste momento.')}</Text>;
   return (
     <>
       <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-        <TextInput value={q} onChangeText={setQ} placeholder="Pesquisar no GIPHY" placeholderTextColor="rgba(255,255,255,0.45)" style={inputSt} accessibilityLabel="Pesquisar GIFs" />
+        <TextInput value={q} onChangeText={setQ} placeholder={t('Pesquisar no GIPHY')} placeholderTextColor="rgba(255,255,255,0.45)" style={inputSt} accessibilityLabel={t('Pesquisar GIFs')} />
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, marginTop: 6 }}>
         {items.map((g) => (
@@ -165,7 +166,7 @@ function GifGrid({ onPick }: { onPick: (g: GifItem) => void }) {
           </Pressable>
         ))}
       </View>
-      <Text style={[ui.note, { textAlign: 'right' }]}>{busy ? 'A procurar…' : 'Powered by GIPHY'}</Text>
+      <Text style={[ui.note, { textAlign: 'right' }]}>{busy ? t('A procurar…') : t('Powered by GIPHY')}</Text>
     </>
   );
 }
@@ -183,12 +184,12 @@ function MentionPick({ onPick }: { onPick: (username: string) => void }) {
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 8 }}>
-        <TextInput value={q} onChangeText={(v) => setQ(v.slice(0, 31))} placeholder="@ quem?" placeholderTextColor="rgba(255,255,255,0.45)" autoCapitalize="none" autoCorrect={false} style={[inputSt, { flex: 1 }]} accessibilityLabel="Menção" onSubmitEditing={() => valid && onPick(clean)} />
-        <FxAction label="Pôr" tone="coral" onPress={() => onPick(clean)} disabled={!valid} a11y={`Pôr a menção @${clean}`} />
+        <TextInput value={q} onChangeText={(v) => setQ(v.slice(0, 31))} placeholder={t('@ quem?')} placeholderTextColor="rgba(255,255,255,0.45)" autoCapitalize="none" autoCorrect={false} style={[inputSt, { flex: 1 }]} accessibilityLabel={t('Menção')} onSubmitEditing={() => valid && onPick(clean)} />
+        <FxAction label={t('Pôr')} tone="coral" onPress={() => onPick(clean)} disabled={!valid} a11y={t('Pôr a menção @{clean}', { clean })} />
       </View>
       {list.length ? (
         <FxRow>
-          {list.map((u) => <FxChip key={u.username} small label={`@${u.username}`} onPress={() => onPick(u.username)} a11y={`Mencionar ${u.displayName}`} />)}
+          {list.map((u) => <FxChip key={u.username} small label={`@${u.username}`} onPress={() => onPick(u.username)} a11y={t('Mencionar {displayName}', { displayName: u.displayName })} />)}
         </FxRow>
       ) : null}
     </>
@@ -197,12 +198,12 @@ function MentionPick({ onPick }: { onPick: (username: string) => void }) {
 
 function PlacePick({ onPick }: { onPick: (name: string) => void }) {
   const [q, setQ] = useState('');
-  const shown = PLACES.filter((p) => !q.trim() || p.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = PLACES().filter((p) => !q.trim() || p.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 8 }}>
-        <TextInput value={q} onChangeText={(v) => setQ(v.slice(0, 60))} placeholder="Onde é?" placeholderTextColor="rgba(255,255,255,0.45)" style={[inputSt, { flex: 1 }]} accessibilityLabel="Local" onSubmitEditing={() => q.trim() && onPick(q.trim())} />
-        <FxAction label="Pôr" tone="coral" icon={<Icon name="map-pin" size={13} color="#fff" />} onPress={() => onPick(q.trim())} disabled={!q.trim()} a11y={`Pôr o local ${q.trim()}`} />
+        <TextInput value={q} onChangeText={(v) => setQ(v.slice(0, 60))} placeholder={t('Onde é?')} placeholderTextColor="rgba(255,255,255,0.45)" style={[inputSt, { flex: 1 }]} accessibilityLabel={t('Local')} onSubmitEditing={() => q.trim() && onPick(q.trim())} />
+        <FxAction label={t('Pôr')} tone="coral" icon={<Icon name="map-pin" size={13} color="#fff" />} onPress={() => onPick(q.trim())} disabled={!q.trim()} a11y={t('Pôr o local {q}', { q: q.trim() })} />
       </View>
       <FxRow wrap>
         {shown.map((p) => <FxChip key={p} small label={p} onPress={() => onPick(p)} />)}

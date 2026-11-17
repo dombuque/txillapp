@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ProjectClip } from '@/lib/studio/project';
 import { fmtS, speedLabel } from '@/lib/tchekaRules';
+import { t } from '@/lib/i18n';
 
 /**
  * As ações do clipe escolhido na linha do tempo (só web): Dividir (no cursor), Duplicar, Velocidade (nos vídeos; nas fotos
@@ -92,18 +93,18 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
   return (
     <div style={{ fontFamily: font }}>
       {/* Duas linhas de três: as seis ações cabem a 360 px sem cortar nenhuma. */}
-      <div role="toolbar" aria-label="Ações do clipe" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, padding: '8px 12px 0' }}>
-        {btn('split', 'Dividir', 'split', onSplit)}
-        {btn('dup', 'Duplicar', 'dup', onDuplicate)}
-        {btn('speed', isVideo || !clip ? 'Velocidade' : 'Duração', isVideo || !clip ? 'speed' : 'time', () => setPanelOf((v) => (v === 'time' ? null : 'time')), { active: panel && !off })}
-        {isVideo ? btn('sound', soundOn ? `Som do vídeo: ligado, ${Math.round(volume * 100)}%` : 'Som do vídeo: calado', soundOn ? 'sound' : 'mute', () => setPanelOf((v) => (v === 'sound' ? null : 'sound')), { active: soundPanel && !off, short: soundOn ? 'Som' : 'Calado' }) : null}
-        {btn('del', 'Apagar', 'trash', onDelete, { danger: true })}
-        {btn('swap', 'Substituir', 'swap', null, {
+      <div role="toolbar" aria-label={t('Ações do clipe')} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, padding: '8px 12px 0' }}>
+        {btn('split', t('Dividir'), 'split', onSplit)}
+        {btn('dup', t('Duplicar'), 'dup', onDuplicate)}
+        {btn('speed', isVideo || !clip ? t('Velocidade') : t('Duração'), isVideo || !clip ? 'speed' : 'time', () => setPanelOf((v) => (v === 'time' ? null : 'time')), { active: panel && !off })}
+        {isVideo ? btn('sound', soundOn ? t('Som do vídeo: ligado, {n}%', { n: Math.round(volume * 100) }) : t('Som do vídeo: calado'), soundOn ? 'sound' : 'mute', () => setPanelOf((v) => (v === 'sound' ? null : 'sound')), { active: soundPanel && !off, short: soundOn ? t('Som') : t('Calado') }) : null}
+        {btn('del', t('Apagar'), 'trash', onDelete, { danger: true })}
+        {btn('swap', t('Substituir'), 'swap', null, {
           children: off ? null : (
             <input
               type="file"
               accept="image/*,video/*"
-              aria-label="Substituir o clipe por outro ficheiro"
+              aria-label={t('Substituir o clipe por outro ficheiro')}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onReplace(f); }}
               style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
             />
@@ -111,34 +112,34 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
         })}
       </div>
       {!clip ? (
-        <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, textAlign: 'center', padding: '4px 16px 0' }}>Toca num clipe da linha do tempo para o editar</div>
+        <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, textAlign: 'center', padding: '4px 16px 0' }}>{t('Toca num clipe da linha do tempo para o editar')}</div>
       ) : soundPanel && isVideo ? (
-        <div style={row} aria-label="Som do vídeo">
-          {chip(soundOn, soundOn ? 'Ligado' : 'Calado', () => onSound?.({ on: !soundOn }), soundOn ? 'Calar o som do vídeo' : 'Ligar o som do vídeo')}
+        <div style={row} aria-label={t('Som do vídeo')}>
+          {chip(soundOn, soundOn ? t('Ligado') : t('Calado'), () => onSound?.({ on: !soundOn }), soundOn ? t('Calar o som do vídeo') : t('Ligar o som do vídeo'))}
           <input
             type="range" min={0} max={100} step={5} value={Math.round(volume * 100)} disabled={locked}
-            aria-label="Volume do som do vídeo"
+            aria-label={t('Volume do som do vídeo')}
             onChange={(e) => onSound?.({ volume: Number(e.target.value) / 100, ...(soundOn ? {} : { on: true }) })}
             style={{ flex: '1 1 120px', minWidth: 120, height: 44, accentColor: hot, opacity: soundOn ? 1 : 0.45 }}
           />
-          <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, whiteSpace: 'nowrap', minWidth: 44, fontVariantNumeric: 'tabular-nums' }}>{soundOn ? `${Math.round(volume * 100)}%` : 'calado'}</span>
-          {clip.hasAudio === false ? <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, width: '100%' }}>Este vídeo não tem som.</span> : null}
+          <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, whiteSpace: 'nowrap', minWidth: 44, fontVariantNumeric: 'tabular-nums' }}>{soundOn ? `${Math.round(volume * 100)}%` : t('calado')}</span>
+          {clip.hasAudio === false ? <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, width: '100%' }}>{t('Este vídeo não tem som.')}</span> : null}
         </div>
       ) : panel ? (
         isVideo ? (
-          <div style={row} aria-label="Velocidade do clipe">
-            {STUDIO_SPEEDS.map((s) => chip(clip.speed === s, speedLabel(s), () => onSpeed(s), `Velocidade ${speedLabel(s)}`))}
-            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 2 }}>fica com {fmtS(duration)} s</span>
+          <div style={row} aria-label={t('Velocidade do clipe')}>
+            {STUDIO_SPEEDS.map((s) => chip(clip.speed === s, speedLabel(s), () => onSpeed(s), t('Velocidade {speedLabel}', { speedLabel: speedLabel(s) })))}
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 2 }}>{t('fica com {s} s', { s: fmtS(duration) })}</span>
           </div>
         ) : rhythm ? (
-          <div style={row} aria-label="Batidas da foto">
+          <div style={row} aria-label={t('Batidas da foto')}>
             {PHOTO_BEATS.map((b) => chip(clip.beats === b, `${b}♪`, () => onPhoto({ beats: b }), `${b} ${b === 1 ? 'batida' : 'batidas'}`))}
-            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtS(duration)} s ao ritmo</span>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 4 }}>{t('{s} s ao ritmo', { s: fmtS(duration) })}</span>
           </div>
         ) : (
-          <div style={row} aria-label="Duração da foto">
+          <div style={row} aria-label={t('Duração da foto')}>
             {PHOTO_SECONDS.map((s) => chip(Math.abs(clip.seconds - s) < 0.01, `${s} s`, () => onPhoto({ seconds: s }), `${s} segundos`))}
-            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 4 }}>ou arrasta as pontas</span>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, whiteSpace: 'nowrap', paddingLeft: 4 }}>{t('ou arrasta as pontas')}</span>
           </div>
         )
       ) : null}

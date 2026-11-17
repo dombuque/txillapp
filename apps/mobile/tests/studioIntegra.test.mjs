@@ -104,7 +104,7 @@ test('telemóvel: o estúdio cobre o ecrã (100dvh), a folha dos painéis tem al
 test('o som do vídeo na barra de ações do clipe (ligado/calado e volume)', () => {
   const actions = read('components', 'studio', 'TimelineActions.tsx');
   assert.match(actions, /Som do vídeo: ligado/);
-  assert.match(actions, /aria-label="Volume do som do vídeo"/);
+  assert.match(actions, /aria-label=\{t\('Volume do som do vídeo'\)\}/);
   assert.match(studio, /onSound=\{\(v\) => \{ if \(cur\) setClipSound\(cur\.key, v\); \}\}/);
 });
 

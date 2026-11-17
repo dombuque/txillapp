@@ -42,7 +42,7 @@ const GLOSSARY = (() => {
   try { const g = JSON.parse(fs.readFileSync(p, 'utf8')); const list = Array.isArray(g) ? g : g.keep ?? g.terms ?? []; return new Set([...base, ...list].map((s) => String(s).toLowerCase())); } catch { return new Set(base.map((s) => s.toLowerCase())); }
 })();
 /** Textos visíveis que não são português e ficam como estão (marca, slogans). */
-const KEEP_AS_IS = new Set(['Txill with the crew', 'OK', 'Ok', 'GIF', 'QR', 'PIN', 'Wi-Fi', 'Google', 'Apple', 'WhatsApp', 'Instagram', 'TikTok', 'Facebook', 'Spotify', 'YouTube', 'M-Pesa', 'e-Mola', 'mKesh', 'Emola', 'iOS', 'Android', 'Safari', 'Chrome']);
+const KEEP_AS_IS = new Set(['Txill with the crew', 'Txill', 'TXILL', 'OK', 'Ok', 'GIF', 'QR', 'PIN', 'Wi-Fi', 'Google', 'Apple', 'WhatsApp', 'Instagram', 'TikTok', 'Facebook', 'Spotify', 'YouTube', 'M-Pesa', 'e-Mola', 'mKesh', 'Emola', 'iOS', 'Android', 'Safari', 'Chrome']);
 
 // ── contextos ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const VIS_ATTR = new Set(['accessibilityLabel', 'accessibilityHint', 'aria-label', 'aria-description', 'aria-placeholder', 'aria-roledescription', 'aria-valuetext', 'label', 'title', 'placeholder', 'text', 'sub', 'subtitle', 'hint', 'description', 'message', 'confirm', 'cancel', 'what', 'a11y', 'intro', 'note', 'line', 'heading', 'caption', 'tooltip', 'alt', 'cta', 'empty', 'lead', 'tip', 'question', 'detail', 'headline']);

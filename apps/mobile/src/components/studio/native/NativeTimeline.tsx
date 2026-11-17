@@ -12,6 +12,7 @@ import { clampPps, PPS_DEFAULT, preciseClock, reorderIndex, rulerTicks, snapTime
 import type { TimelineLayer } from '../Timeline';
 import { ClockText } from './ClockText';
 import type { ClockStore } from './clockStore';
+import { t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 const HOT = '#ff5c6c';
@@ -124,7 +125,7 @@ function TrimHandle({ edge, left, pps, onTrim, k, h }: { edge: TrimEdge; left: n
   });
   return (
     <GestureDetector gesture={pan}>
-      <View style={[st.handle, { left: left - (edge === 'start' ? 0 : HANDLE_W), height: h }]} hitSlop={{ left: 12, right: 12, top: 6, bottom: 6 }} accessibilityRole="adjustable" accessibilityLabel={edge === 'start' ? 'Cortar o início do clipe' : 'Cortar o fim do clipe'}>
+      <View style={[st.handle, { left: left - (edge === 'start' ? 0 : HANDLE_W), height: h }]} hitSlop={{ left: 12, right: 12, top: 6, bottom: 6 }} accessibilityRole="adjustable" accessibilityLabel={edge === 'start' ? t('Cortar o início do clipe') : t('Cortar o fim do clipe')}>
         <View style={st.grip} />
       </View>
     </GestureDetector>
@@ -145,7 +146,7 @@ function ClipBlock({ c, i, x, w, dur, selected, locked, onSelect, onReorder, h }
   });
   const g = useSimultaneousGestures(tap, drag);
   const body = (
-    <View style={[st.clip, { left: x, width: Math.max(4, w - 2), height: h }, selected && st.clipOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Clipe ${i + 1}, ${c.video ? 'vídeo' : 'foto'}, ${dur.toFixed(1).replace('.', ',')} segundos`} accessibilityHint="Toque longo e arrasta para mudar a ordem">
+    <View style={[st.clip, { left: x, width: Math.max(4, w - 2), height: h }, selected && st.clipOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={t('Clipe {n}, {value}, {dur} segundos', { n: i + 1, value: c.video ? t('vídeo') : t('foto'), dur: dur.toFixed(1).replace('.', ',') })} accessibilityHint={t('Toque longo e arrasta para mudar a ordem')}>
       <ClipStrip c={c} w={w} dur={dur} />
     </View>
   );
@@ -189,11 +190,11 @@ function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer, lan
   const g = useSimultaneousGestures(tap, move);
   const color = l.kind === 'text' ? '#7a5cff' : l.kind === 'sticker' ? '#0fa3b1' : l.kind === 'voice' ? CORAL : '#ffd60a';
   if (l.point) {
-    const body = <View style={[st.diamondHit, { left: l.start * pps - 13, top, height: lane - 2 }]} accessibilityRole="button" accessibilityLabel={`${l.label} aos ${l.start.toFixed(1).replace('.', ',')} s`}><View style={[st.diamond, selected && { borderColor: '#fff', borderWidth: 2 }]} /></View>;
+    const body = <View style={[st.diamondHit, { left: l.start * pps - 13, top, height: lane - 2 }]} accessibilityRole="button" accessibilityLabel={t('{label} aos {start} s', { label: l.label, start: l.start.toFixed(1).replace('.', ',') })}><View style={[st.diamond, selected && { borderColor: '#fff', borderWidth: 2 }]} /></View>;
     return locked ? body : <GestureDetector gesture={g}>{body}</GestureDetector>;
   }
   const body = (
-    <View style={[st.layer, { left: l.start * pps, width: Math.max(14, span * pps), top, height: lane - 2, backgroundColor: color }, selected && st.layerOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${l.label}, dos ${l.start.toFixed(1).replace('.', ',')} aos ${l.end.toFixed(1).replace('.', ',')} s`}>
+    <View style={[st.layer, { left: l.start * pps, width: Math.max(14, span * pps), top, height: lane - 2, backgroundColor: color }, selected && st.layerOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={t('{label}, dos {start} aos {end} s', { label: l.label, start: l.start.toFixed(1).replace('.', ','), end: l.end.toFixed(1).replace('.', ',') })}>
       <Text style={[st.layerText, lane < 24 && { lineHeight: 16 }, l.kind === 'sfx' && { color: '#111' }]} numberOfLines={1}>{l.label}</Text>
     </View>
   );
@@ -202,8 +203,8 @@ function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer, lan
       {locked ? body : <GestureDetector gesture={g}>{body}</GestureDetector>}
       {selected && l.trim && !locked ? (
         <>
-          <GestureDetector gesture={left}><View style={[st.layerHandle, { left: l.start * pps - 14, top, height: lane - 2 }]} accessibilityLabel="Mudar quando entra" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
-          <GestureDetector gesture={right}><View style={[st.layerHandle, { left: l.end * pps - 10, top, height: lane - 2 }]} accessibilityLabel="Mudar quando sai" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
+          <GestureDetector gesture={left}><View style={[st.layerHandle, { left: l.start * pps - 14, top, height: lane - 2 }]} accessibilityLabel={t('Mudar quando entra')} accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
+          <GestureDetector gesture={right}><View style={[st.layerHandle, { left: l.end * pps - 10, top, height: lane - 2 }]} accessibilityLabel={t('Mudar quando sai')} accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
         </>
       ) : null}
     </>
@@ -306,7 +307,7 @@ export function NativeTimeline(p: Props) {
     <View style={{ height, flexDirection: 'row' }}>
       {p.dense ? (
         <View style={st.lead}>
-          <Pressable onPress={p.onTogglePlay} style={st.leadBtn} accessibilityRole="button" accessibilityLabel={p.playing ? 'Pausar' : 'Tocar'}>
+          <Pressable onPress={p.onTogglePlay} style={st.leadBtn} accessibilityRole="button" accessibilityLabel={p.playing ? t('Pausar') : t('Tocar')}>
             {p.playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
           </Pressable>
           <ClockText clock={clock} style={st.leadTime} format={(t) => previewClock(t, total).split(' / ')[0]} />
@@ -356,7 +357,7 @@ export function NativeTimeline(p: Props) {
               </View>
             </View>
             {!p.locked ? (
-              <Pressable onPress={p.onAdd} style={[st.add, { left: contentW + pad + 8, top: d.ruler + Math.max(0, (d.clip - 44) / 2) }]} accessibilityRole="button" accessibilityLabel="Juntar fotos ou vídeos">
+              <Pressable onPress={p.onAdd} style={[st.add, { left: contentW + pad + 8, top: d.ruler + Math.max(0, (d.clip - 44) / 2) }]} accessibilityRole="button" accessibilityLabel={t('Juntar fotos ou vídeos')}>
                 <Plus size={22} color="#fff" strokeWidth={2.6} />
               </Pressable>
             ) : null}
@@ -367,8 +368,8 @@ export function NativeTimeline(p: Props) {
       <View pointerEvents="none" style={[st.playhead, { left: pad - 1 }]} />
       {p.dense ? null : <View pointerEvents="none" style={[st.nowTag, { left: pad - 34 }]}><ClockText clock={clock} style={st.nowText} format={preciseClock} /></View>}
       {p.dense ? null : <View style={st.zoom} pointerEvents="box-none">
-        <Pressable onPress={() => zoom(1 / 1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Afastar a linha do tempo"><Minus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
-        <Pressable onPress={() => zoom(1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Aproximar a linha do tempo"><Plus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
+        <Pressable onPress={() => zoom(1 / 1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel={t('Afastar a linha do tempo')}><Minus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
+        <Pressable onPress={() => zoom(1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel={t('Aproximar a linha do tempo')}><Plus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
       </View>}
       {reorder ? (
         <View ref={rowRef} style={[st.reorderRow, { top: Math.max(0, d.ruler - 6), height: d.clip + 16 }]} pointerEvents="none">

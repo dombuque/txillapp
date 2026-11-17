@@ -5,6 +5,7 @@ import { CAPULANA_SHAPES, CAPULANA_TRANSITIONS, type CapulanaShapeId, type Capul
 import { CapulanaPicker } from './CapulanaPicker';
 import { CapulanaSticker } from './CapulanaSticker';
 import { mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 /**
  * O painel «Capulana» do estúdio: escolhe-se o pano e onde ele entra (na transição para o clipe escolhido, na moldura da
@@ -29,7 +30,7 @@ export function CapulanaPanel({ pano, onPano, transition, onTransition, frame, o
       <CapulanaPicker value={pano} onChange={onPano} />
 
       <View>
-        <Text style={st.label}>Transição de pano</Text>
+        <Text style={st.label}>{t('Transição de pano')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} accessibilityRole="radiogroup">
           {CAPULANA_TRANSITIONS.map((t) => {
             const on = t.id === transition;
@@ -43,16 +44,16 @@ export function CapulanaPanel({ pano, onPano, transition, onTransition, frame, o
       </View>
 
       <View style={st.actions}>
-        <Action icon={<Frame size={22} color="#fff" />} label={frame ? 'Tirar a moldura' : 'Moldura de pano'} sub="A foto inteira, sem fundo desfocado" on={frame} disabled={!canFrame} onPress={() => onFrame(!frame)} testID="moldura" />
-        <Action icon={<RectangleHorizontal size={22} color="#fff" />} label="Faixa de texto" sub="Uma barra de pano com o teu texto" onPress={onBand} testID="faixa" />
-        <Action icon={<Type size={22} color="#fff" />} label="Letras de pano" sub="O texto cheio com o padrão" onPress={onText} testID="letras" />
+        <Action icon={<Frame size={22} color="#fff" />} label={frame ? t('Tirar a moldura') : t('Moldura de pano')} sub={t('A foto inteira, sem fundo desfocado')} on={frame} disabled={!canFrame} onPress={() => onFrame(!frame)} testID="moldura" />
+        <Action icon={<RectangleHorizontal size={22} color="#fff" />} label={t('Faixa de texto')} sub={t('Uma barra de pano com o teu texto')} onPress={onBand} testID="faixa" />
+        <Action icon={<Type size={22} color="#fff" />} label={t('Letras de pano')} sub={t('O texto cheio com o padrão')} onPress={onText} testID="letras" />
       </View>
 
       <View>
-        <Text style={st.label}>Stickers de pano</Text>
+        <Text style={st.label}>{t('Stickers de pano')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row}>
           {CAPULANA_SHAPES.map((s) => (
-            <Pressable key={s.id} onPress={() => onSticker(s.id)} accessibilityRole="button" accessibilityLabel={`Sticker ${s.name}`} testID={`sticker-${s.id}`} style={({ pressed }) => [st.sticker, pressed && { transform: [{ scale: 0.94 }] }]}>
+            <Pressable key={s.id} onPress={() => onSticker(s.id)} accessibilityRole="button" accessibilityLabel={t('Sticker {name}', { name: s.name })} testID={`sticker-${s.id}`} style={({ pressed }) => [st.sticker, pressed && { transform: [{ scale: 0.94 }] }]}>
               <CapulanaSticker shape={s.id} spec={pano} size={72} />
               <Text style={st.stickerName} numberOfLines={1}>{s.name}</Text>
             </Pressable>

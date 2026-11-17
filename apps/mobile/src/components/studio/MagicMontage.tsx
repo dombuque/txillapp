@@ -6,14 +6,15 @@ import { soundDoneLabel } from '@/lib/studio/magicFrames';
 import { MagicProgress } from './MagicProgress';
 import { MagicResult } from './MagicResult';
 import { MagicWaves } from './MagicWaves';
+import { t } from '@/lib/i18n';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Cada fase fica à vista pelo menos este tempo (ms), para se ler. */
 const PHASE_MIN_MS = 420;
 
 /** Os textos de privacidade quando os vídeos seguem logo para o servidor (na app). */
-const SENDS_NOTE = 'Os vídeos já seguem para o nosso servidor, para ouvir o som e montar. As fotos ficam no telemóvel.';
-const PROGRESS_NOTE = 'Só uns segundos. O som dos vídeos é ouvido no nosso servidor.';
+const SENDS_NOTE = () => t('Os vídeos já seguem para o nosso servidor, para ouvir o som e montar. As fotos ficam no telemóvel.');
+const PROGRESS_NOTE = () => t('Só uns segundos. O som dos vídeos é ouvido no nosso servidor.');
 
 /** O som dos vídeos quando não se ouve no aparelho (na app: o servidor). `heard`: quantos vídeos responderam. */
 export type MagicSoundAnalyzer = (videos: MagicSource[], items: MagicItem[], opts?: AnalyzeOptions) => Promise<{ items: MagicItem[]; heard: number; withSound: number }>;
@@ -127,9 +128,9 @@ export function MagicMontage({ sources, music, capulana, initialWave, onApply, o
   return (
     <View style={{ flex: 1 }}>
       {step === 'ondas' ? (
-        <MagicWaves privacy={sendsVideos ? SENDS_NOTE : undefined} value={wave} onChange={setWave} onStart={() => void start()} onClose={onClose} photos={sources.filter((s) => !s.video).length} videos={sources.filter((s) => s.video).length} musicTitle={music ? music.title || 'Música escolhida' : null} topInset={topInset} bottomInset={bottomInset} />
+        <MagicWaves privacy={sendsVideos ? SENDS_NOTE() : undefined} value={wave} onChange={setWave} onStart={() => void start()} onClose={onClose} photos={sources.filter((s) => !s.video).length} videos={sources.filter((s) => s.video).length} musicTitle={music ? music.title || t('Música escolhida') : null} topInset={topInset} bottomInset={bottomInset} />
       ) : step === 'a-montar' || !result ? (
-        <MagicProgress phases={phases} sub={sendsVideos ? PROGRESS_NOTE : undefined} wave={wave} active={active} done={done} onCancel={cancel} topInset={topInset} />
+        <MagicProgress phases={phases} sub={sendsVideos ? PROGRESS_NOTE() : undefined} wave={wave} active={active} done={done} onCancel={cancel} topInset={topInset} />
       ) : (
         <MagicResult
           result={result}

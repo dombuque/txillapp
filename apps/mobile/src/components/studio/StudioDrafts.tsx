@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { agoLabel, draftLabel, type StudioDraft } from '@/lib/studio/drafts';
 import { colors } from '@/lib/theme';
 import { Icon } from '../Icon';
+import { t } from '@/lib/i18n';
 
 /**
  * «Continuar o rascunho?» ao abrir o estúdio das tchekas: o mais recente em destaque (Continuar / Começar de novo) e a lista
@@ -19,11 +20,11 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
   // Confirmar aqui mesmo (o caixote passa a «Apagar»): uma caixa por cima da folha ficava escondida no PWA e nada se apagava.
   const [asking, setAsking] = useState<string | null>(null);
   const trash = (d: StudioDraft, size: number) => asking === d.id ? (
-    <Pressable onPress={() => { setAsking(null); onDelete(d.id); }} hitSlop={8} style={st.confirm} accessibilityRole="button" accessibilityLabel="Apagar de vez o rascunho">
-      <Text style={st.confirmText}>Apagar</Text>
+    <Pressable onPress={() => { setAsking(null); onDelete(d.id); }} hitSlop={8} style={st.confirm} accessibilityRole="button" accessibilityLabel={t('Apagar de vez o rascunho')}>
+      <Text style={st.confirmText}>{t('Apagar')}</Text>
     </Pressable>
   ) : (
-    <Pressable onPress={() => setAsking(d.id)} hitSlop={8} style={st.trash} accessibilityRole="button" accessibilityLabel="Apagar o rascunho">
+    <Pressable onPress={() => setAsking(d.id)} hitSlop={8} style={st.trash} accessibilityRole="button" accessibilityLabel={t('Apagar o rascunho')}>
       <Icon name="trash" size={size} color="#fff" />
     </Pressable>
   );
@@ -39,18 +40,18 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
         {poster(first, true)}
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <Text style={st.heroTitle} numberOfLines={1}>{draftLabel(first)}</Text>
-          <Text style={st.sub}>Guardado {agoLabel(first.savedAt)}</Text>
-          <Text style={st.sub}>Continua de onde ficaste: os cortes, a ordem e a música ficaram.</Text>
+          <Text style={st.sub}>{t('Guardado {agoLabel}', { agoLabel: agoLabel(first.savedAt) })}</Text>
+          <Text style={st.sub}>{t('Continua de onde ficaste: os cortes, a ordem e a música ficaram.')}</Text>
         </View>
         {trash(first, 18)}
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-        <Pressable onPress={onNew} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>Começar de novo</Text></Pressable>
-        <Pressable onPress={() => onContinue(first)} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>Continuar</Text></Pressable>
+        <Pressable onPress={onNew} style={[st.btn, st.ghost]} accessibilityRole="button"><Text style={st.btnText}>{t('Começar de novo')}</Text></Pressable>
+        <Pressable onPress={() => onContinue(first)} style={[st.btn, st.primary]} accessibilityRole="button"><Text style={st.btnText}>{t('Continuar')}</Text></Pressable>
       </View>
       {rest.length ? (
         <>
-          <Text style={st.section}>Rascunhos</Text>
+          <Text style={st.section}>{t('Rascunhos')}</Text>
           <ScrollView style={{ maxHeight: 230 }} showsVerticalScrollIndicator={false}>
             {rest.map((d) => (
               <View key={d.id} style={st.row}>
@@ -59,7 +60,7 @@ export function StudioDrafts({ drafts, onContinue, onDelete, onNew }: {
                   <Text style={st.rowTitle} numberOfLines={1}>{draftLabel(d)}</Text>
                   <Text style={st.sub}>{agoLabel(d.savedAt)}</Text>
                 </View>
-                <Pressable onPress={() => onContinue(d)} style={st.small} accessibilityRole="button" accessibilityLabel={`Abrir o rascunho de ${draftLabel(d)}`}><Text style={st.smallText}>Abrir</Text></Pressable>
+                <Pressable onPress={() => onContinue(d)} style={st.small} accessibilityRole="button" accessibilityLabel={t('Abrir o rascunho de {draftLabel}', { draftLabel: draftLabel(d) })}><Text style={st.smallText}>{t('Abrir')}</Text></Pressable>
                 {trash(d, 16)}
               </View>
             ))}
