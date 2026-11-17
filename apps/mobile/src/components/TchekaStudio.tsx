@@ -55,7 +55,7 @@ import { TextPanel } from './studio/TextPanel';
 import { Timeline, type TimelineLayer } from './studio/Timeline';
 import { TimelineActions } from './studio/TimelineActions';
 import { GalleryPick, stampTxillapp, type Shot } from './TxCamera';
-import { t } from '@/lib/i18n';
+import { currentLanguage, t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 1080;
@@ -812,7 +812,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   /** Por cima de cada frame: os textos e os stickers (no tempo deles, com as animações) e a assinatura. */
   function overlay(g: CanvasRenderingContext2D, t: number) {
     const e = engine.current;
-    e.boxes = drawOverlays(g, cfg.current.overlays, t, { W, H, image: ovImage, scratch });
+    e.boxes = drawOverlays(g, cfg.current.overlays, t, { W, H, image: ovImage, scratch, lang: currentLanguage() });
     stampTxillapp(g, W, H, username, seal);
   }
   /** Um frame inteiro: o fundo (ou a transição a partir do bocado anterior) e as camadas por cima. */

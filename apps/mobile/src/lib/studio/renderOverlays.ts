@@ -17,6 +17,8 @@ export interface OverlayEnv {
   image: (o: StickerOverlay) => { img: CanvasImageSource; w: number; h: number } | null;
   /** Canvas de trabalho (as letras com pano de capulana); sem ele, as letras ficam na cor. */
   scratch?: (name: string, w: number, h: number) => { c: CanvasImageSource; g: Ctx } | null;
+  /** A língua do que se escreve no vídeo (os dias e os meses do sticker da hora: `timeLabel`); sem ela, português. */
+  lang?: string;
 }
 /** Onde ficou uma camada (px do quadro): centro, tamanho jÃ¡ com a escala dela (sem a animaÃ§Ã£o) e rotaÃ§Ã£o em graus. */
 export interface OverlayBox { id: string; cx: number; cy: number; w: number; h: number; rot: number }
@@ -256,7 +258,7 @@ function stickerLayout(g: Ctx, o: StickerOverlay, env: OverlayEnv): StickerLayou
       return { size: { w: 396, h: 396 }, draw: (c) => drawCapulanaSticker(c, st.shape, st.pano, 0, 0, 180) };
     }
     case 'time': {
-      const lines = timeLabel(s.format, s.at);
+      const lines = timeLabel(s.format, s.at, env.lang);
       const big = s.format !== 'data';
       const f1 = big ? `800 120px TxOrbitron, ${EMOJI_FONT}` : LABEL_FONT(64);
       g.font = f1;

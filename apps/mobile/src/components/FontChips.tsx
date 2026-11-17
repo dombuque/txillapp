@@ -4,6 +4,7 @@ import { colors } from '@/lib/theme';
 import { TEXT_FONT_IDS, normTextFont, type TextFontId } from '@/lib/textLayers';
 import { useTextFontStyle, useTextFonts } from '@/lib/useTextFonts';
 import { t } from '@/lib/i18n';
+import { fontName } from '@/lib/studio/effectLabels';
 
 /**
  * A fila das letras (as 10 do estúdio), na horizontal: cada uma escreve o próprio nome na sua letra. Serve nos textos dos
@@ -40,7 +41,7 @@ export function FontChips({ value, onChange, dark = false, style, label = t('Let
             onPress={() => onChange(id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={t('Letra {name}', { name: f.name })}
+            accessibilityLabel={t('Letra {name}', { name: fontName(f) })}
             style={({ pressed }) => [{ height: 44, minWidth: 44, borderRadius: 22, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }, dark && !on && { borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
             <ChipName id={id} color={fg} />
@@ -55,5 +56,5 @@ export function FontChips({ value, onChange, dark = false, style, label = t('Let
 function ChipName({ id, color }: { id: TextFontId; color: string }) {
   const f = fontById(id);
   const face = useTextFontStyle(id);
-  return <Text style={[{ color, fontSize: Math.round(16 * f.k), lineHeight: Math.round(16 * f.k * 1.35) }, face ?? { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>;
+  return <Text style={[{ color, fontSize: Math.round(16 * f.k), lineHeight: Math.round(16 * f.k * 1.35) }, face ?? { fontWeight: '700' }]} numberOfLines={1}>{fontName(f)}</Text>;
 }

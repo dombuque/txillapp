@@ -4,6 +4,7 @@ import { CAPULANA_PALETTES, CAPULANA_PATTERNS, nextSeed, paletteById, patternByI
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { mg } from './MagicUi';
 import { t } from '@/lib/i18n';
+import { paletteName, patternMood, patternName } from '@/lib/studio/effectLabels';
 
 /**
  * O seletor de panos: os 8 padrões e as 6 paletas em miniaturas (o pano a sério, não um ícone), e «Baralhar» para outra
@@ -16,8 +17,8 @@ export function CapulanaPicker({ value, onChange }: { value: CapulanaSpec; onCha
       <View style={st.hero}>
         <CapulanaSwatch spec={value} tile={96} style={StyleSheet.absoluteFill} />
         <View style={st.heroLabel}>
-          <Text style={st.heroName} numberOfLines={1}>{pat.name} · {pal.name}</Text>
-          <Text style={st.heroMood} numberOfLines={1}>{pat.mood}</Text>
+          <Text style={st.heroName} numberOfLines={1}>{patternName(pat)} · {paletteName(pal)}</Text>
+          <Text style={st.heroMood} numberOfLines={1}>{patternMood(pat)}</Text>
         </View>
         <Pressable onPress={() => onChange({ ...value, seed: nextSeed(value.seed) })} accessibilityRole="button" accessibilityLabel={t('Baralhar o pano')} testID="baralhar" style={({ pressed }) => [st.shuffle, pressed && { transform: [{ scale: 0.95 }] }]}>
           <Shuffle size={20} color="#fff" strokeWidth={2.4} />
@@ -31,9 +32,9 @@ export function CapulanaPicker({ value, onChange }: { value: CapulanaSpec; onCha
           {CAPULANA_PATTERNS.map((p) => {
             const on = p.id === value.pattern;
             return (
-              <Pressable key={p.id} onPress={() => onChange({ ...value, pattern: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${p.name}. ${p.mood}`} testID={`padrao-${p.id}`} style={st.item}>
+              <Pressable key={p.id} onPress={() => onChange({ ...value, pattern: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${patternName(p)}. ${patternMood(p)}`} testID={`padrao-${p.id}`} style={st.item}>
                 <View style={[st.thumb, on && st.on]}><CapulanaSwatch spec={{ ...value, pattern: p.id }} tile={76} style={StyleSheet.absoluteFill} /></View>
-                <Text style={[st.name, on && st.nameOn]} numberOfLines={1}>{p.name}</Text>
+                <Text style={[st.name, on && st.nameOn]} numberOfLines={1}>{patternName(p)}</Text>
               </Pressable>
             );
           })}
@@ -46,11 +47,11 @@ export function CapulanaPicker({ value, onChange }: { value: CapulanaSpec; onCha
           {CAPULANA_PALETTES.map((p) => {
             const on = p.id === value.palette;
             return (
-              <Pressable key={p.id} onPress={() => onChange({ ...value, palette: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={t('Cores {name}', { name: p.name })} testID={`paleta-${p.id}`} style={st.item}>
+              <Pressable key={p.id} onPress={() => onChange({ ...value, palette: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={t('Cores {name}', { name: paletteName(p) })} testID={`paleta-${p.id}`} style={st.item}>
                 <View style={[st.dots, on && st.on]}>
                   {p.colors.map((c) => <View key={c} style={{ flex: 1, backgroundColor: c }} />)}
                 </View>
-                <Text style={[st.name, on && st.nameOn]} numberOfLines={1}>{p.name}</Text>
+                <Text style={[st.name, on && st.nameOn]} numberOfLines={1}>{paletteName(p)}</Text>
               </Pressable>
             );
           })}

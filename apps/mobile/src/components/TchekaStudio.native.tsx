@@ -63,7 +63,7 @@ import { useFrameGrab } from './studio/native/useFrameGrab';
 import { usePreviewAudio } from './studio/native/usePreviewAudio';
 import { useVoicePreview } from './studio/native/useVoicePreview';
 import type { Shot } from './TxCamera';
-import { t } from '@/lib/i18n';
+import { currentLanguage, t } from '@/lib/i18n';
 
 type Tab = 'clipes' | 'som' | 'texto' | 'stickers' | 'efeitos' | 'capa';
 type SheetH = 'baixa' | 'media' | 'alta';
@@ -619,7 +619,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       clips: items, mediaIds: ids, overlays, mix, voiceMediaId: mix.voice ? ids[`voz:${mix.voice.id}`] ?? null : null,
       music: music && !useSound && music.kind !== 'sound' ? (musicPayload(music) as unknown as Record<string, unknown>) : null,
       soundId: useSound ? soundId : null, origVol, musicVol, rhythm: useRhythm, bpm: beatInfo?.bpm ?? null, total: playTotal, coverAt,
-      duetPostId: duetPostId ?? null, pano,
+      duetPostId: duetPostId ?? null, pano, lang: currentLanguage(),
     });
   }
   async function follow(jobId: string, rec: JobRecord, sig: string, s: Signal) {

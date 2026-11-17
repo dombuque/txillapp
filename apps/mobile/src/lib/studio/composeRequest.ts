@@ -8,7 +8,9 @@
  * - O som: a música (ou o som de outra tcheka), o trecho, os fades, o ducking, a voz-off, os efeitos de voz e os sonoros.
  * - O som de cada vídeo vai em `sound: false` (calado) e `volume` (0 a 1), com os nomes do `ProjectClip`.
  * - `compatRequest` tira o que um servidor mais antigo (só com a secção 4-B) ainda não conhece: os panos de capulana, o
- *   enquadramento das fotos e o som por clipe. Usa-se uma vez, quando o servidor responde «Pedido inválido (…)».
+ *   enquadramento das fotos, o som por clipe e a língua da hora. Usa-se uma vez, quando o servidor responde «Pedido inválido (…)».
+ * - A língua (`lang`) do que se escreve no vídeo (os dias e os meses do sticker da hora) só vai quando não é o português (o
+ *   que o servidor faz sem ela) e há um sticker da hora.
  *
  * Só importa tipos (o node corre este ficheiro direto).
  */
@@ -66,6 +68,8 @@ export interface ComposeRequest {
   duet?: { postId: string; layout: 'side' };
   /** O pano de capulana da tcheka (o das transições de pano que não tragam o delas). */
   pano?: { pattern: string; palette: string; seed: number };
+  /** A língua do texto que a montagem escreve no vídeo (o sticker da hora: `timeLabel`); sem ela, português. */
+  lang?: string;
 }
 
 export interface ComposeInput {
@@ -95,6 +99,8 @@ export interface ComposeInput {
   duetPostId?: string | null;
   /** O pano da tcheka. */
   pano?: { pattern: string; palette: string; seed: number } | null;
+  /** O idioma ativo da app (`currentLanguage()`): o do sticker da hora no vídeo. */
+  lang?: string | null;
 }
 
 const ms = (s: number) => Math.max(0, Math.round((Number.isFinite(s) ? s : 0) * 1000));
@@ -179,6 +185,7 @@ export function buildComposeRequest(i: ComposeInput): ComposeRequest {
   req.coverMs = Math.min(ms(i.coverAt), Math.max(0, ms(i.total) - 100));
   if (i.duetPostId) req.duet = { postId: i.duetPostId, layout: 'side' };
   if (i.pano) req.pano = { ...i.pano };
+  if (i.lang && i.lang !== 'pt' && overlays.some((o) => o.kind === 'sticker' && o.sticker.type === 'time')) req.lang = i.lang;
   return req;
 }
 
@@ -229,6 +236,7 @@ export function compatRequest(r: ComposeRequest): { request: ComposeRequest; cha
   });
   const request: ComposeRequest = { ...r, clips };
   if (request.pano) { delete request.pano; changed.add('o pano da tcheka'); }
+  if (request.lang) { delete request.lang; changed.add('a data e a hora noutra língua'); }
   if (r.overlays) { if (overlays.length) request.overlays = overlays; else delete request.overlays; }
   // Todos os vídeos calados: o som original sai inteiro (o que o servidor antigo sabe fazer).
   if (allMuted && changed.has('o som de cada vídeo')) request.originalVolume = 0;

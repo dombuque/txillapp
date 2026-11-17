@@ -9,7 +9,6 @@
  * Não importa nada: o Node corre este ficheiro diretamente.
  */
 
-import { t } from '@/lib/i18n';
 export const CAPULANA_VERSION = 1;
 
 export type PatternId = 'losangos' | 'ziguezague' | 'circulos' | 'flores' | 'faixas' | 'escamas' | 'sol' | 'degraus';
@@ -19,14 +18,14 @@ export interface CapulanaSpec { pattern: PatternId; palette: PaletteId; seed: nu
 
 export interface PatternDef { id: PatternId; name: string; /** Uma linha para o seletor e o leitor de ecrã. */ mood: string }
 export const CAPULANA_PATTERNS: PatternDef[] = [
-  { id: 'losangos', get name() { return t('Losangos'); }, get mood() { return t('Losangos dentro de losangos'); } },
-  { id: 'ziguezague', get name() { return t('Ziguezague'); }, get mood() { return t('Ondas em bico, de lado a lado'); } },
-  { id: 'circulos', get name() { return t('Círculos'); }, get mood() { return t('Círculos uns dentro dos outros'); } },
-  { id: 'flores', get name() { return t('Flores'); }, get mood() { return t('Flores de pétalas largas'); } },
-  { id: 'faixas', get name() { return t('Faixas'); }, get mood() { return t('Barras com triângulos e contas'); } },
-  { id: 'escamas', get name() { return t('Escamas'); }, get mood() { return t('Leques sobrepostos, como escamas'); } },
-  { id: 'sol', get name() { return t('Sol'); }, get mood() { return t('Sóis de raios abertos'); } },
-  { id: 'degraus', get name() { return t('Degraus'); }, get mood() { return t('Pirâmides em degraus'); } },
+  { id: 'losangos', name: 'Losangos', mood: 'Losangos dentro de losangos' },
+  { id: 'ziguezague', name: 'Ziguezague', mood: 'Ondas em bico, de lado a lado' },
+  { id: 'circulos', name: 'Círculos', mood: 'Círculos uns dentro dos outros' },
+  { id: 'flores', name: 'Flores', mood: 'Flores de pétalas largas' },
+  { id: 'faixas', name: 'Faixas', mood: 'Barras com triângulos e contas' },
+  { id: 'escamas', name: 'Escamas', mood: 'Leques sobrepostos, como escamas' },
+  { id: 'sol', name: 'Sol', mood: 'Sóis de raios abertos' },
+  { id: 'degraus', name: 'Degraus', mood: 'Pirâmides em degraus' },
 ];
 
 /** Uma paleta: [fundo, forte, claro, acento, linha]. */

@@ -109,6 +109,16 @@ test('as camadas: as que entram depois do fim saem, as que passam do fim cortam-
   assert.deepEqual(r.duet, { postId: '00000000-0000-0000-0000-000000000001', layout: 'side' });
 });
 
+test('a língua do sticker da hora: só vai fora do português e com um sticker da hora; o servidor antigo fica sem ela', () => {
+  const hora = fx.newSticker({ type: 'time', format: 'data', at: Date.UTC(2026, 10, 12, 20, 41) }, 0, 14);
+  assert.equal(c.buildComposeRequest(base({ overlays: [hora], lang: 'en' })).lang, 'en');
+  assert.equal(c.buildComposeRequest(base({ overlays: [hora], lang: 'pt' })).lang, undefined, 'o português é o que o servidor faz sem ela');
+  assert.equal(c.buildComposeRequest(base({ overlays: [fx.newText(1, 14, 'Olá')], lang: 'en' })).lang, undefined, 'sem sticker da hora não há nada a escrever na língua');
+  const { request, changed } = c.compatRequest(c.buildComposeRequest(base({ overlays: [hora], lang: 'en' })));
+  assert.equal(request.lang, undefined);
+  assert.ok(changed.includes('a data e a hora noutra língua'));
+});
+
 test('os ficheiros que faltam enviar e o que impede a montagem', () => {
   const clips = project();
   assert.deepEqual(c.missingMedia(clips, { k1: 'm' }), ['k2', 'k3']);

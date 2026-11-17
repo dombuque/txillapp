@@ -12,6 +12,7 @@ import { Icon } from '../Icon';
 import { StickerArt } from '../Stickers';
 import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from './FxUi';
 import { t } from '@/lib/i18n';
+import { animName, loopName } from '@/lib/studio/effectLabels';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 type Sub = 'emoji' | 'txill' | 'gif' | 'mention' | 'location' | 'time';
@@ -61,9 +62,9 @@ export function StickerTray({ stickers, selId, onSelect, onAdd, onChange, onDele
             </FxRow>
           ) : null}
           <FxRow label={t('Animação')}>
-            {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={a.name} onPress={() => set({ anim: { ...cur.anim, loop: a.id } })} a11y={t('Em ciclo: {name}', { name: a.name })} />)}
+            {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={loopName(a)} onPress={() => set({ anim: { ...cur.anim, loop: a.id } })} a11y={t('Em ciclo: {name}', { name: loopName(a) })} />)}
             <View style={{ width: 10 }} />
-            {ANIMS.filter((a) => a.id !== 'maquina' && a.id !== 'ondulacao').map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={t('Entra: {name}', { name: a.name })} onPress={() => set({ anim: { ...cur.anim, in: a.id as AnimIn } })} />)}
+            {ANIMS.filter((a) => a.id !== 'maquina' && a.id !== 'ondulacao').map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={t('Entra: {name}', { name: animName(a) })} onPress={() => set({ anim: { ...cur.anim, in: a.id as AnimIn } })} />)}
           </FxRow>
           <FxSlider label={t('Aparece de')} value={cur.start} min={0} max={Math.max(0.5, total - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ start: v, end: Math.max(cur.end, v + 0.5) })} />
           <FxSlider label={t('Até')} value={Math.min(cur.end, Math.max(0.6, total))} min={0.5} max={Math.max(0.6, total)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => set({ end: v, start: Math.min(cur.start, v - 0.5) })} />

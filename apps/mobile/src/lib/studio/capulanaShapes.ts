@@ -6,7 +6,6 @@
  * Não importa nada: o Node corre este ficheiro diretamente.
  */
 
-import { t } from '@/lib/i18n';
 export type Pt = [number, number];
 export interface Box { x: number; y: number; w: number; h: number }
 
@@ -14,11 +13,11 @@ export interface Box { x: number; y: number; w: number; h: number }
 export type CapulanaTransitionId = 'capulana-deslizar' | 'capulana-desenrolar' | 'capulana-rasgar' | 'capulana-losango' | 'capulana-vento';
 export interface CapulanaTransitionDef { id: CapulanaTransitionId; name: string; mood: string; /** O `xfade` do ffmpeg mais parecido (sem pano), se o servidor não desenhar o pano. */ ffmpeg: string }
 export const CAPULANA_TRANSITIONS: CapulanaTransitionDef[] = [
-  { id: 'capulana-deslizar', get name() { return t('Pano'); }, get mood() { return t('O pano atravessa o ecrã de lado, com a franja à frente'); }, ffmpeg: 'wipeleft' },
-  { id: 'capulana-desenrolar', get name() { return t('Desenrolar'); }, get mood() { return t('O pano desenrola-se de cima e volta a enrolar'); }, ffmpeg: 'wipedown' },
-  { id: 'capulana-rasgar', get name() { return t('Rasgar'); }, get mood() { return t('Dois panos fecham em ziguezague e rasgam para os lados'); }, ffmpeg: 'horzopen' },
-  { id: 'capulana-losango', get name() { return t('Losango'); }, get mood() { return t('Um losango de pano abre do centro'); }, ffmpeg: 'diagtl' },
-  { id: 'capulana-vento', get name() { return t('Ao vento'); }, get mood() { return t('O pano passa na diagonal, a ondular'); }, ffmpeg: 'wipetl' },
+  { id: 'capulana-deslizar', name: 'Pano', mood: 'O pano atravessa o ecrã de lado, com a franja à frente', ffmpeg: 'wipeleft' },
+  { id: 'capulana-desenrolar', name: 'Desenrolar', mood: 'O pano desenrola-se de cima e volta a enrolar', ffmpeg: 'wipedown' },
+  { id: 'capulana-rasgar', name: 'Rasgar', mood: 'Dois panos fecham em ziguezague e rasgam para os lados', ffmpeg: 'horzopen' },
+  { id: 'capulana-losango', name: 'Losango', mood: 'Um losango de pano abre do centro', ffmpeg: 'diagtl' },
+  { id: 'capulana-vento', name: 'Ao vento', mood: 'O pano passa na diagonal, a ondular', ffmpeg: 'wipetl' },
 ];
 const IDS = new Set<string>(CAPULANA_TRANSITIONS.map((t) => t.id));
 export const isCapulanaTransition = (v: unknown): v is CapulanaTransitionId => typeof v === 'string' && IDS.has(v);

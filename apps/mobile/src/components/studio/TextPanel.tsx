@@ -5,6 +5,7 @@ import { fmtS } from '@/lib/tchekaRules';
 import { Icon } from '../Icon';
 import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from './FxUi';
 import { t } from '@/lib/i18n';
+import { animName, fontName, loopName } from '@/lib/studio/effectLabels';
 
 type Sub = 'fonte' | 'estilo' | 'animacao' | 'tempo';
 const SUBS: { id: Sub; label: string }[] = [{ id: 'fonte', get label() { return t('Fonte'); } }, { id: 'estilo', get label() { return t('Estilo'); } }, { id: 'animacao', get label() { return t('Animação'); } }, { id: 'tempo', get label() { return t('Tempo'); } }];
@@ -69,9 +70,9 @@ export function TextPanel({ texts, selId, onSelect, onAdd, onChange, onDelete, t
                 {FONTS.map((f) => {
                   const on = cur.font === f.id;
                   return (
-                    <Pressable key={f.id} onPress={() => set({ font: f.id })} style={[{ width: 70, height: 58, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Fonte {name}', { name: f.name })}>
+                    <Pressable key={f.id} onPress={() => set({ font: f.id })} style={[{ width: 70, height: 58, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Fonte {name}', { name: fontName(f) })}>
                       <Text style={{ color: '#fff', fontSize: 22 * f.k * 0.9, fontFamily: f.family, fontWeight: String(f.weight) as '400', fontStyle: f.style ?? 'normal', lineHeight: 28 }}>{t('Aa')}</Text>
-                      <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{f.name}</Text>
+                      <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{fontName(f)}</Text>
                     </Pressable>
                   );
                 })}
@@ -105,13 +106,13 @@ export function TextPanel({ texts, selId, onSelect, onAdd, onChange, onDelete, t
           {sub === 'animacao' ? (
             <>
               <FxRow label={t('Entrada')}>
-                {ANIMS.map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={a.name} onPress={() => setAnim({ in: a.id as AnimIn })} a11y={t('Entrada: {name}', { name: a.name })} />)}
+                {ANIMS.map((a) => <FxChip key={a.id} small on={cur.anim.in === a.id} label={animName(a)} onPress={() => setAnim({ in: a.id as AnimIn })} a11y={t('Entrada: {name}', { name: animName(a) })} />)}
               </FxRow>
               <FxRow label={t('Saída')}>
-                {ANIMS.map((a) => <FxChip key={a.id} small on={cur.anim.out === a.id} label={a.name} onPress={() => setAnim({ out: a.id as AnimIn })} a11y={t('Saída: {name}', { name: a.name })} />)}
+                {ANIMS.map((a) => <FxChip key={a.id} small on={cur.anim.out === a.id} label={animName(a)} onPress={() => setAnim({ out: a.id as AnimIn })} a11y={t('Saída: {name}', { name: animName(a) })} />)}
               </FxRow>
               <FxRow label={t('Enquanto se vê')}>
-                {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={a.name} onPress={() => setAnim({ loop: a.id })} a11y={t('Em ciclo: {name}', { name: a.name })} />)}
+                {LOOPS.map((a) => <FxChip key={a.id} small on={cur.anim.loop === a.id} label={loopName(a)} onPress={() => setAnim({ loop: a.id })} a11y={t('Em ciclo: {name}', { name: loopName(a) })} />)}
               </FxRow>
               <FxSlider label={t('Duração da entrada')} value={cur.anim.inDur} min={0.1} max={2} step={0.05} format={(v) => `${fmtS(v)} s`} onChange={(v) => setAnim({ inDur: v })} />
             </>

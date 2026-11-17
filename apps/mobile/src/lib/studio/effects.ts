@@ -13,7 +13,6 @@
  */
 
 /** Versão do contrato JSON (sobe quando um campo muda de significado). */
-import { abbr, monthNames, t, weekdayNames } from '@/lib/i18n';
 export const FX_VERSION = 1;
 /** O quadro da tcheka: 9:16 a 30 fps. Todas as medidas em px das camadas são deste quadro. */
 export const FRAME = { w: 1080, h: 1920, fps: 30 } as const;
@@ -130,22 +129,22 @@ export interface FilterDef {
 
 /** Os 16 filtros (o primeiro é sem filtro). A intensidade mistura cada um com o original. */
 export const FILTERS: FilterDef[] = [
-  { id: 'normal', name: 'Normal', get mood() { return t('Sem filtro'); }, ops: [], swatch: '#9aa0a6' },
-  { id: 'matapa', get name() { return t('Matapa'); }, get mood() { return t('Verde fundo da folha de mandioca, terra quente'); }, ops: [['temperature', 0.15], ['tint', -0.35], ['saturate', 1.12], ['contrast', 1.06], ['lift', 0.02, 0.05, 0.01]], swatch: '#4f7d3a' },
-  { id: 'costa-do-sol', get name() { return t('Costa do Sol'); }, get mood() { return t('Fim de tarde dourado na marginal'); }, ops: [['temperature', 0.45], ['brightness', 1.06], ['saturate', 1.25], ['contrast', 1.05], ['fade', 0.1]], vignette: 0.15, swatch: '#f2a541' },
-  { id: 'xima', get name() { return t('Xima'); }, get mood() { return t('Claro, cremoso e suave'); }, ops: [['brightness', 1.08], ['contrast', 0.9], ['saturate', 0.8], ['fade', 0.3], ['temperature', 0.12], ['colorize', 255, 244, 225, 0.06]], swatch: '#efe6d2' },
-  { id: 'noite-de-maputo', get name() { return t('Noite de Maputo'); }, get mood() { return t('Néon azul e magenta, sombras frias'); }, ops: [['temperature', -0.55], ['tint', 0.3], ['contrast', 1.22], ['saturate', 1.2], ['brightness', 0.95], ['lift', 0.03, 0, 0.09]], vignette: 0.45, swatch: '#3b2b8f' },
-  { id: 'marrabenta', get name() { return t('Marrabenta'); }, get mood() { return t('Vivo, quente e com contraste, para dançar'); }, ops: [['saturate', 1.5], ['contrast', 1.15], ['temperature', 0.18], ['brightness', 1.03]], swatch: '#e8432e' },
-  { id: 'capulana', get name() { return t('Capulana'); }, get mood() { return t('Cores fortes como um pano novo'); }, ops: [['saturate', 1.7], ['hue', 12], ['contrast', 1.12]], sharpen: 0.15, swatch: '#f0b400' },
-  { id: 'ilha', get name() { return t('Ilha'); }, get mood() { return t('Turquesa e pedra branca da Ilha de Moçambique'); }, ops: [['temperature', -0.2], ['tint', -0.1], ['brightness', 1.06], ['saturate', 1.12], ['contrast', 0.98], ['colorize', 64, 200, 210, 0.06]], swatch: '#3fbac2' },
-  { id: 'tofo', get name() { return t('Tofo'); }, get mood() { return t('Oceano azul e verde, de mergulho'); }, ops: [['temperature', -0.32], ['saturate', 1.25], ['contrast', 1.08], ['hue', -6]], swatch: '#1f7fbf' },
-  { id: 'gorongosa', get name() { return t('Gorongosa'); }, get mood() { return t('Savana: verdes de terra e luz dura'); }, ops: [['temperature', 0.28], ['saturate', 0.88], ['contrast', 1.12], ['tint', -0.15]], sharpen: 0.2, vignette: 0.25, swatch: '#8a7a3c' },
-  { id: 'limpopo', get name() { return t('Limpopo'); }, get mood() { return t('Pôr do sol laranja sobre o rio'); }, ops: [['temperature', 0.6], ['tint', 0.18], ['saturate', 1.15], ['contrast', 1.06], ['colorize', 255, 120, 60, 0.08]], vignette: 0.25, swatch: '#ff7a3d' },
-  { id: 'cacimba', get name() { return t('Cacimba'); }, get mood() { return t('Neblina da manhã, tudo calmo'); }, ops: [['fade', 0.45], ['contrast', 0.85], ['saturate', 0.75], ['temperature', -0.1], ['brightness', 1.05]], swatch: '#b8c4cc' },
-  { id: 'vintage', get name() { return t('Vintage'); }, get mood() { return t('Machimbombo dos anos 70, com grão'); }, ops: [['sepia', 0.4], ['fade', 0.25], ['temperature', 0.2], ['contrast', 0.95], ['saturate', 0.85]], grain: 0.35, vignette: 0.35, swatch: '#a5784a' },
-  { id: 'pb', name: 'P&B', get mood() { return t('Mafalala a preto e branco, documental'); }, ops: [['grayscale', 1], ['contrast', 1.3], ['brightness', 1.02]], grain: 0.2, sharpen: 0.15, swatch: '#6b6b6b' },
-  { id: 'polana', get name() { return t('Polana'); }, get mood() { return t('Preto e branco suave e elegante'); }, ops: [['grayscale', 1], ['contrast', 0.92], ['fade', 0.15], ['brightness', 1.05], ['sepia', 0.08]], swatch: '#cfcfcf' },
-  { id: 'txillapp', name: 'Txillapp', get mood() { return t('O coral da casa'); }, ops: [['colorize', 214, 51, 79, 0.1], ['saturate', 1.12], ['contrast', 1.06], ['temperature', 0.08]], swatch: '#d6334f' },
+  { id: 'normal', name: 'Normal', mood: 'Sem filtro', ops: [], swatch: '#9aa0a6' },
+  { id: 'matapa', name: 'Matapa', mood: 'Verde fundo da folha de mandioca, terra quente', ops: [['temperature', 0.15], ['tint', -0.35], ['saturate', 1.12], ['contrast', 1.06], ['lift', 0.02, 0.05, 0.01]], swatch: '#4f7d3a' },
+  { id: 'costa-do-sol', name: 'Costa do Sol', mood: 'Fim de tarde dourado na marginal', ops: [['temperature', 0.45], ['brightness', 1.06], ['saturate', 1.25], ['contrast', 1.05], ['fade', 0.1]], vignette: 0.15, swatch: '#f2a541' },
+  { id: 'xima', name: 'Xima', mood: 'Claro, cremoso e suave', ops: [['brightness', 1.08], ['contrast', 0.9], ['saturate', 0.8], ['fade', 0.3], ['temperature', 0.12], ['colorize', 255, 244, 225, 0.06]], swatch: '#efe6d2' },
+  { id: 'noite-de-maputo', name: 'Noite de Maputo', mood: 'Néon azul e magenta, sombras frias', ops: [['temperature', -0.55], ['tint', 0.3], ['contrast', 1.22], ['saturate', 1.2], ['brightness', 0.95], ['lift', 0.03, 0, 0.09]], vignette: 0.45, swatch: '#3b2b8f' },
+  { id: 'marrabenta', name: 'Marrabenta', mood: 'Vivo, quente e com contraste, para dançar', ops: [['saturate', 1.5], ['contrast', 1.15], ['temperature', 0.18], ['brightness', 1.03]], swatch: '#e8432e' },
+  { id: 'capulana', name: 'Capulana', mood: 'Cores fortes como um pano novo', ops: [['saturate', 1.7], ['hue', 12], ['contrast', 1.12]], sharpen: 0.15, swatch: '#f0b400' },
+  { id: 'ilha', name: 'Ilha', mood: 'Turquesa e pedra branca da Ilha de Moçambique', ops: [['temperature', -0.2], ['tint', -0.1], ['brightness', 1.06], ['saturate', 1.12], ['contrast', 0.98], ['colorize', 64, 200, 210, 0.06]], swatch: '#3fbac2' },
+  { id: 'tofo', name: 'Tofo', mood: 'Oceano azul e verde, de mergulho', ops: [['temperature', -0.32], ['saturate', 1.25], ['contrast', 1.08], ['hue', -6]], swatch: '#1f7fbf' },
+  { id: 'gorongosa', name: 'Gorongosa', mood: 'Savana: verdes de terra e luz dura', ops: [['temperature', 0.28], ['saturate', 0.88], ['contrast', 1.12], ['tint', -0.15]], sharpen: 0.2, vignette: 0.25, swatch: '#8a7a3c' },
+  { id: 'limpopo', name: 'Limpopo', mood: 'Pôr do sol laranja sobre o rio', ops: [['temperature', 0.6], ['tint', 0.18], ['saturate', 1.15], ['contrast', 1.06], ['colorize', 255, 120, 60, 0.08]], vignette: 0.25, swatch: '#ff7a3d' },
+  { id: 'cacimba', name: 'Cacimba', mood: 'Neblina da manhã, tudo calmo', ops: [['fade', 0.45], ['contrast', 0.85], ['saturate', 0.75], ['temperature', -0.1], ['brightness', 1.05]], swatch: '#b8c4cc' },
+  { id: 'vintage', name: 'Vintage', mood: 'Machimbombo dos anos 70, com grão', ops: [['sepia', 0.4], ['fade', 0.25], ['temperature', 0.2], ['contrast', 0.95], ['saturate', 0.85]], grain: 0.35, vignette: 0.35, swatch: '#a5784a' },
+  { id: 'pb', name: 'P&B', mood: 'Mafalala a preto e branco, documental', ops: [['grayscale', 1], ['contrast', 1.3], ['brightness', 1.02]], grain: 0.2, sharpen: 0.15, swatch: '#6b6b6b' },
+  { id: 'polana', name: 'Polana', mood: 'Preto e branco suave e elegante', ops: [['grayscale', 1], ['contrast', 0.92], ['fade', 0.15], ['brightness', 1.05], ['sepia', 0.08]], swatch: '#cfcfcf' },
+  { id: 'txillapp', name: 'Txillapp', mood: 'O coral da casa', ops: [['colorize', 214, 51, 79, 0.1], ['saturate', 1.12], ['contrast', 1.06], ['temperature', 0.08]], swatch: '#d6334f' },
 ];
 const FILTER_BY_ID = new Map(FILTERS.map((f) => [f.id, f]));
 export const filterById = (id: string | null | undefined): FilterDef | undefined => (id ? FILTER_BY_ID.get(id) : undefined);
@@ -164,14 +163,14 @@ export interface Adjust {
 }
 export type AdjustKey = keyof Adjust;
 export const ADJUSTS: { id: AdjustKey; label: string; min: number; max: number }[] = [
-  { id: 'brightness', get label() { return t('Brilho'); }, min: -1, max: 1 },
-  { id: 'contrast', get label() { return t('Contraste'); }, min: -1, max: 1 },
-  { id: 'saturation', get label() { return t('Saturação'); }, min: -1, max: 1 },
-  { id: 'temperature', get label() { return t('Temperatura'); }, min: -1, max: 1 },
-  { id: 'hue', get label() { return t('Matiz'); }, min: -1, max: 1 },
-  { id: 'sharpen', get label() { return t('Nitidez'); }, min: 0, max: 1 },
-  { id: 'vignette', get label() { return t('Vinheta'); }, min: 0, max: 1 },
-  { id: 'grain', get label() { return t('Grão'); }, min: 0, max: 1 },
+  { id: 'brightness', label: 'Brilho', min: -1, max: 1 },
+  { id: 'contrast', label: 'Contraste', min: -1, max: 1 },
+  { id: 'saturation', label: 'Saturação', min: -1, max: 1 },
+  { id: 'temperature', label: 'Temperatura', min: -1, max: 1 },
+  { id: 'hue', label: 'Matiz', min: -1, max: 1 },
+  { id: 'sharpen', label: 'Nitidez', min: 0, max: 1 },
+  { id: 'vignette', label: 'Vinheta', min: 0, max: 1 },
+  { id: 'grain', label: 'Grão', min: 0, max: 1 },
 ];
 export function adjustOps(a: Partial<Adjust>): ColorOp[] {
   const ops: ColorOp[] = [];
@@ -286,10 +285,10 @@ export function transitionFor(fx: ClipFx | undefined, index: number, clipDur: nu
 export interface RampDef { id: RampId; name: string; mood: string; /** (u, velocidade): u de 0 a 1 no tempo do clipe já montado. */ points: [number, number][] }
 /** As rampas (como no CapCut/TikTok): a velocidade muda ao longo do clipe, por cima da velocidade dele. */
 export const RAMPS: RampDef[] = [
-  { id: 'montaria', get name() { return t('Montaria'); }, get mood() { return t('Rápido, lento, rápido, lento'); }, points: [[0, 2], [0.18, 2], [0.28, 0.45], [0.45, 0.45], [0.55, 2], [0.75, 2], [0.85, 0.5], [1, 0.5]] },
-  { id: 'heroi', get name() { return t('Herói'); }, get mood() { return t('Normal e câmara lenta no momento'); }, points: [[0, 1], [0.3, 1], [0.42, 0.25], [0.7, 0.25], [0.82, 1], [1, 1]] },
-  { id: 'bala', get name() { return t('Bala'); }, get mood() { return t('Muito rápido e quase parado a meio'); }, points: [[0, 3], [0.36, 3], [0.44, 0.15], [0.62, 0.15], [0.7, 3], [1, 3]] },
-  { id: 'flash', get name() { return t('Flash'); }, get mood() { return t('Calmo e um disparo a 4×'); }, points: [[0, 0.6], [0.3, 0.6], [0.38, 4], [0.62, 4], [0.7, 0.6], [1, 0.6]] },
+  { id: 'montaria', name: 'Montaria', mood: 'Rápido, lento, rápido, lento', points: [[0, 2], [0.18, 2], [0.28, 0.45], [0.45, 0.45], [0.55, 2], [0.75, 2], [0.85, 0.5], [1, 0.5]] },
+  { id: 'heroi', name: 'Herói', mood: 'Normal e câmara lenta no momento', points: [[0, 1], [0.3, 1], [0.42, 0.25], [0.7, 0.25], [0.82, 1], [1, 1]] },
+  { id: 'bala', name: 'Bala', mood: 'Muito rápido e quase parado a meio', points: [[0, 3], [0.36, 3], [0.44, 0.15], [0.62, 0.15], [0.7, 3], [1, 3]] },
+  { id: 'flash', name: 'Flash', mood: 'Calmo e um disparo a 4×', points: [[0, 0.6], [0.3, 0.6], [0.38, 4], [0.62, 4], [0.7, 0.6], [1, 0.6]] },
 ];
 const RAMP_BY_ID = new Map(RAMPS.map((r) => [r.id, r]));
 export const rampById = (id: string | null | undefined): RampDef | undefined => (id ? RAMP_BY_ID.get(id as RampId) : undefined);
@@ -587,11 +586,23 @@ export function contrastOn(hex: string): '#111111' | '#ffffff' {
   const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
   return L > 0.4 ? '#111111' : '#ffffff';
 }
-/** O texto do sticker da hora, na hora de Moçambique (UTC+2, sem hora de verão): «22:41», «Qui, 12 nov.». */
-export function timeLabel(format: 'hora' | 'data' | 'hora-data', at: number): string[] {
+/**
+ * Os dias e os meses que se desenham no vídeo (o sticker da hora), em cada idioma da app (LANGS de packages/shared). Ficam
+ * aqui, sem o i18n da app, para o estúdio e a montagem no servidor darem as mesmas letras: a língua vem explícita (`lang`).
+ */
+export const FX_DATE_NAMES: Record<string, { days: readonly string[]; months: readonly string[] }> = {
+  pt: { days: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], months: ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'] },
+  en: { days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
+};
+/**
+ * O texto do sticker da hora, na hora de Moçambique (UTC+2, sem hora de verão): «22:41», «Qui, 12 nov.» (`lang` 'en':
+ * «Thu, 12 Nov»). Um idioma sem tabela fica em português.
+ */
+export function timeLabel(format: 'hora' | 'data' | 'hora-data', at: number, lang = 'pt'): string[] {
   const d = new Date(at + 2 * 3600 * 1000);
+  const names = FX_DATE_NAMES[lang] ?? FX_DATE_NAMES.pt;
   const hora = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  const data = `${weekdayNames('short', { capital: true })[d.getUTCDay()]}, ${d.getUTCDate()} ${abbr(monthNames('short')[d.getUTCMonth()])}`;
+  const data = `${names.days[d.getUTCDay()]}, ${d.getUTCDate()} ${names.months[d.getUTCMonth()]}`;
   return format === 'hora' ? [hora] : format === 'data' ? [data] : [hora, data];
 }
 
@@ -745,9 +756,9 @@ export function fxContract(clips: { id: string; fx?: ClipFx }[], overlays: reado
 /** Lê um contrato (texto ou objeto); o que não se perceber cai. Versões mais novas do que esta dão erro. */
 export function parseFxContract(src: string | unknown): FxContract {
   const o = (typeof src === 'string' ? JSON.parse(src) : src) as Record<string, unknown> | null;
-  if (!o || typeof o !== 'object') throw new Error(t('contrato inválido'));
+  if (!o || typeof o !== 'object') throw new Error('contrato inválido');
   const v = typeof o.v === 'number' ? o.v : 0;
-  if (v > FX_VERSION) throw new Error(t('versão {v} do contrato é mais nova do que {fxVersion}', { v, fxVersion: FX_VERSION }));
+  if (v > FX_VERSION) throw new Error(`versão ${v} do contrato é mais nova do que ${FX_VERSION}`);
   const clips = Array.isArray(o.clips) ? o.clips : [];
   return fxContract(
     clips.filter((c): c is { id: string; fx?: unknown } => !!c && typeof c === 'object' && isStr((c as { id?: unknown }).id, 300)).map((c) => ({ id: c.id, fx: sanitizeFx(c.fx) })),
@@ -768,7 +779,7 @@ const f4 = (v: number) => (Math.round(v * 10000) / 10000).toString();
  * pontos por eixo (33 é o habitual). Ordem do .cube: o vermelho muda mais depressa.
  */
 export function cubeLut(m: ColorMatrix, n = 33): string {
-  const lines = [t('TITLE "Txillapp estudio"'), `LUT_3D_SIZE ${n}`, t('DOMAIN_MIN 0 0 0'), t('DOMAIN_MAX 1 1 1')];
+  const lines = ['TITLE "Txillapp estudio"', `LUT_3D_SIZE ${n}`, 'DOMAIN_MIN 0 0 0', 'DOMAIN_MAX 1 1 1'];
   for (let b = 0; b < n; b++) for (let g = 0; g < n; g++) for (let r = 0; r < n; r++) {
     const c = applyMatrix(m, [r / (n - 1), g / (n - 1), b / (n - 1)]);
     lines.push(`${c[0].toFixed(6)} ${c[1].toFixed(6)} ${c[2].toFixed(6)}`);

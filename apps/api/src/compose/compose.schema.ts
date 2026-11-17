@@ -1,3 +1,4 @@
+import { LANGS } from '@txillapp/shared';
 import { z } from 'zod';
 import { STICKER_ART } from '../stories/sticker-art';
 import { MAX_FADE_S, MAX_SFX, SFX_IDS, VOICE_FX_IDS } from './audio';
@@ -233,6 +234,8 @@ export const composeSchema = z
     /** Os textos e stickers do estúdio (docs/estudio-efeitos.md), da camada de baixo para a de cima. */
     overlays: z.array(overlaySchema).max(MAX_OVERLAYS, `No máximo ${MAX_OVERLAYS} textos e stickers`).optional(),
     duet: z.object({ postId: z.string().uuid('Publicação inválida'), layout: z.literal('side').default('side') }).optional(),
+    /** A língua do texto que a montagem escreve no vídeo (os dias e os meses do sticker da hora); sem ela, português. */
+    lang: z.enum(LANGS.map((l) => l.code) as [string, ...string[]], { message: 'Idioma desconhecido' }).optional(),
   })
   .strict();
 

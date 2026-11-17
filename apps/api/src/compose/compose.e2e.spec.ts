@@ -762,6 +762,29 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect(meanAt(frameAt(f, 8), Math.round(0.72 * FW) - 8, Math.round(0.62 * FH) - 8)[0]).toBeLessThan(30); // antes de entrar
   }, 300_000);
 
+  it('efeitos: o sticker da hora escreve o dia e o mês na língua do pedido (lang), igual ao estúdio nessa língua', async () => {
+    const u = await register('fxhora'); // uma pessoa só para isto (o limite de montagens por hora)
+    const dark: string[] = [];
+    for (let i = 0; i < 3; i++) dark.push(await upload(u, photo(`hora${i}`, 'color=c=black:size=720x1280'), 'image/png'));
+    const at = Date.UTC(2026, 10, 12, 20, 41); // quinta-feira, 12 de novembro, 22:41 em Maputo
+    const hora = { id: 'h1', kind: 'sticker', start: 0, end: 6, x: 0.5, y: 0.5, rot: 0, sticker: { type: 'time', format: 'data', at }, variant: 'escuro', anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const body = { clips: dark.map((id) => ({ mediaId: id, kind: 'photo', durationMs: 2000 })), sound: { kind: 'music', music }, overlays: [hora], lang: 'en' };
+    const r = await calm(() => compose(u, body));
+    expect(r.status).toBe(202);
+    expect((await pool.query('SELECT spec FROM content.compose_jobs WHERE id = $1', [r.body.jobId])).rows[0].spec.lang).toBe('en');
+    const job = await waitCalm(u, r.body.jobId);
+    expect(job.status).toBe('done');
+    const f = await out(job.mediaId!);
+    const ov = [sanitizeOverlay(hora) as Overlay];
+    const ref = (lang: string) => canvasRgb((g) => drawOverlays(g, ov, 3, { W: FW, H: FH, image: () => null, lang }));
+    const box = { x: 140, y: 820, w: 800, h: 280 };
+    const en = compare(frameAt(f, 90), ref('en'), box), pt = compare(frameAt(f, 90), ref('pt'), box);
+    console.log(`Sticker da hora em inglês: diferença média ${en.diff.toFixed(2)} (contra o desenho em português: ${pt.diff.toFixed(2)})`);
+    expect(en.brightRef).toBeGreaterThan(500);
+    expect(en.diff).toBeLessThan(6);
+    expect(pt.diff).toBeGreaterThan(en.diff * 1.5);
+  }, 300_000);
+
   it('efeitos: as validações (400 com a dica) e o filtro de texto nas camadas', async () => {
     const u = await register('fxval');
     const v = await calmVideo(u, video('val', 3));
@@ -785,6 +808,7 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect(await bad({ ...ok, overlays: [s({ type: 'gif', id: 'abcd1234', url: 'http://media.giphy.com/media/abcd1234/giphy.gif', w: 200, h: 200 })] })).toBe('O GIF tem de vir do GIPHY');
     expect(await bad({ ...ok, overlays: [s({ type: 'emoji', emoji: 'olá' })] })).toBe('O sticker de emoji só leva emojis');
     expect(await bad({ ...ok, overlays: [s({ type: 'txill', id: 'nao-existe' })] })).toBe('Sticker desconhecido');
+    expect(await bad({ ...ok, lang: 'fr' })).toBe('Idioma desconhecido');
     const r = await calm(() => compose(a, { ...ok, overlays: [t({ text: 'vou te matar' })] }));
     expect(r.status).toBe(422);
     const r2 = await calm(() => compose(a, { ...ok, overlays: [s({ type: 'location', name: 'preto de merda' })] }));

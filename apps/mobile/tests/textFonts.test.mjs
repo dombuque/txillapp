@@ -237,7 +237,7 @@ test('fontes no telemóvel: só a família (sem peso, que no Android inventa neg
 test('a fila das letras: cada uma no seu nome e na sua letra, botões de 44 px', () => {
   const src = read('components', 'FontChips.tsx');
   assert.match(src, /height: 44/);
-  assert.match(src, /accessibilityLabel=\{t\('Letra \{name\}', \{ name: f\.name \}\)\}/);
+  assert.match(src, /accessibilityLabel=\{t\('Letra \{name\}', \{ name: fontName\(f\) \}\)\}/);
   assert.match(src, /useTextFontStyle\(id\)/);
   assert.match(src, /accessibilityRole="tab"/);
 });
