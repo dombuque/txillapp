@@ -21,7 +21,7 @@ import { DesktopShell } from '@/components/DesktopShell';
 import { SiteFrame, isSitePage } from '@/components/SiteFrame';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
-import { installWebAlert } from '@/lib/alertHost';
+import { installAlert } from '@/lib/alertHost';
 import { installWebBack } from '@/lib/webBack';
 import { installDeskScroll } from '@/lib/deskScroll';
 import { installDeskPolish } from '@/lib/deskPolish';
@@ -35,7 +35,8 @@ import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
 
 void SplashScreen.preventAutoHideAsync();
-installWebAlert();
+// As caixas de confirmação (Alert.alert) abrem a caixa da app em todo o lado (AlertHost): igual no APK e no site.
+installAlert();
 // Web: o «voltar» do browser (e arrastar para trás no PWA do iPhone) fecha a folha ou o visor aberto, em vez de sair do ecrã.
 // Tem de ficar aqui, antes de o expo-router começar a ouvir o histórico.
 installWebBack();
