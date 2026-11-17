@@ -297,3 +297,45 @@ test('os textos novos: sem emojis nem travessões', () => {
     assert.doesNotMatch(t, /\p{Extended_Pictographic}/u, `${f}: emoji`);
   }
 });
+
+test('denunciar e retirar: o estado do cartão, o aviso de retirada e o cliente da API', async () => {
+  assert.equal(s.scheduleView(sched({ status: 'removed' })), 'removed');
+  assert.equal(s.viewText('removed'), 'Esta Txillada foi retirada por não cumprir as regras');
+  assert.equal(s.viewText('removed', true), 'Esta Txillada foi retirada por não cumprir as regras');
+  assert.equal(s.GONE_TITLE, 'Esta Txillada já não existe');
+  const data = { scheduleId: 's1', startsAt: new Date(at(21, 20)).toISOString(), title: 'Bom dia', moved: false, removed: true };
+  assert.deepEqual(s.scheduleNoticeText('txillada_scheduled_cancelled', data, TUE_10, 'zeca'), { text: 'A Txillada de @zeca foi retirada', sub: 'Bom dia' });
+  assert.equal(s.scheduleNoticeText('txillada_scheduled_cancelled', { ...data, title: '' }, TUE_10).text, 'Uma Txillada agendada foi retirada');
+  assert.equal(s.isRemovedNotice('txillada_scheduled_cancelled', data), true);
+  assert.equal(s.isRemovedNotice('txillada_scheduled_cancelled', { ...data, removed: false }), false);
+  assert.equal(s.isRemovedNotice('txillada_scheduled_soon', data), false);
+  // Sem `removed`, continua a ser o cancelamento.
+  assert.equal(s.scheduleNoticeText('txillada_scheduled_cancelled', { ...data, removed: undefined }, TUE_10, 'zeca').text, 'cancelou a Txillada de sábado, 20:00');
+  assert.equal(s.scheduleNoticeTarget(data), '/txillada/agendada/s1');
+
+  globalThis.__calls = [];
+  globalThis.__reply = () => undefined;
+  await txilladaApi.reportSchedule('s1', 'hate', 'O título ofende');
+  await txilladaApi.reportSchedule('s 2', 'spam');
+  assert.deepEqual(globalThis.__calls.map((c) => `${c.method} ${c.path}`), ['POST /txilladas/schedules/s1/report', 'POST /txilladas/schedules/s%202/report']);
+  assert.deepEqual(globalThis.__calls[0].body, { reason: 'hate', note: 'O título ofende' });
+  assert.deepEqual(globalThis.__calls[1].body, { reason: 'spam' });
+});
+
+test('o cartão: «Denunciar» abre o ReportSheet só a quem não é anfitrião, sai do cartão depois; retirada e «já não existe»', () => {
+  const card = read('app/txillada/agendada/[id].tsx');
+  assert.match(card, /<ReportSheet type="txillada_schedule" id=\{s\.id\}/);
+  assert.match(card, /view === 'scheduled' && !s\.isHost \? \(\s*<Pressable onPress=\{\(\) => setReporting\(true\)\}/);
+  assert.ok(card.includes('>Denunciar</Text>'));
+  // Depois de denunciar: esquece o cartão, volta a pedir as listas e sai.
+  assert.match(card, /qc\.removeQueries\(\{ queryKey: scheduleKey\(id\) \}\)/);
+  assert.match(card, /router\.back\(\)/);
+  assert.match(card, /title=\{GONE_TITLE\}/);
+  const sheet = read('components/ReportSheet.tsx');
+  assert.match(sheet, /type === 'txillada_schedule'\) await txilladaApi\.reportSchedule\(id, reason, note\.trim\(\) \|\| undefined\)/);
+  assert.ok(sheet.includes("txillada_schedule: 'esta Txillada agendada'"));
+  const notif = read('app/notifications.tsx');
+  assert.match(notif, /scheduleNoticeText\(n\.kind, n\.data, Date\.now\(\), n\.actor\.username\)/);
+  assert.match(notif, /zasRecap \|\| hostNotice \|\| removedNotice \? null/);
+  assert.match(read('lib/moderationNotice.ts'), /case 'txillada_schedule': return 'a tua Txillada agendada';/);
+});

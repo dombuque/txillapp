@@ -2,8 +2,10 @@ import { boBlob, boRaw } from '../../../lib/api';
 
 /** Cliente da área «Conteúdo e moderação» do backoffice (fila de queixas, conteúdo, catálogo da Geleira e auditoria). */
 
-/** 'story_comment' (comentário num mimo) e 'instant' (Zás) desde a 0125; 'txillada' (um live) desde a 0158; 'txillada_comment' (um comentário num live) desde a 0162; 'mixar_comment' (um comentário do Mixar) desde a 0171. */
-export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue' | 'story_comment' | 'instant' | 'txillada' | 'txillada_comment' | 'mixar_comment';
+/** 'story_comment' (comentário num mimo) e 'instant' (Zás) desde a 0125; 'txillada' (um live) desde a 0158; 'txillada_comment' (um comentário num live) desde a 0162; 'mixar_comment' (um comentário do Mixar) desde a 0171; 'txillada_schedule' (uma Txillada agendada) desde a 0176. */
+export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue' | 'story_comment' | 'instant' | 'txillada' | 'txillada_comment' | 'mixar_comment' | 'txillada_schedule';
+/** Uma Txillada agendada denunciada (0176): o título, o motivo da meta, a hora e o estado (o anfitrião é o `owner`). */
+export interface ModSchedule { title: string; goalPurpose: string; startsAt: string; audience: string; status: 'scheduled' | 'started' | 'cancelled' | 'expired' | 'removed' }
 export type ModReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ModAction = 'dismiss' | 'remove' | 'warn' | 'suspend';
 export type ModSort = 'severity' | 'oldest' | 'newest' | 'reports';
@@ -41,6 +43,8 @@ export interface ModQueueItem {
   hiddenByAuthor?: boolean;
   reported: ModMessageCopy | null;
   current: (Omit<ModMessageCopy, 'gifUrl'> & { kind: string | null; deleted: boolean }) | null;
+  /** Só numa Txillada agendada (`txillada_schedule`); null se já não existe. */
+  schedule?: ModSchedule | null;
 }
 export interface ModQueueDetail {
   reports: { id: string; reason: ModReason; note: string | null; status: string; resolution: string | null; resolutionNote: string | null; at: string; resolvedAt: string | null; reporter: string | null; decidedBy: string | null }[];

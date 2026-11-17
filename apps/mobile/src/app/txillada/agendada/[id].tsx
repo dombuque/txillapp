@@ -1,14 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
+import { ReportSheet } from '@/components/ReportSheet';
 import { StackPage } from '@/components/StackPage';
 import { LiveBadge } from '@/components/txillada/TxilladaParts';
 import { EditScheduleSheet, shareSchedule, useClock, useRemindToggle } from '@/components/txillada/TxilladaSchedule';
@@ -23,7 +24,7 @@ import { colors, dark as D } from '@/lib/theme';
 import { errorText } from '@/lib/txillada';
 import { handOff } from '@/lib/txilladaRoom';
 import {
-  canStartNow, countdown, coverWhen, earliest, errorCode, isNotScheduled, fmtFor, showCountdown, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
+  canStartNow, countdown, coverWhen, earliest, errorCode, GONE_TITLE, isNotScheduled, fmtFor, showCountdown, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
   scheduleView, viewText, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
 
@@ -51,6 +52,8 @@ export default function ScheduledTxilladaScreen() {
   const [busy, setBusy] = useState<null | 'start' | 'cancel'>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const reported = useRef(false);
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['txillada-schedules'] });
@@ -121,6 +124,20 @@ export default function ScheduledTxilladaScreen() {
     }
   }
 
+  /**
+   * Depois de denunciar: o servidor já a esconde (o cartão, o perfil, «Em breve» e a lista do perfil). Sai-se do cartão e as
+   * listas voltam a pedir-se sem ela.
+   */
+  function afterReport() {
+    setReporting(false);
+    if (!reported.current) return;
+    reported.current = false;
+    qc.removeQueries({ queryKey: scheduleKey(id) });
+    refresh();
+    if (router.canGoBack()) router.back();
+    else router.replace('/' as never);
+  }
+
   async function cancel(cur: ScheduledTxillada) {
     if (busy) return;
     const ok = await confirm({
@@ -154,7 +171,7 @@ export default function ScheduledTxilladaScreen() {
     body = (
       <View style={st.center}>
         {missing
-          ? <EmptyState dark icon="calendar" title="Esta Txillada não existe" text="Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou." />
+          ? <EmptyState dark icon="calendar" title={GONE_TITLE} text="Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou." />
           : <ErrorState dark what="esta Txillada" onRetry={() => void q.refetch()} />}
       </View>
     );
@@ -226,6 +243,13 @@ export default function ScheduledTxilladaScreen() {
           {view !== 'scheduled' && view !== 'live' ? (
             <Button label={s.isHost ? 'Ver o meu perfil' : `Ver o perfil de @${s.host.username}`} kind="secondary" dark block onPress={() => router.push(`/u/${encodeURIComponent(s.host.username)}` as never)} />
           ) : null}
+
+          {view === 'scheduled' && !s.isHost ? (
+            <Pressable onPress={() => setReporting(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Denunciar esta Txillada agendada" style={st.report}>
+              <Icon name="flag" size={15} color={D.sub} strokeWidth={2} />
+              <Text style={st.reportText}>Denunciar</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     );
@@ -235,6 +259,7 @@ export default function ScheduledTxilladaScreen() {
     <StackPage title="Txillada agendada" dark>
       {body}
       {editing && s ? <EditScheduleSheet s={s} onClose={() => setEditing(false)} onSaved={(n) => { qc.setQueryData(scheduleKey(n.id), n); refresh(); }} /> : null}
+      {reporting && s ? <ReportSheet type="txillada_schedule" id={s.id} onReported={() => { reported.current = true; }} onClose={afterReport} /> : null}
     </StackPage>
   );
 }
@@ -267,4 +292,6 @@ const st = StyleSheet.create({
   hint: { color: D.sub, fontSize: 13, lineHeight: 18, textAlign: 'center' },
   msg: { color: '#fff', backgroundColor: 'rgba(220,38,38,0.85)', borderRadius: 12, overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   danger: { color: colors.danger },
+  report: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12 },
+  reportText: { color: D.sub, fontSize: 14, fontWeight: '600' },
 });
