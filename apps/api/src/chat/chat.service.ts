@@ -112,7 +112,7 @@ export async function wipeMessage(db: Pick<Pool, 'query'>, messageId: string, no
   await db.query(
     `UPDATE social.messages SET deleted_at = now(), deleted_notice = $2, kind = 'text', body = '', media_id = NULL, story_media_id = NULL,
             duration_ms = NULL, waveform = NULL, lat = NULL, lng = NULL, place_name = NULL, place_address = NULL, live_until = NULL,
-            gift_amount = NULL, view_once = false, viewed_at = NULL, edited_at = NULL, reply_to = NULL, gif = NULL
+            gift_amount = NULL, view_once = false, viewed_at = NULL, edited_at = NULL, reply_to = NULL, gif = NULL, client_id = NULL
       WHERE id = $1`,
     [messageId, notice],
   );

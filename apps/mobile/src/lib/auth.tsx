@@ -57,6 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setSessionExpiredHandler(() => {
+      // Sessão terminada pelo servidor (ex.: «Terminar as outras sessões» noutro aparelho): as mensagens à espera desta conta
+      // também saem do aparelho (não ficam aqui nem se enviam depois).
+      if (userIdRef.current) void forgetOutboxUser(userIdRef.current).catch(() => undefined);
       setUser(null);
       setUnconfirmed(false);
       qc.clear();

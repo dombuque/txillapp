@@ -532,6 +532,9 @@ function validMedia(m: unknown): m is PendingMedia {
   return !!x && typeof x.ref === 'string' && !!x.ref && typeof x.mime === 'string';
 }
 
+/** Quanto tempo uma mensagem recusada («Não enviada») fica guardada no aparelho: 30 dias. */
+export const FAILED_KEEP_MS = 30 * 24 * 3600_000;
+
 function parseStored(raw: string | null): { convs: Map<string, PendingMsg[]>; names: Map<string, PendingTitle> } {
   const convs = new Map<string, PendingMsg[]>();
   const names = new Map<string, PendingTitle>();
@@ -542,6 +545,8 @@ function parseStored(raw: string | null): { convs: Map<string, PendingMsg[]>; na
       if (!/^(u|g):.+/.test(conv) || !Array.isArray(items)) continue;
       const list = items
         .filter((s) => s && typeof s.id === 'string' && typeof s.clientId === 'string' && typeof s.at === 'string' && KINDS.includes(s.kind) && (!isMediaKind(s.kind) || validMedia(s.media)))
+        // As recusadas («Não enviada») não ficam no aparelho para sempre: passados FAILED_KEEP_MS saem (e o ficheiro com elas).
+        .filter((s) => { const old = s.state === 'failed' && Date.now() - Date.parse(s.at) > FAILED_KEEP_MS; if (old && s.media) dropMedia(s); return !old; })
         .map((s): PendingMsg => ({
           id: s.id, clientId: s.clientId, kind: s.kind, body: String(s.body ?? ''), ...(s.gif ? { gif: s.gif } : null), replyTo: s.replyTo ?? null,
           ...(s.media ? { media: s.media } : null), ...(typeof s.mediaId === 'string' ? { mediaId: s.mediaId } : null),

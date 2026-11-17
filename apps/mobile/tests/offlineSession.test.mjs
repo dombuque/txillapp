@@ -33,7 +33,9 @@ test('auth: sem rede abre com a conta da última vez, por confirmar, e confirma 
   // Voltar a confirmar: rede de volta, primeiro plano e de 15 em 15 s; o 401 termina pelo handler de sempre.
   assert.match(auth, /setInterval\(\(\) => void check\(\), SESSION_RECHECK_MS\)/);
   assert.match(auth, /addEventListener\('online', onOnline\)/);
-  assert.match(auth, /setSessionExpiredHandler\(\(\) => \{\s*setUser\(null\);\s*setUnconfirmed\(false\);/);
+  assert.match(auth, /setSessionExpiredHandler\(\(\) => \{[\s\S]{0,400}?setUser\(null\);\s*setUnconfirmed\(false\);/);
+  // Sessão terminada pelo servidor: as mensagens à espera desta conta saem do aparelho.
+  assert.match(auth, /setSessionExpiredHandler\(\(\) => \{[\s\S]{0,400}?forgetOutboxUser\(userIdRef\.current\)/);
 });
 
 test('offlineWithPending: sem resposta do servidor e com mensagens à espera, a conversa abre; 403 e 404 tapam', () => {
@@ -42,4 +44,10 @@ test('offlineWithPending: sem resposta do servidor e com mensagens à espera, a 
   assert.equal(e.offlineWithPending(new TypeError('Load failed'), 0), false);
   assert.equal(e.offlineWithPending({ status: 404 }, 3), false);
   assert.equal(e.offlineWithPending({ status: 403 }, 3), false);
+});
+
+test('mensagens recusadas («Não enviada») saem do aparelho ao fim de 30 dias', () => {
+  const src = readFileSync(new URL('../src/lib/chatPending.ts', import.meta.url), 'utf8');
+  assert.match(src, /export const FAILED_KEEP_MS = 30 \* 24 \* 3600_000;/);
+  assert.match(src, /s\.state === 'failed' && Date\.now\(\) - Date\.parse\(s\.at\) > FAILED_KEEP_MS/);
 });

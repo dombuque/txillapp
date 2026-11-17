@@ -108,10 +108,12 @@ export class ExportService {
       // As mensagens que enviei, nas conversas a dois (`to` = o @ da outra pessoa) e nos TxillGroups (`group` = o nome do grupo),
       // com a hora da edição, o ponto, o nome e a morada do sítio e até quando durava a partilha em direto (o que está guardado).
       // Mensagens temporárias: `expiresAt` diz até quando existem; as que já expiraram não entram.
+      // `clientId` (0175): o identificador de envio que o telemóvel gerou (envio sem rede, sem duplicados); null nas antigas.
       // As que recebi não entram: são dados de quem as escreveu.
       messagesSent: await q(
         `SELECT m.id, o.username AS "to", g.name AS "group", m.kind, m.body, m.created_at AS "createdAt", m.edited_at AS "editedAt",
-                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil", m.gif, m.expires_at AS "expiresAt"
+                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil", m.gif, m.expires_at AS "expiresAt",
+                m.client_id AS "clientId"
            FROM social.messages m
            LEFT JOIN social.conversations c ON c.id = m.conversation_id
            LEFT JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
