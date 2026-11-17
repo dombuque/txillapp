@@ -121,10 +121,16 @@ test('2.1/2.5: sem endereços de desenvolvimento no código da app', () => {
 });
 
 test('ícone da App Store: 1024×1024 sem transparência (PNG RGB, sem canal alfa)', () => {
-  const b = readFileSync(path.join(ROOT, app.icon));
-  assert.equal(b.toString('ascii', 12, 16), 'IHDR');
-  assert.equal(b.readUInt32BE(16), 1024);
-  assert.equal(b.readUInt32BE(20), 1024);
-  assert.equal(b[25], 2); // tipo de cor 2 = RGB (6 seria RGBA)
-  assert.ok(!b.includes(Buffer.from('tRNS')));
+  // O ícone de base e as variantes do iOS 18 (modo escuro e tingido), todas geradas por scripts/marca/gerar.mjs.
+  assert.equal(app.ios.icon.light, app.icon);
+  for (const f of [app.icon, app.ios.icon.dark, app.ios.icon.tinted]) {
+    const b = readFileSync(path.join(ROOT, f));
+    assert.equal(b.toString('ascii', 12, 16), 'IHDR', f);
+    assert.equal(b.readUInt32BE(16), 1024, f);
+    assert.equal(b.readUInt32BE(20), 1024, f);
+    assert.equal(b[25], 2, f); // tipo de cor 2 = RGB (6 seria RGBA)
+    assert.ok(!b.includes(Buffer.from('tRNS')), f);
+  }
+  // O ícone adaptativo do Android tem o fundo vermelho do ícone do designer.
+  assert.equal(app.android.adaptiveIcon.backgroundColor, '#D5334E');
 });
