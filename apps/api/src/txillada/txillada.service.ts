@@ -655,7 +655,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       this.log.warn(`não consegui tratar as menções do comentário ${cid}: ${(e as Error).message}`);
       return [] as string[];
     });
-    return { ...comment, invited };
+    // Numa Txillada paga quem vê está escondido aos outros: a resposta não pode dizer quem foi convidado (seria dizer quem
+    // já lá está). Só o anfitrião sabe; para os outros a lista vem sempre vazia.
+    const hide = txKind(r.audience) === 'paid' && me !== r.host_id;
+    return { ...comment, invited: hide ? [] : invited };
   }
 
   /**

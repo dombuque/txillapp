@@ -273,7 +273,8 @@ describe('Txillada: menções, histórico e selo (integração)', () => {
     await api().post(`/api/v1/txilladas/${paid}/ticket`).set(auth(pa)).expect(200);
     // O Zed bloqueou o Pa: não se menciona (nem aviso nem evento).
     await block(zed, pa);
-    expect((await comment(pa, paid, `@${zed.username} @${px.username} vem`).expect(201)).body.invited).toEqual([px.username]);
+    // Numa paga a resposta não diz a quem não é anfitrião quem foi convidado (seria dizer quem já lá está, escondido): vem vazia.
+    expect((await comment(pa, paid, `@${zed.username} @${px.username} vem`).expect(201)).body.invited).toEqual([]);
     expect(await notes(zed, paid)).toEqual([]);
     expect(await notes(px, paid)).toEqual([{ actor_id: pa.id, data: { txilladaId: paid, title: 'Bora', mention: true, host: { username: hp.username, verified: false, verifiedTier: null } } }]);
     expect((await pushed(px)).at(-1)?.p.body).toBe(`@${pa.username} mencionou-te na Txillada de @${hp.username}: vem ver`);
