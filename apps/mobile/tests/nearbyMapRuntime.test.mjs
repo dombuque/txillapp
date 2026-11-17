@@ -76,6 +76,7 @@ function fakeLeaflet(size = { x: 400, y: 800 }) {
     control: { zoom: () => ({ addTo() {} }) },
     tileLayer: () => layer(),
     circle: (at, opts) => layer({ at, opts, kind: 'circle' }),
+    polygon: (pts, opts) => layer({ pts, opts, kind: 'polygon', setLatLngs(p) { this.pts = p; return this; } }),
     layerGroup: () => ({ items: [], addTo(t) { map.layers.add(this); return this; }, clearLayers() { this.items = []; } }),
     divIcon: (o) => o,
     marker: (at, opts) => {
@@ -241,4 +242,102 @@ test('mapa de marcar: ponto azul com o círculo da precisão (atualiza e sai); a
 
   map.fire('dragstart');
   assert.equal(drags, 1);
+});
+
+// ---------- Desenho do mapa: véu fora do raio, a distância escrita, ícones dos locais, nome do escolhido ----------
+const { readFileSync } = await import('node:fs');
+const runtimeSrc = readFileSync(path.join(ROOT, 'src', 'components', 'nearby', 'mapRuntime.ts'), 'utf8');
+
+test('os ícones dos locais no mapa são os mesmos traços dos ícones Tx (tx.ts)', () => {
+  const tx = readFileSync(path.join(ROOT, 'src', 'icons', 'tx.ts'), 'utf8');
+  const txPaths = (name) => JSON.parse(tx.match(new RegExp(`"${name}": (\{.*\}),?$`, 'm'))[1]).p;
+  const block = runtimeSrc.slice(runtimeSrc.indexOf('const VENUE_ICON'), runtimeSrc.indexOf('};', runtimeSrc.indexOf('const VENUE_ICON')));
+  const map = { bar: 'martini', restaurante: 'utensils', cafe: 'coffee', discoteca: 'music', hotel: 'key', evento: 'calendar' };
+  for (const [kind, icon] of Object.entries(map)) {
+    const line = block.split('\n').find((l) => l.trim().startsWith(`${kind}:`));
+    assert.ok(line, kind);
+    const got = [...line.matchAll(/d="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(got, txPaths(icon), `${kind} = ${icon}`);
+  }
+});
+
+test('fora do raio fica um véu (o mundo com um buraco redondo no círculo) e a distância escrita no topo', () => {
+  const { L, map } = fakeLeaflet();
+  const h = createNearbyMap(L, {}, () => {}, { zoomControl: false });
+  h.update({ center: { lat: -25.97, lng: 32.57 }, radiusKm: 10, markers: [] });
+  const veil = [...map.layers].find((l) => l.kind === 'polygon');
+  assert.ok(veil, 'há véu');
+  assert.equal(veil.opts.interactive, false);
+  const [outer, hole] = veil.pts;
+  assert.equal(outer.length, 4);
+  assert.equal(hole.length, 64);
+  // Cada ponto do buraco fica a ~10 km do centro.
+  for (const [lat, lng] of hole) {
+    const dy = (lat + 25.97) * 111.32;
+    const dx = (lng - 32.57) * 111.32 * Math.cos((-25.97 * Math.PI) / 180);
+    assert.ok(Math.abs(Math.hypot(dx, dy) - 10) < 0.05);
+  }
+  const label = [...map.layers].find((l) => l.kind === 'marker' && l.opts?.icon?.className === 'txr');
+  assert.ok(label, 'pílula da distância');
+  assert.equal(label.at[0].toFixed(4), (-25.97 + 10 / 111.32).toFixed(4));
+  // A fila de cima do enquadramento deixa espaço para a pílula.
+  assert.deepEqual(map.fits.at(-1).paddingTopLeft, [12, 22]);
+});
+
+test('marcadores: local com o ícone do tipo, evento como folha de calendário, pessoa com anel; o escolhido mostra o nome', () => {
+  const { L, map } = fakeLeaflet();
+  const h = createNearbyMap(L, {}, () => {}, { zoomControl: false });
+  const ms = [
+    { id: 'v:a', kind: 'venue', lat: -25.9, lng: 32.5, title: 'Mundos <Bar>', category: 'bar' },
+    { id: 'e:b', kind: 'event', lat: -25.95, lng: 32.6, title: 'Festa', date: '2026-11-21T20:00:00' },
+    { id: 'u:c', kind: 'person', lat: -26.05, lng: 32.45, title: 'Zeca Langa' },
+  ];
+  h.update({ center: { lat: -25.97, lng: 32.57 }, radiusKm: 10, markers: ms, selectedId: 'v:a' });
+  map.zoom = 18;
+  map.fire('zoomend');
+  const byTitle = (t) => markersIn(map).find((m) => m.opts.title === t);
+  const venue = byTitle('Mundos <Bar>').opts.icon;
+  assert.match(venue.html, /M3\.5 4\.4h17L12 13\.6Z/, 'copo do bar');
+  assert.match(venue.className, /\bsel\b/);
+  assert.match(venue.html, /<span class="lb">Mundos &lt;Bar&gt;<\/span>/, 'nome escapado na pílula');
+  const ev = byTitle('Festa').opts.icon;
+  assert.match(ev.html, /<span class="mo">NOV<\/span><span class="dy">21<\/span>/);
+  assert.deepEqual(ev.iconAnchor, [20, 50], 'o bico aponta o sítio');
+  const p = byTitle('Zeca Langa').opts.icon;
+  assert.match(p.html, /tx-person"><div class="in"><span class="ini">ZL<\/span>/);
+  assert.doesNotMatch(p.html, /class="lb"/, 'só o escolhido mostra o nome');
+});
+
+test('grupos crescem com a quantidade; o pulso do ponto azul pára para quem pede menos movimento', async () => {
+  const { clusterSize } = await import(pathToFileURL(path.join(ROOT, 'src', 'components', 'nearby', 'mapRuntime.ts')).href);
+  assert.deepEqual([1, 4, 5, 19, 20, 300].map(clusterSize), [36, 36, 42, 42, 48, 48]);
+  assert.match(runtimeSrc, /@media \(prefers-reduced-motion:reduce\)\{\.txme \.pulse\{animation:none/);
+  // A atribuição do OpenStreetMap sobe com a folha da lista (senão ficava tapada no telemóvel).
+  assert.match(runtimeSrc, /\.txnb \.leaflet-bottom\{bottom:var\(--txcover,0px\)/);
+  const el = { style: { props: {}, setProperty(k, v) { this.props[k] = v; } }, classList: { list: [], add(c) { this.list.push(c); } } };
+  const { L } = fakeLeaflet();
+  const h = createNearbyMap(L, el, () => {}, { zoomControl: false });
+  assert.deepEqual(el.classList.list, ['txnb']);
+  h.update({ center: { lat: -25.97, lng: 32.57 }, radiusKm: 10, markers: [], coverBottom: 250 });
+  assert.equal(el.style.props['--txcover'], '250px');
+  h.update({ center: { lat: -25.97, lng: 32.57 }, radiusKm: 10, markers: [], coverBottom: 790 });
+  assert.equal(el.style.props['--txcover'], `${Math.round(800 * 0.6)}px`);
+});
+
+test('grupos de quadrículas vizinhas quase em cima uns dos outros juntam-se num só (nada de dois "4" sobrepostos)', () => {
+  const { L, map } = fakeLeaflet();
+  const h = createNearbyMap(L, {}, () => {}, { zoomControl: false });
+  // Zoom 13: 81,92 px por grau no Leaflet a fingir; a fronteira de quadrícula (54 px) passa entre os dois grupos.
+  const k = 2 ** 13 / 100;
+  const edge = (54 * 600) / k; // longitude de uma fronteira de quadrícula
+  const ms = [
+    { id: 'v:1', kind: 'venue', lat: -25.97, lng: edge - 10 / k, title: 'A' },
+    { id: 'v:2', kind: 'venue', lat: -25.97, lng: edge - 12 / k, title: 'B' },
+    { id: 'v:3', kind: 'venue', lat: -25.97, lng: edge + 10 / k, title: 'C' },
+    { id: 'v:4', kind: 'venue', lat: -25.97, lng: edge + 12 / k, title: 'D' },
+    { id: 'v:far', kind: 'venue', lat: -25.97, lng: edge + 400 / k, title: 'Longe' },
+  ];
+  h.update({ center: { lat: -25.97, lng: edge }, radiusKm: 10, markers: ms });
+  const mks = markersIn(map);
+  assert.deepEqual(mks.map((m) => m.opts.title).sort(), ['4 sítios', 'Longe']);
 });

@@ -61,7 +61,8 @@ test('perto: barra na folha «Onde procurar», mapa e botão seguem o dedo, o pe
   assert.match(src, /setTimeout\(\(\) => setRadius\(liveRadius\), RADIUS_SETTLE_MS\)/);
   assert.match(src, /radiusKm: radius, kinds/); // o pedido usa o valor assente
   assert.equal((src.match(/<NearbyMap [^>]*radiusKm=\{liveRadius\}/g) ?? []).length, 2); // o círculo segue o dedo
-  assert.match(src, /`\$\{place\.label\} · \$\{liveRadius\} km`/);
+  // O chip da zona: o sítio e, numa pastilha ao lado, a distância que segue o dedo.
+  assert.match(src, /<Text style=\{st\.zoneKmText\}>\{liveRadius\} km<\/Text>/);
   assert.match(src, /radii: RADIUS_STEPS/);
 });
 
