@@ -628,7 +628,7 @@ export const EN: Record<string, string> = {
   '· visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.': '· visible to your followers. A note cannot be edited: delete it to post another.',
   'À espera do pagamento': 'Waiting for payment',
   'É grátis e demora menos de um minuto.': 'It is free and takes less than a minute.',
-  'É novo no txillapp?': 'New to Txillapp?',
+  'És novo no Txillapp?': 'New to Txillapp?',
   'Última atividade': 'Last activity',
   'à espera': 'pending',
   '“Não me interessa”': '“Not interested”',

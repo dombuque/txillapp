@@ -169,7 +169,7 @@ export default function Login() {
     <Screen
       footer={
         <Text style={styles.footerText}>
-          É novo no txillapp?{' '}
+          És novo no Txillapp?{' '}
           <Text style={{ color: colors.brand, fontWeight: '600' }} onPress={() => router.push('/register' as never)} accessibilityRole="link">
             Cria a tua conta
           </Text>

@@ -343,7 +343,7 @@ export function Login() {
   }
 
   return (
-    <Screen footer={<>{tr('É novo no txillapp?')} <Link to="/register" state={location.state} className="font-semibold text-brand">{tr('Cria a tua conta')}</Link></>}>
+    <Screen footer={<>{tr('És novo no Txillapp?')} <Link to="/register" state={location.state} className="font-semibold text-brand">{tr('Cria a tua conta')}</Link></>}>
       <h1 className="pt-10 lg:hidden">
         <Wordmark className="h-11" />
       </h1>
