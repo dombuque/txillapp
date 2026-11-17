@@ -157,6 +157,10 @@ export function moveToDay(day: number, prev: number | null, now: number): number
   return null;
 }
 
+/** «sábado, 28 de novembro» (fora do português, o Intl: «Saturday, 28 November»). */
+const longDate = (d: Date): string =>
+  currentLanguage() !== SOURCE_LANG ? formatDate(d, { weekday: 'long', day: 'numeric', month: 'long' }) : `${WEEKDAYS()[d.getDay()]}, ${d.getDate()} de ${MONTHS()[d.getMonth()]}`;
+
 // ─── Formatos ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -168,7 +172,7 @@ export function fmtWhen(at: number | string, now: number, long = false): string 
   const diff = dayDiff(now, d);
   const wd = long ? WEEKDAYS()[d.getDay()] : WEEKDAYS_SHORT()[d.getDay()];
   if (diff >= -1 && diff <= 6) return `${wd}, ${hhmm(d)}`;
-  return long ? t('{wd}, {date} de {month}, {hhmm}', { wd, date: d.getDate(), month: MONTHS()[d.getMonth()], hhmm: hhmm(d) }) : `${wd}, ${d.getDate()} ${MONTHS_SHORT()[d.getMonth()]}, ${hhmm(d)}`;
+  return long ? `${longDate(d)}, ${hhmm(d)}` : `${wd}, ${d.getDate()} ${MONTHS_SHORT()[d.getMonth()]}, ${hhmm(d)}`;
 }
 /** «Hoje às 20:00», «Amanhã às 20:00», «Sábado às 20:00» ou «Sábado, 28 de novembro às 20:00». */
 export function fmtDay(at: number | string, now: number): string {
@@ -178,7 +182,7 @@ export function fmtDay(at: number | string, now: number): string {
   if (diff === 1) return t('Amanhã às {hhmm}', { hhmm: hhmm(d) });
   if (diff === -1) return t('Ontem às {hhmm}', { hhmm: hhmm(d) });
   if (diff > 1 && diff <= 6) return t('{cap} às {hhmm}', { cap: cap(WEEKDAYS()[d.getDay()]), hhmm: hhmm(d) });
-  return t('{cap}, {date} de {month} às {hhmm}', { cap: cap(WEEKDAYS()[d.getDay()]), date: d.getDate(), month: MONTHS()[d.getMonth()], hhmm: hhmm(d) });
+  return t('{day} às {hhmm}', { day: cap(longDate(d)), hhmm: hhmm(d) });
 }
 /** Numa frase: «hoje às 20:00», «amanhã às 20:00» ou «sáb., 20:00» (`long`: «sábado, 20:00»). */
 export function fmtFor(at: number | string, now: number, long = false): string {

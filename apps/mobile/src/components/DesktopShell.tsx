@@ -132,7 +132,7 @@ function RightRail() {
   const { user } = useAuth();
   const sugg = useQuery({ queryKey: ['suggestions'], queryFn: feedApi.suggestions, staleTime: 60_000 });
   const people = (sugg.data ?? []).slice(0, 6);
-  const links: [string, string][] = [[t('Sobre'), '/about'], [t('Ajuda'), '/help'], [t('Termos'), '/terms'], [t('Privacidade'), '/privacy'], [t('Idioma'), '/language']];
+  const links: [string, string][] = [[t('Sobre'), '/about'], [t('Ajuda'), '/help'], [t('Termos'), '/terms'], [t('Privacidade'), '/privacy'], [t('Idiomas'), '/language']];
   return (
     <ScrollView style={st.rail} contentContainerStyle={{ paddingTop: 36, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
       {user ? (
