@@ -537,4 +537,17 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     const t = (await thread(rui, zeca)).items.find((m) => m.kind === 'gelada');
     expect(t?.gelada).toBeNull();
   });
+
+  it('publicado com um hit: a publicação leva a música; no chat não há hit; as músicas dos artistas locais não entram', async () => {
+    const hia = await signup('hia');
+    const hib = await signup('hib');
+    await mutual(hia, hib);
+    const track = { id: `cc-hit-${run}`, title: 'Sexta à noite', artist: 'Banda Teste', url: 'https://cdn.freesound.org/previews/1/1_1-hq.mp3', license: 'by', licenseUrl: null, landing: null, cover: null, durationMs: 30000 };
+    const send = (channel: 'chat' | 'post', music: unknown) => api().post('/api/v1/gelada/requests').set(auth(hia)).send({ to: [hib.username], itemId: B2M, channel, music });
+    const r = await send('post', track).expect((x) => { if (x.status !== 201) throw new Error(JSON.stringify(x.body)); });
+    expect(r.body.post.music).toMatchObject({ title: 'Sexta à noite', artist: 'Banda Teste' });
+    expect((await post(hib, r.body.post.id)).music).toMatchObject({ title: 'Sexta à noite' });
+    await send('chat', track).expect(400);
+    await send('post', { id: 'local:abc', source: 'local' }).expect(400);
+  });
 });
