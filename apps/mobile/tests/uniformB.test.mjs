@@ -21,7 +21,7 @@ test('oferecer vibes: ícone gift e verbo «Oferecer» nas publicações, tcheka
     assert.doesNotMatch(s, /icon="present"|icon: 'present'|name="present"/, f.join('/'));
     assert.doesNotMatch(s, /'Presentear|"Presentear|>Presentear|`Presentear/, f.join('/'));
   }
-  assert.match(card, /<Btn label="Oferecer" a11y="Oferecer vibes" icon="gift"/);
+  assert.match(card, /<BarBtn hot={hot} label="Oferecer" a11y="Oferecer vibes" icon="gift"/);
   assert.match(card, /icon: 'gift' as const, label: post\.gifts === 1 \? 'presente' : 'presentes'/);
   assert.match(read('components', 'PostSheets.tsx'), /<Sheet title=\{`Oferecer vibes a \$\{name\}`\}/);
   assert.match(read('components', 'reel', 'HoldMenu.tsx'), /'Oferecer vibes'\)/);

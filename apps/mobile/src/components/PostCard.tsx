@@ -797,13 +797,6 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
   const byNames = cheeredByView(post)?.kind === 'names';
   const shown = byNames ? chips.filter((c) => c.kind !== 'cheers') : chips;
 
-  // Fila de ações: todos os ícones a 24 (o mesmo tamanho em todos os botões da barra).
-  const Btn = ({ label, icon, onPress, color = colors.zinc800, a11y }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; /** O que o leitor de ecrã diz, quando o rótulo curto não chega. */ a11y?: string }) => (
-    <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={a11y ?? label}>
-      <Icon name={icon} size={24} color={color} />
-      <Text style={[styles.word, { color }]} numberOfLines={1}>{label}</Text>
-    </Pressable>
-  );
 
   return (
     <>
@@ -833,14 +826,27 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
       </View>
       )}
       <View style={[styles.bar, hot && styles.barHot, byNames && !shown.length && post.comments <= 0 && { marginTop: 10 }]}>
-        <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
-        <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
+        <BarBtn hot={hot} label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
+        <BarBtn hot={hot} label="Comentar" icon="comment" onPress={() => open('comments')} />
         {/* Quem publicou não deixa repostar (lib/repost): o botão some, a não ser que haja um repost meu para desfazer. */}
-        {showRepostButton(post) && <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
-        {!mine && post.canGift && <Btn label="Oferecer" a11y="Oferecer vibes" icon="gift" onPress={() => open('gift')} />}
-        <Btn label="Partilhar" icon="share" onPress={() => open('share')} />
+        {showRepostButton(post) && <BarBtn hot={hot} label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
+        {!mine && post.canGift && <BarBtn hot={hot} label="Oferecer" a11y="Oferecer vibes" icon="gift" onPress={() => open('gift')} />}
+        <BarBtn hot={hot} label="Partilhar" icon="share" onPress={() => open('share')} />
       </View>
     </>
+  );
+}
+
+/**
+ * Botão da fila de ações: todos os ícones a 24 (o mesmo tamanho em todos os botões da barra). Fica fora do cartão para não
+ * se voltar a montar quando o cartão muda de `hot` ao passar o rato (o primeiro clique ao entrar no cartão perdia-se).
+ */
+function BarBtn({ label, icon, onPress, color = colors.zinc800, a11y, hot }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; /** O que o leitor de ecrã diz, quando o rótulo curto não chega. */ a11y?: string; hot?: boolean }) {
+  return (
+    <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={a11y ?? label}>
+      <Icon name={icon} size={24} color={color} />
+      <Text style={[styles.word, { color }]} numberOfLines={1}>{label}</Text>
+    </Pressable>
   );
 }
 

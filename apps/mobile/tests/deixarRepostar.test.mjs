@@ -29,7 +29,7 @@ test('canRepost falso esconde a opção; sem o campo (servidor antigo, cache) co
 test('os botões de repostar usam showRepostButton (cartão, visor de fotos, Tchekas)', () => {
   const card = read('components', 'PostCard.tsx');
   assert.match(card, /\{showRepostButton\(post\) \? <B icon="repeat"/);
-  assert.match(card, /\{showRepostButton\(post\) && <Btn label=\{post\.reposted \? 'Repostado' : 'Repostar'\}/);
+  assert.match(card, /\{showRepostButton\(post\) && <BarBtn hot={hot} label=\{post\.reposted \? 'Repostado' : 'Repostar'\}/);
   const reels = read('app', '(tabs)', 'reels.tsx');
   assert.match(reels, /\{showRepostButton\(post\) \? \(\n\s+<RailButton/);
 });
