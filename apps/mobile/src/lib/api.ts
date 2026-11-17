@@ -133,6 +133,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'txillada_live'
   // «Convidar por @» (0168): o anfitrião convidou-me para transmitir na Txillada dele (data.txilladaId, data.title).
   | 'txillada_invite'
+  // Txillada agendada (0176): ao anfitrião, começa daqui a 15 min e é agora (do próprio, como os avisos do sistema); a quem
+  // pediu lembrete, cancelada ou mudada de hora (data.moved, data.newStartsAt). data.scheduleId, data.startsAt, data.title.
+  | 'txillada_scheduled_soon' | 'txillada_scheduled_now' | 'txillada_scheduled_cancelled'
   // O resumo semanal dos Zás está pronto (data.recapId, data.label «8 a 15 nov», data.count; o ator é o Txillapp, staff).
   | 'zas_recap'
   // Mixar (0170): a seleção de hoje está pronta (ator = o outro), o outro já escolheu no Mixa Challenge e falta eu (ator = quem
@@ -147,7 +150,7 @@ export interface AppNotification {
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number; /** Mixar (0170). */ mixarId?: string; name?: string; challengeId?: string; match?: boolean };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Txillada agendada (0176); `fromReminder`: o txillada_live de quem pediu lembrete. */ scheduleId?: string; startsAt?: string; moved?: boolean; newStartsAt?: string; fromReminder?: boolean; reopened?: boolean; mention?: boolean; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number; /** Mixar (0170). */ mixarId?: string; name?: string; challengeId?: string; match?: boolean };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
@@ -281,6 +284,8 @@ export interface Profile {
   hiddenPosts?: number;
   /** Txillada (o live) a decorrer: a roda da foto fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */
   live?: { id: string; /** Privada que ainda não paguei (0167): o preço da entrada. */ price?: number } | null;
+  /** Txillada agendada (0176): o próximo agendamento desta pessoa que eu posso ver. Servidores antigos não mandam. */
+  nextTxillada?: import('./txilladaSchedule').NextTxillada | null;
 }
 export interface SearchResults {
   query: string;

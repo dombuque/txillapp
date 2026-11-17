@@ -23,6 +23,7 @@ import {
 } from '@/lib/txillada';
 import { handOff, usePreview } from '@/lib/txilladaRoom';
 import { GlassButton, LiveBadge } from './TxilladaParts';
+import { ScheduleSheet, type ScheduleForm } from './TxilladaSchedule';
 import { TxilladaVideo } from './TxilladaVideo';
 
 /**
@@ -34,6 +35,10 @@ import { TxilladaVideo } from './TxilladaVideo';
  * Com o teclado aberto (lib/prepKeyboard) o cartão fica do mesmo tamanho (medido sem o teclado) e só o painel de baixo sobe
  * para cima do teclado, a rolar por dentro, com o campo onde se escreve à vista. O que se escreveu fica guardado um bocado
  * (lib/createKeep): se a app recarregar ao voltar à vista, o preparar volta como estava.
+ *
+ * Ao lado de «Começar», «Agendar» (0176, docs/txillada-agendar.md): com as mesmas escolhas de tipo, preço e meta, abre a folha
+ * do dia e da hora (components/txillada/TxilladaSchedule) e confirma «Agendada para sábado, 20:00», com «Partilhar» e «Ver no
+ * perfil». Agendar não precisa da câmara.
  */
 export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active: boolean; onClose: () => void; kinds?: { id: string; label: string }[]; kind?: string; onKind?: (id: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -56,6 +61,8 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
   const [purpose, setPurpose] = useState(initial.purpose);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // «Agendar» (0176, docs/txillada-agendar.md): a folha do dia e da hora, com as mesmas escolhas de tipo, preço e meta.
+  const [scheduling, setScheduling] = useState<ScheduleForm | null>(null);
   const formRef = useRef<PrepForm>(initial);
   formRef.current = { title, kind: txKind, closeOnly, price, fund, goal, purpose };
   const save = useCallback(() => {
@@ -142,10 +149,28 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
   }, [kind]);
   useEffect(showMode, [showMode, frame.cardW]);
 
+  /** As mesmas contas do «Começar»: um erro no título, no preço ou na meta fica escrito por cima dos botões. */
+  const formError = () => titleError(title)
+    ?? (txKind === 'paid' ? priceError(parseAmount(price)) : null)
+    ?? (fund ? goalError(parseAmount(goal)) : null);
+
+  /** «Agendar»: não precisa da câmara; abre a folha do dia e da hora com o que está escolhido. */
+  function schedule() {
+    const bad = formError();
+    if (bad) { setMsg(bad); return; }
+    setMsg(null);
+    const p = txKind === 'paid' ? parseAmount(price) : null;
+    const g = fund ? parseAmount(goal) : null;
+    setScheduling({
+      title: cleanTitle(title),
+      audience: prepAudience(txKind, closeOnly),
+      ...(p != null ? { price: p } : {}),
+      ...(g != null ? { goal: g, goalPurpose: purpose.replace(/\s+/g, ' ').trim().slice(0, PURPOSE_MAX) } : {}),
+    });
+  }
+
   async function start() {
-    const bad = titleError(title)
-      ?? (txKind === 'paid' ? priceError(parseAmount(price)) : null)
-      ?? (fund ? goalError(parseAmount(goal)) : null);
+    const bad = formError();
     if (bad) { setMsg(bad); return; }
     if (!preview.tracks) { setMsg(preview.error ?? 'A câmara ainda está a abrir.'); return; }
     setBusy(true);
@@ -313,9 +338,16 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
           ) : null}
 
           {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
-          <Pressable onPress={() => void start()} disabled={busy} style={({ pressed }) => [st.go, (busy || !preview.tracks) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="txillada" size={22} color="#fff" strokeWidth={2.1} /><Text style={st.goText}>Começar Txillada</Text></>}
-          </Pressable>
+          {/* «Começar» agora, ou «Agendar» para outro dia e hora (ao lado). */}
+          <View style={st.goRow}>
+            <Pressable onPress={() => void start()} disabled={busy} style={({ pressed }) => [st.go, { flex: 1 }, (busy || !preview.tracks) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
+              {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="txillada" size={22} color="#fff" strokeWidth={2.1} /><Text style={[st.goText, narrow && { fontSize: 16 }]} numberOfLines={1}>{narrow ? 'Começar' : 'Começar Txillada'}</Text></>}
+            </Pressable>
+            <Pressable onPress={schedule} disabled={busy} style={({ pressed }) => [st.later, pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel="Agendar a Txillada para outro dia e hora">
+              <Icon name="calendar" size={19} color="#fff" strokeWidth={2.1} />
+              <Text style={st.laterText}>Agendar</Text>
+            </Pressable>
+          </View>
           </ScrollView>
         </LinearGradient>
       </View>
@@ -331,6 +363,15 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
             ))}
           </ScrollView>
         </View>
+      ) : null}
+
+      {scheduling ? (
+        <ScheduleSheet
+          form={scheduling}
+          onClose={() => setScheduling(null)}
+          onDone={() => { setTitle(''); setPurpose(''); void qc.invalidateQueries({ queryKey: ['txillada-schedules'] }); void qc.invalidateQueries({ queryKey: ['profile'] }); }}
+          onProfile={() => { setScheduling(null); onClose(); router.push('/profile' as never); }}
+        />
       ) : null}
     </View>
   );
@@ -391,6 +432,9 @@ const st = StyleSheet.create({
   msg: { color: '#fff', backgroundColor: 'rgba(220,38,38,0.85)', borderRadius: 12, overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   go: { height: 50, borderRadius: 25, backgroundColor: colors.brand, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
   goText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  goRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  later: { height: 50, borderRadius: 25, paddingHorizontal: 16, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(14,14,18,0.55)' },
+  laterText: { color: '#fff', fontSize: 15.5, fontWeight: '800', letterSpacing: -0.1 },
   modes: { position: 'absolute', justifyContent: 'center' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 0, paddingHorizontal: 6 },
   kindPill: { minHeight: 44, paddingHorizontal: 8, paddingVertical: 4, alignItems: 'center', justifyContent: 'center', gap: 4 },

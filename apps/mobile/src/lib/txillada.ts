@@ -13,6 +13,7 @@
 
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 import { fmtVibesNumber, formatVibes } from '@/lib/vibes';
+import { REMINDER_LIVE_TEXT, fromReminder } from '@/lib/txilladaSchedule';
 
 /**
  * Quem pode ver (0167): 'everyone' (Pública), 'friends' (Para amigos: quem segues e te segue), 'close' (Para amigos com «Só
@@ -617,10 +618,12 @@ export function withStories<T extends { count: number }>(users: readonly T[]): T
 }
 
 /** A notificação `txillada_live`: «abriu uma Txillada: <título>» (o @ vem antes, como nas outras). */
-export function noticeText(data: { title?: unknown; reopened?: unknown } | null | undefined): string {
+export function noticeText(data: { title?: unknown; reopened?: unknown; fromReminder?: unknown } | null | undefined): string {
   const t = typeof data?.title === 'string' ? data.title.trim() : '';
   // Reaberta (a Angariação, 0174): «reabriu a Txillada: <título>».
   if (data?.reopened === true) return t ? `reabriu a Txillada: ${t}` : 'reabriu a Txillada';
+  // Vinda de um lembrete da Txillada agendada (0176): «começou a Txillada que pediste para lembrar».
+  if (fromReminder(data)) return REMINDER_LIVE_TEXT;
   return t ? `abriu uma Txillada: ${t}` : 'abriu uma Txillada';
 }
 export function noticeTarget(data: { txilladaId?: unknown; id?: unknown } | null | undefined): string | null {

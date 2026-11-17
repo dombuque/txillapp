@@ -35,6 +35,7 @@ import {
   inviteNoticeSub as txilladaInviteSub, inviteNoticeText as txilladaInviteText, noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget,
   noticeText as txilladaNoticeText,
 } from '@/lib/txillada';
+import { isHostNotice, scheduleNoticeTarget, scheduleNoticeText } from '@/lib/txilladaSchedule';
 import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
 import { MixarBadge } from '@/components/mixar/MixarBits';
 import { isMixarNotice, mixarNoticeTarget, mixarNoticeText } from '@/lib/mixarAvisos';
@@ -116,7 +117,13 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_answer':
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
+    // Vinda de um lembrete (0176, data.fromReminder): «@x começou a Txillada que pediste para lembrar».
     case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
+    // Txillada agendada (0176): ao anfitrião, «A tua Txillada começa daqui a 15 min» e «Está na hora da tua Txillada»; a quem
+    // pediu lembrete, «@x cancelou a Txillada de sábado, 20:00» ou «@x mudou a Txillada para domingo, 19:00».
+    case 'txillada_scheduled_soon':
+    case 'txillada_scheduled_now':
+    case 'txillada_scheduled_cancelled': return scheduleNoticeText(n.kind, n.data, Date.now());
     // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar); mencionado
     // sem estar a ver (txillada-voltar): «@ana mencionou-te na Txillada de @zeca: vem ver».
     case 'txillada_invite': return { text: txilladaInviteText(n.data, n.actor.username), sub: txilladaInviteSub(n.txillada, n.data as { mention?: unknown }) };
@@ -169,6 +176,10 @@ function targetOf(n: AppNotification, me?: string): string | null {
     // Entra na Txillada (se já acabou, o ecrã diz «A Txillada acabou»).
     case 'txillada_live':
     case 'txillada_invite': return txilladaNoticeTarget(n.data);
+    // O cartão do agendamento (o anfitrião tem lá o «Começar»; cancelada, diz que foi cancelada; mudada, mostra a hora nova).
+    case 'txillada_scheduled_soon':
+    case 'txillada_scheduled_now':
+    case 'txillada_scheduled_cancelled': return scheduleNoticeTarget(n.data);
     // O ecrã do resumo (se já não existe, diz «Este resumo já não existe»).
     case 'zas_recap': return recapNoticeTarget(n.data);
     // Abre o Mixar (o feed do dia, com o desafio).
@@ -273,12 +284,18 @@ function Row({ g, me }: { g: Group; me?: string }) {
 
   const go = (t: string | null) => t && router.push(t as never);
   const zasRecap = n.kind === 'zas_recap';
+  // Os avisos da Txillada agendada ao próprio anfitrião (15 min antes e na hora): sem o nome à frente, com o ícone da Txillada.
+  const hostNotice = isHostNotice(n.kind);
   // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
   const txKind = n.kind === 'txillada_live' || n.kind === 'txillada_invite';
   const txLive = txKind && (!n.txillada || n.txillada.status === 'live');
   const right = txKind ? (
     <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? 'Txillada ao vivo' : 'A Txillada já acabou'}>
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
+    </View>
+  ) : n.kind === 'txillada_scheduled_cancelled' ? (
+    <View style={[styles.txIcon, { backgroundColor: colors.zinc100 }]} accessibilityLabel={n.data.moved ? 'A Txillada mudou de hora' : 'A Txillada foi cancelada'}>
+      <Icon name="calendar" size={22} color={colors.zinc600} strokeWidth={2} />
     </View>
   ) : isMixarNotice(n.kind) ? (
     // Mixar: o selo do Mixar à direita (a cara do outro já está à esquerda).
@@ -300,6 +317,8 @@ function Row({ g, me }: { g: Group; me?: string }) {
       {zasRecap ? (
         // O resumo dos Zás: o raio do Zás num círculo da cor da marca, em vez da cara.
         <View style={styles.zasIcon} accessibilityLabel="Zás"><Icon name="bolt" size={24} solid color="#fff" /></View>
+      ) : hostNotice ? (
+        <View style={styles.zasIcon} accessibilityLabel="Txillada agendada"><Icon name="txillada" size={26} color="#fff" strokeWidth={2.1} /></View>
       ) : (
         <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
           <Faces actors={people.actors} />
@@ -307,7 +326,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          {zasRecap ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
+          {zasRecap || hostNotice ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
