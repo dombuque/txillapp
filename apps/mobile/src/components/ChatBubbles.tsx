@@ -25,7 +25,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, photoBubbleSize, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
-import { GIF_HIDDEN_TEXT, gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
+import { GIF_HIDDEN_TEXT, gifFit, gifLabel, gifShown, gifSize, validGif, type ChatGif } from '@/lib/gifs';
 import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
@@ -476,9 +476,12 @@ function ChatText({ text, mine, style, onLongPress }: { text: string; mine: bool
 function GifBubble({ gif, radius, dim }: { gif: ChatGif; radius: object; dim: object | null }) {
   const reduce = useReducedMotion();
   const size = gifSize(gif.w, gif.h);
+  // O GIF do Txillapp (fundo transparente): sem o fundo da bolha, o logótipo inteiro (nunca cortado), como um autocolante.
+  const brand = gif.source === 'txillapp';
+  const shown = gifShown(gif);
   return (
-    <View style={[{ width: size.width, height: size.height, overflow: 'hidden', backgroundColor: colors.zinc200 }, radius, dim]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
-      <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={gif.id} accessibilityIgnoresInvertColors />
+    <View style={[{ width: size.width, height: size.height, overflow: 'hidden', backgroundColor: brand ? 'transparent' : colors.zinc200 }, radius, dim]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
+      <Image source={{ uri: reduce && shown.still ? shown.still : shown.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit={gifFit(gif)} recyclingKey={shown.url} accessibilityIgnoresInvertColors />
     </View>
   );
 }

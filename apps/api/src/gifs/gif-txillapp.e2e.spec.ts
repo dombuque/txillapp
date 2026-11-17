@@ -142,4 +142,24 @@ describe('GIF do Txillapp em mensagens, comentários e notas (integração)', ()
     expect(note?.gif).toMatchObject({ id: 'logo-fundo', source: 'txillapp', rating: 'g', url: 'https://txillapp.com/marca/txillapp-animado-fundo.gif' });
     expect(giphyCalls).toEqual([]);
   });
+
+  it('resposta a uma nota com a reação «Txillapp»: a linha «Em resposta à tua nota» e a mensagem GIF; GIF inválido dá 400 sem mandar nada', async () => {
+    const author = await signup('tgr');
+    const fan = await signup('tgf', '2010-05-05');
+    await follow(fan, author);
+    await api().put('/api/v1/notes/me').set(auth(author)).send({ body: 'Praia hoje' }).expect(204);
+    const sent = async () => (await pool.query(`SELECT kind, body, gif ->> 'source' AS s, gif ->> 'rating' AS r FROM social.messages WHERE sender_id = $1 ORDER BY created_at, id`, [fan.id])).rows;
+    await api().post(`/api/v1/notes/${author.username}/reply`).set(auth(fan)).send({ gif: brand({ id: 'falso' }) }).expect(400);
+    await api().post(`/api/v1/notes/${author.username}/reply`).set(auth(fan)).send({}).expect(400);
+    expect(await sent()).toEqual([]);
+    await api().post(`/api/v1/notes/${author.username}/reply`).set(auth(fan)).send({ gif: brand() }).expect(201);
+    const rows = await sent();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ kind: 'text', body: 'Em resposta à tua nota “Praia hoje”' });
+    expect(rows[1]).toMatchObject({ kind: 'gif', s: 'txillapp', r: 'g' });
+    // Só texto, como sempre.
+    await api().post(`/api/v1/notes/${author.username}/reply`).set(auth(fan)).send({ text: 'boa!' }).expect(201);
+    expect((await sent())[2]).toMatchObject({ kind: 'text', body: 'Em resposta à tua nota “Praia hoje”: boa!' });
+    expect(giphyCalls).toEqual([]);
+  });
 });

@@ -24,8 +24,8 @@ import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
-import { GifHiddenCard, GifView, useGifsConfig } from './GifPanel';
-import { gifPayload, validGif } from '@/lib/gifs';
+import { GifHiddenCard, GifView, TxillappReaction, useGifsConfig } from './GifPanel';
+import { TXILLAPP_GIF, gifPayload, validGif } from '@/lib/gifs';
 import { InlineBadge, NameWithBadge } from './NameWithBadge';
 import { useRouter } from 'expo-router';
 import { replyHref, tchekaRepliesLabel } from '@/lib/remix';
@@ -404,6 +404,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
             {QUICK.map((e) => (
               <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
+            {/* A reação «Txillapp»: publica logo o GIF da marca (com o texto que estiver escrito, como os outros GIFs). */}
+            <TxillappReaction width={48} disabled={busy} label="Comentar com o GIF Txillapp" onPress={() => { setStickers(null); void submit(undefined, gifPayload(TXILLAPP_GIF)); }} />
             <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers === 'stickers' }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers === 'stickers' && { backgroundColor: colors.rose50 }]}>
               <Icon name="sticker" size={24} color={stickers === 'stickers' ? colors.brand : colors.zinc700} />
             </Pressable>

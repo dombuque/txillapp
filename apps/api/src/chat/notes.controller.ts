@@ -33,7 +33,12 @@ const noteSchema = z
     audience: z.enum(['mutual', 'close_friends']).default('mutual'),
   })
   .refine((n) => n.body.length > 0 || !!n.music || !!n.gif || !!n.place, { message: 'Escreve algo ou escolhe uma música, um local ou um GIF', path: ['body'] });
-const replySchema = z.object({ text: z.string().trim().min(1).max(500) });
+/**
+ * A resposta: texto e/ou um GIF (a reação «Txillapp» da folha da nota manda o GIF do Txillapp; o mesmo formato das mensagens GIF).
+ */
+const replySchema = z
+  .object({ text: z.string().trim().max(500).default(''), gif: gifSchema.optional() })
+  .refine((r) => r.text.length > 0 || !!r.gif, { message: 'Escreve a resposta', path: ['text'] });
 /** Os mesmos motivos e limites das outras denúncias (POST /reports). */
 const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
 
@@ -72,7 +77,7 @@ export class NotesController {
   @Post(':username/reply')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   reply(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
-    return this.notes.reply(req.userId!, username, b.text);
+    return this.notes.reply(req.userId!, username, b.text, b.gif);
   }
 
   /** Denunciar a nota de alguém (quem a vê, não o autor): a fila da moderação ('note'); deixa de aparecer a quem denunciou. */

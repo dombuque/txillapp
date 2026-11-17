@@ -23,7 +23,8 @@ export const notesApi = {
     raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body: d.body, music: musicPayload(d.music ?? null), color: d.color ?? null, place: d.place ?? null, gif: d.gif ?? null, audience: d.audience ?? 'mutual' }) }),
   remove: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   cheer: (username: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/notes/${encodeURIComponent(username)}/cheer`, post({})),
-  reply: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
+  /** A resposta (vira mensagem): texto e/ou um GIF (a reação «Txillapp»: a linha «Em resposta à tua nota» e o GIF a seguir). */
+  reply: (username: string, text: string, gif?: ChatGif): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post(gif ? { text, gif } : { text })),
   /** Denunciar a nota de alguém (os motivos de sempre; a nota até 500). Quem denuncia deixa de a ver (o servidor esconde-a). */
   report: (username: string, reason: ReportReason, note?: string): Promise<void> => raw(`/notes/${encodeURIComponent(username)}/report`, post({ reason, note })),
   /** Quem está online (o servidor aplica a privacidade). */
