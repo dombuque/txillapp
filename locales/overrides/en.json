@@ -1613,5 +1613,18 @@
   "Que a outra pessoa tem o Mixar aberto agora. Aparece por baixo do cabeçalho, com «No mesmo vídeo que tu» ou «Noutro vídeo» (toca para ires lá), e «está aqui» no vídeo em que ela está. As reações dela aparecem na hora. Ela vê o mesmo de ti, também com «Mostrar quando estou online» desligado. Desaparece pouco depois de um dos dois sair.": "That the other person has the Mixar open right now. It appears below the header, with “In the same video as you” or “In another video” (tap to go there), and “is here” on the video they're on. Their reactions appear in real time. They see the same about you, even with “Show when I am online” turned off. It disappears shortly after one of you leaves.",
   "Não deu. Tenta outra vez daqui a pouco.": "I couldn't. Try again in a bit.",
   "Obrigado. A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.": "Thanks. The team will look into it. Meanwhile, this sound can't be used in new tchekas.",
-  "Som retirado. Deixou de tocar em todo o lado.": "Sound removed. It no longer plays anywhere."
+  "Som retirado. Deixou de tocar em todo o lado.": "Sound removed. It no longer plays anywhere.",
+  "Abrir a conversa com {name}": "Open your chat with {name}",
+  "Cancelar a resposta ou a edição, sair da pesquisa": "Cancel the reply or the edit, leave search",
+  "Fechar a conversa": "Close the chat",
+  "Fechar a conversa (Esc)": "Close the chat (Esc)",
+  "Fechar a conversa aberta": "Close the open chat",
+  "Mudar de conversa": "Switch chats",
+  "Mudar de conversa (com a lista em foco)": "Switch chats (with the list focused)",
+  "Notas anteriores": "Previous notes",
+  "Notas da malta": "Notes from your crew",
+  "Todos os atalhos": "All shortcuts",
+  "Ver mais notas": "More notes",
+  "Conversa anterior": "Previous chat",
+  "Conversa seguinte": "Next chat"
 }
