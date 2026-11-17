@@ -551,7 +551,7 @@ function GroupJoinView({ mixar, busy, onAccept, onDecline, onLeave }: { mixar: M
       ) : null}
       {v.tone === 'join' ? (
         <View style={{ marginTop: 24, gap: 10, width: '100%', maxWidth: 300 }}>
-          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? t('A entrar…') : t('Entrar')}</Text></Pressable>
+          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? t('A entrar…') : t('Entrar', { context: 'juntar' })}</Text></Pressable>
           {g.myState === null ? (
             <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? t('A responder…') : t('Agora não')}</Text></Pressable>
           ) : null}

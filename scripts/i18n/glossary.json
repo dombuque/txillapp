@@ -1,7 +1,11 @@
 {
-  "$comment": "Termos que não se traduzem: protegem-se antes de ir ao tradutor e repõem-se depois, tal e qual (docs/idiomas.md).",
+  "$comment": "Termos que não se traduzem: protegem-se antes de ir ao tradutor e repõem-se depois, tal e qual (docs/idiomas.md). «keep» vale para todos os idiomas; «keepByLang» junta termos por idioma («default» para os idiomas que não estão na lista). «malta» fica em português nos outros idiomas, mas em inglês traduz-se conforme o contexto (everyone, your crew, friends, people).",
   "keep": [
     "Txillapp", "Txillada", "Txilladas", "mimo", "mimos", "tchekas", "tcheka", "Tcheka", "Zás", "vibes", "vib", "Mixar",
-    "geleira", "gelada", "geladas", "TxillGroup", "TxillGroups", "SuperTxill", "Paga-me uma", "malta"
-  ]
+    "geleira", "gelada", "geladas", "TxillGroup", "TxillGroups", "SuperTxill", "Paga-me uma"
+  ],
+  "keepByLang": {
+    "default": ["malta"],
+    "en": []
+  }
 }

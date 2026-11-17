@@ -105,11 +105,17 @@ export function extractFile(file, { functions = ['t'], markers = [] } = {}) {
           problems.push({ line: lineOf(node), msg: `${fn}() com um argumento que não é texto literal: ${first ? first.getText(sf).slice(0, 80) : '(nada)'}` });
         } else {
           let other;
+          let context;
           let plural = false;
           if (second && ts.isObjectLiteralExpression(second)) {
             for (const p of second.properties) {
               const name = p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : undefined;
               if (name === 'count') plural = true;
+              // context: a mesma frase com outra tradução conforme o sítio (i18next: chave «frase_contexto», volta à frase).
+              if (name === 'context') {
+                if (ts.isPropertyAssignment(p) && literal(p.initializer) !== undefined) context = literal(p.initializer);
+                else problems.push({ line: lineOf(p), msg: `${fn}() com um «context» que não é texto literal` });
+              }
               if (name === 'other') {
                 if (ts.isPropertyAssignment(p) && literal(p.initializer) !== undefined) other = literal(p.initializer);
                 else problems.push({ line: lineOf(p), msg: `${fn}() com um «other» que não é texto literal` });
@@ -119,7 +125,7 @@ export function extractFile(file, { functions = ['t'], markers = [] } = {}) {
             // Objeto vindo de fora: não se sabe se é plural. Só conta como problema se for preciso o plural (não dá para saber).
           }
           if (other !== undefined) plural = true;
-          for (const key of keys) phrases.push({ key, other, plural, line: lineOf(node) });
+          for (const key of keys) phrases.push(context ? { key: `${key}_${context}`, src: key, other, plural, line: lineOf(node) } : { key, other, plural, line: lineOf(node) });
         }
       }
     }
@@ -131,8 +137,8 @@ export function extractFile(file, { functions = ['t'], markers = [] } = {}) {
 
 /**
  * Extrai todas as partes. Devolve:
- *   parts: { [parte]: { keys: Map<frase, { other, plural }>, problems: [{ file, line, msg }], strict } }
- *   all:   Map<frase, { other, plural, parts: Set }>
+ *   parts: { [parte]: { keys: Map<frase, { other, plural, src? }>, problems: [{ file, line, msg }], strict } }
+ *   all:   Map<frase, { other, plural, src?, parts: Set }>   (src: a frase a traduzir quando a chave tem contexto)
  *   conflicts: [{ key, a, b }]
  */
 export function extractAll(config = loadConfig()) {
@@ -160,11 +166,12 @@ export function extractAll(config = loadConfig()) {
     function add(p, rel) {
       const prev = keys.get(p.key);
       if (prev && prev.other !== undefined && p.other !== undefined && prev.other !== p.other) conflicts.push({ key: p.key, a: prev.other, b: p.other, file: rel, line: p.line });
-      keys.set(p.key, { other: p.other ?? prev?.other, plural: p.plural || !!prev?.plural });
+      keys.set(p.key, { other: p.other ?? prev?.other, plural: p.plural || !!prev?.plural, ...(p.src ? { src: p.src } : {}) });
       const g = all.get(p.key) ?? { other: undefined, plural: false, parts: new Set() };
       if (g.other !== undefined && p.other !== undefined && g.other !== p.other && !conflicts.some((c) => c.key === p.key)) conflicts.push({ key: p.key, a: g.other, b: p.other, file: rel, line: p.line });
       g.other = g.other ?? p.other;
       g.plural = g.plural || p.plural;
+      if (p.src) g.src = p.src;
       g.parts.add(name);
       all.set(p.key, g);
     }

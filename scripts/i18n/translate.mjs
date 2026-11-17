@@ -59,12 +59,13 @@ export const pluralCategories = (locale) => new Intl.PluralRules(locale).resolve
 
 /**
  * As chaves que um idioma precisa: { chave → texto em português a traduzir }. Nos plurais, «_one» traduz o singular e as
- * outras formas traduzem o `other` (ou o singular, se não houver).
+ * outras formas traduzem o `other` (ou o singular, se não houver). Com contexto (`t('Entrar', { context: 'juntar' })`), a
+ * chave é «Entrar_juntar» e traduz-se «Entrar».
  */
 export function neededKeys(all, locale) {
   const out = new Map();
   for (const [key, v] of all) {
-    if (!v.plural) out.set(key, key);
+    if (!v.plural) out.set(key, v.src ?? key);
     else for (const cat of pluralCategories(locale)) out.set(`${key}_${cat}`, cat === 'one' ? key : (v.other ?? key));
   }
   return out;
@@ -72,26 +73,43 @@ export function neededKeys(all, locale) {
 
 // ------------------------------------------------------------------------------------------------------------- proteção
 
-const glossary = readJson(rel('scripts', 'i18n', 'glossary.json'), { keep: [] }).keep;
+const glossary = readJson(rel('scripts', 'i18n', 'glossary.json'), { keep: [] });
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const terms = [...new Set(glossary)].sort((a, b) => b.length - a.length).map(esc).join('|');
+
+/** Os termos que não se traduzem para um idioma: a lista comum («keep») e a do idioma (ou a «default») de «keepByLang». */
+export function glossaryFor(lang) {
+  const byLang = glossary.keepByLang ?? {};
+  return [...new Set([...(glossary.keep ?? []), ...((lang && byLang[lang]) ?? byLang.default ?? [])])];
+}
+
 /**
  * O que se protege: variáveis, os marcadores do <T> da app (`<b>`, `</b>`, `<badge/>`: components/Trans.tsx), links, @,
- * emojis e os termos do glossário (palavras inteiras, maiúsculas ou não).
+ * emojis e os termos do glossário do idioma (palavras inteiras, maiúsculas ou não). Sem idioma, os de «default».
  */
-const PROTECT = new RegExp(
-  [
-    '\\{[\\w.]+\\}',
-    '</?[a-z][\\w-]*\\s*/?>',
-    // Os símbolos dos menus (⋯, →): o LibreTranslate perde os marcadores à volta deles nas frases longas.
-    '[⋯→]',
-    'https?://\\S+',
-    '@[\\p{L}\\p{N}_.]+',
-    '\\p{Extended_Pictographic}(?:\\uFE0F|\\u200D\\p{Extended_Pictographic})*\\uFE0F?',
-    ...(terms ? [`(?<![\\p{L}\\p{N}])(?:${terms})(?![\\p{L}\\p{N}])`] : []),
-  ].join('|'),
-  'giu',
-);
+const protectCache = new Map();
+function protectRe(lang) {
+  const k = lang ?? '';
+  if (!protectCache.has(k)) {
+    const terms = glossaryFor(lang).sort((a, b) => b.length - a.length).map(esc).join('|');
+    protectCache.set(
+      k,
+      new RegExp(
+        [
+          '\\{[\\w.]+\\}',
+          '</?[a-z][\\w-]*\\s*/?>',
+          // Os símbolos dos menus (⋯, →): o LibreTranslate perde os marcadores à volta deles nas frases longas.
+          '[⋯→]',
+          'https?://\\S+',
+          '@[\\p{L}\\p{N}_.]+',
+          '\\p{Extended_Pictographic}(?:\\uFE0F|\\u200D\\p{Extended_Pictographic})*\\uFE0F?',
+          ...(terms ? [`(?<![\\p{L}\\p{N}])(?:${terms})(?![\\p{L}\\p{N}])`] : []),
+        ].join('|'),
+        'giu',
+      ),
+    );
+  }
+  return protectCache.get(k);
+}
 
 /** Os formatos de marcador, do melhor para o pior com o LibreTranslate (ver docs/idiomas.md). */
 const FORMATS = [
@@ -101,9 +119,9 @@ const FORMATS = [
 ];
 const DEEPL_FORMAT = { make: (i) => `<x id="${i}"/>`, find: /<x id="(\d+)"\s*\/>/g };
 
-export function protect(text, fmt) {
+export function protect(text, fmt, lang) {
   const tokens = [];
-  const out = text.replace(PROTECT, (m) => fmt.make(tokens.push(m) - 1));
+  const out = text.replace(protectRe(lang), (m) => fmt.make(tokens.push(m) - 1));
   return { text: out, tokens };
 }
 
@@ -206,6 +224,7 @@ export function capitalize(src, r) {
  */
 export async function translateAll(texts, target, prov = provider(), { log = () => {} } = {}) {
   // Partir em segmentos: linhas, sem as pontas.
+  const PROTECT = protectRe(target.code);
   const segs = new Map(); // segmento → tradução (ou null)
   const plan = texts.map((t) =>
     t.split('\n').map((line) => {
@@ -222,7 +241,7 @@ export async function translateAll(texts, target, prov = provider(), { log = () 
     const failed = [];
     for (let i = 0; i < pending.length; i += 25) {
       const batch = pending.slice(i, i + 25);
-      const prot = batch.map((s) => protect(s, fmt));
+      const prot = batch.map((s) => protect(s, fmt, target.code));
       const outs = await prov.translate(prot.map((p) => p.text), 'pt', target, fmt);
       batch.forEach((s, j) => {
         const back = outs[j] == null ? null : restore(outs[j], prot[j].tokens, fmt);
@@ -299,7 +318,7 @@ export async function run({ check = false, only = null, log = console.log } = {}
   for (const c of ex.conflicts) log(`aviso: plural diferente para «${c.key}» (${c.file}:${c.line})`);
 
   const phrases = {};
-  for (const [k, v] of ex.all) phrases[k] = { ...(v.other !== undefined ? { other: v.other } : {}), ...(v.plural ? { plural: true } : {}), parts: [...v.parts].sort() };
+  for (const [k, v] of ex.all) phrases[k] = { ...(v.src !== undefined ? { src: v.src } : {}), ...(v.other !== undefined ? { other: v.other } : {}), ...(v.plural ? { plural: true } : {}), parts: [...v.parts].sort() };
 
   const hashes = readJson(path.join(LOCALES, '.hash.json'), {});
   const missingAll = {};

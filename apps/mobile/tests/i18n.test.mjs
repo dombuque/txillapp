@@ -135,6 +135,32 @@ test('o tradutor protege o glossário e as variáveis e repõe-nos; marcador per
   assert.equal(restore('Open your XT0X and buy a XT2X', p.tokens, fmt), null);
 });
 
+test('context: «Entrar» é «Log in» no login e «Join» no Mixar e na Txillada; em português fica «Entrar»', async () => {
+  assert.equal(i18n.t('Entrar', { context: 'juntar' }), 'Entrar');
+  const all = ex.all.get('Entrar_juntar');
+  assert.equal(all?.src, 'Entrar');
+  assert.equal(neededKeys(ex.all, 'en-GB').get('Entrar_juntar'), 'Entrar');
+  const en = json('apps', 'mobile', 'src', 'locales', 'en.json');
+  const { createRequire } = await import('node:module');
+  const i18next = createRequire(path.join(MOBILE, 'package.json'))('i18next');
+  const inst = i18next.createInstance();
+  await inst.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false, nsSeparator: false, showSupportNotice: false });
+  assert.equal(inst.t('Entrar'), 'Log in');
+  assert.equal(inst.t('Entrar', { context: 'juntar' }), 'Join');
+  for (const f of ['app/mixar/index.tsx', 'app/mixar/[id].tsx', 'app/txillada/agendada/[id].tsx']) {
+    assert.match(readFileSync(path.join(MOBILE, 'src', f), 'utf8'), /t\('Entrar', \{ context: 'juntar' \}\)/, f);
+  }
+});
+
+test('glossário por idioma: «malta» fica em português por omissão mas traduz-se em inglês', () => {
+  const fmt = { make: (i) => `XT${i}X`, find: /Xs?Ts?(d+)s?X/gi };
+  assert.equal(protect('Convida a malta para a geleira', fmt).text, 'Convida a XT0X para a XT1X');
+  assert.equal(protect('Convida a malta para a geleira', fmt, 'en').text, 'Convida a malta para a XT0X');
+  const en = json('locales', 'en.json');
+  const left = Object.entries(en).filter(([, v]) => /(?<![p{L}])malta(?![p{L}])/iu.test(v)).map(([k, v]) => `${k} => ${v}`);
+  assert.deepEqual(left.slice(0, 20), [], `${left.length} frases inglesas ainda com «malta»`);
+});
+
 test('ecrã «Idiomas»: LANGS com o nome próprio, visto no escolhido, guarda na conta e recarrega; sem «em breve» nem traduções', () => {
   const src = readFileSync(path.join(MOBILE, 'src', 'app', 'language.tsx'), 'utf8');
   assert.match(src, /title=\{t\('Idiomas'\)\}/);

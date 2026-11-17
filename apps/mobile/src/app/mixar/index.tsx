@@ -109,7 +109,7 @@ export default function MixarList() {
         {ask ? (
           <View style={st.actions}>
             <Pressable onPress={() => void answer(s, true, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.8 }, !!busy && busy !== s.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Entrar no Mixar de {groupName}', { groupName: g.groupName })}>
-              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>{t('Entrar')}</Text>}
+              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>{t('Entrar', { context: 'juntar' })}</Text>}
             </Pressable>
             <Pressable onPress={() => void answer(s, false, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Agora não: não entrar no Mixar de {groupName}', { groupName: g.groupName })}>
               <Text style={st.ghostText}>{t('Agora não')}</Text>

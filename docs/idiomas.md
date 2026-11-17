@@ -30,8 +30,10 @@ Pedido do dono: «Usa alguma biblioteca de tradução e não tradução manual, 
     `DEEPL_API_KEY`.
   - **Glossário** (`scripts/i18n/glossary.json`): termos que NÃO se traduzem e se protegem antes de mandar ao tradutor
     (trocados por marcadores e repostos depois): Txillapp, Txillada, Txilladas, mimo, mimos, tchekas, Tcheka, Zás, vibes,
-    vib, Mixar, geleira, gelada, geladas, TxillGroup, TxillGroups, SuperTxill, Paga-me uma, malta. As variáveis `{nome}`
-    também se protegem.
+    vib, Mixar, geleira, gelada, geladas, TxillGroup, TxillGroups, SuperTxill, Paga-me uma. As variáveis `{nome}`
+    também se protegem. Termos só de alguns idiomas vão em `keepByLang` (`default` para os idiomas que lá não estão):
+    «malta» fica em português por omissão, mas em inglês traduz-se conforme o contexto (everyone, your crew, friends,
+    people), por isso `keepByLang.en` não o tem e as frases com «malta» corrigem-se em `overrides/en.json`.
   - Correções pontuais vão para `locales/overrides/<lang>.json`, que manda sobre a tradução automática. Isto serve só
     para corrigir um erro da máquina, nunca para traduzir à mão.
 - **Extração:** `scripts/i18n/extract.mjs` lê o código e recolhe todas as frases de `t('…')` e `t("…")`, incluindo as
@@ -83,7 +85,12 @@ Pedido do dono: «Usa alguma biblioteca de tradução e não tradução manual, 
 t('Guardar')
 t('Olá, {nome}.', { nome })
 t('{count} seguidor', { count: n, other: '{count} seguidores' })   // plural: `other` com a forma do plural, literal
+t('Entrar', { context: 'juntar' })   // a mesma frase com outra tradução: chave «Entrar_juntar», traduz-se «Entrar»
 ```
+
+- `context` (literal) serve quando a mesma frase portuguesa pede traduções diferentes conforme o ecrã: «Entrar» é
+  «Log in» no login e «Join» no Mixar e na Txillada. Em português mostra-se a frase; nos outros idiomas, a chave
+  `frase_contexto` (corrige-se em `overrides`, como as outras).
 
 - A frase e o `other` são sempre textos literais. O teste `apps/mobile/tests/i18n.test.mjs` falha com `t(variavel)`,
   `` t(`…${x}`) `` ou `t('a' + b)`, e com frases sem tradução nos catálogos.

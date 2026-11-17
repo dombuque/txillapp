@@ -213,7 +213,7 @@ export default function ScheduledTxilladaScreen() {
           {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
 
           {view === 'live' && s.txilladaId ? (
-            <Button label={t('Entrar')} icon="txillada" dark block onPress={() => router.replace(`/txillada/${encodeURIComponent(s.txilladaId!)}` as never)} />
+            <Button label={t('Entrar', { context: 'juntar' })} icon="txillada" dark block onPress={() => router.replace(`/txillada/${encodeURIComponent(s.txilladaId!)}` as never)} />
           ) : null}
 
           {view === 'scheduled' && !s.isHost ? (
