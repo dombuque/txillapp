@@ -37,7 +37,38 @@ test('as duas conversas usam o ChatScreen e a margem sem teclado na barra de esc
   }
   const screen = read('src/components/ChatScreen.tsx');
   assert.match(screen, /<KeyboardAvoidingView style=\{style\} behavior="padding">/);
-  assert.match(screen, /position: 'absolute', left: 0, right: 0, top: vv\.top, height: vv\.height/);
+  assert.match(screen, /position: 'absolute', left: 0, right: 0, top: pinnedTop\(vv\.top, parentTop\), height: vv\.height/);
+});
+
+test('iPhone: a conversa presa à zona visível desconta a página deslocada pelo Safari (sem faixa branca por cima do teclado)', () => {
+  // Página no topo: fica no offsetTop, como antes.
+  assert.equal(k.pinnedTop(0, 0), 0);
+  assert.equal(k.pinnedTop(300, 0), 300);
+  // O Safari deslocou a página 70 px e ignorou o scrollTo(0, 0): o ecrã está 70 px acima, a conversa desce 70 px.
+  assert.equal(k.pinnedTop(0, -70), 70);
+  assert.equal(k.pinnedTop(12.4, -70.2), 83);
+  // A barra de escrever fica colada ao teclado: o fundo da conversa é o fundo da zona visível.
+  const vv = { top: 0, height: 464 };
+  const parentTop = -70;
+  assert.equal(parentTop + k.pinnedTop(vv.top, parentTop) + vv.height, vv.top + vv.height);
+  const screen = read('src/components/ChatScreen.tsx');
+  assert.match(screen, /box\.current\?\.parentElement/);
+  assert.match(screen, /getBoundingClientRect\(\)\.top/);
+  assert.match(screen, /window\.addEventListener\('scroll', fix\)/);
+});
+
+test('teclado aberto: a janela de referência não encolhe com ele, e o zoom não conta como teclado', () => {
+  // Se o innerHeight também encolher com o teclado, conta a altura do documento.
+  assert.equal(k.webWindowHeight(464, 844), 844);
+  assert.equal(k.webWindowHeight(844, 844), 844);
+  assert.equal(k.webWindowHeight(0, 0), 0);
+  assert.equal(k.webKeyboardOpen(464, k.webWindowHeight(464, 844)), true);
+  assert.equal(k.webKeyboardOpen(400, 800, 2), false, 'página ampliada não é o teclado');
+  assert.equal(k.webKeyboardOpen(400, 800, 1), true);
+  const screen = read('src/components/ChatScreen.tsx');
+  assert.match(screen, /webWindowHeight\(window\.innerHeight, document\.documentElement\?\.clientHeight \?\? 0\)/);
+  assert.equal((screen.match(/webKeyboardOpen\([^)]*winH\(\), [a-z]+\.scale\)/g) || []).length, 2, 'as duas contas (barra e conversa) usam a mesma janela');
+  assert.doesNotMatch(screen, /webKeyboardOpen\([^)]*window\.innerHeight\)/);
 });
 
 test('imagem colada: a legenda só ganha o cursor sozinha no computador (no iPhone o teclado tapava o Enviar)', () => {
