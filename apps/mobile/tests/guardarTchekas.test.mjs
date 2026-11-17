@@ -83,7 +83,7 @@ test('a definição: ligada por omissão; numa conta privada ou de menor desliga
 
 test('Definições → Conteúdo: a linha com o interruptor, a âncora e o cliente da API', () => {
   const screen = read('app', 'settings', 'conteudo.tsx');
-  assert.match(screen, /anchor="allowDownloads" icon="download" title="Deixar guardar as minhas tchekas"/);
+  assert.match(screen, /anchor="allowDownloads" icon="download" title=\{t\('Deixar guardar as minhas tchekas'\)\}/);
   assert.match(screen, /toggle=\{\{ on: dlRow\.on, disabled: dlRow\.disabled, onChange: \(v\) => void setDownloads\(v\) \}\}/);
   assert.match(screen, /queryFn: settingsApi\.downloadSettings/);
   const api = read('lib', 'api.settings.ts');

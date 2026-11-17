@@ -176,7 +176,7 @@ test('o início trata as ligações antigas e /settings/aparelhos tem ecrã pró
   assert.doesNotMatch(fallback, /=== 'aparelhos'|DevicesList/);
   assert.match(fallback, /settingsTargetFor\(/);
   const devices = readFileSync(path.join(SETTINGS, 'aparelhos.tsx'), 'utf8');
-  assert.match(devices, /<SettingsPage title="Os teus aparelhos">/);
+  assert.match(devices, /<SettingsPage title=\{t\('Os teus aparelhos'\)\}>/);
   assert.match(devices, /<SettingsSection /);
   assert.doesNotMatch(devices, /StackPage/, 'no computador abre na coluna da direita, sem cabeçalho próprio');
   assert.match(readFileSync(path.join(SETTINGS, 'seguranca.tsx'), 'utf8'), /to="\/settings\/aparelhos"/);
@@ -225,7 +225,7 @@ test('acessibilidade: interruptores com role e estado, toque de 44 pt ou mais, s
   const home = read('components', 'settings', 'SettingsHome.tsx');
   for (const k of ['me', 'search', 'group']) assert.ok(min(home, k) >= 44, k);
   assert.match(home, /clear: \{ width: 44, height: 44/);
-  assert.match(home, /accessibilityLabel="Procurar nas definições"/);
+  assert.match(home, /accessibilityLabel=\{t\('Procurar nas definições'\)\}/);
   // Todos os interruptores passam pela linha partilhada (com role e estado): nada de <Switch> nos ecrãs.
   const screens = [...readdirSync(SETTINGS).map((f) => path.join(SETTINGS, f)), ...readdirSync(COMPONENTS).map((f) => path.join(COMPONENTS, f))];
   for (const f of screens) assert.ok(!/<Switch\b/.test(readFileSync(f, 'utf8')), path.basename(f));

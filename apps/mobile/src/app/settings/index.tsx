@@ -5,6 +5,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
 import { useDesktop } from '@/lib/desktop';
 import { legacySettingsTarget } from '@/lib/settingsIndex';
 import AccountSettings from './conta';
+import { t } from '@/lib/i18n';
 
 /**
  * /settings: o início das Definições. As ligações antigas (`/settings?s=notificacoes`, `/settings#privacidade`…)
@@ -18,7 +19,7 @@ export default function SettingsIndex() {
   if (target) return <Redirect href={target as never} />;
   if (desktop) return <AccountSettings />;
   return (
-    <SettingsPage title="Definições">
+    <SettingsPage title={t('Definições')}>
       <SettingsHome />
     </SettingsPage>
   );

@@ -51,6 +51,6 @@ test('LogoutSheet: um só toque conta, mostra que está a sair e volta a deixar 
   assert.match(sheet, /if \(busy\) return;/);
   assert.match(sheet, /disabled=\{busy\}/);
   // A sair: o ponto do Txillapp no lugar do texto (Button `loading`).
-  assert.match(sheet, /<Button label="Sim, sair" onPress=\{\(\) => void confirm\(\)\} disabled=\{busy\} loading=\{busy\} \/>/);
+  assert.match(sheet, /<Button label=\{t\('Sim, sair'\)\} onPress=\{\(\) => void confirm\(\)\} disabled=\{busy\} loading=\{busy\} \/>/);
   assert.match(sheet, /Não consegui terminar a sessão/);
 });

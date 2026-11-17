@@ -1,5 +1,6 @@
 import { DeviceNotifications, NotifyPrefs } from '@/components/settings/device';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { t } from '@/lib/i18n';
 
 /**
  * Notificações: o estado neste aparelho (com a faixa "desligadas neste aparelho" e o botão do lembrete; na web, instalar
@@ -7,7 +8,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
  */
 export default function NotificationSettings() {
   return (
-    <SettingsPage title="Notificações">
+    <SettingsPage title={t('Notificações')}>
       <DeviceNotifications />
       <NotifyPrefs />
     </SettingsPage>

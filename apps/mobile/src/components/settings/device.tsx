@@ -9,6 +9,7 @@ import { buildId, checkForUpdate, disablePush, enablePush, hardReload, installAp
 import { CHANNEL, channelLabel } from '@/lib/distribution';
 import { NOTIFY_LABELS, notifyEntryId } from '@/lib/settingsIndex';
 import { SettingRow, SettingsSection } from './SettingRow';
+import { t } from '@/lib/i18n';
 
 /** Cada tipo de aviso liga-se ou desliga-se. Os pedidos de seguir ficam sempre na lista. */
 export function NotifyPrefs() {
@@ -22,7 +23,7 @@ export function NotifyPrefs() {
     try { await api.saveNotifySettings(next); } catch { void qc.invalidateQueries({ queryKey: ['notify-settings'] }); }
   }
   return (
-    <SettingsSection title="O que me pode notificar">
+    <SettingsSection title={t('O que me pode notificar')}>
       {q.data.categories.filter((c) => NOTIFY_LABELS[c]).map((c) => (
         <SettingRow key={c} anchor={notifyEntryId(c)} icon={c === 'txilladas' ? 'txillada' : c === 'zas' ? 'bolt' : c === 'mixar' ? 'mixar' : 'bell'} title={NOTIFY_LABELS[c][0]} description={NOTIFY_LABELS[c][1]} toggle={{ on: !off.includes(c), onChange: (v) => void set(c, v) }} />
       ))}
@@ -34,9 +35,9 @@ export function NotifyPrefs() {
 export function InstallRow() {
   const [state, setState] = useState(installState());
   if (state === 'none') return null;
-  if (state === 'installed') return <SettingRow anchor="installApp" icon="check-circle" title="App instalada" />;
-  const how = state === 'ios' ? 'No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".' : 'Para instalar no iPhone, abre este endereço no Safari.';
-  return <SettingRow anchor="installApp" icon="phone" title="Instalar a app" description="No ecrã principal, como as outras apps" onPress={() => (state === 'prompt' ? void installApp().then(() => setState(installState())) : window.alert(how))} />;
+  if (state === 'installed') return <SettingRow anchor="installApp" icon="check-circle" title={t('App instalada')} />;
+  const how = state === 'ios' ? t('No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".') : t('Para instalar no iPhone, abre este endereço no Safari.');
+  return <SettingRow anchor="installApp" icon="phone" title={t('Instalar a app')} description={t('No ecrã principal, como as outras apps')} onPress={() => (state === 'prompt' ? void installApp().then(() => setState(installState())) : window.alert(how))} />;
 }
 
 /** Ligar ou desligar as notificações no telemóvel (Web Push). Funciona na app instalada, em HTTPS. */
@@ -57,7 +58,7 @@ export function PushToggle({ onChange }: { onChange?: () => void }) {
       setState(r === 'on' ? 'on' : r === 'denied' ? 'denied' : 'ask');
       onChange?.();
     } catch (x) {
-      setErr((x as Error).message || 'Não consegui ligar as notificações');
+      setErr((x as Error).message || t('Não consegui ligar as notificações'));
     } finally {
       setBusy(false);
     }
@@ -67,16 +68,16 @@ export function PushToggle({ onChange }: { onChange?: () => void }) {
     try { await disablePush(); setState('ask'); } finally { setBusy(false); onChange?.(); }
   }
   const text =
-    state === 'none' ? 'Instala a app no ecrã principal e abre-a por lá (no iPhone: iOS 16.4 ou mais recente).'
-    : state === 'off-server' ? 'Ainda não estão ativas neste servidor.'
-    : state === 'denied' ? 'Bloqueadas no browser: ativa-as nas definições do site.'
-    : err || 'Avisa-te de chamadas, mensagens, comentários e pedidos, sem mostrar o conteúdo.';
+    state === 'none' ? t('Instala a app no ecrã principal e abre-a por lá (no iPhone: iOS 16.4 ou mais recente).')
+    : state === 'off-server' ? t('Ainda não estão ativas neste servidor.')
+    : state === 'denied' ? t('Bloqueadas no browser: ativa-as nas definições do site.')
+    : err || t('Avisa-te de chamadas, mensagens, comentários e pedidos, sem mostrar o conteúdo.');
   const on = state === 'on';
   const available = state === 'on' || state === 'ask';
   return (
     <>
-      <SettingRow anchor="deviceNotif" icon="bell" title="Notificações no telemóvel" description={text} tone={err ? 'error' : undefined} toggle={{ on, disabled: !available || busy, onChange: (v) => void (v ? enable() : disable()) }} />
-      {on ? <SettingRow icon="send" title="Enviar notificação de teste" description="Para ver se chegam a este aparelho" onPress={() => { setErr(''); pushApi.pushTest().catch((x: Error) => setErr(x.message)); }} /> : null}
+      <SettingRow anchor="deviceNotif" icon="bell" title={t('Notificações no telemóvel')} description={text} tone={err ? 'error' : undefined} toggle={{ on, disabled: !available || busy, onChange: (v) => void (v ? enable() : disable()) }} />
+      {on ? <SettingRow icon="send" title={t('Enviar notificação de teste')} description={t('Para ver se chegam a este aparelho')} onPress={() => { setErr(''); pushApi.pushTest().catch((x: Error) => setErr(x.message)); }} /> : null}
     </>
   );
 }
@@ -93,13 +94,13 @@ export function DeviceNotifications() {
   const banner = off ? <PushOffBanner device={device} onRefresh={refresh} /> : null;
   if (Platform.OS !== 'web') {
     return (
-      <SettingsSection title="Neste aparelho">
-        {banner ?? (device ? <SettingRow anchor="deviceNotif" icon="bell" title="Notificações no telemóvel" value="Ligadas" description="Para as desligar, usa as definições do telemóvel." /> : null)}
+      <SettingsSection title={t('Neste aparelho')}>
+        {banner ?? (device ? <SettingRow anchor="deviceNotif" icon="bell" title={t('Notificações no telemóvel')} value={t('Ligadas')} description={t('Para as desligar, usa as definições do telemóvel.')} /> : null)}
       </SettingsSection>
     );
   }
   return (
-    <SettingsSection title="Neste aparelho">
+    <SettingsSection title={t('Neste aparelho')}>
       {banner}
       <InstallRow />
       <PushToggle key={rev} onChange={refresh} />
@@ -118,18 +119,18 @@ export function VersionRows() {
   const version = `${Constants.expoConfig?.version ?? '?'}${buildId() ? ` (build ${buildId()!.slice(0, 8)})` : ''}`;
   const channel = channelLabel(CHANNEL);
   return (
-    <SettingsSection title="Versão">
-      <SettingRow anchor="version" icon="info" title="Txillapp" value={`versão ${version}${channel ? ` · ${channel}` : ''}`} />
+    <SettingsSection title={t('Versão')}>
+      <SettingRow anchor="version" icon="info" title="Txillapp" value={t('versão {version}{value}', { version, value: channel ? ` · ${channel}` : '' })} />
       {Platform.OS === 'web' ? (
         <SettingRow
           icon="download"
-          title={state === 'checking' ? 'A procurar…' : state === 'updating' ? 'A atualizar…' : 'Procurar atualização'}
-          description={state === 'latest' ? 'Já tens a versão mais recente.' : state === 'error' ? 'Não consegui procurar. Tenta outra vez.' : undefined}
+          title={state === 'checking' ? t('A procurar…') : state === 'updating' ? t('A atualizar…') : t('Procurar atualização')}
+          description={state === 'latest' ? t('Já tens a versão mais recente.') : state === 'error' ? t('Não consegui procurar. Tenta outra vez.') : undefined}
           tone={state === 'error' ? 'error' : undefined}
           onPress={busy ? undefined : () => void check()}
         />
       ) : null}
-      {Platform.OS === 'web' && (state === 'latest' || state === 'error') ? <SettingRow icon="repeat" title="Ainda vês a versão antiga? Recarregar do zero" onPress={() => void hardReload()} /> : null}
+      {Platform.OS === 'web' && (state === 'latest' || state === 'error') ? <SettingRow icon="repeat" title={t('Ainda vês a versão antiga? Recarregar do zero')} onPress={() => void hardReload()} /> : null}
     </SettingsSection>
   );
 }
@@ -138,9 +139,9 @@ export function VersionRows() {
 export function RegionRow() {
   const geo = useQuery({ queryKey: ['geo'], queryFn: api.geo, staleTime: 5 * 60_000 });
   const code = geo.data?.country;
-  let name = 'Não consegui saber';
+  let name = t('Não consegui saber');
   if (code) {
     try { name = new Intl.DisplayNames(['pt'], { type: 'region' }).of(code) ?? code; } catch { name = code; }
   }
-  return <SettingRow anchor="region" icon="map-pin" title={`A tua região: ${geo.isLoading ? '…' : name}`} description="Cada país é a sua rede: sugestões, Tcheka e pesquisa mostram o que é daqui. Quem segues vês sempre." />;
+  return <SettingRow anchor="region" icon="map-pin" title={t('A tua região: {value}', { value: geo.isLoading ? '…' : name })} description={t('Cada país é a sua rede: sugestões, Tcheka e pesquisa mostram o que é daqui. Quem segues vês sempre.')} />;
 }

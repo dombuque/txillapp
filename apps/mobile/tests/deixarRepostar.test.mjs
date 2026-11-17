@@ -60,7 +60,7 @@ test('a definição: ligada, desligada e numa conta privada', () => {
 
 test('Definições → Conteúdo: a linha com o interruptor, a âncora e o cliente da API', () => {
   const screen = read('app', 'settings', 'conteudo.tsx');
-  assert.match(screen, /anchor="allowReposts" icon="repeat" title="Deixar repostar as minhas publicações"/);
+  assert.match(screen, /anchor="allowReposts" icon="repeat" title=\{t\('Deixar repostar as minhas publicações'\)\}/);
   assert.match(screen, /toggle=\{\{ on: rpRow\.on, disabled: rpRow\.disabled, onChange: \(v\) => void setReposts\(v\) \}\}/);
   assert.match(screen, /queryFn: settingsApi\.repostSettings/);
   const api = read('lib', 'api.settings.ts');

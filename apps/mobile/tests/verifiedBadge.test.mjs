@@ -80,7 +80,7 @@ const SCREENS = [
   ['amigos nos contactos', 'components/FindContacts.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['seguidores e a seguir', 'app/u/[username]/connections.tsx', /<NameWithBadge name=\{x\.displayName\} who=\{x\}/],
   ['pedidos para seguir', 'components/ProfileSheets.tsx', /<NameWithBadge name=\{r\.displayName\} who=\{r\}/],
-  ['bloqueados e escondidos dos mimos', 'components/settings/sheets.tsx', /who=\{b\} action="Desbloquear"/],
+  ['bloqueados e escondidos dos mimos', 'components/settings/sheets.tsx', /who=\{b\} action=\{t\('Desbloquear'\)\}/],
   ['À tua volta', 'app/perto.tsx', /<NameWithBadge name=\{item\.title\} who=\{item\.who\}/],
   ['locais: gestores', 'app/v/[slug]/gerir.tsx', /<NameWithBadge name=\{m\.displayName\} who=\{m\}/],
   ['locais: pagamentos recebidos', 'components/VenueTxills.tsx', /<NameWithBadge name=\{`Recebido de @\$\{person\.username\}`\} who=\{person\}/],

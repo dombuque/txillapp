@@ -71,6 +71,7 @@ function codeLike(s) {
   if (/^\s*[\/~#]|^\s*\.\.?\//.test(t) || /^\s*@\//.test(t)) return 'caminho';
   if (/[{}<>=\\`$]/.test(t)) return 'caracteres de código';
   if (/\b\d+(\.\d+)?(px|ms|deg|em|rem|vh|vw|fr|dp)\b/.test(t)) return 'unidade CSS';
+  if (/\w\.(json|png|jpe?g|mp4|webm|mov|m4v|csv|txt|pdf|zip|gif|webp|heic|m4a|mp3|wav|aac|ogg|opus|svg|html?|js|ts|tsx|apk|ics|vcf)\b/i.test(t) || /^[\w-]+-\s*\.\w{2,4}$/.test(t.trim())) return 'nome de ficheiro';
   if (/\b(rgba?|hsla?|var|calc|translate[XYZ3d]*|rotate[XYZ]?|scale[XYZ]?|cubic-bezier|steps|linear-gradient|radial-gradient|conic-gradient|url|blur|drop-shadow|matrix)\(/.test(t)) return 'função CSS';
   const words = t.trim().split(/\s+/).filter(Boolean);
   if (words.length && words.every((w) => CSS_WORDS.has(w.replace(/[,()]/g, '').toLowerCase()) || /^[\d.,%+-]+$/.test(w))) return 'palavras CSS';

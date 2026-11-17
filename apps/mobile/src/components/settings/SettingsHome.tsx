@@ -18,6 +18,7 @@ import { colors } from '@/lib/theme';
 import { SettingRow, SettingsSection } from './SettingRow';
 import { LogoutSheet, SwitchAccountSheet } from './sheets';
 import { useLeave } from './useLeave';
+import { t } from '@/lib/i18n';
 
 /** Opções que este aparelho não mostra: a pesquisa também não as propõe. */
 const HIDDEN_HERE = Platform.OS === 'web' ? [] : ['installApp', 'contacts'];
@@ -37,13 +38,13 @@ function ProfileCard() {
         onPress={() => profile.data && setEdit(true)}
         style={({ pressed }) => [st.me, pressed && { transform: [{ scale: 0.99 }] }]}
         accessibilityRole="button"
-        accessibilityLabel={`${name}, @${user.username}. Editar perfil`}
+        accessibilityLabel={t('{name}, @{username}. Editar perfil', { name, username: user.username })}
       >
         <Avatar name={name} username={profile.data?.hasAvatar ? user.username : undefined} size={60} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <NameWithBadge name={name} who={profile.data} style={st.meName} numberOfLines={2} />
           <Text style={st.meHandle} numberOfLines={1}>@{user.username}</Text>
-          <Text style={st.meEdit}>Editar perfil</Text>
+          <Text style={st.meEdit}>{t('Editar perfil')}</Text>
         </View>
         <Icon name="chevron-right" size={18} color="#a1a1aa" />
       </Pressable>
@@ -60,16 +61,16 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
       <TextInput
         value={query}
         onChangeText={onChange}
-        placeholder="Procurar nas definições"
+        placeholder={t('Procurar nas definições')}
         placeholderTextColor={colors.zinc500}
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"
         style={st.searchInput}
-        accessibilityLabel="Procurar nas definições"
+        accessibilityLabel={t('Procurar nas definições')}
       />
       {query ? (
-        <Pressable onPress={() => onChange('')} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa" hitSlop={6}>
+        <Pressable onPress={() => onChange('')} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')} hitSlop={6}>
           <Icon name="x" size={16} color={colors.zinc600} />
         </Pressable>
       ) : null}
@@ -80,10 +81,10 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
 function Results({ hits, onPick }: { hits: SettingsHit[]; onPick: (h: SettingsHit) => void }) {
   const purchases = usePurchases();
   if (hits.length === 0) {
-    return <Text style={st.noHits} accessibilityLiveRegion="polite">Nada com esse nome. Experimenta outra palavra, como "privado", "senha" ou "notificações".</Text>;
+    return <Text style={st.noHits} accessibilityLiveRegion="polite">{t('Nada com esse nome. Experimenta outra palavra, como "privado", "senha" ou "notificações".')}</Text>;
   }
   return (
-    <SettingsSection title={hits.length === 1 ? '1 resultado' : `${hits.length} resultados`}>
+    <SettingsSection title={t('{count} resultado', { count: hits.length, other: '{count} resultados' })}>
       {hits.map((h) => {
         const g = h.kind === 'group' ? SETTINGS_GROUPS.find((x) => x.id === h.id) : undefined;
         return <SettingRow key={`${h.kind}-${h.id}`} icon={(g?.icon ?? 'settings') as IconName} title={h.title} description={g ? (g.id === 'pagamentos' ? paymentsSubtitleFor(purchases, g.subtitle) : g.subtitle) : h.where} onPress={() => onPick(h)} />;
@@ -137,19 +138,19 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
                 key={g.id}
                 icon={g.icon as IconName}
                 title={g.title}
-                subtitle={g.id === 'notificacoes' && notifOff ? 'Desligadas neste aparelho' : g.id === 'pagamentos' ? paymentsSubtitleFor(purchases, g.subtitle) : g.subtitle}
+                subtitle={g.id === 'notificacoes' && notifOff ? t('Desligadas neste aparelho') : g.id === 'pagamentos' ? paymentsSubtitleFor(purchases, g.subtitle) : g.subtitle}
                 warn={g.id === 'notificacoes' && notifOff}
                 active={active(g.id)}
                 onPress={() => (pane ? router.navigate(`/settings/${g.id}` as never) : open(`/settings/${g.id}`))}
               />
             ))}
           </SettingsSection>
-          <SettingsSection title="Contas">
-            <SettingRow anchor="addAccount" icon="user-plus" title="Adicionar conta" onPress={() => { accounts.beginAdd(); open('/login?entrar=1'); }} />
-            {others.length > 0 ? <SettingRow anchor="switchAccount" icon="users" title="Trocar de conta" value={`${others.length + 1} contas`} onPress={() => setSheet('switch')} /> : null}
-            <SettingRow anchor="logout" icon="logout" title="Terminar sessão" onPress={() => setSheet('logout')} />
+          <SettingsSection title={t('Contas')}>
+            <SettingRow anchor="addAccount" icon="user-plus" title={t('Adicionar conta')} onPress={() => { accounts.beginAdd(); open('/login?entrar=1'); }} />
+            {others.length > 0 ? <SettingRow anchor="switchAccount" icon="users" title={t('Trocar de conta')} value={t('{n} contas', { n: others.length + 1 })} onPress={() => setSheet('switch')} /> : null}
+            <SettingRow anchor="logout" icon="logout" title={t('Terminar sessão')} onPress={() => setSheet('logout')} />
           </SettingsSection>
-          <Text style={st.foot}>Txillapp · versão {Constants.expoConfig?.version ?? '?'}</Text>
+          <Text style={st.foot}>{t('Txillapp · versão {version}', { version: Constants.expoConfig?.version ?? '?' })}</Text>
         </>
       )}
       {sheet === 'switch' && <SwitchAccountSheet others={others} onPick={(u) => void switchTo(u)} onClose={() => setSheet(null)} />}

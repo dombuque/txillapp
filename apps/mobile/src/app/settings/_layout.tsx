@@ -4,6 +4,7 @@ import { SettingsHome } from '@/components/settings/SettingsHome';
 import { SettingsPaneContext } from '@/components/settings/SettingsPage';
 import { useDesktop } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Definições. No telemóvel, ecrãs empilhados (o início e cada grupo por cima, com "voltar").
@@ -14,7 +15,7 @@ export default function SettingsLayout() {
   if (!desktop) return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }} />;
   return (
     <View style={st.row}>
-      <View style={st.left} role="navigation" accessibilityLabel="Definições">
+      <View style={st.left} role="navigation" accessibilityLabel={t('Definições')}>
         <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
           <SettingsHome pane />
         </ScrollView>

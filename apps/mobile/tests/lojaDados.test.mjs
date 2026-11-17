@@ -35,8 +35,8 @@ test('apagar a conta sem sessão: pede o email, manda a ligação e só apaga de
 test('os passos da página batem certo com o ecrã de Definições → Conta', () => {
   const steps = read('lib/accountDeletion.ts');
   const conta = read('app/settings/conta.tsx');
-  assert.match(conta, /title="Zona perigosa"/);
-  assert.match(conta, /title="Eliminar conta"/);
+  assert.match(conta, /title=\{t\('Zona perigosa'\)\}/);
+  assert.match(conta, /title=\{t\('Eliminar conta'\)\}/);
   assert.match(steps, /«Zona perigosa»/);
   assert.match(steps, /«Eliminar conta»/);
   assert.match(read('components/settings/sheets.tsx'), /Eliminar a minha conta/);

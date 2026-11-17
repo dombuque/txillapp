@@ -10,6 +10,7 @@ import { ApiError, api, type Badged, type Gender } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { GENDERS } from './options';
 import { settingsStyles as s } from './SettingRow';
+import { t } from '@/lib/i18n';
 
 /** As folhas das Definições (as mesmas do ecrã único de antes, agora partilhadas pelos ecrãs de cada grupo). */
 
@@ -22,7 +23,7 @@ export function PersonRow({ username, displayName, who, action, onAction }: { us
     try {
       await onAction();
     } catch (e) {
-      Alert.alert('Não deu', (e as Error).message || 'Tenta outra vez.');
+      Alert.alert(t('Não deu'), (e as Error).message || t('Tenta outra vez.'));
     } finally {
       setBusy(false);
     }
@@ -42,7 +43,7 @@ export function PersonRow({ username, displayName, who, action, onAction }: { us
 /** Como te identificas: escolhe-se uma vez. */
 export function GenderSheet({ value, onPick, onClose }: { value: Gender | null | undefined; onPick: (g: Gender) => void; onClose: () => void }) {
   return (
-    <Sheet title="Como te identificas?" onClose={onClose}>
+    <Sheet title={t('Como te identificas?')} onClose={onClose}>
       <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingBottom: 8 }} accessibilityRole="radiogroup">
         {GENDERS.map((g) => {
           const on = value === g.value;
@@ -60,10 +61,10 @@ export function GenderSheet({ value, onPick, onClose }: { value: Gender | null |
 /** Trocar para outra conta guardada neste aparelho. */
 export function SwitchAccountSheet({ others, onPick, onClose }: { others: { username: string; displayName: string }[]; onPick: (username: string) => void; onClose: () => void }) {
   return (
-    <Sheet title="Trocar de conta" onClose={onClose}>
+    <Sheet title={t('Trocar de conta')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
         {others.map((a) => (
-          <Pressable key={a.username} onPress={() => { onClose(); onPick(a.username); }} style={[s.person, { minHeight: 56 }]} accessibilityRole="button" accessibilityLabel={`Trocar para @${a.username}`}>
+          <Pressable key={a.username} onPress={() => { onClose(); onPick(a.username); }} style={[s.person, { minHeight: 56 }]} accessibilityRole="button" accessibilityLabel={t('Trocar para @{username}', { username: a.username })}>
             <Avatar name={a.displayName} username={a.username} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{a.displayName}</Text>
@@ -72,7 +73,7 @@ export function SwitchAccountSheet({ others, onPick, onClose }: { others: { user
             <Icon name="chevron-right" size={18} color="#a1a1aa" />
           </Pressable>
         ))}
-        <Text style={{ marginTop: 8, fontSize: 13, color: colors.zinc500, textAlign: 'center' }}>Dica: toca duas vezes no perfil, na barra de baixo, para trocar.</Text>
+        <Text style={{ marginTop: 8, fontSize: 13, color: colors.zinc500, textAlign: 'center' }}>{t('Dica: toca duas vezes no perfil, na barra de baixo, para trocar.')}</Text>
       </View>
     </Sheet>
   );
@@ -92,18 +93,18 @@ export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => Promise<v
     try {
       await onConfirm();
     } catch {
-      setErr('Não consegui terminar a sessão. Tenta outra vez.');
+      setErr(t('Não consegui terminar a sessão. Tenta outra vez.'));
       setBusy(false);
     }
   }
   return (
-    <Sheet title="Terminar sessão" onClose={busy ? () => undefined : onClose}>
+    <Sheet title={t('Terminar sessão')} onClose={busy ? () => undefined : onClose}>
       <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-        <Text style={{ fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
-        <Text style={{ color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
+        <Text style={{ fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>{t('Já vais?')}</Text>
+        <Text style={{ color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>{t('Vais precisar de entrar outra vez para voltar.')}</Text>
         {err ? <Text style={{ color: colors.danger, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
-        <Button label="Sim, sair" onPress={() => void confirm()} disabled={busy} loading={busy} />
-        <Button label="Fico por aqui" kind="secondary" onPress={onClose} disabled={busy} style={{ marginTop: 12 }} />
+        <Button label={t('Sim, sair')} onPress={() => void confirm()} disabled={busy} loading={busy} />
+        <Button label={t('Fico por aqui')} kind="secondary" onPress={onClose} disabled={busy} style={{ marginTop: 12 }} />
       </View>
     </Sheet>
   );
@@ -123,20 +124,20 @@ export function HiddenSheet({ onClose }: { onClose: () => void }) {
       qc.setQueryData(['story-settings'], await api.hideStoryFrom(u));
       setName('');
     } catch (x) {
-      setErr(x instanceof ApiError && x.status === 404 ? 'Esse utilizador não existe' : (x as Error).message);
+      setErr(x instanceof ApiError && x.status === 404 ? t('Esse utilizador não existe') : (x as Error).message);
     }
   }
   return (
-    <Sheet title="Esconder mimo de…" onClose={onClose} full>
+    <Sheet title={t('Esconder mimo de…')} onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Estas pessoas deixam de ver os teus mimos, sem serem avisadas.</Text>
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>{t('Estas pessoas deixam de ver os teus mimos, sem serem avisadas.')}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput value={name} onChangeText={setName} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => void add()} style={[s.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
-          <Button label="Esconder" size="md" onPress={() => void add()} disabled={!name.trim()} style={{ alignSelf: 'center' }} />
+          <TextInput value={name} onChangeText={setName} placeholder={t('@utilizador')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => void add()} style={[s.input, { flex: 1 }]} accessibilityLabel={t('Utilizador')} />
+          <Button label={t('Esconder')} size="md" onPress={() => void add()} disabled={!name.trim()} style={{ alignSelf: 'center' }} />
         </View>
         <Text style={{ minHeight: 20, paddingTop: 4, fontSize: 14, color: colors.danger }}>{err}</Text>
-        {q.data?.hidden.length === 0 && <Text style={s.none}>Ninguém escondido</Text>}
-        {q.data?.hidden.map((h) => <PersonRow key={h.username} username={h.username} displayName={h.displayName} who={h} action="Mostrar" onAction={async () => qc.setQueryData(['story-settings'], await api.unhideStoryFrom(h.username))} />)}
+        {q.data?.hidden.length === 0 && <Text style={s.none}>{t('Ninguém escondido')}</Text>}
+        {q.data?.hidden.map((h) => <PersonRow key={h.username} username={h.username} displayName={h.displayName} who={h} action={t('Mostrar')} onAction={async () => qc.setQueryData(['story-settings'], await api.unhideStoryFrom(h.username))} />)}
       </ScrollView>
     </Sheet>
   );
@@ -146,11 +147,11 @@ export function BlockedSheet({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['blocked'], queryFn: api.blocked });
   return (
-    <Sheet title="Contas bloqueadas" onClose={onClose} full>
+    <Sheet title={t('Contas bloqueadas')} onClose={onClose} full>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. Também deixam de ver, no mapa ou de fora, os TxillGroups onde o outro está, e não podem pedir nem entrar neles. A pessoa é avisada de que foi bloqueada.</Text>
-        {q.data?.length === 0 && <Text style={s.none}>Não bloqueaste ninguém</Text>}
-        {q.data?.map((b) => <PersonRow key={b.username} username={b.username} displayName={b.displayName} who={b} action="Desbloquear" onAction={async () => { qc.setQueryData(['blocked'], await api.unblock(b.username)); void qc.invalidateQueries({ queryKey: ['profile'] }); }} />)}
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>{t('Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. Também deixam de ver, no mapa ou de fora, os TxillGroups onde o outro está, e não podem pedir nem entrar neles. A pessoa é avisada de que foi bloqueada.')}</Text>
+        {q.data?.length === 0 && <Text style={s.none}>{t('Não bloqueaste ninguém')}</Text>}
+        {q.data?.map((b) => <PersonRow key={b.username} username={b.username} displayName={b.displayName} who={b} action={t('Desbloquear')} onAction={async () => { qc.setQueryData(['blocked'], await api.unblock(b.username)); void qc.invalidateQueries({ queryKey: ['profile'] }); }} />)}
       </ScrollView>
     </Sheet>
   );
@@ -167,8 +168,8 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
   const againRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   async function submit() {
     if (busy || !cur || !next) return;
-    if (next.length < 10) return setErr('A nova senha precisa de pelo menos 10 caracteres');
-    if (next !== again) return setErr('As duas senhas novas não são iguais');
+    if (next.length < 10) return setErr(t('A nova senha precisa de pelo menos 10 caracteres'));
+    if (next !== again) return setErr(t('As duas senhas novas não são iguais'));
     setBusy(true);
     setErr('');
     try {
@@ -182,23 +183,23 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
   }
   if (ok) {
     return (
-      <Sheet title="Senha alterada" onClose={onClose}>
+      <Sheet title={t('Senha alterada')} onClose={onClose}>
         <View style={{ paddingHorizontal: 20 }}>
-          <Text style={{ color: colors.zinc700, paddingVertical: 12, fontSize: 16 }}>As sessões nos outros dispositivos foram terminadas.</Text>
-          <Button label="Feito" onPress={onClose} />
+          <Text style={{ color: colors.zinc700, paddingVertical: 12, fontSize: 16 }}>{t('As sessões nos outros dispositivos foram terminadas.')}</Text>
+          <Button label={t('Feito')} onPress={onClose} />
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet title="Alterar senha" onClose={onClose}>
+    <Sheet title={t('Alterar senha')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         {/* O "seguinte" do teclado passa de campo em campo; no último, "ir" muda a senha. */}
-        <TextInput value={cur} onChangeText={(t) => { setCur(t); setErr(''); }} placeholder="Senha atual" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="current-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} style={s.input} accessibilityLabel="Senha atual" />
-        <TextInput ref={nextRef} value={next} onChangeText={(t) => { setNext(t); setErr(''); }} placeholder="Nova senha (mínimo 10 caracteres)" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} style={s.input} accessibilityLabel="Nova senha" />
-        <TextInput ref={againRef} value={again} onChangeText={(t) => { setAgain(t); setErr(''); }} placeholder="Repete a nova senha" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} style={s.input} accessibilityLabel="Repete a nova senha" />
+        <TextInput value={cur} onChangeText={(t) => { setCur(t); setErr(''); }} placeholder={t('Senha atual')} placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="current-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} style={s.input} accessibilityLabel={t('Senha atual')} />
+        <TextInput ref={nextRef} value={next} onChangeText={(t) => { setNext(t); setErr(''); }} placeholder={t('Nova senha (mínimo 10 caracteres)')} placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} style={s.input} accessibilityLabel={t('Nova senha')} />
+        <TextInput ref={againRef} value={again} onChangeText={(t) => { setAgain(t); setErr(''); }} placeholder={t('Repete a nova senha')} placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} style={s.input} accessibilityLabel={t('Repete a nova senha')} />
         <Text style={{ minHeight: 20, fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
-        <Button label="Alterar senha" onPress={() => void submit()} disabled={busy || !cur || !next} loading={busy} />
+        <Button label={t('Alterar senha')} onPress={() => void submit()} disabled={busy || !cur || !next} loading={busy} />
       </View>
     </Sheet>
   );
@@ -223,17 +224,17 @@ export function DeleteSheet({ username, onClose, onDeleted }: { username: string
     }
   }
   return (
-    <Sheet title="Eliminar conta" onClose={onClose} full>
+    <Sheet title={t('Eliminar conta')} onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
         <View style={{ borderRadius: 16, backgroundColor: colors.dangerSoft, padding: 16 }}>
-          <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>Isto não se desfaz.</Text>
-          {['O teu nome, @, bio, foto e email são apagados.', 'Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.', 'Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups, os pedidos para entrar em grupos e tudo o que é do mapa.', 'Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.', 'Os teus comentários (também em posts de outras pessoas) e as mensagens que enviaste nos TxillGroups são apagados.', 'Os movimentos de vibes ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
+          <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>{t('Isto não se desfaz.')}</Text>
+          {[t('O teu nome, @, bio, foto e email são apagados.'), t('Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.'), t('Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups, os pedidos para entrar em grupos e tudo o que é do mapa.'), t('Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.'), t('Os teus comentários (também em posts de outras pessoas) e as mensagens que enviaste nos TxillGroups são apagados.'), t('Os movimentos de vibes ficam registados sem dados pessoais.')].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
         </View>
-        <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={s.input} accessibilityLabel="Confirmar o teu @" />
-        <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={s.input} accessibilityLabel="Senha" />
+        <TextInput value={confirm} onChangeText={setConfirm} placeholder={t('Escreve @{username} para confirmar', { username })} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={s.input} accessibilityLabel={t('Confirmar o teu @')} />
+        <TextInput value={password} onChangeText={setPassword} placeholder={t('A tua senha (se a conta tiver)')} placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={s.input} accessibilityLabel={t('Senha')} />
         <Text style={{ minHeight: 20, fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
-        <Button label="Eliminar a minha conta" kind="dangerSolid" onPress={() => void submit()} disabled={busy || !can} loading={busy} />
-        <Button label="Cancelar" kind="secondary" onPress={onClose} />
+        <Button label={t('Eliminar a minha conta')} kind="dangerSolid" onPress={() => void submit()} disabled={busy || !can} loading={busy} />
+        <Button label={t('Cancelar')} kind="secondary" onPress={onClose} />
       </ScrollView>
     </Sheet>
   );
