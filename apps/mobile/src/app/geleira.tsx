@@ -344,13 +344,13 @@ export default function GeleiraEditor() {
               <Pressable onPress={() => setSuggesting(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="button">
                 <View style={st.sparkle}><Icon name="sparkles" size={22} color={colors.zinc900} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Não está cá? Sugere “{text.trim()}”</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Não está cá? Sugere «{text.trim()}»</Text>
                   <Text style={{ fontSize: 14, color: colors.zinc500 }}>Entra já na tua geleira; a malta vê depois de aprovado.</Text>
                 </View>
               </Pressable>
             ) : (
               <>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Em que grupo fica “{text.trim()}”?</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Em que grupo fica «{text.trim()}»?</Text>
                 <View style={{ marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {groups.map((g) => (
                     <Pressable key={g.slug} disabled={create.isPending} onPress={() => create.mutate({ name: text.trim(), category: g.slug })} accessibilityRole="button" style={[st.pick, create.isPending && { opacity: 0.5 }]}>

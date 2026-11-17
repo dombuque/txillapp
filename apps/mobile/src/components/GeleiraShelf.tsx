@@ -216,7 +216,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
   const countButton = (wide: boolean) => (
     <Pressable onPress={onOpenList} style={({ pressed }) => [st.cheerBtn, wide ? { flex: 1, justifyContent: 'flex-start' } : st.cheerCount, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={ownerCheersA11yLabel(n)}>
       {wide && <Icon name="cheers" size={22} color={colors.amber600} />}
-      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{wide && isMe ? ownerCheersText(n).replace(/^🥂 /, '') : cheersCount(n)}</Text>
+      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{wide && isMe ? ownerCheersText(n) : cheersCount(n)}</Text>
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );

@@ -45,13 +45,11 @@ export function postTitle(names: (PersonLike | null)[], d: DrinkLike): string {
   return who.length ? `${who.join(', ')}, ${ask}` : `Paga-me ${drinkPhrase(d)} ${drinkEmoji(d)}`;
 }
 
-/** O estado de um pedido, como toda a gente o vê (no cartão do chat e no post). `name`: @ de quem recebeu; `soft`: refresco. */
-export function statusLine(status: StatusLike, name: string, forMe = false, soft = false): string {
+/** O estado de um pedido, como toda a gente o vê (no cartão do chat e no post). `name`: @ de quem recebeu. Sem emojis: o desenho da bebida já está no cartão. */
+export function statusLine(status: StatusLike, name: string, forMe = false): string {
   const who = forMe ? 'Tu' : name;
-  // Refresco (menores): nunca o copo de cerveja.
-  const cheers = soft ? '🥤' : '🍻';
   switch (status) {
-    case 'accepted': return forMe ? `Disseste «Bora!» ${cheers}` : `${who} pagou ${cheers}`;
+    case 'accepted': return forMe ? 'Disseste «Bora!»' : `${who} pagou`;
     case 'owed': return forMe ? 'Ficaste a dever' : `${who} ficou a dever`;
     case 'declined': return 'Hoje não';
     case 'untagged': return forMe ? 'Saíste deste pedido' : `${who} saiu do pedido`;
@@ -66,9 +64,9 @@ export const ANSWERS = [
   { answer: 'owe', label: 'Fica a dever' },
 ] as const;
 
-/** «Deves 2 · Devem-te 3» (sem nada: «Tudo em dia 🙌»). Para o livro de outra pessoa: «Deve 2 · Devem-lhe 3». */
+/** «Deves 2 · Devem-te 3» (sem nada: «Tudo em dia»). Para o livro de outra pessoa: «Deve 2 · Devem-lhe 3». */
 export function bookSummary(owe: number, owed: number, mine = true): string {
-  if (!owe && !owed) return 'Tudo em dia 🙌';
+  if (!owe && !owed) return 'Tudo em dia';
   return mine ? `Deves ${owe} · Devem-te ${owed}` : `Deve ${owe} · Devem-lhe ${owed}`;
 }
 
@@ -82,7 +80,7 @@ export function debtLine(d: { iOwe: boolean; owedToMe: boolean; debtor: PersonLi
 
 /** O estado de uma dívida: por pagar, à espera de confirmação, paga ou perdoada. */
 export function debtState(d: { status: 'open' | 'paid' | 'forgiven'; claimed: boolean; iOwe: boolean }): string {
-  if (d.status === 'paid') return 'Paga 🙌';
+  if (d.status === 'paid') return 'Paga';
   if (d.status === 'forgiven') return 'Perdoada';
   if (d.claimed) return d.iOwe ? 'À espera que confirme' : 'Diz que já pagou';
   return 'Por pagar';
@@ -108,15 +106,14 @@ export function pickable<T extends { mutual: boolean }>(list: T[], channel: 'cha
  * gelada_tag: pediram-me numa publicação; gelada_answer: responderam ao meu pedido publicado; gelada_paid: «Já paguei».
  */
 export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: string; step?: string; venue?: string; venueKind?: string }): string {
-  const cheers = d.soft ? '🥤' : '🍻';
-  if (kind === 'gelada_tag') return d.soft ? 'pede-te um refresco numa publicação 🥤' : 'pede-te uma gelada numa publicação 🍻';
+  if (kind === 'gelada_tag') return d.soft ? 'pede-te um refresco numa publicação' : 'pede-te uma gelada numa publicação';
   if (kind === 'gelada_answer') {
-    if (d.answer === 'accept') return `disse «Bora!» ao teu pedido ${cheers}`;
+    if (d.answer === 'accept') return 'disse «Bora!» ao teu pedido';
     if (d.answer === 'owe') return d.soft ? 'ficou a dever-te um refresco' : 'ficou a dever-te uma';
     return 'disse «Hoje não» ao teu pedido';
   }
   if (kind === 'gelada_paid') {
-    if (d.step !== 'claimed') return 'confirmou que pagaste 🙌';
+    if (d.step !== 'claimed') return 'confirmou que pagaste';
     return d.venue ? `diz que já te pagou ${venueTag({ name: d.venue, kind: d.venueKind })}. Confirmas?` : 'diz que já te pagou. Confirmas?';
   }
   return 'tem novidades para ti';
@@ -182,7 +179,7 @@ const GENERIC = /^(Erro inesperado|Dados inválidos|Forbidden|Bad Request|Not Fo
 export function geladaErrorText(e: unknown, fallback: string): string {
   const err = (e ?? {}) as { status?: number; message?: unknown };
   const msg = typeof err.message === 'string' ? err.message.trim() : '';
-  if (err.status === 429 && (!msg || /throttler|too many/i.test(msg))) return 'Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez 🙏';
+  if (err.status === 429 && (!msg || /throttler|too many/i.test(msg))) return 'Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez.';
   if (!err.status && /failed to fetch|network|timeout|load failed/i.test(msg)) return 'Parece que estás sem rede. Tenta outra vez quando tiveres ligação.';
   if (!msg || GENERIC.test(msg) || /^[A-Z][a-z]+ ?Exception/.test(msg)) return fallback;
   return msg;

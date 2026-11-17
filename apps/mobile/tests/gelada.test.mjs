@@ -41,7 +41,7 @@ test('refresco (menores) e bebida escondida: nunca álcool no texto', () => {
     assert.doesNotMatch(g.debtLine({ iOwe: true, owedToMe: false, debtor: rui, creditor: ana, drink: d }), ALCOHOL);
     assert.doesNotMatch(g.momentText({ iOwe: true, debtor: rui, creditor: ana, drink: d }), ALCOHOL);
   }
-  assert.doesNotMatch(g.statusLine('accepted', '@rui', false, true), ALCOHOL);
+  assert.doesNotMatch(g.statusLine('accepted', '@rui', false), ALCOHOL);
   assert.doesNotMatch(g.debtState({ status: 'paid', claimed: false, iOwe: true }), ALCOHOL);
 });
 
@@ -59,9 +59,8 @@ test('o post: «@ana, @rui, paga-me uma 2M 🍺»; sem ninguém, só o pedido', 
 });
 
 test('statusLine: o estado visto por todos e por quem recebeu', () => {
-  assert.equal(g.statusLine('accepted', '@rui'), '@rui pagou 🍻');
-  assert.equal(g.statusLine('accepted', '@rui', false, true), '@rui pagou 🥤');
-  assert.equal(g.statusLine('accepted', '@rui', true), 'Disseste «Bora!» 🍻');
+  assert.equal(g.statusLine('accepted', '@rui'), '@rui pagou');
+  assert.equal(g.statusLine('accepted', '@rui', true), 'Disseste «Bora!»');
   assert.equal(g.statusLine('owed', '@rui'), '@rui ficou a dever');
   assert.equal(g.statusLine('owed', '@rui', true), 'Ficaste a dever');
   assert.equal(g.statusLine('declined', '@rui'), 'Hoje não');
@@ -74,7 +73,7 @@ test('statusLine: o estado visto por todos e por quem recebeu', () => {
 test('o livro: resumo, linhas e estados (com a confirmação dos dois)', () => {
   assert.equal(g.bookSummary(2, 3), 'Deves 2 · Devem-te 3');
   assert.equal(g.bookSummary(1, 0, false), 'Deve 1 · Devem-lhe 0');
-  assert.equal(g.bookSummary(0, 0), 'Tudo em dia 🙌');
+  assert.equal(g.bookSummary(0, 0), 'Tudo em dia');
   assert.equal(g.debtLine({ iOwe: true, owedToMe: false, debtor: rui, creditor: ana, drink: beer }), 'Deves uma 2M a @ana');
   assert.equal(g.debtLine({ iOwe: false, owedToMe: true, debtor: rui, creditor: ana, drink: soda }), '@rui deve-te um refresco');
   assert.equal(g.debtLine({ iOwe: false, owedToMe: false, debtor: rui, creditor: ana, drink: beer }), '@rui deve uma 2M a @ana');
@@ -103,8 +102,8 @@ test('ligações: o ecrã do livro existe e a folha do pedido tem a assinatura c
 });
 
 test('avisos da gelada na lista: sem álcool no texto quando é refresco, e para onde levam', () => {
-  assert.equal(g.geladaNoticeText('gelada_tag', { soft: false }), 'pede-te uma gelada numa publicação 🍻');
-  assert.equal(g.geladaNoticeText('gelada_tag', { soft: true }), 'pede-te um refresco numa publicação 🥤');
+  assert.equal(g.geladaNoticeText('gelada_tag', { soft: false }), 'pede-te uma gelada numa publicação');
+  assert.equal(g.geladaNoticeText('gelada_tag', { soft: true }), 'pede-te um refresco numa publicação');
   for (const answer of ['accept', 'decline', 'owe']) {
     const t = g.geladaNoticeText('gelada_answer', { soft: true, answer });
     assert.doesNotMatch(t, /🍻|🍺|gelada/);
@@ -142,12 +141,12 @@ test('«Já paguei» no local: distância, etiqueta «no Bar X», o raio de 150 
   assert.deepEqual(g.venuesByDistance(list, null).map((v) => [v.slug, v.near]), [['longe', false], ['sem-mapa', false], ['aqui', false], ['perto', false]]);
   // O aviso a quem recebe diz onde foi.
   assert.equal(g.geladaNoticeText('gelada_paid', { step: 'claimed', venue: 'Bar Costa', venueKind: 'bar' }), 'diz que já te pagou no Bar Costa. Confirmas?');
-  assert.equal(g.geladaNoticeText('gelada_paid', { step: 'confirmed', venue: 'Bar Costa' }), 'confirmou que pagaste 🙌');
+  assert.equal(g.geladaNoticeText('gelada_paid', { step: 'confirmed', venue: 'Bar Costa' }), 'confirmou que pagaste');
   // O ecrã do livro usa a folha nova e manda o local com a posição.
   const book = read('app', 'geladas.tsx');
   assert.match(book, /<PaidSheet debt=\{claiming\}/);
   assert.match(book, /venueSlug: place\.slug/);
-  assert.match(book, /✓ estiveram lá/);
+  assert.match(book, /<Icon name="check"[^>]*\/><Text style=\{st\.thereText\}>estiveram lá/);
   assert.match(book, /place: d\.venue\?\.name/, '«Publicar o momento» leva o local');
   const sheet = read('components', 'gelada', 'PaidSheet.tsx');
   assert.match(sheet, /locaisApi\.discover\(coarse\)/, 'perto: só a posição arredondada vai ao servidor');

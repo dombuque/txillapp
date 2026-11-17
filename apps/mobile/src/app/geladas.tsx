@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Avatar } from '@/components/Avatar';
 import { CheersPour } from '@/components/CheersPour';
 import { Icon, type IconName } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
@@ -30,7 +31,7 @@ const AMBER_INK = '#92400e';
  * (`/geladas?pedir=1` abre logo «Paga-me uma»). Com `?u=ana`, o livro da Ana como eu o posso ver (o dela, se o mostra; senão só
  * o que há entre nós).
  * - Quem deve: «Já paguei» (com uma foto e/ou o local onde foi, se quiser: components/gelada/PaidSheet). Só conta como paga
- *   quando a outra pessoa confirma, que vê o local («no Bar X», com «✓ estiveram lá» se a pessoa estava mesmo lá).
+ *   quando a outra pessoa confirma, que vê o local («no Bar X», com «estiveram lá» se a pessoa estava mesmo lá).
  * - Quem recebe: «Confirmar» (os copos batem e aparece «Publicar o momento»), «Ainda não» ou «Perdoar».
  */
 export default function GeladasScreen() {
@@ -85,7 +86,7 @@ export default function GeladasScreen() {
       }
       setBusy(null);
     }
-    // O local (se o escolheu) e a posição de agora, para o selo «✓ estiveram lá» (o servidor não a guarda).
+    // O local (se o escolheu) e a posição de agora, para o selo «estiveram lá» (o servidor não a guarda).
     await act(d, () => geladaApi.paid(d.id, { ...(mediaId ? { mediaId } : {}), ...(place ? { venueSlug: place.slug, ...(at ? { lat: at.lat, lng: at.lng } : {}) } : {}) }));
   }
   async function publishMoment(d: GeladaDebt) {
@@ -128,7 +129,7 @@ export default function GeladasScreen() {
         {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 32 }} />}
         {q.isError && <Text style={st.empty} accessibilityRole="alert">Não consegui abrir o livro. Puxa para tentar outra vez.</Text>}
         {q.isSuccess && items.length === 0 && (
-          <Text style={st.empty}>{tab === 'open' ? 'Tudo em dia por aqui 🙌' : 'Ainda nenhuma gelada paga. A sexta está aí!'}</Text>
+          <Text style={st.empty}>{tab === 'open' ? 'Tudo em dia por aqui.' : 'Ainda nenhuma gelada paga. A sexta está aí!'}</Text>
         )}
         {items.map((d) => (
           <DebtCard
@@ -145,12 +146,12 @@ export default function GeladasScreen() {
             onMoment={() => setMoment(d)}
           />
         ))}
-        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação 🙌</Text>
+        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação.</Text>
       </ScrollView>
       <CheersPour n={burst} size={220} />
       {claiming && <PaidSheet debt={claiming} onClose={() => setClaiming(null)} onClaim={(c) => void claim(claiming, c)} />}
       {moment && (
-        <Sheet title="Gelada paga 🙌" onClose={() => setMoment(null)}>
+        <Sheet title="Gelada paga" onClose={() => setMoment(null)}>
           <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
             <Text style={st.sheetText}>{momentText(moment)}</Text>
             {moment.venue ? <VenueLine v={moment.venue} /> : null}
@@ -208,12 +209,13 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
   );
 }
 
-/** O local da gelada: «📍 no Bar X» e, se estiveram mesmo lá, o selo «✓ estiveram lá». Só as duas pessoas o recebem. */
+/** O local da gelada: o alfinete e «no Bar X» e, se estiveram mesmo lá, o selo «estiveram lá» com o visto. Só as duas pessoas o recebem. */
 function VenueLine({ v }: { v: NonNullable<GeladaDebt['venue']> }) {
   return (
     <View style={st.venue} accessibilityLabel={`${venueTag(v)}${v.there ? ', estiveram lá' : ''}`}>
-      <Text style={st.venueText} numberOfLines={1}>📍 {venueTag(v)}</Text>
-      {v.there ? <View style={st.thereBadge}><Text style={st.thereText}>✓ estiveram lá</Text></View> : null}
+      <Icon name="map-pin" size={15} color={colors.zinc600} />
+      <Text style={st.venueText} numberOfLines={1}>{venueTag(v)}</Text>
+      {v.there ? <View style={st.thereBadge}><Icon name="check" size={12} strokeWidth={2.6} color={colors.green700} /><Text style={st.thereText}>estiveram lá</Text></View> : null}
     </View>
   );
 }
@@ -263,7 +265,7 @@ function OweFlow({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             <Pressable key={p.username} onPress={() => setWho(p.username)} style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`${p.displayName}, @${p.username}`}>
               <Avatar name={p.displayName} username={p.username} size={40} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.line} numberOfLines={1}>{p.displayName}</Text>
+                <NameWithBadge name={p.displayName} who={p} style={st.line} />
                 <Text style={st.meta} numberOfLines={1}>@{p.username}</Text>
               </View>
               <Icon name="chevron-right" size={18} color={colors.zinc500} />
@@ -293,7 +295,7 @@ const st = StyleSheet.create({
   photo: { width: 72, height: 72, borderRadius: 12, backgroundColor: colors.zinc100 },
   venue: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   venueText: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: colors.zinc700 },
-  thereBadge: { borderRadius: 999, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2 },
+  thereBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2 },
   thereText: { fontSize: 12, fontWeight: '700', color: colors.green700 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   small: { minHeight: 40, minWidth: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
