@@ -339,17 +339,32 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * As faixas guardadas (favoritas) com o que o catálogo sabe delas agora: estilos, usos, cores da capa e, nas locais, o endereço
-   * do trecho outra vez válido. As que o catálogo já não mostra ficam como foram guardadas.
+   * do trecho outra vez válido. As do catálogo aberto que ele já não mostra ficam como foram guardadas; as dos artistas de
+   * Moçambique só ficam enquanto a fonte local as tiver e o backoffice não as esconder (licença retirada: saem).
    */
   async enrich<T extends { id: string }>(list: T[]): Promise<(T | PickerTrack)[]> {
     if (!list.length) return list;
     const s = await this.snapshot();
     const byId = new Map(this.visible(s).map((t) => [t.id, t]));
-    return list.map((t) => {
-      const c = byId.get(t.id);
-      if (c) return this.pick(s, c);
-      return t.id.startsWith('local:') ? (this.resolveLocal(t as unknown as Record<string, unknown>) as unknown as T) : t;
-    });
+    const out = await Promise.all(
+      list.map(async (t): Promise<T | PickerTrack | null> => {
+        const c = byId.get(t.id);
+        if (c) return this.pick(s, c);
+        if (!t.id.startsWith('local:')) return t;
+        // Fora do instantâneo (só leva as primeiras 300 da fonte local): pergunta à fonte.
+        if (s.flags.get(t.id)?.status === 'hidden' || !this.localSource) return null;
+        const got = await this.localSource.get(t.id).catch(() => null);
+        return got && got.id === t.id && got.source === 'local' ? this.pick(s, got) : null;
+      }),
+    );
+    return out.filter((t) => t !== null) as (T | PickerTrack)[];
+  }
+
+  /** Esta pessoa não pode ver faixas explícitas da fonte local (menos de 18 anos, ou sem data de nascimento)? */
+  async explicitBlocked(userId: string): Promise<boolean> {
+    if (!this.localSource) return false;
+    const r = await this.pool.query(`SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')`, [userId]);
+    return !r.rowCount;
   }
 
   /** «Em alta no Txillapp»: destacadas, depois as mais usadas nos últimos 7 dias; completa com as de melhor qualidade. */

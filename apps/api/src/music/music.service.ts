@@ -76,6 +76,13 @@ export const musicSchema = z.union([clipSchema, licensedRefSchema, localTrackSch
 export type MusicInput = z.infer<typeof musicSchema>;
 
 /**
+ * O que se guarda nas favoritas: só a referência de uma faixa de um artista de Moçambique (guardar é um marcador; a licença vale
+ * no uso, que só deixa mimos e tchekas) ou uma faixa do catálogo aberto, validada como nas publicações. Clipes próprios não.
+ */
+export const favoriteSchema = z.union([localTrackSchema, trackSchema]);
+export type FavoriteInput = z.infer<typeof favoriteSchema>;
+
+/**
  * Música nas notas, nos posts e nos mimos: o catálogo curado (catalog/catalog.service.ts), as favoritas e os clipes próprios.
  */
 @Injectable()
@@ -139,15 +146,30 @@ export class MusicService {
    * (estilos, usos, cores da capa; nas locais, o trecho outra vez válido).
    */
   async favorites(userId: string): Promise<(Track | PickerTrack)[]> {
-    const { rows } = await this.pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200', [userId]);
-    return this.catalog.enrich(rows.map((r) => r.track as Track));
+    const [{ rows }, noExplicit] = await Promise.all([
+      this.pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200', [userId]),
+      this.catalog.explicitBlocked(userId),
+    ]);
+    // As locais vêm sempre da fonte (só se guardou a referência); as retiradas saem, e as explícitas não aparecem a menores.
+    const list = await this.catalog.enrich(rows.map((r) => r.track as Track));
+    return noExplicit ? list.filter((t) => !(t.source === 'local' && (t as PickerTrack).explicit)) : list;
   }
 
-  /** Marcar uma faixa como favorita (validada como qualquer outra; clipes próprios não entram). Até 200. */
-  async addFavorite(userId: string, input: z.infer<typeof trackSchema>): Promise<{ favorite: true }> {
+  /**
+   * Marcar uma faixa como favorita (clipes próprios não entram). Até 200. As de um artista de Moçambique guardam só a referência
+   * (`{ id, source: 'local' }`), depois de a fonte confirmar que existe; as outras ficam com a versão do catálogo.
+   */
+  async addFavorite(userId: string, input: FavoriteInput): Promise<{ favorite: true }> {
     const n = (await this.pool.query('SELECT count(*)::int AS n FROM content.music_favorites WHERE user_id = $1', [userId])).rows[0].n as number;
     if (n >= 200) throw new BadRequestException('Já tens 200 favoritas. Tira algumas para juntar mais');
-    const track = await this.canonical(input);
+    const local = ('source' in input && input.source === 'local') || LOCAL.test(input.id);
+    if (local) {
+      const id = LOCAL.test(input.id) ? input.id : `local:${input.id}`;
+      await this.catalog.canonical(id); // recusa as que a fonte já não tem e as escondidas no backoffice
+      await this.pool.query('INSERT INTO content.music_favorites (user_id, track_id, track) VALUES ($1, $2, $3) ON CONFLICT (user_id, track_id) DO UPDATE SET track = EXCLUDED.track', [userId, id, JSON.stringify({ id, source: 'local' })]);
+      return { favorite: true };
+    }
+    const track = await this.canonical(input as z.infer<typeof trackSchema>);
     await this.pool.query('INSERT INTO content.music_favorites (user_id, track_id, track) VALUES ($1, $2, $3) ON CONFLICT (user_id, track_id) DO UPDATE SET track = EXCLUDED.track', [userId, track.id, JSON.stringify(track)]);
     return { favorite: true };
   }

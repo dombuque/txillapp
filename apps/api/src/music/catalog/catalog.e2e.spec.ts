@@ -6,6 +6,7 @@ import { loadConfig } from '../../config';
 import { migrate } from '../../db/migrate';
 import { createApp } from '../../main';
 import { staffLogin } from '../../staff/staff-test';
+import { ExportService } from '../../account/export.service';
 import { MusicService } from '../music.service';
 import sharp from 'sharp';
 import { MusicCatalogService } from './catalog.service';
@@ -426,16 +427,61 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     await api().put('/api/v1/music/favorites').set(auth(u.mca)).send(sent).expect(200);
     expect((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body[0]).toMatchObject({ id: mano.id, url: mano.previewUrl });
 
+    // Guardar é só um marcador: a app manda só a referência (como num mimo) e fica guardada só a referência, mesmo que venha mais.
+    await api().delete(`/api/v1/music/favorites/${mano.id}`).set(auth(u.mca)).expect(200);
+    await api().put('/api/v1/music/favorites').set(auth(u.mca)).send({ source: 'local', id: mano.id }).expect(200);
+    expect((await pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 AND track_id = $2', [u.mca.id, mano.id])).rows[0].track).toEqual({ id: mano.id, source: 'local' });
+    await api().put('/api/v1/music/favorites').set(auth(u.mca)).send(sent).expect(200);
+    expect((await pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 AND track_id = $2', [u.mca.id, mano.id])).rows[0].track).toEqual({ id: mano.id, source: 'local' });
+    // Na lista «Guardadas» vem a versão da fonte (título, artista, trecho), nunca a que a app mandou.
+    const favLocal = (await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body;
+    expect(favLocal.find((t: { id: string }) => t.id === mano.id)).toMatchObject({ title: 'Marrabenta do Bairro', artist: 'Mano Txill', source: 'local', license: 'txillapp', url: mano.previewUrl, artistUsername: 'mano_txill' });
+    // Uma faixa que a fonte não tem não se guarda.
+    await api().put('/api/v1/music/favorites').set(auth(u.mca)).send({ source: 'local', id: 'local:0190aaaa-bbbb-7ccc-8ddd-000000000000' }).expect(400);
+    // Explícitas: quem tem menos de 18 anos (ou não deu a data) não as vê nas guardadas.
+    mano.explicit = true;
+    catalog.invalidate();
+    expect(ids((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body)).toContain(mano.id);
+    await pool.query('UPDATE identity.users SET birth_date = $2 WHERE id = $1', [u.mca.id, '2012-01-01']);
+    expect(ids((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body)).not.toContain(mano.id);
+    await pool.query('UPDATE identity.users SET birth_date = $2 WHERE id = $1', [u.mca.id, '1990-06-15']);
+    mano.explicit = false;
+    catalog.invalidate();
+    // A exportação dos dados leva a referência guardada.
+    const exported = (await app.get(ExportService).build(u.mca.id)) as { musicFavorites: { trackId: string; track: unknown }[] };
+    expect(exported.musicFavorites).toContainEqual(expect.objectContaining({ trackId: mano.id, track: { id: mano.id, source: 'local' } }));
+
     // O backoffice também esconde faixas da fonte local.
     const mod = await staffLogin(app, 'musmod2', ['moderacao']);
     expect((await api().get('/api/v1/admin/music?q=mano').set(auth(mod)).expect(200)).body.items[0]).toMatchObject({ id: mano.id, source: 'local' });
     await api().post('/api/v1/admin/music/status').set(auth(mod)).send({ id: mano.id, status: 'hidden', reason: 'Pedido do artista' }).expect(204);
     expect((await home(u.mca)).local).toBeNull();
     await expect(music.prepare(u.mca.id, { source: 'local', id: mano.id }, 'story')).rejects.toThrow(BadRequestException); // escondida
+    // Licença retirada (escondida no backoffice): sai das guardadas e já não se volta a guardar.
+    expect(ids((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body)).not.toContain(mano.id);
+    await api().put('/api/v1/music/favorites').set(auth(u.mca)).send({ source: 'local', id: mano.id }).expect(400);
+    await api().post('/api/v1/admin/music/status').set(auth(mod)).send({ id: mano.id, status: 'active', reason: 'Voltou' }).expect(204);
+    expect(ids((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body)).toContain(mano.id);
 
     catalog.registerLocalSource(null);
     expect((await home(u.mca)).local).toBeNull();
     await api().post('/api/v1/posts').set(auth(u.mca)).send({ body: 'x', music: sent }).expect(400);
+    // Sem a fonte (o programa de artistas desligado), as locais guardadas deixam de aparecer; a referência fica para quando voltar.
+    expect(ids((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body)).not.toContain(mano.id);
+    expect((await pool.query('SELECT count(*)::int AS n FROM content.music_favorites WHERE user_id = $1 AND track_id = $2', [u.mca.id, mano.id])).rows[0].n).toBe(1);
+  });
+
+  it('«Sons originais»: os sons do catálogo têm id estável e guardam-se como as músicas', async () => {
+    const sounds = (await api().get('/api/v1/music/sounds').set(auth(u.mcb)).expect(200)).body as { id: string; kind: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number; cover: string | null; source: string }[];
+    const s = sounds.find((t) => t.id === 'freesound:777')!;
+    expect(s).toMatchObject({ kind: 'sound' });
+    // O que a app manda (musicPayload): os campos de sempre e a fonte.
+    const { id, title, artist, url, landing, license, licenseUrl, durationMs, cover, source } = s;
+    await api().put('/api/v1/music/favorites').set(auth(u.mcb)).send({ id, title, artist, url, landing, license, licenseUrl, durationMs, cover, source }).expect(200);
+    expect((await api().get('/api/v1/music/favorites').set(auth(u.mcb)).expect(200)).body.find((t: { id: string }) => t.id === 'freesound:777')).toMatchObject({ kind: 'sound', title: s.title });
+    await api().delete('/api/v1/music/favorites/freesound:777').set(auth(u.mcb)).expect(200);
+    // Um clipe próprio (gravado na hora) não se guarda.
+    await api().put('/api/v1/music/favorites').set(auth(u.mcb)).send({ kind: 'clip', mediaId: '0190aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee', durationMs: 5000 }).expect(400);
   });
 
   it('nenhum pedido real às fontes externas', () => {

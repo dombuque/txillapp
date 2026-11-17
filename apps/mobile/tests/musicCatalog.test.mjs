@@ -95,7 +95,14 @@ test('guardar: muda logo (a nova vai para o topo; tocar outra vez tira); clipes 
   assert.equal(m.canSave(t('ccmixter:1', { source: 'ccmixter' })), true);
   assert.equal(m.canSave(t('freesound:1', { kind: 'sound' })), true);
   assert.equal(m.canSave(t('clip:1', { kind: 'clip' })), false);
-  assert.equal(m.canSave(t('local:1', { source: 'local' })), false);
+  assert.equal(m.canSave(t('local:1', { source: 'local' })), true); // só a referência fica no servidor
+  // Guardar é só um marcador; usar é que segue a licença: as locais só em mimos e tchekas (`allowLocal`).
+  assert.equal(m.usableHere(t('local:1', { source: 'local' }), false), false);
+  assert.equal(m.usableHere(t('local:1', { source: 'local' }), true), true);
+  assert.equal(m.usableHere(t('ccmixter:1', { source: 'ccmixter' }), false), true);
+  assert.equal(m.LOCAL_ONLY_NOTE, 'Só em mimos e tchekas');
+  assert.equal(m.lockedMeta(t('local:1', { source: 'local', artist: 'Mano Txill', usesTotal: 40, durationMs: 185_000 })), 'Mano Txill · Só em mimos e tchekas');
+  assert.equal(m.lockedMeta({ id: 'local:2', source: 'local', artist: '', artistUsername: 'mano' }), '@mano · Só em mimos e tchekas');
 });
 
 test('números à portuguesa: 1,2 mil; 4,4 mil; 1 M (arredonda para baixo, sem «,0»)', () => {
@@ -228,12 +235,18 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(src, /<Text style=\{s\.rowTitle\} numberOfLines=\{1\}>\{t\.title\}<\/Text>/);
   assert.match(src, /rowTitle: \{[^}]*fontWeight: '700'/);
   assert.match(src, /\{isExplicit\(t\) \? \(/);
-  assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable onPress=\{\(\) => onUse\(t\)\}/);
+  assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
   assert.match(src, /\{live \? <SoundBars /);
   // A pesquisa e os quatro separadores mostram as faixas com a mesma linha (com guardar).
   assert.equal((src.match(/\.map\(row\)/g) || []).length, 3);
   assert.match(src, /items\.length \? items\.map\(row\)/);
   assert.match(src, /onSave=\{\(x\) => toggleSave\.mutate\(x\)\}/);
+  // O áudio gravado na hora não tem marcador e não deixa espaço vazio (o «Usar» encosta à direita).
+  assert.doesNotMatch(src, /<View style=\{s\.iconBtn\} \/>/);
+  // Guardada mas sem licença aqui: «Artista · Só em mimos e tchekas» e o «Usar» desativado (também no menu).
+  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
+  assert.match(src, /<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
+  assert.match(src, /label="Usar esta música" hint=\{locked \? LOCAL_ONLY_NOTE : undefined\} disabled=\{locked\}/);
   assert.match(src, /savedIds\.has\(t\.id\) \? musicApi\.removeFavorite\(t\.id\) : musicApi\.addFavorite\(t\)/);
   // Tocar ouve logo (pausa e retoma na mesma linha), sem `await` antes do som; «Usar» é que escolhe.
   assert.match(src, /const act = rowTap\(playing, live, t\.id\);/);
@@ -242,8 +255,8 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   // As ondas seguem o que a pessoa fez (a carregar já mostra que vai tocar), não o estado do leitor.
   assert.match(src, /const live = playing !== null && !paused;/);
   assert.doesNotMatch(src, /async function toggle/);
-  assert.match(src, /function pick\(t: Track\) \{\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
-  assert.match(src, /const meta = rowMeta\(t\);/);
+  assert.match(src, /function pick\(t: Track\) \{\n[^}]*if \(!usableHere\(t, allowLocal\)\) return;\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
+  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
   assert.match(src, /<BookmarkIcon on=\{saved\}/);
   assert.match(src, /<SoundBars /);
   assert.match(src, /onMutate: \(t\) => qc\.setQueryData<Track\[\]>\(\['music-favorites'\], \(old\) => toggleSaved\(old, t\)\)/);

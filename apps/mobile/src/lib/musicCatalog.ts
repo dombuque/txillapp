@@ -137,10 +137,16 @@ export function dropFromCache<T>(data: T, id: string): T {
 // ---------------------------------------------------------------- guardar («Guardadas»)
 
 /**
- * Que faixas se podem guardar: os clipes próprios não, e as dos artistas de Moçambique também não (o servidor só guarda
- * faixas do catálogo aberto).
+ * Que faixas se podem guardar: todas as que têm um id estável no servidor (catálogo aberto, sons e artistas de Moçambique, destes
+ * só a referência). O áudio gravado na hora (clipe próprio) não.
  */
-export const canSave = (t: TrackLike) => t.kind !== 'clip' && t.source !== 'local';
+export const canSave = (t: TrackLike) => t.kind !== 'clip';
+
+/** A nota das faixas que se podem guardar mas não usar aqui: as dos artistas de Moçambique, fora dos mimos e das tchekas. */
+export const LOCAL_ONLY_NOTE = 'Só em mimos e tchekas';
+
+/** Pode-se usar esta faixa aqui? As dos artistas de Moçambique só onde a licença deixa (`allowLocal`: mimos e tchekas). */
+export const usableHere = (t: TrackLike, allowLocal: boolean) => allowLocal || t.source !== 'local';
 
 /** Guardar ou tirar das guardadas (muda logo no ecrã; o servidor confirma): a guardada nova vai para o topo. */
 export function toggleSaved<T extends TrackLike>(saved: T[] | null | undefined, t: T): T[] {
@@ -187,9 +193,14 @@ export function creditLine(t: TrackLike & { durationMs?: number | null }, mmss: 
 
 /** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil tchekas · 2:53» (os usos desde sempre, quando os há). */
 export function rowMeta(t: TrackLike): string {
-  const who = t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
-  return [who, usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
+  return [rowWho(t), usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
 }
+
+/** Quem fez a faixa, como aparece na linha. */
+const rowWho = (t: TrackLike) => t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
+
+/** A linha cinzenta de uma faixa que não se pode usar aqui: «Artista · Só em mimos e tchekas». */
+export const lockedMeta = (t: TrackLike): string => `${rowWho(t)} · ${LOCAL_ONLY_NOTE}`;
 
 export const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');
 

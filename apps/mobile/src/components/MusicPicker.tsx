@@ -21,11 +21,14 @@ import {
   highlights,
   isExplicit,
   licenseLabel,
+  LOCAL_ONLY_NOTE,
+  lockedMeta,
   onlyAllowed,
   pickerTabs,
   rowMeta,
   rowTap,
   toggleSaved,
+  usableHere,
   withoutDisliked,
   type ForYouFilter,
   type PickerTab,
@@ -290,6 +293,8 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
     });
   }
   function pick(t: Track) {
+    // As dos artistas de Moçambique aparecem nas «Guardadas» em todo o lado, mas só se usam em mimos e tchekas.
+    if (!usableHere(t, allowLocal)) return;
     stopTrack(me.current);
     onPick(t);
   }
@@ -301,6 +306,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       t={t}
       active={playing === t.id}
       live={playing === t.id && live}
+      locked={!usableHere(t, allowLocal)}
       saved={savedIds.has(t.id)}
       desktop={desktop}
       onPlay={toggle}
@@ -320,7 +326,8 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
   const tabs = pickerTabs();
   const chips = forYouChips(home.data, allowLocal, suggestion?.genre);
   const tops = clean(highlights(home.data, allowLocal));
-  const saved = clean(favs.data);
+  // «Guardadas» mostra todas (as locais também); onde a licença não deixa, a linha diz «Só em mimos e tchekas» e não se usa.
+  const saved = withoutDisliked(favs.data, disliked);
   const forYou = forYouList({ styleTracks: filter === null ? clean(styleList.data) : [], trending: clean(home.data?.trending), recent: clean(home.data?.recent), saved, skip: tops });
   const suggestedLabel = suggestion ? home.data?.styles.find((st) => st.id === suggestion.genre)?.label : undefined;
   // A pastilha que estava escolhida deixou de existir (ex.: sem artistas locais): volta ao «Para ti» todo.
@@ -420,6 +427,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
           track={menu.track}
           anchor={menu.anchor}
           playing={playing === menu.track.id && live}
+          locked={!usableHere(menu.track, allowLocal)}
           saved={savedIds.has(menu.track.id)}
           onClose={() => setMenu(null)}
           onPlay={toggle}
@@ -486,9 +494,9 @@ function SoundBars({ size = 16, color = '#fff' }: { size?: number; color?: strin
  * ondas na capa, e aparece «Usar» ao lado do marcador); tocar outra vez pausa. Manter premido, o botão direito ou o «⋯»
  * (computador) abrem o resto.
  */
-function TrackRow({ t, active, live, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; live: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
+function TrackRow({ t, active, live, locked = false, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; live: boolean; /** Guardada mas não se usa aqui (artistas de Moçambique fora dos mimos e tchekas). */ locked?: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
   const [hot, setHot] = useState(false);
-  const meta = rowMeta(t);
+  const meta = locked ? lockedMeta(t) : rowMeta(t);
   return (
     <Pressable
       onPress={() => onPlay(t)}
@@ -521,8 +529,8 @@ function TrackRow({ t, active, live, saved, desktop, onPlay, onUse, onSave, onMe
         <Text style={s.rowSub} numberOfLines={1}>{meta}</Text>
       </View>
       {active || (desktop && hot) ? (
-        <Pressable onPress={() => onUse(t)} style={(st) => [s.use, (st as { hovered?: boolean }).hovered && { backgroundColor: colors.brandLight }]} accessibilityRole="button" accessibilityLabel={`Usar ${t.title}`}>
-          <Text style={s.useTxt}>Usar</Text>
+        <Pressable disabled={locked} onPress={() => onUse(t)} style={(st) => [s.use, locked ? s.useOff : (st as { hovered?: boolean }).hovered && { backgroundColor: colors.brandLight }]} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? `Usar ${t.title}: ${LOCAL_ONLY_NOTE.toLowerCase()}` : `Usar ${t.title}`}>
+          <Text style={[s.useTxt, locked && s.useTxtOff]}>Usar</Text>
         </Pressable>
       ) : null}
       {desktop && (hot || active) ? (
@@ -530,13 +538,12 @@ function TrackRow({ t, active, live, saved, desktop, onPlay, onUse, onSave, onMe
           <Icon name="more" size={20} color={C.soft} />
         </Pressable>
       ) : null}
+      {/* O áudio gravado na hora não se guarda: sem marcador (e sem espaço vazio; o «Usar» encosta à direita). */}
       {canSave(t) ? (
         <Pressable onPress={() => onSave(t)} hitSlop={8} style={(st) => [s.iconBtn, desktop && (st as { hovered?: boolean }).hovered && { backgroundColor: C.line }]} accessibilityRole="button" accessibilityState={{ selected: saved }} accessibilityLabel={saved ? 'Tirar das guardadas' : 'Guardar'}>
           <BookmarkIcon on={saved} size={22} color={saved ? C.text : C.soft} />
         </Pressable>
-      ) : (
-        <View style={s.iconBtn} />
-      )}
+      ) : null}
     </Pressable>
   );
 }
@@ -611,7 +618,7 @@ function HighlightCard({ t, active, live, onPlay, onUse }: { t: Track; active: b
 }
 
 /** O menu de uma faixa (manter premido, ou o «⋯» e o botão direito no computador): usar, ouvir, guardar e «Não gosto desta». */
-function RowMenu({ track, anchor, playing, saved, onClose, onPlay, onUse, onSave, onDislike }: { track: Track; anchor: Rect | null; playing: boolean; saved: boolean; onClose: () => void; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onDislike: (t: Track) => void }) {
+function RowMenu({ track, anchor, playing, locked = false, saved, onClose, onPlay, onUse, onSave, onDislike }: { track: Track; anchor: Rect | null; playing: boolean; locked?: boolean; saved: boolean; onClose: () => void; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onDislike: (t: Track) => void }) {
   const run = (fn: (t: Track) => void) => () => {
     onClose();
     fn(track);
@@ -619,7 +626,7 @@ function RowMenu({ track, anchor, playing, saved, onClose, onPlay, onUse, onSave
   return (
     <Sheet title={track.title} onClose={onClose} dark variant="menu" anchor={anchor}>
       <View style={s.menu}>
-        <MenuItem icon={<Icon name="check" size={20} color={C.text} />} label="Usar esta música" onPress={run(onUse)} />
+        <MenuItem icon={<Icon name="check" size={20} color={locked ? C.sub : C.text} />} label="Usar esta música" hint={locked ? LOCAL_ONLY_NOTE : undefined} disabled={locked} onPress={run(onUse)} />
         <MenuItem icon={<Icon name={playing ? 'pause' : 'play'} size={18} solid color={C.text} />} label={playing ? 'Pausar' : 'Ouvir'} onPress={run(onPlay)} />
         {canSave(track) ? <MenuItem icon={<BookmarkIcon on={saved} size={20} color={C.text} />} label={saved ? 'Tirar das guardadas' : 'Guardar'} onPress={run(onSave)} /> : null}
         {track.kind !== 'clip' ? <MenuItem icon={<Icon name="eye-off" size={20} color={C.text} />} label="Não gosto desta" hint="Deixa de te aparecer" onPress={run(onDislike)} /> : null}
@@ -628,12 +635,12 @@ function RowMenu({ track, anchor, playing, saved, onClose, onPlay, onUse, onSave
   );
 }
 
-function MenuItem({ icon, label, hint, onPress }: { icon: ReactNode; label: string; hint?: string; onPress: () => void }) {
+function MenuItem({ icon, label, hint, disabled = false, onPress }: { icon: ReactNode; label: string; hint?: string; disabled?: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={(st) => [s.mi, (st as { hovered?: boolean; pressed?: boolean }).hovered && s.miHover, st.pressed && s.miHover]} accessibilityRole="menuitem" accessibilityLabel={label}>
+    <Pressable disabled={disabled} onPress={onPress} style={(st) => [s.mi, !disabled && (st as { hovered?: boolean; pressed?: boolean }).hovered && s.miHover, !disabled && st.pressed && s.miHover]} accessibilityRole="menuitem" accessibilityState={{ disabled }} accessibilityLabel={hint ? `${label}. ${hint}` : label}>
       <View style={s.miIcon}>{icon}</View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.miTxt}>{label}</Text>
+        <Text style={[s.miTxt, disabled && { color: C.sub }]}>{label}</Text>
         {hint ? <Text style={s.miHint}>{hint}</Text> : null}
       </View>
     </Pressable>
@@ -671,6 +678,8 @@ const s = StyleSheet.create({
   rowSub: { marginTop: 3, fontSize: 13, color: C.sub },
   use: { height: 32, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   useTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  useOff: { backgroundColor: C.line },
+  useTxtOff: { color: C.sub },
   iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   hl: { height: HL_H, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' },
   hlKicker: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: 0.5 },
