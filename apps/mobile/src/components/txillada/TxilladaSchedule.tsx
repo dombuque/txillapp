@@ -16,7 +16,7 @@ import { showToast } from '@/lib/toast';
 import { TITLE_MAX } from '@/lib/txillada';
 import {
   WEEK_INITIALS, dayKey, daySlots, defaultStart, fmtWhen, monthGrid, monthRange, monthTitle, moveToDay, offeredDays, dayLabel,
-  scheduleErrorText, scheduleKindText, withReminded, scheduleGoalText, scheduleShareLink, scheduleShareMessage, scheduledText, shiftMonth, startOfDay, validStart,
+  isNotScheduled, scheduleErrorText, scheduleKindText, withReminded, scheduleGoalText, scheduleShareLink, scheduleShareMessage, scheduledText, shiftMonth, startOfDay, validStart,
   type NextTxillada, type ScheduleInput, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
 
@@ -47,7 +47,10 @@ export function useRemindToggle(): (id: string, on: boolean) => Promise<void> {
       if (on) showToast('Vais ser lembrado quando começar.');
     } catch (e) {
       markReminded(qc, id, !on);
-      showToast(scheduleErrorText(e instanceof ApiError ? e : null));
+      const err = e instanceof ApiError ? e : null;
+      showToast(scheduleErrorText(err));
+      // Já não está à espera (começou, foi cancelada, expirou): as cópias vão buscar o estado novo.
+      if (isNotScheduled(err)) { void qc.invalidateQueries({ queryKey: scheduleKey(id) }); void qc.invalidateQueries({ queryKey: UPCOMING_KEY }); void qc.invalidateQueries({ queryKey: ['profile'] }); }
     } finally {
       busy.current.delete(id);
     }
@@ -286,6 +289,7 @@ export function ScheduleSheet({ form, onClose, onDone, onProfile }: { form: Sche
 /** Editar o agendamento (o anfitrião): o título, o dia e a hora. O tipo, o preço e a meta não mudam. */
 export function EditScheduleSheet({ s, onClose, onSaved }: { s: ScheduledTxillada; onClose: () => void; onSaved: (s: ScheduledTxillada) => void }) {
   const now = useClock();
+  const qc = useQueryClient();
   const first = new Date(s.startsAt).getTime();
   const [title, setTitle] = useState(s.title ?? '');
   const [at, setAt] = useState<number | null>(() => (validStart(first, Date.now()) ? first : defaultStart(Date.now())));
@@ -306,7 +310,9 @@ export function EditScheduleSheet({ s, onClose, onSaved }: { s: ScheduledTxillad
       onSaved(await txilladaApi.editSchedule(s.id, body));
       onClose();
     } catch (e) {
-      setMsg(scheduleErrorText(e instanceof ApiError ? e : null));
+      const err = e instanceof ApiError ? e : null;
+      setMsg(scheduleErrorText(err));
+      if (isNotScheduled(err)) void qc.invalidateQueries({ queryKey: scheduleKey(s.id) });
     } finally {
       setBusy(false);
     }

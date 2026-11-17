@@ -11,7 +11,7 @@ import { UPCOMING_KEY, schedulesKey, txilladaApi, useTxilladaEnabled } from '@/l
 import { useDesktop } from '@/lib/desktop';
 import { navTap } from '@/lib/tapGuard';
 import { colors } from '@/lib/theme';
-import { fmtShort, remindersText, scheduleRoute, type NextTxillada, type ScheduledTxillada } from '@/lib/txilladaSchedule';
+import { fmtShort, fmtSoon, remindersText, scheduleRoute, type NextTxillada, type ScheduledTxillada } from '@/lib/txilladaSchedule';
 import { useClock, useRemindToggle } from './TxilladaSchedule';
 
 /**
@@ -38,13 +38,13 @@ export function NextTxilladaCard({ username, isMe, next }: { username: string; i
         onPress={() => open(shown.id)}
         style={(s) => [st.card, (s as { hovered?: boolean }).hovered && { backgroundColor: '#ffe4e8' }, s.pressed && { opacity: 0.9 }]}
         accessibilityRole="button"
-        accessibilityLabel={`${isMe ? 'A tua Txillada agendada' : `Txillada agendada de @${username}`}: ${title ? `${title}, ` : ''}${fmtShort(shown.startsAt, now)}`}
+        accessibilityLabel={`${isMe ? 'A tua Txillada agendada' : `Txillada agendada de @${username}`}: ${title ? `${title}, ` : ''}${fmtSoon(shown.startsAt, now)}`}
       >
         <View style={st.icon}><Icon name="txillada" size={24} color="#fff" strokeWidth={2.1} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={st.label} numberOfLines={1}>{isMe ? 'A tua Txillada agendada' : 'Txillada agendada'}</Text>
           {title ? <Text style={st.title} numberOfLines={1}>{title}</Text> : null}
-          <Text style={st.when} numberOfLines={1}>{fmtShort(shown.startsAt, now)}</Text>
+          <Text style={st.when} numberOfLines={1}>{fmtSoon(shown.startsAt, now)}</Text>
         </View>
         {isMe ? (
           <Icon name="chevron-right" size={20} color={colors.zinc500} />
@@ -110,12 +110,12 @@ export function UpcomingRow() {
         {items.map((x) => {
           const title = (x.title ?? '').trim();
           return (
-            <Pressable key={x.id} onPress={() => open(x.id)} style={(s) => [st.small, (s as { hovered?: boolean }).hovered && { borderColor: colors.zinc300 }, s.pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`Txillada de @${x.host.username}, ${fmtShort(x.startsAt, now)}${title ? `: ${title}` : ''}`}>
+            <Pressable key={x.id} onPress={() => open(x.id)} style={(s) => [st.small, (s as { hovered?: boolean }).hovered && { borderColor: colors.zinc300 }, s.pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`Txillada de @${x.host.username}, ${fmtSoon(x.startsAt, now)}${title ? `: ${title}` : ''}`}>
               <View style={st.who}>
                 <Avatar name={x.host.displayName} username={x.host.avatarUrl ? x.host.username : undefined} size={34} />
                 <NameWithBadge name={x.host.username} who={x.host} style={st.whoName} containerStyle={{ flex: 1, minWidth: 0 }} size={12} />
               </View>
-              <Text style={st.smallWhen} numberOfLines={1}>{fmtShort(x.startsAt, now)}</Text>
+              <Text style={st.smallWhen} numberOfLines={1}>{fmtSoon(x.startsAt, now)}</Text>
               <Text style={st.smallTitle} numberOfLines={1}>{title || 'Txillada'}</Text>
               {x.reminded
                 ? <Button label="Lembrado" icon="check" kind="secondary" size="sm" block onPress={() => void remind(x.id, false)} accessibilityLabel="Vais ser lembrado. Toca para deixares de ser lembrado" />

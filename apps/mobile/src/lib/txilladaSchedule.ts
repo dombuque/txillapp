@@ -194,10 +194,21 @@ export function durationText(msLeft: number): string {
   const m = mins % 60;
   return [h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
 }
-/** A contagem: «Começa daqui a 2 h 15 min» nas próximas 12 h; depois «Amanhã às 20:00»; na hora, «Está na hora». */
+/**
+ * Já passou da hora e ainda não começou (a fila «Em breve» e o cartão podem trazê-la até expirar, 2 h depois): nos primeiros
+ * 5 min «A qualquer momento»; depois «Devia ter começado às 20:00» (null antes da hora).
+ */
+export function lateText(at: number | string, now: number): string | null {
+  const past = now - ms(at);
+  if (past < 0) return null;
+  return past < 5 * MIN ? 'A qualquer momento' : `Devia ter começado às ${hhmm(at)}`;
+}
+/** A hora curta, ou o atraso se já passou: para a fila «Em breve» e o cartão do perfil. */
+export const fmtSoon = (at: number | string, now: number): string => lateText(at, now) ?? fmtShort(at, now);
+/** A contagem: «Começa daqui a 2 h 15 min» nas próximas 12 h; depois «Amanhã às 20:00»; passada a hora, o atraso. */
 export function countdown(at: number | string, now: number): string {
   const left = ms(at) - now;
-  if (left <= 0) return 'Está na hora';
+  if (left <= 0) return lateText(at, now) ?? 'A qualquer momento';
   if (left < 12 * 60 * MIN) return `Começa daqui a ${durationText(left)}`;
   return fmtDay(at, now);
 }
@@ -305,13 +316,21 @@ export function scheduleShareMessage(s: Pick<ScheduledTxillada, 'host' | 'title'
   return `@${s.host.username} vai fazer uma Txillada no Txillapp ${fmtWhen(s.startsAt, now, true)}${t ? `: ${t}` : ''}`;
 }
 
+/** O `code` de um erro da API (vem no próprio erro ou no resto da resposta). */
+export function errorCode(e: { code?: string; extra?: Record<string, unknown> } | null | undefined): string | undefined {
+  return e?.code ?? (typeof e?.extra?.code === 'string' ? (e.extra.code as string) : undefined);
+}
+/** 409 `not_scheduled`: o agendamento já não está à espera (começou, foi cancelado ou expirou): recarrega-se o cartão. */
+export const isNotScheduled = (e: { status?: number; code?: string; extra?: Record<string, unknown> } | null | undefined): boolean => e?.status === 409 && errorCode(e) === 'not_scheduled';
+
 /** Os erros da API em palavras (o servidor também manda a mensagem; o `code` vale mais). */
 export function scheduleErrorText(e: { status?: number; code?: string; message?: string; extra?: Record<string, unknown> } | null | undefined): string {
-  const code = e?.code ?? (typeof e?.extra?.code === 'string' ? (e.extra.code as string) : undefined);
+  const code = errorCode(e);
   const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
   if (code === 'too_many') return `Já tens ${MAX_SCHEDULED} Txilladas agendadas. Cancela uma para agendares outra.`;
   if (code === 'too_close') return 'Já tens uma Txillada agendada perto dessa hora. Escolhe uma hora com pelo menos 30 min de diferença.';
   if (code === 'too_early') return 'Ainda falta mais de uma hora para a hora marcada.';
+  if (code === 'not_scheduled') return m || 'Esta Txillada já não está agendada.';
   switch (e?.status) {
     case 400: return m || 'Escolhe uma hora pelo menos 15 min à frente e no máximo daqui a 30 dias.';
     case 403: return m || 'Não podes agendar uma Txillada.';
@@ -339,7 +358,7 @@ export const isScheduleNotice = (kind: string): kind is ScheduleNoticeKind => (S
 /** Os avisos que são para o próprio anfitrião (a linha não leva o nome dele à frente, como os avisos do sistema). */
 export const isHostNotice = (kind: string): boolean => kind === 'txillada_scheduled_soon' || kind === 'txillada_scheduled_now';
 
-type NoticeData = { scheduleId?: unknown; startsAt?: unknown; title?: unknown; moved?: unknown; newStartsAt?: unknown } | null | undefined;
+type NoticeData = { scheduleId?: unknown; startsAt?: unknown; title?: unknown; moved?: unknown; newStartsAt?: unknown; reminders?: unknown } | null | undefined;
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
@@ -356,7 +375,11 @@ export function scheduleNoticeText(kind: string, data: NoticeData, now: number):
   const when = at && !Number.isNaN(new Date(at).getTime()) ? fmtWhen(at, now, true) : '';
   switch (kind) {
     case 'txillada_scheduled_soon': return { text: 'A tua Txillada começa daqui a 15 min', sub: title ? `${title}. Toca para começar` : 'Toca para começar' };
-    case 'txillada_scheduled_now': return { text: 'Está na hora da tua Txillada', sub: title ? `${title}. Toca para começar` : 'Toca para começar' };
+    case 'txillada_scheduled_now': {
+      // A API junta `data.reminders` (quantos pediram lembrete): «Está na hora da tua Txillada. 12 pessoas pediram para ser lembradas.»
+      const n = typeof data?.reminders === 'number' && data.reminders > 0 ? `${remindersText(data.reminders)}. ` : '';
+      return { text: 'Está na hora da tua Txillada', sub: `${title ? `${title}. ` : ''}${n}Toca para começar` };
+    }
     case 'txillada_scheduled_cancelled': {
       if (data?.moved === true) {
         const to = str(data?.newStartsAt);
@@ -374,8 +397,8 @@ export function scheduleNoticeTarget(data: NoticeData): string | null {
   return id ? scheduleRoute(id) : null;
 }
 /**
- * O `txillada_live` que veio de um lembrete («@x começou a Txillada que pediste para lembrar»). O contrato não diz o nome do
- * campo: aceita-se `data.fromReminder`, `data.reminder` ou `data.reminded` a true.
+ * O `txillada_live` que veio de um lembrete («@x começou a Txillada que pediste para lembrar»): a API manda
+ * `data.reminded: true` (com `scheduleId`); aceita-se também `data.fromReminder` ou `data.reminder`.
  */
 export function fromReminder(data: { fromReminder?: unknown; reminder?: unknown; reminded?: unknown } | null | undefined): boolean {
   return data?.fromReminder === true || data?.reminder === true || data?.reminded === true;

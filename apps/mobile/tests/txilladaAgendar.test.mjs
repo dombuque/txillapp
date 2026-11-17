@@ -127,7 +127,7 @@ test('a contagem: «Começa daqui a 2 h 15 min» e, longe, o dia e a hora', () =
   assert.equal(s.countdown(TUE_10 + 180 * min, TUE_10), 'Começa daqui a 3 h');
   assert.equal(s.countdown(TUE_10 + 30_000, TUE_10), 'Começa daqui a menos de 1 min');
   assert.equal(s.countdown(at(18, 20), TUE_10), 'Amanhã às 20:00');
-  assert.equal(s.countdown(TUE_10 - 1, TUE_10), 'Está na hora');
+  assert.equal(s.countdown(TUE_10 - 1, TUE_10), 'A qualquer momento');
   assert.equal(s.canStartNow(TUE_10 + 61 * min, TUE_10), false);
   assert.equal(s.canStartNow(TUE_10 + 60 * min, TUE_10), true);
   assert.equal(s.startIsEarly(TUE_10 + 2 * 60 * min, TUE_10), true);
@@ -252,6 +252,25 @@ test('as peças na app: preparar, cartão, perfil, «Em breve» e notificações
   const notif = read('app/notifications.tsx');
   for (const k of ['txillada_scheduled_soon', 'txillada_scheduled_now', 'txillada_scheduled_cancelled', 'scheduleNoticeTarget']) assert.ok(notif.includes(k), k);
   assert.match(read('lib/api.ts'), /'txillada_scheduled_soon' \| 'txillada_scheduled_now' \| 'txillada_scheduled_cancelled'/);
+});
+
+test('diferenças da API: atraso na fila, not_scheduled, lembrete com reminded e o número no aviso «é agora»', () => {
+  const min = 60_000;
+  assert.equal(s.lateText(TUE_10 + min, TUE_10), null);
+  assert.equal(s.lateText(TUE_10 - 2 * min, TUE_10), 'A qualquer momento');
+  assert.equal(s.lateText(at(17, 9, 30), TUE_10), 'Devia ter começado às 09:30');
+  assert.equal(s.fmtSoon(at(17, 9, 30), TUE_10), 'Devia ter começado às 09:30');
+  assert.equal(s.fmtSoon(at(21, 20), TUE_10), 'Sáb., 20:00');
+  assert.equal(s.countdown(at(17, 9, 30), TUE_10), 'Devia ter começado às 09:30');
+  assert.equal(s.isNotScheduled({ status: 409, code: 'not_scheduled' }), true);
+  assert.equal(s.isNotScheduled({ status: 409, extra: { code: 'not_scheduled' } }), true);
+  assert.equal(s.isNotScheduled({ status: 409, code: 'too_early' }), false);
+  assert.equal(s.scheduleErrorText({ status: 409, code: 'not_scheduled', message: 'Esta Txillada já não está agendada.' }), 'Esta Txillada já não está agendada.');
+  assert.equal(s.fromReminder({ txilladaId: 't1', title: 'x', scheduleId: 's1', reminded: true }), true);
+  assert.equal(tx.noticeText({ txilladaId: 't1', title: 'x', scheduleId: 's1', reminded: true }), 'começou a Txillada que pediste para lembrar');
+  const now = s.scheduleNoticeText('txillada_scheduled_now', { scheduleId: 's1', title: 'Bom dia', reminders: 12 }, TUE_10);
+  assert.equal(now.sub, 'Bom dia. 12 pessoas pediram para ser lembradas. Toca para começar');
+  assert.equal(s.scheduleNoticeText('txillada_scheduled_now', { scheduleId: 's1', reminders: 0 }, TUE_10).sub, 'Toca para começar');
 });
 
 test('os textos novos: sem emojis nem travessões', () => {

@@ -23,7 +23,7 @@ import { colors, dark as D } from '@/lib/theme';
 import { errorText } from '@/lib/txillada';
 import { handOff } from '@/lib/txilladaRoom';
 import {
-  canStartNow, countdown, earliest, fmtWhen, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
+  canStartNow, countdown, earliest, errorCode, isNotScheduled, fmtWhen, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
   scheduleView, viewText, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
 
@@ -96,7 +96,7 @@ export default function ScheduledTxilladaScreen() {
       enter(r.txillada.id, { token: r.token, url: r.url });
     } catch (e) {
       const err = e instanceof ApiError ? e : null;
-      const code = err?.code ?? (typeof err?.extra?.code === 'string' ? err.extra.code : undefined);
+      const code = errorCode(err);
       // Ainda cedo para o servidor (a hora do telemóvel estava atrasada): pergunta e muda a hora para agora.
       if (err?.status === 409 && code === 'too_early' && !early) {
         setBusy(null);
@@ -114,6 +114,8 @@ export default function ScheduledTxilladaScreen() {
         return;
       }
       setMsg(err && (err.status === 400 || code) ? scheduleErrorText(err) : err ? errorText(err.status, err.message) : errorText(undefined));
+      // Já não está à espera (outro aparelho começou ou cancelou): o cartão vai buscar o estado de agora.
+      if (isNotScheduled(err)) void q.refetch();
     } finally {
       setBusy(null);
     }
@@ -136,7 +138,9 @@ export default function ScheduledTxilladaScreen() {
       qc.setQueryData<ScheduledTxillada>(scheduleKey(cur.id), { ...cur, status: 'cancelled' });
       refresh();
     } catch (e) {
-      setMsg(scheduleErrorText(e instanceof ApiError ? e : null));
+      const err = e instanceof ApiError ? e : null;
+      setMsg(scheduleErrorText(err));
+      if (isNotScheduled(err)) void q.refetch();
     } finally {
       setBusy(null);
     }
