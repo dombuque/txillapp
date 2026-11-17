@@ -4,16 +4,18 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { limitBuffer } from '@/lib/videoMemory';
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, isTcheka, type Post } from '@/lib/api';
+import { api, isTcheka, type Badged, type Post } from '@/lib/api';
+import { useStableFrame } from '@/lib/useStableFrame';
 import { extraApi } from '@/lib/api.extra';
 import { track } from '@/lib/analytics';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
+import { BackButton } from './BackButton';
 import { NameWithBadge } from './NameWithBadge';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
@@ -27,8 +29,8 @@ import { canDownload } from '@/lib/tchekaDownload';
 import type { Track } from '@/lib/api.music';
 import { MusicPicker } from './MusicPicker';
 
-/** Uma conversa (pessoa ou grupo) na grelha de partilha. */
-interface Target {
+/** Uma conversa (pessoa ou grupo) na grelha de partilha. Pessoas: com o selo de verificado (`verified`, `verifiedTier`). */
+interface Target extends Badged {
   key: string;
   kind: 'user' | 'group';
   id: string; // @utilizador ou id do grupo
@@ -85,7 +87,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     const people = (direct.data ?? []).filter((c) => !c.request).map((c): Target => {
       const m = mins(c.presence?.lastSeen);
       return {
-        key: `u:${c.username}`, kind: 'user', id: c.username, name: c.displayName,
+        key: `u:${c.username}`, kind: 'user', id: c.username, name: c.displayName, verified: c.verified, verifiedTier: c.verifiedTier,
         avatars: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
         online: !!c.presence?.online, recent: !c.presence?.online && m !== null && m < 60 ? Math.max(1, m) : null, at: c.lastMessage.at,
       };
@@ -104,7 +106,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     const hits = recents.filter((r) => r.name.toLowerCase().includes(t) || r.id.toLowerCase().includes(t));
     const more = (found.data ?? [])
       .filter((p) => !have.has(`u:${p.username}`))
-      .map((p): Target => ({ key: `u:${p.username}`, kind: 'user', id: p.username, name: p.displayName, avatars: [{ name: p.displayName, username: p.hasAvatar ? p.username : undefined }], online: false, recent: null, at: '' }));
+      .map((p): Target => ({ key: `u:${p.username}`, kind: 'user', id: p.username, name: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier, avatars: [{ name: p.displayName, username: p.hasAvatar ? p.username : undefined }], online: false, recent: null, at: '' }));
     return [...hits, ...more];
   }, [t, recents, found.data]);
 
@@ -235,7 +237,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
                   {x.recent !== null && <View style={st.recent}><Text style={{ fontSize: 11, fontWeight: '700', lineHeight: 16, color: '#047857' }}>{x.recent}m</Text></View>}
                   {on && <View style={st.picked}><Icon name="check" size={32} strokeWidth={3} color="#fff" /></View>}
                 </View>
-                <Text style={st.name} numberOfLines={2}>{x.name}</Text>
+                <NameWithBadge name={x.name} who={x} center numberOfLines={2} style={st.name} containerStyle={{ width: '100%' }} />
               </Pressable>
             );
           })}
@@ -294,15 +296,20 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
 }) {
   const [pickMusic, setPickMusic] = useState(false);
   const insets = useSafeAreaInsets();
-  const win = useWindowDimensions();
   const [sel, setSel] = useState<number | null>(null);
   const [pick, setPick] = useState(false);
   /** O texto a escrever por cima (`index` null: um novo). */
   const [textEdit, setTextEdit] = useState<{ index: number | null; layer: TextLayer } | null>(null);
   const counts = countLayers(stickers);
+  // A escrever (a legenda ou um texto por cima): a moldura fica do tamanho que tinha sem o teclado (lib/useStableFrame) e
+  // só a barra da legenda sobe para cima dele. Antes, no iPhone, a imagem encolhia com a janela ao abrir o teclado.
+  const [capFocus, setCapFocus] = useState(false);
+  const { screen, lift } = useStableFrame(capFocus || !!textEdit);
+  const bottomPad = Math.max(insets.bottom, 16);
+  const raise = capFocus ? Math.max(0, lift - bottomPad + 8) : 0;
   // Moldura 9:16 com tamanho real (só `aspectRatio` colapsa a zero no Safari): cabe na largura e deixa espaço aos controlos.
-  const ph = Math.max(240, Math.min(win.height - insets.top - insets.bottom - 260, 640));
-  const pw = Math.min(360, win.width - 32, Math.round(ph * 9 / 16));
+  const ph = Math.max(240, Math.min(screen.h - insets.top - insets.bottom - 260, 640));
+  const pw = Math.min(360, screen.w - 32, Math.round(ph * 9 / 16));
   const m = post.media[0];
   const still = m?.kind === 'video' ? abs(m.posterUrl) : sized(m?.url, 1080);
   function addSticker(id: string) {
@@ -326,15 +333,15 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
     setSel(layer.text ? at : null);
   }
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 16) }}>
+    <View style={{ height: screen.h, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: bottomPad }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 8 }}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar" style={st.back}><Icon name="back" size={24} color="#fff" /></Pressable>
+        <BackButton onPress={onBack} color="#fff" />
         <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
         {sel !== null && stickers[sel]
           ? <StickerToolbar item={stickers[sel]} onChange={(p) => setStickers(stickers.map((x, i) => (i === sel ? p : x)))} onDelete={() => { setStickers(stickers.filter((_, i) => i !== sel)); setSel(null); }} onDone={() => setSel(null)} />
           : <>
-            <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? 'Mudar a música' : 'Adicionar música'} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={22} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
-            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, counts.stickers > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={counts.stickers > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? 'Mudar a música' : 'Adicionar música'} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={24} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, counts.stickers > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={24} color={counts.stickers > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
             <Pressable onPress={() => { setSel(null); if (counts.texts < MAX_TEXT_LAYERS) setTextEdit({ index: null, layer: newTextLayer() }); }} disabled={counts.texts >= MAX_TEXT_LAYERS} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" style={[st.back, counts.texts > 0 && { backgroundColor: '#fff' }]}><Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>Aa</Text></Pressable>
           </>}
       </View>
@@ -353,15 +360,15 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
       {pick && <StickerPicker onClose={() => setPick(false)} onPick={addSticker} />}
       {textEdit && <TextLayerEditor initial={textEdit.layer} boxW={pw} onDone={textDone} />}
       {pickMusic && <MusicPicker hint={caption || post.body} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
+      <View style={[{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }, raise ? { transform: [{ translateY: -raise }], backgroundColor: 'rgba(0,0,0,0.85)', paddingBottom: 8 } : null]}>
         {music ? (
           <View style={st.musicChip}>
             <Icon name="music" size={16} color="#fff" />
             <Text style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
-            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
+            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={18} color="#fff" strokeWidth={2.5} /></Pressable>
           </View>
         ) : null}
-        <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder="Adicionar legenda…" placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel="Legenda" style={st.cap} />
+        <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder="Adicionar legenda…" placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel="Legenda" onFocus={() => setCapFocus(true)} onBlur={() => setCapFocus(false)} style={st.cap} />
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
           {([['all', 'Os teus seguidores', 'square-plus'], ['close_friends', 'Amigos próximos', 'heart']] as const).map(([v, label, ic]) => {
             const on = audience === v;
@@ -394,7 +401,7 @@ const st = StyleSheet.create({
   online: { position: 'absolute', right: 2, bottom: 2, width: 16, height: 16, borderRadius: 8, borderWidth: 3, borderColor: '#fff', backgroundColor: EMERALD },
   recent: { position: 'absolute', right: 0, bottom: -4, borderRadius: 999, borderWidth: 2, borderColor: '#fff', backgroundColor: '#d1fae5', paddingHorizontal: 6 },
   picked: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 36, backgroundColor: 'rgba(214,51,79,0.7)', alignItems: 'center', justifyContent: 'center' },
-  name: { width: '100%', textAlign: 'center', fontSize: 13, fontWeight: '500', lineHeight: 16, color: colors.zinc800 },
+  name: { textAlign: 'center', fontSize: 13, fontWeight: '500', lineHeight: 16, color: colors.zinc800 },
   note: { marginHorizontal: 16, marginBottom: 4, borderRadius: 12, backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc800 },
   bottom: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 16 },
   msg: { height: 48, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 20, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never, marginHorizontal: 4 },
