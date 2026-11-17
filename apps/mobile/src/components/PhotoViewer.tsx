@@ -5,8 +5,9 @@ import { Animated, FlatList, PanResponder, Pressable, StyleSheet, Text, View, us
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Badged } from '@/lib/api';
-import type { PhotoTag } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
+import { isViewerVideo, viewerStart, type ViewerPhoto } from '@/lib/viewerMedia';
+import { CarouselVideo } from './CarouselVideo';
 import { colors } from '@/lib/theme';
 import { CheersPour } from './CheersPour';
 import { SoundWaves } from './SoundWaves';
@@ -21,7 +22,7 @@ import { useViewerKeys } from '@/lib/desktopHooks';
 import { wheelFactor } from '@/lib/zoomMath';
 import { t } from '@/lib/i18n';
 
-export interface ViewerPhoto { url: string; width?: number | null; height?: number | null; tags?: PhotoTag[] }
+export type { ViewerPhoto } from '@/lib/viewerMedia';
 
 /** Foto inteira (sem cortes) com as etiquetas das pessoas nas posições certas. */
 /**
@@ -137,12 +138,14 @@ function Photo({ photo, w, h, index, total, onTag, active = false }: { photo: Vi
 
 /**
  * Foto em ecrã completo, como no X: fundo preto, deslizar entre as fotos, fechar com o X ou arrastando para baixo;
- * por baixo o autor, o texto e a barra de ações (`footer`).
+ * por baixo o autor, o texto e a barra de ações (`footer`). Os vídeos da publicação vêm pela ordem dela, entre as fotos
+ * (lib/viewerMedia): o que está à vista toca sozinho em ciclo (com o leitor do feed, um só de cada vez), o toque pausa.
  */
-export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0, music, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; /** A música da publicação: enquanto toca (com som), as ondas atravessam a foto. */ music?: Track | null; onClose: () => void }) {
+export function PhotoViewer({ photos, start: asked = 0, author, body, footer, burst = 0, music, muteVideo = false, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; /** A música da publicação: enquanto toca (com som), as ondas atravessam a foto. */ music?: Track | null; /** Os vídeos ficam sem som (a publicação tem música à parte ou o som foi tirado: `musicPlayback`). */ muteVideo?: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
+  const start = viewerStart(asked, photos.length);
   const [i, setI] = useState(start);
   const [pagerH, setPagerH] = useState(Math.round(height * 0.6));
   const [footH, setFootH] = useState(96);
@@ -208,11 +211,16 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
             initialScrollIndex={start}
             onScroll={(e) => { const k = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)); if (k >= 0 && k < n) setI(k); }}
             scrollEventThrottle={32}
-            renderItem={({ item, index }) => <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} active={index === i} />}
-            extraData={i}
+            renderItem={({ item, index }) => isViewerVideo(item)
+              // Vídeo: inteiro (sem cortes, sem zoom), só o que está à vista tem leitor e toca.
+              ? <CarouselVideo url={item.url} poster={item.posterUrl} durationMs={item.durationMs} width={width} height={pagerH} active={index === i} inView mute={muteVideo} viewer />
+              : <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} active={index === i} />}
+            extraData={`${i}|${pagerH}`}
           />
-          {music ? <ViewerWaves music={music} /> : null}
+          {/* Ondas da música só por cima das fotos (num vídeo já há movimento que chegue, como no feed). */}
+          {music && !isViewerVideo(photos[i]) ? <ViewerWaves music={music} /> : null}
         </Animated.View>
+        {/* Com a fila de ações à direita, a seta «seguinte» fica à esquerda dela (não por cima do brindar). */}
         {mouse && n > 1 ? (
           <>
             {i > 0 ? (
@@ -221,7 +229,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
               </Pressable>
             ) : null}
             {i < n - 1 ? (
-              <Pressable onPress={() => go(i + 1)} style={(st) => [styles.side, { right: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel={t('Foto seguinte')} {...({ dataSet: { tip: t('Foto seguinte (→)') } } as object)}>
+              <Pressable onPress={() => go(i + 1)} style={(st) => [styles.side, { right: footer ? 84 : 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel={t('Foto seguinte')} {...({ dataSet: { tip: t('Foto seguinte (→)') } } as object)}>
                 <Icon name="chevron-right" size={26} color="#fff" strokeWidth={2.4} />
               </Pressable>
             ) : null}

@@ -50,7 +50,8 @@ test('CarouselVideo: o leitor só se cria no componente vivo; o parado mostra s�
   assert.ok(idle.length > 0);
   assert.doesNotMatch(idle, /useVideoPlayer|VideoView/, 'sem leitor fora de vista');
   const live = s.slice(s.indexOf('function NativeVideoLive'));
-  assert.match(live, /useVideoPlayer\(src, \(p\) => \{ limitBuffer\(p, 'feed'\);/);
+  // No visor em ecrã inteiro o mesmo leitor usa o perfil 'full' (um só vídeo à vista).
+  assert.match(live, /useVideoPlayer\(src, \(p\) => \{ limitBuffer\(p, viewer \? 'full' : 'feed'\);/);
 });
 
 test('conversa: o vídeo da bolha só cria o leitor depois do toque', () => {
@@ -80,7 +81,7 @@ test('cada useVideoPlayer da app põe um teto de memória logo no setup', () => 
       // O setup pode continuar na linha seguinte (reels.tsx).
       const at = s.indexOf(m[0]);
       const head = s.slice(at, at + 200);
-      assert.match(head, /limitBuffer\((p|x), ('(feed|reel|chat|full)'|inModal \? 'full' : 'chat')\)/, path.relative(ROOT, f));
+      assert.match(head, /limitBuffer\((p|x), ('(feed|reel|chat|full)'|inModal \? 'full' : 'chat'|viewer \? 'full' : 'feed')\)/, path.relative(ROOT, f));
     }
   }
   assert.ok(n >= 8, `encontrou ${n} leitores`);

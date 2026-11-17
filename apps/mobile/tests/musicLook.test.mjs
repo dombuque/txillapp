@@ -262,7 +262,8 @@ test('ondas: só onde se juntou música (publicações, mimos, notas e o visor d
 test('visor de fotos: as mesmas ondas enquanto a música da publicação toca com som', () => {
   const pv = read('components', 'PhotoViewer.tsx');
   assert.match(pv, /music\?: Track \| null/);
-  assert.match(pv, /\{music \? <ViewerWaves music=\{music\} \/> : null\}/);
+  // Só por cima das fotos: num vídeo do visor, não (como no feed).
+  assert.match(pv, /\{music && !isViewerVideo\(photos\[i\]\) \? <ViewerWaves music=\{music\} \/> : null\}/);
   assert.match(pv, /const live = useUrlLive\(music\.url\);/);
   assert.match(pv, /<SoundWaves active=\{live && !muted\}/);
 });
