@@ -10,7 +10,13 @@ if ('serviceWorker' in navigator) {
   });
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then(function (reg) {
-      var check = function () { if (document.visibilityState === 'visible') reg.update().catch(function () {}); };
+      // Sem registo (service worker bloqueado ou indisponível: modo privado, definições, testes) não há nada a atualizar.
+      // Antes o reg.update() rebentava («reading 'update'») a cada vez que a app voltava a estar à vista.
+      if (!reg || typeof reg.update !== 'function') return;
+      var check = function () {
+        if (document.visibilityState !== 'visible') return;
+        try { var p = reg.update(); if (p && p.catch) p.catch(function () {}); } catch (x) { /* sem service worker */ }
+      };
       document.addEventListener('visibilitychange', check);
       window.addEventListener('focus', check);
       window.addEventListener('pageshow', check);
