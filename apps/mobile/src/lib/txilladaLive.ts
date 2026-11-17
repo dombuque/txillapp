@@ -25,7 +25,7 @@ export function loadLiveKit(): Promise<LK> {
   })().catch((e) => {
     loaded = null;
     console.warn('[txillada] livekit', e);
-    throw new Error('A Txillada chega na próxima versão da app. Atualiza o Txillapp.');
+    throw new Error('A Txillada não funciona nesta versão da app. Atualiza o Txillapp.');
   });
   return loaded.then((m) => m.lk);
 }

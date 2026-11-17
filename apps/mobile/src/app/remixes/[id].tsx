@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { LoadMore } from '@/components/LoadMore';
@@ -38,7 +38,8 @@ export default function RemixesPage() {
   const cols = 3;
   const side = Math.floor((Math.min(width, 640) - 4) / cols);
   const p = orig.data;
-  const canDuet = !!p && isTcheka(p) && p.canRemix === true;
+  // Na app nativa não há gravação lado a lado: o botão só aparece no site e no PWA (ver remixActions).
+  const canDuet = Platform.OS === 'web' && !!p && isTcheka(p) && p.canRemix === true;
 
   const cell = ({ item }: { item: Post }) => {
     const m = item.media[0];

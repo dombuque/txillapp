@@ -403,7 +403,7 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
 async function dial(g: number, hint: CallPeer, video: boolean): Promise<void> {
   holdStream(true);
   if (!rtc.rtcSupported()) {
-    finish('failed', { error: 'As chamadas ainda não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
+    finish('failed', { error: 'As chamadas não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
     return;
   }
   let local: unknown;
@@ -501,7 +501,7 @@ export async function acceptCall(withVideo = state.video): Promise<void> {
   set({ phase: 'connecting', local: null, camOn: withVideo, speaker: initialSpeaker(withVideo || state.video) });
   if (!rtc.rtcSupported()) {
     void callsApi.decline(id).catch(() => undefined);
-    finish('failed', { error: 'As chamadas ainda não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
+    finish('failed', { error: 'As chamadas não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
     return;
   }
   let local: unknown;

@@ -1,35 +1,24 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { Group, Line } from '@/components/Lines';
+import { Group } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
-import { CHANNEL } from '@/lib/distribution';
-import { showComingSoon } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 
 /**
- * Idioma e traduções. A app ainda só existe em português (o site tem pt-MZ e en, com as frases em apps/web/src/lib/i18n):
- * mostra a lista como no site, com o português escolhido e o inglês "em breve" até a app ter o mesmo sistema de idiomas.
- * Na versão das lojas não há "em breve" (App Store 2.1/2.2): só o português.
+ * O idioma da app (a ligação «Idioma» do rodapé no computador). A app está em português: mostra só o idioma que existe,
+ * sem idiomas nem traduções por vir (App Store 2.1/2.2, Google Play).
  */
-const SOON = showComingSoon(CHANNEL);
-
 export default function Language() {
   return (
-    <StackPage title="Idioma e traduções">
+    <StackPage title="Idioma">
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <Group title="Idioma da app">
-          <Pressable accessibilityRole="radio" accessibilityState={{ checked: true }} style={st.row}>
+          <View accessibilityRole="radio" accessibilityState={{ checked: true }} style={st.row}>
             <Text style={st.label}>Português (Moçambique)</Text>
             <View style={[st.radio, { borderColor: colors.brand, backgroundColor: colors.brand }]}><Icon name="check" size={14} strokeWidth={3} color="#fff" /></View>
-          </Pressable>
-          {SOON ? <Line icon="globe" label="English" value="em breve na app" /> : null}
+          </View>
         </Group>
-        {SOON ? (
-          <Group title="Traduções">
-            <Line icon="globe" label="Traduzir publicações" value="Em breve: ver posts e comentários noutro idioma com um toque" />
-          </Group>
-        ) : null}
-        <Text style={st.foot}>{SOON ? 'O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.' : 'A app está em português.'}</Text>
+        <Text style={st.foot}>A app está em português.</Text>
       </ScrollView>
     </StackPage>
   );

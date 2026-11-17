@@ -170,14 +170,15 @@ test('cartão do convite: o desenho e as cores do selo são os do VerifiedBadge 
   }
 });
 
-test('Ajuda: «O que querem dizer as cores do selo?» (vermelho do Txillapp, azul da verificação paga quando existir)', () => {
+test('Ajuda: «O que querem dizer as cores do selo?» (vermelho do Txillapp, azul da verificação paga)', () => {
   const help = read('app/help.tsx');
   const m = /\{ q: 'O que querem dizer as cores do selo\?', a: '([^']+)' \}/.exec(help);
   assert.ok(m, 'a pergunta está na Ajuda');
   const a = m[1];
   assert.match(a, /vermelho[^.]*Txillapp[^.]*mérito[^.]*pedido de verificação foi aceite/);
   assert.match(a, /conta oficial do Txillapp também tem o selo vermelho/);
-  assert.match(a, /azul é o da verificação paga, quando existir\./);
+  assert.match(a, /azul é o da verificação paga\./);
+  assert.doesNotMatch(a, /quando existir|em breve/i);
   // Não promete nem vende nada: nada de preços, comprar ou subscrever já.
   assert.doesNotMatch(a, /compra|preço|subscreve|Txills|loja/i);
 });

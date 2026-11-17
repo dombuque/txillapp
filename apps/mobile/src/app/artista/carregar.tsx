@@ -101,7 +101,7 @@ export default function CarregarMusica() {
                 </Pressable>
               ) : (
                 <View style={[ast.card, { marginTop: 0 }]}>
-                  <Text style={ast.cardSub}>Nesta versão da app ainda não dá para escolher ficheiros de música. Carrega no site, com a mesma conta:</Text>
+                  <Text style={ast.cardSub}>Os ficheiros de música carregam-se no site, com a mesma conta:</Text>
                   <Text style={[ast.cardSub, { color: colors.brand, fontWeight: '600' }]} onPress={() => void Linking.openURL('https://txillapp.com/artista/carregar')}>txillapp.com/artista/carregar</Text>
                 </View>
               )}

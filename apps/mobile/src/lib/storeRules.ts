@@ -43,8 +43,6 @@ export const askButtonLabel = (os: string, other: string): string => (os === 'io
  */
 export const googleSignInAllowed = (os: string, channel: Channel): boolean => os === 'web' && channel !== 'appstore';
 
-/** Na versão das lojas não se mostram funcionalidades «em breve» (App Store 2.1/2.2, Google Play: funcionalidade mínima). */
-export const showComingSoon = (channel: Channel): boolean => !isStoreChannel(channel);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Compras (App Store 3.1.1 e 3.1.3; política de Pagamentos do Google Play)

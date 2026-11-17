@@ -53,7 +53,7 @@ export function VenueTxills({ v }: { v: Venue }) {
       <View style={st.balance}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>Saldo do local</Text>
         <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -1, color: '#fff' }}>{fmt(balance)} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(balance)}</Text></Text>
-        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>Converter vibes em dinheiro ainda não está disponível. Por agora as vibes recebidas ficam no saldo do local.</Text>
+        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>As vibes recebidas ficam no saldo do local e não se trocam por dinheiro.</Text>
       </View>
 
       <View style={st.card}>

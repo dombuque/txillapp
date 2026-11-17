@@ -71,7 +71,6 @@ export function VenueBoost({ v }: { v: Venue }) {
 
   const price = priceFor(o.packages, pkg, radius);
   const short = price != null && o.balance < price;
-  const mzn = o.payments.find((p) => p.id === 'mzn');
   const pkgInfo = o.packages.find((p) => p.id === pkg);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: boostKey(v.slug) }), qc.invalidateQueries({ queryKey: optionsKey(v.slug) }), qc.invalidateQueries({ queryKey: ['venue', v.slug] })]);
 
@@ -195,13 +194,6 @@ export function VenueBoost({ v }: { v: Venue }) {
               <Text style={[st.optTitle, { flex: 1 }]}>Vibes do local</Text>
               <Text style={st.optSub}>Saldo: {txills(o.balance)}</Text>
             </View>
-            {mzn && !mzn.enabled ? (
-              <View style={[st.option, { opacity: 0.5 }]} accessibilityState={{ disabled: true }}>
-                <Icon name="phone" size={18} color={colors.zinc700} />
-                <Text style={[st.optTitle, { flex: 1 }]}>{mzn.label}</Text>
-                <Text style={st.optSub}>Brevemente</Text>
-              </View>
-            ) : null}
           </View>
 
           <View style={st.total} accessibilityLiveRegion="polite">

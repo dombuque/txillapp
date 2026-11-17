@@ -33,7 +33,7 @@ export function RemixMessage({ title, text, action, onClose }: { title: string; 
  * O estúdio do dueto (/tcheka/nova?dueto=<postId>): ecrã dividido com a câmara à esquerda e a tcheka original à direita,
  * a tocar enquanto se grava; a montagem sai lado a lado, com o som do original e (se ligado) o microfone. Depois: legenda,
  * «Som do original» na publicação e «Publicar» (em segundo plano, como as outras publicações).
- * No telemóvel (nativo) ainda não há gravação lado a lado: mostra «O dueto ainda só está no site».
+ * Na app nativa não há gravação lado a lado nem botão «Fazer dueto»; quem chega por uma ligação vê «Os duetos gravam-se no site».
  */
 export function DuetStudio({ postId }: { postId: string }) {
   const router = useRouter();
@@ -53,8 +53,8 @@ export function DuetStudio({ postId }: { postId: string }) {
   if (Platform.OS !== 'web') {
     return (
       <RemixMessage
-        title="O dueto ainda só está no site"
-        text="Para gravar ao lado desta tcheka, abre o Txillapp no browser do telemóvel ou do computador. Em breve chega à app."
+        title="Os duetos gravam-se no site"
+        text="Para gravar ao lado desta tcheka, abre o Txillapp no browser do telemóvel ou do computador."
         action={{ label: 'Abrir no site', onPress: () => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${duetHref(postId)}`) }}
         onClose={close}
       />

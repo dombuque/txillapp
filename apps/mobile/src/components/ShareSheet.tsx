@@ -156,7 +156,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   // Escolher o status abre primeiro a pré-visualização: vês como fica, escreves uma legenda e só depois partilhas.
   function toStory(audience: 'all' | 'close_friends') {
     // A geleira partilhada ainda não tem imagem para o mimo: vai pelas conversas ou pelo link.
-    if (!canStory) return setNote(post.geleira ? 'A geleira ainda não vai para o mimo: envia-a numa conversa ou partilha o link' : 'Só se partilham no mimo publicações com foto ou vídeo');
+    if (!canStory) return setNote(post.geleira ? 'A geleira não vai para o mimo: envia-a numa conversa ou partilha o link' : 'Só se partilham no mimo publicações com foto ou vídeo');
     setPreview(audience);
   }
   async function publishStory() {
