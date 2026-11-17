@@ -4,6 +4,7 @@ import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withDe
 import { HEADER_AVATAR_BOTTOM, HEADER_AVATAR_LEFT, HEADER_AVATAR_SIZE } from '@/components/ChatHeader';
 import { Icon } from '@/components/Icon';
 import { peerBioLabel, peerBioLines, peerNoteLabel, peerNoteLines, type PeerBubble } from '@/lib/chatPeerNote';
+import { NOTE_WHITE, noteTone } from '@/lib/noteLook';
 import { colors } from '@/lib/theme';
 
 // Onde ficam as bolinhas e o balão, a contar do fundo do cabeçalho (y = 0) e da esquerda do ecrã. A foto acaba
@@ -68,12 +69,15 @@ export function PeerNoteBubble({ bubble, name, online, open, reduceMotion, onPre
   const isBio = bubble.kind === 'bio';
   const { text, track } = isBio ? { text: bubble.text, track: '' } : peerNoteLines(bubble.note);
   const label = isBio ? peerBioLabel(name, bubble.text) : peerNoteLabel(name, bubble.note);
+  // A cor da bolha que a pessoa escolheu para a nota (lib/noteLook); a bio fica sempre na branca.
+  const tone = noteTone(isBio ? null : bubble.note.color);
+  const tinted = tone !== NOTE_WHITE;
   const maxWidth = Math.min(320, width - BUBBLE_LEFT - 16);
   const hidden = !open;
   return (
     <View pointerEvents="box-none" style={st.area}>
-      <Animated.View pointerEvents="none" style={[st.dot, { width: DOT1.size, height: DOT1.size, borderRadius: DOT1.size / 2, left: DOT1.left, top: DOT1.top }, dot1Style]} />
-      <Animated.View pointerEvents="none" style={[st.dot, { width: DOT2.size, height: DOT2.size, borderRadius: DOT2.size / 2, left: DOT2.left, top: DOT2.top }, dot2Style]} />
+      <Animated.View pointerEvents="none" style={[st.dot, { width: DOT1.size, height: DOT1.size, borderRadius: DOT1.size / 2, left: DOT1.left, top: DOT1.top }, tinted && { backgroundColor: tone.bg }, dot1Style]} />
+      <Animated.View pointerEvents="none" style={[st.dot, { width: DOT2.size, height: DOT2.size, borderRadius: DOT2.size / 2, left: DOT2.left, top: DOT2.top }, tinted && { backgroundColor: tone.bg }, dot2Style]} />
       <Animated.View pointerEvents={hidden ? 'none' : 'box-none'} style={[st.bubbleSlot, { maxWidth }, bubbleStyle]}>
         <Pressable
           onPress={onPress}
@@ -83,19 +87,20 @@ export function PeerNoteBubble({ bubble, name, online, open, reduceMotion, onPre
           accessibilityElementsHidden={hidden}
           importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
           aria-hidden={hidden}
-          style={({ pressed }) => [st.bubble, pressed && { backgroundColor: colors.zinc100 }]}
+          style={({ pressed }) => [st.bubble, tinted && { backgroundColor: tone.bg }, pressed && (tinted ? { opacity: 0.85 } : { backgroundColor: colors.zinc100 })]}
         >
           {!!text && (
             <View style={st.line}>
               {online ? <View style={st.online} /> : null}
               {isBio ? <Icon name="user" size={14} strokeWidth={2} color={colors.zinc500} /> : null}
-              <Text style={isBio ? st.bio : st.text} numberOfLines={isBio ? peerBioLines(width) : 2} ellipsizeMode="tail">{text}</Text>
+              <Text style={[isBio ? st.bio : st.text, tinted && { color: tone.text }]} numberOfLines={isBio ? peerBioLines(width) : 2} ellipsizeMode="tail">{text}</Text>
             </View>
           )}
           {!!track && (
             <View style={st.line}>
               {online && !text ? <View style={st.online} /> : null}
-              <Text style={text ? st.track : st.text} numberOfLines={1}>{track}</Text>
+              {!isBio && !bubble.note.music && bubble.note.place?.name ? <Icon name="map-pin" size={12} strokeWidth={2} color={tinted ? tone.sub : colors.zinc500} /> : null}
+              <Text style={[text ? st.track : st.text, tinted && { color: text ? tone.sub : tone.text }]} numberOfLines={1}>{track}</Text>
             </View>
           )}
         </Pressable>

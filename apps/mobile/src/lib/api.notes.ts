@@ -1,9 +1,15 @@
 import { post, raw, type Badged } from '@/lib/api';
 import { musicPayload, type Track } from '@/lib/api.music';
+import type { ChatGif } from '@/lib/gifs';
+import type { NoteAudience, NoteColor } from '@/lib/noteLook';
 
-export type NoteAudience = 'mutual' | 'close_friends';
+export type { NoteAudience, NoteColor } from '@/lib/noteLook';
+/** O local de uma nota: o nome e, se houver, a posição (arredondada pelo servidor). */
+export interface NotePlace { name: string; lat?: number; lng?: number }
+/** O que se publica numa nota: texto (até 60), música, cor da bolha, local, GIF e público. */
+export interface NoteDraft { body: string; music?: Track | null; color?: NoteColor | null; place?: (NotePlace & { coarse?: boolean }) | null; gif?: ChatGif | null; audience?: NoteAudience }
 /** Igual ao tipo `Note` do site. */
-export interface Note extends Badged { music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean }
+export interface Note extends Badged { music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean; color?: NoteColor | null; place?: NotePlace | null; gif?: ChatGif | null }
 /** Alguém com quem já conversei, sem nota: aparece na faixa a seguir às notas. */
 export interface NotePerson extends Badged { username: string; displayName: string; hasAvatar: boolean; lastAt: string }
 
@@ -13,7 +19,8 @@ export const notesApi = {
    * pelas conversas mais em baixo na lista, no máximo 30). Servidores antigos não mandam `people`.
    */
   list: (): Promise<{ mine: Note | null; items: Note[]; people?: NotePerson[] }> => raw('/notes'),
-  set: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: musicPayload(music) }) }),
+  set: (d: NoteDraft): Promise<void> =>
+    raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body: d.body, music: musicPayload(d.music ?? null), color: d.color ?? null, place: d.place ?? null, gif: d.gif ?? null, audience: d.audience ?? 'mutual' }) }),
   remove: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   cheer: (username: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/notes/${encodeURIComponent(username)}/cheer`, post({})),
   reply: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),

@@ -9,7 +9,11 @@
 export const POLISH_CSS = `[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="switch"],[role="checkbox"],[role="radio"],a[href]{cursor:pointer}
 [aria-disabled="true"]{cursor:default}
 [role="button"]:focus-visible,[role="link"]:focus-visible,[role="tab"]:focus-visible,[role="menuitem"]:focus-visible,[role="switch"]:focus-visible,a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid #d6334f!important;outline-offset:2px}
-input:focus-visible,textarea:focus-visible{outline:2px solid rgba(214,51,79,.45)!important;outline-offset:1px}`;
+input:focus-visible,textarea:focus-visible{outline:2px solid rgba(214,51,79,.45)!important;outline-offset:1px}
+[data-pill] input:focus-visible,[data-pill] textarea:focus-visible{outline:none!important}
+[data-pill]:focus-within{box-shadow:0 0 0 2px rgba(214,51,79,.45)}`;
+// `data-pill` (dataSet={{ pill: '1' }}): um campo dentro de uma pílula (a resposta à nota): o anel do foco fica à volta da
+// pílula inteira, não do campo lá dentro.
 
 /**
  * Que dica pôr neste elemento (ou null se não precisa): a `data-tip` que o componente pediu (o react-native-web não passa

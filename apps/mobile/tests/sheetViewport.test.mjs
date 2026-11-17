@@ -27,7 +27,8 @@ test('sheetHeights: sem teclado 78% / 85% do ecrã; com teclado nunca maior do q
 test('a Sheet usa a zona visível só na web e mantém a altura do teclado do nativo (sem a somar duas vezes)', () => {
   const s = readFileSync(path.join(ROOT, 'src', 'components', 'Sheet.tsx'), 'utf8');
   assert.match(s, /const box = Platform\.OS === 'web' && typeof window !== 'undefined' \? sheetViewport\(vv, webWindowH\(\), window\.innerWidth\) : null;/);
-  assert.match(s, /box && \{ position: 'absolute', left: 0, right: 0, top: box\.top, height: box\.height, flex: 0 \}/);
+  // O topo desconta a página que o Safari deslocou (lib/chatKeyboard `pinnedTop`, o mesmo das conversas).
+  assert.match(s, /box && \{ position: 'absolute', left: 0, right: 0, top: pinnedTop\(box\.top, parentTop\), height: box\.height, flex: 0 \}/);
   // Com a zona visível, o teclado já está fora da conta: não se soma o kb (que no web é sempre 0) nem a barra de baixo.
   assert.match(s, /paddingBottom: box \? 12 : Math\.max\(insets\.bottom, 16\) \+ \(kb \? kb - insets\.bottom : 0\)/);
   assert.match(s, /full \? \{ height: heights\.full \} : \{ maxHeight: heights\.max \}/);

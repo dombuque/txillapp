@@ -7,6 +7,7 @@ import { useDesktop } from '@/lib/desktop';
 import { menuPosition, type Rect } from '@/lib/desktopKeys';
 import { useOverlay } from '@/lib/overlays';
 import { sheetHeights, sheetViewport } from '@/lib/sheetViewport';
+import { pinnedTop } from '@/lib/chatKeyboard';
 import { Icon } from './Icon';
 import { ListReset } from './ListReset';
 import { Button } from './ui/Button';
@@ -71,9 +72,19 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
   const vv = useVisibleViewport();
   const box = Platform.OS === 'web' && typeof window !== 'undefined' ? sheetViewport(vv, webWindowH(), window.innerWidth) : null;
   const heights = sheetHeights(h, box);
+  // Onde está o contentor da folha (o topo, contado da janela). O Safari do iPhone desloca a página ao abrir o teclado e
+  // nem sempre a deixa voltar ao topo (`scrollTo(0, 0)` ignorado): sem descontar isto a folha ficava acima da zona visível
+  // e sobrava uma faixa branca entre o campo e o teclado. O mesmo método das conversas (lib/chatKeyboard `pinnedTop`).
+  const rootRef = useRef<HTMLElement | null>(null);
+  const [parentTop, setParentTop] = useState(0);
   useEffect(() => {
-    if (!box || typeof window === 'undefined') return;
-    const fix = () => window.scrollTo(0, 0);
+    if (!box || typeof window === 'undefined') { setParentTop(0); return; }
+    const measure = () => {
+      const el = rootRef.current?.parentElement;
+      const t = el && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect().top : 0;
+      setParentTop((p) => (Math.abs(p - t) < 0.5 ? p : t));
+    };
+    const fix = () => { window.scrollTo(0, 0); measure(); };
     fix();
     window.addEventListener('scroll', fix);
     return () => window.removeEventListener('scroll', fix);
@@ -180,7 +191,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
   // «Voltar» do browser fecha a folha (no iPhone sem animar: o arrastar para trás já mostrou o ecrã de baixo).
   return (
     <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={iosWeb ? onClose : close} statusBarTranslucent>
-      <View style={[styles.root, box && { position: 'absolute', left: 0, right: 0, top: box.top, height: box.height, flex: 0 }, desktop && { justifyContent: 'center', padding: 24 }]}>
+      <View ref={rootRef as never} style={[styles.root, box && { position: 'absolute', left: 0, right: 0, top: pinnedTop(box.top, parentTop), height: box.height, flex: 0 }, desktop && { justifyContent: 'center', padding: 24 }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
         <Animated.View

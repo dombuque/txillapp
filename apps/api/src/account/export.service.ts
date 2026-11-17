@@ -98,6 +98,11 @@ export class ExportService {
             WHERE z.user_id = $1 ORDER BY z.week_end`,
         )
       ).map(({ media_id, ...r }) => ({ ...r, image: media_id ? this.media.chatUrl(media_id as string) : null })),
+      // A minha nota de 24 horas (se ainda existir): o texto, a música, a cor da bolha, o local, o GIF e o público (0178).
+      notes: await q(
+        `SELECT n.body, n.music, n.color, n.place, n.gif, n.audience, n.created_at AS "createdAt", n.expires_at AS "expiresAt"
+           FROM social.notes n WHERE n.user_id = $1 ORDER BY n.created_at`,
+      ),
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
       commentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
