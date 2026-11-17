@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
+import { Button } from '@/components/ui/Button';
 import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
@@ -44,16 +45,16 @@ export default function VerifyEmail() {
         )}
         {state === 'ok' && (
           <>
-            <View style={st.row}><Icon name="check-circle" size={32} color="#16a34a" /><Text style={st.title}>Email confirmado</Text></View>
+            <View style={st.row}><Icon name="check-circle" size={32} color={colors.green600} /><Text style={st.title}>Email confirmado</Text></View>
             <Text style={st.sub}>Já podes publicar, comentar e conversar.</Text>
-            <Pressable onPress={() => router.replace('/')} style={[st.cta, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={[st.ctaText, { color: '#fff' }]}>Entrar no Txillapp</Text></Pressable>
+            <Button label="Entrar no Txillapp" onPress={() => router.replace('/')} block style={st.cta} />
           </>
         )}
         {state === 'bad' && (
           <>
             <View style={st.row}><Icon name="alert" size={32} color={colors.brand} /><Text style={st.title}>Link inválido</Text></View>
             <Text style={st.sub}>{message}</Text>
-            <Pressable onPress={() => router.replace('/')} style={[st.cta, { borderWidth: 2, borderColor: colors.zinc300 }]} accessibilityRole="button"><Text style={[st.ctaText, { color: colors.zinc900 }]}>Ir para o Txillapp</Text></Pressable>
+            <Button label="Ir para o Txillapp" kind="secondary" onPress={() => router.replace('/')} block style={st.cta} />
           </>
         )}
       </View>
@@ -65,6 +66,5 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 30, fontWeight: '800', lineHeight: 34, color: colors.zinc900, flexShrink: 1 },
   sub: { marginTop: 12, fontSize: 18, lineHeight: 26, color: colors.zinc600 },
-  cta: { marginTop: 32, borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
-  ctaText: { fontSize: 18, fontWeight: '600' },
+  cta: { marginTop: 32 },
 });
