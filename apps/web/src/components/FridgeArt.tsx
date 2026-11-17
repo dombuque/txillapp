@@ -1,4 +1,4 @@
-import { tr } from '../lib/i18n';
+import { tr, tk } from '../lib/i18n';
 import { useId } from 'react';
 
 /**
@@ -16,6 +16,8 @@ export function geleiraPoints(items: { kind: string; category: string; alcoholic
 /** Nível da geleira pelos pontos, em calão da malta (txilar, maningue, paulada, madala). */
 const STEPS = [1, 12, 30, 60] as const;
 export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
+/** Os títulos do topo que o servidor manda conforme a idade (vêm em português e traduzem-se com `tr` na GeleiraShelf): marcados para a extração. */
+export const TOP_TITLES = [tk('Lenda da paulada'), tk('Mestre da paulada'), tk('Madala da paulada')] as const;
 export const LEVEL_LABEL = [tr('Geleira seca'), tr('A txilar'), tr('Maningue abastecida'), tr('Paulada garantida'), tr('Madala da paulada')];
 /** Quanto falta para o nível seguinte, numa frase. */
 export function nextLevelHint(points: number): string {

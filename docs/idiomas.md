@@ -86,7 +86,7 @@ t('{count} seguidor', { count: n, other: '{count} seguidores' })   // plural: `o
 ```
 
 - A frase e o `other` são sempre textos literais. O teste `apps/mobile/tests/i18n.test.mjs` falha com `t(variavel)`,
-  `t(\`…${x}\`)` ou `t('a' + b)`, e com frases sem tradução nos catálogos.
+  `` t(`…${x}`) `` ou `t('a' + b)`, e com frases sem tradução nos catálogos.
 - Sem `other`, o plural é igual ao singular (por exemplo, `'{count} min'`).
 - Em português só o 1 é singular (regra de Moçambique e Portugal; o `Intl` usa a do Brasil, em que o 0 também é).
 - Na app: `import { t } from '@/lib/i18n'`. Datas e números com `formatDate(d, opts)` e `formatNumber(n, opts)`.
@@ -121,5 +121,10 @@ node scripts/i18n/translate.mjs --check   # não traduz: falha se faltar alguma 
 - O glossário (`scripts/i18n/glossary.json`) e as variáveis `{nome}` vão protegidos com marcadores `XT0X` (o LibreTranslate
   traduz `{nome}` para `{name}` e apaga `{count}` se não forem protegidos). Se um marcador se perder, tenta outra vez com
   outro formato; se falhar sempre, a frase fica por traduzir e o script diz qual é (corrige-se em `overrides`).
+- No site, o ecrã do idioma também passou a «Idiomas», sem «Français em breve» nem «Traduções», e o `raw()` de
+  `apps/web/src/lib/api.ts` manda o `Accept-Language`. O site antigo traduzia na hora as mensagens de erro da API com
+  `tr(message)`; essas frases saíram do catálogo e passam a vir traduzidas da API.
+- Os temas do explorar (`apps/api/src/common/topics.ts`, mostrados com `tr(t.label)` no site) e os nomes dos itens da
+  geleira vêm do servidor: a equipa API traduz-os na resposta.
 - Na primeira passagem, as traduções do antigo `apps/web/src/lib/i18n/en.ts` (feitas à mão) entraram como memória de
   tradução, exceto as que têm termos do glossário, que foram traduzidas de novo pela máquina para os manter.

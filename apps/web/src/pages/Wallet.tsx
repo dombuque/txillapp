@@ -1,5 +1,5 @@
 import Icon from '../components/Icon';
-import { tr, locale } from '../lib/i18n';
+import { tr, tk, locale } from '../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { vibesWord } from '../lib/vibes';
 
-const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Vibes oferecidas', gift: 'Presente', invite: 'Convite', topup: 'Vibes recarregadas' };
+const labels: Record<string, string> = { welcome_bonus: tk('Boas-vindas, malta!'), transfer: tk('Vibes oferecidas'), gift: tk('Presente'), invite: tk('Convite'), topup: tk('Vibes recarregadas') };
 
 export default function Wallet() {
   const { user } = useAuth();
