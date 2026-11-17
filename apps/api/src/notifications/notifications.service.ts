@@ -22,7 +22,20 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(${u}.id <> ${viewer} AND ${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND ${allowedBy(u, 'mentions_allowed', viewer)} AND ` +
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review'
+/**
+ * O texto no telemóvel do 'txillada_invite': o convite do anfitrião para transmitir (0168) ou, com `data.mention`, uma menção
+ * num comentário (txillada-voltar), de quem comentou; «na Txillada de @anfitrião» quando quem comentou não é o anfitrião.
+ */
+export const txInviteBody = (actor: string | undefined, data?: Record<string, unknown>) => {
+  const who = `@${actor ?? 'alguém'}`;
+  if (!data?.mention) return `${who} convidou-te para transmitir na Txillada`;
+  const host = (data.host as { username?: unknown } | undefined)?.username;
+  return typeof host === 'string' && host && host.toLowerCase() !== (actor ?? '').toLowerCase()
+    ? `${who} mencionou-te na Txillada de @${host}: vem ver`
+    : `${who} mencionou-te na Txillada: vem ver`;
+};
+
+export type NotificationKind ='blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review'
   // TxillGroups vistos de fora (data: { groupId, groupName }): pediram para entrar (aos admins), aceitaram o meu pedido (a quem pediu),
   // alguém entrou num grupo público (aos admins).
   // Fizeram-me administrador de um grupo (à pessoa promovida; ator = quem promoveu; o mesmo data).
@@ -248,7 +261,8 @@ export class NotificationsService {
       // Abre o meu perfil, onde está a geleira (e quem a brindou).
       geleira_cheer: { body: 'brindou a tua geleira', url: '/profile' },
       // «Convidar por @» (0168): abre a Txillada, onde está o cartão do convite (numa privada, sem pagar).
-      txillada_invite: { body: `@${(a?.username as string | undefined) ?? 'alguém'} convidou-te para transmitir na Txillada`, url: txUrl },
+      // Uma menção num comentário (txillada-voltar, `data.mention`): «vem ver» (de quem comentou; «de @anfitrião» se não foi ele).
+      txillada_invite: { body: txInviteBody(a?.username as string | undefined, n.data), url: txUrl },
       // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
       invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
       // Moderação: o texto no telemóvel não leva o motivo (o ecrã de bloqueio é público); o motivo está na lista.
@@ -307,20 +321,30 @@ export class NotificationsService {
    * Txillada (0158): o anfitrião abriu uma Txillada. Avisa (lista e telemóvel) os seguidores que a podem ver (o público
    * escolhido, bloqueios, conta privada) e não desligaram «Txilladas». O limite de um aviso por anfitrião por hora fica no
    * serviço da Txillada. Nunca falha: um erro aqui só fica registado. Devolve quantos foram avisados.
+   * Reabrir (0174): `reopened` (data.reopened e o texto «reabriu»), `followers: false` (sem os seguidores: já avisados na
+   * última hora) e `also` (quem ofereceu ou pagou a entrada, sigam ou não). Ninguém recebe dois avisos da mesma Txillada em 10 min.
    */
-  async notifyTxilladaLive(hostId: string, txilladaId: string, title: string): Promise<number> {
+  async notifyTxilladaLive(
+    hostId: string, txilladaId: string, title: string,
+    opts: { followers?: boolean; also?: string[]; reopened?: boolean } = {},
+  ): Promise<number> {
     try {
       const { rows } = await this.pool.query(
-        `SELECT f.follower_id AS id FROM social.follows f
-           JOIN identity.users v ON v.id = f.follower_id AND v.status = 'active'
+        `SELECT DISTINCT x.id FROM (
+            SELECT f.follower_id AS id FROM social.follows f WHERE f.followee_id = $1 AND $3::boolean
+            UNION SELECT unnest($4::uuid[])) x
+           JOIN identity.users v ON v.id = x.id AND v.status = 'active'
            JOIN content.txilladas t ON t.id = $2
            JOIN identity.users h ON h.id = t.host_id
-          WHERE f.followee_id = $1 AND t.status = 'live' AND ${txilladaVisible('t', 'h', 'f.follower_id')}
-            AND NOT EXISTS (SELECT 1 FROM social.notification_prefs np WHERE np.user_id = f.follower_id AND 'txilladas' = ANY(np.off))`,
-        [hostId, txilladaId],
+          WHERE x.id <> $1 AND t.status = 'live' AND ${txilladaVisible('t', 'h', 'x.id')}
+            AND NOT EXISTS (SELECT 1 FROM content.txillada_bans b WHERE b.txillada_id = t.id AND b.user_id = x.id)
+            AND NOT EXISTS (SELECT 1 FROM social.notification_prefs np WHERE np.user_id = x.id AND 'txilladas' = ANY(np.off))
+            AND NOT EXISTS (SELECT 1 FROM social.notifications n WHERE n.user_id = x.id AND n.kind = 'txillada_live'
+                              AND n.data->>'txilladaId' = $2::text AND n.created_at > now() - interval '10 minutes')`,
+        [hostId, txilladaId, opts.followers !== false, opts.also ?? []],
       );
       const ids = rows.map((r) => r.id as string);
-      const data = { txilladaId, title };
+      const data = opts.reopened ? { txilladaId, title, reopened: true } : { txilladaId, title };
       for (let i = 0; i < ids.length; i += 1000) {
         const chunk = ids.slice(i, i + 1000);
         await this.pool.query(
@@ -335,7 +359,9 @@ export class NotificationsService {
           await this.push
             .send(uid, {
               title: (h?.display_name as string | undefined) ?? 'Txillada',
-              body: title ? `@${h?.username as string} abriu uma Txillada: ${title}` : `@${h?.username as string} abriu uma Txillada`,
+              body: opts.reopened
+                ? (title ? `@${h?.username as string} reabriu a Txillada: ${title}` : `@${h?.username as string} reabriu a Txillada`)
+                : (title ? `@${h?.username as string} abriu uma Txillada: ${title}` : `@${h?.username as string} abriu uma Txillada`),
               url: `/txillada/${txilladaId}`,
               tag: `txillada:${txilladaId}`,
               category: 'txilladas',

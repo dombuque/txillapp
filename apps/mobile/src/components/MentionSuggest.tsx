@@ -5,6 +5,7 @@ import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { api, type MentionSuggestContext, type MentionSuggestion } from '@/lib/api';
 import { activeMention, applyMention, moveHighlight, reasonLabel } from '@/lib/mentions';
+import { suggestNote } from '@/lib/txilladaChat';
 import { colors } from '@/lib/theme';
 
 const ROW = 52;
@@ -163,6 +164,8 @@ export function MentionSuggest({ mention, style }: { mention: MentionSuggestStat
               <View style={{ flex: 1, minWidth: 0 }}>
                 <NameWithBadge name={p.displayName} who={p} style={st.name} gap={4} />
                 <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
+                {/* Na Txillada: quem não está a ver recebe o convite ao ser mencionado. */}
+                {suggestNote(p) ? <Text style={st.note} numberOfLines={1}>{suggestNote(p)}</Text> : null}
               </View>
               {why ? <Text style={st.why} numberOfLines={1}>{why}</Text> : null}
             </Pressable>
@@ -180,5 +183,6 @@ const st = StyleSheet.create({
   rowPressed: { backgroundColor: colors.zinc200 },
   name: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   handle: { fontSize: 13, color: colors.zinc500 },
+  note: { fontSize: 12, fontWeight: '700', color: colors.brand },
   why: { flexShrink: 0, maxWidth: 110, fontSize: 12, color: colors.zinc500 },
 });

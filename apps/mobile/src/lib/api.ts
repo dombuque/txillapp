@@ -159,8 +159,16 @@ export interface AppNotification {
   txillada?: { status: 'live' | 'ended' | 'cut' | null };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved' | 'hidden';
-export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
-export interface MentionSuggestion extends Badged { username: string; displayName: string; hasAvatar: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
+export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat' | 'txillada';
+/**
+ * Uma sugestão do @. Na Txillada (context 'txillada'): `inTxillada` (o anfitrião, quem transmite e quem está a ver) e
+ * `invitable` (não está a ver mas pode entrar: ao mencioná-lo recebe o convite para vir ver).
+ */
+export interface MentionSuggestion extends Badged {
+  username: string; displayName: string; hasAvatar: boolean;
+  reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' | 'anfitriao' | 'a-transmitir' | 'a-ver' | 'comentou';
+  inTxillada?: boolean; invitable?: boolean;
+}
 export interface Person extends Badged { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean }
 export interface InvitesInfo {
   code: string;

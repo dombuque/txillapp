@@ -90,7 +90,7 @@ test('as ligações: o painel dos convidados tem «Convidar por @» com as suges
   assert.match(room, /async function inviteByAt\(username: string\)/);
   assert.match(room, /inviteErrorText\(/);
   const notes = read('src/app/notifications.tsx');
-  assert.match(notes, /case 'txillada_invite': return \{ text: txilladaInviteText\(n\.data\), sub: txilladaInviteSub\(n\.txillada\) \};/);
+  assert.match(notes, /case 'txillada_invite': return \{ text: txilladaInviteText\(n\.data, n\.actor\.username\), sub: txilladaInviteSub\(n\.txillada, n\.data as \{ mention\?: unknown \}\) \};/);
   assert.match(notes, /case 'txillada_live':\s+case 'txillada_invite': return txilladaNoticeTarget\(n\.data\);/);
   assert.match(read('src/lib/api.ts'), /\| 'txillada_invite'/);
 });

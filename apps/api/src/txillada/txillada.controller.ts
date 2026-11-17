@@ -30,7 +30,7 @@ const giftSchema = z.object({
 });
 const commentSchema = z.object({ body: z.string().trim().min(1).max(300) });
 const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
-const afterSchema = z.object({ after: z.string().uuid().optional() });
+const afterSchema = z.object({ after: z.string().uuid().optional(), before: z.string().uuid().optional() });
 const pinSchema = z.object({ commentId: z.string().uuid().nullable() });
 const cutSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
 const inviteSchema = z.object({ username: z.string().trim().min(1).max(40) });
@@ -102,10 +102,19 @@ export class TxilladaController {
     return this.tx.end(req.userId!, id);
   }
 
+  /** Reabrir uma Angariação acabada antes da meta (0174): só o anfitrião, até 24 h depois, no máximo 3 vezes. */
+  @NeedsVerifiedEmail()
+  @Post(':id/reopen')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  reopen(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tx.reopen(req.userId!, id);
+  }
+
   @Get(':id/comments')
   @Throttle({ default: { limit: 240, ttl: 60_000 } })
   comments(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Query(new ZodPipe(afterSchema)) q: z.infer<typeof afterSchema>) {
-    return this.tx.comments(req.userId!, id, q.after);
+    return this.tx.comments(req.userId!, id, { after: q.after, before: q.before });
   }
 
   @NeedsVerifiedEmail()

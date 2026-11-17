@@ -17,7 +17,7 @@ import {
  * comentário; a pastilha «🍻 N» de cada balão salta (e os copos saem) sempre que a contagem sobe, também pelos outros da sala.
  * `hidden`: o id do comentário fixado não flutua (está na pílula).
  */
-export function LiveFloatComments({ comments, bottom, width, height, onOpen, onCheer, hidden }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onOpen?: (c: TxilladaComment) => void; onCheer?: (c: TxilladaComment) => void; hidden?: string | null }) {
+export function LiveFloatComments({ comments, bottom, width, height, onOpen, onCheer, hidden, onMention, left = 12 }: { comments: readonly TxilladaComment[]; bottom: number; width: number; height: number; onOpen?: (c: TxilladaComment) => void; onCheer?: (c: TxilladaComment) => void; hidden?: string | null; onMention?: (username: string) => void; left?: number }) {
   const reduce = useReduceMotion();
   const [st, setSt] = useState<FloatState>(floatInit);
   const [first, setFirst] = useState(true);
@@ -57,7 +57,7 @@ export function LiveFloatComments({ comments, bottom, width, height, onOpen, onC
   const byId = new Map(comments.map((c) => [c.id, c]));
   if (!entries.length) return null;
   return (
-    <View style={[s.col, { bottom, width, height }]} pointerEvents="box-none">
+    <View style={[s.col, { left, bottom, width, height }]} pointerEvents="box-none">
       {entries.map((e) => {
         const c = byId.get(e.id);
         if (!c) return null;
@@ -74,6 +74,7 @@ export function LiveFloatComments({ comments, bottom, width, height, onOpen, onC
             onDoubleTap={onCheer && !c.gift ? () => onCheer(c) : undefined}
             cheers={c.cheers ?? 0}
             gift={!!c.gift}
+            onMention={onMention && !c.gift ? onMention : undefined}
             label={onOpen && !c.gift ? 'Toca para responder, brindar ou denunciar' : ''}
             onHeight={(h) => setHeights((old) => (old[e.id] === h ? old : { ...old, [e.id]: h }))}
           />

@@ -58,10 +58,16 @@ export const txilladaApi = {
   get: (txilladaId: string): Promise<TxilladaDto> => raw(`/txilladas/${id(txilladaId)}`),
   join: (txilladaId: string): Promise<TxilladaAccess> => raw(`/txilladas/${id(txilladaId)}/join`, post({})),
   end: (txilladaId: string): Promise<TxilladaDto> => raw(`/txilladas/${id(txilladaId)}/end`, post({})),
-  /** Os 50 mais recentes (do mais antigo para o mais recente); com `after`, só os que vieram depois desse. */
-  comments: (txilladaId: string, after?: string | null): Promise<{ items: TxilladaComment[] }> =>
-    raw(`/txilladas/${id(txilladaId)}/comments${after ? `?after=${id(after)}` : ''}`),
-  comment: (txilladaId: string, body: string): Promise<TxilladaComment> => raw(`/txilladas/${id(txilladaId)}/comments`, post({ body })),
+  /** Reabrir a Angariação (o anfitrião, até 24 h depois de a terminar antes da meta): a mesma Txillada, outra vez ao vivo. */
+  reopen: (txilladaId: string): Promise<TxilladaDto> => raw(`/txilladas/${id(txilladaId)}/reopen`, post({})),
+  /**
+   * Os 50 mais recentes (do mais antigo para o mais recente); com `after`, só os que vieram depois desse; com `before`, os
+   * 50 antes desse (para ler para trás). `more`: há mais antigos.
+   */
+  comments: (txilladaId: string, after?: string | null, before?: string | null): Promise<{ items: TxilladaComment[]; more?: boolean }> =>
+    raw(`/txilladas/${id(txilladaId)}/comments${after ? `?after=${id(after)}` : before ? `?before=${id(before)}` : ''}`),
+  /** Comentar. `invited`: quem recebeu agora o convite para vir ver, por ter sido mencionado sem estar a ver. */
+  comment: (txilladaId: string, body: string): Promise<TxilladaComment & { invited?: string[] }> => raw(`/txilladas/${id(txilladaId)}/comments`, post({ body })),
   removeComment: (txilladaId: string, commentId: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/comments/${id(commentId)}`, { method: 'DELETE' }),
   /** Brindar um comentário (outra vez tira; no máximo 5 por segundo). A sala recebe `txillada.comment_cheer`. */
   cheerComment: (txilladaId: string, commentId: string): Promise<{ cheered: boolean; cheers: number }> =>

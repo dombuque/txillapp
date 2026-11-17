@@ -9,7 +9,7 @@ import { vibes } from '../common/vibes';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ModerationService, type ReportReason } from '../moderation/moderation.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsService, extractMentions, mentionableBy } from '../notifications/notifications.service';
 import { RealtimeBus } from '../realtime/realtime-bus';
 import { Scheduler } from '../realtime/scheduler';
 import { TextFilter } from '../safety/text-filter.service';
@@ -19,6 +19,7 @@ import type { TxilladaEvent, TxilladaReaction } from '../chat/chat.events';
 import { LIVEKIT_ROOMS, TrackType, livekitEnabled, roomToken, webhookReceiver, type LiveKitRooms, type WebhookEvent } from './livekit';
 import type { TxilladaHooks } from './txillada-tokens';
 import { txilladaBanned, txilladaTicket, txilladaVisible } from './txillada-visibility';
+import { TX_WATCH_MS, txWatchKey } from './txillada-watch';
 import { ISSUANCE_ACCOUNT, WalletService } from '../wallet/wallet.service';
 
 /**
@@ -56,8 +57,9 @@ export const MAX_LIVE_MS = 4 * 3_600_000;
 export const NO_VIDEO_MS = 60_000;
 /** Comentários e brindes de uma Txillada acabada apagam-se ao fim destes dias (menos com denúncia por decidir). */
 export const TX_KEEP_DAYS = 7;
-const SET_MS = MAX_LIVE_MS + 3_600_000;
-const toKey = (id: string) => `tx:to:${id}`;
+// Quem está a ver (`tx:to:<id>`, MAX_LIVE_MS + 1 h): a chave e a janela vêm de txillada-watch.ts (as sugestões de @ também as usam).
+const SET_MS = TX_WATCH_MS;
+const toKey = txWatchKey;
 const inKey = (id: string) => `tx:in:${id}`;
 const UNAVAILABLE = 'A Txillada ainda não está disponível.';
 
@@ -91,6 +93,28 @@ export const GUESTS_MAX = 3;
 const REQUEST_GAP_MS = 20_000;
 /** Convites do anfitrião: no máximo 20 por minuto. */
 const INVITES_PER_MIN = 20;
+/** Comentários por página (o GET e o histórico com `before`). */
+const COMMENTS_PAGE = 50;
+/** Menções num comentário (txillada-voltar): no máximo 5 pessoas por comentário e 20 avisos-convite por minuto por autor. */
+const MENTIONS_PER_COMMENT = 5;
+const MENTION_INVITES_PER_MIN = 20;
+/** O aviso-convite (do anfitrião em 0168 ou de uma menção): no máximo um por pessoa e Txillada a cada 10 min (a mesma chave). */
+const INVITE_NOTE_MS = 10 * 60_000;
+const inviteNoteKey = (id: string, userId: string) => `tx:invnote:${id}:${userId}`;
+/** Reabrir (0174): uma Angariação acabada pelo anfitrião antes da meta, até 24 h depois de acabar, no máximo 3 vezes. */
+export const REOPEN_WINDOW_MS = 24 * 3_600_000;
+export const REOPENS_MAX = 3;
+const REOPENS_PER_HOUR = 10;
+/**
+ * Pode reabrir-se (tirando «o anfitrião já tem outra a decorrer»)? Acabada pelo anfitrião ('ended', não cortada), com
+ * Angariação por chegar à meta, dentro das 24 h e abaixo do limite de vezes. Devolve até quando (ou null).
+ */
+const reopenUntil = (r: Record<string, any>, now = Date.now()): Date | null => {
+  if (r.status !== 'ended' || r.goal == null || !r.ended_at) return null;
+  if (Number(r.raised ?? 0) >= Number(r.goal) || Number(r.reopens ?? 0) >= REOPENS_MAX) return null;
+  const until = new Date(new Date(r.ended_at as string).getTime() + REOPEN_WINDOW_MS);
+  return until.getTime() > now ? until : null;
+};
 const GUESTS_FULL = `Já há ${GUESTS_MAX} convidados a transmitir. Tira um para entrar outro.`;
 /** O meu lugar numa Txillada (0165): só a ver, pedi para entrar, fui convidado, ou estou a transmitir. */
 export type GuestState = 'none' | 'requested' | 'invited' | 'guest';
@@ -123,7 +147,8 @@ type GuestDto = { user: ReturnType<typeof person>; since: string };
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
                    h.verified AS h_verified, h.verified_tier AS h_verified_tier`;
 const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments, t.pinned_comment_id,
-                 t.price, t.goal, t.goal_purpose, t.raised, t.tickets`;
+                 t.price, t.goal, t.goal_purpose, t.raised, t.tickets, t.reopens,
+                 EXISTS (SELECT 1 FROM content.txilladas ox WHERE ox.host_id = t.host_id AND ox.status = 'live' AND ox.id <> t.id) AS host_other_live`;
 /** As colunas de um comentário com o autor (`c` = txillada_comments, `a` = identity.users) para o commentDto. */
 const COMMENT_COLS = `c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
                       (a.avatar_media_id IS NOT NULL) AS a_has_avatar, a.verified AS a_verified, a.verified_tier AS a_verified_tier`;
@@ -245,6 +270,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       guestState: (isHost ? 'none' : (r.my_guest ?? 'none')) as GuestState,
       // Os pedidos e os convites à espera: só o anfitrião os vê.
       ...(isHost ? { requests: this.pendingList(r.requests), invites: this.pendingList(r.invites) } : {}),
+      // Reabrir (0174), só o anfitrião: pode reabrir agora (sem outra a decorrer) e até quando (null: já não se pode).
+      ...(isHost ? (() => {
+        const until = reopenUntil(r);
+        return { canReopen: !!until && !r.host_other_live, reopenUntil: until ? until.toISOString() : null };
+      })() : {}),
     };
   }
 
@@ -403,6 +433,87 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     return this.get(me, id);
   }
 
+  /**
+   * Reabrir (0174): o anfitrião acabou uma Angariação antes da meta e volta a abri-la (até 24 h depois de acabar, no máximo 3
+   * vezes). A mesma Txillada (id, título, tipo, preço, meta, o que já se juntou, quem ofereceu, as entradas pagas e os
+   * comentários) volta a 'live' com uma sala nova no LiveKit (os tokens antigos não voltam a entrar), o relógio das 4 h
+   * outra vez a zero, sem convidados e sem o fixado. As entradas pagas continuam a valer (nada se cobra nem se devolve).
+   * Avisa os seguidores (com o limite de uma vez por hora do announce) e quem ofereceu ou pagou a entrada.
+   */
+  async reopen(me: string, id: string) {
+    this.assertEnabled();
+    const r = await this.access(me, id, { ticket: false });
+    if (r.host_id !== me) throw new ForbiddenException('Só o anfitrião pode reabrir a Txillada.');
+    if ((await this.rates.hit(`tx:reopen:${me}`, 3_600_000)) > REOPENS_PER_HOUR) {
+      throw new HttpException('Calma! Reabriste muitas vezes seguidas. Tenta mais tarde.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    if (r.status === 'live') throw new ConflictException({ message: 'A Txillada ainda está a decorrer.', code: 'still_live' });
+    if (r.status === 'cut') throw new ConflictException({ message: 'Esta Txillada foi cortada pela moderação: não se pode reabrir.', code: 'cut' });
+    if (r.goal == null) throw new ConflictException({ message: 'Só se pode reabrir uma Txillada com angariação.', code: 'no_goal' });
+    if (Number(r.raised) >= Number(r.goal)) throw new ConflictException({ message: 'A meta da angariação já foi atingida. Para continuar, abre uma Txillada nova.', code: 'goal_reached' });
+    if (Number(r.reopens) >= REOPENS_MAX) {
+      throw new ConflictException({ message: `Já reabriste esta Txillada ${REOPENS_MAX} vezes. Para continuar, abre uma Txillada nova.`, code: 'reopens_max' });
+    }
+    if (!reopenUntil(r)) throw new GoneException({ message: 'Já passaram mais de 24 horas desde que acabou: já não se pode reabrir. Abre uma Txillada nova.', code: 'too_late' });
+    const other = (await this.pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [me])).rows[0];
+    if (other) throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.', code: 'other_live', id: other.id });
+    const u = (await this.pool.query(
+      `SELECT status, COALESCE(birth_date <= (current_date - interval '18 years'), false) AS adult FROM identity.users WHERE id = $1`,
+      [me],
+    )).rows[0];
+    if (!u || u.status !== 'active' || !u.adult) throw new ForbiddenException('A tua conta não pode abrir uma Txillada.');
+    // O aviso aos seguidores: no máximo uma vez por hora por anfitrião (como o announce), contando com esta (quando abriu e quando reabriu).
+    const prev = (await this.pool.query('SELECT notified, started_at, reopened_at FROM content.txilladas WHERE id = $1', [id])).rows[0];
+    const hourAgo = Date.now() - 3_600_000;
+    const recentHere = !!prev && ((prev.notified && new Date(prev.started_at).getTime() > hourAgo) || (prev.reopened_at && new Date(prev.reopened_at).getTime() > hourAgo));
+    const room = `tx-${id}-r${Number(r.reopens) + 1}`;
+    let upd;
+    try {
+      // Tudo de novo na condição (uma corrida com outro pedido, ou com o fim das 24 h, não reabre duas vezes).
+      upd = await this.pool.query(
+        `UPDATE content.txilladas SET status = 'live', room = $2, started_at = now(), ended_at = NULL, viewers = 0, video_on = false, video_at = now(),
+                pinned_comment_id = NULL, reopens = reopens + 1, reopened_at = now()
+          WHERE id = $1 AND host_id = $3 AND status = 'ended' AND goal IS NOT NULL AND raised < goal AND reopens < $4
+            AND ended_at > now() - make_interval(secs => $5)`,
+        [id, room, me, REOPENS_MAX, REOPEN_WINDOW_MS / 1000],
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code === '23505') throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.', code: 'other_live' });
+      throw e;
+    }
+    if (!upd.rowCount) throw new ConflictException({ message: 'Já não se pode reabrir esta Txillada.', code: 'not_reopenable' });
+    // Os convidados já saíram ao acabar (afterEnd); por segurança, nenhum fica a transmitir nem à espera.
+    await this.pool.query(
+      `UPDATE content.txillada_guests SET status = CASE WHEN status = 'accepted' THEN 'left' ELSE 'cancelled' END, updated_at = now()
+        WHERE txillada_id = $1 AND status IN ('pending', 'accepted')`,
+      [id],
+    );
+    void this.announceReopen(me, id, r.title as string, !recentHere).catch((e) => this.log.warn(`não consegui avisar da Txillada reaberta ${id}: ${(e as Error).message}`));
+    return this.get(me, id);
+  }
+
+  /**
+   * O aviso de uma Txillada reaberta ('txillada_live' com `reopened: true`): quem ofereceu e quem pagou a entrada, sempre; os
+   * seguidores só se o anfitrião não avisou na última hora (o mesmo limite do announce). No máximo um aviso por pessoa e
+   * Txillada a cada 10 min (no NotificationsService).
+   */
+  private async announceReopen(me: string, id: string, title: string, followers: boolean) {
+    if (followers) {
+      const quiet = !(await this.pool.query(
+        `SELECT 1 FROM content.txilladas p WHERE p.host_id = $1 AND p.id <> $2 AND p.notified AND p.started_at > now() - interval '1 hour' LIMIT 1`,
+        [me, id],
+      )).rowCount;
+      followers = quiet;
+    }
+    if (followers) await this.pool.query('UPDATE content.txilladas SET notified = true WHERE id = $1', [id]);
+    const also = (await this.pool.query(
+      `SELECT giver_id AS id FROM content.txillada_gifts WHERE txillada_id = $1
+       UNION SELECT user_id FROM content.txillada_tickets WHERE txillada_id = $1 AND refunded_at IS NULL`,
+      [id],
+    )).rows.map((x) => x.id as string);
+    await this.notifications.notifyTxilladaLive(me, id, title, { followers, also, reopened: true });
+  }
+
   /** Acaba uma Txillada que está a decorrer (o anfitrião, o webhook, a tarefa ou a moderação). Devolve true se acabou agora. */
   private async finish(id: string, status: 'ended' | 'cut', reason: string | null = null, by: string | null = null) {
     const { rows } = await this.pool.query(
@@ -501,7 +612,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     };
   }
 
-  async comments(me: string, id: string, after?: string) {
+  /**
+   * Os comentários, do mais antigo para o mais recente (no máximo 50): sem nada, os 50 mais recentes; `after`, os mais recentes
+   * depois desse; `before` (o histórico, ao subir), os 50 antes desse. `more`: há mais antigos do que a página (no intervalo pedido).
+   */
+  async comments(me: string, id: string, opts: { after?: string; before?: string } = {}) {
     await this.access(me, id);
     const { rows } = await this.pool.query(
       `SELECT c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
@@ -509,12 +624,13 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
               (SELECT count(*) FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
               EXISTS (SELECT 1 FROM content.txillada_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $3) AS cheered
          FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
-        WHERE c.txillada_id = $1 AND c.removed_at IS NULL AND ($2::uuid IS NULL OR c.id > $2) AND NOT ${blockedBetween('a.id', '$3')}
-          AND ${notReportedBy('txillada_comment', 'c.id', '$3')}
-        ORDER BY c.id DESC LIMIT 50`,
-      [id, after ?? null, me],
+        WHERE c.txillada_id = $1 AND c.removed_at IS NULL AND ($2::uuid IS NULL OR c.id > $2) AND ($4::uuid IS NULL OR c.id < $4)
+          AND NOT ${blockedBetween('a.id', '$3')} AND ${notReportedBy('txillada_comment', 'c.id', '$3')}
+        ORDER BY c.id DESC LIMIT ${COMMENTS_PAGE + 1}`,
+      [id, opts.after ?? null, me, opts.before ?? null],
     );
-    return { items: rows.reverse().map((r) => this.commentDto(r)) };
+    const more = rows.length > COMMENTS_PAGE;
+    return { items: rows.slice(0, COMMENTS_PAGE).reverse().map((r) => this.commentDto(r)), more };
   }
 
   async comment(me: string, id: string, body: string) {
@@ -534,7 +650,55 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     await this.pool.query('UPDATE content.txilladas SET comments = comments + 1 WHERE id = $1', [id]);
     const comment = this.commentDto(row);
     this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), { type: 'txillada.comment', txilladaId: id, comment });
-    return comment;
+    // Menção = convite (txillada-voltar). Nunca faz falhar o comentário.
+    const invited = await this.mentionInvites(me, r, body, comment.author, cid).catch((e) => {
+      this.log.warn(`não consegui tratar as menções do comentário ${cid}: ${(e as Error).message}`);
+      return [] as string[];
+    });
+    return { ...comment, invited };
+  }
+
+  /**
+   * As @menções de um comentário (txillada-voltar): no máximo 5 pessoas, só quem o autor pode mencionar (mentionableBy: conta
+   * ativa, sem bloqueio, aceita menções). Quem já está na Txillada (o anfitrião, um convidado a transmitir, quem está a ver)
+   * recebe só `txillada.mention` em tempo real. Quem não está e podia entrar (txilladaVisible, não expulso, sem bloqueio com o
+   * anfitrião) recebe o aviso 'txillada_invite' com `mention: true` (o mesmo limite de 10 min por pessoa e Txillada do convite
+   * do anfitrião, e no máximo 20 por minuto por autor). Numa paga o aviso leva à entrada paga: não dá entrada nem lugar.
+   * Devolve os @ de quem recebeu o aviso agora.
+   */
+  private async mentionInvites(me: string, r: Record<string, any>, body: string, from: ReturnType<typeof person>, commentId: string) {
+    const names = extractMentions(body).slice(0, MENTIONS_PER_COMMENT);
+    if (!names.length) return [];
+    const id = r.id as string;
+    const { rows } = await this.pool.query(
+      `SELECT u.id, u.username,
+              EXISTS (SELECT 1 FROM content.txillada_guests g WHERE g.txillada_id = t.id AND g.user_id = u.id AND g.status = 'accepted') AS guest,
+              (${txilladaVisible('t', 'h', 'u.id')} AND NOT ${txilladaBanned('t', 'u.id')} AND NOT ${blockedBetween('u.id', 'h.id')}) AS can_enter
+         FROM identity.users u, content.txilladas t JOIN identity.users h ON h.id = t.host_id
+        WHERE t.id = $3 AND lower(u.username::text) = ANY($2::text[]) AND ${mentionableBy('u', '$1')}
+        ORDER BY array_position($2::text[], lower(u.username::text))`,
+      [me, names, id],
+    );
+    if (!rows.length) return [];
+    const watchers = new Set(await this.bus.recent(toKey(id), SET_MS));
+    const author = { username: from.username, displayName: from.displayName, avatarUrl: from.avatarUrl, verified: from.verified, verifiedTier: from.verifiedTier };
+    const invited: string[] = [];
+    for (const t of rows) {
+      if (t.id === me) continue;
+      if (t.id === r.host_id || t.guest || watchers.has(t.id)) {
+        this.emit([t.id as string], { type: 'txillada.mention', txilladaId: id, from: author, commentId });
+        continue;
+      }
+      if (!t.can_enter) continue;
+      if ((await this.rates.hit(`tx:mentinv:${me}`, 60_000)) > MENTION_INVITES_PER_MIN) break;
+      if (!(await this.bus.claimOnce(inviteNoteKey(id, t.id), INVITE_NOTE_MS))) continue;
+      await this.notifications.notify({
+        userId: t.id, actorId: me, kind: 'txillada_invite',
+        data: { txilladaId: id, title: r.title as string, mention: true, host: { username: r.h_username as string, ...badge(r.h_verified, r.h_verified_tier) } },
+      });
+      invited.push(t.username as string);
+    }
+    return invited;
   }
 
   /** O anfitrião (qualquer comentário) ou o autor (o seu) apaga um comentário. */
@@ -673,8 +837,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     );
     const cheers = (await this.pool.query('UPDATE content.txilladas SET cheers = cheers + 1 WHERE id = $1 RETURNING cheers', [id])).rows[0].cheers as number;
     if (broadcast) {
-      const username = (await this.pool.query('SELECT username FROM identity.users WHERE id = $1', [me])).rows[0].username as string;
-      this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), { type: 'txillada.cheer', txilladaId: id, cheers, from: { username } });
+      // O selo vai com o nome (como em todo o lado).
+      const u = (await this.pool.query('SELECT username, verified, verified_tier FROM identity.users WHERE id = $1', [me])).rows[0];
+      this.emit(await this.withoutBlocks(me, await this.audience(id, r.host_id)), {
+        type: 'txillada.cheer', txilladaId: id, cheers, from: { username: u.username as string, ...badge(u.verified, u.verified_tier) },
+      });
     }
     return cheers;
   }
@@ -1136,7 +1303,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     if (ins.rowCount) {
       this.bus.publish(t.id, { type: 'txillada.invite', txilladaId: id, host: publicPerson(r, 'h_') });
       // Quem não está a ver não tem o cartão do convite à vista: o aviso leva-o à Txillada (no máximo um a cada 10 min).
-      if (!watching && (await this.bus.claimOnce(`tx:invnote:${id}:${t.id}`, 10 * 60_000))) {
+      if (!watching && (await this.bus.claimOnce(inviteNoteKey(id, t.id), INVITE_NOTE_MS))) {
         await this.notifications.notify({ userId: t.id, actorId: me, kind: 'txillada_invite', data: { txilladaId: id, title: r.title as string } });
       }
     }

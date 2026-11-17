@@ -65,6 +65,9 @@ export interface TxilladaDto {
   topGivers?: TxilladaGiver[];
   /** Só o anfitrião de uma paga: quantas entradas se pagaram. */
   tickets?: number;
+  /** Só o anfitrião: terminou uma Angariação antes da meta e ainda a pode reabrir (até `reopenUntil`). */
+  canReopen?: boolean;
+  reopenUntil?: string | null;
 }
 
 /** Um de «quem mais ofereceu» (com o selo, como em todo o lado). */
@@ -98,8 +101,11 @@ export const COMMENT_MAX = 300;
 export const COMMENT_GAP_MS = 2000;
 /** Brindes: sem limite por pessoa, mas no máximo 5 por segundo. */
 export const CHEERS_PER_S = 5;
-/** Quantos comentários se guardam no ecrã (os mesmos 50 que o GET devolve). */
-export const KEEP_COMMENTS = 50;
+/**
+ * Quantos comentários se guardam (desde que entrei, mais os antigos que se carregam ao ler para trás): a lista dos
+ * comentários (components/txillada/LiveCommentList) rola por eles todos.
+ */
+export const KEEP_COMMENTS = 1000;
 /** A rede de segurança: de quanto em quanto tempo se pergunta à API (se um evento do canal se perder). */
 export const POLL_MS = 8000;
 
@@ -611,8 +617,10 @@ export function withStories<T extends { count: number }>(users: readonly T[]): T
 }
 
 /** A notificação `txillada_live`: «abriu uma Txillada: <título>» (o @ vem antes, como nas outras). */
-export function noticeText(data: { title?: unknown } | null | undefined): string {
+export function noticeText(data: { title?: unknown; reopened?: unknown } | null | undefined): string {
   const t = typeof data?.title === 'string' ? data.title.trim() : '';
+  // Reaberta (a Angariação, 0174): «reabriu a Txillada: <título>».
+  if (data?.reopened === true) return t ? `reabriu a Txillada: ${t}` : 'reabriu a Txillada';
   return t ? `abriu uma Txillada: ${t}` : 'abriu uma Txillada';
 }
 export function noticeTarget(data: { txilladaId?: unknown; id?: unknown } | null | undefined): string | null {
@@ -628,14 +636,23 @@ export function noticeSub(tx: { status?: unknown } | null | undefined): string |
   return tx.status === 'live' ? undefined : 'Já acabou';
 }
 /** A notificação `txillada_invite` (0168): «convidou-te para transmitir na Txillada: <título>» (o @ e o selo vêm antes). */
-export function inviteNoticeText(data: { title?: unknown } | null | undefined): string {
+/**
+ * Com `data.mention` (txillada-voltar): mencionaram-me num comentário e eu não estava a ver: «mencionou-te na Txillada de
+ * @zeca: vem ver» (ou «mencionou-te na Txillada: vem ver», quando quem mencionou é o próprio anfitrião, `actor`).
+ */
+export function inviteNoticeText(data: { title?: unknown; mention?: unknown; host?: { username?: unknown } | null } | null | undefined, actor?: string | null): string {
+  if (data?.mention === true) {
+    const h = typeof data.host?.username === 'string' ? data.host.username : '';
+    return h && h.toLowerCase() !== (actor ?? '').toLowerCase() ? `mencionou-te na Txillada de @${h}: vem ver` : 'mencionou-te na Txillada: vem ver';
+  }
   const t = typeof data?.title === 'string' ? data.title.trim() : '';
   return t ? `convidou-te para transmitir na Txillada: ${t}` : 'convidou-te para transmitir na Txillada';
 }
-/** Por baixo: a decorrer, «Entra e aceita o convite»; acabada, «Já acabou»; sem o estado (servidor antigo), nada. */
-export function inviteNoticeSub(tx: { status?: unknown } | null | undefined): string | undefined {
+/** Por baixo: a decorrer, «Entra e aceita o convite» (a menção: «Toca para ver»); acabada, «Já acabou»; sem o estado (servidor antigo), nada. */
+export function inviteNoticeSub(tx: { status?: unknown } | null | undefined, data?: { mention?: unknown } | null): string | undefined {
   if (!tx || typeof tx !== 'object') return undefined;
-  return tx.status === 'live' ? 'Entra e aceita o convite' : 'Já acabou';
+  if (tx.status !== 'live') return 'Já acabou';
+  return data?.mention === true ? 'Toca para ver' : 'Entra e aceita o convite';
 }
 
 // ─── Os balões a flutuar ───────────────────────────────────────────────────────────────────────────────────────────────

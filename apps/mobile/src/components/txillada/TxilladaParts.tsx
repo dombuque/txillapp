@@ -93,7 +93,11 @@ export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas nã
 }
 
 /** O resumo do anfitrião no fim: a duração, o pico de espectadores, os brindes e os comentários. Não fica gravada. */
-export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void }) {
+/**
+ * `reopen` (0174): terminou uma Angariação antes da meta: «Reabrir a Angariação» (até `reopen.until`, 24 h), a mesma
+ * Txillada outra vez ao vivo, com a meta e o que já se juntou.
+ */
+export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone, reopen }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void; reopen?: { goal: number; raised: number; until: string | null; busy: boolean; onPress: () => void } | null }) {
   const items: { label: string; value: string }[] = [
     { label: 'Duração', value: duration },
     { label: 'Pico de espectadores', value: String(peak) },
@@ -115,11 +119,33 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
           </View>
         ))}
       </View>
-      <Pressable onPress={onDone} style={({ pressed }) => [st.cta, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+      {reopen && !cut ? (
+        <View style={st.reopen}>
+          <Text style={st.endSub}>{reopenText(reopen.raised, reopen.goal, reopen.until)}</Text>
+          <Pressable onPress={reopen.onPress} disabled={reopen.busy} style={({ pressed }) => [st.cta, pressed && { opacity: 0.85 }, reopen.busy && { opacity: 0.6 }]} accessibilityRole="button" testID="txillada-reopen">
+            <Text style={st.ctaText}>{reopen.busy ? 'A reabrir…' : 'Reabrir a Angariação'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      <Pressable onPress={onDone} style={({ pressed }) => [st.cta, reopen && !cut && st.ctaGhost, pressed && { opacity: 0.85 }]} accessibilityRole="button">
         <Text style={st.ctaText}>Concluir</Text>
       </Pressable>
     </View>
   );
+}
+
+/** «Faltam N vibes para a meta. Podes reabrir até às 21:40 de amanhã.» */
+export function reopenText(raised: number, goal: number, until: string | null, now = Date.now()): string {
+  const left = Math.max(0, Math.round(goal - raised));
+  const t = until ? Date.parse(until) : NaN;
+  let when = '';
+  if (Number.isFinite(t) && t > now) {
+    const d = new Date(t);
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const sameDay = new Date(now).toDateString() === d.toDateString();
+    when = ` Podes reabrir até às ${hm}${sameDay ? '' : ' de amanhã'}.`;
+  }
+  return `${left === 1 ? 'Falta' : 'Faltam'} ${formatVibes(left)} para a meta.${when}`;
 }
 
 /** Um botão redondo de vidro escuro (os mesmos dos visores). */
@@ -157,6 +183,8 @@ const st = StyleSheet.create({
   cellLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '600' },
   cta: { marginTop: 14, height: 48, minWidth: 180, paddingHorizontal: 28, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  ctaGhost: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  reopen: { marginTop: 16, alignItems: 'center', gap: 2 },
   glassBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(14,14,18,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', ...(glass ?? {}) },
   glassOn: { backgroundColor: 'rgba(214,51,79,0.85)', borderColor: 'rgba(255,255,255,0.2)' },
 });
