@@ -1,7 +1,9 @@
+import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type GestureResponderEvent } from 'react-native';
-import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
+import { TXILLAPP_GIF_WHITE } from '@/lib/gifs';
 import { STICKERS, STICKER_CATS, stickerById, type MimoLayer, type StickerAnim, type StickerDef } from '@/lib/stickers';
 import { TEXT_S, isTextLayer, layerFonts, normTextLayer } from '@/lib/textLayers';
 import { useTextFonts } from '@/lib/useTextFonts';
@@ -16,8 +18,24 @@ import { t } from '@/lib/i18n';
 const DUR: Record<StickerAnim, number> = { none: 0, pulse: 700, bounce: 520, wiggle: 600, spin: 6000, swing: 1400, float: 1600, shake: 160, flicker: 260, twinkle: 900, pop: 800 };
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-/** Um sticker desenhado (e a mexer-se, se for animado). `size` é a largura. */
-export function StickerArt({ def, size, animate = true }: { def: StickerDef; size: number; animate?: boolean }) {
+/** O autocolante «Txillapp» (o GIF da marca): por cima de fotos e vídeos mostra-se o GIF animado com as letras brancas. */
+export const BRAND_STICKER_ID = 'm-txillapp';
+
+/**
+ * Um sticker desenhado (e a mexer-se, se for animado). `size` é a largura. `onMedia`: pousado sobre a foto ou o vídeo de um
+ * mimo; aí o «Txillapp» é o GIF animado branco (o mesmo enquadramento do desenho; com «Reduzir movimento», a última imagem).
+ */
+export function StickerArt({ def, size, animate = true, onMedia = false }: { def: StickerDef; size: number; animate?: boolean; onMedia?: boolean }) {
+  if (onMedia && animate && def.id === BRAND_STICKER_ID) return <BrandSticker size={size} ratio={def.ratio} />;
+  return <DrawnSticker def={def} size={size} animate={animate} />;
+}
+
+function BrandSticker({ size, ratio }: { size: number; ratio: number }) {
+  const reduce = useReducedMotion();
+  return <Image source={{ uri: reduce ? TXILLAPP_GIF_WHITE.still : TXILLAPP_GIF_WHITE.url }} autoplay={!reduce} style={{ width: size, height: Math.round(size * ratio) }} contentFit="contain" accessibilityLabel="Txillapp" accessibilityIgnoresInvertColors />;
+}
+
+function DrawnSticker({ def, size, animate }: { def: StickerDef; size: number; animate: boolean }) {
   const anim = animate ? def.anim : 'none';
   const h = Math.round(size * def.ratio);
   const t = useSharedValue(0);
@@ -70,7 +88,7 @@ export function StickerLayer({ stickers, width, height, animate = true }: { stic
         const w = p.s * width, h = w * def.ratio;
         return (
           <View key={`${p.id}-${i}`} style={{ position: 'absolute', left: p.x * width - w / 2, top: p.y * height - h / 2, width: w, height: h, transform: [{ rotate: `${p.r}deg` }] }}>
-            <StickerArt def={def} size={w} animate={animate} />
+            <StickerArt def={def} size={w} animate={animate} onMedia />
           </View>
         );
       })}
@@ -210,7 +228,7 @@ export function StickerCanvas({ stickers, onChange, width, height, selected, onS
             label={t('Sticker {text}: arrasta para mover, pinça para mudar o tamanho', { text: def.text })}
             style={{ position: 'absolute', left: p.x * width - w / 2, top: p.y * height - h / 2, width: w, height: h, transform: [{ rotate: `${p.r}deg` }] }}
           >
-            <StickerArt def={def} size={w} />
+            <StickerArt def={def} size={w} onMedia />
             {selected === i && <View pointerEvents="none" style={st.selBox} />}
           </Placed>
         );

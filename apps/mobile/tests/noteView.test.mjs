@@ -101,8 +101,8 @@ test('NoteView: o Brindar fica fora da pílula, otimista e com a animação, âm
 
 test('NoteView: enviado, fecha e mostra «Enviada a @x» com «Ver» (na conversa só fecha e põe em dia)', () => {
   const b = body('NoteView');
-  assert.match(b, /await notesApi\.reply\(note\.username, said\);\s*onClose\(\);/);
-  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: t\('Ver'\), onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
+  assert.match(b, /await notesApi\.reply\(note\.username, said, gif\);\s*onClose\(\);/);
+  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: t('Ver'), onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
   assert.equal(b.split('router.push').length - 1, 1, 'já não salta logo para a conversa: só o «Ver» do aviso a abre');
 });
 
@@ -150,7 +150,11 @@ test('NoteEditor: a nota publicada abre com o que tem e apaga-se só depois de c
 
 test('GIF: fica no lugar da foto (quadrado arredondado) na fila, na nota aberta e no editor; só com GIF não há bolha', () => {
   const face = body('NoteFace');
-  assert.match(face, /gif \? \(\s*<Image source=\{\{ uri: reduce && gif\.still \? gif\.still : gif\.url \}\} autoplay=\{!reduce\}/);
+  assert.match(face, /const shown = gif \? gifShown\(gif\) : null;/);
+  assert.match(face, /gif && shown \? \(\s*<Image source=\{\{ uri: reduce && shown\.still \? shown\.still : shown\.url \}\} autoplay=\{!reduce\}/);
+  // O GIF do Txillapp (largo) fica inteiro no quadrado: contain e margem; os do GIPHY continuam a encher (cover).
+  assert.match(face, /contentFit=\{gifFit\(gif\)\}/);
+  assert.match(face, /gif\.source === 'txillapp' \? \{ padding: Math\.round\(size \* 0\.08\) \}/);
   assert.match(face, /borderRadius: Math\.round\(size \* 0\.26\)/);
   assert.match(face, /<Avatar name=\{name\} username=\{username\} size=\{size\} \/>/);
   assert.match(face, /\{online && <View style=\{\[styles\.online, onlineStyle\]\}/, 'o online fica no canto, com ou sem GIF');

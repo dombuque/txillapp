@@ -248,13 +248,21 @@ export class NotesService implements OnModuleInit {
     return { cheered, cheers };
   }
 
-  /** Responder a uma nota: vai como mensagem normal, a dizer a que nota responde (só quem pode ver a nota). */
-  async reply(me: string, username: string, text: string) {
-    this.filter.assertClean(text);
+  /**
+   * Responder a uma nota: vai como mensagem normal, a dizer a que nota responde (só quem pode ver a nota). Com um GIF (a
+   * reação «Txillapp»): a linha «Em resposta à tua nota “…”» (com o texto, se houver) e, a seguir, a mensagem GIF.
+   */
+  async reply(me: string, username: string, text: string, gif?: GifInput) {
+    if (text) this.filter.assertClean(text);
     const visible = (await this.visible(me, username)).items[0];
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     const label = visible.body || (visible.music as { title?: string } | null)?.title || (visible.gif ? 'GIF' : '') || visible.place?.name || '♪';
-    return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${label}”: ${text.trim()}` });
+    const said = text.trim();
+    if (!gif) return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${label}”: ${said}` });
+    // O GIF valida-se (e confirma-se) antes de mandar a linha, para não ficar a linha sozinha se o GIF for recusado.
+    await this.chat.validateOutgoing(me, { kind: 'gif', body: '', gif });
+    await this.chat.send(me, visible.username, { kind: 'text', body: said ? `Em resposta à tua nota “${label}”: ${said}` : `Em resposta à tua nota “${label}”` });
+    return this.chat.send(me, visible.username, { kind: 'gif', body: '', gif });
   }
 
   /**

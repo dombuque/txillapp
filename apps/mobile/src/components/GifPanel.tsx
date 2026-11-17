@@ -5,10 +5,9 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeSc
 import { useReducedMotion } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { gifsApi } from '@/lib/api.gifs';
-import { GIF_DEBOUNCE_MS, GIF_HIDDEN_TEXT, columnsFor, gifColumns, gifLabel, gifQuery, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
+import { GIF_DEBOUNCE_MS, GIF_HIDDEN_TEXT, TXILLAPP_GIF, TXILLAPP_GIF_TITLE, columnsFor, gifColumns, gifFit, gifLabel, gifPayload, gifQuery, gifShown, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
-import { t } from '@/lib/i18n';
 
 /** Os GIFs estão ligados no servidor (há chave do GIPHY)? Sem isso, nada de GIFs na app. */
 export function useGifsConfig() {
@@ -18,14 +17,43 @@ export function useGifsConfig() {
 
 /**
  * Um GIF já enviado (num comentário): a imagem animada na proporção dele, dentro de maxW × maxH, com cantos arredondados.
- * "Reduzir movimento": parado.
+ * "Reduzir movimento": parado. O do Txillapp (fundo transparente) vai sem o fundo cinzento, inteiro, e com as letras brancas
+ * num fundo escuro (`onDark`).
  */
-export function GifView({ gif, maxW = 220, maxH = 220 }: { gif: ChatGif; maxW?: number; maxH?: number }) {
+export function GifView({ gif, maxW = 220, maxH = 220, onDark = false }: { gif: ChatGif; maxW?: number; maxH?: number; onDark?: boolean }) {
   const reduce = useReducedMotion();
   const size = gifSize(gif.w, gif.h, maxW, maxH, 100);
+  const shown = gifShown(gif, onDark);
   return (
-    <View style={[st.view, size]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
-      <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={gif.id} accessibilityIgnoresInvertColors />
+    <View style={[st.view, size, gif.source === 'txillapp' && st.brandView]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
+      <Image source={{ uri: reduce && shown.still ? shown.still : shown.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit={gifFit(gif)} recyclingKey={shown.url} accessibilityIgnoresInvertColors />
+    </View>
+  );
+}
+
+/**
+ * A reação «Txillapp»: um botão pequeno com o GIF da marca a mexer (parado com «Reduzir movimento»). Tocar envia o GIF
+ * (nos comentários, nas respostas às notas…). `onDark`: as letras brancas, para barras escuras.
+ */
+export function TxillappReaction({ onPress, disabled = false, onDark = false, width = 56, height = 32, label = 'Reagir com o GIF Txillapp' }: { onPress: () => void; disabled?: boolean; onDark?: boolean; width?: number; height?: number; label?: string }) {
+  const reduce = useReducedMotion();
+  const shown = gifShown(gifPayload(TXILLAPP_GIF), onDark);
+  return (
+    <Pressable onPress={onPress} disabled={disabled} hitSlop={4} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [{ width, height, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }, pressed && { transform: [{ scale: 1.15 }] }, disabled && { opacity: 0.5 }]}>
+      <Image source={{ uri: reduce && shown.still ? shown.still : shown.url }} autoplay={!reduce} style={{ width, height: Math.min(height, Math.round((width * TXILLAPP_GIF.h) / TXILLAPP_GIF.w) + 2) }} contentFit="contain" accessibilityIgnoresInvertColors />
+    </Pressable>
+  );
+}
+
+/** O GIF «Txillapp» no topo do painel (antes dos do GIPHY): o logótipo animado; tocar envia-o como qualquer GIF. */
+function BrandGifTile({ width, onPick, reduce }: { width: number; onPick: (g: GifItem) => void; reduce: boolean }) {
+  const w = Math.min(Math.max(width, 120), 240);
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={st.brandHeading}>{TXILLAPP_GIF_TITLE}</Text>
+      <Pressable onPress={() => onPick(TXILLAPP_GIF)} style={({ pressed }) => [st.brandTile, { width: w, height: Math.round(w * 0.5) }, pressed && { opacity: 0.7 }]} accessibilityRole="imagebutton" accessibilityLabel={`Enviar ${gifLabel(TXILLAPP_GIF.title)}`}>
+        <Image source={{ uri: reduce && TXILLAPP_GIF.still ? TXILLAPP_GIF.still : TXILLAPP_GIF.preview }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="contain" recyclingKey={TXILLAPP_GIF.id} accessibilityIgnoresInvertColors />
+      </Pressable>
     </View>
   );
 }
@@ -36,9 +64,9 @@ export function GifView({ gif, maxW = 220, maxH = 220 }: { gif: ChatGif; maxW?: 
  */
 export function GifHiddenCard() {
   return (
-    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT()}>
+    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
       <Icon name="eye-off" size={15} color={colors.zinc500} />
-      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT()}</Text>
+      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT}</Text>
     </View>
   );
 }
@@ -49,6 +77,7 @@ const PAD = 8;
 /**
  * Painel dos GIFs (dentro do painel dos stickers): pesquisa com debounce, "Em alta" sem pesquisa e "Txillapp" (o canal do
  * Txillapp no GIPHY) se houver. Grelha em colunas pela proporção de cada GIF e mais GIFs ao chegar ao fim. Tocar envia.
+ * Antes dos do GIPHY, o GIF «Txillapp» (o logótipo animado, do nosso site): sem pesquisa ou numa pesquisa por «txill».
  * "Powered by GIPHY" por baixo (a atribuição que o GIPHY pede). Com "Reduzir movimento", os GIFs aparecem parados.
  */
 export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => void; height?: number }) {
@@ -86,36 +115,39 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder={t('Procurar no GIPHY')}
+          placeholder="Procurar no GIPHY"
           placeholderTextColor={colors.zinc500}
           style={st.input}
           maxLength={50}
           returnKeyType="search"
           autoCorrect={false}
-          accessibilityLabel={t('Procurar GIFs')}
+          accessibilityLabel="Procurar GIFs"
         />
         {text ? (
-          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
+          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
             <Icon name="x" size={16} color={colors.zinc500} />
           </Pressable>
         ) : null}
       </View>
       {!q && channel ? (
         <View style={st.tabs}>
-          {([['trending', t('Em alta')], ['channel', 'Txillapp']] as const).map(([id, label]) => (
-            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? t('GIFs Txillapp') : t('GIFs em alta')}>
+          {([['trending', 'Em alta'], ['channel', 'Txillapp']] as const).map(([id, label]) => (
+            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? 'GIFs Txillapp' : 'GIFs em alta'}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: tab === id ? '#fff' : colors.zinc700 }}>{label}</Text>
             </Pressable>
           ))}
         </View>
-      ) : (
-        <Text style={st.heading}>{q ? t('GIFs de “{q}”', { q }) : t('Em alta')}</Text>
-      )}
+      ) : q ? (
+        <Text style={st.heading}>{`GIFs de “${q}”`}</Text>
+      ) : null}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: PAD }} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled">
+        {!q || /txill/i.test(q) ? <BrandGifTile width={colWidth * 2 + GAP} onPick={onPick} reduce={!!reduce} /> : null}
+        {/* Sem pesquisa (e sem o canal): o título dos do GIPHY vem a seguir ao GIF «Txillapp». */}
+        {!q && !channel ? <Text style={st.brandHeading}>Em alta</Text> : null}
         {list.isLoading ? (
           <ActivityIndicator color={colors.brand} style={{ margin: 24 }} />
         ) : !items.length ? (
-          <Text style={st.empty}>{list.isError ? t('Não consegui carregar os GIFs. Tenta daqui a pouco.') : q ? t('Nenhum GIF encontrado.') : t('Sem GIFs agora. Tenta daqui a pouco.')}</Text>
+          <Text style={st.empty}>{list.isError ? 'Não consegui carregar os GIFs. Tenta daqui a pouco.' : q ? 'Nenhum GIF encontrado.' : 'Sem GIFs agora. Tenta daqui a pouco.'}</Text>
         ) : (
           <View style={{ flexDirection: 'row', gap: GAP }}>
             {grid.map((col, i) => (
@@ -126,7 +158,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
                     onPress={() => onPick(item)}
                     style={({ pressed }) => [st.cell, { height: Math.max(h, 44) }, pressed && { opacity: 0.7 }]}
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={t('Enviar {gifLabel}', { gifLabel: gifLabel(item.title) })}
+                    accessibilityLabel={`Enviar ${gifLabel(item.title)}`}
                   >
                     <Image
                       source={{ uri: reduce && item.still ? item.still : item.preview }}
@@ -145,7 +177,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         {list.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ margin: 12 }} /> : null}
       </ScrollView>
       {/* Atribuição pedida pelo GIPHY (em texto: não carregamos o logótipo de terceiros). */}
-      <Text style={st.powered} accessibilityLabel={t('Powered by GIPHY')}>{t('Powered by GIPHY')}</Text>
+      <Text style={st.powered} accessibilityLabel="Powered by GIPHY">Powered by GIPHY</Text>
     </View>
   );
 }
@@ -160,6 +192,9 @@ const st = StyleSheet.create({
   tab: { height: 32, borderRadius: 16, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   heading: { paddingHorizontal: 14, paddingTop: 8, fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   view: { overflow: 'hidden', borderRadius: 14, backgroundColor: colors.zinc200 },
+  brandView: { backgroundColor: 'transparent', borderRadius: 0 },
+  brandHeading: { paddingBottom: 6, fontSize: 13, fontWeight: '700', color: colors.zinc700 },
+  brandTile: { overflow: 'hidden', borderRadius: 12, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc200 },
   cell: { width: '100%', overflow: 'hidden', borderRadius: 8, backgroundColor: colors.zinc200 },
   empty: { textAlign: 'center', padding: 24, fontSize: 14, color: colors.zinc500 },
   powered: { textAlign: 'center', paddingVertical: 4, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: colors.zinc500 },

@@ -77,7 +77,29 @@ const ITEMS = [
     `<rect x="14" y="82" width="62" height="6" rx="3" fill="${INK}"/><path d="M34 30c-4-6 4-8 0-14M48 30c-4-6 4-8 0-14" fill="none" stroke="#9ca3af" stroke-width="3" stroke-linecap="round"/>`],
 ];
 
-const mimo = { items: ITEMS.map(([id, text, anim, inner]) => ({ id, text, anim, svg: svg(inner) })) };
+/**
+ * O autocolante «Txillapp»: o logótipo (assets/marca/txillapp-logo.svg) na última imagem do GIF animado, com as letras brancas,
+ * o ponto do «i» vermelho e o contorno escuro dos outros stickers (lê-se em fundos claros e por cima de fotos). Tem o mesmo
+ * enquadramento do GIF (scripts/marca/anim-logo.mjs: a caixa do logótipo com 14 de margem), para a app poder pôr o GIF
+ * animado branco no lugar dele por cima de fotos e vídeos (components/Stickers, StickerArt). As formas nunca se deformam.
+ */
+function brandSticker() {
+  const src = readFileSync(resolve(here, '../../../assets/marca/txillapp-logo.svg'), 'utf8');
+  const vb = /viewBox="([^"]+)"/.exec(src)[1].trim().split(/[\s,]+/).map(Number);
+  const PAD = 14;
+  const paths = [...src.matchAll(/<path fill="([^"]+)"([^>]*?) d="([^"]+)"/g)].map((m) => ({ fill: m[1].toUpperCase(), extra: m[2], d: m[3] }));
+  if (paths.length !== 6) throw new Error('o logótipo devia ter 6 paths');
+  const outline = paths.map((p) => `<path d="${p.d}"${p.extra} fill="${INK}" stroke="${INK}" stroke-width="3.4" stroke-linejoin="round"/>`).join('');
+  const fill = paths.map((p) => `<path d="${p.d}"${p.extra} fill="${p.fill === '#000000' ? '#ffffff' : p.fill}"/>`).join('');
+  const box = [vb[0] - PAD, vb[1] - PAD, vb[2] + PAD * 2, vb[3] + PAD * 2].map((v) => Math.round(v * 1000) / 1000);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.join(' ')}" width="${Math.round(box[2] * 2)}" height="${Math.round(box[3] * 2)}">${outline}${fill}</svg>`;
+}
+
+const mimo = { items: [
+  // O primeiro dos animados: o GIF da marca (id m-txillapp; ver brandSticker).
+  { id: 'm-txillapp', text: 'Txillapp', anim: 'pop', svg: brandSticker() },
+  ...ITEMS.map(([id, text, anim, inner]) => ({ id, text, anim, svg: svg(inner) })),
+] };
 const mimoOut = resolve(here, '../src/assets/mimo-stickers.json');
 writeFileSync(mimoOut, JSON.stringify(mimo));
 

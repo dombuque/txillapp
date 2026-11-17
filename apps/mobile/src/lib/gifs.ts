@@ -1,31 +1,82 @@
 // GIFs do GIPHY na app: a lógica pura (sem React Native), testada em tests/gifs.test.mjs.
 // As listas vêm do nosso servidor (/api/v1/gifs/*: a chave do GIPHY fica lá e o GIPHY não vê quem pesquisa); as imagens
 // carregam-se diretamente da CDN do GIPHY (media*.giphy.com).
+// E o GIF «Txillapp» (source 'txillapp'): o logótipo animado, servido pelo nosso site (https://txillapp.com/marca/, gerado por
+// scripts/marca/anim-logo.mjs). Lista fechada de ids, como na API (apps/api/src/gifs/gif.ts TXILLAPP_GIFS); classificação 'g'.
 
 /** Um GIF na grelha (o que o servidor manda). `rating`: a classificação do GIPHY ('g', 'pg', 'pg-13', 'r'), se vier. */
-import { t } from '@/lib/i18n';
-export interface GifItem { id: string; title: string; w: number; h: number; preview: string; full: string; still?: string; mp4?: string; rating?: string }
+export interface GifItem { id: string; title: string; w: number; h: number; preview: string; full: string; still?: string; mp4?: string; rating?: string; /** 'txillapp': o GIF do Txillapp. */ source?: GifSource }
 export interface GifPage { items: GifItem[]; next: number | null; enabled?: false }
 /**
  * O GIF de uma mensagem ou de um comentário (o que fica guardado). `rating` vai com ele: nas notas, o servidor não mostra
  * um GIF acima de 'g' (ou sem classificação) a quem tem menos de 18 anos ou não indicou a data de nascimento.
  */
-export interface ChatGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: string }
+export interface ChatGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: string; /** 'txillapp': o GIF do Txillapp; sem isto, do GIPHY. */ source?: GifSource }
 
 /**
  * O cartão no lugar de um GIF que não se mostra: o servidor não manda o GIF (`gifHidden`) a quem é menor de 18 anos ou
  * não tem data de nascimento quando a classificação do GIPHY é acima de «g» ou desconhecida (as mensagens antigas).
  */
-export const GIF_HIDDEN_TEXT = () => t('GIF escondido');
+export const GIF_HIDDEN_TEXT = 'GIF escondido';
 
 /** O texto de uma mensagem GIF na lista de conversas: «GIF» ou, se o servidor o escondeu, «GIF escondido». */
 export function gifPreviewText(m: { gifHidden?: boolean }): string {
-  return m.gifHidden ? GIF_HIDDEN_TEXT() : 'GIF';
+  return m.gifHidden ? GIF_HIDDEN_TEXT : 'GIF';
 }
 
 /** Os anfitriões de média do GIPHY (o servidor recusa os outros). */
 const HOST = /^media[0-9]?\.giphy\.com$/;
 const ID = /^[A-Za-z0-9]{4,40}$/;
+
+export type GifSource = 'txillapp';
+
+/* ───────────── o GIF «Txillapp» ───────────── */
+
+/** De onde vêm os ficheiros (o nosso site, com cache; apps/mobile/public/marca). */
+export const TXILLAPP_GIF_ORIGIN = 'https://txillapp.com';
+/** O nome do GIF da marca (no painel, na reação e para o leitor de ecrã). */
+export const TXILLAPP_GIF_TITLE = 'Txillapp';
+const TX_SIZE = { w: 480, h: 211 };
+/** Os ficheiros de cada id: o animado (sem extensão: .webp e .gif) e a imagem parada. */
+const TX_FILES: Record<string, { file: string; still: string }> = {
+  logo: { file: 'txillapp-animado', still: 'txillapp-final.png' },
+  'logo-branco': { file: 'txillapp-animado-branco', still: 'txillapp-final-branco.png' },
+  'logo-fundo': { file: 'txillapp-animado-fundo', still: 'txillapp-final-fundo.png' },
+};
+const txUrl = (name: string) => `${TXILLAPP_GIF_ORIGIN}/marca/${name}`;
+const isTxId = (id: unknown): id is string => typeof id === 'string' && Object.prototype.hasOwnProperty.call(TX_FILES, id);
+
+/** O GIF do Txillapp (letras pretas, fundo transparente; num fundo escuro a app mostra o branco), como item da grelha. */
+export const TXILLAPP_GIF: GifItem = {
+  id: 'logo', title: TXILLAPP_GIF_TITLE, ...TX_SIZE, preview: txUrl('txillapp-animado.webp'), full: txUrl('txillapp-animado.webp'),
+  still: txUrl('txillapp-final.png'), rating: 'g', source: 'txillapp',
+};
+
+/** O url do logótipo animado com letras brancas (os autocolantes por cima de fotos e vídeos) e a imagem parada. */
+export const TXILLAPP_GIF_WHITE = { url: txUrl('txillapp-animado-branco.webp'), still: txUrl('txillapp-final-branco.png') };
+
+/** É o GIF do Txillapp (fonte própria, id e ficheiros da lista)? */
+export function isTxillappGif(g: unknown): g is ChatGif {
+  if (!g || typeof g !== 'object') return false;
+  const x = g as ChatGif;
+  if (x.source !== 'txillapp' || !isTxId(x.id)) return false;
+  const base = txUrl(TX_FILES[x.id].file);
+  return x.url === `${base}.webp` || x.url === `${base}.gif`;
+}
+
+/**
+ * O que se mostra de um GIF: o url e a imagem parada. Para o do Txillapp, a variante pelo fundo: num fundo escuro (`onDark`:
+ * Txillada, vídeo, estúdio) as letras brancas; senão as pretas (a versão com fundo branco fica como está). Os do GIPHY: iguais.
+ */
+export function gifShown(g: ChatGif, onDark = false): { url: string; still?: string } {
+  if (!isTxillappGif(g) || g.id === 'logo-fundo') return { url: g.url, ...(g.still ? { still: g.still } : {}) };
+  const f = TX_FILES[onDark ? 'logo-branco' : 'logo'];
+  const ext = g.url.endsWith('.gif') ? '.gif' : '.webp';
+  return { url: txUrl(f.file + ext), still: txUrl(f.still) };
+}
+
+/** O GIF do Txillapp é largo (o logótipo inteiro): mostra-se inteiro (contain), nunca cortado (os dois «ll» não se cortam). */
+export const gifFit = (g: { source?: GifSource }): 'contain' | 'cover' => (g.source === 'txillapp' ? 'contain' : 'cover');
 
 /** O url é https de media*.giphy.com, com o id do GIF no caminho e uma imagem .gif/.webp. */
 export function isGiphyUrl(url: unknown, id?: string): boolean {
@@ -41,6 +92,7 @@ export function isGiphyUrl(url: unknown, id?: string): boolean {
 export function validGif(g: unknown): g is ChatGif {
   if (!g || typeof g !== 'object') return false;
   const x = g as ChatGif;
+  if (x.source !== undefined) return isTxillappGif(x);
   return typeof x.id === 'string' && ID.test(x.id) && x.w > 0 && x.h > 0 && isGiphyUrl(x.url, x.id);
 }
 
@@ -53,7 +105,7 @@ export function gifMessage(item: GifItem): { kind: 'gif'; gif: ChatGif } {
 export function gifPayload(item: GifItem): ChatGif {
   const title = item.title.trim().slice(0, 100);
   const rating = typeof item.rating === 'string' ? item.rating.trim().toLowerCase().slice(0, 10) : '';
-  return { id: item.id, w: item.w, h: item.h, url: item.full, ...(item.still ? { still: item.still } : {}), ...(title ? { title } : {}), ...(rating ? { rating } : {}) };
+  return { id: item.id, w: item.w, h: item.h, url: item.full, ...(item.still ? { still: item.still } : {}), ...(title ? { title } : {}), ...(rating ? { rating } : {}), ...(item.source === 'txillapp' ? { source: 'txillapp' as const } : {}) };
 }
 
 /** Quantas colunas tem a grelha para esta largura (2 no telemóvel, 3 a partir de ~420 px, 4 num ecrã largo). */

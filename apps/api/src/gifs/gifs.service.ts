@@ -36,6 +36,7 @@ type Off = { enabled: false; items: []; next: null };
  *   responde-se uma página vazia (nunca 500).
  * - "GIFs Txillapp": com GIPHY_CHANNEL (ex.: txillapp), a pesquisa `@txillapp` devolve os GIFs desse canal.
  * - Classificação de um GIF gravado (nota, mensagem ou comentário): `confirm` guarda a que o GIPHY dá, nunca a que a app manda.
+ * - O GIF do Txillapp (`source: 'txillapp'`, gif.ts TXILLAPP_GIFS): não vai ao GIPHY e fica 'g'.
  */
 @Injectable()
 export class GifsService {
@@ -95,6 +96,8 @@ export class GifsService {
    * classificação conta como acima de 'g' para os menores (não lhes chega).
    */
   async confirm(userId: string, gif: GifInput): Promise<GifInput> {
+    // O GIF do Txillapp (a lista fechada, já validada pelo gifSchema): é nosso e para todas as idades. Sem GIPHY.
+    if (gif.source === 'txillapp') return { ...gif, rating: 'g' };
     const { rating: _fromApp, ...rest } = gif;
     void _fromApp;
     const known = await this.ratingOf(gif.id);
