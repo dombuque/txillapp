@@ -7,6 +7,8 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { SearchField } from '@/components/ui/SearchField';
 import { abs, sized } from '@/lib/config';
 import { GROUP_KINDS, groupsApi, kindInfo, toIsoDay, dayOf, type GroupKind, type VenueHit } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
@@ -27,15 +29,7 @@ export function GroupCover({ url, kind, size = 48, radius }: { url?: string | nu
 export function KindChips({ value, onChange }: { value: GroupKind; onChange: (k: GroupKind) => void }) {
   return (
     <View style={ps.chips} accessibilityRole="radiogroup" accessibilityLabel="Tipo de TxillGroup">
-      {GROUP_KINDS.map((k) => {
-        const on = k.id === value;
-        return (
-          <Pressable key={k.id} onPress={() => onChange(k.id)} style={[ps.chip, on && ps.chipOn]} accessibilityRole="radio" accessibilityState={{ selected: on }}>
-            <Icon name={k.icon} size={18} color={on ? '#fff' : colors.zinc800} />
-            <Text style={[ps.chipText, on && { color: '#fff' }]}>{k.label}</Text>
-          </Pressable>
-        );
-      })}
+      {GROUP_KINDS.map((k) => <Chip key={k.id} label={k.label} icon={k.icon} selected={k.id === value} onPress={() => onChange(k.id)} />)}
     </View>
   );
 }
@@ -160,10 +154,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
   return (
     <Sheet title={title} onClose={onClose} full>
       <View style={{ flex: 1, paddingHorizontal: 16 }}>
-        <View style={ps.search}>
-          <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={q} onChangeText={setQ} autoFocus placeholder="Nome do local ou cidade" placeholderTextColor={colors.zinc500} style={ps.searchInput} accessibilityLabel="Procurar locais" />
-        </View>
+        <SearchField value={q} onChangeText={setQ} autoFocus placeholder="Nome do local ou cidade" accessibilityLabel="Procurar locais" />
         {txillsOnly && <Text style={ps.calHint}>Só aparecem locais que aceitam vibes.</Text>}
         <FlatList
           data={rows}
@@ -247,9 +238,7 @@ export function AvatarStack({ people, size = 28, max = 5 }: { people: MiniPerson
 
 export const ps = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
-  chipOn: { backgroundColor: colors.brand },
-  chipText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
+
   section: { marginBottom: 14, borderRadius: 20, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, padding: 14 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, minHeight: 28 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.zinc900 },
@@ -265,8 +254,7 @@ export const ps = StyleSheet.create({
   calDay: { flex: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   calNum: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   calHint: { marginTop: 8, textAlign: 'center', fontSize: 13, color: colors.zinc500 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
+
   none: { paddingVertical: 40, textAlign: 'center', color: colors.zinc500 },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 8 },
   rowName: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },

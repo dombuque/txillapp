@@ -16,6 +16,7 @@ import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
+import { SearchField } from './ui/SearchField';
 
 interface Person extends Badged { username: string; displayName: string; hasAvatar: boolean }
 
@@ -134,10 +135,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
       ) : (
         <View style={{ flex: 1 }}>
           <View style={{ paddingHorizontal: 16 }}>
-            <View style={styles.search}>
-              <Icon name="search" size={18} color={colors.zinc500} />
-              <TextInput value={text} onChangeText={setText} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas" style={styles.searchInput} autoCapitalize="none" />
-            </View>
+            <SearchField value={text} onChangeText={setText} placeholder="Procurar" accessibilityLabel="Procurar pessoas" />
             {!addTo && !groupFlow && !term && (
               <Pressable onPress={() => { setErr(''); setGroupFlow(true); setDetailsFirst(true); setStep('details'); }} style={({ pressed }) => [styles.add, { marginTop: 8 }, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                 <View style={styles.addIcon}><Icon name="users" size={22} color={colors.brand} /></View>
@@ -421,8 +419,6 @@ const styles = StyleSheet.create({
   chosen: { marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 },
   chipName: { width: '100%', textAlign: 'center', fontSize: 12, color: colors.zinc700 },
   count: { marginTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   remove: { position: 'absolute', right: -4, top: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.zinc800, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   sugg: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, fontSize: 13, fontWeight: '700', color: colors.zinc500 },
   none: { paddingVertical: 48, textAlign: 'center', color: colors.zinc500 },

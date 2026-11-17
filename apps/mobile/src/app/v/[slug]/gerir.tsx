@@ -9,6 +9,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PlaceField, type PlaceFieldHandle } from '@/components/PlaceField';
+import { Chip } from '@/components/ui/Chip';
 import { PontoLoader } from '@/components/PontoLoader';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
@@ -197,11 +198,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       <Text style={st.label}>Nome e tipo</Text>
       {input('name', 'Nome do local', { maxLength: 80 })}
       <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {KINDS.map((k) => (
-          <Pressable key={k} onPress={() => setF((o) => ({ ...o, kind: k }))} accessibilityRole="radio" accessibilityState={{ selected: f.kind === k }} style={[st.chip, f.kind === k && { backgroundColor: colors.zinc900 }]}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: f.kind === k ? '#fff' : colors.zinc800 }}>{KIND_LABEL[k]}</Text>
-          </Pressable>
-        ))}
+        {KINDS.map((k) => <Chip key={k} label={KIND_LABEL[k]} selected={f.kind === k} onPress={() => setF((o) => ({ ...o, kind: k }))} />)}
       </View>
       <Text style={st.label}>Onde e quando</Text>
       <PlaceField ref={placeRef} label="Onde fica?" value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
@@ -299,11 +296,7 @@ function Managers({ v }: { v: Venue }) {
           <Text style={{ fontSize: 16, fontWeight: '800', color: colors.zinc900 }}>Convidar um gestor</Text>
           <TextInput value={username} onChangeText={setUsername} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Nome de utilizador" style={st.input} />
           <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
-            {(['editor', 'admin'] as const).map((r) => (
-              <Pressable key={r} onPress={() => setRole(r)} accessibilityRole="radio" accessibilityState={{ selected: role === r }} style={[st.chip, role === r && { backgroundColor: colors.zinc900 }]}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: role === r ? '#fff' : colors.zinc800 }}>{ROLE_LABEL[r]}</Text>
-              </Pressable>
-            ))}
+            {(['editor', 'admin'] as const).map((r) => <Chip key={r} label={ROLE_LABEL[r]} selected={role === r} onPress={() => setRole(r)} />)}
           </View>
           <Pressable onPress={() => void invite()} disabled={busy || username.trim().length < 3} style={[st.cta, (busy || username.trim().length < 3) && { opacity: 0.5 }]} accessibilityRole="button">
             <Text style={st.ctaText}>{busy ? 'A enviar…' : 'Enviar convite'}</Text>
@@ -410,7 +403,7 @@ const st = StyleSheet.create({
   hint: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   label: { marginTop: 6, fontSize: 13, fontWeight: '700', color: colors.zinc500, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
-  chip: { height: 40, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+
   cta: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   secondary: { height: 40, borderRadius: 999, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100 },
