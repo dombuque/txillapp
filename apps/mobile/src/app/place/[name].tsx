@@ -6,6 +6,8 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
+import { LoadMore } from '@/components/LoadMore';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { locaisApi } from '@/lib/api.locais';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
@@ -34,6 +36,8 @@ export default function PlaceScreen() {
   const venue = useQuery({ queryKey: ['venue-by-name', label.toLowerCase()], queryFn: () => locaisApi.findVenue(label), staleTime: 5 * 60_000, retry: false });
   const first = q.data?.pages[0];
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  const pull = usePullToRefresh(() => q.refetch());
   const vd = venue.data;
 
   const head = (
@@ -64,11 +68,16 @@ export default function PlaceScreen() {
 
   return (
     <StackPage title={label}>
+      <PullView pull={pull}>
       <FlatList
         data={items}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={head}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         ListEmptyComponent={
           q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (
             <Empty icon="map-pin" title="Não consegui ver este sítio agora" />
@@ -76,11 +85,13 @@ export default function PlaceScreen() {
             <Empty icon="map-pin" title={mode === 'at' ? 'Ainda ninguém publicou aqui' : 'Nada por perto, por agora'} />
           )
         }
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}
         viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
+      </PullView>
     </StackPage>
   );
 }

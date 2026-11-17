@@ -13,6 +13,8 @@ import { ExploreViewer } from '@/components/ExploreViewer';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
+import { LoadMore } from '@/components/LoadMore';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { TrendingSounds } from '@/components/TrendingSounds';
 import { Bolt } from '@/components/SuperTxillPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -118,6 +120,11 @@ export default function Search() {
   const handle = term.replace(/^[@#]/, '');
   const mq = useQuery({ queryKey: ['search-mentions', handle], queryFn: () => api.search(`@${handle}`), enabled: handle.length >= 2, staleTime: 30_000, placeholderData: keepPreviousData });
   const mentions = mq.data?.posts ?? [];
+  // A grelha do Explorar carrega sozinha ao chegar ao fim (e o LoadMore na web); puxar para cima atualiza o que se vê.
+  const loadExplore = () => { if (explore.hasNextPage && !explore.isFetchingNextPage) void explore.fetchNextPage(); };
+  const pull = usePullToRefresh(() => (term.length >= 2
+    ? Promise.all([q.refetch(), mq.refetch()])
+    : Promise.all([explore.refetch(), trending.refetch(), hot.refetch(), venues.refetch(), topics.refetch()])));
 
   const grid: Post[] = (() => {
     const seen = new Set<string>();
@@ -194,7 +201,20 @@ export default function Search() {
         )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+      <PullView pull={pull}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={pull.control}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          pull.onScroll(e);
+          // Perto do fim da grelha do Explorar (a 600 px): a página seguinte.
+          const { layoutMeasurement: l, contentOffset: o, contentSize: c } = e.nativeEvent;
+          if (!focusMode && !searching && l.height + o.y >= c.height - 600) loadExplore();
+        }}
+      >
         {focusMode && !searching && (
           <View style={{ paddingTop: 4 }} accessibilityLabel="Pesquisas recentes">
             <View style={{ paddingHorizontal: 20, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -288,11 +308,7 @@ export default function Search() {
                 <Text style={styles.emptySub}>Quando a malta publicar, aparece aqui.</Text>
               </View>
             )}
-            {explore.hasNextPage && (
-              <Pressable onPress={() => void explore.fetchNextPage()} disabled={explore.isFetchingNextPage} style={styles.more}>
-                {explore.isFetchingNextPage ? <Text style={styles.moreText}>A carregar…</Text> : <Text style={styles.moreText}>Ver mais</Text>}
-              </Pressable>
-            )}
+            {explore.hasNextPage && grid.length > 0 ? <LoadMore onLoad={loadExplore} loading={explore.isFetchingNextPage} /> : null}
           </>
         )}
 
@@ -389,6 +405,7 @@ export default function Search() {
           </>
         )}
       </ScrollView>
+      </PullView>
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {opened && <ExploreViewer items={[opened]} startId={opened.id} title="Publicação" onClose={() => setOpened(null)} />}
     </View>

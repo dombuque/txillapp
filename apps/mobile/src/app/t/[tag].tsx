@@ -5,6 +5,8 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { PostCard } from '@/components/PostCard';
+import { LoadMore } from '@/components/LoadMore';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -25,12 +27,19 @@ export default function TagScreen() {
   });
   const first = q.data?.pages[0];
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  const pull = usePullToRefresh(() => q.refetch());
   return (
     <StackPage title={`#${first?.tag ?? tag}`}>
+      <PullView pull={pull}>
       <FlatList
         data={items}
         keyExtractor={(p) => p.id}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         ListHeaderComponent={
           <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
             {first && (
@@ -48,11 +57,13 @@ export default function TagScreen() {
           </View>
         }
         ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? <Empty icon="search" title="Esta hashtag não existe" /> : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}
         viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
+      </PullView>
     </StackPage>
   );
 }

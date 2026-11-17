@@ -27,7 +27,11 @@ import { GeleiraGridTile } from './GeleiraPostCard';
 import { GeladaGridTile } from './gelada/GeladaPostCard';
 import { ProfileQrSheet } from './ProfileQrSheet';
 import { ProfileStoryAvatar } from './ProfileStoryAvatar';
-import { GiftSheet } from './PostSheets';
+import { GiftSheet, PostMenuSheet } from './PostSheets';
+import { ShareSheet } from './ShareSheet';
+import { LoadMore } from './LoadMore';
+import { PullView, usePullToRefresh } from './PullToRefresh';
+import * as Haptics from 'expo-haptics';
 import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
@@ -77,7 +81,7 @@ function QrGlyph() {
   );
 }
 
-function Grid({ posts, onOpen, width, onUnhide }: { posts: Post[]; onOpen: (p: Post) => void; width: number; /** O separador «Ocultas»: cada quadrado leva «Voltar a mostrar». */ onUnhide?: (p: Post) => void }) {
+function Grid({ posts, onOpen, onHold, width, onUnhide }: { posts: Post[]; onOpen: (p: Post) => void; /** Segurar num quadrado (telemóvel): o menu do «⋯» da publicação. */ onHold?: (p: Post) => void; width: number; /** O separador «Ocultas»: cada quadrado leva «Voltar a mostrar». */ onUnhide?: (p: Post) => void }) {
   const gap = 6;
   // Computador: mais colunas quando a coluna é larga (3 no telemóvel).
   const desktop = useDesktop();
@@ -89,7 +93,7 @@ function Grid({ posts, onOpen, width, onUnhide }: { posts: Post[]; onOpen: (p: P
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
         const tile = (
-          <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
+          <Pressable key={post.id} onPress={() => onOpen(post)} onLongPress={onHold ? () => onHold(post) : undefined} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
                 <View style={{ width: 46, height: 28 }}>
@@ -149,6 +153,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block' | 'gelada'>(null);
+  // Segurar num quadrado da grelha: o mesmo menu do «⋯» dessa publicação (e o Partilhar dele abre a folha de partilha).
+  const [held, setHeld] = useState<{ post: Post; share: boolean } | null>(null);
   // `?geleira=1` (o «Ver a geleira de @x» de um post da geleira): o perfil abre já com a geleira aberta.
   const { geleira: geleiraParam } = useLocalSearchParams<{ geleira?: string }>();
   const [geleiraOpen, setGeleiraOpen] = useState(geleiraParam === '1');
@@ -218,6 +224,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     enabled: !!p?.canView,
   });
   const items = posts.data?.pages.flatMap((x) => x.items) ?? [];
+  const loadMore = () => { if (posts.hasNextPage && !posts.isFetchingNextPage) void posts.fetchNextPage(); };
+  // Puxar para atualizar: o perfil e o separador aberto.
+  const pull = usePullToRefresh(() => Promise.all([q.refetch(), p?.canView ? posts.refetch() : null]));
   // Um separador ainda por carregar: quando a grelha chega, entra também com o fade (e não aos saltos).
   const arrived = useRef(false);
   useLayoutEffect(() => {
@@ -286,6 +295,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     }
   }
   const openPost = (post: Post) => router.push(`/p/${post.code ?? post.id}` as never);
+  const hold = desktop ? undefined : (post: Post) => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); setHeld({ post, share: false }); };
+  // Repost simples: o menu é o da original, com o «Ocultar o meu repost» (como no feed).
+  const heldShown = held ? (held.post.kind === 'repost' && held.post.repostOf && !held.post.body ? held.post.repostOf : held.post) : null;
 
   const header = (
     <View>
@@ -456,12 +468,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {p.isMe && <Text style={styles.first} onPress={() => router.push('/new' as never)}>Faz a primeira!</Text>}
             </View>
           )}
-          <Grid posts={items} onOpen={openPost} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
-          {posts.hasNextPage && (
-            <Pressable onPress={() => void posts.fetchNextPage()} disabled={posts.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginTop: 16 }]}>
-              {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}
-            </Pressable>
-          )}
+          <Grid posts={items} onOpen={openPost} onHold={tab === 'hidden' ? undefined : hold} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
+          {/* Carrega sozinha ao chegar ao fim (onEndReached e, na web, o LoadMore); o botão fica de reserva. */}
+          {posts.hasNextPage && items.length > 0 ? <View style={{ marginTop: 16 }}><LoadMore onLoad={loadMore} loading={posts.isFetchingNextPage} /></View> : null}
           </Reanimated.View>
         </View>
         </SwipeArea>
@@ -471,7 +480,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
-      <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
+      <PullView pull={pull}>
+        <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} onScroll={pull.onScroll} scrollEventThrottle={16} refreshControl={pull.control} onEndReached={loadMore} onEndReachedThreshold={1} />
+      </PullView>
       {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} invite={p.isMe} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'gelada' && <AskSheet to={[p.username]} lockTo onClose={() => setSheet(null)} />}
@@ -518,6 +529,17 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       )}
       {sheet === 'report' && <ReportSheet type="user" id={p.id} onClose={() => setSheet(null)} />}
       {sheet === 'gift' && <GiftSheet recipient={{ username: p.username, displayName: p.displayName }} onClose={() => setSheet(null)} />}
+      {held && heldShown && !held.share ? (
+        <PostMenuSheet
+          post={heldShown}
+          mine={heldShown.author.id === user?.id}
+          myRepost={heldShown !== held.post && held.post.author.id === user?.id ? held.post : null}
+          onClose={() => setHeld(null)}
+          onSaved={() => undefined}
+          onShare={() => setHeld({ post: held.post, share: true })}
+        />
+      ) : null}
+      {held && heldShown && held.share ? <ShareSheet post={heldShown} onClose={() => setHeld(null)} /> : null}
     </View>
   );
 }

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
+import { LoadMore } from '@/components/LoadMore';
 import { DuetGlyph } from '@/components/remix/RemixParts';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { StackPage } from '@/components/StackPage';
@@ -88,7 +89,8 @@ export default function RemixesPage() {
             : q.isError ? <View style={st.empty}><Text style={st.emptyText}>Esta tcheka já não está disponível.</Text></View>
             : <View style={st.empty}><Text style={st.emptyTitle}>Ainda não há {tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}</Text><Text style={st.emptyText}>Quando alguém fizer, aparece aqui.</Text></View>
         }
-        ListFooterComponent={q.isFetchingNextPage ? <View style={{ padding: 16 }}><ActivityIndicator /></View> : undefined}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }} loading={q.isFetchingNextPage} label="Ver mais duetos e respostas" /> : undefined}
       />
     </StackPage>
   );
