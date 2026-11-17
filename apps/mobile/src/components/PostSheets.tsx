@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
@@ -12,7 +12,8 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { Icon, type IconName } from './Icon';
 import { ReportSheet } from './ReportSheet';
-import { Sheet, useSheetMode } from './Sheet';
+import { Sheet } from './Sheet';
+import { ActionRow as MenuRow } from './ui/ActionRow';
 import type { Rect } from '@/lib/desktopKeys';
 import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
@@ -35,26 +36,8 @@ const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: 
 
 export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
 
-export function MenuRow({ icon, title, text, onPress, disabled }: { icon: ReactNode; title: string; text: string; onPress: () => void; disabled?: boolean }) {
-  // Menu pendente do computador: uma linha compacta (ícone e título; a explicação aparece ao passar o rato).
-  const compact = useSheetMode() === 'menu';
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={(s) => [styles.menuRow, compact && styles.menuRowCompact, ((s as { hovered?: boolean }).hovered || s.pressed) && { backgroundColor: colors.zinc100 }, disabled && { opacity: 0.6 }]}
-      accessibilityRole={compact ? 'menuitem' : 'button'}
-      accessibilityHint={compact ? text : undefined}
-      {...(compact ? ({ dataSet: { tip: text } } as object) : null)}
-    >
-      <View style={compact ? styles.menuIconCompact : styles.menuIcon}>{icon}</View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={compact ? styles.menuTitleCompact : styles.menuTitle} numberOfLines={compact ? 1 : undefined}>{title}</Text>
-        {compact ? null : <Text style={styles.menuText}>{text}</Text>}
-      </View>
-    </Pressable>
-  );
-}
+/** A linha de menu passou a ser a partilhada (components/ui/ActionRow); o nome antigo continua a funcionar. */
+export { MenuRow };
 
 /** Oferecer vibes: discreto, no privado ou no feed (igual ao do site). */
 export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: { username: string; displayName: string }; postId?: string; preset?: { amount?: number; note?: string; visibility?: 'silent' | 'private' | 'public' }; onClose: () => void }) {
@@ -373,13 +356,6 @@ function newKey() {
 }
 
 const styles = StyleSheet.create({
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
-  menuIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  menuTitle: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
-  menuText: { fontSize: 14, color: colors.zinc600 },
-  menuRowCompact: { gap: 12, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9 },
-  menuIconCompact: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  menuTitleCompact: { fontSize: 15, fontWeight: '500', color: colors.zinc900 },
   field: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
   amount: { flex: 1, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   amountText: { fontWeight: '600', fontSize: 16, color: colors.zinc900 },

@@ -2,7 +2,7 @@ import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { api, uploadChatMedia } from '@/lib/api';
 import { colors } from '@/lib/theme';
@@ -11,6 +11,10 @@ import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { ChatAttachMenu } from './ChatAttachSheet';
 import { AskSheet } from './gelada/AskSheet';
 import { Icon, type IconName } from './Icon';
+import { SendButton } from './ui/SendButton';
+
+/** O «Enviar» passou para components/ui/SendButton (o GroupComposer continua a importá-lo daqui). */
+export { SendButton };
 import { GiftSheet } from './PostSheets';
 import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
@@ -390,31 +394,6 @@ export function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { ic
   );
 }
 
-/**
- * `keep`: o campo de escrever. Enviar não fecha o teclado: no site (PWA) tocar num botão tira o foco ao campo e o
- * teclado do telemóvel fecha a cada mensagem; o mousedown fica sem efeito e, se o foco sair na mesma, volta ao campo.
- */
-export function SendButton({ label, onPress, disabled, keep }: { label: string; onPress: () => void; disabled?: boolean; keep?: RefObject<{ focus: () => void; isFocused?: () => boolean } | null> }) {
-  const had = useRef(false);
-  return (
-    <Pressable
-      onPress={() => {
-        onPress();
-        if (keep && had.current && !keep.current?.isFocused?.()) keep.current?.focus();
-      }}
-      onPressIn={() => { had.current = !!keep?.current?.isFocused?.(); }}
-      {...(Platform.OS === 'web' && keep ? { onMouseDown: (e: { preventDefault: () => void }) => e.preventDefault() } : null)}
-      disabled={disabled}
-      hitSlop={SLOP}
-      style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, disabled && { opacity: 0.6 }]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Icon name="arrow-up" size={22} color="#fff" strokeWidth={2.4} />
-    </Pressable>
-  );
-}
-
 /** Entra com uma animação curta (aparece e cresce um pouco): usado para a troca ícones ↔ Enviar. */
 export function Pop({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const v = useRef(new Animated.Value(0)).current;
@@ -448,7 +427,6 @@ const st = StyleSheet.create({
   tools: { flexDirection: 'row', alignItems: 'flex-end' },
   tool: { width: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', top: 7, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 1.5, borderColor: colors.zinc100 },
-  send: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   onceChip: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, marginBottom: 4, marginLeft: 4, borderRadius: 16, paddingHorizontal: 10, backgroundColor: 'rgba(214,51,79,0.12)' },
   onceText: { fontSize: 13, fontWeight: '700', color: colors.brand },
   err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
