@@ -7,16 +7,21 @@ import { post, raw } from '@/lib/api';
 import { txilladaEnabled, type TxilladaAudience, type TxilladaComment, type TxilladaDto, type TxilladaGift, type TxilladaGiver } from '@/lib/txillada';
 import type { FxPerson, ReactionKind } from '@/lib/txilladaFx';
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
+import type { ScheduleInput, ScheduledTxillada } from '@/lib/txilladaSchedule';
 
 export type { TxilladaAudience, TxilladaComment, TxilladaDto } from '@/lib/txillada';
+export type { ScheduleInput, ScheduledTxillada } from '@/lib/txilladaSchedule';
 
 /** O acesso ao LiveKit: o token assinado (com `canPublish` só para o anfitrião) e o endereço do servidor (wss://…). */
 export interface TxilladaAccess { token: string; url: string }
 
 const id = (s: string) => encodeURIComponent(s);
 
-/** O que se escolhe ao preparar (0167): o preço de uma privada e a Angariação (meta e motivo). */
-export interface StartOptions { price?: number | null; goal?: number | null; purpose?: string }
+/**
+ * O que se escolhe ao preparar (0167): o preço de uma privada e a Angariação (meta e motivo). `scheduleId` (0176): começar
+ * uma Txillada agendada (a API usa o título, o tipo, o preço e a meta do agendamento).
+ */
+export interface StartOptions { price?: number | null; goal?: number | null; purpose?: string; scheduleId?: string }
 /** A resposta a uma oferta (a mesma chave devolve a mesma oferta, sem cobrar outra vez). */
 export interface GiftResult { gift: TxilladaGift; raised: number; goal: number | null; topGivers: TxilladaGiver[]; balance: number }
 
@@ -39,7 +44,26 @@ export const txilladaApi = {
       title, audience,
       ...(audience === 'paid' && opts.price != null ? { price: opts.price } : {}),
       ...(opts.goal != null ? { goal: opts.goal, purpose: opts.purpose ?? '' } : {}),
+      ...(opts.scheduleId ? { scheduleId: opts.scheduleId } : {}),
     })),
+
+  // Txillada agendada (0176, docs/txillada-agendar.md).
+  /** Agendar: 201 com o agendamento; 400 (hora, preço, meta), 403, 409 `too_many` / `too_close`. */
+  schedule: (input: ScheduleInput): Promise<ScheduledTxillada> => raw('/txilladas/schedules', post(input)),
+  /** Os agendamentos à espera desse anfitrião que eu posso ver, por hora; sem `username`, os meus. */
+  schedules: (username?: string): Promise<{ items: ScheduledTxillada[] }> => raw(`/txilladas/schedules${username ? `?username=${id(username)}` : ''}`),
+  /** «Em breve»: os das próximas 48 h de quem sigo (máx. 20). */
+  upcoming: (): Promise<{ items: ScheduledTxillada[] }> => raw('/txilladas/schedules/upcoming'),
+  /** Um agendamento (também começado, cancelado ou expirado, para a ligação partilhada dizer o que aconteceu). */
+  getSchedule: (scheduleId: string): Promise<ScheduledTxillada> => raw(`/txilladas/schedules/${id(scheduleId)}`),
+  /** Mudar o título e a hora (só o anfitrião; 409 se já não está à espera). */
+  editSchedule: (scheduleId: string, b: { title?: string; startsAt?: string }): Promise<ScheduledTxillada> =>
+    raw(`/txilladas/schedules/${id(scheduleId)}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  /** Cancelar (204); quem pediu lembrete recebe o aviso. */
+  cancelSchedule: (scheduleId: string): Promise<void> => raw(`/txilladas/schedules/${id(scheduleId)}`, { method: 'DELETE' }),
+  /** «Lembrar-me» (ou tirar o lembrete). O anfitrião não pode (400). */
+  remind: (scheduleId: string, on: boolean): Promise<{ reminded: boolean; reminders: number | null }> =>
+    raw(`/txilladas/schedules/${id(scheduleId)}/remind`, on ? post({}) : { method: 'DELETE' }),
   /** Pagar a entrada de uma Txillada privada (uma vez só; pagar outra vez não cobra). 422 `insufficient_funds` sem saldo. */
   pay: (txilladaId: string): Promise<{ hasTicket: boolean; charged: boolean; balance: number; txillada: TxilladaDto }> => raw(`/txilladas/${id(txilladaId)}/ticket`, post({})),
   /** Oferecer Txills durante o live (`key`: a mesma ao repetir o pedido). 422 `insufficient_funds` sem saldo; 429 depressa demais. */
@@ -107,6 +131,10 @@ export const txilladaApi = {
 /** A chave da configuração no React Query (o mesmo valor serve Criar e o resto da app). */
 export const TXILLADA_CONFIG_KEY = ['txillada-config'] as const;
 export const txilladaKey = (txilladaId: string) => ['txillada', txilladaId] as const;
+/** As chaves dos agendamentos: um, os de um anfitrião (sem `username`, os meus) e a fila «Em breve». */
+export const scheduleKey = (scheduleId: string) => ['txillada-schedule', scheduleId] as const;
+export const schedulesKey = (username?: string | null) => ['txillada-schedules', username ?? ''] as const;
+export const UPCOMING_KEY = ['txillada-upcoming'] as const;
 
 /** A Txillada está ligada? (GET /txilladas/config, guardado 5 min.) Desligada, nada da Txillada aparece. */
 export function useTxilladaEnabled(): boolean {

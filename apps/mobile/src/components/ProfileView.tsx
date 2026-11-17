@@ -50,6 +50,7 @@ import { LINK_LABELS } from '@/lib/artists';
 import { useTabPress } from '@/lib/tabPress';
 import { goBack } from '@/lib/nav';
 import { livePrice } from '@/lib/txillada';
+import { NextTxilladaCard } from './txillada/ScheduleCards';
 import { vibesWord } from '@/lib/vibes';
 import { setPostHidden } from '@/lib/hidePostAction';
 
@@ -373,6 +374,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             </View>
           )}
           {!p.bio && p.isMe ? <Pressable onPress={() => setSheet('edit')}><Text style={styles.addBio}>Adiciona uma bio</Text></Pressable> : null}
+          {/* Txillada agendada (0176): o próximo agendamento que posso ver, com «Lembrar-me» (no meu, leva ao cartão). */}
+          {!blocked ? <NextTxilladaCard username={p.username} isMe={p.isMe} next={p.nextTxillada} /> : null}
         </View>
 
         {p.blockedMe && (

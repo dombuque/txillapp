@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { SponsoredCard } from '@/components/boost/SponsoredCard';
 import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
+import { UpcomingRow } from '@/components/txillada/ScheduleCards';
 import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { EmailBanner } from '@/components/EmailBanner';
@@ -217,6 +218,8 @@ function Feed() {
             <EmailBanner />
             <ProfileNudge />
             <StoriesTray />
+            {/* «Em breve» (0176): as Txilladas agendadas de quem sigo, numa fila à parte (a dos mimos fica igual). */}
+            <UpcomingRow />
           </View>
         }
         ListEmptyComponent={
