@@ -35,7 +35,7 @@ import { useNoIndex } from '@/lib/noIndex';
 import { stableScreen, type Size } from '@/lib/prepKeyboard';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { sheetViewport } from '@/lib/sheetViewport';
-import { colors } from '@/lib/theme';
+import { colors, dark as D } from '@/lib/theme';
 import { COMMENT_MAX, commentMenu, dtoKind, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { camLabel, floatHeight, liveKeyboard } from '@/lib/txilladaChat';
 import { liveLayout, type FxPerson, type ReactionKind } from '@/lib/txilladaFx';
@@ -127,6 +127,8 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   const [reopening, setReopening] = useState(false);
   /** O comentário com o menu aberto (o id: as contagens vêm sempre do estado da sala) e o que se está a denunciar. */
   const [menuId, setMenuId] = useState<string | null>(null);
+  /** O anfitrião tocou em alguém de «A ver agora»: a folha escura com o que pode fazer (viewerActions). */
+  const [viewer, setViewer] = useState<FxPerson | null>(null);
   const [reporting, setReporting] = useState<TxilladaComment | null>(null);
   const [pinH, setPinH] = useState(48);
   const flashT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -257,21 +259,11 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
       say((e as Error)?.message || t('Não consegui bloquear agora. Tenta outra vez.'));
     }
   }
-  /** O anfitrião, na lista «A ver agora»: dizer olá, convidar para transmitir (0165) ou expulsar. */
+  /** O anfitrião, na lista «A ver agora»: dizer olá, convidar para transmitir (0165) ou expulsar (a folha escura, ViewerMenu). */
   function viewerActions(u: FxPerson) {
     if (!host) return;
-    const act = viewerGuestAction(tx.guests, u.username);
-    const guest = act === 'invite'
-      ? [{ text: t('Convidar para transmitir'), onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? t('Convite enviado a @{username}', { username: u.username }))) }]
-      : act === 'requested'
-        ? [{ text: t('Aceitar o pedido para entrar'), onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? t('@{username} entrou no ecrã', { username: u.username }))) }]
-        : [];
-    Alert.alert(`@${u.username}`, act === 'invited' ? t('{displayName} · convite enviado', { displayName: u.displayName }) : act === 'full' ? t('{displayName} · já há 3 a transmitir', { displayName: u.displayName }) : u.displayName, [
-      { text: t('Dizer olá'), onPress: () => fxs.helloTo(u.username) },
-      ...guest,
-      { text: t('Expulsar @{username}', { username: u.username }), style: 'destructive', onPress: () => void confirmBan(u.username) },
-      { text: t('Cancelar'), style: 'cancel' },
-    ]);
+    setPanel(null);
+    setViewer(u);
   }
   /** Quem vê: pedir para entrar, ou desistir do pedido. */
   async function askJoin() {
@@ -641,6 +633,19 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           </Panel>
         </View>
       ) : null}
+      {viewer ? (
+        <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
+          <ViewerMenu
+            person={viewer}
+            act={viewerGuestAction(tx.guests, viewer.username)}
+            onClose={() => setViewer(null)}
+            onHello={() => { setViewer(null); fxs.helloTo(viewer.username); }}
+            onInvite={() => { setViewer(null); void tx.hostGuest('invite', viewer.username).then((e) => say(e ?? t('Convite enviado a @{username}', { username: viewer.username }))); }}
+            onAccept={() => { setViewer(null); void tx.hostGuest('accept', viewer.username).then((e) => say(e ?? t('@{username} entrou no ecrã', { username: viewer.username }))); }}
+            onBan={() => { setViewer(null); void confirmBan(viewer.username); }}
+          />
+        </View>
+      ) : null}
       {panel === 'gift' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
           <Panel title={t('Oferecer vibes')} onClose={() => setPanel(null)}>
@@ -697,7 +702,33 @@ const webFull: ViewStyle | null = Platform.OS === 'web' ? ({ position: 'fixed', 
 
 const glass = Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' } as object) : {};
 
+/**
+ * O que o anfitrião pode fazer com quem está a ver: dizer olá, convidar para transmitir (ou aceitar o pedido) e expulsar.
+ * A folha escura de sempre (Panel) com ActionRow e «Cancelar» no fim.
+ */
+function ViewerMenu({ person, act, onClose, onHello, onInvite, onAccept, onBan }: {
+  person: FxPerson;
+  act: ReturnType<typeof viewerGuestAction>;
+  onClose: () => void;
+  onHello: () => void;
+  onInvite: () => void;
+  onAccept: () => void;
+  onBan: () => void;
+}) {
+  const sub = act === 'invited' ? t('{displayName} · convite enviado', { displayName: person.displayName }) : act === 'full' ? t('{displayName} · já há 3 a transmitir', { displayName: person.displayName }) : person.displayName;
+  return (
+    <Panel title={`@${person.username}`} onClose={onClose} cancel>
+      <Text style={st.viewerSub} numberOfLines={1}>{sub}</Text>
+      <ActionRow icon="sparkles" title={t('Dizer olá')} onPress={onHello} />
+      {act === 'invite' ? <ActionRow icon="user-plus" title={t('Convidar para transmitir')} onPress={onInvite} /> : null}
+      {act === 'requested' ? <ActionRow icon="check" title={t('Aceitar o pedido para entrar')} onPress={onAccept} /> : null}
+      <ActionRow icon="logout" title={t('Expulsar @{username}', { username: person.username })} danger onPress={onBan} />
+    </Panel>
+  );
+}
+
 const st = StyleSheet.create({
+  viewerSub: { marginTop: -8, marginBottom: 8, paddingHorizontal: 4, fontSize: 14, color: D.sub },
   screen: { flex: 1, backgroundColor: '#000', overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center' },
   waitText: { color: 'rgba(255,255,255,0.86)', fontSize: 15, fontWeight: '600', textAlign: 'center' },
