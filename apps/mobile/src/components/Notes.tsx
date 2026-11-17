@@ -296,7 +296,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
         {layout === 'music' && !!note.body ? <Text style={styles.viewBig}>{note.body}</Text> : null}
         {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
         <View style={styles.replyRow}>
-          <View style={styles.replyPill}>
+          <View style={styles.replyPill} {...({ dataSet: { pill: '1' } } as object)}>
             <TextInput
               ref={input}
               value={text}
@@ -466,7 +466,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.edCenter} keyboardShouldPersistTaps="handled">
           {!view || hasBubble(view) ? (
           <View style={styles.edBubbleWrap}>
-            <View style={[styles.edBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+            <View style={[styles.edBubble, { backgroundColor: tone.bg, borderColor: tone.border }]} {...({ dataSet: { pill: '1' } } as object)}>
               {view ? (
                 !!view.body && <Text style={[styles.edText, { color: tone.text }]}>{view.body}</Text>
               ) : (
@@ -653,12 +653,12 @@ const styles = StyleSheet.create({
   viewBubble: { flexShrink: 1, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11, minHeight: 46, justifyContent: 'center', boxShadow: SHADOW } as object,
   viewBubbleText: { fontSize: 16, lineHeight: 21, fontWeight: '500' },
   viewBig: { marginTop: 22, textAlign: 'center', fontSize: 19, lineHeight: 25, fontWeight: '800', color: colors.zinc900, paddingHorizontal: 12 },
-  trackLine: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  trackLine: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' },
   trackBtn: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   trackTitle: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
   playing: { flexDirection: 'row', alignItems: 'center', gap: 1.5, height: 12 },
   playingBar: { width: 2.5, height: 12, borderRadius: 1.25 },
-  placeLine: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
+  placeLine: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '100%' },
   placeText: { flexShrink: 1, fontSize: 13, lineHeight: 17, fontWeight: '500' },
   replyRow: { marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 10 },
   replyPill: { flex: 1, minHeight: 50, borderRadius: 25, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 6 },
