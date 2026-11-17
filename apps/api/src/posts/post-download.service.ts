@@ -21,7 +21,7 @@ import { MusicBakeService } from './music-bake.service';
 import { TchekaStorage } from './tcheka-storage';
 
 /** Muda quando o desenho da cópia muda (o cartão, a assinatura, a mistura): as cópias antigas deixam de servir. */
-export const DOWNLOAD_RENDER_VERSION = 'fim-1';
+export const DOWNLOAD_RENDER_VERSION = 'fim-2';
 /** Quanto tempo uma cópia fica guardada (depois faz-se outra, se alguém a pedir). */
 const KEEP_DAYS = 30;
 /** Cópias a fazer ao mesmo tempo em cada processo (o resto espera a vez). */
