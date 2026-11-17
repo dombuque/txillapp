@@ -6,6 +6,7 @@ import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { abs, sized } from '@/lib/config';
 import { GROUP_KINDS, groupsApi, kindInfo, toIsoDay, dayOf, type GroupKind, type VenueHit } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
@@ -54,16 +55,11 @@ export function Section({ title, icon, action, children, style }: { title: strin
   );
 }
 
-/** Botão pílula (coral cheio, cinzento ou só texto). */
+const PILL_KIND = { brand: 'primary', soft: 'secondary', ghost: 'ghost', danger: 'danger' } as const;
+
+/** Botão pílula dos TxillGroups: o Button comum (coral, cinzento, só texto ou perigo), `md` de 44 ou `sm` de 36. A gravar, o ponto. */
 export function Pill({ label, onPress, kind = 'brand', icon, disabled, busy, small, style }: { label: string; onPress: () => void; kind?: 'brand' | 'soft' | 'ghost' | 'danger'; icon?: IconName; disabled?: boolean; busy?: boolean; small?: boolean; style?: StyleProp<ViewStyle> }) {
-  const bg = kind === 'brand' ? colors.brand : kind === 'soft' ? colors.zinc100 : kind === 'danger' ? '#fef2f2' : 'transparent';
-  const fg = kind === 'brand' ? '#fff' : kind === 'danger' ? '#b91c1c' : colors.zinc900;
-  return (
-    <Pressable onPress={onPress} disabled={disabled || busy} accessibilityRole="button" accessibilityState={{ disabled: !!(disabled || busy) }} style={({ pressed }) => [ps.pill, small && ps.pillSmall, { backgroundColor: bg }, (disabled || busy) && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }, style]}>
-      {icon && <Icon name={icon} size={small ? 15 : 18} color={fg} />}
-      <Text style={[ps.pillText, small && { fontSize: 13 }, { color: fg }]} numberOfLines={1}>{busy ? 'Um momento…' : label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} onPress={onPress} kind={PILL_KIND[kind]} size={small ? 'sm' : 'md'} icon={icon} disabled={disabled} loading={busy} style={style} />;
 }
 
 export function Field(props: React.ComponentProps<typeof TextInput>) {
@@ -96,12 +92,8 @@ export function ConfirmSheet({ title, lines, hint, confirmLabel = 'Confirmar', c
         {lines.map((l, i) => <Text key={i} style={ps.confirmText}>{l}</Text>)}
         {hint ? <Text style={ps.confirmHint}>{hint}</Text> : null}
         <ErrText text={err} />
-        <Pressable onPress={() => void go()} disabled={busy} style={[ps.confirmGo, danger && { backgroundColor: '#b91c1c' }, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} accessibilityLabel={busy ? 'A guardar' : confirmLabel}>
-          <Text style={ps.confirmGoText}>{busy ? 'A guardar…' : confirmLabel}</Text>
-        </Pressable>
-        <Pressable onPress={onClose} disabled={busy} style={ps.confirmBack} accessibilityRole="button">
-          <Text style={ps.confirmBackText}>{cancelLabel}</Text>
-        </Pressable>
+        <Button label={confirmLabel} kind={danger ? 'dangerSolid' : 'primary'} block loading={busy} onPress={() => void go()} accessibilityLabel={busy ? 'A guardar' : confirmLabel} style={{ marginTop: 6 }} />
+        <Button label={cancelLabel} kind="secondary" block disabled={busy} onPress={onClose} />
       </View>
     </Sheet>
   );
@@ -261,9 +253,7 @@ export const ps = StyleSheet.create({
   section: { marginBottom: 14, borderRadius: 20, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, padding: 14 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, minHeight: 28 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.zinc900 },
-  pill: { height: 44, flexDirection: 'row', gap: 6, borderRadius: 999, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  pillSmall: { height: 32, paddingHorizontal: 12 },
-  pillText: { fontSize: 15, fontWeight: '700' },
+
   input: { height: 46, borderRadius: 23, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
   err: { marginVertical: 6, textAlign: 'center', fontSize: 14, color: colors.red600 },
   calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -285,8 +275,5 @@ export const ps = StyleSheet.create({
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontSize: 16, lineHeight: 22, color: colors.zinc700 },
   confirmHint: { fontSize: 13, lineHeight: 18, color: colors.zinc500 },
-  confirmGo: { marginTop: 6, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  confirmGoText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  confirmBack: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  confirmBackText: { fontSize: 16, fontWeight: '600', color: colors.zinc700 },
+
 });

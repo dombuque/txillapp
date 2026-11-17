@@ -24,6 +24,7 @@ import { sized } from '@/lib/config';
 import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { ApiError } from '@/lib/api';
 import { resyncDraft } from '@/lib/draftSync';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
 
@@ -258,8 +259,12 @@ function Managers({ v }: { v: Venue }) {
       if ('left' in r) { void qc.invalidateQueries({ queryKey: ['venue', v.slug] }); void qc.invalidateQueries({ queryKey: ['venues-mine'] }); goBack(router, '/locais'); }
       return r;
     }, self ? 'Saíste da página.' : 'Gestor removido.');
-    if (Platform.OS === 'web') { if (confirm(self ? 'Sair desta página?' : `Tirar @${u} da página?`)) void go(); return; }
-    Alert.alert(self ? 'Sair da página?' : `Tirar @${u}?`, self ? 'Deixas de poder publicar como este local.' : 'Deixa de poder gerir ou publicar como este local.', [{ text: 'Cancelar', style: 'cancel' }, { text: self ? 'Sair' : 'Tirar', style: 'destructive', onPress: () => void go() }]);
+    void confirm({
+      title: self ? 'Sair da página?' : `Tirar @${u}?`,
+      message: self ? 'Deixas de poder publicar como este local.' : 'Deixa de poder gerir ou publicar como este local.',
+      confirm: self ? 'Sair' : 'Tirar',
+      danger: true,
+    }).then((ok) => { if (ok) void go(); });
   };
 
   return (

@@ -28,6 +28,7 @@ import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Inst
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type Badged, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { groupSenderPrefix, listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 import { systemText } from '@/lib/screenshotNotice';
@@ -198,15 +199,11 @@ export default function Messages() {
     void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
   }
   /** Conversa a dois: apagar a conversa (pergunta antes). */
-  function deleteChat(u: string, name: string) {
-    Alert.alert('Apagar a conversa?', `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: () => {
-        patchDirect(u, () => null);
-        qc.removeQueries({ queryKey: ['chat-thread', u] });
-        void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
-      } },
-    ]);
+  async function deleteChat(u: string, name: string) {
+    if (!(await confirm({ title: 'Apagar a conversa?', message: `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, confirm: 'Apagar', danger: true }))) return;
+    patchDirect(u, () => null);
+    qc.removeQueries({ queryKey: ['chat-thread', u] });
+    void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
   }
   /** TxillGroup: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
   function groupRead(g: TxillGroupSummary) {
@@ -214,15 +211,11 @@ export default function Messages() {
     void gruposApi.thread(g.id).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-groups'] }));
   }
   /** TxillGroup: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
-  function leaveGroup(g: TxillGroupSummary, me: string) {
-    Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de «${g.name}». Só voltas se alguém te adicionar.`, [
-      { text: 'Ficar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => {
-        patchGroup(g.id, () => null);
-        qc.removeQueries({ queryKey: ['chat-group', g.id] });
-        void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
-      } },
-    ]);
+  async function leaveGroup(g: TxillGroupSummary, me: string) {
+    if (!(await confirm({ title: 'Sair do TxillGroup?', message: `Deixas de receber as mensagens de «${g.name}». Só voltas se alguém te adicionar.`, confirm: 'Sair', cancel: 'Ficar', danger: true }))) return;
+    patchGroup(g.id, () => null);
+    qc.removeQueries({ queryKey: ['chat-group', g.id] });
+    void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
   }
   /** Conversa a dois: limpar só para mim (pergunta antes; a conversa fica na lista, vazia). O mesmo que na conversa aberta. */
   function clearChat(u: string) {

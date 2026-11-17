@@ -5,6 +5,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '@/components/Icon';
 import { ReportSheet } from '@/components/ReportSheet';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { REACTIONS, ReactionArt } from '@/components/StoryParts';
 import { api, raw } from '@/lib/api';
 import { applyDeletionToPages, applyEditToPages, copyText, deleteChoices, messageOptions, type DeleteMode } from '@/lib/messageMenu';
@@ -137,16 +138,14 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
   if (step === 'delete') {
     const choices = deleteChoices(opts);
     const btn = (label: string, run: () => void, tone: 'danger' | 'plain') => (
-      <Pressable key={label} onPress={run} style={({ pressed }) => [st.askBtn, { backgroundColor: tone === 'danger' ? (pressed ? '#fee2e2' : '#fef2f2') : pressed ? colors.zinc200 : colors.zinc100 }]} accessibilityRole="button">
-        <Text style={[st.askBtnText, { color: tone === 'danger' ? '#b91c1c' : colors.zinc800 }]}>{label}</Text>
-      </Pressable>
+      <Button key={label} label={label} onPress={run} kind={tone === 'danger' ? 'danger' : 'secondary'} block style={{ marginBottom: 8 }} />
     );
     return (
       <Sheet title="Apagar mensagem?" onClose={onClose}>
         <View style={{ paddingHorizontal: 20 }}>
           <Text style={st.askText}>
             {opts.deleteForAll
-              ? '"Apagar para todos" tira-a da conversa para toda a gente (fica o aviso "Esta mensagem foi apagada"). "Apagar para mim" tira-a só da tua conversa.'
+              ? '«Apagar para todos» tira-a da conversa para toda a gente (fica o aviso «Esta mensagem foi apagada»). «Apagar para mim» tira-a só da tua conversa.'
               : 'Sai só da tua conversa: os outros continuam a vê-la.'}
           </Text>
           {choices.map((c) => (c === 'all' ? btn('Apagar para todos', () => void remove('all'), 'danger') : btn('Apagar para mim', () => void remove('me'), 'danger')))}
@@ -267,8 +266,6 @@ const st = StyleSheet.create({
   rowTitle: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
   rowSub: { fontSize: 14, color: colors.zinc600 },
   askText: { paddingHorizontal: 4, paddingBottom: 12, fontSize: 15, lineHeight: 21, color: colors.zinc600 },
-  askBtn: { height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  askBtnText: { fontSize: 17, fontWeight: '600' },
   request: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingTop: 12 },
   requestText: { textAlign: 'center', fontSize: 14, lineHeight: 19, color: colors.zinc700 },
   btn: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

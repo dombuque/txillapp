@@ -8,6 +8,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { MusicPicker } from '@/components/MusicPicker';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { TrackCard } from '@/components/TrackCard';
 import { notesApi, type Note } from '@/lib/api.notes';
 import type { Track } from '@/lib/api.music';
@@ -174,8 +175,8 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
         <Sheet title="Apagar a nota?" onClose={() => setConfirmDelete(false)}>
           <Field>
             <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.</Text>
-            <Pressable disabled={busy} onPress={() => void run(() => notesApi.remove())} style={[styles.primary, { backgroundColor: '#b91c1c' }, busy && { opacity: 0.5 }]}><Text style={styles.primaryText}>Apagar</Text></Pressable>
-            <Pressable onPress={() => setConfirmDelete(false)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>Cancelar</Text></Pressable>
+            <Button label="Apagar" kind="dangerSolid" block loading={busy} onPress={() => void run(() => notesApi.remove())} />
+            <Button label="Cancelar" kind="secondary" block onPress={() => setConfirmDelete(false)} style={{ marginTop: 8 }} />
           </Field>
         </Sheet>
       )}

@@ -271,14 +271,19 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
 
   if (confirm) {
     return (
-      <Sheet title="Sair do TxillGroup?" onClose={() => setConfirm(false)}>
-        <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.confirmText}>Deixas de receber as mensagens de «{group.name}». Só voltas se alguém te adicionar.</Text>
-          {err ? <Text style={styles.err}>{err}</Text> : null}
-          <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, user!.username), onLeft)} style={[styles.leave, busy && { opacity: 0.5 }]}><Text style={styles.goText}>Sair do TxillGroup</Text></Pressable>
-          <Pressable onPress={() => setConfirm(false)} style={styles.stay}><Text style={styles.backText}>Ficar</Text></Pressable>
-        </View>
-      </Sheet>
+      <ConfirmSheet
+        title="Sair do TxillGroup?"
+        lines={[`Deixas de receber as mensagens de «${group.name}». Só voltas se alguém te adicionar.`]}
+        confirmLabel="Sair do TxillGroup"
+        cancelLabel="Ficar"
+        danger
+        onConfirm={async () => {
+          await gruposApi.remove(group.id, user!.username);
+          onLeft();
+          onChanged();
+        }}
+        onClose={() => setConfirm(false)}
+      />
     );
   }
 
@@ -432,8 +437,6 @@ const styles = StyleSheet.create({
   back: { height: 48, borderRadius: 24, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 16, fontWeight: '600', color: colors.zinc700 },
   hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
-  confirmText: { marginBottom: 16, fontSize: 16, lineHeight: 22, color: colors.zinc600 },
-  leave: { height: 48, borderRadius: 24, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center' },
   stay: { marginTop: 8, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   save: { height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   add: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 4 },
