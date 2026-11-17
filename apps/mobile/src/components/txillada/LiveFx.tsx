@@ -14,7 +14,7 @@ function Parts({ parts, style, lines = 1 }: { parts: readonly TextPart[]; style:
   return (
     <Text style={style} numberOfLines={lines}>
       {parts.map((p, i) => (p.t === 'text' ? p.s : (
-        <Text key={i}>@{p.u.username}{p.u.verified ? <InlineBadge who={{ verified: true, verifiedTier: p.u.verifiedTier ?? 'verified' }} fontSize={size} /> : null}</Text>
+        <Text key={i}>@{p.u.username}<InlineBadge who={p.u} fontSize={size} /></Text>
       )))}
     </Text>
   );
@@ -140,7 +140,7 @@ export function HelloStack({ items, top, left, width }: { items: readonly Hello[
 
 /**
  * O aviso discreto de quem entrou (um de cada vez, agrupado: «@a, @b e mais 3 entraram»). O anfitrião pode responder com
- * um toque: a uma pessoa, «Olá @rui 👋»; a várias, «Olá a todos».
+ * um toque («Dizer olá»): a uma pessoa, «Olá @rui» com o aceno; a várias, «Olá a todos».
  */
 export function JoinedToast({ users, bottom, left, onHello }: { users: readonly FxPerson[] | null; bottom: number; left: number; onHello?: (u: FxPerson | null) => void }) {
   if (!users?.length) return null;
@@ -157,7 +157,7 @@ export function JoinedToast({ users, bottom, left, onHello }: { users: readonly 
         ))}
       </View>
       <Parts parts={parts} style={fx.joinText} />
-      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>👋 {users.length === 1 ? 'Olá' : 'Olá a todos'}</Text></View> : null}
+      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>{users.length === 1 ? 'Dizer olá' : 'Olá a todos'}</Text></View> : null}
     </>
   );
   return (

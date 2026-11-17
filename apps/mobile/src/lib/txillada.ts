@@ -430,11 +430,11 @@ export function withCommentCheer(s: LiveState, commentId: string, cheers: number
   return { ...s, comments, pinned };
 }
 
-/** «🍻 3» no balão (nada com 0). */
+/** «3» na pastilha do balão, ao lado do ícone do brinde (nada com 0). */
 export function commentCheersLabel(n: number | null | undefined): string {
   const v = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   if (!v) return '';
-  return v < 1000 ? `🍻 ${v}` : `🍻 ${String(Math.round(v / 100) / 10).replace('.', ',')} mil`;
+  return v < 1000 ? String(v) : `${String(Math.round(v / 100) / 10).replace('.', ',')} mil`;
 }
 
 /** O id do comentário mais recente (para o `?after=`; as linhas das ofertas não contam: não são comentários). */

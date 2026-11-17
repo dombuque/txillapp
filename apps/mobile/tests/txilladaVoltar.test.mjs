@@ -105,7 +105,7 @@ test('a Txillada aberta fica lembrada (a PWA recarregar ao voltar) durante 30 mi
   assert.equal(mini.decodeOpen(null, 1), null);
 });
 
-test('a sessão vive no layout raiz: o ecrã abre-a e só Sair, o X e Concluir a fecham', () => {
+test('a sessão vive no layout raiz: o ecrã abre-a e só Sair, o X e Feito a fecham', () => {
   const layout = read('app/_layout.tsx');
   assert.match(layout, /\{user \? <TxilladaSessionHost key=\{user\.id\} \/> : null\}/);
   assert.match(layout, /\{user \? <TxilladaMini \/> : null\}/);

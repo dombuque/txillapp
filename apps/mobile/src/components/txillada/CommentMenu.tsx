@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
-import { InlineBadge } from '@/components/NameWithBadge';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { colors } from '@/lib/theme';
 import { commentCheersLabel, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { PinIcon } from './PinnedComment';
@@ -91,11 +91,14 @@ export function CommentMenu({ c, items, left, width, bottomInset, reduce, onPick
             <Avatar name={c.author.displayName} username={c.author.avatarUrl ? c.author.username : undefined} size={36} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={st.nameRow}>
-              <Text style={st.name} numberOfLines={1}>{c.author.username}</Text>
-              {c.author.verified ? <InlineBadge who={c.author} fontSize={15} /> : null}
-              {cheers ? <Text style={st.cheers}>{cheers}</Text> : null}
-            </View>
+            <NameWithBadge name={c.author.username} who={c.author} style={st.name}>
+              {cheers ? (
+                <View style={st.cheersRow}>
+                  <Icon name="cheers" size={13} color="rgba(255,255,255,0.8)" strokeWidth={2.2} />
+                  <Text style={st.cheers}>{cheers}</Text>
+                </View>
+              ) : null}
+            </NameWithBadge>
             <Text style={st.body} numberOfLines={3}>{c.body}</Text>
           </View>
         </View>
@@ -121,9 +124,10 @@ const st = StyleSheet.create({
   grab: { alignSelf: 'center', width: 38, height: 4.5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', marginBottom: 4 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingHorizontal: 4, paddingBottom: 2 },
   ring: { borderRadius: 999, padding: 1.5, borderWidth: 2, borderColor: colors.brand },
-  nameRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+
   name: { flexShrink: 1, color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
-  cheers: { marginLeft: 8, color: 'rgba(255,255,255,0.8)', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  cheersRow: { marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  cheers: { color: 'rgba(255,255,255,0.8)', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
   body: { marginTop: 2, color: 'rgba(255,255,255,0.86)', fontSize: 14.5, lineHeight: 20 },
   group: { borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 12 },

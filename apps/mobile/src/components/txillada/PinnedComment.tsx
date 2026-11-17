@@ -1,7 +1,7 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
-import { InlineBadge } from '@/components/NameWithBadge';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { colors } from '@/lib/theme';
 import type { TxilladaComment } from '@/lib/txillada';
 
@@ -19,7 +19,7 @@ const glass = Platform.OS === 'web' ? ({ backdropFilter: 'blur(16px) saturate(16
 
 /**
  * O comentário fixado pelo anfitrião: uma pílula de vidro em baixo, por cima da barra, sempre à vista (não flutua nem
- * desaparece). A roda da foto, o @ com o selo, «📌 FIXADO» e o texto (até 2 linhas). Tocar abre o menu do comentário.
+ * desaparece). A roda da foto, o @ com o selo, o alfinete com «Fixado» e o texto (até 2 linhas). Tocar abre o menu do comentário.
  */
 export function PinnedComment({ c, bottom, left, width, onPress, onHeight }: { c: TxilladaComment; bottom: number; left: number; width: number; onPress?: () => void; onHeight?: (h: number) => void }) {
   return (
@@ -36,13 +36,12 @@ export function PinnedComment({ c, bottom, left, width, onPress, onHeight }: { c
           <Avatar name={c.author.displayName} username={c.author.avatarUrl ? c.author.username : undefined} size={28} />
         </View>
         <View style={st.col}>
-          <View style={st.head}>
-            <Text style={st.name} numberOfLines={1}>{c.author.username}</Text>
-            {c.author.verified ? <InlineBadge who={c.author} fontSize={13} /> : null}
+          <NameWithBadge name={c.author.username} who={c.author} style={st.name}>
             <View style={st.tag}>
-              <Text style={st.tagText}>📌 FIXADO</Text>
+              <PinIcon size={10} strokeWidth={2.6} />
+              <Text style={st.tagText}>Fixado</Text>
             </View>
-          </View>
+          </NameWithBadge>
           <Text style={st.text} numberOfLines={2}>{c.body}</Text>
         </View>
       </Pressable>
@@ -59,9 +58,9 @@ const st = StyleSheet.create({
   },
   ring: { borderRadius: 999, padding: 1.5, borderWidth: 2, borderColor: colors.brand },
   col: { flexShrink: 1, minWidth: 0, gap: 1 },
-  head: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+
   name: { flexShrink: 1, color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: -0.1 },
-  tag: { marginLeft: 7, paddingHorizontal: 6, height: 17, borderRadius: 5, backgroundColor: 'rgba(214,51,79,0.92)', justifyContent: 'center' },
-  tagText: { color: '#fff', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.6 },
+  tag: { marginLeft: 7, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 17, borderRadius: 5, backgroundColor: 'rgba(214,51,79,0.92)' },
+  tagText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   text: { color: 'rgba(255,255,255,0.94)', fontSize: 13.5, lineHeight: 18, fontWeight: '500' },
 });

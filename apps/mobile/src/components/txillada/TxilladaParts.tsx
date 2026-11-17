@@ -128,7 +128,7 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
         </View>
       ) : null}
       <Pressable onPress={onDone} style={({ pressed }) => [st.cta, reopen && !cut && st.ctaGhost, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-        <Text style={st.ctaText}>Concluir</Text>
+        <Text style={st.ctaText}>Feito</Text>
       </Pressable>
     </View>
   );

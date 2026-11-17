@@ -279,7 +279,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
           <Text style={st.hint}>{txKind === 'paid' ? `${hint}. Tu e quem convidares para transmitir entram sem pagar.` : hint}</Text>
 
           {/* A Angariação: uma meta em Txills e para quê; quem vê oferece Txills e a barra enche-se. */}
-          <Toggle label="Angariação" sub="Uma meta em vibes que quem vê ajuda a encher" icon="present" on={fund} onChange={(v) => { setFund(v); clear(); }} />
+          <Toggle label="Angariação" sub="Uma meta em vibes que quem vê ajuda a encher" icon="gift" on={fund} onChange={(v) => { setFund(v); clear(); }} />
           {fund ? (
             <View style={st.fundRow} onLayout={row('fund')}>
               <View style={[st.amount, { width: narrow ? 108 : 128, minWidth: 0 }]}>
@@ -337,7 +337,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
 }
 
 /** Um interruptor no vidro escuro (o ícone, o texto, a explicação e a bolinha). */
-function Toggle({ label, sub, icon, on, onChange }: { label: string; sub: string; icon: 'star' | 'present'; on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, sub, icon, on, onChange }: { label: string; sub: string; icon: 'star' | 'gift'; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <Pressable onPress={() => onChange(!on)} style={({ pressed }) => [st.toggle, on && st.toggleOn, pressed && { opacity: 0.9 }]} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={`${label}. ${sub}`}>
       <Icon name={icon} size={16} color={on ? colors.brandWarm : '#fff'} strokeWidth={2.2} />
