@@ -63,3 +63,23 @@ export function ticksFor(items: LayoutMsg[], seenId: string | null, group: boole
   }
   return out;
 }
+
+/** A bolha de foto (como no WhatsApp): a largura normal, a altura da proporção da foto, entre estes limites. */
+export const PHOTO_W = 240;
+export const PHOTO_MIN_W = 160;
+export const PHOTO_MIN_H = 120;
+export const PHOTO_MAX_H = 320;
+/** Enquanto a foto não carrega (não se sabe a forma): a caixa de sempre. */
+export const PHOTO_WAIT_H = 288;
+
+/**
+ * O tamanho da bolha de uma foto com a proporção `ratio` (largura/altura): a foto aparece inteira (contain) e a caixa tem a
+ * forma dela. Uma foto alta fica mais estreita (até PHOTO_MIN_W) com a altura máxima; uma muito deitada fica com a altura
+ * mínima, com uma faixa por cima e por baixo. Sem proporção, a caixa de espera.
+ */
+export function photoBubbleSize(ratio: number | null | undefined): { width: number; height: number } {
+  if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return { width: PHOTO_W, height: PHOTO_WAIT_H };
+  const h = PHOTO_W / ratio;
+  if (h > PHOTO_MAX_H) return { width: Math.round(Math.max(PHOTO_MIN_W, PHOTO_MAX_H * ratio)), height: PHOTO_MAX_H };
+  return { width: PHOTO_W, height: Math.round(Math.max(PHOTO_MIN_H, h)) };
+}

@@ -112,7 +112,8 @@ test('editor do mimo: câmara do site e do "+" com signed; galeria e câmara do 
   const st = read('app', 'stories', 'new.tsx');
   assert.match(st, /useState<Asset \| null>\(\(\) => mimoFromParams\(given\)\)/);
   assert.match(st, /onShot=\{\(s: Shot\) => setAsset\(\{ uri: s\.uri, video: s\.video, mime: s\.mime, signed: s\.signed \}\)\}/);
-  assert.match(st, /uploadMedia\(src, mime, 'public', \(\) => stage\('prepare'\), a\.signed\)/);
+  // Recortada (zoom no editor), perdeu o canto da assinatura: vai sem signed e o servidor assina-a de novo.
+  assert.match(st, /uploadMedia\(src, mime, 'public', \(\) => stage\('prepare'\), crop && src !== a\.uri \? false : a\.signed\)/);
   assert.doesNotMatch(fn(st, 'pick'), /signed/);
   const fromFiles = st.slice(st.indexOf('const fromFiles'), st.indexOf('};', st.indexOf('const fromFiles')));
   assert.doesNotMatch(fromFiles, /signed/);

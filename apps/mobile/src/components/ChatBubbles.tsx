@@ -22,7 +22,7 @@ import { PollBubble } from '@/components/groups/PollCard';
 import { TILE_URL } from '@/components/nearby/mapRuntime';
 import { isTcheka, type Badged, type ChatMessage } from '@/lib/api';
 import { NameWithBadge } from '@/components/NameWithBadge';
-import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
+import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, photoBubbleSize, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
 import { gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
@@ -350,6 +350,34 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
   );
 }
 
+/** As proporções das fotos já carregadas (por endereço): ao voltar à conversa a bolha nasce logo com a forma certa. */
+const photoRatios = new Map<string, number>();
+
+/**
+ * A foto enviada na conversa: a bolha tem a forma da foto (lib/chatLayout photoBubbleSize, como no WhatsApp) e a foto vê-se
+ * inteira. Não se guardam as dimensões com a mensagem: a forma aprende-se ao carregar (`onLoad`) e fica em memória.
+ */
+function ChatPhoto({ url, hold, onOpen, style, children }: { url: string; hold: BubbleHold; onOpen: () => void; style: StyleProp<ViewStyle>; children?: React.ReactNode }) {
+  const [ratio, setRatio] = useState<number | null>(() => photoRatios.get(url) ?? null);
+  const size = photoBubbleSize(ratio);
+  return (
+    <View style={[style, { width: size.width }]}>
+      <Pressable {...hold} onPress={onOpen} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
+        <View style={{ height: size.height, width: '100%', backgroundColor: colors.zinc200 }}>
+          <Image
+            source={{ uri: url }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) { const r = w / h; photoRatios.set(url, r); if (r !== ratio) setRatio(r); } }}
+            accessibilityIgnoresInvertColors
+          />
+        </View>
+      </Pressable>
+      {children}
+    </View>
+  );
+}
+
 /**
  * A foto citada numa resposta a um Zás ou a um mimo (entre a legenda e a bolha do texto), pequena: uma linha fina de citação
  * ao lado (à esquerda nas mensagens da outra pessoa, à direita nas minhas) e a foto.
@@ -634,23 +662,21 @@ export function Bubble({
     content = <View style={{ maxWidth: '86%' }}><VoiceMessage m={m} dim={m.state === 'sending'} /></View>;
   } else if ((m.kind === 'image' || m.kind === 'video') && m.mediaUrl) {
     const url = abs(m.mediaUrl) ?? m.mediaUrl;
-    content = (
+    const caption = m.kind === 'image' && m.body ? <ChatText text={m.body} mine={mine} style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]} onLongPress={hold.onLongPress} /> : null;
+    content = m.kind === 'image' ? (
+      // Foto: a bolha com a forma da foto e a foto inteira (antes, uma caixa fixa de 240×288 cortava os lados).
+      <ChatPhoto url={url} hold={hold} onOpen={() => setFull(true)} style={[st.media, tone, radius, dimStyle]}>
+        {caption}
+        {full && <MediaFull url={url} video={false} onClose={() => setFull(false)} />}
+      </ChatPhoto>
+    ) : (
       <View style={[st.media, tone, radius, dimStyle]}>
-        {m.kind === 'video' ? (
-          // Vídeo: toca dentro da bolha, com os controlos (play, pausa, som, barra); o botão do canto abre o visor.
-          <View style={{ height: 288, width: '100%', backgroundColor: '#000' }}>
-            <ChatVideoPlayer url={url} />
-            <Pressable {...hold} onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
-          </View>
-        ) : (
-          <Pressable {...hold} onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
-            <View style={{ height: 288, width: '100%', backgroundColor: colors.zinc200 }}>
-              <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
-            </View>
-          </Pressable>
-        )}
-        {m.kind === 'image' && m.body ? <ChatText text={m.body} mine={mine} style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]} onLongPress={hold.onLongPress} /> : null}
-        {full && <MediaFull url={url} video={m.kind === 'video'} onClose={() => setFull(false)} />}
+        {/* Vídeo: toca dentro da bolha, com os controlos (play, pausa, som, barra); o botão do canto abre o visor. */}
+        <View style={{ height: 288, width: '100%', backgroundColor: '#000' }}>
+          <ChatVideoPlayer url={url} />
+          <Pressable {...hold} onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
+        </View>
+        {full && <MediaFull url={url} video onClose={() => setFull(false)} />}
       </View>
     );
   } else if (m.kind === 'story_reaction') {

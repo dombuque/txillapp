@@ -56,3 +56,29 @@ export async function cropToRatio(uri: string, ratio: number): Promise<string> {
 export async function shrinkPhoto(uri: string, _maxShort?: number, _maxLong?: number): Promise<string> {
   return uri;
 }
+
+/** JPEG da parte `r` da foto (frações 0..1) em `outW`×`outH`, como URL de objeto: o recorte do mimo (lib/mimoCrop.ts). */
+export async function cropRegion(uri: string, r: { x: number; y: number; w: number; h: number }, outW: number, outH: number, maxW = 1080, maxH = 1920): Promise<string> {
+  if (typeof document === 'undefined' || !(r.w > 0) || !(r.h > 0)) return uri;
+  try {
+    const img = await load(uri);
+    if (!img) return uri;
+    if (img.decode) await img.decode().catch(() => undefined);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return uri;
+    const cw = r.w * w, ch = r.h * h;
+    // O tamanho a partir dos px que o browser leu (a forma é a de `outW`×`outH`), até maxW×maxH e sem aumentar.
+    const k = Math.min(1, maxW / cw, maxH / ch);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(cw * k));
+    c.height = Math.max(1, Math.round(c.width * (outH / outW)));
+    const g = c.getContext('2d');
+    if (!g) return uri;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, r.x * w, r.y * h, cw, ch, 0, 0, c.width, c.height);
+    const blob = await new Promise<Blob | null>((done) => c.toBlob(done, 'image/jpeg', 0.92));
+    return blob && blob.size > 0 ? URL.createObjectURL(blob) : uri;
+  } catch {
+    return uri;
+  }
+}

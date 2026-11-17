@@ -196,7 +196,7 @@ test('editor do mimo: «Aa» abre o texto, Feito pousa, tocar reescreve, e vai t
   const src = read('app', 'stories', 'new.tsx');
   assert.match(src, /accessibilityLabel="Texto"/);
   assert.match(src, />Aa</);
-  assert.match(src, /<TextLayerEditor initial=\{textEdit\.layer\} boxW=\{box\.w\} onDone=\{textDone\} \/>/);
+  assert.match(src, /<TextLayerEditor initial=\{textEdit\.layer\} boxW=\{frame\.w\} onDone=\{textDone\} \/>/);
   assert.match(src, /onEdit=\{editText\} hidden=\{textEdit\?\.index \?\? null\}/);
   assert.match(src, /counts\.texts >= MAX_TEXT_LAYERS/);
   assert.match(src, /mimoEdited\(\{ caption, stickers: counts\.stickers, texts: counts\.texts/);
