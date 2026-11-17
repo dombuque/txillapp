@@ -9,6 +9,7 @@ import { Sheet } from '@/components/Sheet';
 import { pushApi, type ContactMatch } from '@/lib/api.settings';
 import { canPickContacts, chooseContactsFile, emailsFromFile, hashAll, pickContactEmails } from '@/lib/contacts';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 
 /**
@@ -41,37 +42,37 @@ export function FindContacts({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet title="Amigos nos contactos" onClose={onClose} full>
+    <Sheet title={t('Amigos nos contactos')} onClose={onClose} full>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
         {found === null ? (
           <View style={{ gap: 12 }}>
-            <Text style={st.p}>Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no teu telemóvel: só enviamos um resumo cifrado dos emails, só para comparar, e não guardamos nada.</Text>
+            <Text style={st.p}>{t('Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no teu telemóvel: só enviamos um resumo cifrado dos emails, só para comparar, e não guardamos nada.')}</Text>
             {canPickContacts() ? (
               <>
                 <Pressable onPress={() => void run(pickContactEmails)} disabled={busy} style={[st.primary, busy && { opacity: 0.5 }]} accessibilityRole="button">
                   <Icon name="users" size={20} color="#fff" />
-                  <Text style={st.primaryText}>{busy ? 'A procurar…' : 'Permitir acesso aos contactos'}</Text>
+                  <Text style={st.primaryText}>{busy ? t('A procurar…') : t('Permitir acesso aos contactos')}</Text>
                 </Pressable>
-                <Text style={st.small}>O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).</Text>
+                <Text style={st.small}>{t('O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).')}</Text>
               </>
             ) : (
               <View style={st.box}>
-                <Text style={{ fontWeight: '600', fontSize: 14, color: colors.zinc900 }}>Neste aparelho a app web não pode ler os contactos.</Text>
-                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).</Text>
+                <Text style={{ fontWeight: '600', fontSize: 14, color: colors.zinc900 }}>{t('Neste aparelho a app web não pode ler os contactos.')}</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>{t('No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).')}</Text>
                 <Pressable onPress={() => void importFile()} disabled={busy} style={[st.import, busy && { opacity: 0.5 }]} accessibilityRole="button">
                   <Icon name="download" size={18} color={colors.zinc800} />
-                  <Text style={{ fontWeight: '600', fontSize: 15, color: colors.zinc800 }}>{busy ? 'A procurar…' : 'Importar ficheiro de contactos'}</Text>
+                  <Text style={{ fontWeight: '600', fontSize: 15, color: colors.zinc800 }}>{busy ? t('A procurar…') : t('Importar ficheiro de contactos')}</Text>
                 </Pressable>
-                <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc500 }}>Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.</Text>
+                <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc500 }}>{t('Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.')}</Text>
               </View>
             )}
             {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text> : null}
           </View>
         ) : found.length === 0 ? (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <Text style={{ fontWeight: '800', fontSize: 16, color: colors.zinc600 }}>Ninguém por agora</Text>
-            <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' }}>{total ? `Vimos ${total} ${total === 1 ? 'email' : 'emails'} e nenhum está no Txillapp (ou ainda não quer ser encontrado).` : 'Não encontrámos emails nos contactos.'}</Text>
-            <Pressable onPress={() => setFound(null)} style={st.again} accessibilityRole="button"><Text style={{ fontWeight: '600', fontSize: 16, color: colors.zinc900 }}>Tentar outra vez</Text></Pressable>
+            <Text style={{ fontWeight: '800', fontSize: 16, color: colors.zinc600 }}>{t('Ninguém por agora')}</Text>
+            <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' }}>{total ? t('Vimos {count} email e nenhum está no Txillapp (ou ainda não quer ser encontrado).', { count: total, other: 'Vimos {count} emails e nenhum está no Txillapp (ou ainda não quer ser encontrado).' }) : t('Não encontrámos emails nos contactos.')}</Text>
+            <Pressable onPress={() => setFound(null)} style={st.again} accessibilityRole="button"><Text style={{ fontWeight: '600', fontSize: 16, color: colors.zinc900 }}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         ) : (
           found.map((p) => (

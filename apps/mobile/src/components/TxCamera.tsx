@@ -21,6 +21,7 @@ import {
   SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
   type SealTier,
 } from '@/lib/wordmark';
+import { t } from '@/lib/i18n';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
@@ -74,7 +75,7 @@ const photoJpeg = (c: HTMLCanvasElement) => encodePhoto((q) => new Promise<Blob 
 /** Um filtro na fila: a imagem de exemplo (o que a câmara vê, ou a foto tirada) já com o filtro, e o nome por baixo. */
 function LookSwatch({ look, src, on, onPress }: { look: Look; src: string | null; on: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ width: 58, alignItems: 'center', gap: 4 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Filtro ${look.name}`}>
+    <Pressable onPress={onPress} style={{ width: 58, alignItems: 'center', gap: 4 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Filtro {name}', { name: look.name })}>
       <View style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden', borderWidth: on ? 2.5 : 1, borderColor: on ? '#fff' : 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(255,255,255,0.15)' }}>
         {src ? dom('img', { src, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: lookCss(look) } }) : null}
         {src && look.tint ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: `rgba(${look.tint.join(',')})` }} /> : null}
@@ -344,13 +345,13 @@ function makePump(apply: (v: number) => Promise<unknown>) {
 }
 /** O que dizer quando a câmara não abre (e o que fazer). */
 const PROBLEM_TEXT: Record<CamProblem | 'unsupported', { title: string; sub: string }> = {
-  denied: { title: 'A câmara está bloqueada', sub: 'Para tirares fotos aqui, deixa o Txillapp usar a câmara:' },
-  busy: { title: 'A câmara está a ser usada', sub: 'Outra app (uma chamada, o FaceTime, outro separador) está com a câmara. Fecha-a e toca em Tentar outra vez.' },
-  nocamera: { title: 'Não encontrei nenhuma câmara', sub: 'Podes escolher fotos e vídeos da galeria.' },
-  insecure: { title: 'A câmara precisa de ligação segura', sub: 'Abre o Txillapp em https:// para usar a câmara. A galeria funciona na mesma.' },
-  unsupported: { title: 'Este browser não dá acesso à câmara', sub: 'Experimenta o Safari ou o Chrome, ou escolhe da galeria.' },
-  constraint: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe da galeria.' },
-  failed: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe da galeria.' },
+  denied: { get title() { return t('A câmara está bloqueada'); }, get sub() { return t('Para tirares fotos aqui, deixa o Txillapp usar a câmara:'); } },
+  busy: { get title() { return t('A câmara está a ser usada'); }, get sub() { return t('Outra app (uma chamada, o FaceTime, outro separador) está com a câmara. Fecha-a e toca em Tentar outra vez.'); } },
+  nocamera: { get title() { return t('Não encontrei nenhuma câmara'); }, get sub() { return t('Podes escolher fotos e vídeos da galeria.'); } },
+  insecure: { get title() { return t('A câmara precisa de ligação segura'); }, sub: 'Abre o Txillapp em https:// para usar a câmara. A galeria funciona na mesma.' },
+  unsupported: { get title() { return t('Este browser não dá acesso à câmara'); }, get sub() { return t('Experimenta o Safari ou o Chrome, ou escolhe da galeria.'); } },
+  constraint: { get title() { return t('Não consegui abrir a câmara'); }, get sub() { return t('Tenta outra vez, ou escolhe da galeria.'); } },
+  failed: { get title() { return t('Não consegui abrir a câmara'); }, get sub() { return t('Tenta outra vez, ou escolhe da galeria.'); } },
 };
 /** Que browser é este (para mostrar onde está o cadeado). */
 const browserNow = () => browserKind(
@@ -419,7 +420,7 @@ type Box = { x: number; y: number; w: number; h: number };
 type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number; t: number; hl: number; sh: number; vig: number; k: number };
 const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1, t: 0, hl: 0, sh: 0, vig: 0, k: 100 };
 /** Proporções do recorte: num mimo/tcheka todas; numa publicação só as do Instagram (1:1, 4:5 e 1,91:1). */
-const ALL_ASPECTS: readonly (readonly [number | null, string])[] = [[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']];
+const ALL_ASPECTS: () => readonly (readonly [number | null, string])[] = () => [[null, t('Original')], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']];
 const POST_ASPECTS: readonly (readonly [number | null, string])[] = [[1, '1:1'], [POST_RATIO_DEFAULT, '4:5'], [POST_RATIO_MAX, '1,91:1']];
 /**
  * Numa publicação, o corte livre fica entre 4:5 e 1,91:1 (como no Instagram). `ir` é a proporção da foto já rodada;
@@ -443,19 +444,19 @@ type AdjKey = 'b' | 'c' | 's' | 't' | 'hl' | 'sh' | 'vig' | 'k';
 type Tool = 'look' | 'crop' | AdjKey;
 /** Cada ajuste no slider único: o valor que se vê (inteiro) e como passa para a edição. */
 const ADJ: Record<AdjKey, { label: string; min: number; max: number; def: number; get: (e: Edit) => number; set: (v: number) => Partial<Edit> }> = {
-  b: { label: 'Brilho', min: -100, max: 100, def: 0, get: (e) => Math.round((e.b - 1) * 250), set: (v) => ({ b: 1 + v / 250 }) },
-  c: { label: 'Contraste', min: -100, max: 100, def: 0, get: (e) => Math.round((e.c - 1) * 250), set: (v) => ({ c: 1 + v / 250 }) },
-  s: { label: 'Saturação', min: -100, max: 100, def: 0, get: (e) => Math.round((e.s - 1) * 100), set: (v) => ({ s: 1 + v / 100 }) },
-  t: { label: 'Temperatura', min: -100, max: 100, def: 0, get: (e) => e.t, set: (v) => ({ t: v }) },
-  hl: { label: 'Realces', min: -100, max: 100, def: 0, get: (e) => e.hl, set: (v) => ({ hl: v }) },
-  sh: { label: 'Sombras', min: -100, max: 100, def: 0, get: (e) => e.sh, set: (v) => ({ sh: v }) },
-  vig: { label: 'Vinheta', min: 0, max: 100, def: 0, get: (e) => e.vig, set: (v) => ({ vig: v }) },
-  k: { label: 'Intensidade', min: 0, max: 100, def: 100, get: (e) => e.k, set: (v) => ({ k: v }) },
+  b: { get label() { return t('Brilho'); }, min: -100, max: 100, def: 0, get: (e) => Math.round((e.b - 1) * 250), set: (v) => ({ b: 1 + v / 250 }) },
+  c: { get label() { return t('Contraste'); }, min: -100, max: 100, def: 0, get: (e) => Math.round((e.c - 1) * 250), set: (v) => ({ c: 1 + v / 250 }) },
+  s: { get label() { return t('Saturação'); }, min: -100, max: 100, def: 0, get: (e) => Math.round((e.s - 1) * 100), set: (v) => ({ s: 1 + v / 100 }) },
+  t: { get label() { return t('Temperatura'); }, min: -100, max: 100, def: 0, get: (e) => e.t, set: (v) => ({ t: v }) },
+  hl: { get label() { return t('Realces'); }, min: -100, max: 100, def: 0, get: (e) => e.hl, set: (v) => ({ hl: v }) },
+  sh: { get label() { return t('Sombras'); }, min: -100, max: 100, def: 0, get: (e) => e.sh, set: (v) => ({ sh: v }) },
+  vig: { get label() { return t('Vinheta'); }, min: 0, max: 100, def: 0, get: (e) => e.vig, set: (v) => ({ vig: v }) },
+  k: { get label() { return t('Intensidade'); }, min: 0, max: 100, def: 100, get: (e) => e.k, set: (v) => ({ k: v }) },
 };
 const TOOLS: { id: Tool; label: string; a11y?: string }[] = [
-  { id: 'look', label: 'Filtros' }, { id: 'b', label: 'Brilho' }, { id: 'c', label: 'Contraste' }, { id: 's', label: 'Saturação' },
-  { id: 't', label: 'Temperatura' }, { id: 'hl', label: 'Realces' }, { id: 'sh', label: 'Sombras' }, { id: 'vig', label: 'Vinheta' },
-  { id: 'k', label: 'Intensidade', a11y: 'Intensidade do filtro' }, { id: 'crop', label: 'Recortar' },
+  { id: 'look', get label() { return t('Filtros'); } }, { id: 'b', get label() { return t('Brilho'); } }, { id: 'c', get label() { return t('Contraste'); } }, { id: 's', get label() { return t('Saturação'); } },
+  { id: 't', get label() { return t('Temperatura'); } }, { id: 'hl', get label() { return t('Realces'); } }, { id: 'sh', get label() { return t('Sombras'); } }, { id: 'vig', get label() { return t('Vinheta'); } },
+  { id: 'k', get label() { return t('Intensidade'); }, get a11y() { return t('Intensidade do filtro'); } }, { id: 'crop', get label() { return t('Recortar'); } },
 ];
 const fmtAdj = (k: AdjKey, v: number) => (k === 'vig' || k === 'k' || v <= 0 ? String(v) : `+${v}`);
 
@@ -565,7 +566,7 @@ function TopTool({ on, label, onPress, children }: { on?: boolean; label: string
 }
 
 export function TxCamera({
-  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16, keepClean = false, segmented,
+  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = t('Feito'), thumbs, kinds, kind, onKind, aspect = 9 / 16, keepClean = false, segmented,
 }: {
   count: number; max: number; modes?: CamMode[]; onShot: (s: Shot) => void; onGallery: (files: File[]) => void; onClose: () => void; onDone?: () => void; onText?: () => void; doneLabel?: string;
   /** Miniaturas do que já foi escolhido (a fila de "recentes", como no Instagram). */
@@ -1520,7 +1521,7 @@ export function TxCamera({
   const bottomPad = Math.max(insets.bottom, 14) + 6;
   // Flash a sério (ImageCapture), lanterna, ou, na câmara da frente, o ecrã como flash. Sem nada disto, não aparece.
   const showFlash = canTorch || facing === 'user' || caps.flash;
-  const flashLabel = caps.flash && facing !== 'user' ? 'Flash' : canTorch ? 'Lanterna' : 'Flash de ecrã';
+  const flashLabel = caps.flash && facing !== 'user' ? t('Flash') : canTorch ? t('Lanterna') : t('Flash de ecrã');
   const guide = layout !== null ? frame : cap; // onde fica a grelha dos terços
   // Na edição: o painel de baixo (área do slider/filtros + fila de ferramentas) e o espaço da foto por cima.
   const panelH = 10 + 88 + 78 + Math.max(insets.bottom, 10);
@@ -1640,7 +1641,7 @@ export function TxCamera({
       {segmented && (segmented.clipsMs.length > 0 || recording) ? (() => {
         const bar = segmentBar(segmented.clipsMs, recording ? finalMs(recMs, recSpeed.current) : 0);
         return (
-          <View style={[st.segBar, { top: topPad }]} pointerEvents="none" accessibilityRole="progressbar" accessibilityLabel={`${Math.round(bar.used * TCHEKA_MAX_S)} de ${TCHEKA_MAX_S} segundos`}>
+          <View style={[st.segBar, { top: topPad }]} pointerEvents="none" accessibilityRole="progressbar" accessibilityLabel={t('{n} de {tchekaMaxS} segundos', { n: Math.round(bar.used * TCHEKA_MAX_S), tchekaMaxS: TCHEKA_MAX_S })}>
             {bar.segments.map((g, i) => <View key={i} style={[st.segPart, { left: `${g.start * 100}%`, width: `${g.width * 100}%` }]} />)}
             {bar.live ? <View style={[st.segPart, st.segLive, { left: `${bar.live.start * 100}%`, width: `${bar.live.width * 100}%` }]} /> : null}
           </View>
@@ -1648,23 +1649,23 @@ export function TxCamera({
       })() : null}
       {segmented && !recording && segmented.onMusic && ready && !review ? (
         <View style={[st.segMusicWrap, { top: topPad + 62 }]} pointerEvents="box-none">
-          <Pressable onPress={segmented.onMusic} style={st.segMusic} accessibilityRole="button" accessibilityLabel={segmented.musicTitle ? `Som: ${segmented.musicTitle}. Trocar` : 'Escolher um som'}>
+          <Pressable onPress={segmented.onMusic} style={st.segMusic} accessibilityRole="button" accessibilityLabel={segmented.musicTitle ? t('Som: {musicTitle}. Trocar', { musicTitle: segmented.musicTitle }) : t('Escolher um som')}>
             <Icon name="music" size={15} color="#fff" />
-            <Text style={st.segMusicText} numberOfLines={1}>{segmented.musicTitle || 'Escolher som'}</Text>
+            <Text style={st.segMusicText} numberOfLines={1}>{segmented.musicTitle || t('Escolher som')}</Text>
           </Pressable>
         </View>
       ) : null}
 
       {/* Em cima, só o essencial: fechar à esquerda; à direita o Feito, o flash e as opções. */}
       <View style={[st.top, { paddingTop: topPad + 6 }]}>
-        <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel={t('Fechar câmara')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {recording ? (
           <View style={{ alignItems: 'center', gap: 6 }}>
-            <View style={[st.rec, left <= 5 && { backgroundColor: 'rgba(239,68,68,0.85)' }]} accessibilityRole="timer" accessibilityLabel={`A gravar: ${seconds} de ${MAX_VIDEO_S} segundos`}>
+            <View style={[st.rec, left <= 5 && { backgroundColor: 'rgba(239,68,68,0.85)' }]} accessibilityRole="timer" accessibilityLabel={t('A gravar: {seconds} de {maxVideoS} segundos', { seconds, maxVideoS: MAX_VIDEO_S })}>
               <View style={[st.recDot, left <= 5 && { backgroundColor: '#fff' }]} />
               <Text style={st.recText}>{segmented ? clock(Math.floor((usedFinalMs + finalMs(recMs, recSpeed.current)) / 1000)) : clock(seconds)}<Text style={{ color: 'rgba(255,255,255,0.6)' }}> / {clock(MAX_VIDEO_S)}</Text></Text>
             </View>
-            {mute ? <Text style={st.recNote}>Sem som: o microfone não está disponível</Text> : null}
+            {mute ? <Text style={st.recNote}>{t('Sem som: o microfone não está disponível')}</Text> : null}
           </View>
         ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1675,21 +1676,21 @@ export function TxCamera({
             </Pressable>
           ) : null}
           {(recording ? canTorch : showFlash) ? (
-            <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? 'Lanterna' : flashLabel}>
+            <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? t('Lanterna') : flashLabel}>
               <Icon name={light ? 'cam-flash' : 'cam-flash-off'} size={22} solid={light} color="#fff" />
             </Pressable>
           ) : null}
           {!recording ? (
             <>
-              <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador'} onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))}>
+              <TopTool on={delay > 0} label={delay ? t('Temporizador: {delay} s', { delay }) : t('Temporizador')} onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))}>
                 <Icon name={timerIcon(delay)} size={22} color="#fff" />
               </TopTool>
-              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Icon name="cam-grid" size={22} color="#fff" /></TopTool>
-              <TopTool on={layout !== null} label={layout !== null ? `Layout: ${LAYOUTS[layout].name}` : 'Layout'} onPress={() => setLayoutOpen((v) => !v)}>
+              <TopTool on={grid} label={t('Grelha')} onPress={toggleGrid}><Icon name="cam-grid" size={22} color="#fff" /></TopTool>
+              <TopTool on={layout !== null} label={layout !== null ? t('Layout: {name}', { name: LAYOUTS[layout].name }) : t('Layout')} onPress={() => setLayoutOpen((v) => !v)}>
                 <Icon name="cam-layout" size={22} color="#fff" />
               </TopTool>
               {modes.includes('text') && onText && !(count > 0 && onDone) ? (
-                <TopTool label="Só texto" onPress={onText}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
+                <TopTool label={t('Só texto')} onPress={onText}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
               ) : null}
             </>
           ) : null}
@@ -1703,7 +1704,7 @@ export function TxCamera({
       {!ready && (
         <View style={st.center}>
           {problem === null ? (
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16 }} accessibilityLiveRegion="polite">A acordar a câmara…</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16 }} accessibilityLiveRegion="polite">{t('A acordar a câmara…')}</Text>
           ) : (
             <View style={{ alignItems: 'center', paddingHorizontal: 28, maxWidth: 440 }}>
               <Icon name={problem === 'denied' ? 'lock' : 'alert'} size={44} color="rgba(255,255,255,0.75)" />
@@ -1721,12 +1722,12 @@ export function TxCamera({
               ) : null}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 20 }}>
                 {problem !== 'nocamera' && problem !== 'unsupported' && problem !== 'insecure' ? (
-                  <Pressable onPress={() => void start()} style={st.retry} accessibilityRole="button" accessibilityLabel="Tentar outra vez">
+                  <Pressable onPress={() => void start()} style={st.retry} accessibilityRole="button" accessibilityLabel={t('Tentar outra vez')}>
                     <Icon name="repeat" size={18} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Tentar outra vez</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{t('Tentar outra vez')}</Text>
                   </Pressable>
                 ) : null}
-                <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
+                <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{t('Abrir galeria')}</Text></GalleryPick>
               </View>
             </View>
           )}
@@ -1738,13 +1739,13 @@ export function TxCamera({
         <View style={[st.expo, { bottom: ctrlH + 4 }]}>
           <Icon name="cam-exposure" size={20} color={colors.brandWarm} strokeWidth={2} />
           {dom('input', {
-            type: 'range', min: -100, max: 100, step: 1, value: Math.round(expo * 100), 'aria-label': 'Exposição',
+            type: 'range', min: -100, max: 100, step: 1, value: Math.round(expo * 100), 'aria-label': t('Exposição'),
             'aria-valuetext': exposureLabel(exposureValue(expo, caps.exposure)),
             onChange: (ev: { target: HTMLInputElement }) => changeExpo(Number(ev.target.value) / 100),
             onDoubleClick: () => changeExpo(0),
             style: { flex: 1, minWidth: 0, accentColor: colors.brandWarm, height: 44, margin: 0, cursor: 'pointer', touchAction: 'pan-x' },
           })}
-          <Pressable onPress={() => changeExpo(0)} style={st.expoVal} accessibilityRole="button" accessibilityLabel={`Exposição ${exposureLabel(exposureValue(expo, caps.exposure))}. Toca para repor`}>
+          <Pressable onPress={() => changeExpo(0)} style={st.expoVal} accessibilityRole="button" accessibilityLabel={t('Exposição {exposureLabel}. Toca para repor', { exposureLabel: exposureLabel(exposureValue(expo, caps.exposure)) })}>
             <Text style={{ color: colors.brandWarm, fontWeight: '800', fontSize: 13, fontVariant: ['tabular-nums'] }}>{exposureLabel(exposureValue(expo, caps.exposure))}</Text>
           </Pressable>
         </View>
@@ -1753,9 +1754,9 @@ export function TxCamera({
       {/* Em baixo: layout (se aberto), escolhidas, zoom, os modos e a fila galeria · obturador · virar. */}
       <View style={[st.bottom, { paddingBottom: bottomPad }]}>
         {layoutOpen && !recording ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 52, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Layout">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 52, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel={t('Layout')}>
             <Pressable onPress={leaveLayout} style={[st.lookChip, layout === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === null }}>
-              <Text style={[st.lookText, layout === null && { color: colors.zinc900 }]}>Sem layout</Text>
+              <Text style={[st.lookText, layout === null && { color: colors.zinc900 }]}>{t('Sem layout')}</Text>
             </Pressable>
             {LAYOUTS.map((l, i) => (
               <Pressable key={l.id} onPress={() => { cellCanvases.current = []; setCells([]); setLayout(i); setLayoutOpen(false); }} style={[st.layoutChip, layout === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === i }} accessibilityLabel={l.name}>
@@ -1769,19 +1770,19 @@ export function TxCamera({
           </ScrollView>
         ) : null}
         {thumbs && thumbs.length > 0 && !recording && !segmented ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }} style={{ maxHeight: 54, marginBottom: 10, alignSelf: 'stretch' }} accessibilityLabel="Escolhidas">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }} style={{ maxHeight: 54, marginBottom: 10, alignSelf: 'stretch' }} accessibilityLabel={t('Escolhidas')}>
             {thumbs.map((u, i) => (
               <View key={`${u}-${i}`} style={st.thumb}>{dom('img', { src: u, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}</View>
             ))}
           </ScrollView>
         ) : hint && ready && !recording && count === 0 && layout === null && modes.includes('video') ? (
-          <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
+          <Text style={st.hint} pointerEvents="none">{t('Toca para foto · mantém para vídeo')}</Text>
         ) : null}
-        {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
+        {full ? <Text style={st.full} accessibilityRole="alert">{t('Máximo de {max} fotos', { max })}</Text> : null}
         {segmented && !recording && ready && layout === null ? (
-          <View style={st.speedRow} accessibilityRole="radiogroup" accessibilityLabel="Velocidade">
+          <View style={st.speedRow} accessibilityRole="radiogroup" accessibilityLabel={t('Velocidade')}>
             {SPEEDS.map((s) => (
-              <Pressable key={s} onPress={() => setSpeed(s)} style={[st.speedBtn, speed === s && st.speedOn]} accessibilityRole="radio" accessibilityState={{ selected: speed === s }} accessibilityLabel={`Velocidade ${speedLabel(s)}`}>
+              <Pressable key={s} onPress={() => setSpeed(s)} style={[st.speedBtn, speed === s && st.speedOn]} accessibilityRole="radio" accessibilityState={{ selected: speed === s }} accessibilityLabel={t('Velocidade {speedLabel}', { speedLabel: speedLabel(s) })}>
                 <Text style={[st.speedText, speed === s && { color: colors.zinc900 }]}>{speedLabel(s)}</Text>
               </Pressable>
             ))}
@@ -1791,18 +1792,18 @@ export function TxCamera({
           {layout !== null && !recording ? (
             <View style={st.layoutPill}>
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{cells.length}/{LAYOUTS[layout].cells.length}</Text>
-              <Pressable onPress={cells.length ? undoCell : leaveLayout} style={st.pillBtn} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
+              <Pressable onPress={cells.length ? undoCell : leaveLayout} style={st.pillBtn} accessibilityRole="button" accessibilityLabel={cells.length ? t('Tirar a última foto do layout') : t('Sair do layout')}>
                 <Icon name={cells.length ? 'undo' : 'x'} size={18} color="#fff" strokeWidth={2.2} />
               </Pressable>
             </View>
           ) : null}
           {/* Pílulas do zoom (1×, 2×; 0,5× com grande-angular): a acesa mostra o zoom exato, como no iPhone. A gravar sem zoom do aparelho, escondem-se. */}
           {ready && !(recording && !caps.zoom) ? (
-            <View style={st.zoomRow} accessibilityRole="radiogroup" accessibilityLabel="Zoom">
+            <View style={st.zoomRow} accessibilityRole="radiogroup" accessibilityLabel={t('Zoom')}>
               {pills.map((p) => {
                 const on = activePill(zoom, pills) === p;
                 return (
-                  <Pressable key={p} onPress={() => { setZoomC(p); buzz(6); }} style={st.zoomBtn} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Zoom ${zoomLabel(on ? zoom : p)}`}>
+                  <Pressable key={p} onPress={() => { setZoomC(p); buzz(6); }} style={st.zoomBtn} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={t('Zoom {zoomLabel}', { zoomLabel: zoomLabel(on ? zoom : p) })}>
                     <View style={[st.zoomPill, on && st.zoomPillOn]}>
                       <Text style={[st.zoomText, !on && { color: '#fff' }]}>{on ? zoomLabel(zoom) : zoomLabel(p).replace('×', '')}</Text>
                     </View>
@@ -1830,7 +1831,7 @@ export function TxCamera({
           <View style={st.side}>
             {!recording && (
               <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
-                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : <Icon name="cam-gallery" size={24} color="#fff" strokeWidth={2} />}
+                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: t('Galeria'), style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : <Icon name="cam-gallery" size={24} color="#fff" strokeWidth={2} />}
               </GalleryPick>
             )}
           </View>
@@ -1839,7 +1840,7 @@ export function TxCamera({
             onPressOut={pressOut}
             disabled={!ready || full}
             accessibilityRole="button"
-            accessibilityLabel={countdown !== null ? 'Cancelar' : recording ? 'Parar de gravar' : modes.includes('video') && layout === null ? 'Tirar foto; mantém premido para gravar vídeo' : 'Tirar foto'}
+            accessibilityLabel={countdown !== null ? t('Cancelar') : recording ? t('Parar de gravar') : modes.includes('video') && layout === null ? t('Tirar foto; mantém premido para gravar vídeo') : t('Tirar foto')}
             style={({ pressed }) => [st.shutter, (!ready || full) && { opacity: 0.4 }, recording ? { transform: [{ scale: 1.12 }] } : pressed ? { transform: [{ scale: 0.93 }] } : null]}
           >
             <View style={[st.shutterRing, recording && { borderColor: 'rgba(255,255,255,0.35)' }]} />
@@ -1854,10 +1855,10 @@ export function TxCamera({
           </Pressable>
           <View style={[st.side, { alignItems: 'flex-end' }, segmented ? { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, width: 104, marginLeft: -40 } : null]}>
             {segmented && segmented.clipsMs.length > 0 && !recording ? (
-              <Pressable onPress={segmented.onUndo} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Desfazer o último clipe"><Icon name="undo" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+              <Pressable onPress={segmented.onUndo} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={t('Desfazer o último clipe')}><Icon name="undo" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             ) : null}
             {canFlip && ready && !recording ? (
-              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="cam-flip" size={26} color="#fff" /></Pressable>
+              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={t('Virar câmara')}><Icon name="cam-flip" size={26} color="#fff" /></Pressable>
             ) : null}
           </View>
         </View>
@@ -1867,17 +1868,17 @@ export function TxCamera({
       {review && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
           <View style={[st.top, { paddingTop: topPad + 6 }]}>
-            <Pressable onPress={retake} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+            <Pressable onPress={retake} style={st.round} accessibilityRole="button" accessibilityLabel={t('Repetir')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Pressable onPress={() => void saveReview()} style={st.round} accessibilityRole="button" accessibilityLabel="Guardar no aparelho"><Icon name="download" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
-              <Pressable onPress={() => void acceptReview()} disabled={saving} style={[st.okBtn, saving && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ busy: saving }} accessibilityLabel={review.video ? 'Usar vídeo' : saving ? 'A preparar a foto' : 'Usar foto'}><Icon name={saving ? 'loader' : 'check'} size={24} color="#fff" strokeWidth={3} /></Pressable>
+              <Pressable onPress={() => void saveReview()} style={st.round} accessibilityRole="button" accessibilityLabel={t('Guardar no aparelho')}><Icon name="download" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+              <Pressable onPress={() => void acceptReview()} disabled={saving} style={[st.okBtn, saving && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ busy: saving }} accessibilityLabel={review.video ? t('Usar vídeo') : saving ? t('A preparar a foto') : t('Usar foto')}><Icon name={saving ? 'loader' : 'check'} size={24} color="#fff" strokeWidth={3} /></Pressable>
             </View>
           </View>
           <View style={{ position: 'absolute', left: 0, right: 0, top: topPad + 62, bottom: review.video ? Math.max(insets.bottom, 16) : panelH }}>
             {review.video
               ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: true, controls: false, onClick: (ev: { currentTarget: HTMLVideoElement }) => { ev.currentTarget.muted = !ev.currentTarget.muted; void ev.currentTarget.play().catch(() => undefined); }, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
               : dom('img', {
-                  ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1),
+                  ref: imgEl, src: review.uri, alt: t('Pré-visualização'), onLoad: () => setImgTick((n) => n + 1),
                   // Deslizar sobre a foto troca o filtro: para a esquerda o seguinte, para a direita o anterior.
                   onTouchStart: (ev: TouchEvent) => { swipeX.current = ev.touches[0]?.clientX ?? null; },
                   onTouchEnd: (ev: TouchEvent) => {
@@ -1910,19 +1911,19 @@ export function TxCamera({
             <View style={[st.editPanel, { height: panelH, paddingBottom: Math.max(insets.bottom, 10) }]}>
               <View style={{ height: 88, justifyContent: 'center' }}>
                 {tool === 'look' && (
-                  <ScrollView ref={editLooksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+                  <ScrollView ref={editLooksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }} accessibilityRole="tablist" accessibilityLabel={t('Filtros')}>
                     {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={swatchSrc} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
                   </ScrollView>
                 )}
                 {adj && (adj === 'k' && edit.look === 0 ? (
-                  <Text style={st.adjNote}>Escolhe um filtro primeiro e depois afina a intensidade aqui.</Text>
+                  <Text style={st.adjNote}>{t('Escolhe um filtro primeiro e depois afina a intensidade aqui.')}</Text>
                 ) : (() => {
                   const spec = ADJ[adj];
                   const v = spec.get(edit);
                   const changed = v !== spec.def;
                   return (
                     <View style={{ alignItems: 'center', gap: 8, paddingHorizontal: 24 }}>
-                      <Pressable onPress={() => changed && changeEdit(spec.set(spec.def))} style={[st.valPill, changed && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={changed ? `${spec.label}: ${fmtAdj(adj, v)}. Toca para repor` : `${spec.label}: ${fmtAdj(adj, v)}`}>
+                      <Pressable onPress={() => changed && changeEdit(spec.set(spec.def))} style={[st.valPill, changed && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={changed ? t('{label}: {adj}. Toca para repor', { label: spec.label, adj: fmtAdj(adj, v) }) : `${spec.label}: ${fmtAdj(adj, v)}`}>
                         <Text style={st.valText}>{fmtAdj(adj, v)}</Text>
                       </Pressable>
                       {dom('input', {
@@ -1935,18 +1936,18 @@ export function TxCamera({
                 })())}
                 {tool === 'crop' && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.looks, { flexGrow: 1, justifyContent: 'center' }]}>
-                    <Pressable onPress={rotate} style={st.cropIcon} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /></Pressable>
-                    <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel="Espelhar"><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
+                    <Pressable onPress={rotate} style={st.cropIcon} accessibilityRole="button" accessibilityLabel={t('Rodar')}><Icon name="repeat" size={18} color="#fff" /></Pressable>
+                    <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel={t('Espelhar')}><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
                     <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
-                      <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
+                      <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>{t('Livre')}</Text>
                     </Pressable>
                     {freeCrop && (
-                      <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel="Concluir o recorte">
+                      <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel={t('Concluir o recorte')}>
                         <Icon name="check" size={16} color="#fff" strokeWidth={3} />
-                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Concluir</Text>
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{t('Concluir')}</Text>
                       </Pressable>
                     )}
-                    {(isPost ? POST_ASPECTS : ALL_ASPECTS).map(([a, label]) => (
+                    {(isPost ? POST_ASPECTS : ALL_ASPECTS()).map(([a, label]) => (
                       <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
                         <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
                       </Pressable>
@@ -1954,7 +1955,7 @@ export function TxCamera({
                   </ScrollView>
                 )}
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.toolRow} style={{ maxHeight: 78 }} accessibilityRole="tablist" accessibilityLabel="Ferramentas">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.toolRow} style={{ maxHeight: 78 }} accessibilityRole="tablist" accessibilityLabel={t('Ferramentas')}>
                 {TOOLS.map((t) => {
                   const on = tool === t.id;
                   const touched = t.id === 'look' ? edit.look !== 0
@@ -1982,14 +1983,14 @@ export function TxCamera({
 /** Botão que abre o seletor de ficheiros do browser (fotos e vídeos). */
 export function GalleryPick({ onFiles, onOpen, style, children }: { onFiles: (f: File[]) => void; onOpen?: () => void; style?: object; children: ReactNode }) {
   return (
-    <View style={style as never} accessibilityRole="button" accessibilityLabel="Galeria">
+    <View style={style as never} accessibilityRole="button" accessibilityLabel={t('Galeria')}>
       {children}
       {createElement('input', {
         type: 'file',
         multiple: true,
         accept: 'image/*,video/*',
         onClick: () => onOpen?.(),
-        'aria-label': 'Escolher da galeria',
+        'aria-label': t('Escolher da galeria'),
         style: { position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' },
         onChange: (e: { target: HTMLInputElement }) => {
           const files = Array.from(e.target.files ?? []);

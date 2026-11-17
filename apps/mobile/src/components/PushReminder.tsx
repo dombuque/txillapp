@@ -21,6 +21,7 @@ import {
 } from '@/lib/pushReminder';
 import { askDeviceNotifications, deviceNotifications, openDeviceSettings, type DeviceNotif } from '@/lib/pushStatus';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Lembrete "As tuas notificações estão desligadas" (como o do Instagram). Os ecrãs pedem-no com `remindPush(…)` nos
@@ -74,7 +75,7 @@ async function turnOn(d: DeviceNotif): Promise<{ next: Next; error?: string }> {
     if (s === 'granted') return { next: 'granted' };
     return { next: s === 'blocked' && d.platform === 'web' ? 'steps' : 'failed' };
   } catch (e) {
-    return { next: 'failed', error: (e as Error)?.message || 'Não consegui ligar as notificações. Tenta outra vez.' };
+    return { next: 'failed', error: (e as Error)?.message || t('Não consegui ligar as notificações. Tenta outra vez.') };
   }
 }
 
@@ -165,9 +166,9 @@ export function PushReminderSheet({ device, name, start = 'main', onDone }: { de
       try {
         const s = await askDeviceNotifications();
         if (s === 'granted') return onDone(true);
-        setErr('Ainda estão bloqueadas. Segue os passos e tenta outra vez.');
+        setErr(t('Ainda estão bloqueadas. Segue os passos e tenta outra vez.'));
       } catch (e) {
-        setErr((e as Error)?.message || 'Não consegui ligar as notificações. Tenta outra vez.');
+        setErr((e as Error)?.message || t('Não consegui ligar as notificações. Tenta outra vez.'));
       } finally {
         setBusy(false);
       }
@@ -184,13 +185,13 @@ export function PushReminderSheet({ device, name, start = 'main', onDone }: { de
   }
 
   const steps = view === 'steps' ? blockedSteps(device.kind ?? 'desktop') : view === 'install' ? installSteps(device.safari !== false) : [];
-  const title = view === 'install' ? 'Adiciona o Txillapp ao ecrã principal' : view === 'steps' ? 'Liga as notificações no browser' : REMINDER_TITLE;
+  const title = view === 'install' ? t('Adiciona o Txillapp ao ecrã principal') : view === 'steps' ? t('Liga as notificações no browser') : REMINDER_TITLE;
   const lead =
     view === 'install' ? INSTALL_NOTE
-    : view === 'steps' ? 'Bloqueaste as notificações do Txillapp neste browser. Para as ligar:'
-    : settings ? 'Nas definições do telemóvel, toca em Notificações e liga-as. Depois volta aqui.'
+    : view === 'steps' ? t('Bloqueaste as notificações do Txillapp neste browser. Para as ligar:')
+    : settings ? t('Nas definições do telemóvel, toca em Notificações e liga-as. Depois volta aqui.')
     : reminderText(name);
-  const primary = view === 'install' ? 'Percebi' : view === 'steps' ? 'Já está, tentar outra vez' : settings ? 'Abrir as definições outra vez' : REMINDER_BUTTON;
+  const primary = view === 'install' ? t('Percebi') : view === 'steps' ? t('Já está, tentar outra vez') : settings ? t('Abrir as definições outra vez') : REMINDER_BUTTON;
 
   return (
     <Sheet onClose={() => onDone(false)}>

@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { parseTurnstileMessage, turnstileHtml } from '@/lib/humanCheck';
 import { useSiteKey } from '@/lib/turnstileKey';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 // O tipo do WebView 14 com P = undefined dá props "never" no TS estrito: fixa-se P = {} (como no mapa).
 const WV = WebView<{}>;
@@ -76,7 +77,7 @@ export function useHumanCheck(): HumanCheck {
     SITE_KEY && mounted ? (
       <View style={interactive ? st.overlay : st.hidden} pointerEvents={interactive ? 'auto' : 'none'} accessibilityElementsHidden={!interactive}>
         <View style={interactive ? st.card : st.hiddenCard}>
-          {interactive ? <Text style={st.title}>Confirma que és uma pessoa</Text> : null}
+          {interactive ? <Text style={st.title}>{t('Confirma que és uma pessoa')}</Text> : null}
           <WV
             ref={web}
             source={{ html: turnstileHtml(SITE_KEY), baseUrl: 'https://txillapp.com' }}

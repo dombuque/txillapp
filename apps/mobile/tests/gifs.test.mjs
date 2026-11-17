@@ -83,7 +83,7 @@ test('gifLabel e gifQuery', () => {
 test('o painel: "Powered by GIPHY", só com os GIFs ligados, toques ≥ 44 e GIFs com o título no leitor de ecrã', () => {
   const panel = read('components/GifPanel.tsx');
   assert.match(panel, /Powered by GIPHY/);
-  assert.match(panel, /accessibilityLabel=\{`Enviar \$\{gifLabel\(item\.title\)\}`\}/);
+  assert.match(panel, /accessibilityLabel=\{t\('Enviar \{gifLabel\}', \{ gifLabel: gifLabel\(item\.title\) \}\)\}/);
   assert.match(panel, /height: Math\.max\(h, 44\)/);
   assert.match(panel, /autoplay=\{!reduce\}/);
   const stickers = read('components/StickerPanel.tsx');

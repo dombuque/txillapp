@@ -130,7 +130,7 @@ test('Sheet: título 18/800 à esquerda, pega 40×5, «Cancelar» no fim (só no
   assert.match(s, /handle: \{ alignSelf: 'center', width: 40, height: 5,/);
   assert.match(s, /cancel\?: boolean \| string/);
   assert.match(s, /\{cancel && mode === 'bottom' \? \(/);
-  assert.match(s, /<Button label=\{typeof cancel === 'string' \? cancel : 'Cancelar'\} kind="secondary" dark=\{dark\} block onPress=\{close\} \/>/);
+  assert.match(s, /<Button label=\{typeof cancel === 'string' \? cancel : t\('Cancelar'\)\} kind="secondary" dark=\{dark\} block onPress=\{close\} \/>/);
   assert.match(s, /export const useSheetDark = \(\) => useContext\(DarkCtx\);/);
   assert.equal((s.match(/<DarkCtx\.Provider value=\{dark\}>/g) ?? []).length, 3);
 });

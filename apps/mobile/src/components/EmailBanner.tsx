@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, openActivate } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /** Aviso para quem ainda não confirmou o e-mail: sem isso não pode publicar, comentar, conversar nem presentear. */
 export function EmailBanner() {
@@ -10,17 +11,17 @@ export function EmailBanner() {
   const resend = useMutation({ mutationFn: api.resendVerification });
   if (!status.data?.required || status.data.verified) return null;
   const msg = resend.isSuccess && resend.data.sent
-    ? 'Enviámos um link novo para o teu e-mail. Vê também o spam.'
+    ? t('Enviámos um link novo para o teu e-mail. Vê também o spam.')
     : resend.isError
-      ? 'Não consegui reenviar agora. Tenta daqui a pouco.'
-      : 'Ativa a tua conta para publicar, comentar e conversar: confirma o e-mail que te mandámos.';
+      ? t('Não consegui reenviar agora. Tenta daqui a pouco.')
+      : t('Ativa a tua conta para publicar, comentar e conversar: confirma o e-mail que te mandámos.');
   return (
-    <Pressable onPress={openActivate} style={st.wrap} accessibilityRole="button" accessibilityLabel="Ativar a conta">
+    <Pressable onPress={openActivate} style={st.wrap} accessibilityRole="button" accessibilityLabel={t('Ativar a conta')}>
       <Icon name="mail" size={20} color="#b45309" />
       <Text style={st.text}>{msg}</Text>
       {!resend.isSuccess && (
         <Pressable onPress={() => resend.mutate()} disabled={resend.isPending} hitSlop={8} accessibilityRole="button">
-          <Text style={[st.btn, resend.isPending && { opacity: 0.5 }]}>{resend.isPending ? 'A enviar…' : 'Reenviar'}</Text>
+          <Text style={[st.btn, resend.isPending && { opacity: 0.5 }]}>{resend.isPending ? t('A enviar…') : t('Reenviar')}</Text>
         </Pressable>
       )}
     </Pressable>

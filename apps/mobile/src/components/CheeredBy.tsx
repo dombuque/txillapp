@@ -7,6 +7,7 @@ import { compactCount } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { InlineBadge } from './NameWithBadge';
+import { t } from '@/lib/i18n';
 
 type Hover = { pressed: boolean; hovered?: boolean };
 const NATIVE = Platform.OS !== 'web';
@@ -50,7 +51,7 @@ export function CheeredByLine({ post, onOpen, style }: { post: { cheers: number;
       hitSlop={6}
       style={(st) => [line.row, style, (st as Hover).hovered && { opacity: 0.85 }, st.pressed && { opacity: 0.6 }]}
       accessibilityRole="button"
-      accessibilityLabel={`${cheeredByA11y(v, compactCount)}. Ver quem brindou`}
+      accessibilityLabel={t('{cheeredByA11y}. Ver quem brindou', { cheeredByA11y: cheeredByA11y(v, compactCount) })}
     >
       <View style={line.stack}>
         {v.avatars.map((u, i) => (
@@ -60,7 +61,7 @@ export function CheeredByLine({ post, onOpen, style }: { post: { cheers: number;
         ))}
       </View>
       <Text style={line.text} numberOfLines={2}>
-        Brindado por {name(v.names[0])}
+        {t('Brindado por')} {name(v.names[0])}
         {v.names[1] ? <> e {name(v.names[1])}</> : null}
         {v.others > 0 ? <> e <Text style={line.strong}>{othersLabel(v.others, compactCount)}</Text></> : null}
       </Text>
@@ -120,10 +121,10 @@ export function CheeredFriends({ post, onOpen, style, size = 30 }: { post: { che
   const reduce = useReduceMotion();
   const { kind, users: friends } = floatingCheerers(post);
   if (!friends.length) return null;
-  const who = kind === 'close' ? 'dos teus amigos próximos' : 'que segues';
+  const who = kind === 'close' ? t('dos teus amigos próximos') : t('que segues');
   const label = friends.length === 1
-    ? `@${friends[0].username}, ${who}, brindou. Ver quem brindou`
-    : `${friends.map((u) => `@${u.username}`).join(', ')}, ${who}, brindaram. Ver quem brindou`;
+    ? t('@{username}, {who}, brindou. Ver quem brindou', { username: friends[0].username, who })
+    : t('{map}, {who}, brindaram. Ver quem brindou', { map: friends.map((u) => `@${u.username}`).join(', '), who });
   return (
     <Pressable onPress={onOpen} hitSlop={6} style={(st) => [float.row, style, st.pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={label}>
       {friends.map((u, i) => <Floating key={u.username} u={u} i={i} reduce={reduce} size={size} />)}

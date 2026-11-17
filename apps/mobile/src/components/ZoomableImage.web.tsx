@@ -20,6 +20,7 @@ import {
   type Zoom,
 } from '@/lib/zoomMath';
 import type { ZoomableImageProps } from './ZoomableImage';
+import { t } from '@/lib/i18n';
 
 const EASE_WEB = 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)';
 
@@ -211,7 +212,7 @@ export function ZoomableImage({ uri, placeholderUri, size, onClose, accessibilit
 
   const r = size / 2;
   return (
-    <View ref={root as never} style={st.root} accessibilityRole="image" accessibilityLabel={accessibilityLabel} accessibilityHint="Dois dedos ou a roda do rato para ampliar. Um toque ou Esc fecha.">
+    <View ref={root as never} style={st.root} accessibilityRole="image" accessibilityLabel={accessibilityLabel} accessibilityHint={t('Dois dedos ou a roda do rato para ampliar. Um toque ou Esc fecha.')}>
       <View ref={photo as never} style={[st.circle, { width: size, height: size, borderRadius: r }, { willChange: 'transform' } as object]}>
         {placeholderUri ? <Image source={{ uri: placeholderUri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} priority="high" />

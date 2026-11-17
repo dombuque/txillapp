@@ -3,6 +3,7 @@ import { Linking, Pressable, Text, View, type StyleProp, type ViewStyle } from '
 import { bubbleLines } from '@/lib/sendLocation';
 import { useBubbleHold } from './bubbleHold';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /**
  * A bolha de uma localização no chat: o nome e a morada do sítio por cima do mapa pequeno (quando a mensagem os traz),
@@ -28,7 +29,7 @@ export function LocationBubble({ m, ink, style, map, onLongPress }: {
       onLongPress={hold.onLongPress ?? onLongPress}
       style={[style, { overflow: 'hidden' }]}
       accessibilityRole="link"
-      accessibilityLabel={`Localização: ${l.title}${l.sub ? `, ${l.sub}` : ''}. Abrir no mapa`}
+      accessibilityLabel={t('Localização: {title}{value}. Abrir no mapa', { title: l.title, value: l.sub ? `, ${l.sub}` : '' })}
     >
       {l.named ? (
         <View style={{ paddingHorizontal: 13, paddingTop: 9, paddingBottom: 8, gap: 1 }}>

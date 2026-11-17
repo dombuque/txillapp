@@ -188,30 +188,30 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   // O fundo da folha escura vem do tema (lib/theme `dark.bg`, o mesmo #1c1c1e).
   assert.match(read('components/Sheet.tsx'), /export const DARK = \{ bg: DARK_UI\.bg/);
   assert.match(read('lib/theme.ts'), /export const dark = \{\r?\n\s+bg: '#1c1c1e',/);
-  assert.match(src, /placeholder="Procurar música, artista ou estilo"/);
+  assert.match(src, /placeholder=\{t\('Procurar música, artista ou estilo'\)\}/);
   assert.match(src, /const tabs = pickerTabs\(\);/);
   assert.match(src, /tabOn: \{ backgroundColor: '#ffffff' \}/); // o separador ativo a branco, com o texto escuro
   assert.match(src, /tabTxtOn: \{ color: C\.bg/);
   assert.match(src, /Em alta no Txillapp/);
   // «Para ti»: destaques com o gradiente da capa e pontos; pastilhas pequenas; a lista do estilo sugerido e das guardadas.
-  assert.match(src, /<LinearGradient colors=\{highlightColors\(t\)/);
+  assert.match(src, /<LinearGradient colors=\{highlightColors\(track\d*\)/);
   assert.match(src, /pagingEnabled/);
   assert.match(src, /const chips = forYouChips\(home\.data, allowLocal, suggestion\?\.genre\);/);
   assert.match(src, /const autoStyle = forYouStyle\(suggestion\?\.genre, favs\.data\);/);
   // As linhas: capa de 56, «Artista · usos · duração», o marcador de guardar (cheio quando guardada), a tocar realçada.
-  assert.match(src, /<Cover t=\{t\} size=\{56\} radius=\{8\} active=\{active\} \/>/);
-  assert.match(src, /const meta = rowMeta\(t\);/);
+  assert.match(src, /<Cover t=\{track\d*\} size=\{56\} radius=\{8\} active=\{active\} \/>/);
+  assert.match(src, /const meta = rowMeta\(track\d*\);/);
   assert.match(src, /<BookmarkIcon on=\{saved\}/);
   assert.match(src, /<SoundBars /);
   assert.match(src, /onMutate: \(t\) => qc\.setQueryData<Track\[\]>\(\['music-favorites'\], \(old\) => toggleSaved\(old, t\)\)/);
   // «Não gosto desta» no menu de manter premido (e no «⋯» e no botão direito do computador), com Desfazer.
-  assert.match(src, /onLongPress=\{\(\) => onMenu\(t, null\)\}/);
+  assert.match(src, /onLongPress=\{\(\) => onMenu\(track\d*, null\)\}/);
   assert.match(src, /onContextMenu: /);
-  assert.match(src, /label="Não gosto desta"/);
+  assert.match(src, /label=\{t\('Não gosto desta'\)\}/);
   assert.match(src, /<Sheet title=\{track\.title\} onClose=\{onClose\} dark variant="menu" anchor=\{anchor\}>/);
   assert.match(src, /musicApi\.dislike\(/);
   assert.match(src, /musicApi\.undislike\(/);
-  assert.match(src, />Desfazer</);
+  assert.match(src, />\{t\('Desfazer'\)\}</);
   assert.match(src, /musicApi\.home/);
   assert.match(src, /musicApi\.search\(/);
   assert.doesNotMatch(src, /GENRES/); // acabaram os géneros fixos na app

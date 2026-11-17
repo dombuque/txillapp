@@ -48,6 +48,6 @@ test('o aviso de brinde a um comentário do mimo (?comments=1) abre a folha só 
   // A folha: o copo, a contagem e os dois toques em cada comentário.
   const parts = readFileSync(new URL('../src/components/StoryParts.tsx', import.meta.url), 'utf8');
   assert.match(parts, /api\.cheerStoryComment\(c\.id\)/);
-  assert.match(parts, /\{cheer\.cheers\} \{cheer\.cheers === 1 \? 'brinde' : 'brindes'\}/);
+  assert.match(parts, /\{cheer\.cheers\} \{cheer\.cheers === 1 \? t\('brinde'\) : t\('brindes'\)\}/);
   assert.match(parts, /<CheersPour n=\{burst\} size=\{96\} \/>/);
 });

@@ -41,6 +41,6 @@ test('os passos da página batem certo com o ecrã de Definições → Conta', (
   assert.match(steps, /«Eliminar conta»/);
   assert.match(read('components/settings/sheets.tsx'), /Eliminar a minha conta/);
   assert.match(steps, /«Eliminar a minha conta»/);
-  assert.match(read('components/ProfileView.tsx'), /accessibilityLabel="Definições e privacidade"/);
+  assert.match(read('components/ProfileView.tsx'), /accessibilityLabel=\{t\('Definições e privacidade'\)\}/);
   assert.match(read('components/Landing.tsx'), /'\/apagar-conta'/);
 });

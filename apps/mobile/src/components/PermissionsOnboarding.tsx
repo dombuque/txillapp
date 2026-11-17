@@ -15,6 +15,7 @@ import { onboardingSteps, prePromptButtons, type OnboardingStep } from '@/lib/st
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Button } from './ui/Button';
+import { t } from '@/lib/i18n';
 
 const DONE_KEY = 'tx_perms_v1';
 
@@ -23,13 +24,13 @@ export const permissionsOnboardingDone = async (): Promise<boolean> => !!(await 
 
 interface Step { id: OnboardingStep; icon: IconName; title: string; text: string; ask: () => Promise<unknown> }
 const ALL_STEPS: Step[] = [
-  { id: 'notif', icon: 'bell', title: 'Notificações', text: 'Para saberes logo quando a malta te escreve, brinda, comenta ou te segue.', ask: askNotifications },
+  { id: 'notif', icon: 'bell', get title() { return t('Notificações'); }, get text() { return t('Para saberes logo quando a malta te escreve, brinda, comenta ou te segue.'); }, ask: askNotifications },
   {
-    id: 'camera', icon: 'camera', title: 'Câmara e microfone', text: 'Para tirares fotos, gravares vídeos, mimos, tchekas e Zás aqui mesmo.',
+    id: 'camera', icon: 'camera', get title() { return t('Câmara e microfone'); }, get text() { return t('Para tirares fotos, gravares vídeos, mimos, tchekas e Zás aqui mesmo.'); },
     ask: async () => { await Camera.requestCameraPermissionsAsync(); await Camera.requestMicrophonePermissionsAsync(); },
   },
-  { id: 'photos', icon: 'images', title: 'Fotos e vídeos', text: 'Para escolheres da tua galeria o que queres publicar.', ask: () => MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']) },
-  { id: 'location', icon: 'map-pin', title: 'Localização', text: 'Opcional: para te sugerirmos sítios perto e marcares onde estás. Nunca mostramos onde vives.', ask: () => Location.requestForegroundPermissionsAsync() },
+  { id: 'photos', icon: 'images', get title() { return t('Fotos e vídeos'); }, get text() { return t('Para escolheres da tua galeria o que queres publicar.'); }, ask: () => MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']) },
+  { id: 'location', icon: 'map-pin', get title() { return t('Localização'); }, get text() { return t('Opcional: para te sugerirmos sítios perto e marcares onde estás. Nunca mostramos onde vives.'); }, ask: () => Location.requestForegroundPermissionsAsync() },
 ];
 /**
  * Na App Store só as notificações: o resto pede-se quando se usa (ver lib/storeRules). No Android não se pede a galeria:
@@ -88,7 +89,7 @@ export function PermissionsOnboarding() {
   return (
     <Modal visible animationType="fade" statusBarTranslucent onRequestClose={next}>
       <View style={[st.root, { paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
-        <Text style={st.kicker}>Prepara o Txillapp</Text>
+        <Text style={st.kicker}>{t('Prepara o Txillapp')}</Text>
         {STEPS.length > 1 ? (
           <View style={st.dots}>
             {STEPS.map((x, i) => <View key={x.id} style={[st.dot, i === step && st.dotOn, i < step && { backgroundColor: colors.zinc300 }]} />)}

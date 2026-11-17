@@ -30,7 +30,7 @@ test('a galeria que sai da barra fica no menu «+» (conversa a dois) e nos anex
   const g = read('src/components/GroupComposer.tsx');
   assert.match(g, /\{fit\.gallery \? <Tool w=\{fit\.toolW\} icon="image"/);
   assert.match(g, /\{!fit\.gallery && \(\s*<Pressable onPress=\{\(\) => \{ setPanel\(null\); void pick\('library'\); \}\}/);
-  assert.match(g, /<Text style=\{styles\.attachLabel\}>Galeria<\/Text>/);
+  assert.match(g, /<Text style=\{styles\.attachLabel\}>\{t\('Galeria'\)\}<\/Text>/);
   // Os quatro anexos (com a Galeria) cabem a 320 px: encolhem em vez de terem 84 fixos.
   assert.match(g, /attachItem: \{ flexBasis: 84, flexShrink: 1, minWidth: 0,/);
 });

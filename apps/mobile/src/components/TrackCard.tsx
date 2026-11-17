@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { playTrack, sharedPlayer, stopTrack, useMusicMuted, useTrackLive } from '@/lib/musicPlayer';
 import { SoundWaves } from '@/components/SoundWaves';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 export { useMusicMuted };
 
@@ -73,25 +74,25 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
     <View style={s.card}>
       {/* A música da nota a tocar: ondas discretas da cor da marca, por trás do texto. */}
       {autoplay ? <SoundWaves active={live && !muted} subtle band={0.75} tint={colors.brand} player={live ? sharedPlayer() : null} /> : null}
-      <View style={[s.disc, on && !muted && s.discOn]} accessibilityLabel={on ? 'A tocar' : 'Música'}>
+      <View style={[s.disc, on && !muted && s.discOn]} accessibilityLabel={on ? t('A tocar') : t('Música')}>
         <Icon name="music" size={20} color="#fff" />
       </View>
-      <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={s.text} accessibilityRole="button" accessibilityLabel="Créditos da música">
+      <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={s.text} accessibilityRole="button" accessibilityLabel={t('Créditos da música')}>
         {local ? (
           // Programa de artistas: «♪ Título · Artista», com o nome a levar ao perfil do artista.
           <>
             <LocalTrackLine track={track} style={s.title} linkStyle={{ color: colors.brand }} onArtist={artistTo ? () => router.push(artistTo as never) : undefined} />
-            <Text style={s.sub} numberOfLines={1}>Artistas de Moçambique</Text>
+            <Text style={s.sub} numberOfLines={1}>{t('Artistas de Moçambique')}</Text>
           </>
         ) : (
           <>
             <Text style={s.title} numberOfLines={1}>{track.title}</Text>
-            <Text style={s.sub} numberOfLines={1}>{track.kind === 'clip' ? 'Áudio original' : track.artist || 'Autor desconhecido'}</Text>
+            <Text style={s.sub} numberOfLines={1}>{track.kind === 'clip' ? t('Áudio original') : track.artist || t('Autor desconhecido')}</Text>
           </>
         )}
       </Pressable>
       {autoplay && (
-        <Pressable onPress={toggleMute} style={({ pressed }) => [s.mute, pressed && s.pressed]} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
+        <Pressable onPress={toggleMute} style={({ pressed }) => [s.mute, pressed && s.pressed]} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? t('Ativar o som') : t('Silenciar')}>
           <Icon name={muted ? 'volume-off' : 'volume'} size={20} color={colors.zinc700} />
         </Pressable>
       )}
@@ -114,27 +115,27 @@ export function TrackCredits({ track, onClose }: { track: Track; onClose: () => 
     const to = artistHref(track);
     if (report) return <RightsReportSheet track={track} onClose={onClose} />;
     return (
-      <Sheet title="Créditos da música" onClose={onClose}>
+      <Sheet title={t('Créditos da música')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
           <Text style={s.cTitle}>{track.title}</Text>
           <Text style={s.cArtist}>{track.artist}</Text>
-          <Text style={s.cLine}>Artistas de Moçambique · Licença de uso de música no Txillapp (o artista autorizou o uso em mimos e tchekas).</Text>
-          {to ? <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => { onClose(); router.push(to as never); }}>Ver o perfil do artista</Text></Text> : null}
-          <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => setReport(true)}>Denunciar por direitos de autor</Text></Text>
+          <Text style={s.cLine}>{t('Artistas de Moçambique · Licença de uso de música no Txillapp (o artista autorizou o uso em mimos e tchekas).')}</Text>
+          {to ? <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => { onClose(); router.push(to as never); }}>{t('Ver o perfil do artista')}</Text></Text> : null}
+          <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => setReport(true)}>{t('Denunciar por direitos de autor')}</Text></Text>
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet title="Créditos da música" onClose={onClose}>
+    <Sheet title={t('Créditos da música')} onClose={onClose}>
       <View style={{ paddingHorizontal: 24 }}>
         <Text style={s.cTitle}>{track.title}</Text>
-        <Text style={s.cArtist}>{track.artist || 'Autor desconhecido'}</Text>
+        <Text style={s.cArtist}>{track.artist || t('Autor desconhecido')}</Text>
         <Text style={s.cLine}>
-          Licença:{' '}
+          {t('Licença:')}{' '}
           {lic ? <Text style={s.link} onPress={() => void Linking.openURL(lic)}>{licenseLabel(track.license)}</Text> : licenseLabel(track.license)}
         </Text>
-        {land && <Text style={[s.cLine, { marginTop: 4 }]}><Text style={s.link} onPress={() => void Linking.openURL(land)}>Origem</Text></Text>}
+        {land && <Text style={[s.cLine, { marginTop: 4 }]}><Text style={s.link} onPress={() => void Linking.openURL(land)}>{t('Origem')}</Text></Text>}
       </View>
     </Sheet>
   );

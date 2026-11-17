@@ -8,9 +8,10 @@ import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
+import { t } from '@/lib/i18n';
 
-const TITLE: Record<PeopleKind, string> = { reposts: 'Quem repostou', cheers: 'Quem brindou', gifts: 'Quem presenteou' };
-const EMPTY: Record<PeopleKind, string> = { reposts: 'Ainda ninguém repostou.', cheers: 'Ainda ninguém brindou.', gifts: 'Ainda ninguém presenteou.' };
+const TITLE: Record<PeopleKind, string> = { get reposts() { return t('Quem repostou'); }, get cheers() { return t('Quem brindou'); }, get gifts() { return t('Quem presenteou'); } };
+const EMPTY: Record<PeopleKind, string> = { get reposts() { return t('Ainda ninguém repostou.'); }, get cheers() { return t('Ainda ninguém brindou.'); }, get gifts() { return t('Ainda ninguém presenteou.'); } };
 
 /** Lista de quem interagiu com uma publicação. O servidor só responde se o dono o permitir. */
 export function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: PeopleKind; onClose: () => void }) {
@@ -19,7 +20,7 @@ export function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: P
   return (
     <Sheet title={TITLE[kind]} onClose={onClose}>
       {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 24 }} />}
-      {q.isError && <Text style={st.msg} accessibilityRole="alert">Esta lista não está disponível</Text>}
+      {q.isError && <Text style={st.msg} accessibilityRole="alert">{t('Esta lista não está disponível')}</Text>}
       {q.isSuccess && q.data.length === 0 && <Text style={st.msg}>{EMPTY[kind]}</Text>}
       <ScrollView style={{ maxHeight: 420 }}>
         {q.data?.map((p) => (

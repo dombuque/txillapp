@@ -139,8 +139,8 @@ test('ligação: nada se guarda sozinho; ao sair «Guardar rascunho» ou «Apaga
     const studio = read('components', f);
     assert.doesNotMatch(studio, /debounce\(|saver/, `${f}: sem gravação automática`);
     assert.match(studio, /Sair do estúdio\?/, f);
-    assert.match(studio, /text: 'Apagar', style: 'destructive', onPress: \(\) => \{ dropDraftNow\(\); onClose\(\); \}/, f);
-    assert.match(studio, /text: 'Guardar rascunho', onPress: \(\) => \{ keepDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /text: t\('Apagar'\), style: 'destructive', onPress: \(\) => \{ dropDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /text: t\('Guardar rascunho'\), onPress: \(\) => \{ keepDraftNow\(\); onClose\(\); \}/, f);
     assert.match(studio, /if \(!items\.length\) \{ dropDraftNow\(\); onClose\(\); return; \}/, f);
     // A única gravação é a do botão.
     assert.equal(studio.match(/\(\)\.save\(/g)?.length, 1, `${f}: uma só gravação`);

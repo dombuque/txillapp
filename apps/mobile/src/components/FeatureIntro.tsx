@@ -5,6 +5,7 @@ import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Sheet } from './Sheet';
 import { Button } from './ui/Button';
+import { t } from '@/lib/i18n';
 
 interface Point { icon: IconName; title: string; text: string }
 interface Intro { icon: IconName; title: string; points: Point[]; note?: string }
@@ -17,51 +18,51 @@ interface Intro { icon: IconName; title: string; points: Point[]; note?: string 
 export const INTROS: Record<string, Intro> = {
   camera: {
     icon: 'camera',
-    title: 'A câmara do Txillapp',
+    get title() { return t('A câmara do Txillapp'); },
     points: [
-      { icon: 'camera', title: 'Toca para foto, mantém para vídeo', text: 'Um botão só. Larga para parar de gravar.' },
-      { icon: 'sparkles', title: 'Filtros a deslizar', text: 'Desliza para o lado para trocar de filtro. Pinça para aproximar.' },
-      { icon: 'grid', title: 'Layout', text: 'Várias fotos numa só imagem. Depois de tirar, podes editar antes de usar.' },
+      { icon: 'camera', get title() { return t('Toca para foto, mantém para vídeo'); }, get text() { return t('Um botão só. Larga para parar de gravar.'); } },
+      { icon: 'sparkles', get title() { return t('Filtros a deslizar'); }, get text() { return t('Desliza para o lado para trocar de filtro. Pinça para aproximar.'); } },
+      { icon: 'grid', get title() { return t('Layout'); }, get text() { return t('Várias fotos numa só imagem. Depois de tirar, podes editar antes de usar.'); } },
     ],
   },
   zas: {
     icon: 'bolt',
     title: 'Zás!',
     points: [
-      { icon: 'camera', title: 'Foto na hora', text: 'Sem galeria: é o momento, como está. O botão tira e envia logo.' },
-      { icon: 'clock', title: 'Dura 24 horas', text: 'E cada pessoa só vê uma vez. Depois desaparece.' },
-      { icon: 'users', title: 'Só para a malta', text: 'Chega aos amigos próximos e a quem segues e te segue.' },
+      { icon: 'camera', get title() { return t('Foto na hora'); }, get text() { return t('Sem galeria: é o momento, como está. O botão tira e envia logo.'); } },
+      { icon: 'clock', get title() { return t('Dura 24 horas'); }, get text() { return t('E cada pessoa só vê uma vez. Depois desaparece.'); } },
+      { icon: 'users', get title() { return t('Só para a malta'); }, get text() { return t('Chega aos amigos próximos e a quem segues e te segue.'); } },
     ],
-    note: 'Vês quem viu e as reações de cada um.',
+    get note() { return t('Vês quem viu e as reações de cada um.'); },
   },
   mimo: {
     icon: 'sparkles',
-    title: 'O teu mimo',
+    get title() { return t('O teu mimo'); },
     points: [
-      { icon: 'clock', title: 'Dura 24 horas', text: 'Foto ou vídeo com legenda e música, para quem te segue.' },
-      { icon: 'heart', title: 'Amigos próximos', text: 'Podes mandar só para a tua lista de amigos próximos.' },
-      { icon: 'eye', title: 'Quem viu', text: 'Vês quem viu, quem brindou e as respostas, só tu.' },
+      { icon: 'clock', get title() { return t('Dura 24 horas'); }, get text() { return t('Foto ou vídeo com legenda e música, para quem te segue.'); } },
+      { icon: 'heart', get title() { return t('Amigos próximos'); }, get text() { return t('Podes mandar só para a tua lista de amigos próximos.'); } },
+      { icon: 'eye', get title() { return t('Quem viu'); }, get text() { return t('Vês quem viu, quem brindou e as respostas, só tu.'); } },
     ],
   },
   geleira: {
     icon: 'snowflake',
-    title: 'Enche a tua geleira',
+    get title() { return t('Enche a tua geleira'); },
     points: [
-      { icon: 'search', title: 'Escolhe os teus gostos', text: 'Bebidas, comidas e vibes. Procura e toca para pôr na geleira.' },
-      { icon: 'snowflake', title: 'Dá a nota em flocos', text: 'Mais flocos, mais gelado, mais gostas. O coração marca os favoritos.' },
-      { icon: 'trending', title: 'Sobe de nível', text: 'Quantidade, variedade e notas dão pontos. A malta vê o teu nível no perfil.' },
+      { icon: 'search', get title() { return t('Escolhe os teus gostos'); }, get text() { return t('Bebidas, comidas e vibes. Procura e toca para pôr na geleira.'); } },
+      { icon: 'snowflake', get title() { return t('Dá a nota em flocos'); }, get text() { return t('Mais flocos, mais gelado, mais gostas. O coração marca os favoritos.'); } },
+      { icon: 'trending', get title() { return t('Sobe de nível'); }, get text() { return t('Quantidade, variedade e notas dão pontos. A malta vê o teu nível no perfil.'); } },
     ],
-    note: 'As mudanças só vão para o servidor quando carregas em Guardar.',
+    get note() { return t('As mudanças só vão para o servidor quando carregas em Guardar.'); },
   },
   supertxill: {
     icon: 'sparkles',
     title: 'SuperTxill',
     points: [
-      { icon: 'sparkles', title: 'Pergunta o que quiseres', text: 'Onde anda a malta, sítios e eventos perto, Txilladas, planos e legendas. Pode demorar umas dezenas de segundos a pensar.' },
-      { icon: 'shield', title: 'Fica no Txillapp', text: 'Corre no nosso servidor e só usa o que já podes ver na app. Nunca pede o GPS. Pode errar: confirma o que for importante.' },
-      { icon: 'users', title: 'Malta para ti', text: 'Pessoas com gostos parecidos com os teus, escolhidas pelo Txillapp.' },
+      { icon: 'sparkles', get title() { return t('Pergunta o que quiseres'); }, get text() { return t('Onde anda a malta, sítios e eventos perto, Txilladas, planos e legendas. Pode demorar umas dezenas de segundos a pensar.'); } },
+      { icon: 'shield', get title() { return t('Fica no Txillapp'); }, get text() { return t('Corre no nosso servidor e só usa o que já podes ver na app. Nunca pede o GPS. Pode errar: confirma o que for importante.'); } },
+      { icon: 'users', get title() { return t('Malta para ti'); }, get text() { return t('Pessoas com gostos parecidos com os teus, escolhidas pelo Txillapp.'); } },
     ],
-    note: 'Guarda as últimas 60 mensagens, só para ti. Apagas a conversa quando quiseres.',
+    get note() { return t('Guarda as últimas 60 mensagens, só para ti. Apagas a conversa quando quiseres.'); },
   },
 };
 
@@ -92,7 +93,7 @@ export function FeatureIntro({ id }: { id: string }) {
           ))}
         </View>
         {intro.note ? <Text style={st.note}>{intro.note}</Text> : null}
-        <Button label="Continuar" onPress={done} block style={st.btn} />
+        <Button label={t('Continuar')} onPress={done} block style={st.btn} />
       </View>
     </Sheet>
   );

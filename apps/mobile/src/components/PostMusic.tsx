@@ -14,6 +14,7 @@ import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { SoundWaves } from './SoundWaves';
 import { TrackCredits, useAutoTrack } from './TrackCard';
+import { t } from '@/lib/i18n';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 type Hover = { pressed: boolean; hovered?: boolean };
@@ -171,7 +172,7 @@ function PlayRing({ me, track, live, paused, size, fg, onPress }: { me: symbol; 
       hitSlop={6}
       style={(st) => [s.ringBtn, { width: size, height: size }, (st as Hover).hovered && s.ringHover, st.pressed && s.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={showPause ? 'Pausar a música' : 'Tocar a música'}
+      accessibilityLabel={showPause ? t('Pausar a música') : t('Tocar a música')}
     >
       <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
         <Circle cx={size / 2} cy={size / 2} r={r} stroke={withAlpha(fg === '#ffffff' ? '#ffffff' : '#18181b', 0.18)} strokeWidth={stroke} fill="none" />
@@ -231,7 +232,7 @@ export function MusicCard({ track, visible, soundTo }: { track: Track; /** O pos
   };
   // Fora de vista, a pausa da pessoa acaba: da próxima vez que o post aparecer, a música volta a tocar sozinha.
   useEffect(() => { if (!visible) setPaused(false); }, [visible]);
-  const state = muted ? 'Sem som' : live ? 'A tocar' : paused ? 'Em pausa' : 'Música';
+  const state = muted ? t('Sem som') : live ? 'A tocar' : paused ? t('Em pausa') : t('Música');
 
   return (
     <Pressable
@@ -242,8 +243,8 @@ export function MusicCard({ track, visible, soundTo }: { track: Track; /** O pos
       accessibilityRole="button"
       accessibilityState={{ selected: muted }}
       accessibilityLabel={musicA11yLabel(track, muted)}
-      accessibilityHint="Mantém premido para ver os créditos"
-      {...(finePointer() ? ({ dataSet: { tip: muted ? 'Ligar o som' : 'Silenciar' } } as object) : null)}
+      accessibilityHint={t('Mantém premido para ver os créditos')}
+      {...(finePointer() ? ({ dataSet: { tip: muted ? t('Ligar o som') : t('Silenciar') } } as object) : null)}
     >
       {/* O vidro: um fundo neutro do mesmo tom e, por cima (com o fade), a capa desfocada e o gradiente das cores dela. */}
       <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', borderRadius: 22, backgroundColor: fg === '#ffffff' ? '#2a2a2e' : '#f1f1f2' }]} pointerEvents="none">
@@ -264,23 +265,23 @@ export function MusicCard({ track, visible, soundTo }: { track: Track; /** O pos
           {live && !muted ? <Equalizer run={eqOn} color={fg} height={11} /> : <Icon name={muted ? 'volume-off' : 'music'} size={13} color={sub} strokeWidth={2.2} />}
           <Text style={[s.kickerTxt, { color: sub }]} numberOfLines={1}>{state}</Text>
           {soundTo ? (
-            <Pressable onPress={() => router.push(soundTo as never)} hitSlop={8} style={(st) => [s.useSound, { borderColor: fg === '#ffffff' ? 'rgba(255,255,255,0.35)' : 'rgba(24,24,27,0.2)' }, (st as Hover).hovered && { backgroundColor: fg === '#ffffff' ? 'rgba(255,255,255,0.14)' : 'rgba(24,24,27,0.06)' }]} accessibilityRole="link" accessibilityLabel="Usar este som">
-              <Text style={[s.useSoundTxt, { color: fg }]} numberOfLines={1}>Usar este som</Text>
+            <Pressable onPress={() => router.push(soundTo as never)} hitSlop={8} style={(st) => [s.useSound, { borderColor: fg === '#ffffff' ? 'rgba(255,255,255,0.35)' : 'rgba(24,24,27,0.2)' }, (st as Hover).hovered && { backgroundColor: fg === '#ffffff' ? 'rgba(255,255,255,0.14)' : 'rgba(24,24,27,0.06)' }]} accessibilityRole="link" accessibilityLabel={t('Usar este som')}>
+              <Text style={[s.useSoundTxt, { color: fg }]} numberOfLines={1}>{t('Usar este som')}</Text>
             </Pressable>
           ) : null}
         </View>
         <Marquee text={track.title} style={[s.title, { color: fg }]} run={mqOn} />
         <View style={s.artistRow}>
           {artist.href ? (
-            <Pressable onPress={() => router.push(artist.href as never)} hitSlop={6} style={{ flexShrink: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`${artist.name}: ver o perfil do artista`}>
+            <Pressable onPress={() => router.push(artist.href as never)} hitSlop={6} style={{ flexShrink: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={t('{name}: ver o perfil do artista', { name: artist.name })}>
               {(st) => <Text style={[s.artist, { color: sub }, (st as Hover).hovered && { color: fg, textDecorationLine: 'underline' }]} numberOfLines={1}>{artist.name}</Text>}
             </Pressable>
           ) : (
             <Text style={[s.artist, { color: sub }]} numberOfLines={1}>{artist.name}</Text>
           )}
           {artist.local ? (
-            <View style={[s.tag, { borderColor: fg === '#ffffff' ? 'rgba(255,255,255,0.55)' : withAlpha(colors.brand, 0.7) }]} accessibilityLabel="Artista">
-              <Text style={[s.tagTxt, { color: fg === '#ffffff' ? '#fff' : colors.brand }]}>Artista</Text>
+            <View style={[s.tag, { borderColor: fg === '#ffffff' ? 'rgba(255,255,255,0.55)' : withAlpha(colors.brand, 0.7) }]} accessibilityLabel={t('Artista')}>
+              <Text style={[s.tagTxt, { color: fg === '#ffffff' ? '#fff' : colors.brand }]}>{t('Artista')}</Text>
             </View>
           ) : null}
         </View>
@@ -318,7 +319,7 @@ function MusicCredit({ track, visible, soundTo }: { track: Track; visible: boole
       hitSlop={4}
       style={(st) => [s.badge, onWeb({ backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', transition: 'background-color 140ms ease, transform 140ms ease' }), (st as Hover).hovered && !!soundTo && s.badgeHover, st.pressed && s.pressed]}
       accessibilityRole={soundTo ? 'link' : 'text'}
-      accessibilityLabel={`Som: ${badgeLine(track)}`}
+      accessibilityLabel={t('Som: {badgeLine}', { badgeLine: badgeLine(track) })}
     >
       <MiniDisc track={track} size={24} spin={on} />
       <View style={[s.badgeText, { marginRight: 4 }]}>
@@ -345,7 +346,7 @@ function MusicBadgePlaying({ track, visible, waves }: { track: Track; visible: b
         accessibilityRole="button"
         accessibilityState={{ selected: muted }}
         accessibilityLabel={musicA11yLabel(track, muted)}
-        {...(finePointer() ? ({ dataSet: { tip: muted ? 'Ligar o som' : 'Silenciar' } } as object) : null)}
+        {...(finePointer() ? ({ dataSet: { tip: muted ? t('Ligar o som') : t('Silenciar') } } as object) : null)}
       >
         <MiniDisc track={track} size={24} spin={spin} />
         <View style={s.badgeText}>
@@ -373,11 +374,11 @@ export function MusicPill({ track, live, muted, onToggleMute, onArtist }: { trac
     <View style={[s.pill, onWeb({ backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' })]} accessibilityLabel={musicA11yLabel(track, muted)}>
       <MiniDisc track={track} size={28} spin={spin} />
       {onArtist ? (
-        <Pressable onPress={onArtist} style={s.pillText} accessibilityRole="link" accessibilityLabel={`${badgeLine(track)}. Ver o perfil do artista`}>{line}</Pressable>
+        <Pressable onPress={onArtist} style={s.pillText} accessibilityRole="link" accessibilityLabel={t('{badgeLine}. Ver o perfil do artista', { badgeLine: badgeLine(track) })}>{line}</Pressable>
       ) : (
         <Pressable onPress={onToggleMute} style={s.pillText} accessibilityRole="button" accessibilityLabel={musicA11yLabel(track, muted)}>{line}</Pressable>
       )}
-      <Pressable onPress={onToggleMute} hitSlop={6} style={(st) => [s.pillVol, (st as Hover).hovered && { backgroundColor: 'rgba(255,255,255,0.26)' }, st.pressed && s.pressed]} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
+      <Pressable onPress={onToggleMute} hitSlop={6} style={(st) => [s.pillVol, (st as Hover).hovered && { backgroundColor: 'rgba(255,255,255,0.26)' }, st.pressed && s.pressed]} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? t('Ativar o som') : t('Silenciar')}>
         <Icon name={muted ? 'volume-off' : 'volume'} size={17} color="#fff" strokeWidth={2.1} />
       </Pressable>
     </View>

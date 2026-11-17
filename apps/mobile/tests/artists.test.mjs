@@ -104,7 +104,7 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   assert.match(picker, /highlights\(home\.data, allowLocal\)/);
   assert.match(picker, /onlyAllowed\(withoutDisliked\(q\.data, disliked\), allowLocal\)/);
   // As faixas dos artistas não vão para as guardadas (o servidor só guarda faixas do catálogo aberto).
-  assert.match(picker, /\{canSave\(t\) \? \(/);
+  assert.match(picker, /\{canSave\(track\d*\) \? \(/);
   assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip' && t\.source !== 'local';/);
 });
 

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { TERMS_CHANGES } from '@/lib/legalText';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Quando os Termos ou a Política de Privacidade mudam (TERMS_VERSION), quem já tinha conta vê este aviso com o resumo
@@ -28,10 +29,10 @@ export function TermsUpdate() {
   if (later || !q.data || q.data.termsAccepted !== false || accept.isSuccess) return null;
   const open = (to: '/terms' | '/privacy') => { setLater(true); router.push(to as never); };
   return (
-    <Sheet title="Atualizámos os termos" onClose={() => setLater(true)}>
+    <Sheet title={t('Atualizámos os termos')} onClose={() => setLater(true)}>
       {/* A lista do que mudou faz scroll; o botão fica sempre à vista por baixo (num ecrã pequeno ficava escondido). */}
       <ScrollView style={{ maxHeight: Math.max(200, height * 0.55) }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }} showsVerticalScrollIndicator>
-        <Text style={st.lead}>O Txillapp cresceu. Isto é o que mudou nos Termos e na Política de Privacidade:</Text>
+        <Text style={st.lead}>{t('O Txillapp cresceu. Isto é o que mudou nos Termos e na Política de Privacidade:')}</Text>
         {/* As mais recentes primeiro: quem já aceitou as anteriores vê logo, no topo, o que é novo. */}
         {[...TERMS_CHANGES].reverse().map((c) => (
           <View key={c} style={st.item}>
@@ -40,13 +41,13 @@ export function TermsUpdate() {
           </View>
         ))}
         <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
-          <Pressable onPress={() => open('/terms')} accessibilityRole="link"><Text style={st.link}>Ler os Termos</Text></Pressable>
-          <Pressable onPress={() => open('/privacy')} accessibilityRole="link"><Text style={st.link}>Ler a Privacidade</Text></Pressable>
+          <Pressable onPress={() => open('/terms')} accessibilityRole="link"><Text style={st.link}>{t('Ler os Termos')}</Text></Pressable>
+          <Pressable onPress={() => open('/privacy')} accessibilityRole="link"><Text style={st.link}>{t('Ler a Privacidade')}</Text></Pressable>
         </View>
       </ScrollView>
       <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.zinc200 }}>
-        {accept.isError ? <Text style={st.err}>Não consegui guardar. Tenta outra vez.</Text> : null}
-        <Button label="Aceitar e continuar" onPress={() => accept.mutate()} loading={accept.isPending} block style={st.btn} />
+        {accept.isError ? <Text style={st.err}>{t('Não consegui guardar. Tenta outra vez.')}</Text> : null}
+        <Button label={t('Aceitar e continuar')} onPress={() => accept.mutate()} loading={accept.isPending} block style={st.btn} />
       </View>
     </Sheet>
   );

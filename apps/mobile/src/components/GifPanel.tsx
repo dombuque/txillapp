@@ -8,6 +8,7 @@ import { gifsApi } from '@/lib/api.gifs';
 import { GIF_DEBOUNCE_MS, columnsFor, gifColumns, gifLabel, gifQuery, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /** Os GIFs estão ligados no servidor (há chave do GIPHY)? Sem isso, nada de GIFs na app. */
 export function useGifsConfig() {
@@ -72,36 +73,36 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Procurar no GIPHY"
+          placeholder={t('Procurar no GIPHY')}
           placeholderTextColor={colors.zinc500}
           style={st.input}
           maxLength={50}
           returnKeyType="search"
           autoCorrect={false}
-          accessibilityLabel="Procurar GIFs"
+          accessibilityLabel={t('Procurar GIFs')}
         />
         {text ? (
-          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+          <Pressable onPress={() => setText('')} hitSlop={8} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
             <Icon name="x" size={16} color={colors.zinc500} />
           </Pressable>
         ) : null}
       </View>
       {!q && channel ? (
         <View style={st.tabs}>
-          {([['trending', 'Em alta'], ['channel', 'Txillapp']] as const).map(([id, label]) => (
-            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? 'GIFs Txillapp' : 'GIFs em alta'}>
+          {([['trending', t('Em alta')], ['channel', 'Txillapp']] as const).map(([id, label]) => (
+            <Pressable key={id} onPress={() => setTab(id)} hitSlop={{ top: 6, bottom: 6 }} style={[st.tab, { backgroundColor: tab === id ? colors.brand : colors.white }]} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} accessibilityLabel={id === 'channel' ? t('GIFs Txillapp') : t('GIFs em alta')}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: tab === id ? '#fff' : colors.zinc700 }}>{label}</Text>
             </Pressable>
           ))}
         </View>
       ) : (
-        <Text style={st.heading}>{q ? `GIFs de “${q}”` : 'Em alta'}</Text>
+        <Text style={st.heading}>{q ? t('GIFs de “{q}”', { q }) : t('Em alta')}</Text>
       )}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: PAD }} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled">
         {list.isLoading ? (
           <ActivityIndicator color={colors.brand} style={{ margin: 24 }} />
         ) : !items.length ? (
-          <Text style={st.empty}>{list.isError ? 'Não consegui carregar os GIFs. Tenta daqui a pouco.' : q ? 'Nenhum GIF encontrado.' : 'Sem GIFs agora. Tenta daqui a pouco.'}</Text>
+          <Text style={st.empty}>{list.isError ? t('Não consegui carregar os GIFs. Tenta daqui a pouco.') : q ? t('Nenhum GIF encontrado.') : t('Sem GIFs agora. Tenta daqui a pouco.')}</Text>
         ) : (
           <View style={{ flexDirection: 'row', gap: GAP }}>
             {grid.map((col, i) => (
@@ -112,7 +113,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
                     onPress={() => onPick(item)}
                     style={({ pressed }) => [st.cell, { height: Math.max(h, 44) }, pressed && { opacity: 0.7 }]}
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={`Enviar ${gifLabel(item.title)}`}
+                    accessibilityLabel={t('Enviar {gifLabel}', { gifLabel: gifLabel(item.title) })}
                   >
                     <Image
                       source={{ uri: reduce && item.still ? item.still : item.preview }}
@@ -131,7 +132,7 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
         {list.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ margin: 12 }} /> : null}
       </ScrollView>
       {/* Atribuição pedida pelo GIPHY (em texto: não carregamos o logótipo de terceiros). */}
-      <Text style={st.powered} accessibilityLabel="Powered by GIPHY">Powered by GIPHY</Text>
+      <Text style={st.powered} accessibilityLabel={t('Powered by GIPHY')}>{t('Powered by GIPHY')}</Text>
     </View>
   );
 }

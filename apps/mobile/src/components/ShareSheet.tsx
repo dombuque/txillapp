@@ -31,6 +31,7 @@ import { saveTcheka } from '@/lib/saveTcheka';
 import { canDownload } from '@/lib/tchekaDownload';
 import type { Track } from '@/lib/api.music';
 import { MusicPicker } from './MusicPicker';
+import { t } from '@/lib/i18n';
 
 /** Uma conversa (pessoa ou grupo) na grelha de partilha. Pessoas: com o selo de verificado (`verified`, `verifiedTier`). */
 interface Target extends Badged {
@@ -93,8 +94,8 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, staleTime: 30_000 });
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, staleTime: 30_000 });
-  const t = term.trim().replace(/^@/, '').toLowerCase();
-  const found = useQuery({ queryKey: ['mentionable', t], queryFn: () => api.mentionable(t), enabled: t.length >= 1, staleTime: 30_000 });
+  const txt = term.trim().replace(/^@/, '').toLowerCase();
+  const found = useQuery({ queryKey: ['mentionable', txt], queryFn: () => api.mentionable(txt), enabled: txt.length >= 1, staleTime: 30_000 });
 
   const recents = useMemo<Target[]>(() => {
     const mins = (iso: string | null | undefined) => (iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null);
@@ -115,14 +116,14 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   }, [direct.data, groups.data]);
 
   const list = useMemo<Target[]>(() => {
-    if (!t) return recents;
+    if (!txt) return recents;
     const have = new Set(recents.map((r) => r.key));
-    const hits = recents.filter((r) => r.name.toLowerCase().includes(t) || r.id.toLowerCase().includes(t));
+    const hits = recents.filter((r) => r.name.toLowerCase().includes(txt) || r.id.toLowerCase().includes(txt));
     const more = (found.data ?? [])
       .filter((p) => !have.has(`u:${p.username}`))
       .map((p): Target => ({ key: `u:${p.username}`, kind: 'user', id: p.username, name: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier, avatars: [{ name: p.displayName, username: p.hasAvatar ? p.username : undefined }], online: false, recent: null, at: '' }));
     return [...hits, ...more];
-  }, [t, recents, found.data]);
+  }, [txt, recents, found.data]);
 
   const isPicked = (k: string) => picked.some((p) => p.key === k);
   const toggle = (x: Target) => setPicked((l) => (isPicked(x.key) ? l.filter((p) => p.key !== x.key) : [...l, x]));
@@ -149,14 +150,14 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     }
     setBusy(false);
     if (failed.length) return setNote(failed.join(' · '));
-    setNote(picked.length === 1 ? `Enviado a ${picked[0].name}` : `Enviado a ${picked.length} conversas`);
+    setNote(picked.length === 1 ? t('Enviado a {name}', { name: picked[0].name }) : t('Enviado a {n} conversas', { n: picked.length }));
     setTimeout(onClose, 900);
   }
 
   // Escolher o status abre primeiro a pré-visualização: vês como fica, escreves uma legenda e só depois partilhas.
   function toStory(audience: 'all' | 'close_friends') {
     // A geleira partilhada ainda não tem imagem para o mimo: vai pelas conversas ou pelo link.
-    if (!canStory) return setNote(post.geleira ? 'A geleira ainda não vai para o mimo: envia-a numa conversa ou partilha o link' : 'Só se partilham no mimo publicações com foto ou vídeo');
+    if (!canStory) return setNote(post.geleira ? t('A geleira ainda não vai para o mimo: envia-a numa conversa ou partilha o link') : t('Só se partilham no mimo publicações com foto ou vídeo'));
     setPreview(audience);
   }
   async function publishStory() {
@@ -166,7 +167,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       await extraApi.shareToStory(post.id, preview, caption.trim(), stickers, music);
       const aud = preview;
       setPreview(null);
-      setNote(aud === 'all' ? 'Adicionado ao teu mimo' : 'Partilhado com amigos próximos');
+      setNote(aud === 'all' ? t('Adicionado ao teu mimo') : t('Partilhado com amigos próximos'));
       setTimeout(onClose, 1000);
     } catch (e) {
       setNote((e as Error).message);
@@ -177,7 +178,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   /** O vídeo com a assinatura e o cartão do fim: na galeria (telemóvel) ou na folha de partilha / descarregado (site). */
   async function download() {
     setBusy(true);
-    setNote('A preparar o vídeo…');
+    setNote(t('A preparar o vídeo…'));
     await saveTcheka(post);
     setBusy(false);
     setNote('');
@@ -186,12 +187,12 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     try {
       await Clipboard.setStringAsync(url);
       track('share', { target: 'link' });
-      setNote('Link copiado. Bora espalhar!');
+      setNote(t('Link copiado. Bora espalhar!'));
     } catch {
-      setNote('Não consegui copiar');
+      setNote(t('Não consegui copiar'));
     }
   }
-  const open = (href: string) => void Linking.openURL(href).then(() => track('share', { target: 'app' }), () => setNote('Não consegui abrir a app'));
+  const open = (href: string) => void Linking.openURL(href).then(() => track('share', { target: 'app' }), () => setNote(t('Não consegui abrir a app')));
   async function system() {
     try {
       const r = await Share.share(linkShare('', url));
@@ -221,15 +222,15 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   return (
     <View>
       <View style={st.searchRow}>
-        <SearchField value={term} onChangeText={setTerm} placeholder="Procurar" accessibilityLabel="Procurar pessoas e TxillGroups" />
+        <SearchField value={term} onChangeText={setTerm} placeholder={t('Procurar')} accessibilityLabel={t('Procurar pessoas e TxillGroups')} />
       </View>
 
-      <ScrollView style={{ flexGrow: 0, maxHeight: t ? 420 : undefined }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={(e) => { if (sheetScroll) sheetScroll.top.current = e.nativeEvent.contentOffset.y <= 0; }}>
+      <ScrollView style={{ flexGrow: 0, maxHeight: txt ? 420 : undefined }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={(e) => { if (sheetScroll) sheetScroll.top.current = e.nativeEvent.contentOffset.y <= 0; }}>
         {(direct.isLoading || groups.isLoading) && <ActivityIndicator style={{ marginVertical: 40 }} color={colors.brand} />}
-        {!direct.isLoading && list.length === 0 && <Text style={st.none}>{t ? 'Ninguém com esse nome' : 'Ainda não tens conversas. Procura alguém pelo nome.'}</Text>}
+        {!direct.isLoading && list.length === 0 && <Text style={st.none}>{txt ? t('Ninguém com esse nome') : t('Ainda não tens conversas. Procura alguém pelo nome.')}</Text>}
         <View style={st.grid}>
           {/* Sem pesquisa: só as duas primeiras filas (as conversas mais recentes); o resto encontra-se a procurar. */}
-          {(t ? list : list.slice(0, 6)).map((x) => {
+          {(txt ? list : list.slice(0, 6)).map((x) => {
             const on = isPicked(x.key);
             return (
               <Pressable key={x.key} onPress={() => toggle(x)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={x.name} style={({ pressed }) => [st.cell, pressed && { transform: [{ scale: 0.95 }] }]}>
@@ -244,7 +245,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
                   ) : (
                     <Avatar name={x.avatars[0].name} username={x.avatars[0].username} size={72} />
                   )}
-                  {x.online && <View style={st.online} accessibilityLabel="Online" />}
+                  {x.online && <View style={st.online} accessibilityLabel={t('Online')} />}
                   {x.recent !== null && <View style={st.recent}><Text style={{ fontSize: 11, fontWeight: '700', lineHeight: 16, color: '#047857' }}>{x.recent}m</Text></View>}
                   {on && <View style={st.picked}><Icon name="check" size={32} strokeWidth={3} color="#fff" /></View>}
                 </View>
@@ -259,21 +260,21 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
       {picked.length > 0 ? (
         <View style={st.bottom}>
-          <TextInput value={message} onChangeText={setMessage} maxLength={500} placeholder="Escrever uma mensagem…" placeholderTextColor={colors.zinc500} accessibilityLabel="Mensagem" style={st.msg} />
-          <Button label={picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`} onPress={() => void sendAll()} loading={busy} block style={{ marginTop: 12, marginHorizontal: 4 }} />
+          <TextInput value={message} onChangeText={setMessage} maxLength={500} placeholder={t('Escrever uma mensagem…')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Mensagem')} style={st.msg} />
+          <Button label={picked.length === 1 ? t('Enviar a {split}', { split: picked[0].name.split(' ')[0] }) : t('Enviar a {n} conversas', { n: picked.length })} onPress={() => void sendAll()} loading={busy} block style={{ marginTop: 12, marginHorizontal: 4 }} />
         </View>
       ) : (
         <View style={st.bottom}>
           <ActionsRow desktop={desktop}>
-            {action('square-plus', 'Adicionar ao mimo', () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
-            {action('heart', 'Amigos próximos', () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
+            {action('square-plus', t('Adicionar ao mimo'), () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
+            {action('heart', t('Amigos próximos'), () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
             {action('messages', 'WhatsApp', () => open(`https://wa.me/?text=${enc(url)}`), EMERALD_DARK, '#fff')}
-            {letter('Telegram', 'T', '#0ea5e9', () => open(`https://t.me/share/url?url=${enc(url)}`))}
+            {letter(t('Telegram'), 'T', '#0ea5e9', () => open(`https://t.me/share/url?url=${enc(url)}`))}
             {letter('Facebook', 'f', '#2563eb', () => open(`https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`))}
             {letter('X', 'X', colors.zinc900, () => open(`https://twitter.com/intent/tweet?url=${enc(url)}`))}
-            {canDownload(post) ? action('download', Platform.OS === 'web' ? 'Descarregar' : 'Guardar vídeo', () => void download()) : null}
-            {action('link', 'Copiar link', () => void copy())}
-            {action('share', 'Partilhar…', () => void system())}
+            {canDownload(post) ? action('download', Platform.OS === 'web' ? t('Descarregar') : t('Guardar vídeo'), () => void download()) : null}
+            {action('link', t('Copiar link'), () => void copy())}
+            {action('share', t('Partilhar…'), () => void system())}
           </ActionsRow>
         </View>
       )}
@@ -345,13 +346,13 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
     <View style={{ height: screen.h, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: bottomPad }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 8 }}>
         <BackButton onPress={onBack} color="#fff" />
-        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#fff' }}>{t('Pré-visualização do mimo')}</Text>
         {sel !== null && stickers[sel]
           ? <StickerToolbar item={stickers[sel]} onChange={(p) => setStickers(stickers.map((x, i) => (i === sel ? p : x)))} onDelete={() => { setStickers(stickers.filter((_, i) => i !== sel)); setSel(null); }} onDone={() => setSel(null)} />
           : <>
-            <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? 'Mudar a música' : 'Adicionar música'} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={24} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
-            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, counts.stickers > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={24} color={counts.stickers > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
-            <Pressable onPress={() => { setSel(null); if (counts.texts < MAX_TEXT_LAYERS) setTextEdit({ index: null, layer: newTextLayer() }); }} disabled={counts.texts >= MAX_TEXT_LAYERS} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" style={[st.back, counts.texts > 0 && { backgroundColor: '#fff' }]}><Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>Aa</Text></Pressable>
+            <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? t('Mudar a música') : t('Adicionar música')} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={24} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel={t('Stickers')} style={[st.back, counts.stickers > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={24} color={counts.stickers > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => { setSel(null); if (counts.texts < MAX_TEXT_LAYERS) setTextEdit({ index: null, layer: newTextLayer() }); }} disabled={counts.texts >= MAX_TEXT_LAYERS} accessibilityRole="button" accessibilityLabel={t('Texto')} accessibilityHint={t('Escrever por cima do mimo')} style={[st.back, counts.texts > 0 && { backgroundColor: '#fff' }]}><Text style={{ fontSize: 17, fontWeight: '800', color: counts.texts > 0 ? colors.zinc900 : '#fff' }}>{t('Aa')}</Text></Pressable>
           </>}
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
@@ -373,13 +374,13 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
         {music ? (
           <View style={st.musicChip}>
             <Icon name="music" size={16} color="#fff" />
-            <Text style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
-            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={18} color="#fff" strokeWidth={2.5} /></Pressable>
+            <Text style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || t('Autor desconhecido')}`}</Text>
+            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><Icon name="x" size={18} color="#fff" strokeWidth={2.5} /></Pressable>
           </View>
         ) : null}
-        <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder="Adicionar legenda…" placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel="Legenda" onFocus={() => setCapFocus(true)} onBlur={() => setCapFocus(false)} style={st.cap} />
+        <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder={t('Adicionar legenda…')} placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel={t('Legenda')} onFocus={() => setCapFocus(true)} onBlur={() => setCapFocus(false)} style={st.cap} />
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
-          {([['all', 'Os teus seguidores', 'square-plus'], ['close_friends', 'Amigos próximos', 'heart']] as const).map(([v, label, ic]) => {
+          {([['all', t('Os teus seguidores'), 'square-plus'], ['close_friends', t('Amigos próximos'), 'heart']] as const).map(([v, label, ic]) => {
             const on = audience === v;
             return (
               <Pressable key={v} onPress={() => setAudience(v)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.aud, { backgroundColor: on ? (v === 'all' ? '#fff' : EMERALD) : 'rgba(255,255,255,0.15)' }]}>
@@ -389,7 +390,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
             );
           })}
         </View>
-        <Button label="Partilhar no mimo" onPress={onPublish} loading={busy} dark block />
+        <Button label={t('Partilhar no mimo')} onPress={onPublish} loading={busy} dark block />
       </View>
     </View>
   );

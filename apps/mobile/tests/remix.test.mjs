@@ -161,7 +161,7 @@ test('«Retirar o dueto» (0140): só o autor do original, só em duetos, com av
   assert.match(r.takedownText(null), /quem o fez/);
   assert.equal(r.takedownVerb().text, 'pediu para retirar o teu dueto');
   const menu = read('components', 'PostSheets.tsx').replace(/\r\n/g, '\n');
-  assert.match(menu, /post\.remixOf\?\.kind === 'duet' && post\.remixOf\.canTakeDown \? <MenuRow[^\n]*title="Retirar o dueto"/);
+  assert.match(menu, /post\.remixOf\?\.kind === 'duet' && post\.remixOf\.canTakeDown \? <MenuRow[^\n]*title=\{t\('Retirar o dueto'\)\}/);
   assert.match(menu, /api\.takeDownDuet\(post\.id\)/);
   assert.match(read('lib', 'api.ts'), /\/duet-takedown`, post\(\{\}\)\)/);
 });

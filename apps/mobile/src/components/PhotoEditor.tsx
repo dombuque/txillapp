@@ -15,6 +15,7 @@ import {
   type SealTier,
 } from '@/lib/wordmark';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /**
  * Editor de fotos do Txillapp no telemóvel (depois de tirar a foto): filtros com intensidade, ajustes (brilho, contraste,
@@ -291,7 +292,7 @@ function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, u
 
 const signFont = (size: number) => {
   try {
-    return matchFont({ fontFamily: Platform.select({ ios: 'Helvetica Neue', default: 'sans-serif' }), fontSize: size, fontWeight: 'bold' });
+    return matchFont({ fontFamily: Platform.select({ ios: t('Helvetica Neue'), default: 'sans-serif' }), fontSize: size, fontWeight: 'bold' });
   } catch {
     return null;
   }
@@ -302,17 +303,17 @@ type AdjKey = keyof Adjust;
 type ToolId = 'look' | 'amt' | AdjKey | 'crop';
 interface ToolDef { id: ToolId; label: string; kind: 'look' | 'crop' | 'both' | 'up' | 'pct' }
 const TOOLS: ToolDef[] = [
-  { id: 'look', label: 'Filtros', kind: 'look' },
-  { id: 'amt', label: 'Intensidade', kind: 'pct' },
-  { id: 'b', label: 'Brilho', kind: 'both' },
-  { id: 'c', label: 'Contraste', kind: 'both' },
-  { id: 's', label: 'Saturação', kind: 'both' },
-  { id: 'w', label: 'Temperatura', kind: 'both' },
-  { id: 'hi', label: 'Realces', kind: 'both' },
-  { id: 'sh', label: 'Sombras', kind: 'both' },
-  { id: 'v', label: 'Vinheta', kind: 'up' },
-  { id: 'n', label: 'Nitidez', kind: 'up' },
-  { id: 'crop', label: 'Recortar', kind: 'crop' },
+  { id: 'look', get label() { return t('Filtros'); }, kind: 'look' },
+  { id: 'amt', get label() { return t('Intensidade'); }, kind: 'pct' },
+  { id: 'b', get label() { return t('Brilho'); }, kind: 'both' },
+  { id: 'c', get label() { return t('Contraste'); }, kind: 'both' },
+  { id: 's', get label() { return t('Saturação'); }, kind: 'both' },
+  { id: 'w', get label() { return t('Temperatura'); }, kind: 'both' },
+  { id: 'hi', get label() { return t('Realces'); }, kind: 'both' },
+  { id: 'sh', get label() { return t('Sombras'); }, kind: 'both' },
+  { id: 'v', get label() { return t('Vinheta'); }, kind: 'up' },
+  { id: 'n', get label() { return t('Nitidez'); }, kind: 'up' },
+  { id: 'crop', get label() { return t('Recortar'); }, kind: 'crop' },
 ];
 
 /** Ícone de cada ferramenta: os do Txillapp quando existem, os outros desenhados aqui no mesmo traço. */
@@ -374,7 +375,7 @@ function ToolSlider({ kind, value, def, label, onChange }: { kind: 'both' | 'up'
   const changed = Math.abs(value - def) > 0.001;
   return (
     <View style={{ paddingHorizontal: 28 }}>
-      <Pressable onPress={() => onChange(def)} hitSlop={10} style={st.valueBox} accessibilityRole="button" accessibilityLabel={`${label}: ${fmt(kind, value)}. Toca para repor`}>
+      <Pressable onPress={() => onChange(def)} hitSlop={10} style={st.valueBox} accessibilityRole="button" accessibilityLabel={t('{label}: {fmt}. Toca para repor', { label, fmt: fmt(kind, value) })}>
         <Text style={[st.value, changed && { color: '#fff' }]}>{fmt(kind, value)}</Text>
       </Pressable>
       <View style={st.track} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)} {...pan.panHandlers} accessibilityRole="adjustable" accessibilityLabel={label}>
@@ -418,13 +419,13 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
         try {
           const bytes = await new File(uri).bytes();
           i = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
-          if (!i) why = 'formato de imagem não suportado';
+          if (!i) why = t('formato de imagem não suportado');
         } catch (e) { why = why || (e as Error).message; }
       }
       if (!alive) { i?.dispose?.(); return; }
       if (i) {
         // Reduzir pode falhar com fotos enormes (memória): mostra-se o erro do editor em vez de a app fechar.
-        try { i = shrink(i); } catch (e) { i.dispose?.(); i = null; why = (e as Error).message || 'foto grande demais'; }
+        try { i = shrink(i); } catch (e) { i.dispose?.(); i = null; why = (e as Error).message || t('foto grande demais'); }
       }
       if (i && !alive) { i.dispose?.(); return; }
       if (i) { loaded = i; setImg(i); }
@@ -543,7 +544,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
     setBusy(true);
     try {
       const uri = renderFile();
-      if (!uri) throw new Error('sem superfície');
+      if (!uri) throw new Error(t('sem superfície'));
       onDone(uri);
     } catch {
       setBusy(false);
@@ -556,13 +557,13 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
     setSaving(true);
     try {
       const perm = await MediaLibrary.requestPermissionsAsync(true);
-      if (!perm.granted) { Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar.'); return; }
+      if (!perm.granted) { Alert.alert(t('Sem acesso à galeria'), t('Dá acesso às fotos nas definições do telemóvel para guardar.')); return; }
       const uri = renderFile();
-      if (!uri) throw new Error('Não consegui desenhar a foto');
+      if (!uri) throw new Error(t('Não consegui desenhar a foto'));
       await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Guardada', 'A foto está na tua galeria, com a assinatura do Txillapp.');
+      Alert.alert(t('Guardada'), t('A foto está na tua galeria, com a assinatura do Txillapp.'));
     } catch (e) {
-      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+      Alert.alert(t('Não consegui guardar'), (e as Error).message || t('Tenta outra vez.'));
     } finally {
       setSaving(false);
     }
@@ -573,7 +574,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
   // Numa publicação (aspect 4:5) só as proporções do Instagram: 1:1, 4:5 e 1,91:1. Em mimo/tcheka, todas.
   const ASPECTS: { label: string; v: number | null }[] = isPost
     ? [{ label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '1,91:1', v: POST_RATIO_MAX }]
-    : [{ label: 'Original', v: null }, { label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '9:16', v: 9 / 16 }, { label: '16:9', v: 16 / 9 }];
+    : [{ label: t('Original'), v: null }, { label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '9:16', v: 9 / 16 }, { label: '16:9', v: 16 / 9 }];
   const cur = TOOLS.find((t) => t.id === tool) ?? TOOLS[0];
   /** A ferramenta já mexeu na foto (põe um pontinho coral por baixo do ícone). */
   const touched = (t: ToolDef) => {
@@ -589,7 +590,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
       <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
         {LOOKS.map((l, i) => (
           // Cada filtro mostra a própria foto com esse filtro (como no site), e o nome por baixo.
-          <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={st.swatch} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }} accessibilityLabel={`Filtro ${l.name}`}>
+          <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={st.swatch} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }} accessibilityLabel={t('Filtro {name}', { name: l.name })}>
             <View style={[st.swatchImg, edit.look === i && st.swatchOn]}>
               {thumb ? (
                 <Canvas style={{ width: 56, height: 56 }}>
@@ -608,8 +609,8 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
     controls = (
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-          <Pressable onPress={() => set({ rot: ((edit.rot + 90) % 360) as Edit['rot'], ox: 0, oy: 0 })} style={st.toolBtn} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /><Text style={st.chipText}>Rodar</Text></Pressable>
-          <Pressable onPress={() => set({ flip: !edit.flip })} style={[st.toolBtn, edit.flip && st.chipOn]} accessibilityRole="button" accessibilityLabel="Espelhar" accessibilityState={{ selected: edit.flip }}><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /><Text style={[st.chipText, edit.flip && st.chipTextOn]}>Espelhar</Text></Pressable>
+          <Pressable onPress={() => set({ rot: ((edit.rot + 90) % 360) as Edit['rot'], ox: 0, oy: 0 })} style={st.toolBtn} accessibilityRole="button" accessibilityLabel={t('Rodar')}><Icon name="repeat" size={18} color="#fff" /><Text style={st.chipText}>{t('Rodar')}</Text></Pressable>
+          <Pressable onPress={() => set({ flip: !edit.flip })} style={[st.toolBtn, edit.flip && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Espelhar')} accessibilityState={{ selected: edit.flip }}><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /><Text style={[st.chipText, edit.flip && st.chipTextOn]}>{t('Espelhar')}</Text></Pressable>
           <View style={st.sep} />
           {ASPECTS.map((a) => {
             const on = a.v === null ? edit.aspect === null : edit.aspect !== null && Math.abs(edit.aspect - a.v) < 0.01;
@@ -620,11 +621,11 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
             );
           })}
         </ScrollView>
-        <Text style={st.cropHint}>Arrasta a foto para escolher o enquadramento.</Text>
+        <Text style={st.cropHint}>{t('Arrasta a foto para escolher o enquadramento.')}</Text>
       </View>
     );
   } else if (cur.kind === 'pct' && edit.look === 0) {
-    controls = <Text style={st.cropHint}>Escolhe primeiro um filtro, depois afinas a força aqui.</Text>;
+    controls = <Text style={st.cropHint}>{t('Escolhe primeiro um filtro, depois afinas a força aqui.')}</Text>;
   } else if (cur.kind === 'pct') {
     controls = <ToolSlider kind="pct" label={cur.label} value={edit.amt} def={1} onChange={(v) => set({ amt: v })} />;
   } else {
@@ -635,12 +636,12 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
   return (
     <View style={[StyleSheet.absoluteFill, st.root]}>
       <View style={[st.top, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={onCancel} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar à câmara"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onCancel} style={st.round} accessibilityRole="button" accessibilityLabel={t('Voltar à câmara')}><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Pressable onPress={() => void saveLocal()} disabled={!img || saving} style={[st.round, (!img || saving) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Guardar na galeria">
+          <Pressable onPress={() => void saveLocal()} disabled={!img || saving} style={[st.round, (!img || saving) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Guardar na galeria')}>
             {saving ? <ActivityIndicator color="#fff" /> : <Icon name="download" size={20} color="#fff" />}
           </Pressable>
-          <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.round, st.done, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Feito">
+          <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.round, st.done, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Feito')}>
             {busy ? <ActivityIndicator color="#fff" /> : <Icon name="check" size={22} color="#fff" strokeWidth={2.4} />}
           </Pressable>
         </View>
@@ -648,7 +649,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
 
       <View style={st.stage} onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
         {failed ? (
-          <Text style={st.fail}>Não consegui abrir a foto para editar.{failWhy ? `\n${failWhy}` : ''}</Text>
+          <Text style={st.fail}>{t('Não consegui abrir a foto para editar.')}{failWhy ? `\n${failWhy}` : ''}</Text>
         ) : !picture ? (
           <ActivityIndicator color="#fff" />
         ) : (

@@ -2,6 +2,7 @@ import { useEffect, useRef, type ComponentRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * O fim de uma lista que continua (feed): na web, pede a página seguinte quando este bocado entra no ecrã (um
@@ -13,7 +14,7 @@ import { colors } from '@/lib/theme';
  * observador novo dizia logo «está no ecrã» e pedia todas as páginas de seguida. Só pede quando *entra* no ecrã, e no
  * máximo uma vez a cada 1,5 s.
  */
-export function LoadMore({ onLoad, loading, label = 'Ver mais publicações' }: { onLoad: () => void; loading: boolean; label?: string }) {
+export function LoadMore({ onLoad, loading, label = t('Ver mais publicações') }: { onLoad: () => void; loading: boolean; label?: string }) {
   const ref = useRef<ComponentRef<typeof View>>(null);
   const load = useRef(onLoad);
   const last = useRef(0);

@@ -17,6 +17,7 @@ import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
 import { SearchField } from './ui/SearchField';
+import { t } from '@/lib/i18n';
 
 interface Person extends Badged { username: string; displayName: string; hasAvatar: boolean }
 
@@ -49,7 +50,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
   async function create() {
     const bad = draftError(draft);
     if (bad) { setStep('details'); return setErr(bad); }
-    if (picked.length < 2) { setStep('pick'); return setErr('Um TxillGroup precisa de pelo menos mais duas pessoas.'); }
+    if (picked.length < 2) { setStep('pick'); return setErr(t('Um TxillGroup precisa de pelo menos mais duas pessoas.')); }
     setBusy(true);
     try {
       const r = await groupsApi.create({
@@ -108,11 +109,11 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
   }
 
   const label = addTo
-    ? `Adicionar ${picked.length || ''}`.trim()
-    : step === 'details' ? (detailsFirst ? 'Escolher a malta' : 'Criar TxillGroup')
-    : groupFlow ? (picked.length >= 2 ? `Criar TxillGroup · ${picked.length + 1} pessoas` : 'Escolhe pelo menos duas pessoas')
-    : picked.length === 1 ? 'Conversar' : picked.length > 1 ? 'Seguinte' : 'Escolhe pessoas';
-  const title = addTo ? 'Adicionar ao TxillGroup' : step === 'details' ? 'Novo TxillGroup' : groupFlow ? 'Quem vem?' : 'Nova conversa';
+    ? t('Adicionar {n}', { n: picked.length || '' }).trim()
+    : step === 'details' ? (detailsFirst ? t('Escolher a malta') : t('Criar TxillGroup'))
+    : groupFlow ? (picked.length >= 2 ? t('Criar TxillGroup · {n} pessoas', { n: picked.length + 1 }) : t('Escolhe pelo menos duas pessoas'))
+    : picked.length === 1 ? t('Conversar') : picked.length > 1 ? t('Seguinte') : t('Escolhe pessoas');
+  const title = addTo ? t('Adicionar ao TxillGroup') : step === 'details' ? t('Novo TxillGroup') : groupFlow ? t('Quem vem?') : t('Nova conversa');
   const disabled = busy || (step === 'pick' && (groupFlow ? picked.length < 2 : picked.length === 0));
 
   return (
@@ -135,13 +136,13 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
       ) : (
         <View style={{ flex: 1 }}>
           <View style={{ paddingHorizontal: 16 }}>
-            <SearchField value={text} onChangeText={setText} placeholder="Procurar" accessibilityLabel="Procurar pessoas" />
+            <SearchField value={text} onChangeText={setText} placeholder={t('Procurar')} accessibilityLabel={t('Procurar pessoas')} />
             {!addTo && !groupFlow && !term && (
               <Pressable onPress={() => { setErr(''); setGroupFlow(true); setDetailsFirst(true); setStep('details'); }} style={({ pressed }) => [styles.add, { marginTop: 8 }, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                 <View style={styles.addIcon}><Icon name="users" size={22} color={colors.brand} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.rowName}>Novo TxillGroup</Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e vibes</Text>
+                  <Text style={styles.rowName}>{t('Novo TxillGroup')}</Text>
+                  <Text style={styles.rowSub} numberOfLines={1}>{t('Viagem, festa ou fim de semana, com Plano e vibes')}</Text>
                 </View>
                 <Icon name="chevron-right" size={18} color={colors.zinc500} />
               </Pressable>
@@ -149,7 +150,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
             {picked.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
                 {picked.map((p) => (
-                  <Pressable key={p.username} onPress={() => toggle(p)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Tirar ${p.displayName}`} style={{ width: 60, minHeight: 44, alignItems: 'center', gap: 4 }}>
+                  <Pressable key={p.username} onPress={() => toggle(p)} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('Tirar {displayName}', { displayName: p.displayName })} style={{ width: 60, minHeight: 44, alignItems: 'center', gap: 4 }}>
                     <View>
                       <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} />
                       <View style={styles.remove}><Icon name="x" size={12} strokeWidth={3} color="#fff" /></View>
@@ -165,8 +166,8 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
             keyExtractor={(p) => p.username}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 8 }}
-            ListHeaderComponent={!term && rows.length > 0 ? <Text style={styles.sugg}>Sugestões</Text> : undefined}
-            ListEmptyComponent={<Text style={styles.none}>{term ? 'Ninguém com esse nome' : 'Procura pelo nome ou @.'}</Text>}
+            ListHeaderComponent={!term && rows.length > 0 ? <Text style={styles.sugg}>{t('Sugestões')}</Text> : undefined}
+            ListEmptyComponent={<Text style={styles.none}>{term ? t('Ninguém com esse nome') : t('Procura pelo nome ou @.')}</Text>}
             renderItem={({ item: p }) => {
               const on = isPicked(p.username);
               return (
@@ -186,12 +187,12 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
       <View style={styles.foot}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {!addTo && (groupFlow || step === 'details') && <Pressable onPress={back} style={styles.back}><Text style={styles.backText}>Voltar</Text></Pressable>}
+          {!addTo && (groupFlow || step === 'details') && <Pressable onPress={back} style={styles.back}><Text style={styles.backText}>{t('Voltar')}</Text></Pressable>}
           <Pressable onPress={() => void go()} disabled={disabled} style={[styles.go, disabled && { opacity: 0.4 }]} accessibilityRole="button">
-            <Text style={styles.goText}>{busy ? 'A criar…' : label}</Text>
+            <Text style={styles.goText}>{busy ? t('A criar…') : label}</Text>
           </Pressable>
         </View>
-        {!addTo && !groupFlow && picked.length === 1 && <Text style={styles.hint}>Escolhe mais pessoas para criar um TxillGroup.</Text>}
+        {!addTo && !groupFlow && picked.length === 1 && <Text style={styles.hint}>{t('Escolhe mais pessoas para criar um TxillGroup.')}</Text>}
       </View>
     </Sheet>
   );
@@ -259,7 +260,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
     } catch (e) {
       if (optimistic) patchRole(m.username, before);
       // 409: era o último administrador. O servidor diz porquê; sem mensagem, diz-se o mesmo.
-      throw new Error((e as Error).message || (e instanceof ApiError && e.status === 409 ? LAST_ADMIN_MESSAGE : 'Não consegui mudar. Tenta outra vez.'));
+      throw new Error((e as Error).message || (e instanceof ApiError && e.status === 409 ? LAST_ADMIN_MESSAGE : t('Não consegui mudar. Tenta outra vez.')));
     } finally {
       onChanged();
     }
@@ -270,10 +271,10 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
   if (confirm) {
     return (
       <ConfirmSheet
-        title="Sair do TxillGroup?"
-        lines={[`Deixas de receber as mensagens de «${group.name}». Só voltas se alguém te adicionar.`]}
-        confirmLabel="Sair do TxillGroup"
-        cancelLabel="Ficar"
+        title={t('Sair do TxillGroup?')}
+        lines={[t('Deixas de receber as mensagens de «{name}». Só voltas se alguém te adicionar.', { name: group.name })]}
+        confirmLabel={t('Sair do TxillGroup')}
+        cancelLabel={t('Ficar')}
         danger
         onConfirm={async () => {
           await gruposApi.remove(group.id, user!.username);
@@ -294,9 +295,9 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
           <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={64} radius={group.avatarUrl ? 32 : undefined} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.infoKind}>{kindInfo(groupKindOf(group)).label}</Text>
-            {group.description ? <Text style={styles.infoDesc} numberOfLines={4}>{group.description}</Text> : <Text style={[styles.infoDesc, { color: colors.zinc500 }]}>Sem descrição.</Text>}
+            {group.description ? <Text style={styles.infoDesc} numberOfLines={4}>{group.description}</Text> : <Text style={[styles.infoDesc, { color: colors.zinc500 }]}>{t('Sem descrição.')}</Text>}
           </View>
-          {admin && <Pressable onPress={() => setEditing(true)} style={styles.save} accessibilityRole="button" accessibilityLabel="Editar o TxillGroup"><Text style={styles.goText}>Editar</Text></Pressable>}
+          {admin && <Pressable onPress={() => setEditing(true)} style={styles.save} accessibilityRole="button" accessibilityLabel={t('Editar o TxillGroup')}><Text style={styles.goText}>{t('Editar')}</Text></Pressable>}
         </View>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         {notice ? <Text style={styles.notice} accessibilityLiveRegion="polite">{notice}</Text> : null}
@@ -309,10 +310,10 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
               {admin && (
                 <Pressable onPress={() => setAdding(true)} style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                   <View style={styles.addIcon}><Icon name="user-plus" size={22} color={colors.brand} /></View>
-                  <Text style={styles.rowName}>Adicionar pessoas</Text>
+                  <Text style={styles.rowName}>{t('Adicionar pessoas')}</Text>
                 </Pressable>
               )}
-              <Text style={styles.members}>{group.members.length} PESSOAS</Text>
+              <Text style={styles.members}>{t('{n} PESSOAS', { n: group.members.length })}</Text>
             </View>
           }
           renderItem={({ item: m }) => {
@@ -321,16 +322,16 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
             const actions = memberActions({ myRole: group.myRole, me, member: m });
             return (
               <View style={styles.member}>
-                <Pressable onPress={() => { onClose(); router.push(`/u/${m.username}` as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`${m.displayName}${mine ? ' (tu)' : ''}, @${m.username}${badge ? `, ${badge}` : ''}`}>
+                <Pressable onPress={() => { onClose(); router.push(`/u/${m.username}` as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`${m.displayName}${mine ? (' ' + t('(tu)')) : ''}, @${m.username}${badge ? `, ${badge}` : ''}`}>
                   <Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <NameWithBadge name={m.displayName} who={m} style={styles.rowName}>{mine ? <Text style={[styles.rowName, { flexShrink: 0 }]}>(tu)</Text> : null}</NameWithBadge>
+                    <NameWithBadge name={m.displayName} who={m} style={styles.rowName}>{mine ? <Text style={[styles.rowName, { flexShrink: 0 }]}>{t('(tu)')}</Text> : null}</NameWithBadge>
                     <Text style={styles.rowSub} numberOfLines={1}>@{m.username}</Text>
                   </View>
                 </Pressable>
                 {badge && <View style={styles.adminTag} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden><Text style={styles.adminText}>{badge}</Text></View>}
                 {actions.length > 0 && (
-                  <Pressable disabled={busy} onPress={() => { setErr(''); setNotice(''); setMenuFor(m.username); }} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Opções para ${m.displayName}`} style={({ pressed }) => [styles.kick, pressed && { backgroundColor: colors.zinc100 }]}>
+                  <Pressable disabled={busy} onPress={() => { setErr(''); setNotice(''); setMenuFor(m.username); }} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('Opções para {displayName}', { displayName: m.displayName })} style={({ pressed }) => [styles.kick, pressed && { backgroundColor: colors.zinc100 }]}>
                     <Icon name="more" size={20} color={colors.zinc600} />
                   </Pressable>
                 )}
@@ -340,7 +341,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
           ListFooterComponent={
             <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: colors.dangerSoft }]} accessibilityRole="button">
               <Icon name="logout" size={18} color={colors.danger} />
-              <Text style={styles.exitText}>Sair do TxillGroup</Text>
+              <Text style={styles.exitText}>{t('Sair do TxillGroup')}</Text>
             </Pressable>
           }
         />
@@ -357,9 +358,9 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
       )}
       {kick && (
         <ConfirmSheet
-          title={`Tirar ${kick.displayName} do TxillGroup?`}
-          lines={[`${kick.displayName} deixa de receber as mensagens de «${group.name}». ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
-          confirmLabel="Tirar do TxillGroup"
+          title={t('Tirar {displayName} do TxillGroup?', { displayName: kick.displayName })}
+          lines={[t('{displayName} deixa de receber as mensagens de «{name}». {value}', { displayName: kick.displayName, name: group.name, value: accessOf(group) === 'public' ? t('Como o grupo é público, pode voltar a entrar.') : t('Só volta se alguém o adicionar.') })]}
+          confirmLabel={t('Tirar do TxillGroup')}
           danger
           onConfirm={async () => {
             await gruposApi.remove(group.id, kick.username);
@@ -392,7 +393,7 @@ function MemberMenuSheet({ member, actions, note, onRole, onRemove, onClose }: {
   return (
     <Sheet title={member.displayName} onClose={() => { if (!busy) onClose(); }}>
       <View style={{ paddingHorizontal: 20, gap: 6 }}>
-        <Text style={styles.menuSub}>@{member.username}{member.role === 'admin' ? ' · Administrador' : ''}</Text>
+        <Text style={styles.menuSub}>@{member.username}{member.role === 'admin' ? (' ' + t('· Administrador')) : ''}</Text>
         {actions.map((a) => (
           <Pressable
             key={a.id}
@@ -403,12 +404,12 @@ function MemberMenuSheet({ member, actions, note, onRole, onRemove, onClose }: {
             accessibilityState={{ disabled: !!busy, busy: busy === a.id }}
           >
             <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? colors.danger : colors.zinc700} />
-            <Text style={[styles.menuText, a.destructive && { color: colors.danger }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
+            <Text style={[styles.menuText, a.destructive && { color: colors.danger }]}>{busy === a.id ? t('Um momento…') : a.label}</Text>
           </Pressable>
         ))}
         {note ? <Text style={styles.menuNote}>{note}</Text> : null}
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
-        <Pressable onPress={onClose} disabled={!!busy} style={styles.stay} accessibilityRole="button"><Text style={styles.backText}>Fechar</Text></Pressable>
+        <Pressable onPress={onClose} disabled={!!busy} style={styles.stay} accessibilityRole="button"><Text style={styles.backText}>{t('Fechar')}</Text></Pressable>
       </View>
     </Sheet>
   );

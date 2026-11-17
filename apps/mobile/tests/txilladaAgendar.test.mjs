@@ -333,7 +333,7 @@ test('o cartão: «Denunciar» abre o ReportSheet só a quem não é anfitrião,
   assert.match(card, /title=\{GONE_TITLE\}/);
   const sheet = read('components/ReportSheet.tsx');
   assert.match(sheet, /type === 'txillada_schedule'\) await txilladaApi\.reportSchedule\(id, reason, note\.trim\(\) \|\| undefined\)/);
-  assert.ok(sheet.includes("txillada_schedule: 'esta Txillada agendada'"));
+  assert.ok(sheet.includes("get txillada_schedule() { return t('esta Txillada agendada'); }"));
   const notif = read('app/notifications.tsx');
   assert.match(notif, /scheduleNoticeText\(n\.kind, n\.data, Date\.now\(\), n\.actor\.username\)/);
   assert.match(notif, /zasRecap \|\| hostNotice \|\| removedNotice \? null/);

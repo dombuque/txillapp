@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-
-const tr = <T extends string>(s: T, vars?: Record<string, string | number>): string => (vars ? s.replace(/\{(\w+)\}/g, (_m, k: string) => String(vars[k] ?? '')) : s);
+import { t } from '@/lib/i18n';
 
 /**
  * Os pontos dos gostos (a parte da geleira no nível, 0146): 1 por grupo diferente (até 4) e 1 por cada 2 gostos avaliados
@@ -19,13 +18,13 @@ export function geleiraPoints(items: { kind: string; category: string; alcoholic
 /** Nível da geleira pelos pontos (os mesmos degraus do servidor), em calão da malta (txilar, maningue, paulada, madala). */
 const STEPS = [1, 40, 100, 180] as const;
 export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
-export const LEVEL_LABEL = [tr('Geleira seca'), tr('A txilar'), tr('Maningue abastecida'), tr('Paulada garantida'), tr('Madala da paulada')];
+export const LEVEL_LABEL = () => [t('Geleira seca'), t('A txilar'), t('Maningue abastecida'), t('Paulada garantida'), t('Madala da paulada')];
 /** Enquanto o nível não chega do servidor: uma frase que não promete nada que não conte. */
 export function nextLevelHint(points: number): string {
   const l = geleiraLevel(points);
-  if (l === 4) return tr('Nível máximo: madala da paulada!');
-  if (l === 0) return tr('Paga uma gelada ou dá nota aos teus gostos para começares a txilar.');
-  return tr('O nível sobe com o que vives com a malta: geladas, brindes, sítios e rodadas.');
+  if (l === 4) return t('Nível máximo: madala da paulada!');
+  if (l === 0) return t('Paga uma gelada ou dá nota aos teus gostos para começares a txilar.');
+  return t('O nível sobe com o que vives com a malta: geladas, brindes, sítios e rodadas.');
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];
@@ -73,7 +72,7 @@ export function FridgeArt({ count, level, open = false, invite = false, size = 9
   const dots = Math.min(count, 8);
   const h = Math.round(size * 1.3);
   return (
-    <Svg width={size} height={h} viewBox="0 0 100 130" accessibilityLabel={`Geleira: ${LEVEL_LABEL[level] ?? ''}`} style={{ overflow: 'visible' }}>
+    <Svg width={size} height={h} viewBox="0 0 100 130" accessibilityLabel={`Geleira: ${LEVEL_LABEL()[level] ?? ''}`} style={{ overflow: 'visible' }}>
       <Defs>
         <LinearGradient id={`b${id}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#ffffff" />

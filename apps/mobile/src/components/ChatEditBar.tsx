@@ -7,6 +7,7 @@ import { useKeyboardOpen } from '@/components/ChatScreen';
 import { KB_COMPOSER_PAD } from '@/lib/chatKeyboard';
 import { useDeskChat } from '@/lib/deskChat';
 import { editBarKey, type KeyLike } from '@/lib/deskChatKeys';
+import { t } from '@/lib/i18n';
 
 /**
  * Editar uma mensagem (como no WhatsApp): no lugar da barra de escrever, a faixa "A editar mensagem" com o texto antigo e
@@ -63,10 +64,10 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
       <View style={st.bar}>
         <View style={st.barLine} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.barTitle}>A editar mensagem</Text>
+          <Text style={st.barTitle}>{t('A editar mensagem')}</Text>
           <Text style={st.barText} numberOfLines={1}>{original}</Text>
         </View>
-        <Pressable onPress={onCancel} hitSlop={10} style={st.x} accessibilityRole="button" accessibilityLabel="Cancelar a edição">
+        <Pressable onPress={onCancel} hitSlop={10} style={st.x} accessibilityRole="button" accessibilityLabel={t('Cancelar a edição')}>
           <Icon name="x" size={18} color={colors.zinc600} />
         </Pressable>
       </View>
@@ -80,12 +81,12 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
           autoFocus
           multiline
           maxLength={2000}
-          placeholder="Mensagem"
+          placeholder={t('Mensagem')}
           placeholderTextColor={colors.zinc500}
           style={st.input}
-          accessibilityLabel="Texto da mensagem"
+          accessibilityLabel={t('Texto da mensagem')}
         />
-        <Pressable onPress={() => void save()} disabled={!can} style={[st.send, !can && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Guardar a edição" accessibilityState={{ disabled: !can }}>
+        <Pressable onPress={() => void save()} disabled={!can} style={[st.send, !can && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={t('Guardar a edição')} accessibilityState={{ disabled: !can }}>
           {busy ? <ActivityIndicator color="#fff" /> : <Icon name="check" size={20} strokeWidth={2.6} color="#fff" />}
         </Pressable>
       </View>

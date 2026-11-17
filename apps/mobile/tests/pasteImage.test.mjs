@@ -148,5 +148,5 @@ test('as duas caixas de mensagem usam o colar e a pré-visualização; nada se e
   assert.doesNotMatch(hook, /uploadChatMedia|chatSend/);
   const sheet = readFileSync(path.join(ROOT, 'src', 'components', 'PastedImageSheet.tsx'), 'utf8');
   assert.match(sheet, /useState\(caption \?\? ''\)/);
-  assert.match(sheet, /placeholder="Adicionar uma legenda…"/);
+  assert.match(sheet, /placeholder=\{t\('Adicionar uma legenda…'\)\}/);
 });

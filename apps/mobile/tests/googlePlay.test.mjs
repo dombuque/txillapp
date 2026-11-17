@@ -276,5 +276,5 @@ test('sem sessão, a app leva ao login (e às páginas públicas) sem ecrãs de 
   // O pedido das notificações (Android 13+) só aparece no passo a passo depois de entrar, explicado.
   const p = src('components/PermissionsOnboarding.tsx');
   assert.match(p, /if \(Platform\.OS === 'web' \|\| !user\) return;/);
-  assert.match(p, /id: 'notif'[^\n]*text: 'Para saberes logo/);
+  assert.match(p, /id: 'notif'[^\n]*text\(\) \{ return t\('Para saberes logo/);
 });

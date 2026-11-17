@@ -8,6 +8,7 @@ import { listImageProps } from '@/lib/listImage';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
+import { t } from '@/lib/i18n';
 
 /** O logótipo de um local (ou o pin, se ainda não tiver). */
 export function VenueLogo({ venue, size = 48 }: { venue: Pick<Venue, 'avatarUrl' | 'name'>; size?: number }) {
@@ -34,7 +35,7 @@ export function FollowVenueButton({ venue, compact = false }: { venue: Venue; co
   const on = m.isPending ? !venue.following : venue.following;
   return (
     <Pressable onPress={() => m.mutate(!venue.following)} disabled={m.isPending} style={[st.follow, compact && { height: 34, paddingHorizontal: 14 }, on ? st.followOn : st.followOff]} accessibilityRole="button" accessibilityState={{ selected: on }}>
-      <Text style={[st.followText, on && { color: colors.zinc900 }]}>{on ? 'A seguir' : 'Seguir'}</Text>
+      <Text style={[st.followText, on && { color: colors.zinc900 }]}>{on ? t('A seguir') : t('Seguir')}</Text>
     </Pressable>
   );
 }
@@ -57,7 +58,7 @@ export function VenueRow({ venue, onPress, right }: { venue: Venue; onPress?: ()
         </View>
       </Pressable>
       {right === 'follow' || right === undefined ? <FollowVenueButton venue={venue} compact /> : null}
-      {right === 'role' && venue.role ? <Text style={st.role}>{venue.role === 'owner' ? 'Dono' : venue.role === 'admin' ? 'Admin' : 'Editor'}</Text> : null}
+      {right === 'role' && venue.role ? <Text style={st.role}>{venue.role === 'owner' ? t('Dono') : venue.role === 'admin' ? t('Admin') : t('Editor')}</Text> : null}
     </View>
   );
 }
@@ -75,7 +76,7 @@ export function VenueTile({ venue }: { venue: Venue }) {
           <Text style={st.tileName} numberOfLines={1}>{venue.name}</Text>
           {venue.verified && <VerifiedBadge size={14} tier="verified" />}
         </View>
-        <Text style={st.tileSub} numberOfLines={1}>{KIND_LABEL[venue.kind] ?? 'Outro'}{venue.city ? ` · ${venue.city}` : ''}</Text>
+        <Text style={st.tileSub} numberOfLines={1}>{KIND_LABEL[venue.kind] ?? t('Outro')}{venue.city ? ` · ${venue.city}` : ''}</Text>
       </View>
     </Pressable>
   );

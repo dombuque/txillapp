@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { notesRow } from '@/lib/notesRow';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { t } from '@/lib/i18n';
 
 const LIMIT = 60;
 const trackLine = (n?: Note | null) => (n?.music ? `${n.music.title}${n.music.artist ? ` · ${n.music.artist}` : ''}` : '');
@@ -36,7 +37,7 @@ function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; d
       </View>
       <View style={styles.tail} />
       {cheers > 0 && (
-        <View style={styles.cheers} accessibilityLabel={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`}>
+        <View style={styles.cheers} accessibilityLabel={t('{count} brinde', { count: cheers, other: '{count} brindes' })}>
           <Icon name="cheers" size={14} color={colors.amber600} />
           {cheers > 1 && <Text style={styles.cheersN}>{cheers}</Text>}
         </View>
@@ -69,24 +70,24 @@ export function NotesStrip() {
 
   return (
     <>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel="Notas">
-        <Pressable onPress={() => setEditing(true)} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-          <View style={styles.bubbleSlot}><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} /></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel={t('Notas')}>
+        <Pressable onPress={() => setEditing(true)} accessibilityRole="button" accessibilityLabel={mine ? t('A tua nota') : t('Deixar uma nota')} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+          <View style={styles.bubbleSlot}><Bubble text={mine ? mine.body : t('Deixa uma nota')} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} /></View>
           <View>
             <Avatar name={user.displayName} username={user.username} size={64} />
             {!mine && <View style={styles.plus}><Icon name="plus" size={14} strokeWidth={3} color="#fff" /></View>}
           </View>
-          <Text style={styles.label} numberOfLines={1}>A tua nota</Text>
+          <Text style={styles.label} numberOfLines={1}>{t('A tua nota')}</Text>
         </Pressable>
         {row.map((e) => {
           if (e.kind === 'note') {
             const n = e.note;
             return (
-              <Pressable key={e.key} onPress={() => setViewing(n)} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+              <Pressable key={e.key} onPress={() => setViewing(n)} accessibilityRole="button" accessibilityLabel={t('Nota de {displayName}: {body}', { displayName: n.displayName, body: n.body })} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
                 <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} /></View>
                 <View>
                   <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
-                  {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
+                  {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel={t('Online')} />}
                 </View>
                 <NameWithBadge name={n.displayName.split(' ')[0]} who={n} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
               </Pressable>
@@ -95,11 +96,11 @@ export function NotesStrip() {
           // Alguém das minhas conversas, sem nota: sem balão (mas com o lugar dele, para as fotos ficarem todas alinhadas).
           const p = e.person;
           return (
-            <Pressable key={e.key} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversa com ${p.displayName}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+            <Pressable key={e.key} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={t('Conversa com {displayName}', { displayName: p.displayName })} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
               <View style={styles.bubbleSlot} />
               <View>
                 <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={64} />
-                {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
+                {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel={t('Online')} />}
               </View>
               <NameWithBadge name={p.displayName.split(' ')[0]} who={p} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
             </Pressable>
@@ -138,45 +139,45 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
 
   return (
     <>
-      <Sheet title="A tua nota" onClose={onClose}>
+      <Sheet title={t('A tua nota')} onClose={onClose}>
         <Field>
           {current ? (
             <>
               {!!current.body && <Text style={styles.big}>{current.body}</Text>}
               {current.music && <TrackCard track={current.music} autoplay playNow />}
               {!!current.cheers && (
-                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.zinc700} /><Text style={styles.cheerRowText}>{current.cheers} {current.cheers === 1 ? 'brinde' : 'brindes'}</Text></View>
+                <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.zinc700} /><Text style={styles.cheerRowText}>{current.cheers} {current.cheers === 1 ? t('brinde') : t('brindes')}</Text></View>
               )}
-              <Text style={styles.hint}>{timeAgo(current.createdAt)} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.</Text>
+              <Text style={styles.hint}>{t('{timeAgo} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.', { timeAgo: timeAgo(current.createdAt) })}</Text>
               {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-              <Pressable disabled={busy} onPress={() => setConfirmDelete(true)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 12 }, pressed && { backgroundColor: colors.dangerSoft }]}><Text style={[styles.ghostText, { color: colors.danger }]}>Apagar nota</Text></Pressable>
+              <Pressable disabled={busy} onPress={() => setConfirmDelete(true)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 12 }, pressed && { backgroundColor: colors.dangerSoft }]}><Text style={[styles.ghostText, { color: colors.danger }]}>{t('Apagar nota')}</Text></Pressable>
             </>
           ) : (
             <>
-              <TextInput value={body} onChangeText={(t) => setBody(t.replace(/\n/g, ' ').slice(0, LIMIT))} multiline autoFocus placeholder="O que se passa?" placeholderTextColor={colors.zinc500} accessibilityLabel="Nota" style={[styles.field, { height: 80, textAlignVertical: 'top' }]} />
+              <TextInput value={body} onChangeText={(t) => setBody(t.replace(/\n/g, ' ').slice(0, LIMIT))} multiline autoFocus placeholder={t('O que se passa?')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Nota')} style={[styles.field, { height: 80, textAlignVertical: 'top' }]} />
               <Text style={[styles.count, body.length >= LIMIT && { color: colors.brand }]}>{body.length}/{LIMIT}</Text>
               {music ? (
                 <View>
                   <TrackCard track={music} />
-                  <Pressable onPress={() => setMusic(null)} accessibilityLabel="Tirar a música" style={styles.drop}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
+                  <Pressable onPress={() => setMusic(null)} accessibilityLabel={t('Tirar a música')} style={styles.drop}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
                 </View>
               ) : (
-                <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [styles.musicBtn, pressed && { transform: [{ scale: 0.98 }] }]}><Icon name="music" size={18} color={colors.zinc800} /><Text style={styles.musicText}>Adicionar música</Text></Pressable>
+                <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [styles.musicBtn, pressed && { transform: [{ scale: 0.98 }] }]}><Icon name="music" size={18} color={colors.zinc800} /><Text style={styles.musicText}>{t('Adicionar música')}</Text></Pressable>
               )}
-              <Text style={[styles.hint, { textAlign: 'left' }]}>Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.</Text>
+              <Text style={[styles.hint, { textAlign: 'left' }]}>{t('Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.')}</Text>
               {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-              <Pressable disabled={cantPost} onPress={() => void run(() => notesApi.set(body.trim(), music))} style={[styles.primary, { marginTop: 12 }, cantPost && { opacity: 0.4 }]}><Text style={styles.primaryText}>Partilhar nota</Text></Pressable>
+              <Pressable disabled={cantPost} onPress={() => void run(() => notesApi.set(body.trim(), music))} style={[styles.primary, { marginTop: 12 }, cantPost && { opacity: 0.4 }]}><Text style={styles.primaryText}>{t('Partilhar nota')}</Text></Pressable>
             </>
           )}
         </Field>
       </Sheet>
       {picking && <MusicPicker hint={body} onPick={(t) => { setMusic(t); setPicking(false); }} onClose={() => setPicking(false)} />}
       {confirmDelete && (
-        <Sheet title="Apagar a nota?" onClose={() => setConfirmDelete(false)}>
+        <Sheet title={t('Apagar a nota?')} onClose={() => setConfirmDelete(false)}>
           <Field>
-            <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.</Text>
-            <Button label="Apagar" kind="dangerSolid" block loading={busy} onPress={() => void run(() => notesApi.remove())} />
-            <Button label="Cancelar" kind="secondary" block onPress={() => setConfirmDelete(false)} style={{ marginTop: 8 }} />
+            <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>{t('A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.')}</Text>
+            <Button label={t('Apagar')} kind="dangerSolid" block loading={busy} onPress={() => void run(() => notesApi.remove())} />
+            <Button label={t('Cancelar')} kind="secondary" block onPress={() => setConfirmDelete(false)} style={{ marginTop: 8 }} />
           </Field>
         </Sheet>
       )}
@@ -239,14 +240,14 @@ export function NoteView({ note, onClose, inChat = false }: { note: Note; onClos
         </View>
         <Pressable onPress={() => void cheer()} accessibilityRole="button" accessibilityState={{ selected: cheered }} style={[styles.cheerBtn, { backgroundColor: cheered ? '#fef3c7' : colors.zinc100 }]}>
           <Animated.View style={{ transform: [{ scale: pop }] }}><Icon name="cheers" size={20} color={cheered ? '#92400e' : colors.zinc800} /></Animated.View>
-          <Text style={[styles.cheerBtnText, { color: cheered ? '#92400e' : colors.zinc800 }]}>{cheered ? 'Brindou' : 'Brindar'}</Text>
+          <Text style={[styles.cheerBtnText, { color: cheered ? '#92400e' : colors.zinc800 }]}>{cheered ? t('Brindou') : t('Brindar')}</Text>
         </Pressable>
         <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
-          <TextInput value={text} onChangeText={setText} maxLength={400} placeholder="Responder à nota…" placeholderTextColor={colors.zinc500} accessibilityLabel="Responder à nota" returnKeyType="send" onSubmitEditing={() => void reply()} style={[styles.field, { flex: 1 }]} />
-          <Pressable disabled={cantSend} onPress={() => void reply()} style={[styles.send, cantSend && { opacity: 0.4 }]}><Text style={styles.primaryText}>Enviar</Text></Pressable>
+          <TextInput value={text} onChangeText={setText} maxLength={400} placeholder={t('Responder à nota…')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Responder à nota')} returnKeyType="send" onSubmitEditing={() => void reply()} style={[styles.field, { flex: 1 }]} />
+          <Pressable disabled={cantSend} onPress={() => void reply()} style={[styles.send, cantSend && { opacity: 0.4 }]}><Text style={styles.primaryText}>{t('Enviar')}</Text></Pressable>
         </View>
         {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-        {!inChat && <Pressable onPress={() => { onClose(); router.push(`/messages/${note.username}` as never); }} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8, height: 44 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>Abrir a conversa</Text></Pressable>}
+        {!inChat && <Pressable onPress={() => { onClose(); router.push(`/messages/${note.username}` as never); }} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8, height: 44 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>{t('Abrir a conversa')}</Text></Pressable>}
       </Field>
     </Sheet>
   );

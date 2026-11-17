@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Sheet } from '@/components/Sheet';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Tocar num número de telefone numa mensagem (lib/chatLinks, `phone`): ligar, mandar SMS, abrir no WhatsApp ou copiar.
@@ -13,10 +14,10 @@ export function PhoneSheet({ shown, tel, onClose }: { /** Como foi escrito na me
     void Linking.openURL(url).catch(() => undefined);
   };
   const items: { label: string; run: () => void }[] = [
-    { label: 'Ligar', run: () => go(`tel:${tel}`) },
-    { label: 'Enviar SMS', run: () => go(`sms:${tel}`) },
-    ...(tel.startsWith('+') ? [{ label: 'Abrir no WhatsApp', run: () => go(`https://wa.me/${tel.slice(1)}`) }] : []),
-    { label: 'Copiar número', run: () => { onClose(); void Clipboard.setStringAsync(tel).catch(() => undefined); } },
+    { label: t('Ligar'), run: () => go(`tel:${tel}`) },
+    { label: t('Enviar SMS'), run: () => go(`sms:${tel}`) },
+    ...(tel.startsWith('+') ? [{ label: t('Abrir no WhatsApp'), run: () => go(`https://wa.me/${tel.slice(1)}`) }] : []),
+    { label: t('Copiar número'), run: () => { onClose(); void Clipboard.setStringAsync(tel).catch(() => undefined); } },
   ];
   return (
     <Sheet onClose={onClose}>
@@ -27,8 +28,8 @@ export function PhoneSheet({ shown, tel, onClose }: { /** Como foi escrito na me
             <Text style={st.label}>{it.label}</Text>
           </Pressable>
         ))}
-        <Pressable onPress={onClose} style={({ pressed }) => [st.cancel, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel="Cancelar">
-          <Text style={st.cancelText}>Cancelar</Text>
+        <Pressable onPress={onClose} style={({ pressed }) => [st.cancel, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={t('Cancelar')}>
+          <Text style={st.cancelText}>{t('Cancelar')}</Text>
         </Pressable>
       </View>
     </Sheet>

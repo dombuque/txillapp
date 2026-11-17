@@ -702,16 +702,18 @@ function transformFile(sf, seed) {
     visit(sf);
     if (importsT) return null;
     if (!decls.length) return done;
-    const names = new Set();
-    const collect = (n) => { if (ts.isIdentifier(n)) names.add(n.text); ts.forEachChild(n, collect); };
-    collect(sf);
+    // nomes já usados no alcance da variável (o mesmo nome pode servir em alcances que não se tocam)
+    const namesIn = (node) => { const set = new Set(); const collect = (n) => { if (ts.isIdentifier(n)) set.add(n.text); ts.forEachChild(n, collect); }; collect(node); return set; };
+    const taken = [];
     for (const d of decls) {
       const scope = scopeOf(d);
       if (!positions.some((p) => p >= scope.getStart(sf) && p < scope.end)) continue;
       const sym = checker.getSymbolAtLocation(d.name);
       if (!sym) continue;
+      const names = namesIn(scope);
+      for (const tk of taken) if (tk.start < scope.end && scope.getStart(sf) < tk.end) names.add(tk.name);
       const nn = pickName(d, names);
-      names.add(nn);
+      taken.push({ name: nn, start: scope.getStart(sf), end: scope.end });
       done.push(`t→${nn} (linha ${lineOf(d)})`);
       const visitId = (n) => {
         if (ts.isIdentifier(n) && n.text === 't') {

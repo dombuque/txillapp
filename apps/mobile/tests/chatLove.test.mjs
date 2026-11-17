@@ -15,7 +15,7 @@ const read = (f) => readFileSync(path.join(ROOT, 'src', ...f.split('/')), 'utf8'
 test('o coração é a reação «Adorar» que o menu já tem (o servidor aceita :nome:)', () => {
   assert.equal(l.LOVE_REACTION, ':amor:');
   assert.match(l.LOVE_REACTION, /^:[a-z]{2,12}:$/);
-  assert.match(read('components/StoryParts.tsx'), /\{ id: ':amor:', label: 'Adorar'/);
+  assert.match(read('components/StoryParts.tsx'), /\{ id: ':amor:', get label\(\) \{ return t\('Adorar'\); \}/);
 });
 
 test('canLove: só nas mensagens enviadas, não apagadas, não de ver uma vez, nem avisos de sistema', () => {

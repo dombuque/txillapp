@@ -50,6 +50,7 @@ import { allowCapture, blockCapture, captureNative, onScreenshot, sendScreenshot
 import { screenshotKey } from '@/lib/screenshotNotice';
 import { FontChips } from './FontChips';
 import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, type TextFontId } from '@/lib/textLayers';
+import { t } from '@/lib/i18n';
 
 type Audience = 'friends' | 'close';
 
@@ -85,7 +86,7 @@ const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2
 const useZasSettings = (enabled = true) => useQuery({ queryKey: ['zas-settings'], queryFn: instantsApi.settings, retry: false, staleTime: 60_000, enabled });
 const leftLabel = (iso: string) => {
   const h = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000));
-  return h <= 1 ? 'acaba daqui a pouco' : `acaba daqui a ${h} h`;
+  return t('acaba daqui a pouco', { count: h, other: 'acaba daqui a {count} h' });
 };
 
 /** Qualquer ecrã (por ex. as Mensagens) pode pedir para abrir a câmara do Zás. */
@@ -268,7 +269,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
     // Oculta: só uma aba junto à borda; tocar ou deslizar para a esquerda repõe.
     return (
       <Animated.View {...(pan as object)} style={[st.stack, { right: 0, bottom: bottom + 12, transform: [{ translateX: slide }] }]}>
-        <Pressable onPress={onRestore} accessibilityRole="button" accessibilityLabel="Mostrar os Zás outra vez" style={st.edge}>
+        <Pressable onPress={onRestore} accessibilityRole="button" accessibilityLabel={t('Mostrar os Zás outra vez')} style={st.edge}>
           <Icon name="bolt" size={14} solid color="#fff" />
         </Pressable>
       </Animated.View>
@@ -284,7 +285,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
         onPressIn={() => setPress(true)}
         onPressOut={() => setPress(false)}
         accessibilityRole="button"
-        accessibilityLabel={total > 0 ? `Zás: ${total} por ver` : 'Mandar um Zás'}
+        accessibilityLabel={total > 0 ? t('Zás: {total} por ver', { total }) : t('Mandar um Zás')}
         style={[{ width: W + 16, height: H + 16, alignItems: 'center', justifyContent: 'center' }, noSelect]}
       >
         {total === 0 ? (
@@ -413,7 +414,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
       const uri = await shootRef.current();
       if (uri) await send(uri, 'image/jpeg');
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui tirar a foto');
+      setErr((e as Error).message || t('Não consegui tirar a foto'));
     } finally {
       setShooting(false);
     }
@@ -453,7 +454,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
         {!(isWeb && editing) && (
           <View style={st.hubTop}>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.small}><Icon name="x" size={26} color="#fff" /></Pressable>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Fechar')} style={st.small}><Icon name="x" size={26} color="#fff" /></Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon name="bolt" size={20} solid color={colors.brand} />
               <Text style={{ fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' }}>Zás</Text>
@@ -463,13 +464,13 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                 <Pressable
                   onPress={() => setViewing(true)}
                   accessibilityRole="button"
-                  accessibilityLabel="Ver os Zás que recebeste"
+                  accessibilityLabel={t('Ver os Zás que recebeste')}
                   style={st.small}
                 >
                   <Icon name="eye" size={23} color="#fff" />
                 </Pressable>
               )}
-              <Pressable onPress={() => setGrid(true)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.small}><Icon name="grid" size={23} color="#fff" /></Pressable>
+              <Pressable onPress={() => setGrid(true)} accessibilityRole="button" accessibilityLabel={t('Os meus Zás')} style={st.small}><Icon name="grid" size={23} color="#fff" /></Pressable>
             </View>
           </View>
         )}
@@ -494,7 +495,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             onTap={() => capInput.current?.focus()}
           >
             {/* "Adicionar legenda…" só aparece depois de tocar dentro da foto (ou quando já há legenda). */}
-            {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} font={caption ? captionFont : null} /> : null}
+            {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || t('Adicionar legenda…')} hint={!caption} caret={capEdit} caretFirst={!caption} font={caption ? captionFont : null} /> : null}
             <TextInput
               ref={capInput}
               value={caption}
@@ -502,7 +503,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               onFocus={() => setCapEdit(true)}
               onBlur={() => setCapEdit(false)}
               maxLength={80}
-              accessibilityLabel="Legenda"
+              accessibilityLabel={t('Legenda')}
               returnKeyType="done"
               style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '40%', zIndex: 5, opacity: 0, fontSize: 16 }}
             />
@@ -515,26 +516,26 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {/* A letra da legenda: depois de escrever alguma coisa (com o teclado fechado, para o cartão não saltar). */}
-          {caption.trim() && !capEdit ? <FontChips value={captionFont} onChange={pickFont} dark label="Letra da legenda" style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
+          {caption.trim() && !capEdit ? <FontChips value={captionFont} onChange={pickFont} dark label={t('Letra da legenda')} style={{ marginHorizontal: -24, marginBottom: 14 }} /> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
             {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
-            <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: colors.brand }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
+            <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: colors.brand }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? t('Flash de ecrã') : t('Flash')} accessibilityState={{ selected: flashOn }}>
               <Icon name={flashOn ? 'cam-flash' : 'cam-flash-off'} size={24} solid={flashOn} color="#fff" />
             </Pressable>
-            <Pressable onPress={() => void shoot()} disabled={busy || shooting} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, (busy || shooting || !cam.ready) && { opacity: 0.5 }]}>
+            <Pressable onPress={() => void shoot()} disabled={busy || shooting} accessibilityRole="button" accessibilityLabel={t('Tirar e enviar')} style={[st.shutterRing, (busy || shooting || !cam.ready) && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
               <View style={st.shutterGap} />
               <View style={[st.shutter, { backgroundColor: busy ? colors.brand : '#fff' }]}>
                 {busy ? <ActivityIndicator color="#fff" /> : <Icon name="bolt" size={30} solid color={colors.brand} />}
               </View>
             </Pressable>
-            <Pressable onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))} disabled={!cam.granted || shooting} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar câmara">
+            <Pressable onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))} disabled={!cam.granted || shooting} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={t('Virar câmara')}>
               <Icon name="cam-flip" size={24} color="#fff" />
             </Pressable>
           </View>
           {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
-          <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel="Para quem vai">
-            {([['friends', 'Amigos'], ['close', 'Próximos']] as const).map(([id, label]) => {
+          <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel={t('Para quem vai')}>
+            {([['friends', t('Amigos')], ['close', t('Próximos')]] as const).map(([id, label]) => {
               const on = audience === id;
               return (
                 <Pressable key={id} onPress={() => pickAudience(id)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.segBtn, on && { backgroundColor: id === 'close' ? '#10b981' : '#fff' }]}>
@@ -558,14 +559,14 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                 <Icon name="bolt" size={28} solid color="#fff" />
               </View>
               <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 24, fontWeight: '800', letterSpacing: -0.4, color: colors.zinc900 }}>Zás!</Text>
-              <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>Tirou, mandou, já foi.</Text>
+              <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>{t('Tirou, mandou, já foi.')}</Text>
               <View style={{ marginTop: 16, gap: 12 }}>
                 {([
-                  ['camera', 'Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.'],
-                  ['send', 'O botão tira e envia logo.'],
-                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.'],
+                  ['camera', t('Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.')],
+                  ['send', t('O botão tira e envia logo.')],
+                  ['eye', t('Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.')],
                   ['clock', introDuration(zasSettings.data?.keepForRecap)],
-                  ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
+                  ['users', t('Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.')],
                 ] as const).map(([ic, text]) => (
                   <View key={ic} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' }}><Icon name={ic} size={18} /></View>
@@ -573,8 +574,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                   </View>
                 ))}
               </View>
-              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen('intro:zas'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Percebi</Text>
+              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen(t('intro:zas')); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{t('Percebi')}</Text>
               </Pressable>
             </View>
           </View>
@@ -646,8 +647,8 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
     <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top) }}>
         <View style={{ height: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Voltar" style={[st.small, { position: 'absolute', left: 12, top: 0 }]}><Icon name="chevron-left" size={26} color="#fff" /></Pressable>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff' }}>Os meus Zás</Text>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Voltar')} style={[st.small, { position: 'absolute', left: 12, top: 0 }]}><Icon name="chevron-left" size={26} color="#fff" /></Pressable>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff' }}>{t('Os meus Zás')}</Text>
         </View>
         {err ? <Text accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingBottom: 8, textAlign: 'center', fontSize: 14, color: '#f87171' }}>{err}</Text> : null}
         <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 112, alignSelf: 'center', width: '100%', maxWidth: 576 }}>
@@ -656,7 +657,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
             <Pressable
               onPress={() => setRecapOpen(recap)}
               accessibilityRole="button"
-              accessibilityLabel={`Resumo da semana, ${recapLine(recap)}`}
+              accessibilityLabel={t('Resumo da semana, {recapLine}', { recapLine: recapLine(recap) })}
               style={({ pressed }) => [st.recapCard, pressed && { backgroundColor: 'rgba(255,255,255,0.16)' }]}
             >
               <View style={st.recapThumb}>
@@ -665,10 +666,10 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Icon name="bolt" size={14} solid color={colors.brand} />
-                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>Resumo da semana</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{t('Resumo da semana')}</Text>
                 </View>
                 <Text style={{ marginTop: 2, fontSize: 14, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{recapLine(recap)}</Text>
-                <Text style={{ marginTop: 6, fontSize: 13, fontWeight: '700', color: recap.published ? '#6ee7b7' : colors.brandWarm }} numberOfLines={1}>{recap.published ? 'Nos teus mimos' : 'Só tu vês · partilha nos mimos'}</Text>
+                <Text style={{ marginTop: 6, fontSize: 13, fontWeight: '700', color: recap.published ? '#6ee7b7' : colors.brandWarm }} numberOfLines={1}>{recap.published ? t('Nos teus mimos') : t('Só tu vês · partilha nos mimos')}</Text>
               </View>
               <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
             </Pressable>
@@ -679,7 +680,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
             </View>
           ) : null}
           {items === null ? (
-            <Text style={st.dim}>A carregar…</Text>
+            <Text style={st.dim}>{t('A carregar…')}</Text>
           ) : items.length === 0 ? (
             <Text style={[st.dim, { paddingHorizontal: 32, color: 'rgba(255,255,255,0.7)' }]}>{emptyText(settings.data?.keepForRecap)}</Text>
           ) : (
@@ -695,11 +696,11 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                     delayLongPress={450}
                     {...(Platform.OS === 'web' ? ({ onContextMenu: (e: { preventDefault: () => void; nativeEvent?: { clientX?: number; clientY?: number } }) => { e.preventDefault(); setMenuAt(e.nativeEvent?.clientX != null ? { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY ?? 0, w: 0, h: 0 } : null); setMenu(it); } } as object) : null)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${it.caption || 'Zás'}${kept ? `, guardado, ${gridBadge(it)}` : ''}`}
+                    accessibilityLabel={`${it.caption || 'Zás'}${kept ? t(', guardado, {gridBadge}', { gridBadge: gridBadge(it) }) : ''}`}
                     style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
                   >
                     <Image source={{ uri: zasPhotoUrl(abs(it.url) ?? it.url, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-                    <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={[st.views, countShadow]}>
+                    <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel={t('Quem viu')} style={[st.views, countShadow]}>
                       {top ? (
                         <>
                           <ReactionArt body={top.reaction} size={20} />
@@ -731,22 +732,22 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
         {/* Botão flutuante: voltar à câmara para mandar outro. */}
         <Pressable onPress={onClose} accessibilityRole="button" style={[st.floating, { bottom: Math.max(24, insets.bottom) }]}>
           <Icon name="bolt" size={20} solid color={colors.brand} />
-          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar um Zás</Text>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>{t('Mandar um Zás')}</Text>
         </Pressable>
         {menu && (
           <Sheet title="Zás" onClose={() => setMenu(null)} variant="menu" anchor={menuAt}>
             <View style={{ paddingHorizontal: menuAt ? 8 : 24 }}>
               {(Platform.OS === 'web'
                 ? ([
-                    ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
-                    ['download', 'Descarregar', 'O Zás como na app, em JPG, com a assinatura.', () => void saveZas(menu, 'file'), false],
-                    ['share', 'Partilhar', 'Manda o Zás a quem quiseres.', () => void shareZas(menu), false],
-                    ['trash', 'Apagar', deleteTexts(menu).menu, () => setDel(menu), true],
+                    ['image', t('Guardar na galeria'), t('Abre «Guardar imagem» no telemóvel.'), () => void saveZas(menu, 'gallery'), false],
+                    ['download', t('Descarregar'), t('O Zás como na app, em JPG, com a assinatura.'), () => void saveZas(menu, 'file'), false],
+                    ['share', t('Partilhar'), t('Manda o Zás a quem quiseres.'), () => void shareZas(menu), false],
+                    ['trash', t('Apagar'), deleteTexts(menu).menu, () => setDel(menu), true],
                   ] as const)
                 : ([
-                    ['image', 'Guardar na galeria', 'O Zás, como na app, fica nas fotos do telemóvel.', () => void saveZas(menu), false],
-                    ['share', 'Partilhar', 'Manda o Zás a quem quiseres (ou guarda-o).', () => void shareZas(menu), false],
-                    ['trash', 'Apagar', deleteTexts(menu).menu, () => setDel(menu), true],
+                    ['image', t('Guardar na galeria'), t('O Zás, como na app, fica nas fotos do telemóvel.'), () => void saveZas(menu), false],
+                    ['share', t('Partilhar'), t('Manda o Zás a quem quiseres (ou guarda-o).'), () => void shareZas(menu), false],
+                    ['trash', t('Apagar'), deleteTexts(menu).menu, () => setDel(menu), true],
                   ] as const)
               ).map(([ic, label, text, run, danger]) => (
                 <Pressable
@@ -771,8 +772,8 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
           <Sheet title={deleteTexts(del).title} onClose={() => setDel(null)}>
             <View style={{ paddingHorizontal: 24 }}>
               <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>{deleteTexts(del).body}</Text>
-              <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: colors.danger }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Apagar</Text></Pressable>
-              <Pressable onPress={() => setDel(null)} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}><Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>Cancelar</Text></Pressable>
+              <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: colors.danger }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{t('Apagar')}</Text></Pressable>
+              <Pressable onPress={() => setDel(null)} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}><Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>{t('Cancelar')}</Text></Pressable>
             </View>
           </Sheet>
         )}
@@ -798,10 +799,10 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
 
 function WhoSheet({ viewers, onClose }: { viewers: Viewer[]; onClose: () => void }) {
   return (
-    <Sheet title="Quem viu" onClose={onClose}>
+    <Sheet title={t('Quem viu')} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }}>
         {viewers.length === 0 ? (
-          <Text style={{ paddingVertical: 24, textAlign: 'center', fontSize: 16, color: colors.zinc600 }}>Ainda ninguém viu.</Text>
+          <Text style={{ paddingVertical: 24, textAlign: 'center', fontSize: 16, color: colors.zinc600 }}>{t('Ainda ninguém viu.')}</Text>
         ) : (
           viewers.map((v) => (
             <View key={v.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
@@ -822,7 +823,7 @@ function WhoSheet({ viewers, onClose }: { viewers: Viewer[]; onClose: () => void
 /** Reações rápidas: uma fila só (cabem as 7 num telemóvel de 360 px). Fixa: não depende do Zás de cima. */
 const ReactBar = memo(function ReactBar({ onReact }: { onReact: { current: (id: string) => void } }) {
   return (
-    <View accessibilityRole="toolbar" accessibilityLabel="Reagir" style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
+    <View accessibilityRole="toolbar" accessibilityLabel={t('Reagir')} style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
       {REACTIONS.map((r) => (
         <Pressable key={r.id} onPress={() => onReact.current(r.id)} accessibilityRole="button" accessibilityLabel={r.label} style={({ pressed }) => [st.reactBtn, pressed && { transform: [{ scale: 0.9 }] }]}>
           <ReactionArt body={r.id} size={30} />
@@ -1012,7 +1013,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
     pop.setValue(0);
     Animated.timing(pop, { toValue: 1, duration: 900, useNativeDriver: Platform.OS !== 'web' }).start(() => setPopId(null));
     // A reação fica só no Zás (o dono vê-a em «quem viu»); só as respostas escritas vão para o chat.
-    instantsApi.react(target.id, id).then(() => flash('Reação enviada')).catch((e) => setErr((e as Error).message));
+    instantsApi.react(target.id, id).then(() => flash(t('Reação enviada'))).catch((e) => setErr((e as Error).message));
   }
   // A fila das reações não se redesenha a cada troca de cartão (os 7 desenhos pesam num telemóvel lento).
   const reactRef = useRef(react);
@@ -1075,7 +1076,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
     setErr('');
     try {
       await api.chatSend(cur.author.username, { kind: 'zas_reply', body, instantId: cur.id });
-      flash('Enviado para as mensagens', 2000);
+      flash(t('Enviado para as mensagens'), 2000);
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -1140,7 +1141,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
     <Modal visible={secured && focused} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View {...(mouse ? {} : pan.panHandlers)} style={[{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }, !isWeb && kbOpen && view.h > 0 ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', height: view.h } : null, { top: kbArea.shift }]} accessibilityViewIsModal>
         <View style={st.vTop}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Fechar')} style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
           {/* «1 de N»: discreta, ao meio, por cima da pilha. */}
           {label ? (
             <View accessibilityLabel={`Zás ${label}`} style={st.countPill}>
@@ -1149,8 +1150,8 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
             </View>
           ) : <View />}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 44, justifyContent: 'flex-end' }}>
-            {onGrid && <Pressable onPress={() => leave(onGrid)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
-            {onCamera && <Pressable onPress={() => leave(onCamera)} accessibilityRole="button" accessibilityLabel="Mandar o meu Zás" style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
+            {onGrid && <Pressable onPress={() => leave(onGrid)} accessibilityRole="button" accessibilityLabel={t('Os meus Zás')} style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
+            {onCamera && <Pressable onPress={() => leave(onCamera)} accessibilityRole="button" accessibilityLabel={t('Mandar o meu Zás')} style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
           </View>
         </View>
 
@@ -1167,8 +1168,8 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
               </View>
             )}
             {/* Metades do cartão: anterior / seguinte (por cima da pilha, fixas). */}
-            <Pressable accessibilityRole="button" accessibilityLabel="Anterior" onPress={() => tapZone(prev)} style={{ position: 'absolute', zIndex: 30, left: 0, top: 0, bottom: 0, width: '33%' }} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Seguinte" onPress={() => tapZone(next)} style={{ position: 'absolute', zIndex: 30, right: 0, top: 0, bottom: 0, width: '67%' }} />
+            <Pressable accessibilityRole="button" accessibilityLabel={t('Anterior')} onPress={() => tapZone(prev)} style={{ position: 'absolute', zIndex: 30, left: 0, top: 0, bottom: 0, width: '33%' }} />
+            <Pressable accessibilityRole="button" accessibilityLabel={t('Seguinte')} onPress={() => tapZone(next)} style={{ position: 'absolute', zIndex: 30, right: 0, top: 0, bottom: 0, width: '67%' }} />
             {popId && (
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 31, alignItems: 'center', justifyContent: 'center', opacity: pop.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.25] }) }] }]}>
                 <ReactionArt body={popId} size={120} />
@@ -1192,19 +1193,19 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
             </Text>
           )}
           {!own && cur ? (
-            <Pressable onPress={() => setReporting(cur.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Denunciar este Zás" style={{ marginLeft: 4, padding: 4 }}>
+            <Pressable onPress={() => setReporting(cur.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Denunciar este Zás')} style={{ marginLeft: 4, padding: 4 }}>
               <Icon name="flag" size={18} color="rgba(255,255,255,0.75)" />
             </Pressable>
           ) : null}
         </View>
 
         {/* A escrever: o Zás fica atrás, um pouco mais escuro; um toque nele só fecha o teclado. */}
-        {replying && <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={closeKeyboard} accessibilityRole="button" accessibilityLabel="Fechar o teclado" />}
+        {replying && <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={closeKeyboard} accessibilityRole="button" accessibilityLabel={t('Fechar o teclado')} />}
         <View style={[{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(16, insets.bottom) }, !own && kbArea.cover > 0 ? { zIndex: 41, transform: [{ translateY: -Math.max(0, kbArea.cover + KB_GAP - Math.max(16, insets.bottom)) }] } : null]}>
           {own ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
               {!!cur?.reactions?.length && (
-                <View accessibilityLabel="Reações" style={[st.glass, { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 }]}>
+                <View accessibilityLabel={t('Reações')} style={[st.glass, { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 }]}>
                   {cur.reactions.map((r) => (
                     <View key={r.reaction} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                       <ReactionArt body={r.reaction} size={24} />
@@ -1215,14 +1216,14 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
               )}
               <Pressable onPress={() => void showViewers()} accessibilityRole="button" style={[st.glass, { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24 }]}>
                 <Icon name="eye" size={18} color="#fff" />
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>{cur?.views ?? 0} viram</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>{t('{views} viram', { views: cur?.views ?? 0 })}</Text>
               </Pressable>
               {cur && (
-                <Pressable onPress={() => void saveZas(cur).then((r) => { if (r === 'saved') flash('Guardado na galeria'); else if (r === 'failed') setErr('Não consegui guardar o Zás'); })} accessibilityRole="button" accessibilityLabel="Guardar na galeria" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
+                <Pressable onPress={() => void saveZas(cur).then((r) => { if (r === 'saved') flash(t('Guardado na galeria')); else if (r === 'failed') setErr(t('Não consegui guardar o Zás')); })} accessibilityRole="button" accessibilityLabel={t('Guardar na galeria')} style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
                   <Icon name="download" size={20} color="#fff" />
                 </Pressable>
               )}
-              <Pressable onPress={() => void remove()} accessibilityRole="button" accessibilityLabel="Apagar Zás" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
+              <Pressable onPress={() => void remove()} accessibilityRole="button" accessibilityLabel={t('Apagar Zás')} style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
                 <Icon name="trash" size={20} color="#fca5a5" />
               </Pressable>
             </View>
@@ -1237,9 +1238,9 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
                   onFocus={() => setReplying(true)}
                   onBlur={() => setReplying(false)}
                   maxLength={500}
-                  placeholder={`Responder a ${first}…`}
+                  placeholder={t('Responder a {first}…', { first })}
                   placeholderTextColor="rgba(255,255,255,0.6)"
-                  accessibilityLabel="Responder"
+                  accessibilityLabel={t('Responder')}
                   returnKeyType="send"
                   onSubmitEditing={() => void sendReply()}
                   style={st.replyInput}

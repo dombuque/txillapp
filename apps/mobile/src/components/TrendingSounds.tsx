@@ -7,6 +7,7 @@ import { soundsApi } from '@/lib/api.sounds';
 import { sized } from '@/lib/config';
 import { soundHref, usesLine } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * «Sons em alta» no Explorar: os sons com mais tchekas nos últimos 7 dias (só números). Tocar abre a página do som.
@@ -18,9 +19,9 @@ export function TrendingSounds() {
   const list = q.data ?? [];
   if (!list.length) return null;
   return (
-    <View style={{ paddingBottom: 16 }} accessibilityLabel="Sons em alta">
+    <View style={{ paddingBottom: 16 }} accessibilityLabel={t('Sons em alta')}>
       <View style={st.headRow}>
-        <Text style={st.head}>Sons em alta</Text>
+        <Text style={st.head}>{t('Sons em alta')}</Text>
         <Icon name="trending" size={16} strokeWidth={2.2} color="#ea580c" />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>

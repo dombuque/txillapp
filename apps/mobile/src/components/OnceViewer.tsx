@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatVideoPlayer } from '@/components/ChatBubbles';
 import { Icon } from '@/components/Icon';
 import { onceView, type OnceContent } from '@/lib/onceView';
+import { t } from '@/lib/i18n';
 
 /**
  * "Ver uma vez" aberta (o servidor já a deu por vista): foto, vídeo, voz ou texto em ecrã inteiro, como no site
@@ -20,18 +21,18 @@ export function OnceViewer({ content, onClose }: { content: OnceContent; onClose
     <Modal visible transparent={false} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={[st.root, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 16) }]} accessibilityViewIsModal>
         <View style={st.top}>
-          <Pressable onPress={onClose} style={st.x} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" /></Pressable>
-          <View style={st.badge}><Icon name="once" size={16} color="#fff" /><Text style={st.badgeText}>Só podes ver uma vez</Text></View>
+          <Pressable onPress={onClose} style={st.x} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={24} color="#fff" /></Pressable>
+          <View style={st.badge}><Icon name="once" size={16} color="#fff" /><Text style={st.badgeText}>{t('Só podes ver uma vez')}</Text></View>
           <View style={{ width: 44 }} />
         </View>
         {/* Tocar à volta do conteúdo fecha (o vídeo e a voz têm os seus botões). */}
-        <Pressable onPress={onClose} style={st.mid} accessibilityLabel="Fechar">
-          {v === 'image' ? <Image source={{ uri: content.url! }} style={st.fill} contentFit="contain" accessibilityLabel="Foto de ver uma vez" />
+        <Pressable onPress={onClose} style={st.mid} accessibilityLabel={t('Fechar')}>
+          {v === 'image' ? <Image source={{ uri: content.url! }} style={st.fill} contentFit="contain" accessibilityLabel={t('Foto de ver uma vez')} />
             : v === 'video' ? <Pressable onPress={() => undefined} style={st.fill}><ChatVideoPlayer url={content.url!} autoPlay inModal /></Pressable>
             : v === 'voice' ? <Pressable onPress={() => undefined}><OnceVoice url={content.url!} /></Pressable>
             : <Text style={st.text}>{content.body}</Text>}
         </Pressable>
-        <Text style={st.hint}>Ao fechar, esta mensagem desaparece para sempre.</Text>
+        <Text style={st.hint}>{t('Ao fechar, esta mensagem desaparece para sempre.')}</Text>
       </View>
     </Modal>
   );
@@ -58,7 +59,7 @@ function OnceVoice({ url }: { url: string }) {
   return (
     <View style={st.voice}>
       <Icon name="mic" size={36} color="#fff" />
-      <Pressable onPress={toggle} style={st.play} accessibilityRole="button" accessibilityLabel={status.playing ? 'Pausar' : 'Ouvir'}>
+      <Pressable onPress={toggle} style={st.play} accessibilityRole="button" accessibilityLabel={status.playing ? t('Pausar') : t('Ouvir')}>
         <Icon name={status.playing ? 'pause' : 'play'} size={26} solid color="#18181b" />
       </Pressable>
       <Text style={st.voiceTime}>{status.duration ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : ' '}</Text>

@@ -8,6 +8,7 @@ import { HEADER_ACTION_W } from '@/lib/chatBars';
 import type { Badged } from '@/lib/api';
 import { dayLabel, type Msg } from './ChatBubbles';
 import { NameWithBadge } from './NameWithBadge';
+import { t } from '@/lib/i18n';
 
 /**
  * Cabeçalho das conversas (1:1 e TxillGroups): ‹, a foto e o nome com o estado por baixo (um só botão que abre o
@@ -138,13 +139,13 @@ export function HeaderButton({ label, onPress, children }: { label: string; onPr
 /** A bolinha verde no canto da foto (só quando está online). */
 export function OnlineDot({ size }: { size: number }) {
   const d = Math.max(10, Math.round(size * 0.3));
-  return <View style={[st.dot, { width: d, height: d, borderRadius: d / 2 }]} accessibilityLabel="Online" />;
+  return <View style={[st.dot, { width: d, height: d, borderRadius: d / 2 }]} accessibilityLabel={t('Online')} />;
 }
 
 export interface MenuItem { icon: IconName; label: string; onPress: () => void }
 
 /** O menu "⋯" do cabeçalho: uma folha com as opções da conversa. */
-export function ChatMenuSheet({ items, onClose, title = 'Conversa' }: { items: MenuItem[]; onClose: () => void; title?: string }) {
+export function ChatMenuSheet({ items, onClose, title = t('Conversa') }: { items: MenuItem[]; onClose: () => void; title?: string }) {
   return (
     <Sheet title={title} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
@@ -178,9 +179,9 @@ export function ChatSearchSheet({ items, nameOf, hasNext, fetchNext, onClose }: 
   const { height } = useWindowDimensions();
   const room = Math.max(160, Math.round(height * 0.85) - 190);
   return (
-    <Sheet title="Procurar na conversa" onClose={onClose}>
+    <Sheet title={t('Procurar na conversa')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
-        <TextInput autoFocus value={needle} onChangeText={setNeedle} placeholder="Escreve uma palavra…" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar na conversa" style={st.needle} />
+        <TextInput autoFocus value={needle} onChangeText={setNeedle} placeholder={t('Escreve uma palavra…')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Procurar na conversa')} style={st.needle} />
         <ScrollView style={{ marginTop: 12, maxHeight: room, flexGrow: 0 }} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
           {hits.map((m) => (
             <Pressable key={m.id} onPress={onClose} style={({ pressed }) => [{ borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }, pressed && { backgroundColor: colors.zinc100 }]}>
@@ -189,9 +190,9 @@ export function ChatSearchSheet({ items, nameOf, hasNext, fetchNext, onClose }: 
             </Pressable>
           ))}
         </ScrollView>
-        {n.length >= 2 && hits.length === 0 && <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600 }}>Nada encontrado nas mensagens carregadas.</Text>}
+        {n.length >= 2 && hits.length === 0 && <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600 }}>{t('Nada encontrado nas mensagens carregadas.')}</Text>}
         {hasNext && (
-          <Pressable onPress={fetchNext} style={st.more} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>Carregar mensagens mais antigas</Text></Pressable>
+          <Pressable onPress={fetchNext} style={st.more} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>{t('Carregar mensagens mais antigas')}</Text></Pressable>
         )}
       </View>
     </Sheet>

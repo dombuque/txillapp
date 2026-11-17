@@ -7,6 +7,7 @@ import { colors, typo } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
 import { Button } from './ui/Button';
+import { t } from '@/lib/i18n';
 
 /** Onde está a versão mais recente do APK (posta no servidor junto com o APK, em /opt/txillapp/downloads/beta). */
 const LATEST_URL = 'https://txillapp.com/app/beta/latest.json';
@@ -80,13 +81,13 @@ export function AppUpdate() {
     <Sheet onClose={forced ? () => undefined : later} plain>
       <View style={st.wrap}>
         <View style={st.icon}><Icon name="download" size={30} color="#fff" /></View>
-        <Text style={st.title}>Nova versão do Txillapp</Text>
-        <Text style={st.sub}>A versão {latest.version} já está disponível. Tens a {mine}.</Text>
+        <Text style={st.title}>{t('Nova versão do Txillapp')}</Text>
+        <Text style={st.sub}>{t('A versão {version} já está disponível. Tens a {mine}.', { version: latest.version, mine })}</Text>
         {latest.notes ? <Text style={st.notes}>{latest.notes}</Text> : null}
-        <Button label="Atualizar" onPress={update} block style={st.primary} />
-        <Text style={st.help}>O Android pede para confirmar a instalação: toca em Instalar.</Text>
+        <Button label={t('Atualizar')} onPress={update} block style={st.primary} />
+        <Text style={st.help}>{t('O Android pede para confirmar a instalação: toca em Instalar.')}</Text>
         {!forced ? (
-          <Button label="Agora não" kind="ghost" onPress={later} block style={st.ghost} />
+          <Button label={t('Agora não')} kind="ghost" onPress={later} block style={st.ghost} />
         ) : null}
       </View>
     </Sheet>

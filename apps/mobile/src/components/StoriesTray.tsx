@@ -15,6 +15,7 @@ import { navTap } from '@/lib/tapGuard';
 import { useTxilladaEnabled } from '@/lib/api.txillada';
 import { livePrice, trayOthers, trayWithoutLive } from '@/lib/txillada';
 import { LiveRing } from './txillada/TxilladaParts';
+import { t } from '@/lib/i18n';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
 export function StoriesTray() {
@@ -54,22 +55,22 @@ export function StoriesTray() {
   return (
     <View style={{ marginBottom: 16 }} accessibilityLabel="Mimos">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu mimo' : 'Criar mimo'}>
+        <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? t('Ver o teu mimo') : t('Criar mimo')}>
           <View>
             <Ring count={mine?.count ?? 1} seenCount={mine ? mineRing.seenCount : 1} green={mine?.closeFriends}>
               <Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} />
             </Ring>
-            <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel="Adicionar ao mimo">
+            <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel={t('Adicionar ao mimo')}>
               <Text style={styles.plusText}>+</Text>
             </Pressable>
           </View>
-          <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>O teu mimo</Text>
+          <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>{t('O teu mimo')}</Text>
         </Pressable>
 
         {/* Quem está ao vivo vem primeiro (a ordem do resto não muda). */}
         {others.map(({ u, live }) => {
           return (
-          <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} onLongPress={live && u.count > 0 ? () => view(u.username) : undefined} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? `${u.displayName} está ao vivo: ver a Txillada` : `Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+          <Pressable key={u.username} onPress={() => (live ? watch(live) : view(u.username))} onLongPress={live && u.count > 0 ? () => view(u.username) : undefined} style={styles.bubble} accessibilityRole="button" accessibilityLabel={live ? t('{displayName} está ao vivo: ver a Txillada', { displayName: u.displayName }) : t('Ver mimo de {displayName}{value}', { displayName: u.displayName, value: u.seen ? '' : (' ' + t('(novo)')) })}>
             {live ? (
               <LiveRing price={livePrice(u)}><Avatar name={u.displayName} username={u.username} size={56} /></LiveRing>
             ) : (
@@ -83,7 +84,7 @@ export function StoriesTray() {
           </Pressable>
           );
         })}
-        {others.length === 0 && <Text style={styles.empty}>Segue pessoas para ver os mimos delas</Text>}
+        {others.length === 0 && <Text style={styles.empty}>{t('Segue pessoas para ver os mimos delas')}</Text>}
       </ScrollView>
     </View>
   );

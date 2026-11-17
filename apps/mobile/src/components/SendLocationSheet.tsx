@@ -17,6 +17,7 @@ import { watchDevicePosition } from '@/lib/watchPosition';
 import { Icon, type IconName } from './Icon';
 import { PlaceMiniMap } from './nearby/PlaceMiniMap';
 import { PlacePickMap } from './nearby/PlacePickMap';
+import { t } from '@/lib/i18n';
 
 const web = Platform.OS === 'web';
 /** Só se volta a pedir "Sítios perto" quando o ponto de partida anda mais do que isto. */
@@ -123,12 +124,12 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
         // No browser, recusar fica gravado no site: passa a "bloqueada" (com a explicação do cadeado).
         if (e === 'denied') return setPermission('blocked');
         setFixErr(e === 'timeout'
-          ? 'Ainda não consegui saber onde estás. Se estiveres dentro de casa, chega a uma janela; ou procura um sítio ou arrasta o mapa.'
-          : 'Não consegui saber onde estás. Vê se a localização do aparelho está ligada.');
+          ? t('Ainda não consegui saber onde estás. Se estiveres dentro de casa, chega a uma janela; ou procura um sítio ou arrasta o mapa.')
+          : t('Não consegui saber onde estás. Vê se a localização do aparelho está ligada.'));
       });
       if (alive) stopWatch = stop;
       else stop();
-    })().catch(() => { if (alive) setFixErr('Não consegui saber onde estás. Vê se a localização do aparelho está ligada.'); });
+    })().catch(() => { if (alive) setFixErr(t('Não consegui saber onde estás. Vê se a localização do aparelho está ligada.')); });
     return () => {
       alive = false;
       stopWatch?.();
@@ -220,7 +221,7 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
       if (live && id) startLive(id, Date.now() + live.minutes * 60_000, live.from);
       onClose();
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar a localização.');
+      setErr((e as Error).message || t('Não consegui enviar a localização.'));
     } finally {
       setBusy(false);
     }
@@ -263,7 +264,7 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
   const canLive = allowLive && permission === 'granted' && !!fix;
   const me = fix ? { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy } : null;
 
-  const listTitle = query ? 'Resultados' : 'Sítios perto';
+  const listTitle = query ? t('Resultados') : t('Sítios perto');
   const rows = query ? hits : nearbyShown;
 
   return (
@@ -275,10 +276,10 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
         >
           {/* Cabeçalho */}
           <View style={st.head}>
-            <Pressable onPress={back} style={st.headBtn} accessibilityRole="button" accessibilityLabel={step.type === 'main' ? 'Fechar' : 'Voltar'}>
+            <Pressable onPress={back} style={st.headBtn} accessibilityRole="button" accessibilityLabel={step.type === 'main' ? t('Fechar') : t('Voltar')}>
               <Icon name={step.type === 'main' ? 'x' : 'back'} size={24} color={colors.zinc900} />
             </Pressable>
-            <Text style={st.title} accessibilityRole="header" numberOfLines={1}>Enviar localização</Text>
+            <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{t('Enviar localização')}</Text>
             <View style={st.headBtn} />
           </View>
 
@@ -292,7 +293,7 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
               </View>
             ) : null}
             {dragged && fix ? (
-              <Pressable onPress={backToMe} style={st.recenter} accessibilityRole="button" accessibilityLabel="Voltar à minha posição">
+              <Pressable onPress={backToMe} style={st.recenter} accessibilityRole="button" accessibilityLabel={t('Voltar à minha posição')}>
                 <Icon name="locate" size={22} color={colors.sky} />
               </Pressable>
             ) : null}
@@ -329,8 +330,8 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
                   <Row
                     icon="locate"
                     tint={canLive ? '#059669' : colors.zinc300}
-                    title="Partilhar localização em direto"
-                    sub={canLive ? 'Escolhe durante quanto tempo' : 'Precisa de acesso à tua localização'}
+                    title={t('Partilhar localização em direto')}
+                    sub={canLive ? t('Escolhe durante quanto tempo') : t('Precisa de acesso à tua localização')}
                     disabled={!canLive || busy}
                     onPress={() => setStep({ type: 'live' })}
                   />
@@ -346,7 +347,7 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
                   onPress={sendMain}
                 />
                 {button.action === 'current' && fix && weakAccuracy(fix.accuracy) ? (
-                  <Text style={st.hint}>A posição ainda não é precisa. Espera uns segundos, arrasta o mapa até ao sítio certo ou escolhe um sítio da lista.</Text>
+                  <Text style={st.hint}>{t('A posição ainda não é precisa. Espera uns segundos, arrasta o mapa até ao sítio certo ou escolhe um sítio da lista.')}</Text>
                 ) : null}
               </>
             )}
@@ -359,17 +360,17 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
                 onChangeText={(v) => { setText(v); debounce.push(searchQuery(v)); }}
                 onFocus={() => setSearchFocus(true)}
                 onBlur={() => setSearchFocus(false)}
-                placeholder="Procurar um sítio"
+                placeholder={t('Procurar um sítio')}
                 placeholderTextColor={colors.zinc500}
                 returnKeyType="search"
                 onSubmitEditing={() => setQuery(searchQuery(text))}
                 style={st.searchInput}
                 accessibilityRole="search"
-                accessibilityLabel="Procurar um sítio"
+                accessibilityLabel={t('Procurar um sítio')}
                 maxLength={80}
               />
               {text ? (
-                <Pressable onPress={() => { setText(''); setQuery(''); debounce.cancel(); }} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+                <Pressable onPress={() => { setText(''); setQuery(''); debounce.cancel(); }} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
                   <Icon name="x" size={16} color={colors.zinc600} />
                 </Pressable>
               ) : null}
@@ -381,22 +382,22 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
               <View style={st.loading}><ActivityIndicator color={colors.zinc500} /></View>
             ) : null}
             {rows.map((r) => (
-              <Row key={r.key} icon={placeKindIcon(r.kind) as IconName} tint={colors.zinc100} ink={colors.zinc800} title={r.name} sub={r.sub} disabled={busy} onPress={() => choosePlace(r)} a11y={`${r.name}${r.sub ? `, ${r.sub}` : ''}. Toca para confirmar e enviar`} />
+              <Row key={r.key} icon={placeKindIcon(r.kind) as IconName} tint={colors.zinc100} ink={colors.zinc800} title={r.name} sub={r.sub} disabled={busy} onPress={() => choosePlace(r)} a11y={t('{name}{value}. Toca para confirmar e enviar', { name: r.name, value: r.sub ? `, ${r.sub}` : '' })} />
             ))}
-            {query && searchState === 'idle' && hits.length === 0 ? <Text style={st.hint}>Não encontrei sítios com esse nome. Tenta outra palavra.</Text> : null}
-            {query && searchState === 'error' ? <Text style={st.hint}>Não consegui procurar agora. Verifica a ligação e tenta outra vez.</Text> : null}
-            {!query && nearbyState === 'error' ? <Text style={st.hint}>Não consegui carregar os sítios perto. Podes procurar um sítio.</Text> : null}
+            {query && searchState === 'idle' && hits.length === 0 ? <Text style={st.hint}>{t('Não encontrei sítios com esse nome. Tenta outra palavra.')}</Text> : null}
+            {query && searchState === 'error' ? <Text style={st.hint}>{t('Não consegui procurar agora. Verifica a ligação e tenta outra vez.')}</Text> : null}
+            {!query && nearbyState === 'error' ? <Text style={st.hint}>{t('Não consegui carregar os sítios perto. Podes procurar um sítio.')}</Text> : null}
             {!query && !base && nearbyState !== 'loading' ? (
-              <Text style={st.hint}>{permission === 'granted' ? 'A procurar a tua posição…' : 'Procura um sítio pelo nome, ou arrasta o mapa até ao sítio.'}</Text>
+              <Text style={st.hint}>{permission === 'granted' ? t('A procurar a tua posição…') : t('Procura um sítio pelo nome, ou arrasta o mapa até ao sítio.')}</Text>
             ) : null}
-            {!query && base && nearby && nearby.rows.length === 0 && nearbyState === 'idle' ? <Text style={st.hint}>Não há sítios conhecidos aqui perto. Podes procurar um.</Text> : null}
+            {!query && base && nearby && nearby.rows.length === 0 && nearbyState === 'idle' ? <Text style={st.hint}>{t('Não há sítios conhecidos aqui perto. Podes procurar um.')}</Text> : null}
           </ScrollView>
 
           {/* Partilha em direto: escolher a duração e confirmar */}
           {step.type === 'live' ? (
             <Overlay onClose={back} bottom={insets.bottom}>
-              <Text style={st.ovTitle} accessibilityRole="header">Partilhar localização em direto</Text>
-              <View accessibilityRole="radiogroup" accessibilityLabel="Durante quanto tempo" style={{ gap: 6 }}>
+              <Text style={st.ovTitle} accessibilityRole="header">{t('Partilhar localização em direto')}</Text>
+              <View accessibilityRole="radiogroup" accessibilityLabel={t('Durante quanto tempo')} style={{ gap: 6 }}>
                 {LIVE_DURATIONS.map((d) => {
                   const on = minutes === d.minutes;
                   return (
@@ -410,9 +411,9 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
               <Text style={st.ovText}>{liveConfirmText(minutes, who)}</Text>
               {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
               <View style={st.ovBtns}>
-                <Pressable onPress={back} disabled={busy} style={[st.btn, st.btnGhost]} accessibilityRole="button"><Text style={st.btnGhostText}>Cancelar</Text></Pressable>
-                <Pressable onPress={sendLive} disabled={busy || !fix} style={[st.btn, st.btnMain, (busy || !fix) && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Partilhar durante ${liveLabel(minutes)}`}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnMainText}>Partilhar</Text>}
+                <Pressable onPress={back} disabled={busy} style={[st.btn, st.btnGhost]} accessibilityRole="button"><Text style={st.btnGhostText}>{t('Cancelar')}</Text></Pressable>
+                <Pressable onPress={sendLive} disabled={busy || !fix} style={[st.btn, st.btnMain, (busy || !fix) && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={t('Partilhar durante {liveLabel}', { liveLabel: liveLabel(minutes) })}>
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnMainText}>{t('Partilhar')}</Text>}
                 </Pressable>
               </View>
             </Overlay>
@@ -421,18 +422,18 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
           {/* Um sítio: confirmar (mapa, nome e morada) e "Enviar" */}
           {step.type === 'place' ? (
             <Overlay onClose={back} bottom={insets.bottom}>
-              <PlaceMiniMap lat={step.place.lat} lng={step.place.lng} height={180} label={`Mapa com ${step.place.name} marcado`} />
+              <PlaceMiniMap lat={step.place.lat} lng={step.place.lng} height={180} label={t('Mapa com {name} marcado', { name: step.place.name })} />
               <View style={{ gap: 2 }}>
                 <Text style={st.ovTitle} accessibilityRole="header" numberOfLines={2}>{step.place.name}</Text>
                 {step.resolving && !step.place.address ? (
-                  <Text style={st.ovText}>A procurar a morada…</Text>
+                  <Text style={st.ovText}>{t('A procurar a morada…')}</Text>
                 ) : step.place.address ? (
                   <Text style={st.ovText} numberOfLines={3}>{step.place.address}</Text>
                 ) : null}
               </View>
               {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
               <View style={st.ovBtns}>
-                <Pressable onPress={back} disabled={busy} style={[st.btn, st.btnGhost]} accessibilityRole="button"><Text style={st.btnGhostText}>Cancelar</Text></Pressable>
+                <Pressable onPress={back} disabled={busy} style={[st.btn, st.btnGhost]} accessibilityRole="button"><Text style={st.btnGhostText}>{t('Cancelar')}</Text></Pressable>
                 <Pressable
                   onPress={() => void send(buildLocationMessage({ type: 'place', place: step.place }))}
                   disabled={busy}
@@ -440,7 +441,7 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
                   accessibilityRole="button"
                   accessibilityLabel={placeConfirmA11y(step.place)}
                 >
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnMainText}>Enviar</Text>}
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnMainText}>{t('Enviar')}</Text>}
                 </Pressable>
               </View>
             </Overlay>
@@ -477,7 +478,7 @@ function Row({ icon, tint, ink = '#fff', title, sub, onPress, disabled, busy, a1
 function Overlay({ children, onClose, bottom }: { children: React.ReactNode; onClose: () => void; bottom: number }) {
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Voltar" />
+      <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Voltar')} />
       <View style={[st.ov, { paddingBottom: Math.max(bottom, 12) + 8 }]} accessibilityViewIsModal>
         {children}
       </View>

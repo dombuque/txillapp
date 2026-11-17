@@ -11,6 +11,7 @@ import { Icon } from './Icon';
 import { ListReset } from './ListReset';
 import { Button } from './ui/Button';
 import { useVisibleViewport, webWindowH } from './zas/useVisibleViewport';
+import { t } from '@/lib/i18n';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
 const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
@@ -115,7 +116,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
     <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead, !title && { justifyContent: 'flex-end' }]}>
       {title ? <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1} accessibilityRole="header">{title}</Text> : null}
       {mode === 'dialog' || mode === 'panel' ? (
-        <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
+        <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Fechar')} {...({ dataSet: { tip: t('Fechar (Esc)') } } as object)}>
           <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
         </Pressable>
       ) : null}
@@ -132,7 +133,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
     return (
       <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={close} statusBarTranslucent>
         <View style={StyleSheet.absoluteFill}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar o menu" />
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t('Fechar o menu')} />
           <Animated.View
             onLayout={(e) => {
               const { width, height } = e.nativeEvent.layout;
@@ -159,14 +160,14 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
       <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={close} statusBarTranslucent>
         <View style={StyleSheet.absoluteFill}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: y.interpolate({ inputRange: [0, h], outputRange: [0.25, 0], extrapolate: 'clamp' }) }]} />
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t('Fechar')} />
           <Animated.View style={[styles.panel, dark && { backgroundColor: DARK.bg }, { width: w, transform: [{ translateX: y.interpolate({ inputRange: [0, h], outputRange: [0, w], extrapolate: 'clamp' }) }] }]} accessibilityViewIsModal>
             <ListReset><ModeCtx.Provider value={mode}><DarkCtx.Provider value={dark}><ScrollCtx.Provider value={{ top: atTop }}>
               {head}
               <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
               {head ? null : (
                 // Folha «plain» (desenha o seu título): o × fica no canto do painel.
-                <Pressable onPress={close} style={(s) => [styles.x, styles.panelX, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
+                <Pressable onPress={close} style={(s) => [styles.x, styles.panelX, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Fechar')} {...({ dataSet: { tip: t('Fechar (Esc)') } } as object)}>
                   <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
                 </Pressable>
               )}
@@ -182,7 +183,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
     <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={iosWeb ? onClose : close} statusBarTranslucent>
       <View style={[styles.root, box && { position: 'absolute', left: 0, right: 0, top: box.top, height: box.height, flex: 0 }, desktop && { justifyContent: 'center', padding: 24 }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t('Fechar')} />
         <Animated.View
           {...(desktop ? {} : pan.panHandlers)}
           style={[styles.sheet, dark && { backgroundColor: DARK.bg }, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
@@ -194,7 +195,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
             {body}
             {cancel && mode === 'bottom' ? (
               <View style={styles.cancel}>
-                <Button label={typeof cancel === 'string' ? cancel : 'Cancelar'} kind="secondary" dark={dark} block onPress={close} />
+                <Button label={typeof cancel === 'string' ? cancel : t('Cancelar')} kind="secondary" dark={dark} block onPress={close} />
               </View>
             ) : null}
           </ScrollCtx.Provider></DarkCtx.Provider></ModeCtx.Provider></ListReset>

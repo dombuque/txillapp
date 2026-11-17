@@ -29,6 +29,7 @@ import { PhotoEditor } from './PhotoEditor';
 import type { Shot } from './TxCamera';
 import { editedPhoto } from '@/lib/signedMedia';
 import { discardCopy } from '@/lib/discardGuard';
+import { t } from '@/lib/i18n';
 
 const IOS = Platform.OS === 'ios';
 const PLATFORM: CamPlatform = IOS ? 'ios' : 'android';
@@ -79,7 +80,7 @@ let gridPref = false;
  * Por baixo está a react-native-vision-camera (v5).
  */
 export function NativeCamera({
-  onShot, onPickMany, multi = false, galleryTitle = 'Galeria', onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16, unsigned = false,
+  onShot, onPickMany, multi = false, galleryTitle = t('Galeria'), onClose, onDone, onText, doneLabel = t('Seguinte'), count = 0, kinds, kind, onKind, aspect = 9 / 16, unsigned = false,
 }: {
   onShot: (s: Shot) => void;
   /** Várias fotos e vídeos escolhidos de uma vez na galeria (só com `multi`). */
@@ -239,12 +240,12 @@ export function NativeCamera({
     setSavingVideo(true);
     try {
       const p = await MediaLibrary.requestPermissionsAsync(true);
-      if (!p.granted) { Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar.'); return; }
+      if (!p.granted) { Alert.alert(t('Sem acesso à galeria'), t('Dá acesso às fotos nas definições do telemóvel para guardar.')); return; }
       await MediaLibrary.saveToLibraryAsync(s.uri);
-      Alert.alert('Guardado', 'O vídeo está na tua galeria.');
+      Alert.alert(t('Guardado'), t('O vídeo está na tua galeria.'));
       void refreshThumb();
     } catch (e) {
-      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+      Alert.alert(t('Não consegui guardar'), (e as Error).message || t('Tenta outra vez.'));
     } finally {
       setSavingVideo(false);
     }
@@ -644,7 +645,7 @@ export function NativeCamera({
       rec = await videoOutput.createRecorder({ maxDuration: MAX_VIDEO_S });
     } catch {
       endHold();
-      showNotice('Não consegui gravar o vídeo. Tenta outra vez.');
+      showNotice(t('Não consegui gravar o vídeo. Tenta outra vez.'));
       setMode('picture');
       return;
     }
@@ -681,7 +682,7 @@ export function NativeCamera({
       const tmp = safe(() => rec.filePath);
       quiet(() => rec.cancelRecording());
       if (tmp) dropTemp(fileUri(tmp));
-      showNotice(recordingNotice(Date.now() - startedAt.current, true) ?? 'Não consegui gravar o vídeo. Tenta outra vez.');
+      showNotice(recordingNotice(Date.now() - startedAt.current, true) ?? t('Não consegui gravar o vídeo. Tenta outra vez.'));
     } finally {
       recorder.current = null;
       stopAsked.current = false;
@@ -804,7 +805,7 @@ export function NativeCamera({
     const pv = permissionView(perm.status, refused, PLATFORM);
     return (
       <View style={[st.root, st.center, { paddingHorizontal: 32 }]}>
-        <Pressable onPress={onClose} style={[st.round, { position: 'absolute', top: insets.top + 10, left: 12 }]} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onClose} style={[st.round, { position: 'absolute', top: insets.top + 10, left: 12 }]} accessibilityRole="button" accessibilityLabel={t('Fechar câmara')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         <Icon name={pv.action === 'request' ? 'camera' : 'lock'} size={52} color="rgba(255,255,255,0.8)" />
         <Text style={st.pTitle} accessibilityRole="header">{pv.title}</Text>
         <Text style={st.pSub}>{pv.body}</Text>
@@ -823,9 +824,9 @@ export function NativeCamera({
           </Pressable>
         ) : null}
         {refused && perm.canRequestPermission ? (
-          <Pressable onPress={async () => { const ok = await perm.requestPermission().catch(() => false); if (ok) setRefused(false); }} style={{ marginTop: 10, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Pedir outra vez</Text></Pressable>
+          <Pressable onPress={async () => { const ok = await perm.requestPermission().catch(() => false); if (ok) setRefused(false); }} style={{ marginTop: 10, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>{t('Pedir outra vez')}</Text></Pressable>
         ) : null}
-        <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 6, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Escolher da galeria</Text></Pressable>
+        <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 6, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>{t('Escolher da galeria')}</Text></Pressable>
         {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
         {editing ? (
           <PhotoEditor uri={editing} aspect={aspect} sign={!unsigned} onCancel={() => setEditing(null)} onDone={(file) => { setEditing(null); onShot(unsigned ? { ...editedPhoto(file), signed: undefined } : editedPhoto(file)); }} />
@@ -837,7 +838,7 @@ export function NativeCamera({
   const boxScale = boxAnim.interpolate({ inputRange: [0, 1, 1.5, 2], outputRange: [1.5, 1, 1, 0.97] });
   // Com a barra da exposição, o quadrado fica meio apagado em vez de desaparecer (some com ela, ao fim de 4 s).
   const boxOpacity = boxAnim.interpolate({ inputRange: [0, 0.4, 1, 1.5, 2], outputRange: [0, 1, 1, 0.35, expoOk || aeLocked ? 0.6 : 0] });
-  const problemCard = problem ?? (noDevice && !device ? { title: 'Sem câmara', body: facing === 'front' ? 'Não encontrei a câmara da frente.' : 'Não encontrei nenhuma câmara neste telemóvel.', retry: false } : null);
+  const problemCard = problem ?? (noDevice && !device ? { title: t('Sem câmara'), body: facing === 'front' ? t('Não encontrei a câmara da frente.') : t('Não encontrei nenhuma câmara neste telemóvel.'), retry: false } : null);
 
   return (
     <View style={st.root} onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -926,10 +927,10 @@ export function NativeCamera({
               <Text style={st.problemTitle}>{problemCard.title}</Text>
               <Text style={st.problemBody}>{problemCard.body}</Text>
               {problemCard.retry ? (
-                <Pressable onPress={retryCamera} style={[st.cta, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
+                <Pressable onPress={retryCamera} style={[st.cta, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.ctaText}>{t('Tentar outra vez')}</Text></Pressable>
               ) : null}
               {!device && facing === 'front' ? (
-                <Pressable onPress={flip} style={[st.cta, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.ctaText}>Usar a de trás</Text></Pressable>
+                <Pressable onPress={flip} style={[st.cta, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.ctaText}>{t('Usar a de trás')}</Text></Pressable>
               ) : null}
             </View>
           ) : null}
@@ -943,7 +944,7 @@ export function NativeCamera({
           {/* AE/AF bloqueado: o aviso amarelo em cima, até ao próximo toque. */}
           {aeLocked ? (
             <View pointerEvents="none" style={[st.lockWrap, { top: view.y + 66, left: view.x, width: view.w }]}>
-              <Text style={st.lockText} accessibilityRole="text" accessibilityLiveRegion="polite">AE/AF BLOQUEADO</Text>
+              <Text style={st.lockText} accessibilityRole="text" accessibilityLiveRegion="polite">{t('AE/AF BLOQUEADO')}</Text>
             </View>
           ) : null}
 
@@ -958,8 +959,8 @@ export function NativeCamera({
               onTouchCancel={expoEnd}
               accessible
               accessibilityRole="adjustable"
-              accessibilityLabel="Exposição"
-              accessibilityHint="Desliza para cima para clarear, para baixo para escurecer"
+              accessibilityLabel={t('Exposição')}
+              accessibilityHint={t('Desliza para cima para clarear, para baixo para escurecer')}
               accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
               onAccessibilityAction={(ev) => {
                 const step = exposureStep(expoR);
@@ -975,9 +976,9 @@ export function NativeCamera({
 
           {/* Barra de cima: fechar à esquerda; flash, temporizador, grelha e texto à direita (a gravar, só o tempo). */}
           <View style={[st.controls, { left: view.x, top: view.y, width: view.w }]} pointerEvents="box-none">
-            <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara" hitSlop={4}><Animated.View style={rot}><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Animated.View></Pressable>
+            <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel={t('Fechar câmara')} hitSlop={4}><Animated.View style={rot}><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Animated.View></Pressable>
             {recording ? (
-              <View style={st.rec} accessibilityLabel={`A gravar, ${recTime(recMs)}`}><View style={st.recDot} /><Text style={st.recText}>{recTime(recMs)}{!mic.hasPermission ? ' · sem som' : ''}</Text></View>
+              <View style={st.rec} accessibilityLabel={t('A gravar, {recTime}', { recTime: recTime(recMs) })}><View style={st.recDot} /><Text style={st.recText}>{recTime(recMs)}{!mic.hasPermission ? (' ' + t('· sem som')) : ''}</Text></View>
             ) : null}
             <View style={{ flexDirection: 'row', gap: 8, minWidth: 44, justifyContent: 'flex-end' }}>
               {!recording && (
@@ -987,14 +988,14 @@ export function NativeCamera({
                       <Icon name={flashIcon(flash)} size={22} solid={flash !== 'off'} color="#fff" />
                     </Animated.View>
                   </Pressable>
-                  <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador desligado'} onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} rot={rot}>
+                  <TopTool on={delay > 0} label={delay ? t('Temporizador: {delay} s', { delay }) : t('Temporizador desligado')} onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} rot={rot}>
                     <Icon name={timerIcon(delay)} size={22} color="#fff" />
                   </TopTool>
-                  <TopTool on={grid} label="Grelha" onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} rot={rot}>
+                  <TopTool on={grid} label={t('Grelha')} onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} rot={rot}>
                     <Icon name="cam-grid" size={22} color="#fff" />
                   </TopTool>
                   {onText ? (
-                    <TopTool label="Só texto" onPress={onText} rot={rot}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
+                    <TopTool label={t('Só texto')} onPress={onText} rot={rot}><Icon name="cam-text" size={22} color="#fff" /></TopTool>
                   ) : null}
                 </>
               )}
@@ -1006,13 +1007,13 @@ export function NativeCamera({
             <View pointerEvents="box-none" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 40 }}>
               {/* Exposição mexida e barra escondida: um sol pequeno lembra-o (toca para repor). */}
               {exposure !== 0 && !focus ? (
-                <Pressable onPress={() => { tap(); resetExpo(); }} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel="Repor exposição" hitSlop={8}>
+                <Pressable onPress={() => { tap(); resetExpo(); }} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel={t('Repor exposição')} hitSlop={8}>
                   <Icon name="cam-exposure" size={18} color={ACCENT} strokeWidth={2.2} />
                 </Pressable>
               ) : null}
               {device ? <ZoomPills stops={stops} store={zoomStore} onPick={zoomToStop} rot={rot} /> : null}
             </View>
-            {!recording && count === 0 ? <Text style={st.hint}>Toca para foto · mantém para vídeo</Text> : <View style={{ height: 18 }} />}
+            {!recording && count === 0 ? <Text style={st.hint}>{t('Toca para foto · mantém para vídeo')}</Text> : <View style={{ height: 18 }} />}
           </View>
           {countdown !== null ? <View pointerEvents="none" style={[st.countWrap, { left: view.x, top: view.y, width: view.w, height: view.h }]}><Animated.Text style={[st.countText, rot]}>{countdown}</Animated.Text></View> : null}
 
@@ -1042,7 +1043,7 @@ export function NativeCamera({
           <View style={[st.row, { top: view.y + view.h + modesH, height: rowH }]}>
             <View style={st.side}>
               {!recording && (
-                <Pressable onPress={() => { tap(); setGalleryOpen(true); }} style={st.galleryThumb} accessibilityRole="button" accessibilityLabel="Abrir a galeria" hitSlop={6}>
+                <Pressable onPress={() => { tap(); setGalleryOpen(true); }} style={st.galleryThumb} accessibilityRole="button" accessibilityLabel={t('Abrir a galeria')} hitSlop={6}>
                   <Animated.View style={[StyleSheet.absoluteFill, st.center, rot]}>
                     {lastThumb ? <Image source={{ uri: lastThumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} /> : <Icon name="cam-gallery" size={24} color="#fff" strokeWidth={2} />}
                   </Animated.View>
@@ -1057,8 +1058,8 @@ export function NativeCamera({
               style={[st.shutter, (!ready || busy) && !recording && { opacity: 0.5 }, recording && { transform: [{ scale: 1.12 }] }]}
               accessible
               accessibilityRole="button"
-              accessibilityLabel={recording ? 'Parar de gravar' : countdown !== null ? 'Cancelar o temporizador' : 'Tirar foto'}
-              accessibilityHint={recording || countdown !== null ? undefined : 'Mantém premido para gravar vídeo'}
+              accessibilityLabel={recording ? t('Parar de gravar') : countdown !== null ? t('Cancelar o temporizador') : t('Tirar foto')}
+              accessibilityHint={recording || countdown !== null ? undefined : t('Mantém premido para gravar vídeo')}
               accessibilityState={{ disabled: !ready && !recording, busy }}
               // Com o leitor de ecrã (dois toques), nas duas plataformas: foto, ou parar de gravar.
               accessibilityActions={[{ name: 'activate' }]}
@@ -1079,7 +1080,7 @@ export function NativeCamera({
               <Animated.View style={[st.shutterIn, recording && st.shutterRec, !recording && { transform: [{ scale: pressAnim }] }]} />
             </View>
             <View style={[st.side, { alignItems: 'flex-end' }]}>
-              {!recording && <Pressable onPress={flip} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={front ? 'Virar para a câmara de trás' : 'Virar para a câmara da frente'} hitSlop={6}><Animated.View style={rot}><Icon name="cam-flip" size={26} color="#fff" /></Animated.View></Pressable>}
+              {!recording && <Pressable onPress={flip} style={st.flipBtn} accessibilityRole="button" accessibilityLabel={front ? t('Virar para a câmara de trás') : t('Virar para a câmara da frente')} hitSlop={6}><Animated.View style={rot}><Icon name="cam-flip" size={26} color="#fff" /></Animated.View></Pressable>}
             </View>
           </View>
         </>
@@ -1115,7 +1116,7 @@ function ZoomPills({ stops, store, onPick, rot }: { stops: number[]; store: Valu
   if (stops.length <= 1) {
     if (Math.abs(d - 1) < 0.04) return null;
     return (
-      <Pressable onPress={() => onPick(1)} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel={`${zoomA11y(d)}. Toca para repor`} hitSlop={8}>
+      <Pressable onPress={() => onPick(1)} style={st.zoomBadge} accessibilityRole="button" accessibilityLabel={t('{zoomA11y}. Toca para repor', { zoomA11y: zoomA11y(d) })} hitSlop={8}>
         <Animated.Text style={[st.zoomText, rot]}>{formatZoom(d)}</Animated.Text>
       </Pressable>
     );
@@ -1126,7 +1127,7 @@ function ZoomPills({ stops, store, onPick, rot }: { stops: number[]; store: Valu
       {stops.map((s) => {
         const act = s === on;
         return (
-          <Pressable key={s} onPress={() => onPick(s)} style={[st.pill, act && st.pillOn]} hitSlop={5} accessibilityRole="button" accessibilityLabel={act ? zoomA11y(d) : `Lente ${formatStop(s)} vezes`} accessibilityState={{ selected: act }}>
+          <Pressable key={s} onPress={() => onPick(s)} style={[st.pill, act && st.pillOn]} hitSlop={5} accessibilityRole="button" accessibilityLabel={act ? zoomA11y(d) : t('Lente {stop} vezes', { stop: formatStop(s) })} accessibilityState={{ selected: act }}>
             <Animated.Text style={[st.pillText, act && st.pillTextOn, rot]} numberOfLines={1}>{act ? formatZoom(d) : formatStop(s)}</Animated.Text>
           </Pressable>
         );
@@ -1164,9 +1165,9 @@ function Review({ shot, onRetake, onSave, onUse }: { shot: Shot; onRetake: () =>
     <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 20 }]}>
       <ReviewVideo uri={shot.uri} />
       <View style={[st.reviewBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-        <Pressable onPress={onRetake} style={st.ghostBtn} accessibilityRole="button" accessibilityLabel="Repetir o vídeo"><Icon name="undo" size={20} color="#fff" /><Text style={st.ghostText}>Repetir</Text></Pressable>
-        <Pressable onPress={onSave} style={[st.ghostBtn, { paddingHorizontal: 14 }]} accessibilityRole="button" accessibilityLabel="Guardar na galeria"><Icon name="download" size={20} color="#fff" /></Pressable>
-        <Pressable onPress={onUse} style={st.useBtn} accessibilityRole="button" accessibilityLabel="Usar vídeo"><Text style={st.useText}>Usar vídeo</Text><Icon name="check" size={20} color="#fff" strokeWidth={2.6} /></Pressable>
+        <Pressable onPress={onRetake} style={st.ghostBtn} accessibilityRole="button" accessibilityLabel={t('Repetir o vídeo')}><Icon name="undo" size={20} color="#fff" /><Text style={st.ghostText}>{t('Repetir')}</Text></Pressable>
+        <Pressable onPress={onSave} style={[st.ghostBtn, { paddingHorizontal: 14 }]} accessibilityRole="button" accessibilityLabel={t('Guardar na galeria')}><Icon name="download" size={20} color="#fff" /></Pressable>
+        <Pressable onPress={onUse} style={st.useBtn} accessibilityRole="button" accessibilityLabel={t('Usar vídeo')}><Text style={st.useText}>{t('Usar vídeo')}</Text><Icon name="check" size={20} color="#fff" strokeWidth={2.6} /></Pressable>
       </View>
     </View>
   );

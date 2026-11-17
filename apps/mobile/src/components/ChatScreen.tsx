@@ -6,6 +6,7 @@ import { composerInset, pinnedTop, webKeyboardOpen } from '@/lib/chatKeyboard';
 import { ChatDropCtx, deskZone, useDeskChat, useDeskChatChrome, type DropHandler } from '@/lib/deskChat';
 import { dragDepth, dragHasFiles } from '@/lib/deskChatKeys';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * O teclado está aberto? No telemóvel pelos avisos do sistema; na web pela zona visível (lib/chatKeyboard).
@@ -113,11 +114,11 @@ function WebChatScreen({ style, children }: { style: StyleProp<ViewStyle>; child
       <View ref={box as never} {...deskZone(desk)} style={[style, pinned && vv ? { position: 'absolute', left: 0, right: 0, top: pinnedTop(vv.top, parentTop), height: vv.height } : null]}>
         {children}
         {dragging ? (
-          <View pointerEvents="none" style={st.drop} accessibilityLiveRegion="polite" accessibilityLabel="Larga a imagem para a enviar">
+          <View pointerEvents="none" style={st.drop} accessibilityLiveRegion="polite" accessibilityLabel={t('Larga a imagem para a enviar')}>
             <View style={st.dropIn}>
               <Icon name="image" size={34} color={colors.brand} />
-              <Text style={st.dropTitle}>Larga aqui para enviar</Text>
-              <Text style={st.dropSub}>Fotos JPEG, PNG ou WebP, até 8 MB. Vês antes de enviar.</Text>
+              <Text style={st.dropTitle}>{t('Larga aqui para enviar')}</Text>
+              <Text style={st.dropSub}>{t('Fotos JPEG, PNG ou WebP, até 8 MB. Vês antes de enviar.')}</Text>
             </View>
           </View>
         ) : null}

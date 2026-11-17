@@ -8,6 +8,7 @@ import { qrMatrix } from '@/lib/qr';
 import { SITE_URL } from '@/lib/config';
 import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** O endereço do site para pôr nos QR (na web o da própria página). */
 export const origin = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : SITE_URL || 'https://txillapp.com');
@@ -64,7 +65,7 @@ export function VenueQr({ venue }: { venue: Venue }) {
       return;
     }
     try {
-      await Share.share(linkShare(`Faz check-in no Txillapp: ${venue.name}`, url));
+      await Share.share(linkShare(t('Faz check-in no Txillapp: {name}', { name: venue.name }), url));
     } catch {
       /* cancelado */
     }
@@ -76,31 +77,31 @@ export function VenueQr({ venue }: { venue: Venue }) {
     setBusy(false);
   }
   function rotate() {
-    const msg = 'O QR impresso deixa de funcionar e tens de imprimir o novo.';
+    const msg = t('O QR impresso deixa de funcionar e tens de imprimir o novo.');
     if (Platform.OS === 'web') {
-      if (window.confirm(`Mudar o QR? ${msg}`)) void doRotate();
+      if (window.confirm(t('Mudar o QR? {msg}', { msg }))) void doRotate();
       return;
     }
-    Alert.alert('Mudar o QR?', msg, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Mudar o QR', style: 'destructive', onPress: () => void doRotate() },
+    Alert.alert(t('Mudar o QR?'), msg, [
+      { text: t('Cancelar'), style: 'cancel' },
+      { text: t('Mudar o QR'), style: 'destructive', onPress: () => void doRotate() },
     ]);
   }
 
   return (
-    <View style={st.card} accessibilityLabel="QR do local">
-      <Text style={{ fontWeight: '800', fontSize: 16, color: colors.zinc900 }}>O QR do teu local</Text>
-      <Text style={{ marginTop: 2, fontSize: 14, lineHeight: 20, color: colors.zinc600 }}>Imprime-o e põe-no no local. Quem o ler faz check-in. Só tu vês este QR.</Text>
+    <View style={st.card} accessibilityLabel={t('QR do local')}>
+      <Text style={{ fontWeight: '800', fontSize: 16, color: colors.zinc900 }}>{t('O QR do teu local')}</Text>
+      <Text style={{ marginTop: 2, fontSize: 14, lineHeight: 20, color: colors.zinc600 }}>{t('Imprime-o e põe-no no local. Quem o ler faz check-in. Só tu vês este QR.')}</Text>
       <View style={{ marginTop: 12, alignSelf: 'center', width: '100%', maxWidth: 240, aspectRatio: 1 }}>
         <QrSvg text={url} size={240} />
       </View>
       <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
         <Pressable onPress={() => void save()} style={[st.btn, { flex: 1, backgroundColor: colors.zinc900, gap: 8 }]} accessibilityRole="button">
           <Icon name="download" size={18} color="#fff" />
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{Platform.OS === 'web' ? 'Guardar para imprimir' : 'Partilhar para imprimir'}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{Platform.OS === 'web' ? t('Guardar para imprimir') : t('Partilhar para imprimir')}</Text>
         </Pressable>
         <Pressable onPress={rotate} disabled={busy} style={[st.btn, { paddingHorizontal: 16, backgroundColor: colors.zinc100, opacity: busy ? 0.6 : 1 }]} accessibilityRole="button">
-          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc800 }}>Mudar o QR</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc800 }}>{t('Mudar o QR')}</Text>
         </Pressable>
       </View>
     </View>

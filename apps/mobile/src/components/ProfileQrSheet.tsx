@@ -13,6 +13,7 @@ import { Wordmark } from './Wordmark';
 import { Sheet } from './Sheet';
 import { qrShareNote, qrShareText } from '@/lib/profileQrCard';
 import { forgetProfileQr, renderProfileQr, shareProfileQr, type QrImage } from '@/lib/profileQrImage';
+import { t } from '@/lib/i18n';
 
 const INK = '#18181b';
 
@@ -102,10 +103,10 @@ export function ProfileQrSheet({ username, displayName, invite = false, onClose 
       let img = ready?.url === url ? ready.img : null;
       let fresh: QrImage | null = null;
       if (!img) img = fresh = await renderProfileQr(url, username).catch(() => null);
-      const out = await shareProfileQr(img, qrShareText(username, !!link), url, `${displayName} no Txillapp`);
+      const out = await shareProfileQr(img, qrShareText(username, !!link), url, t('{displayName} no Txillapp', { displayName }));
       forgetProfileQr(fresh);
-      const t = qrShareNote(out);
-      if (t) flash(t);
+      const txt = qrShareNote(out);
+      if (txt) flash(txt);
     } finally {
       busy.current = false;
     }
@@ -118,36 +119,36 @@ export function ProfileQrSheet({ username, displayName, invite = false, onClose 
   async function copy() {
     try {
       await Clipboard.setStringAsync(url);
-      flash('Ligação copiada');
+      flash(t('Ligação copiada'));
     } catch {
-      flash('Não consegui copiar');
+      flash(t('Não consegui copiar'));
     }
   }
   return (
-    <Sheet title="Partilhar perfil" onClose={onClose}>
+    <Sheet title={t('Partilhar perfil')} onClose={onClose}>
       <View style={{ paddingHorizontal: 24 }}>
         <View style={st.card}>
-          <View accessibilityRole="image" accessibilityLabel={`QR do perfil de ${username}`}>
+          <View accessibilityRole="image" accessibilityLabel={t('QR do perfil de {username}', { username })}>
             <QrCode value={url} size={238} />
           </View>
           <Text style={st.user} numberOfLines={1}>@{username}</Text>
           {/* O logótipo oficial (o mesmo do cartão do convite e da entrada), não o nome escrito à mão. */}
           <View style={st.brand} accessible accessibilityRole="image" accessibilityLabel="Txillapp"><Wordmark height={22} /></View>
         </View>
-        <Text style={st.hint}>{link ? 'Aponta a câmara ao QR: quem já tem conta abre o teu perfil, quem ainda não tem entra com o teu convite.' : 'Aponta a câmara ao QR para abrir o perfil.'}</Text>
+        <Text style={st.hint}>{link ? t('Aponta a câmara ao QR: quem já tem conta abre o teu perfil, quem ainda não tem entra com o teu convite.') : t('Aponta a câmara ao QR para abrir o perfil.')}</Text>
         <View style={{ marginTop: 16, flexDirection: 'row', gap: 8 }}>
           <Pressable onPress={() => void share()} accessibilityRole="button" style={st.btn}>
             <Icon name="share" size={18} />
-            <Text style={st.btnText}>Partilhar</Text>
+            <Text style={st.btnText}>{t('Partilhar')}</Text>
           </Pressable>
           <Pressable onPress={() => void copy()} accessibilityRole="button" style={st.btn}>
             <Icon name="link" size={18} />
-            <Text style={st.btnText}>Copiar</Text>
+            <Text style={st.btnText}>{t('Copiar')}</Text>
           </Pressable>
           {/* Ler o QR de outra pessoa (pela câmara ou de uma imagem/captura de ecrã guardada no telemóvel). */}
-          <Pressable onPress={openReader} accessibilityRole="button" accessibilityLabel="Ler um QR" accessibilityHint="Com a câmara ou de uma imagem da galeria" style={st.btn}>
+          <Pressable onPress={openReader} accessibilityRole="button" accessibilityLabel={t('Ler um QR')} accessibilityHint={t('Com a câmara ou de uma imagem da galeria')} style={st.btn}>
             <Icon name="qr-scan" size={18} />
-            <Text style={st.btnText}>Ler um QR</Text>
+            <Text style={st.btnText}>{t('Ler um QR')}</Text>
           </Pressable>
         </View>
         <Text accessibilityLiveRegion="polite" style={st.note}>{note}</Text>

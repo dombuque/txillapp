@@ -217,7 +217,7 @@ test('o visor desenha os textos com o mesmo tamanho relativo (StickerLayer), e o
   assert.match(tl, /const slack = /);
   assert.match(tl, /sForFontPx\(next, tw, px, boxW\)/);
   assert.match(tl, /wrapLayerText\(l\.text\)/);
-  assert.match(tl, /accessibilityLabel="Feito"/);
+  assert.match(tl, /accessibilityLabel=\{t\('Feito'\)\}/);
 });
 
 test('fontes no telemóvel: só a família (sem peso, que no Android inventa negrito); na web só ficheiros do próprio site', () => {
@@ -236,7 +236,7 @@ test('fontes no telemóvel: só a família (sem peso, que no Android inventa neg
 test('a fila das letras: cada uma no seu nome e na sua letra, botões de 44 px', () => {
   const src = read('components', 'FontChips.tsx');
   assert.match(src, /height: 44/);
-  assert.match(src, /accessibilityLabel=\{`Letra \$\{f\.name\}`\}/);
+  assert.match(src, /accessibilityLabel=\{t\('Letra \{name\}', \{ name: f\.name \}\)\}/);
   assert.match(src, /useTextFontStyle\(id\)/);
   assert.match(src, /accessibilityRole="tab"/);
 });

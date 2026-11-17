@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { PanResponder, Platform, StyleSheet, Text, View, type AccessibilityActionEvent, type LayoutChangeEvent } from 'react-native';
 import { clampRadius, fractionOf, valueAt } from '@/lib/radius';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const THUMB = 28;
 /** A zona de toque tem 48 de altura (o desenho é uma faixa de 6 e um botão de 28). */
@@ -111,7 +112,7 @@ export function RangeSlider({
       accessibilityRole="adjustable"
       accessibilityLabel={label}
       accessibilityValue={{ min, max, now: value, text: format(value) }}
-      accessibilityActions={[{ name: 'increment', label: 'Aumentar' }, { name: 'decrement', label: 'Diminuir' }]}
+      accessibilityActions={[{ name: 'increment', label: t('Aumentar') }, { name: 'decrement', label: t('Diminuir') }]}
       onAccessibilityAction={onA11y}
       {...(web ? ({ onKeyDown, 'aria-valuetext': format(value) } as object) : {})}
     >

@@ -29,12 +29,13 @@ import { formatVibes } from '@/lib/vibes';
 import { FontChips } from './FontChips';
 import { hideMenuRow } from '@/lib/hidePost';
 import { setPostHidden } from '@/lib/hidePostAction';
+import { t } from '@/lib/i18n';
 
 const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
-  { value: 'silent', icon: 'eye-off', title: 'Discreto', text: 'Só o presente. Sem mensagem, sem post.' },
-  { value: 'private', icon: 'mail', title: 'No privado', text: 'Uma mensagem que só a pessoa vê.' },
-  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Uma publicação no feed para a malta ver.' },
+  { value: 'silent', icon: 'eye-off', get title() { return t('Discreto'); }, get text() { return t('Só o presente. Sem mensagem, sem post.'); } },
+  { value: 'private', icon: 'mail', get title() { return t('No privado'); }, get text() { return t('Uma mensagem que só a pessoa vê.'); } },
+  { value: 'public', icon: 'megaphone', get title() { return t('No feed'); }, get text() { return t('Uma publicação no feed para a malta ver.'); } },
 ];
 
 export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
@@ -59,7 +60,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
 
   async function send() {
     const n = custom ? Number(custom) : amount;
-    if (!Number.isInteger(n) || n < 1) return setErr('O número de vibes tem de ser inteiro');
+    if (!Number.isInteger(n) || n < 1) return setErr(t('O número de vibes tem de ser inteiro'));
     setBusy(true);
     setErr('');
     try {
@@ -69,7 +70,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
       for (const k of ['wallet', 'feed', 'profile-posts', 'chat-thread']) void qc.invalidateQueries({ queryKey: [k] });
     } catch (x) {
       const m = (x as Error).message;
-      setErr(m === 'Saldo insuficiente' ? 'Ups, o teu saldo não chega' : x instanceof ApiError && x.status === 404 ? 'Essa pessoa não existe. Confirma o @' : m);
+      setErr(m === 'Saldo insuficiente' ? t('Ups, o teu saldo não chega') : x instanceof ApiError && x.status === 404 ? t('Essa pessoa não existe. Confirma o @') : m);
     } finally {
       setBusy(false);
     }
@@ -90,21 +91,21 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
 
   if (sent) {
     return (
-      <Sheet title="Presente enviado" onClose={onClose}>
+      <Sheet title={t('Presente enviado')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.sentText}>Ofereceste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
-          {sent.published ? <Text style={[styles.sentText, { color: colors.green700, fontSize: 16 }]}>Já está no feed.</Text> : (
-            <Button label="Publicar no feed agora" kind="secondary" onPress={() => void publishNow()} loading={publishing} block style={{ marginTop: 8 }} />
+          <Text style={styles.sentText}>{t('Ofereceste {vibes} a {name}! Que generoso', { vibes: formatVibes(Number(custom || amount)), name })}</Text>
+          {sent.published ? <Text style={[styles.sentText, { color: colors.green700, fontSize: 16 }]}>{t('Já está no feed.')}</Text> : (
+            <Button label={t('Publicar no feed agora')} kind="secondary" onPress={() => void publishNow()} loading={publishing} block style={{ marginTop: 8 }} />
           )}
           <Text style={styles.err}>{err}</Text>
-          <Button label="Feito" onPress={onClose} block style={{ marginTop: 8 }} />
+          <Button label={t('Feito')} onPress={onClose} block style={{ marginTop: 8 }} />
         </View>
       </Sheet>
     );
   }
 
   return (
-    <Sheet title={`Oferecer vibes a ${name}`} onClose={onClose}>
+    <Sheet title={t('Oferecer vibes a {name}', { name })} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
           {AMOUNTS.map((v) => {
@@ -116,7 +117,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
             );
           })}
         </View>
-        <TextInput value={custom} onChangeText={(t) => { setCustom(t.replace(/\D/g, '')); fresh(); }} keyboardType="number-pad" placeholder="Ou outro valor…" placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 8 }]} accessibilityLabel="Outro valor" />
+        <TextInput value={custom} onChangeText={(t) => { setCustom(t.replace(/\D/g, '')); fresh(); }} keyboardType="number-pad" placeholder={t('Ou outro valor…')} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 8 }]} accessibilityLabel={t('Outro valor')} />
         <View style={styles.opts} accessibilityRole="radiogroup">
           {OPTIONS.map((o) => {
             const on = visibility === o.value;
@@ -130,10 +131,10 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
           })}
         </View>
         {visibility !== 'silent' && (
-          <TextInput value={note} onChangeText={(t) => { setNote(t); fresh(); }} maxLength={280} multiline placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 16, minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel="Mensagem" />
+          <TextInput value={note} onChangeText={(t) => { setNote(t); fresh(); }} maxLength={280} multiline placeholder={visibility === 'private' ? t('Uma mensagem só para a pessoa…') : t('Escreve algo para o post…')} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 16, minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel={t('Mensagem')} />
         )}
         <Text style={styles.err} accessibilityRole="alert">{err}</Text>
-        <Button label={`Oferecer ${formatVibes(Number(custom || amount))}`} icon="gift" onPress={() => void send()} loading={busy} block style={{ marginTop: 8 }} />
+        <Button label={t('Oferecer {vibes}', { vibes: formatVibes(Number(custom || amount)) })} icon="gift" onPress={() => void send()} loading={busy} block style={{ marginTop: 8 }} />
         <View style={{ height: 8 }} />
       </ScrollView>
     </Sheet>
@@ -161,14 +162,14 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
     } catch (x) {
       // A mensagem da API (ex.: «Quem publicou não deixa repostar as suas publicações.»). Numa publicação em cache sem o
       // `canRepost`, a recusa esconde logo a opção.
-      setErr((x as Error).message || 'Não consegui repostar agora. Tenta outra vez.');
+      setErr((x as Error).message || t('Não consegui repostar agora. Tenta outra vez.'));
       if (x instanceof ApiError && x.status === 403 && x.message === REPOST_BLOCKED) onChange({ canRepost: false });
       setBusy(false);
     }
   }
 
   return (
-    <Sheet title={quote ? 'Repostar com comentário' : 'Repostar'} onClose={onClose}>
+    <Sheet title={quote ? t('Repostar com comentário') : t('Repostar')} onClose={onClose}>
       <View style={{ paddingHorizontal: 24 }}>
         {quote ? (
           <View style={{ gap: 12 }}>
@@ -177,21 +178,21 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
               <QuotedOriginal original={post} />
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: THREAD_GAP }}>
                 {user ? <Avatar name={user.displayName} username={user.username} size={THREAD_AVATAR} /> : <View style={{ width: THREAD_AVATAR }} />}
-                <TextInput value={text} onChangeText={setText} maxLength={500} multiline autoFocus placeholder="O que achas?" placeholderTextColor={colors.zinc500} style={[styles.field, { flex: 1, minHeight: 84, fontSize: 17, lineHeight: 24, textAlignVertical: 'top' }]} accessibilityLabel="Comentário" />
+                <TextInput value={text} onChangeText={setText} maxLength={500} multiline autoFocus placeholder={t('O que achas?')} placeholderTextColor={colors.zinc500} style={[styles.field, { flex: 1, minHeight: 84, fontSize: 17, lineHeight: 24, textAlignVertical: 'top' }]} accessibilityLabel={t('Comentário')} />
               </View>
             </View>
             <Text style={styles.err}>{err}</Text>
-            <Button label="Publicar" onPress={() => void run(async () => { await api.repost(post.id, text); onChange({ reposts: post.reposts + 1 }); })} loading={busy} disabled={!text.trim()} block />
-            <Button label="Voltar" kind="ghost" onPress={() => setQuote(false)} block />
+            <Button label={t('Publicar')} onPress={() => void run(async () => { await api.repost(post.id, text); onChange({ reposts: post.reposts + 1 }); })} loading={busy} disabled={!text.trim()} block />
+            <Button label={t('Voltar')} kind="ghost" onPress={() => setQuote(false)} block />
           </View>
         ) : (
           <View>
             {post.reposted ? (
-              <MenuRow icon="undo" title="Desfazer repost" text="Tira esta publicação do teu perfil." disabled={busy} onPress={() => void run(async () => onChange(await api.unrepost(post.id)))} />
+              <MenuRow icon="undo" title={t('Desfazer repost')} text={t('Tira esta publicação do teu perfil.')} disabled={busy} onPress={() => void run(async () => onChange(await api.unrepost(post.id)))} />
             ) : allowed ? (
-              <MenuRow icon="repeat" title="Repostar" text="Partilha no teu perfil, tal como está." disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
+              <MenuRow icon="repeat" title={t('Repostar')} text={t('Partilha no teu perfil, tal como está.')} disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
             ) : null}
-            {allowed ? <MenuRow icon="pencil" title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onPress={() => setQuote(true)} /> : null}
+            {allowed ? <MenuRow icon="pencil" title={t('Repostar com comentário')} text={t('Acrescenta o que achas ao partilhar.')} onPress={() => setQuote(true)} /> : null}
             {err ? <Text style={styles.err}>{err}</Text> : !allowed ? <Text style={styles.note}>{REPOST_BLOCKED}</Text> : null}
           </View>
         )}
@@ -221,9 +222,9 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
   async function copy() {
     try {
       await Clipboard.setStringAsync(postLink(post));
-      setNote('Ligação copiada');
+      setNote(t('Ligação copiada'));
     } catch {
-      setNote('Não consegui copiar');
+      setNote(t('Não consegui copiar'));
     }
     setTimeout(() => setNote(''), 1800);
   }
@@ -275,21 +276,21 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
     await setPostHidden(qc, target, !target.hidden, repost);
   }
   async function confirmDelete() {
-    if (!(await confirm({ title: 'Apagar a publicação?', message: 'Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.', confirm: 'Apagar', danger: true }))) return;
+    if (!(await confirm({ title: t('Apagar a publicação?'), message: t('Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.'), confirm: t('Apagar'), danger: true }))) return;
     await api.removePost(post.id).catch(() => undefined);
     onClose();
     await refresh(['feed', 'profile-posts', 'post']);
   }
   // «Retirar o dueto»: só o autor da tcheka original, só em duetos (o vídeo e o som dele estão gravados no dueto).
   async function confirmTakedown() {
-    if (!(await confirm({ title: takedownTitle, message: takedownText(post.author.username), confirm: 'Retirar', danger: true }))) return;
+    if (!(await confirm({ title: takedownTitle, message: takedownText(post.author.username), confirm: t('Retirar'), danger: true }))) return;
     try {
       await api.takeDownDuet(post.id);
       onClose();
       await refresh(['feed', 'profile-posts', 'post', 'reels', 'remixes']);
     } catch (e) {
       // Erro passageiro: o aviso no fundo (o menu continua aberto para tentar outra vez).
-      showToast(e instanceof ApiError && e.message ? e.message : 'Não deu para retirar o dueto. Tenta outra vez daqui a pouco.');
+      showToast(e instanceof ApiError && e.message ? e.message : t('Não deu para retirar o dueto. Tenta outra vez daqui a pouco.'));
     }
   }
   async function saveEdit() {
@@ -308,36 +309,36 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
   if (view === 'report') return <ReportSheet type="post" id={post.id} onReported={() => void refresh(["feed"])} onClose={onClose} />;
   if (view === 'edit') {
     return (
-      <Sheet title="Editar a publicação" onClose={onClose}>
+      <Sheet title={t('Editar a publicação')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
-          <TextInput value={draft} onChangeText={setDraft} maxLength={2000} multiline autoFocus style={[styles.field, { minHeight: 120, textAlignVertical: 'top' }]} accessibilityLabel="Texto" />
-          {textOnly ? <FontChips value={draftFont} onChange={setDraftFont} label="Letra da publicação" style={{ marginHorizontal: -24, marginTop: 10 }} /> : null}
+          <TextInput value={draft} onChangeText={setDraft} maxLength={2000} multiline autoFocus style={[styles.field, { minHeight: 120, textAlignVertical: 'top' }]} accessibilityLabel={t('Texto')} />
+          {textOnly ? <FontChips value={draftFont} onChange={setDraftFont} label={t('Letra da publicação')} style={{ marginHorizontal: -24, marginTop: 10 }} /> : null}
           <Text style={styles.err}>{editErr}</Text>
-          <Button label="Guardar" onPress={() => void saveEdit()} loading={saving} block style={{ marginTop: 8 }} />
-          <Button label="Cancelar" kind="ghost" onPress={onClose} block style={{ marginTop: 8 }} />
+          <Button label={t('Guardar')} onPress={() => void saveEdit()} loading={saving} block style={{ marginTop: 8 }} />
+          <Button label={t('Cancelar')} kind="ghost" onPress={onClose} block style={{ marginTop: 8 }} />
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet title="Publicação" onClose={onClose} variant="menu" anchor={anchor} cancel>
+    <Sheet title={t('Publicação')} onClose={onClose} variant="menu" anchor={anchor} cancel>
       <ScrollView style={{ paddingHorizontal: anchor && deskMenu ? 6 : 24 }}>
-        <MenuRow icon="share" title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
-        <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
-        {canDownload(post) ? <MenuRow icon="download" title={Platform.OS === 'web' ? 'Descarregar o vídeo' : 'Guardar o vídeo'} text={downloading ? 'A preparar o vídeo…' : 'Com a assinatura do Txillapp no fim.'} onPress={() => void download()} disabled={downloading} /> : null}
-        <MenuRow icon="link" title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
-        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon="pencil" title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
-        {mine && post.locationLabel && <MenuRow icon="map-pin" title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}
-        {mine && <MenuRow icon="comment" title={post.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} text={post.commentsOff ? 'Voltam a poder comentar.' : 'Ninguém pode comentar esta publicação.'} onPress={() => void toggleComments()} />}
+        <MenuRow icon="share" title={t('Partilhar')} text={t('No teu mimo, por ligação ou por outra app.')} onPress={() => void share()} />
+        <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? t('Tirar dos guardados') : t('Guardar')} text={t('Só tu vês os teus guardados.')} onPress={() => void toggleSave()} />
+        {canDownload(post) ? <MenuRow icon="download" title={Platform.OS === 'web' ? t('Descarregar o vídeo') : t('Guardar o vídeo')} text={downloading ? t('A preparar o vídeo…') : t('Com a assinatura do Txillapp no fim.')} onPress={() => void download()} disabled={downloading} /> : null}
+        <MenuRow icon="link" title={t('Copiar ligação')} text={note || t('Para partilhares onde quiseres.')} onPress={() => void copy()} />
+        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon="pencil" title={t('Editar')} text={t('Muda o texto da publicação.')} onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
+        {mine && post.locationLabel && <MenuRow icon="map-pin" title={t('Tirar o local')} text={t('O sítio deixa de aparecer nesta publicação.')} onPress={() => void clearPlace()} />}
+        {mine && <MenuRow icon="comment" title={post.commentsOff ? t('Ativar comentários') : t('Desativar comentários')} text={post.commentsOff ? t('Voltam a poder comentar.') : t('Ninguém pode comentar esta publicação.')} onPress={() => void toggleComments()} />}
         {mine && !(post.kind === 'repost' && !post.body) ? <MenuRow icon={post.hidden ? 'eye' : 'eye-off'} {...hideMenuRow(post)} onPress={() => void toggleHidden(post, false)} /> : null}
         {!mine && myRepost ? <MenuRow icon={myRepost.hidden ? 'eye' : 'eye-off'} {...hideMenuRow(myRepost, true)} onPress={() => void toggleHidden(myRepost, true)} /> : null}
         {mine ? (
-          <MenuRow icon="trash" title="Apagar" text="Some para toda a gente." danger onPress={() => void confirmDelete()} />
+          <MenuRow icon="trash" title={t('Apagar')} text={t('Some para toda a gente.')} danger onPress={() => void confirmDelete()} />
         ) : (
           <>
-            <MenuRow icon="eye-off" title="Não me interessa" text="Esta publicação deixa de aparecer no teu feed." onPress={() => void hide()} />
-            {post.remixOf?.kind === 'duet' && post.remixOf.canTakeDown ? <MenuRow icon="trash" title="Retirar o dueto" text="Foi feito com a tua tcheka. Deixa de aparecer para todos." danger onPress={() => void confirmTakedown()} /> : null}
-            <MenuRow icon="flag" title="Denunciar" text="Avisa a moderação. A pessoa não sabe." danger onPress={() => setView('report')} />
+            <MenuRow icon="eye-off" title={t('Não me interessa')} text={t('Esta publicação deixa de aparecer no teu feed.')} onPress={() => void hide()} />
+            {post.remixOf?.kind === 'duet' && post.remixOf.canTakeDown ? <MenuRow icon="trash" title={t('Retirar o dueto')} text={t('Foi feito com a tua tcheka. Deixa de aparecer para todos.')} danger onPress={() => void confirmTakedown()} /> : null}
+            <MenuRow icon="flag" title={t('Denunciar')} text={t('Avisa a moderação. A pessoa não sabe.')} danger onPress={() => setView('report')} />
           </>
         )}
         <View style={{ height: 8 }} />

@@ -53,22 +53,23 @@ import { livePrice } from '@/lib/txillada';
 import { NextTxilladaCard } from './txillada/ScheduleCards';
 import { vibesWord } from '@/lib/vibes';
 import { setPostHidden } from '@/lib/hidePostAction';
+import { t } from '@/lib/i18n';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
-  { id: 'all', label: 'Tudo', icon: 'grid' },
+  { id: 'all', get label() { return t('Tudo'); }, icon: 'grid' },
   { id: 'reels', label: 'Tcheka', icon: 'film' },
-  { id: 'reposts', label: 'Reposts', icon: 'repeat' },
-  { id: 'gifts', label: 'Presentes', icon: 'gift' },
-  { id: 'saved', label: 'Guardados', icon: 'bookmark' },
-  { id: 'hidden', label: 'Ocultas', icon: 'eye-off' },
+  { id: 'reposts', get label() { return t('Reposts'); }, icon: 'repeat' },
+  { id: 'gifts', get label() { return t('Presentes'); }, icon: 'gift' },
+  { id: 'saved', get label() { return t('Guardados'); }, icon: 'bookmark' },
+  { id: 'hidden', get label() { return t('Ocultas'); }, icon: 'eye-off' },
 ];
 const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
-  reels: { me: 'Ainda não publicaste na Tcheka.', other: 'Ainda sem nada na Tcheka.' },
-  reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
-  gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
-  saved: { me: 'Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.', other: '' },
-  hidden: { me: 'As publicações que ocultares ficam aqui. Só tu as vês.', other: '' },
+  reels: { get me() { return t('Ainda não publicaste na Tcheka.'); }, get other() { return t('Ainda sem nada na Tcheka.'); } },
+  reposts: { get me() { return t('Ainda não repostaste nada.'); }, get other() { return t('Ainda sem reposts.'); } },
+  gifts: { get me() { return t('Os presentes que deres ou receberes e publicares aparecem aqui.'); }, get other() { return t('Ainda sem presentes publicados.'); } },
+  saved: { get me() { return t('Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.'); }, other: '' },
+  hidden: { get me() { return t('As publicações que ocultares ficam aqui. Só tu as vês.'); }, other: '' },
 };
 
 /** Os botões da fila do perfil têm 36 de altura: com 4 em cima e em baixo o toque chega aos 44. */
@@ -99,7 +100,7 @@ function Grid({ posts, onOpen, onHold, width, onUnhide }: { posts: Post[]; onOpe
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
         const tile = (
-          <Pressable key={post.id} onPress={() => onOpen(post)} onLongPress={onHold ? () => onHold(post) : undefined} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
+          <Pressable key={post.id} onPress={() => onOpen(post)} onLongPress={onHold ? () => onHold(post) : undefined} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={t('Abrir publicação: {body}', { body: post.body || shown.body || (shown.geleira ? 'geleira' : t('foto')) })}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
                 <View style={{ width: 46, height: 28 }}>
@@ -134,8 +135,8 @@ function Grid({ posts, onOpen, onHold, width, onUnhide }: { posts: Post[]; onOpe
         return (
           <View key={post.id} style={{ width: size, gap: 6 }}>
             {tile}
-            <Pressable onPress={() => onUnhide(post)} style={(s) => [styles.unhide, (s as { pressed: boolean; hovered?: boolean }).pressed && { opacity: 0.75 }, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={`Voltar a mostrar: ${post.body || shown.body || 'publicação'}`}>
-              <Text style={styles.unhideText} numberOfLines={1}>Voltar a mostrar</Text>
+            <Pressable onPress={() => onUnhide(post)} style={(s) => [styles.unhide, (s as { pressed: boolean; hovered?: boolean }).pressed && { opacity: 0.75 }, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={t('Voltar a mostrar: {body}', { body: post.body || shown.body || t('publicação') })}>
+              <Text style={styles.unhideText} numberOfLines={1}>{t('Voltar a mostrar')}</Text>
             </Pressable>
           </View>
         );
@@ -244,8 +245,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     const missing = q.error instanceof ApiError && q.error.status === 404;
     return (
       <View style={[styles.center, { paddingTop: insets.top + 16 }]}>
-        {missing ? <EmptyState icon="search" title="Essa pessoa não existe" text="Confirma o @ e tenta outra vez." /> : <ErrorState what="este perfil" onRetry={() => void q.refetch()} />}
-        {isMine ? null : <Button label="Voltar" kind="ghost" size="md" onPress={() => goBack(router)} style={{ marginTop: 8 }} />}
+        {missing ? <EmptyState icon="search" title={t('Essa pessoa não existe')} text={t('Confirma o @ e tenta outra vez.')} /> : <ErrorState what={t('este perfil')} onRetry={() => void q.refetch()} />}
+        {isMine ? null : <Button label={t('Voltar')} kind="ghost" size="md" onPress={() => goBack(router)} style={{ marginTop: 8 }} />}
       </View>
     );
   }
@@ -254,7 +255,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     return (
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {isMine ? <View style={{ height: 24 }} /> : <View style={[styles.topOther, deskCol]}><BackButton /><Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{username}</Text></View>}
-        <View style={[styles.skel, cardShadow]} accessibilityLabel="A carregar o perfil" />
+        <View style={[styles.skel, cardShadow]} accessibilityLabel={t('A carregar o perfil')} />
       </View>
     );
   }
@@ -266,7 +267,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const rowButtons = p.isMe ? 5 : 1 + (p.following ? 1 : 0) + 3;
   const tipRight = rowW ? (rowW - 6 * (rowButtons - 1)) / rowUnits / 2 - 11 : 11;
   const stat = (n: number, label: string, go?: () => void) => (
-    <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString('pt-PT')} ${label}`} accessibilityHint={go ? 'Abre a lista' : undefined}>
+    <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString('pt-PT')} ${label}`} accessibilityHint={go ? t('Abre a lista') : undefined}>
       <Text style={styles.statN}>{n.toLocaleString('pt-PT')}</Text>
       <Text style={styles.statL}>{label}</Text>
     </Pressable>
@@ -279,7 +280,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       await qc.invalidateQueries({ queryKey: ['profile'] });
       void qc.invalidateQueries({ queryKey: ['blocked'] });
     } catch (e) {
-      showToast((e as Error).message || 'Não consegui desbloquear agora. Tenta outra vez.');
+      showToast((e as Error).message || t('Não consegui desbloquear agora. Tenta outra vez.'));
     } finally {
       setActing(false);
     }
@@ -292,7 +293,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
       setSheet(null);
     } catch (e) {
-      showToast((e as Error).message || 'Não consegui bloquear agora. Tenta outra vez.');
+      showToast((e as Error).message || t('Não consegui bloquear agora. Tenta outra vez.'));
     } finally {
       setActing(false);
     }
@@ -307,13 +308,13 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {p.isMe ? (
         <View style={[styles.topMe, deskCol]}>
           <Text style={styles.handleTop}>@{p.username}</Text>
-          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={24} strokeWidth={2} /></Pressable>
+          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={t('Definições e privacidade')}><Icon name="menu" size={24} strokeWidth={2} /></Pressable>
         </View>
       ) : (
         <View style={[styles.topOther, deskCol]}>
           <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
-          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} /></Pressable>
+          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções')} {...(desktop ? ({ dataSet: { tip: t('Mais opções') } } as object) : null)}><Icon name="more" size={24} /></Pressable>
         </View>
       )}
 
@@ -329,7 +330,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           ) : null}
           <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} liveId={p.live?.id ?? null} livePrice={livePrice(p)} />
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
-            {stat(p.counts.posts, 'publicações')}
+            {stat(p.counts.posts, t('publicações'))}
             {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}
             {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=following` as never) : undefined)}
           </View>
@@ -351,17 +352,17 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {p.artist.links.filter((l) => /^https:\/\//i.test(l.url)).slice(0, 4).map((l) => (
                 <Pressable key={l.url} onPress={() => void Linking.openURL(l.url)} style={styles.metaItem} accessibilityRole="link">
                   <Icon name="link" size={14} color={colors.brand} />
-                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]} numberOfLines={1}>{LINK_LABELS[l.kind] ?? 'Site'}</Text>
+                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]} numberOfLines={1}>{LINK_LABELS[l.kind] ?? t('Site')}</Text>
                 </Pressable>
               ))}
               {p.isMe ? (
                 <Pressable onPress={() => router.push('/artista/gerir' as never)} style={styles.metaItem} accessibilityRole="button">
-                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]}>Gerir as minhas músicas</Text>
+                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]}>{t('Gerir as minhas músicas')}</Text>
                 </Pressable>
               ) : null}
             </View>
           ) : null}
-          {!p.isMe && p.followsYou && !blocked && <View style={styles.followsYou}><Text style={styles.followsYouText}>Segue-te</Text></View>}
+          {!p.isMe && p.followsYou && !blocked && <View style={styles.followsYou}><Text style={styles.followsYouText}>{t('Segue-te')}</Text></View>}
           {(p.city || p.website) && (
             <View style={styles.meta}>
               {p.city ? <View style={styles.metaItem}><Icon name="map-pin" size={14} color={colors.zinc600} /><Text style={styles.metaText}>{p.city}</Text></View> : null}
@@ -373,22 +374,22 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               ) : null}
             </View>
           )}
-          {!p.bio && p.isMe ? <Pressable onPress={() => setSheet('edit')}><Text style={styles.addBio}>Adiciona uma bio</Text></Pressable> : null}
+          {!p.bio && p.isMe ? <Pressable onPress={() => setSheet('edit')}><Text style={styles.addBio}>{t('Adiciona uma bio')}</Text></Pressable> : null}
           {/* Txillada agendada (0176): o próximo agendamento que posso ver, com «Lembrar-me» (no meu, leva ao cartão). */}
           {!blocked ? <NextTxilladaCard username={p.username} isMe={p.isMe} next={p.nextTxillada} /> : null}
         </View>
 
         {p.blockedMe && (
           <View style={styles.notice} accessibilityRole="summary">
-            <Text style={styles.noticeTitle}>Foste bloqueado por @{p.username}</Text>
-            <Text style={styles.noticeText}>Não podes seguir esta conta nem ver as publicações e mimos dela.</Text>
+            <Text style={styles.noticeTitle}>{t('Foste bloqueado por @{username}', { username: p.username })}</Text>
+            <Text style={styles.noticeText}>{t('Não podes seguir esta conta nem ver as publicações e mimos dela.')}</Text>
           </View>
         )}
         {p.blockedByMe && !p.blockedMe && (
           <View style={styles.notice}>
-            <Text style={styles.noticeTitle}>Bloqueaste @{p.username}</Text>
-            <Text style={styles.noticeText}>A pessoa não vê o teu conteúdo nem te pode seguir.</Text>
-            <Button label="Desbloquear" kind="secondary" size="md" onPress={() => void unblock()} loading={acting} style={{ marginTop: 12 }} />
+            <Text style={styles.noticeTitle}>{t('Bloqueaste @{username}', { username: p.username })}</Text>
+            <Text style={styles.noticeText}>{t('A pessoa não vê o teu conteúdo nem te pode seguir.')}</Text>
+            <Button label={t('Desbloquear')} kind="secondary" size="md" onPress={() => void unblock()} loading={acting} style={{ marginTop: 12 }} />
           </View>
         )}
 
@@ -396,10 +397,10 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.btnRow} onLayout={(e) => setRowW(e.nativeEvent.layout.width)}>
             {p.isMe ? (
               <>
-                <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
-                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar o perfil (com o teu convite)"><QrGlyph /></Pressable>
-                <Pressable onPress={() => router.push('/supertxill?tab=malta' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Malta para ti: sugestões de amigos"><Icon name="user-plus" size={20} /></Pressable>
-                <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de vibes"><Icon name="wallet" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel={t('Editar perfil')}><Icon name="pencil" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel={t('Partilhar o perfil (com o teu convite)')}><QrGlyph /></Pressable>
+                <Pressable onPress={() => router.push('/supertxill?tab=malta' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel={t('Malta para ti: sugestões de amigos')}><Icon name="user-plus" size={20} /></Pressable>
+                <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel={t('Carteira de vibes')}><Icon name="wallet" size={20} /></Pressable>
                 <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>
             ) : (
@@ -407,15 +408,15 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                 <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} style={styles.rowFollow} />
                 {p.following && (
                   // Só o ícone, como os outros da fila (com o texto ficava «Pr…» cortado).
-                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a ${p.displayName}`}>
+                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={t('Oferecer vibes a {displayName}', { displayName: p.displayName })}>
                     <Icon name="gift" size={ROW_ICON} />
                   </Pressable>
                 )}
-                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={ROW_ICON} /></Pressable>
+                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel={t('Enviar mensagem')}><Icon name="send" size={ROW_ICON} /></Pressable>
                 {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). O
                     ícone é uma mão com a caneca e um «?» (um pedido): as duas canecas pareciam «brindar com a pessoa». O
                     «Partilhar perfil» passou para o «⋯». */}
-                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
+                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel={t('Paga-me uma: pede a {displayName} que te pague uma bebida', { displayName: p.displayName })}>
                   <Icon name="ask-drink" size={ROW_ICON} />
                 </Pressable>
                 {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />}
@@ -434,7 +435,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
         {p.isMe && p.pendingRequests > 0 && (
           <Pressable onPress={() => setSheet('requests')} style={styles.requests}>
-            <Text style={styles.requestsText}>Pedidos para seguir</Text>
+            <Text style={styles.requestsText}>{t('Pedidos para seguir')}</Text>
             <View style={styles.requestsN}><Text style={styles.requestsNText}>{p.pendingRequests}</Text></View>
           </Pressable>
         )}
@@ -443,8 +444,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {!p.canView && !blocked ? (
         <View style={[styles.private, cardShadow]}>
           <Icon name="lock" size={44} color={colors.zinc300} />
-          <Text style={styles.privateTitle}>Esta conta é privada</Text>
-          <Text style={styles.privateText}>{p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e mimos.' : 'Segue para ver as publicações e mimos.'}</Text>
+          <Text style={styles.privateTitle}>{t('Esta conta é privada')}</Text>
+          <Text style={styles.privateText}>{p.requested ? t('Pedido enviado. Quando aceitar, vês as publicações e mimos.') : t('Segue para ver as publicações e mimos.')}</Text>
         </View>
       ) : p.canView ? (
         <SwipeArea gesture={pagerPan}>
@@ -464,10 +465,10 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           </View>
           <Reanimated.View style={[{ minHeight: height * 0.4 }, fade.style]}>
           {posts.isLoading && <PageLoader />}
-          {tab === 'hidden' && items.length > 0 ? <Text style={styles.hiddenNote}>Só tu vês estas publicações. Ao voltares a mostrar uma, volta ao mesmo sítio, com os brindes e os comentários.</Text> : null}
+          {tab === 'hidden' && items.length > 0 ? <Text style={styles.hiddenNote}>{t('Só tu vês estas publicações. Ao voltares a mostrar uma, volta ao mesmo sítio, com os brindes e os comentários.')}</Text> : null}
           {posts.isSuccess && items.length === 0 && tab !== 'all' && <Text style={styles.emptyText}>{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</Text>}
           {posts.isSuccess && items.length === 0 && tab === 'all' && (
-            <EmptyState icon="camera" title={p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'} action={p.isMe ? { label: 'Faz a primeira', onPress: () => router.push('/new' as never) } : undefined} style={{ marginTop: 32 }} />
+            <EmptyState icon="camera" title={p.isMe ? t('Ainda não publicaste nada') : t('Ainda sem publicações')} action={p.isMe ? { label: t('Faz a primeira'), onPress: () => router.push('/new' as never) } : undefined} style={{ marginTop: 32 }} />
           )}
           <Grid posts={items} onOpen={openPost} onHold={tab === 'hidden' ? undefined : hold} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
           {/* Carrega sozinha ao chegar ao fim (onEndReached e, na web, o LoadMore); o botão fica de reserva. */}
@@ -491,20 +492,20 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={{ paddingHorizontal: desktop && menuAt ? 8 : 24, paddingBottom: 8 }}>
-            <ActionRow icon="share" title="Partilhar o perfil" text={`Um link ou o código QR de @${p.username}.`} onPress={() => setSheet('qr')} />
-            <ActionRow icon="block" title={p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`} text="Deixa de ver o teu conteúdo e de te poder seguir." danger onPress={() => setSheet('block')} />
-            <ActionRow icon="flag" title={`Denunciar @${p.username}`} text="Avisa a moderação. A pessoa não sabe." danger onPress={() => setSheet('report')} />
+            <ActionRow icon="share" title={t('Partilhar o perfil')} text={t('Um link ou o código QR de @{username}.', { username: p.username })} onPress={() => setSheet('qr')} />
+            <ActionRow icon="block" title={p.blockedByMe ? t('Já bloqueaste esta conta') : t('Bloquear @{username}', { username: p.username })} text={t('Deixa de ver o teu conteúdo e de te poder seguir.')} danger onPress={() => setSheet('block')} />
+            <ActionRow icon="flag" title={t('Denunciar @{username}', { username: p.username })} text={t('Avisa a moderação. A pessoa não sabe.')} danger onPress={() => setSheet('report')} />
           </View>
         </Sheet>
       )}
       {sheet === 'block' && (
-        <Sheet title={`Bloquear @${p.username}?`} onClose={() => setSheet(null)}>
+        <Sheet title={t('Bloquear @{username}?', { username: p.username })} onClose={() => setSheet(null)}>
           <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            {[`${p.displayName} deixa de ver as tuas publicações e mimos.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
+            {[t('{displayName} deixa de ver as tuas publicações e mimos.', { displayName: p.displayName }), t('Não te pode seguir nem interagir contigo.'), t('Deixam de se seguir um ao outro.'), t('Ela é avisada de que foi bloqueada.')].map((t) => (
               <View key={t} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}><Text style={styles.bullet}>{'\u2022'}</Text><Text style={[styles.bullet, { flex: 1 }]}>{t}</Text></View>
             ))}
-            <Button label="Bloquear" kind="dangerSolid" onPress={() => void block()} loading={acting} block style={{ marginTop: 16 }} />
-            <Button label="Cancelar" kind="secondary" onPress={() => setSheet(null)} block style={{ marginTop: 8 }} />
+            <Button label={t('Bloquear')} kind="dangerSolid" onPress={() => void block()} loading={acting} block style={{ marginTop: 16 }} />
+            <Button label={t('Cancelar')} kind="secondary" onPress={() => setSheet(null)} block style={{ marginTop: 8 }} />
           </View>
         </Sheet>
       )}

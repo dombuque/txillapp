@@ -70,7 +70,7 @@ test('ligação: «Ajustar ao ritmo» e os moldes passam pelas funções do proj
 });
 
 test('ligação: as faixas do som (voz-off e efeitos sonoros) e das camadas na linha do tempo', () => {
-  assert.match(studio, /kind: 'voice', label: 'Voz-off'/);
+  assert.match(studio, /kind: 'voice', (get )?label(\(\) \{ return |: )t\('Voz-off'\)/);
   assert.match(studio, /kind: 'sfx', [^\n]*point: true/);
   const tl = read('components', 'studio', 'Timeline.tsx');
   assert.match(tl, /data-tl="layer"/);

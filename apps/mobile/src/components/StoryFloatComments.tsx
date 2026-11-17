@@ -14,6 +14,7 @@ import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP, type FloatColumn } from '@/lib/storyFrame';
 import { commentCheersLabel } from '@/lib/txillada';
 import { FLOAT_EVERY_MS, FLOAT_FIRST_MS, floatDone, floatName, floatOffsets, floatPool, floatText, floatWindow } from '@/lib/storyFloat';
+import { t } from '@/lib/i18n';
 
 /** O vidro escuro dos balões (o mesmo tom dos botões do visor). */
 const GLASS = 'rgba(14,14,18,0.44)';
@@ -103,7 +104,7 @@ export const DOUBLE_MS = 250;
  */
 /** `gift`: a linha destacada «@x ofereceu N Txills» da Txillada (0167): o vidro na cor da marca, com o presente. */
 /** `onMention`: os @nomes do texto ficam a negrito e tocáveis (a Txillada: abrem o perfil). */
-export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários', gift = false, onMention }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string; gift?: boolean; onMention?: (username: string) => void }) {
+export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = t('Abrir os comentários'), gift = false, onMention }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string; gift?: boolean; onMention?: (username: string) => void }) {
   const ty = useSharedValue(reduce ? -y : 22);
   const scale = useSharedValue(reduce ? 1 : 0.9);
   const op = useSharedValue(0);
@@ -161,9 +162,9 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         delayLongPress={400}
         style={st.row}
         accessibilityRole="button"
-        accessibilityLabel={`Comentário de ${c.author.username}: ${text}${cheers ? `. ${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}` : ''}${label ? `. ${label}` : ''}`}
-        accessibilityHint={onDoubleTap ? 'Dois toques para brindar' : undefined}
-        accessibilityActions={onDoubleTap ? [{ name: 'cheer', label: 'Brindar' }] : undefined}
+        accessibilityLabel={t('Comentário de {username}: {text}{value}{value2}', { username: c.author.username, text, value: cheers ? t('. {count} brinde', { count: cheers, other: '. {count} brindes' }) : '', value2: label ? `. ${label}` : '' })}
+        accessibilityHint={onDoubleTap ? t('Dois toques para brindar') : undefined}
+        accessibilityActions={onDoubleTap ? [{ name: 'cheer', label: t('Brindar') }] : undefined}
         onAccessibilityAction={onDoubleTap ? (e) => { if (e.nativeEvent.actionName === 'cheer') onDoubleTap(); } : undefined}
       >
         <View style={st.ring}>

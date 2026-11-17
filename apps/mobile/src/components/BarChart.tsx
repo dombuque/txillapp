@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 interface Point { day: string; value: number }
 
@@ -32,7 +33,7 @@ export function BarChart({ title, data }: { title: string; data: Point[] }) {
   const shown = sel ?? data.length - 1;
 
   return (
-    <View style={st.card} accessibilityLabel={`${title}: último dia ${last?.value ?? 0}`}>
+    <View style={st.card} accessibilityLabel={t('{title}: último dia {last}', { title, last: last?.value ?? 0 })}>
       <View style={st.head}>
         <Text style={st.title}>{title}</Text>
         <Text style={st.sub}>
@@ -72,11 +73,11 @@ export function BarChart({ title, data }: { title: string; data: Point[] }) {
         )}
       </View>
       <Pressable onPress={() => setTable((t) => !t)} accessibilityRole="button" style={{ marginTop: 4 }}>
-        <Text style={st.link}>Ver tabela</Text>
+        <Text style={st.link}>{t('Ver tabela')}</Text>
       </Pressable>
       {table && (
         <View style={{ marginTop: 8 }}>
-          <View style={st.tr}><Text style={[st.td, { fontWeight: '600' }]}>Dia</Text><Text style={[st.td, { fontWeight: '600', textAlign: 'right' }]}>{title}</Text></View>
+          <View style={st.tr}><Text style={[st.td, { fontWeight: '600' }]}>{t('Dia')}</Text><Text style={[st.td, { fontWeight: '600', textAlign: 'right' }]}>{title}</Text></View>
           {data.map((d) => (
             <View key={d.day} style={[st.tr, { borderTopWidth: 1, borderTopColor: colors.zinc100 }]}>
               <Text style={st.td}>{fmtDay(d.day)}</Text>

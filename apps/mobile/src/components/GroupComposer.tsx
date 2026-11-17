@@ -25,6 +25,7 @@ import { PastedImageSheet } from './PastedImageSheet';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
 import { sendChatMedia, type ChatMediaItem } from '@/lib/chatMediaSend';
+import { t } from '@/lib/i18n';
 
 /**
  * A barra de escrever dos TxillGroups, com o mesmo desenho da das conversas a dois (components/ChatComposer): uma pílula,
@@ -136,7 +137,7 @@ export function GroupComposer({
     try {
       if (source === 'camera') {
         const p = await ImagePicker.requestCameraPermissionsAsync();
-        if (!p.granted) return setErr('Preciso de acesso à câmara para tirar a foto.');
+        if (!p.granted) return setErr(t('Preciso de acesso à câmara para tirar a foto.'));
       }
       // Da galeria escolhem-se vários de uma vez (até CHAT_PICK_MAX, pela ordem dos toques): cada um vai como uma mensagem.
       const r = await (source === 'camera'
@@ -147,7 +148,7 @@ export function GroupComposer({
       if (picks.length === 1) return await sendMedia(picks[0].uri, picks[0].mime, picks[0].video);
       await sendMany(picks);
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar');
+      setErr((e as Error).message || t('Não consegui enviar'));
     }
   }
   /** Vários da galeria: um de cada vez, pela ordem escolhida; a legenda da caixa vai só com o primeiro. Se algum falhar, segue com os outros. */
@@ -197,7 +198,7 @@ export function GroupComposer({
     try {
       await sendMedia(p.uri, p.type, false, caption);
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar');
+      setErr((e as Error).message || t('Não consegui enviar'));
     } finally {
       paste.release(p);
     }
@@ -219,7 +220,7 @@ export function GroupComposer({
   async function startRecording() {
     try {
       const p = await requestRecordingPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso ao microfone para gravar.');
+      if (!p.granted) return setErr(t('Preciso de acesso ao microfone para gravar.'));
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -227,7 +228,7 @@ export function GroupComposer({
       setRecording(true);
       timer.current = setInterval(() => setSecs((s) => s + 1), 1000);
     } catch {
-      setErr('Não consegui gravar.');
+      setErr(t('Não consegui gravar.'));
     }
   }
   async function finishRecording(send: boolean) {
@@ -242,7 +243,7 @@ export function GroupComposer({
       // Sem rede não se perde: fica guardada neste aparelho, na conversa com o reloginho, e vai sozinha (lib/chatMediaSend).
       await sendItem({ kind: 'voice', uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000 });
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
+      setErr((e as Error).message || t('Não consegui enviar a mensagem de voz'));
     } finally {
       setBusy(false);
     }
@@ -261,16 +262,16 @@ export function GroupComposer({
     return (
       <View style={[styles.wrap, pad]}>
         <View style={[styles.pill, { alignItems: 'center' }]}>
-          <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={styles.recX} accessibilityRole="button" accessibilityLabel="Cancelar a gravação">
+          <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={styles.recX} accessibilityRole="button" accessibilityLabel={t('Cancelar a gravação')}>
             <Icon name="trash" size={21} color={colors.zinc700} />
           </Pressable>
-          <View style={styles.recMid} accessibilityLiveRegion="polite" accessibilityLabel={`A gravar, ${mmss}`}>
+          <View style={styles.recMid} accessibilityLiveRegion="polite" accessibilityLabel={t('A gravar, {mmss}', { mmss })}>
             <RecDot />
             <Text style={styles.recTime}>{mmss}</Text>
-            <Text style={styles.recHint}>A gravar…</Text>
+            <Text style={styles.recHint}>{t('A gravar…')}</Text>
           </View>
           <Pop>
-            <SendButton label="Enviar a mensagem de voz" onPress={() => void finishRecording(true)} />
+            <SendButton label={t('Enviar a mensagem de voz')} onPress={() => void finishRecording(true)} />
           </Pop>
         </View>
       </View>
@@ -284,62 +285,62 @@ export function GroupComposer({
       {panel === 'attach' && (
         <View style={styles.attach}>
           {!fit.gallery && (
-            <Pressable onPress={() => { setPanel(null); void pick('library'); }} disabled={busy} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Enviar foto ou vídeo da galeria">
+            <Pressable onPress={() => { setPanel(null); void pick('library'); }} disabled={busy} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Enviar foto ou vídeo da galeria')}>
               <View style={styles.attachIcon}><Icon name="image" size={22} color={colors.zinc800} /></View>
-              <Text style={styles.attachLabel}>Galeria</Text>
+              <Text style={styles.attachLabel}>{t('Galeria')}</Text>
             </Pressable>
           )}
           {onPoll && (
-            <Pressable onPress={() => { setPanel(null); onPoll(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Sondagem: perguntar à malta">
+            <Pressable onPress={() => { setPanel(null); onPoll(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Sondagem: perguntar à malta')}>
               <View style={styles.attachIcon}><Icon name="trending" size={22} color={colors.zinc800} /></View>
-              <Text style={styles.attachLabel}>Sondagem</Text>
+              <Text style={styles.attachLabel}>{t('Sondagem')}</Text>
             </Pressable>
           )}
           {onRound && (
-            <Pressable onPress={() => { setPanel(null); onRound(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Abrir rodada: quem entra e quem paga">
+            <Pressable onPress={() => { setPanel(null); onRound(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Abrir rodada: quem entra e quem paga')}>
               <View style={styles.attachIcon}><Icon name="cheers" size={22} color={colors.zinc800} /></View>
-              <Text style={styles.attachLabel}>Rodada</Text>
+              <Text style={styles.attachLabel}>{t('Rodada')}</Text>
             </Pressable>
           )}
-          <Pressable onPress={openPlace} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Localização: escolher o que enviar">
+          <Pressable onPress={openPlace} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Localização: escolher o que enviar')}>
             <View style={styles.attachIcon}><Icon name="map-pin" size={22} color={colors.zinc800} /></View>
-            <Text style={styles.attachLabel}>Localização</Text>
+            <Text style={styles.attachLabel}>{t('Localização')}</Text>
           </Pressable>
         </View>
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
-        {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={styles.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
+        {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={styles.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : t('A enviar…')}</Text> : null}
         {replyTo && (
           <View style={styles.reply}>
             <View style={styles.replyBar} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.replyWho} numberOfLines={1}>A responder a {replyTo.who ?? ''}</Text>
+              <Text style={styles.replyWho} numberOfLines={1}>{t('A responder a {who}', { who: replyTo.who ?? '' })}</Text>
               <Text style={styles.replyText} numberOfLines={1}>{replyTo.text}</Text>
             </View>
-            <Pressable onPress={onClearReply} hitSlop={6} style={styles.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+            <Pressable onPress={onClearReply} hitSlop={6} style={styles.replyX} accessibilityRole="button" accessibilityLabel={t('Cancelar resposta')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
         <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
         <View style={styles.pill} onLayout={(e) => setPillW(e.nativeEvent.layout.width)}>
-          <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
+          <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel={t('Abrir a câmara')} accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.camera}>
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput ref={paste.ref} value={text} onChangeText={setText} selection={mention.inputProps.selection} onSelectionChange={mention.inputProps.onSelectionChange} onFocus={() => { setPanel(null); mention.inputProps.onFocus(); }} onBlur={mention.inputProps.onBlur} onKeyPress={(e) => { mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e); }} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
+          <TextInput ref={paste.ref} value={text} onChangeText={setText} selection={mention.inputProps.selection} onSelectionChange={mention.inputProps.onSelectionChange} onFocus={() => { setPanel(null); mention.inputProps.onFocus(); }} onBlur={mention.inputProps.onBlur} onKeyPress={(e) => { mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e); }} multiline numberOfLines={1} maxLength={2000} placeholder={t('Mensagem…')} placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel={t('Mensagem')} />
           {hasText ? (
             <Pop key="send">
-              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} keep={input} />
+              <SendButton label={t('Enviar')} onPress={() => void sendText()} disabled={busy} keep={input} />
             </Pop>
           ) : (
             <Pop key="tools" style={styles.tools}>
-              <Tool w={fit.toolW} icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
-              {fit.gallery ? <Tool w={fit.toolW} icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} /> : null}
+              <Tool w={fit.toolW} icon="mic" label={t('Gravar mensagem de voz')} onPress={() => void startRecording()} />
+              {fit.gallery ? <Tool w={fit.toolW} icon="image" label={t('Enviar foto ou vídeo da galeria')} onPress={() => void pick('library')} disabled={busy} /> : null}
               <Tool
                 w={fit.toolW}
                 icon="sticker"
-                label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
+                label={`${gifs.enabled ? t('Stickers e GIFs') : t('Stickers')}${stickersNew ? (' ' + t('(novos)')) : ''}`}
                 on={panel === 'stickers'}
                 dot={stickersNew}
                 onPress={() => {
@@ -348,7 +349,7 @@ export function GroupComposer({
                   setPanel(panel === 'stickers' ? null : 'stickers');
                 }}
               />
-              <Tool w={fit.toolW} icon={panel === 'attach' ? 'x' : 'plus'} label={panel === 'attach' ? 'Fechar o menu' : fit.gallery ? 'Mais: sondagem e localização' : 'Mais: foto e vídeo, sondagem e localização'} on={panel === 'attach'} expanded={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
+              <Tool w={fit.toolW} icon={panel === 'attach' ? 'x' : 'plus'} label={panel === 'attach' ? t('Fechar o menu') : fit.gallery ? t('Mais: sondagem e localização') : t('Mais: foto e vídeo, sondagem e localização')} on={panel === 'attach'} expanded={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
             </Pop>
           )}
         </View>
