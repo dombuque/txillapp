@@ -6,6 +6,9 @@ import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { EmptyState } from '@/components/Empty';
+import { Button } from '@/components/ui/Button';
 import { DuetGlyph } from '@/components/remix/RemixParts';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { StackPage } from '@/components/StackPage';
@@ -70,24 +73,15 @@ export default function RemixesPage() {
               </Pressable>
             ) : null}
             {canDuet ? (
-              <Pressable onPress={() => router.push(duetHref(id) as never)} style={st.duetBtn} accessibilityRole="button">
-                <DuetGlyph size={20} />
-                <Text style={st.duetText}>Fazer dueto</Text>
-              </Pressable>
+              <Button label="Fazer dueto" icon={<DuetGlyph size={20} />} size="md" onPress={() => router.push(duetHref(id) as never)} style={{ marginHorizontal: 16, marginTop: 12 }} />
             ) : null}
-            <View style={st.tabs} accessibilityRole="tablist">
-              {TABS.map((t) => (
-                <Pressable key={t.label} onPress={() => setTab(t.id)} style={[st.tab, tab === t.id && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }}>
-                  <Text style={[st.tabText, tab === t.id && { color: '#fff' }]}>{t.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedTabs tabs={TABS.map((t) => ({ value: t.id ?? 'all', label: t.label }))} value={tab ?? 'all'} onChange={(v) => setTab(v === 'all' ? null : (v as RemixKind))} style={{ marginHorizontal: 16, marginVertical: 12 }} />
           </View>
         }
         ListEmptyComponent={
           q.isLoading ? <View style={st.empty}><ActivityIndicator /></View>
-            : q.isError ? <View style={st.empty}><Text style={st.emptyText}>Esta tcheka já não está disponível.</Text></View>
-            : <View style={st.empty}><Text style={st.emptyTitle}>Ainda não há {tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}</Text><Text style={st.emptyText}>Quando alguém fizer, aparece aqui.</Text></View>
+            : q.isError ? <EmptyState icon="film" title="Esta tcheka já não está disponível" />
+            : <EmptyState icon="film" title={`Ainda não há ${tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}`} text="Quando alguém fizer, aparece aqui." />
         }
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
         ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }} loading={q.isFetchingNextPage} label="Ver mais duetos e respostas" /> : undefined}

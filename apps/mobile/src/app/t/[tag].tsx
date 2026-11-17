@@ -6,6 +6,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { PostCard } from '@/components/PostCard';
 import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { ApiError, api } from '@/lib/api';
@@ -48,13 +49,7 @@ export default function TagScreen() {
                 <Text style={st.b}>{first.posts}</Text> {first.posts === 1 ? 'publicação' : 'publicações'} · <Text style={st.b}>{first.authors}</Text> {first.authors === 1 ? 'pessoa' : 'pessoas'}
               </Text>
             )}
-            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="tablist">
-              {([['recent', 'Recentes'], ['top', 'Mais reagidas']] as const).map(([k, label]) => (
-                <Pressable key={k} onPress={() => setSort(k)} style={[st.pill, sort === k && { backgroundColor: colors.brand }]} accessibilityRole="tab" accessibilityState={{ selected: sort === k }}>
-                  <Text style={[st.pillText, sort === k && { color: '#fff' }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedTabs tabs={[{ value: 'recent', label: 'Recentes' }, { value: 'top', label: 'Mais reagidas' }]} value={sort} onChange={setSort} />
           </View>
         }
         ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (q.error instanceof ApiError && q.error.status === 404 ? <Empty icon="search" title="Esta hashtag não existe" /> : <ErrorState what="esta hashtag" onRetry={() => void q.refetch()} />) : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}

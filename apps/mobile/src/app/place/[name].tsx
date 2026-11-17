@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { locaisApi } from '@/lib/api.locais';
@@ -53,16 +54,8 @@ export default function PlaceScreen() {
           <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
         </Pressable>
       )}
-      <View accessibilityRole="tablist" style={{ marginVertical: 16, flexDirection: 'row', gap: 8 }}>
-        {([['at', 'Neste sítio'], ['near', 'Perto']] as const).map(([k, text]) => {
-          const dis = k === 'near' && !!first && !first.hasNear;
-          return (
-            <Pressable key={k} onPress={() => setMode(k)} disabled={dis} accessibilityRole="tab" accessibilityState={{ selected: mode === k, disabled: dis }} style={[st.tab, mode === k && { backgroundColor: colors.zinc900 }, dis && { opacity: 0.4 }]}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: mode === k ? '#fff' : colors.zinc800 }}>{text}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* «Perto» sem posições: fica em «Neste sítio» (e a frase por baixo explica porquê). */}
+      <SegmentedTabs tabs={[{ value: 'at', label: 'Neste sítio' }, { value: 'near', label: 'Perto' }]} value={mode} onChange={(k) => { if (k === 'near' && first && !first.hasNear) return; setMode(k); }} style={{ marginVertical: 16 }} />
       {first && !first.hasNear && <Text style={{ marginBottom: 12, fontSize: 14, lineHeight: 20, color: colors.zinc500 }}>Ainda não há publicações com a posição deste sítio, por isso não dá para ver o que há por perto.</Text>}
     </View>
   );

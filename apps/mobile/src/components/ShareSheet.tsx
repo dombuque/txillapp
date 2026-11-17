@@ -16,6 +16,8 @@ import { SITE_URL, abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { BackButton } from './BackButton';
+import { Button } from './ui/Button';
+import { SearchField } from './ui/SearchField';
 import { NameWithBadge } from './NameWithBadge';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
@@ -207,10 +209,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   return (
     <View>
       <View style={st.searchRow}>
-        <View style={st.search}>
-          <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={term} onChangeText={setTerm} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas e TxillGroups" autoCapitalize="none" autoCorrect={false} style={st.input} />
-        </View>
+        <SearchField value={term} onChangeText={setTerm} placeholder="Procurar" accessibilityLabel="Procurar pessoas e TxillGroups" />
       </View>
 
       <ScrollView style={{ flexGrow: 0, maxHeight: t ? 420 : undefined }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={(e) => { if (sheetScroll) sheetScroll.top.current = e.nativeEvent.contentOffset.y <= 0; }}>
@@ -249,9 +248,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       {picked.length > 0 ? (
         <View style={st.bottom}>
           <TextInput value={message} onChangeText={setMessage} maxLength={500} placeholder="Escrever uma mensagem…" placeholderTextColor={colors.zinc500} accessibilityLabel="Mensagem" style={st.msg} />
-          <Pressable onPress={() => void sendAll()} disabled={busy} accessibilityRole="button" style={({ pressed }) => [st.send, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{busy ? 'A enviar…' : picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`}</Text>
-          </Pressable>
+          <Button label={picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`} onPress={() => void sendAll()} loading={busy} block style={{ marginTop: 12, marginHorizontal: 4 }} />
         </View>
       ) : (
         <View style={st.bottom}>
@@ -380,9 +377,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
             );
           })}
         </View>
-        <Pressable onPress={onPublish} disabled={busy} accessibilityRole="button" style={({ pressed }) => [st.send, { marginTop: 0 }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{busy ? 'A partilhar…' : 'Partilhar no mimo'}</Text>
-        </Pressable>
+        <Button label="Partilhar no mimo" onPress={onPublish} loading={busy} dark block />
       </View>
     </View>
   );
