@@ -100,3 +100,16 @@ test('o painel: "Powered by GIPHY", só com os GIFs ligados, toques ≥ 44 e GIF
   for (const f of ['components/ChatComposer.tsx', 'components/GroupComposer.tsx']) assert.match(read(f), /onGif=\{\(g\) => \{ setPanel\(null\); void dispatch\(gifMessage\(g\)\); \}\}/);
   assert.match(read('components/CommentsSheet.tsx'), /\{gifs\.enabled && \(/);
 });
+
+test('GIF escondido a menores: a lista diz «GIF escondido» e a bolha mostra o cartão no lugar do GIF', () => {
+  assert.equal(g.GIF_HIDDEN_TEXT, 'GIF escondido');
+  assert.equal(g.gifPreviewText({}), 'GIF');
+  assert.equal(g.gifPreviewText({ gifHidden: false }), 'GIF');
+  assert.equal(g.gifPreviewText({ gifHidden: true }), 'GIF escondido');
+  const bubbles = readFileSync(path.join(ROOT, 'src', 'components', 'ChatBubbles.tsx'), 'utf8');
+  // O cartão vem antes da bolha do GIF (o servidor manda gif: null com gifHidden).
+  assert.ok(bubbles.indexOf("m.kind === 'gif' && m.gifHidden") > 0);
+  assert.ok(bubbles.indexOf("m.kind === 'gif' && m.gifHidden") < bubbles.indexOf("m.kind === 'gif' && validGif(m.gif)"));
+  const list = readFileSync(path.join(ROOT, 'src', 'app', '(tabs)', 'messages.tsx'), 'utf8');
+  assert.ok(list.includes('gifPreviewText(m)'));
+});

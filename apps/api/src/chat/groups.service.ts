@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { gifForMinor, readRating } from '../gifs/gif';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
@@ -177,18 +178,19 @@ export class GroupsService {
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
-              CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system, su.display_name AS last_name,
+              CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.gif ->> 'rating' AS last_gif_rating, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system, su.display_name AS last_name,
               (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notHiddenFor('m', '$1')} AND ${notExpired('m')}
                   AND (gm.read_id IS NULL OR m.id > gm.read_id) AND (gm.cleared_id IS NULL OR m.id > gm.cleared_id))::int AS unread
          FROM social.group_members gm
          JOIN social.groups g ON g.id = gm.group_id
-         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND (gm.cleared_id IS NULL OR x.id > gm.cleared_id) ORDER BY x.id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system, x.gif FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND (gm.cleared_id IS NULL OR x.id > gm.cleared_id) ORDER BY x.id DESC LIMIT 1) lm ON true
          LEFT JOIN identity.users su ON su.id = lm.sender_id
         WHERE gm.user_id = $1 AND gm.hidden_at IS ${opts.hidden ? 'NOT NULL' : 'NULL'}
         ORDER BY COALESCE(lm.created_at, g.last_message_at) DESC LIMIT 100`,
       [me],
     );
     const sums = await this.plan.summaries(me, rows.map((r) => r.id as string));
+    const adult = rows.some((r) => r.last_kind === 'gif') ? await this.chat.viewerAdult(me) : true;
     return rows.map((r) => ({
       kind: 'group' as const,
       id: r.id as string,
@@ -202,6 +204,8 @@ export class GroupsService {
       lastMessage: {
         body: r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : ((r.last_body as string | null) ?? ''),
         kind: ((r.last_kind as MessageKind | null) ?? 'text') as MessageKind,
+        /** Numa mensagem GIF, a classificação do GIPHY (null = desconhecida): a app esconde-o a menores se for acima de 'g'. */
+        ...(r.last_kind === 'gif' ? { gifRating: readRating(r.last_gif_rating), ...(!adult && !gifForMinor(r.last_gif_rating) ? { gifHidden: true } : {}) } : {}),
         fromMe: r.last_sender === me,
         // Num aviso de sistema o nome já vai no texto.
         senderName: r.last_sender === me || r.last_kind === 'system' ? null : ((r.last_name as string | null)?.split(' ')[0] ?? null),

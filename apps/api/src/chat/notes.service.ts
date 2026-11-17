@@ -7,6 +7,7 @@ import { blockedBetween, notReportedBy } from '../social/visibility';
 import { badge } from '../common/badge';
 import { PushService } from '../push/push.service';
 import { ChatService } from './chat.service';
+import { GifsService } from '../gifs/gifs.service';
 import { gifForMinor, readGif, type GifInput } from '../gifs/gif';
 import { uuidv7 } from '../common/uuid7';
 import { Scheduler } from '../realtime/scheduler';
@@ -61,6 +62,7 @@ export class NotesService implements OnModuleInit {
     private readonly push: PushService,
     private readonly moderation: ModerationService,
     private readonly scheduler: Scheduler,
+    private readonly gifs: GifsService,
   ) {}
 
   /** A limpeza de hora a hora (só no worker, fora dos testes: aí chama-se `purge()`). */
@@ -199,15 +201,14 @@ export class NotesService implements OnModuleInit {
   /**
    * Publicar a minha nota (24 horas, para os seguidores ou só para os amigos próximos). Não se troca: para escrever outra,
    * apaga-se esta primeiro (uma nota que já expirou sai aqui). Do local guarda-se só o nome do sítio, nunca a posição.
-   * O GIF guarda a classificação do GIPHY; sem ela, se quem publica é menor (a grelha só lhe mostra GIFs 'g'), fica 'g'.
+   * O GIF guarda a classificação que o GIPHY lhe dá (GifsService.confirm; a da app não conta).
    */
   async set(me: string, body: string, musicIn: MusicInput | null = null, extras: NoteExtras = {}) {
     const placeIn = extras.place ?? null;
     this.filter.assertClean(body, placeIn?.name, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(me, musicIn);
     const place: NotePlace | null = placeIn ? { name: placeIn.name.trim().slice(0, 80) } : null;
-    let gif = extras.gif ?? null;
-    if (gif && !gif.rating && !(await this.pool.query(`SELECT ${ADULT_SQL('$1')} AS a`, [me])).rows[0].a) gif = { ...gif, rating: 'g' };
+    const gif = extras.gif ? await this.gifs.confirm(me, extras.gif) : null;
     await this.pool.query('DELETE FROM social.notes WHERE user_id = $1 AND expires_at <= now()', [me]);
     try {
       await this.pool.query(

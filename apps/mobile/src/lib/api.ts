@@ -303,8 +303,10 @@ export interface ChatMessage {
   body: string;
   kind: MsgKind;
   giftAmount?: number | null;
-  /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title? }. */
+  /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title?, rating? }. */
   gif?: import('./gifs').ChatGif | null;
+  /** O servidor não mandou o GIF (quem vê é menor e o GIF é acima de «g» ou sem classificação): mostra-se «GIF escondido». */
+  gifHidden?: boolean;
   post?: Post | null;
   storyUrl: string | null;
   mediaUrl: string | null;
@@ -342,7 +344,7 @@ export interface Conversation extends Badged {
   displayName: string;
   hasAvatar: boolean;
   /** `empty`: limpei a conversa e não chegou nada depois ("Sem mensagens"). Servidores antigos não mandam. */
-  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; at: string; empty?: boolean };
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; at: string; empty?: boolean; gifRating?: string | null; gifHidden?: boolean };
   /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
   ttl?: number | null;
   presence?: Presence | null;
@@ -361,7 +363,7 @@ export interface GroupSummary {
   members: number;
   preview: ({ username: string; displayName: string; hasAvatar: boolean } & Badged)[];
   /** `cleared`: está vazia porque a limpei ("Sem mensagens"); `empty` sem `cleared` = grupo novo, sem mensagens. */
-  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean; cleared?: boolean };
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean; cleared?: boolean; gifRating?: string | null; gifHidden?: boolean };
   /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
   ttl?: number | null;
   unread: number;

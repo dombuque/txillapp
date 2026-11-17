@@ -7,5 +7,6 @@ import { GifsService } from './gifs.service';
   imports: [AuthModule],
   controllers: [GifsController],
   providers: [GifsService],
+  exports: [GifsService],
 })
 export class GifsModule {}

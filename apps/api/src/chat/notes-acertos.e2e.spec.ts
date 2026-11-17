@@ -19,9 +19,9 @@ const gif = (id: string, rating?: string) => ({ id, w: 200, h: 150, url: `https:
 
 /**
  * Os acertos das notas (0178): a limpeza 24 h depois de expirarem, a música retirada, os brindes na exportação, denunciar
- * uma nota e removê-la na fila, os GIFs acima de 'g' escondidos a menores, o local sem posição e o aviso de brinde só uma vez.
+ * uma nota e removê-la na fila, o local sem posição e o aviso de brinde só uma vez.
  */
-describe('Notas: limpeza, música retirada, exportação, denúncia, GIF para menores, local e aviso de brinde (integração)', () => {
+describe('Notas: limpeza, música retirada, exportação, denúncia, local e aviso de brinde (integração)', () => {
   let app: INestApplication;
   let pool: Pool;
   const run = Date.now().toString(36);
@@ -146,7 +146,7 @@ describe('Notas: limpeza, música retirada, exportação, denúncia, GIF para me
     expect(item).toMatchObject({
       type: 'note', reports: 1, reasons: ['harassment'], removed: null, preview: 'Nota feia',
       owner: { username: author.username },
-      note: { body: 'Nota feia', placeName: 'Mutamba', gifUrl: 'https://media2.giphy.com/media/Denuncia1/200w.gif', gifRating: 'pg', musicTitle: null, audience: 'mutual' },
+      note: { body: 'Nota feia', placeName: 'Mutamba', gifUrl: 'https://media2.giphy.com/media/Denuncia1/200w.gif', gifRating: null, musicTitle: null, audience: 'mutual' },
     });
     expect(item.note).not.toHaveProperty('lat');
 
@@ -159,37 +159,8 @@ describe('Notas: limpeza, música retirada, exportação, denúncia, GIF para me
     expect(await queue('actioned')).toMatchObject({ removed: 'moderation', note: { body: 'Nota feia' } });
   });
 
-  it('GIF acima de «g»: menores (e quem não tem data de nascimento) recebem a nota sem o GIF; só GIF, não a recebem', async () => {
-    const adultA = await signup('nga');
-    const onlyGifA = await signup('ngo');
-    const gOk = await signup('ngg');
-    const minor = await signup('ngm', '2011-03-01');
-    const noBirth = await signup('ngn', null);
-    const adult = await signup('ngx');
-    for (const v of [minor, noBirth, adult]) for (const a of [adultA, onlyGifA, gOk]) await follow(v, a);
-    await put(adultA, { body: 'Com GIF forte', gif: gif('Forte13gif', 'pg-13') });
-    await put(onlyGifA, { gif: gif('SoGif13gif', 'r') });
-    await put(gOk, { body: 'GIF leve', gif: gif('LeveGgif', 'g') });
-
-    expect(await noteOf(adult, adultA)).toMatchObject({ gif: expect.objectContaining({ id: 'Forte13gif', rating: 'pg-13' }) });
-    expect(await noteOf(adult, onlyGifA)).toMatchObject({ gif: expect.objectContaining({ id: 'SoGif13gif' }) });
-    for (const v of [minor, noBirth]) {
-      expect(await noteOf(v, adultA)).toMatchObject({ body: 'Com GIF forte', gif: null });
-      expect(await noteOf(v, onlyGifA)).toBeUndefined();
-      expect(await noteOf(v, gOk)).toMatchObject({ gif: expect.objectContaining({ id: 'LeveGgif', rating: 'g' }) });
-      expect((await api().get(`/api/v1/chat/with/${adultA.username}`).set(auth(v)).expect(200)).body.peerNote).toMatchObject({ gif: null });
-    }
-
-    // Sem classificação: de um adulto conta como desconhecida (não vai a menores); de um menor fica 'g'.
-    const adultNoRating = await signup('ngr');
-    const minorAuthor = await signup('ngk', '2010-01-01');
-    await follow(minor, adultNoRating);
-    await follow(minor, minorAuthor);
-    await put(adultNoRating, { body: 'Sem rating', gif: gif('SemRating1') });
-    await put(minorAuthor, { body: 'Do menor', gif: gif('DoMenor1') });
-    expect(await noteOf(minor, adultNoRating)).toMatchObject({ gif: null });
-    expect(await noteOf(minor, minorAuthor)).toMatchObject({ gif: expect.objectContaining({ id: 'DoMenor1', rating: 'g' }) });
-  });
+  // Os GIFs acima de «g» escondidos a menores (notas e mensagens), com a classificação confirmada no GIPHY:
+  // src/gifs/gifs-classificacao.e2e.spec.ts (com o GIPHY simulado).
 
   it('local: só o nome; a base de dados recusa coordenadas', async () => {
     const a = await signup('npa');

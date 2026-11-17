@@ -22,6 +22,7 @@ import { deskZone, isMac, typingNow, useDeskChat, useDeskChatChrome } from '@/li
 import { inboxShortcut, neighbourChat, openChatPath, shortcutHelp } from '@/lib/deskChatKeys';
 import { clearPending } from '@/lib/chatPending';
 import { Icon } from '@/components/Icon';
+import { gifPreviewText } from '@/lib/gifs';
 import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
@@ -63,7 +64,7 @@ import { HIDDEN_PATH, HIDDEN_TITLE } from '@/lib/chatHidden';
 let lastTab: InboxTab | null = null;
 
 /** O texto da última mensagem numa linha da lista (também nas «Conversas ocultas», app/messages/escondidas). */
-export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
+export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean; gifHidden?: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
   if (m.kind === 'voice') return `${you}Mensagem de voz`;
@@ -71,7 +72,7 @@ export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boole
   if (m.kind === 'post') return m.fromMe ? 'Partilhaste uma publicação' : 'Partilhou uma publicação';
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
-  if (m.kind === 'gif') return `${you}GIF`;
+  if (m.kind === 'gif') return `${you}${gifPreviewText(m)}`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
   // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias.", "Ana fez uma captura de ecrã."): o servidor já
   // manda o texto para quem o vê.
