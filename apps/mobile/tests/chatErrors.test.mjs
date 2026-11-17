@@ -54,7 +54,12 @@ test('o ecrã da conversa e a lista usam estas regras', () => {
 test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os botões da pesquisa têm 44 de altura', () => {
   const inbox = read('src/app/(tabs)/messages.tsx');
   assert.match(inbox, /m\.fromMe \? t\('Partilhaste uma publicação'\) : t\('Partilhou uma publicação'\)/);
-  assert.match(inbox, /sBtn: \{ width: 36, height: 44,/);
+  // A pesquisa é o SearchField (44 de altura) e o SuperTxill um acessório dele: 32 com hitSlop de 6, 44 de toque.
+  assert.match(inbox, /<SearchField\n/);
+  assert.match(inbox, /right=\{<SearchFieldButton onPress=\{\(\) => router\.push\('\/supertxill' as never\)\} label=\{t\('Abrir o SuperTxill'\)\}>/);
+  const field = read('src/components/ui/SearchField.tsx');
+  assert.match(field, /<Pressable onPress=\{onPress\} hitSlop=\{6\} style=\{st\.clear\}/);
+  assert.match(field, /clear: \{ width: 32, height: 32,/);
 });
 
 test('a abrir uma conversa, o cabeçalho já mostra o nome e a foto da lista (não aparece vazio e depois salta)', () => {

@@ -4,6 +4,7 @@ import { memo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
+import { Button } from '@/components/ui/Button';
 import { VenueLogo } from '@/components/VenueCard';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { boostsApi, type SponsoredSlot } from '@/lib/api.boosts';
@@ -69,8 +70,8 @@ function EventCard({ slot, a11y, onOpen }: { slot: SponsoredSlot; a11y: string; 
         )}
         <Text style={st.title} numberOfLines={2}>{e.title}</Text>
         <Text style={st.when}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? (' ' + t('· {interested} com interesse', { interested: e.interested })) : ''}</Text>
-        <View style={st.cta}><Text style={st.ctaText}>{t('Ver o evento')}</Text></View>
       </Pressable>
+      <Button label={t('Ver o evento')} size="md" onPress={open} block style={st.cta} />
     </View>
   );
 }
@@ -88,7 +89,6 @@ const st = StyleSheet.create({
   coverEmpty: { backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   title: { marginTop: 12, fontSize: 18, lineHeight: 24, fontWeight: '800', color: colors.zinc900 },
   when: { marginTop: 2, fontSize: 14, color: colors.zinc600 },
-  cta: { marginTop: 12, height: 44, borderRadius: 999, backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  cta: { marginTop: 12 },
   gone: { fontSize: 14, color: colors.zinc600, textAlign: 'center' },
 });

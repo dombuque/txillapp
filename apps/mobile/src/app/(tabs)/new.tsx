@@ -23,6 +23,8 @@ import { MentionSuggest, useMentionSuggest } from '@/components/MentionSuggest';
 import { PhotoTagger } from '@/components/PhotoTagger';
 import { PlaceSheet, type PlaceGeo } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
+import { ActionRow } from '@/components/ui/ActionRow';
+import { Button } from '@/components/ui/Button';
 import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
@@ -772,15 +774,12 @@ export default function Compose() {
     );
   }
 
-  const chipOff = { opacity: 0.4 };
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior="padding">
       <View style={styles.top}>
         <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel={t('Cancelar')}><Icon name="x" size={24} strokeWidth={2} /></Pressable>
         <Text style={styles.title}>{assets.length === 1 && video ? t('Nova tcheka') : t('Nova publicação')}</Text>
-        <Pressable onPress={() => void submit()} disabled={!canPost} style={[styles.publish, !canPost && { backgroundColor: 'rgba(214,51,79,0.4)' }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={styles.publishText}>{t('Publicar')}</Text>}
-        </Pressable>
+        <Button label={t('Publicar')} size="sm" onPress={() => void submit()} loading={busy} disabled={!canPost && !busy} style={styles.publish} />
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }} showsVerticalScrollIndicator={false}>
@@ -843,10 +842,7 @@ export default function Compose() {
                 <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
               </View>
             ) : (
-              <Pressable onPress={() => setPickMusic(true)} style={styles.musicBtn} accessibilityRole="button">
-                <Icon name="music" size={16} color={colors.zinc800} />
-                <Text style={styles.musicText}>{t('Adicionar música')}</Text>
-              </Pressable>
+              <Button label={t('Adicionar música')} kind="secondary" size="sm" icon="music" onPress={() => setPickMusic(true)} style={styles.musicBtn} />
             )}
             {left < 200 ? <Text style={[styles.left, left < 50 && { color: colors.brand, fontWeight: '600' }]} accessibilityLiveRegion="polite">{left}</Text> : null}
           </View>
@@ -909,15 +905,9 @@ export default function Compose() {
 
           <View style={styles.chips}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={pickPhoto} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
-                <Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Foto')}</Text>
-              </Pressable>
-              <Pressable onPress={pickVideo} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
-                <Icon name="video" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Vídeo')}</Text>
-              </Pressable>
-              <Pressable onPress={() => setPlaceOpen(true)} style={styles.chip} accessibilityRole="button">
-                <Icon name="map-pin" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Local')}</Text>
-              </Pressable>
+              <Button label={t('Foto')} kind="secondary" size="md" icon="camera" onPress={pickPhoto} disabled={assets.length >= MAX_PHOTOS} style={styles.chip} />
+              <Button label={t('Vídeo')} kind="secondary" size="md" icon="video" onPress={pickVideo} disabled={assets.length >= MAX_PHOTOS} style={styles.chip} />
+              <Button label={t('Local')} kind="secondary" size="md" icon="map-pin" onPress={() => setPlaceOpen(true)} style={styles.chip} />
             </View>
             {assets.length > 0 ? <Text style={styles.count}>{assets.length}/{MAX_PHOTOS}</Text> : null}
           </View>
@@ -936,10 +926,10 @@ export default function Compose() {
         <PhotoTagger src={assets[tagging].uri} tags={assets[tagging].tags} onDone={(tags) => { setAssets((cur) => cur.map((a, n) => (n === tagging ? { ...a, tags } : a))); setTagging(null); }} />
       ) : null}
       {sourceOpen ? (
-        <Sheet title={t('Adicionar foto')} onClose={() => setSourceOpen(false)}>
-          <View style={{ paddingHorizontal: 24, gap: 8 }}>
-            <Pressable onPress={() => { setSourceOpen(false); void add('camera', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>{t('Tirar foto')}</Text></Pressable>
-            <Pressable onPress={() => { setSourceOpen(false); void add('library', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="image" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>{t('Escolher da galeria')}</Text></Pressable>
+        <Sheet title={t('Adicionar foto')} onClose={() => setSourceOpen(false)} cancel>
+          <View style={{ paddingHorizontal: 16 }}>
+            <ActionRow icon="camera" title={t('Tirar foto')} onPress={() => { setSourceOpen(false); void add('camera', 'photo'); }} />
+            <ActionRow icon="image" title={t('Escolher da galeria')} onPress={() => { setSourceOpen(false); void add('library', 'photo'); }} />
           </View>
         </Sheet>
       ) : null}
@@ -947,9 +937,11 @@ export default function Compose() {
         <Sheet title={t('Sair sem publicar?')} onClose={() => setLeaveOpen(false)}>
           <View style={{ paddingHorizontal: 24 }}>
             <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>{t('Podes guardar isto como rascunho e continuar mais tarde')}</Text>
-            <Pressable onPress={() => void keepDraft()} style={styles.primary} accessibilityRole="button"><Text style={styles.primaryText}>{t('Guardar rascunho')}</Text></Pressable>
-            <Pressable onPress={() => void discard()} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.red600, fontWeight: '700' }]}>{t('Descartar')}</Text></Pressable>
-            <Pressable onPress={() => setLeaveOpen(false)} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.zinc700 }]}>{t('Continuar a editar')}</Text></Pressable>
+            <View style={{ gap: 8 }}>
+              <Button label={t('Guardar rascunho')} onPress={() => void keepDraft()} block />
+              <Button label={t('Descartar')} kind="danger" onPress={() => void discard()} block />
+              <Button label={t('Continuar a editar')} kind="ghost" onPress={() => setLeaveOpen(false)} block />
+            </View>
           </View>
         </Sheet>
       ) : null}
@@ -992,8 +984,8 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 12, paddingTop: 4 },
   x: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   title: { fontSize: 18, fontWeight: '700', color: colors.zinc900 },
-  publish: { height: 40, minWidth: 96, borderRadius: 20, backgroundColor: colors.brand, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' },
-  publishText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  /** «Publicar» (Button sm) no cabeçalho: largura certa a carregar (o ponto no lugar do texto). */
+  publish: { minWidth: 96 },
   hello: { fontSize: 28, fontWeight: '800', lineHeight: 32, color: colors.zinc900, marginTop: 8 },
   helloSub: { marginTop: 6, fontSize: 16, color: colors.zinc600, marginBottom: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
@@ -1013,8 +1005,7 @@ const styles = StyleSheet.create({
   placeText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.brand },
   placeX: { paddingHorizontal: 6, fontSize: 16, color: colors.brand },
   input: { minHeight: 110, fontSize: 20, lineHeight: 28, color: colors.zinc900, textAlignVertical: 'top', padding: 0, outlineStyle: 'none' } as object,
-  musicBtn: { marginTop: 4, alignSelf: 'flex-start', height: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  musicText: { fontSize: 14, fontWeight: '600', color: colors.zinc800 },
+  musicBtn: { marginTop: 4, alignSelf: 'flex-start' },
   musicX: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' },
   left: { textAlign: 'right', fontSize: 12, color: colors.zinc500 },
   video: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
@@ -1030,18 +1021,11 @@ const styles = StyleSheet.create({
   tagBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   remove: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   chips: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
-  chip: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, backgroundColor: colors.zinc100 },
-  chipText: { fontSize: 14, fontWeight: '600', color: colors.zinc800 },
+  chip: { flex: 1, paddingHorizontal: 8 },
   count: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
   err: { marginTop: 12, paddingHorizontal: 24, textAlign: 'center', color: colors.red600 },
   errLine: { marginTop: 16, minHeight: 24, paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.red600 },
   progress: { paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.zinc600 },
-  sheetBtn: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  sheetBtnText: { fontSize: 16, fontWeight: '600', color: colors.zinc800 },
-  primary: { height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  ghost: { marginTop: 8, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 16, fontWeight: '600' },
   draftRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, backgroundColor: '#fafafa', padding: 8, borderWidth: 1, borderColor: colors.zinc100 },
   draftOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 4 },
   draftThumb: { width: 56, height: 56, borderRadius: 12 },

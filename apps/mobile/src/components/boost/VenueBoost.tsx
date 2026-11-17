@@ -1,14 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { Button } from '@/components/ui/Button';
 import { PontoLoader } from '@/components/PontoLoader';
 import { boostsApi, type BoostCampaign, type BoostOptions } from '@/lib/api.boosts';
 import { newKey } from '@/lib/api.extra';
 import type { Venue } from '@/lib/api.locais';
 import { STATE_LABEL, priceFor, refundPreview, reportLines, shortWhen, txills, type BoostPackageId } from '@/lib/boostView';
 import { sized } from '@/lib/config';
+import { confirm } from '@/lib/confirm';
 import { iap } from '@/lib/iap';
 import { doneMessage, outcomeMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
 import { boostPackLabel, boostPackageFor, storeName } from '@/lib/iap/view';
@@ -20,13 +22,9 @@ import { intlLocale, t } from '@/lib/i18n';
 export const boostKey = (slug: string) => ['venue-boosts', slug] as const;
 const optionsKey = (slug: string) => ['venue-boost-options', slug] as const;
 
-/** Confirmação igual no telemóvel e no site. */
+/** Confirmação igual no telemóvel e no site (a caixa da app, lib/confirm). */
 function confirmThen(title: string, text: string, ok: string, go: () => void) {
-  if (Platform.OS === 'web') {
-    if (confirm(`${title}\n\n${text}`)) go();
-    return;
-  }
-  Alert.alert(title, text, [{ text: t('Cancelar'), style: 'cancel' }, { text: ok, onPress: go }]);
+  void confirm({ title, message: text, confirm: ok }).then((yes) => { if (yes) go(); });
 }
 
 /**
@@ -133,7 +131,7 @@ export function VenueBoost({ v }: { v: Venue }) {
           <Icon name="flame" size={22} color={colors.brand} />
           <Text style={[st.hint, { flex: 1 }]}>{t('Nesta versão da app não se criam campanhas novas do Bombar. Aqui vês as campanhas do local, com o relatório, e podes parar as que estão ativas.')}</Text>
         </View>
-        {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.red600 }}>{msg.text}</Text> : null}
+        {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.danger }}>{msg.text}</Text> : null}
         <Campaigns title={t('Ativas')} items={camps.data?.active ?? []} onStop={stop} empty={t('Nenhuma campanha a bombar agora.')} />
         <Campaigns title={t('Passadas')} items={camps.data?.past ?? []} empty={t('Ainda não há campanhas passadas.')} />
       </View>
@@ -199,16 +197,14 @@ export function VenueBoost({ v }: { v: Venue }) {
 
           <View style={st.total} accessibilityLiveRegion="polite">
             <Text style={st.totalText}>{t('Custa')} {price != null ? txills(price) : '…'}</Text>
-            <Text style={[st.small, short && { color: colors.red600 }]}>{short ? t('Faltam {txills} na carteira do local.', { txills: txills((price ?? 0) - o.balance) }) : t('Ficam {txills}.', { txills: txills(o.balance - (price ?? 0)) })}</Text>
+            <Text style={[st.small, short && { color: colors.danger }]}>{short ? t('Faltam {txills} na carteira do local.', { txills: txills((price ?? 0) - o.balance) }) : t('Ficam {txills}.', { txills: txills(o.balance - (price ?? 0)) })}</Text>
           </View>
-          <Pressable onPress={submit} disabled={busy || !target || short || price == null} style={[st.cta, (busy || !target || short || price == null) && { opacity: 0.5 }]} accessibilityRole="button">
-            <Text style={st.ctaText}>{busy ? t('A bombar…') : price != null ? t('Bombar por {txills}', { txills: txills(price) }) : t('Bombar')}</Text>
-          </Pressable>
+          <Button label={price != null ? t('Bombar por {txills}', { txills: txills(price) }) : t('Bombar')} onPress={submit} loading={busy} disabled={!target || short || price == null} block />
           <Text style={st.small}>{t('Pode ser parada a qualquer momento: voltam os dias inteiros que faltam (tudo, se ainda não começou). O local só vê totais, nunca quem viu.')}</Text>
         </View>
       )}
 
-      {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.red600 }}>{msg.text}</Text> : null}
+      {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.danger }}>{msg.text}</Text> : null}
 
       <Campaigns title={t('Ativas')} items={camps.data?.active ?? []} onStop={stop} empty={t('Nenhuma campanha a bombar agora.')} />
       <Campaigns title={t('Passadas')} items={camps.data?.past ?? []} empty={t('Ainda não há campanhas passadas.')} />
@@ -348,13 +344,11 @@ function StoreBoost({ v, o, target, setTarget, onDone }: { v: Venue; o: BoostOpt
               );
             })}
           </View>
-          <Pressable onPress={() => void buy()} disabled={busy || !target || !pack || !price} style={[st.cta, (busy || !target || !pack || !price) && { opacity: 0.5 }]} accessibilityRole="button">
-            <Text style={st.ctaText}>{busy ? t('A bombar…') : price ? t('Bombar por {price}', { price }) : t('Bombar')}</Text>
-          </Pressable>
+          <Button label={price ? t('Bombar por {price}', { price }) : t('Bombar')} onPress={() => void buy()} loading={busy} disabled={!target || !pack || !price} block />
           <Text style={st.small}>{t('Pagas pela {store}, ao preço que ela mostra, e a campanha começa logo que a compra for confirmada. O local só vê totais, nunca quem viu.', { store })}</Text>
         </View>
       )}
-      {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.red600 }}>{msg.text}</Text> : null}
+      {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.danger }}>{msg.text}</Text> : null}
     </>
   );
 }
@@ -392,9 +386,7 @@ function CampaignCard({ c, onStop }: { c: BoostCampaign; onStop?: (c: BoostCampa
         ))}
       </View>
       {live && onStop ? (
-        <Pressable onPress={() => onStop(c)} style={st.stop} accessibilityRole="button" accessibilityLabel={t('Parar a campanha de {title}', { title: c.target.title })}>
-          <Text style={st.stopText}>{t('Parar')}</Text>
-        </Pressable>
+        <Button label={t('Parar')} kind="danger" size="sm" onPress={() => onStop(c)} style={st.stop} accessibilityLabel={t('Parar a campanha de {title}', { title: c.target.title })} />
       ) : null}
     </View>
   );
@@ -423,8 +415,6 @@ const st = StyleSheet.create({
   kmText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
   total: { marginTop: 4, gap: 2 },
   totalText: { fontSize: 20, fontWeight: '800', color: colors.zinc900 },
-  cta: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   camp: { gap: 8, borderRadius: 16, backgroundColor: '#fafafa', padding: 12 },
   badge: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 12, fontWeight: '700', color: colors.zinc700 },
@@ -432,6 +422,5 @@ const st = StyleSheet.create({
   stat: { flexBasis: '31%', flexGrow: 1, borderRadius: 12, backgroundColor: colors.white, padding: 8 },
   statValue: { fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   statLabel: { fontSize: 11, color: colors.zinc600 },
-  stop: { alignSelf: 'flex-start', height: 36, borderRadius: 999, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
-  stopText: { fontSize: 14, fontWeight: '700', color: colors.red600 },
+  stop: { alignSelf: 'flex-start' },
 });
