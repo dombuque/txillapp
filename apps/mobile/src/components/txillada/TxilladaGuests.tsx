@@ -8,7 +8,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { TxilladaVideo } from '@/components/txillada/TxilladaVideo';
 import { api } from '@/lib/api';
-import { colors } from '@/lib/theme';
+import { colors, dark as D } from '@/lib/theme';
 import type { TxilladaPerson } from '@/lib/txillada';
 import {
   GUESTS_MAX, inviteHandle, inviteInput, inviteRow, inviteSentText, labelOffset, stageLayout, type GuestPending, type GuestsState,
@@ -116,12 +116,14 @@ function Row({ p, children }: { p: GuestPending | { user: Pick<TxilladaPerson, '
 function Small({ label, kind = 'ghost', onPress, disabled }: { label: string; kind?: 'ghost' | 'brand' | 'danger'; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} hitSlop={4} style={({ pressed }) => [st.small, kind === 'brand' ? st.smallBrand : st.smallGhost, pressed && st.pressed, disabled && { opacity: 0.45 }]} accessibilityRole="button" accessibilityLabel={label}>
-      <Text style={[st.smallText, kind === 'brand' && { color: '#fff' }, kind === 'danger' && { color: colors.red600 }]}>{label}</Text>
+      <Text style={[st.smallText, kind === 'brand' && { color: '#fff' }, kind === 'danger' && { color: DANGER_ON_DARK }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const SUGGEST_MS = 180;
+/** O vermelho das ações que tiram (Tirar, Retirar), mais claro para se ler na folha escura. */
+const DANGER_ON_DARK = '#fca5a5';
 
 /**
  * «Convidar por @» (0168): o anfitrião escreve o @ (com as sugestões das pessoas mais próximas, com o selo) e convida. Também
@@ -165,7 +167,7 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
           value={text}
           onChangeText={(t) => { setText(inviteInput(t)); if (msg) setMsg(null); }}
           placeholder="nome de utilizador"
-          placeholderTextColor={colors.zinc500}
+          placeholderTextColor={D.sub}
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="off"
@@ -224,11 +226,11 @@ export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, 
       {s.invites.length ? (
         <>
           <Text style={st.section}>Convites à espera</Text>
-          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label="Retirar" onPress={() => onRemove(g.user.username)} /></Row>)}
+          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label="Retirar" kind="danger" onPress={() => onRemove(g.user.username)} /></Row>)}
         </>
       ) : null}
       <Pressable onPress={onOpenViewers} style={({ pressed }) => [st.viewersLink, pressed && { opacity: 0.7 }]} accessibilityRole="button">
-        <Icon name="user-plus" size={18} color={colors.brand} strokeWidth={2} />
+        <Icon name="user-plus" size={18} color={colors.brandWarm} strokeWidth={2} />
         <Text style={st.viewersLinkText}>Convidar alguém de «A ver agora»</Text>
       </Pressable>
     </ScrollView>
@@ -257,24 +259,25 @@ const st = StyleSheet.create({
   btnBrand: { backgroundColor: colors.brand },
   btnBrandText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   pressed: { transform: [{ scale: 0.96 }] },
-  section: { marginTop: 10, marginBottom: 2, paddingHorizontal: 4, color: colors.zinc500, fontSize: 12.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  empty: { paddingHorizontal: 4, paddingVertical: 10, color: colors.zinc500, fontSize: 14.5 },
-  hint: { paddingHorizontal: 4, paddingBottom: 6, color: colors.zinc500, fontSize: 13 },
+  // A lista dos convidados vive no Panel escuro (Sheet `dark`): as cores vêm de `dark` do tema.
+  section: { marginTop: 10, marginBottom: 2, paddingHorizontal: 4, color: D.sub, fontSize: 12.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  empty: { paddingHorizontal: 4, paddingVertical: 10, color: D.sub, fontSize: 14.5 },
+  hint: { paddingHorizontal: 4, paddingBottom: 6, color: D.sub, fontSize: 13 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4 },
-  rowName: { color: colors.zinc900, fontSize: 15.5, fontWeight: '700' },
-  rowUser: { color: colors.zinc500, fontSize: 13.5, marginTop: 1 },
+  rowName: { color: D.text, fontSize: 15.5, fontWeight: '700' },
+  rowUser: { color: D.sub, fontSize: 13.5, marginTop: 1 },
   rowBtns: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  small: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  smallGhost: { backgroundColor: colors.zinc100 },
+  small: { height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  smallGhost: { backgroundColor: D.raised },
   smallBrand: { backgroundColor: colors.brand },
-  smallText: { color: colors.zinc900, fontSize: 14, fontWeight: '700' },
+  smallText: { color: D.text, fontSize: 14, fontWeight: '700' },
   viewersLink: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
-  viewersLinkText: { color: colors.brand, fontSize: 15, fontWeight: '700' },
-  atField: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, marginTop: 4, paddingLeft: 14, paddingRight: 6, borderRadius: 23, backgroundColor: colors.zinc100 },
-  atSign: { color: colors.zinc500, fontSize: 16, fontWeight: '700' },
-  atInput: { flex: 1, minWidth: 0, height: 44, color: colors.zinc900, fontSize: 16, outlineStyle: 'none' as never },
+  viewersLinkText: { color: colors.brandWarm, fontSize: 15, fontWeight: '700' },
+  atField: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, marginTop: 4, paddingLeft: 14, paddingRight: 6, borderRadius: 23, backgroundColor: D.raised },
+  atSign: { color: D.sub, fontSize: 16, fontWeight: '700' },
+  atInput: { flex: 1, minWidth: 0, height: 44, color: D.text, fontSize: 16, outlineStyle: 'none' as never },
   atMsg: { marginHorizontal: 4, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', fontSize: 14, fontWeight: '600' },
-  atOk: { color: colors.zinc900, backgroundColor: colors.zinc100 },
-  atErr: { color: colors.red600, backgroundColor: 'rgba(220,38,38,0.08)' },
-  rowState: { color: colors.zinc500, fontSize: 13.5, fontWeight: '700', paddingHorizontal: 6 },
+  atOk: { color: D.text, backgroundColor: D.raised },
+  atErr: { color: DANGER_ON_DARK, backgroundColor: 'rgba(185,28,28,0.22)' },
+  rowState: { color: D.sub, fontSize: 13.5, fontWeight: '700', paddingHorizontal: 6 },
 });
