@@ -373,7 +373,11 @@ function transformFile(sf, seed) {
       let arr = u.parent; while (arr && ts.isParenthesizedExpression(arr)) arr = arr.parent;
       if (arr && ts.isArrayLiteralExpression(arr)) {
         const strs = arr.elements.map(skipOuter).filter((x) => ts.isStringLiteralLike(x));
-        const allTexty = strs.length >= 2 && strs.every((x) => LETTER.test(x.text) && !codeLike(x.text) && !/^[a-z]+[A-Z_]/.test(x.text));
+        const keyish = (s) => /^[a-z][a-z0-9]*$/.test(s);
+        const labelish = (s) => /^[A-ZÀ-Ú]/.test(s) || /\s/.test(s.trim());
+        // ['female', 'Feminino'] é um par chave/rótulo, não uma lista: não se decide em conjunto
+        const mixed = strs.some((x) => keyish(x.text)) && strs.some((x) => labelish(x.text));
+        const allTexty = !mixed && strs.length >= 2 && strs.every((x) => LETTER.test(x.text) && !codeLike(x.text) && !/^[a-z]+[A-Z_]/.test(x.text));
         const any = strs.filter((x) => judge(x.text, 'weak').ok).length;
         if (allTexty && any > 0) { const v2 = judge(phrase.staticText, 'strong'); if (v2.ok) verdict = { ok: true, doubt: verdict.ok ? verdict.doubt : 'lista decidida em conjunto' }; }
       }
