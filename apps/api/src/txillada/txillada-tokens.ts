@@ -11,4 +11,6 @@ export interface TxilladaHooks {
   afterBlock(a: string, b: string): Promise<void>;
   /** Depois de a moderação remover um comentário denunciado (já gravado): quem está na sala deixa de o ver. */
   afterCommentRemoved(commentId: string): Promise<void>;
+  /** Depois de a moderação retirar uma Txillada agendada denunciada (já 'removed'): avisa quem pediu lembrete. */
+  afterScheduleRemoved(scheduleId: string): Promise<void>;
 }

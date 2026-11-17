@@ -90,7 +90,8 @@ export type NotificationKind ='blocked' | 'follow' | 'follow_request' | 'request
   // Txillada agendada (0176, docs/txillada-agendar.md). data: { scheduleId, startsAt, title }.
   // txillada_scheduled_soon: ao anfitrião, começa daqui a 15 min; txillada_scheduled_now: ao anfitrião, é agora (+ reminders).
   // Os dois vêm do próprio anfitrião (ator = ele) e a lista mostra-os como Txillapp (ver notifySelf).
-  // txillada_scheduled_cancelled: a quem pediu lembrete, o anfitrião cancelou ou (com moved: true e newStartsAt) mudou a hora.
+  // txillada_scheduled_cancelled: a quem pediu lembrete, o anfitrião cancelou ou (com moved: true e newStartsAt) mudou a hora;
+  // com removed: true, a moderação retirou-a (ator = o anfitrião).
   | 'txillada_scheduled_soon' | 'txillada_scheduled_now' | 'txillada_scheduled_cancelled';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
@@ -102,7 +103,7 @@ const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
   type === 'comment' ? 'o teu comentário' : type === 'txillada_comment' ? 'o teu comentário na Txillada' : type === 'mixar_comment' ? 'o teu comentário no Mixar' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
-  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : tcheka ? 'a tua tcheka' : 'a tua publicação';
+  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : type === 'txillada' ? 'a tua Txillada' : type === 'txillada_schedule' ? 'a tua Txillada agendada' : tcheka ? 'a tua tcheka' : 'a tua publicação';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -272,9 +273,11 @@ export class NotificationsService {
       // «Convidar por @» (0168): abre a Txillada, onde está o cartão do convite (numa privada, sem pagar).
       // Uma menção num comentário (txillada-voltar, `data.mention`): «vem ver» (de quem comentou; «de @anfitrião» se não foi ele).
       txillada_invite: { body: txInviteBody(a?.username as string | undefined, n.data), url: txUrl },
-      // Txillada agendada (0176): o anfitrião cancelou ou mudou a hora. Abre o cartão do agendamento.
+      // Txillada agendada (0176): o anfitrião cancelou ou mudou a hora, ou a moderação retirou-a. Abre o cartão do agendamento.
       txillada_scheduled_cancelled: {
-        body: n.data?.moved
+        body: n.data?.removed
+          ? `A Txillada de @${String(a?.username ?? 'alguém')} foi retirada`
+          : n.data?.moved
           ? `@${String(a?.username ?? 'alguém')} mudou a Txillada para ${whenLabel(String(n.data?.newStartsAt ?? ''))}`
           : `@${String(a?.username ?? 'alguém')} cancelou a Txillada de ${whenLabel(String(n.data?.startsAt ?? ''))}`,
         url: typeof n.data?.scheduleId === 'string' ? `/txillada/agendada/${encodeURIComponent(n.data.scheduleId)}` : '/notifications',
