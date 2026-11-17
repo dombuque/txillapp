@@ -302,8 +302,11 @@ describe('Txillada: os lives (integração)', () => {
     expect((await pool.query('SELECT video_on FROM content.txilladas WHERE id = $1', [id])).rows[0].video_on).toBe(false);
     // Uma sala que não é nossa: 200 e nada.
     expect((await webhook({ event: 'room_finished', room: { name: 'outra-sala' } })).status).toBe(200);
-    // room_finished: acaba, e quem estava a ver recebe txillada.ended.
+    // room_finished: a sala fechou, mas o anfitrião tem a margem para voltar (só a tarefa acaba, ver txillada-ligacao).
     expect((await webhook({ event: 'room_finished', room: { name: room } })).status).toBe(200);
+    expect((await pool.query('SELECT status, host_gone_at IS NOT NULL AS gone FROM content.txilladas WHERE id = $1', [id])).rows[0]).toEqual({ status: 'live', gone: true });
+    // O anfitrião termina: quem estava a ver recebe txillada.ended.
+    await api().post(`/api/v1/txilladas/${id}/end`).set(auth(host)).expect(200);
     const t = (await get(ana, id).expect(200)).body;
     expect(t).toMatchObject({ status: 'ended', viewers: 0, canComment: false });
     expect(t.endedAt).toBeTruthy();
@@ -329,24 +332,24 @@ describe('Txillada: os lives (integração)', () => {
     await api().post(`/api/v1/txilladas/${id}/end`).set(auth(host)).expect(200);
   });
 
-  it('fim automático: sem vídeo há 60 s (confirmado no LiveKit) e o limite das 4 h', async () => {
+  it('fim automático: o anfitrião fora da sala há mais de 3 min (confirmado no LiveKit) e o limite das 4 h', async () => {
     const { host, zed } = u;
     const status = async (id: string) => (await pool.query('SELECT status FROM content.txilladas WHERE id = $1', [id])).rows[0].status as string;
     await svc.sweep(); // as que tenham ficado de outras corridas
     const a = (await open(host, 'Sem vídeo').expect(201)).body.txillada.id as string;
-    // Ainda dentro dos 60 s: fica.
+    // Ainda dentro da margem (o anfitrião ainda não entrou na sala): fica.
     expect(await svc.sweep()).toBe(0);
     expect(await status(a)).toBe('live');
-    await pool.query(`UPDATE content.txilladas SET video_at = now() - interval '2 minutes' WHERE id = $1`, [a]);
-    // O LiveKit diz que o anfitrião publica vídeo (o webhook perdeu-se): fica, e conta de novo.
+    await pool.query(`UPDATE content.txilladas SET host_gone_at = now() - interval '4 minutes' WHERE id = $1`, [a]);
+    // O LiveKit diz que o anfitrião está lá a publicar (o webhook perdeu-se): fica, e a margem cai.
     inRoom[`tx-${a}`] = [{ identity: host.id, videoTracks: 1 }];
     expect(await svc.sweep()).toBe(0);
-    expect((await pool.query('SELECT status, video_at > now() - interval \'10 seconds\' AS fresh FROM content.txilladas WHERE id = $1', [a])).rows[0]).toEqual({ status: 'live', fresh: true });
-    // Sem vídeo: acaba.
-    await pool.query(`UPDATE content.txilladas SET video_at = now() - interval '2 minutes' WHERE id = $1`, [a]);
-    inRoom[`tx-${a}`] = [{ identity: host.id, videoTracks: 0 }];
+    expect((await pool.query('SELECT status, host_gone_at FROM content.txilladas WHERE id = $1', [a])).rows[0]).toEqual({ status: 'live', host_gone_at: null });
+    // Fora há mais de 3 min e o LiveKit confirma: acaba, com o motivo 'lost'.
+    await pool.query(`UPDATE content.txilladas SET host_gone_at = now() - interval '4 minutes' WHERE id = $1`, [a]);
+    inRoom[`tx-${a}`] = [];
     expect(await svc.sweep()).toBe(1);
-    expect((await pool.query('SELECT status FROM content.txilladas WHERE id = $1', [a])).rows[0].status).toBe('ended');
+    expect((await pool.query('SELECT status, end_reason FROM content.txilladas WHERE id = $1', [a])).rows[0]).toEqual({ status: 'ended', end_reason: 'lost' });
     // Com vídeo pelo webhook mas há mais de 4 h: acaba (limite de segurança).
     const b = (await open(zed, 'Maratona').expect(201)).body.txillada.id as string;
     await pool.query(`UPDATE content.txilladas SET video_on = true, video_at = now(), started_at = now() - interval '4 hours 1 minute' WHERE id = $1`, [b]);
