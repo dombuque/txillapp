@@ -48,13 +48,14 @@ test('4.8: o «Entrar com Google» só aparece na web, nunca na versão da App S
   assert.match(read('src/components/GoogleButton.tsx'), /if \(!googleSignInAllowed\(Platform\.OS, CHANNEL\)\) return null;/);
 });
 
-test('2.1/2.2: nas lojas não há «em breve» no ecrã do idioma', () => {
+test('2.1/2.2: nas lojas não há «em breve» no ecrã «Idiomas»', () => {
   assert.equal(showComingSoon('appstore'), false);
   assert.equal(showComingSoon('play'), false);
   assert.equal(showComingSoon('web'), true);
+  // O ecrã «Idiomas» é igual em todas as versões: a lista de LANGS, sem nada «em breve» (o inglês já existe).
   const src = read('src/app/language.tsx');
-  assert.match(src, /const SOON = showComingSoon\(CHANNEL\)/);
-  assert.match(src, /\{SOON \? <Line icon="globe" label=\{t\('English'\)\}/);
+  assert.doesNotMatch(src, /em breve|showComingSoon|Traduções|Traduzir publicações/i);
+  assert.match(src, /LANGS\.map/);
 });
 
 test('2.3.10: o aviso de nova versão (APK) só corre no Android (e só no APK beta: ver tests/googlePlay.test.mjs)', () => {

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BrandLoader } from '@/components/PontoLoader';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -35,7 +35,7 @@ import { useIapRuntime } from '@/lib/iap';
 import { colors } from '@/lib/theme';
 import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
-import { t } from '@/lib/i18n';
+import { onLanguageChange, t } from '@/lib/i18n';
 
 void SplashScreen.preventAutoHideAsync();
 // As caixas de confirmação (Alert.alert) abrem a caixa da app em todo o lado (AlertHost): igual no APK e no site.
@@ -238,8 +238,11 @@ function Gate() {
 }
 
 export default function RootLayout() {
+  // Mudar de idioma no telemóvel (Definições, Idiomas): a app volta a montar-se toda, já no idioma novo (lib/i18n).
+  const [langKey, setLangKey] = useState(0);
+  useEffect(() => onLanguageChange(() => setLangKey((k) => k + 1)), []);
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView key={langKey} style={{ flex: 1 }}>
       <SafeAreaProvider>
         <WebTopInset>
         <QueryClientProvider client={queryClient}>

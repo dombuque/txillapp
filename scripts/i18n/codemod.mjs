@@ -39,7 +39,7 @@ const EXCLUDE_FILES = [/\/src\/lib\/legalText\.ts$/, /\/src\/lib\/i18n\.ts$/, /\
 const GLOSSARY = (() => {
   const p = path.join(ROOT, 'scripts/i18n/glossary.json');
   const base = ['Txillapp', 'Txillada', 'Txilladas', 'mimo', 'mimos', 'tchekas', 'tcheka', 'Zás', 'vibes', 'vib', 'Mixar', 'geleira', 'gelada', 'geladas', 'TxillGroup', 'TxillGroups', 'SuperTxill', 'Paga-me uma', 'malta'];
-  try { const g = JSON.parse(fs.readFileSync(p, 'utf8')); const list = Array.isArray(g) ? g : g.terms ?? Object.keys(g); return new Set([...base, ...list].map((s) => String(s).toLowerCase())); } catch { return new Set(base.map((s) => s.toLowerCase())); }
+  try { const g = JSON.parse(fs.readFileSync(p, 'utf8')); const list = Array.isArray(g) ? g : g.keep ?? g.terms ?? []; return new Set([...base, ...list].map((s) => String(s).toLowerCase())); } catch { return new Set(base.map((s) => s.toLowerCase())); }
 })();
 /** Textos visíveis que não são português e ficam como estão (marca, slogans). */
 const KEEP_AS_IS = new Set(['Txill with the crew', 'OK', 'Ok', 'GIF', 'QR', 'PIN', 'Wi-Fi', 'Google', 'Apple', 'WhatsApp', 'Instagram', 'TikTok', 'Facebook', 'Spotify', 'YouTube', 'M-Pesa', 'e-Mola', 'mKesh', 'Emola', 'iOS', 'Android', 'Safari', 'Chrome']);

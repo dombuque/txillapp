@@ -35,7 +35,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: 'conteudo', title: 'Conteúdo e o teu algoritmo', subtitle: 'Algoritmo, guardados, tchekas e mais', icon: 'sliders', keywords: ['content', 'feed', 'algoritmo', 'estatísticas', 'convites', 'tchekas', 'sons', 'duetos', 'remix'] },
   { id: 'mensagens', title: 'Mensagens e chamadas', subtitle: 'Quem te escreve e quem te liga', icon: 'messages', keywords: ['messages', 'chat', 'conversas', 'chamadas', 'calls'] },
   { id: 'pagamentos', title: 'Vibes e pagamentos', subtitle: 'Carteira, pedidos e recargas', icon: 'wallet', keywords: ['payments', 'carteira', 'dinheiro', 'vibes', 'vib', 'txills', 'presentes'] },
-  { id: 'aparencia', title: 'Aparência e idioma', subtitle: 'Idioma, traduções e tema', icon: 'globe', keywords: ['appearance', 'idioma', 'língua', 'tema', 'language'] },
+  { id: 'aparencia', title: 'Aparência e idioma', subtitle: 'Idiomas e tema', icon: 'globe', keywords: ['appearance', 'idioma', 'idiomas', 'língua', 'tema', 'language'] },
   { id: 'seguranca', title: 'Segurança', subtitle: 'Senha, sessões e aparelhos', icon: 'shield', keywords: ['security', 'senha', 'sessões', 'aparelhos'] },
   { id: 'ajuda', title: 'Ajuda e sobre', subtitle: 'Ajuda, termos, versão e atualizações', icon: 'info', keywords: ['help', 'suporte', 'sobre', 'versão', 'privacidade'] },
 ];
@@ -158,7 +158,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'wallet', group: 'pagamentos', title: 'Vibes e presentes', to: '/wallet', keywords: ['carteira', 'saldo', 'vibes', 'vib', 'txills', 'moedas', 'presentes', 'o que são vibes', 'o que são txills', 'levantar', 'trocar por dinheiro'] },
   { id: 'orders', group: 'pagamentos', title: 'Pedidos e pagamentos', to: '/orders', keywords: ['recarregar', 'comprar vibes', 'comprar txills', 'pagamentos', 'm-pesa', 'mpesa', 'pedidos', 'recarga'] },
   // Aparência e idioma
-  { id: 'language', group: 'aparencia', title: 'Idioma e traduções', to: '/language', keywords: ['língua', 'português', 'inglês', 'english', 'traduzir', 'tradução'] },
+  { id: 'language', group: 'aparencia', title: 'Idiomas', to: '/language', keywords: ['idioma', 'língua', 'português', 'inglês', 'english', 'language', 'languages'] },
   { id: 'theme', group: 'aparencia', title: 'Tema', keywords: ['modo escuro', 'escuro', 'claro', 'dark mode', 'cores', 'aparência'] },
   // Segurança
   { id: 'password', group: 'seguranca', title: 'Alterar senha', keywords: ['palavra-passe', 'password', 'mudar senha', 'senha', 'palavra passe'] },

@@ -1,6 +1,6 @@
 import { BookmarkIcon } from '../components/PostCard';
 import { inviteShare, shareNow } from '../lib/share';
-import { tr } from '../lib/i18n';
+import { tr, tk } from '../lib/i18n';
 import { LoadingBlock } from '../components/Loading';
 import { APP_URL, useInstall } from '../lib/install';
 import PushToggle from '../components/PushToggle';
@@ -150,14 +150,14 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
 
 /** "Instalar a app" nas definições: botão no Android, instruções no iPhone, e "instalada" quando já está. */
 const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e grupos'],
-  follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
-  comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus stories'],
-  mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
-  reposts: ['Reposts', 'Quando repostam uma publicação tua'],
-  gifts: ['Brindes', 'Quando te oferecem vibes'],
-  reactions: ['Reações', 'Nas tuas notas e nos teus Zás'],
-  invites: ['Convites', 'Quando alguém entra com o teu convite'],
+  messages: [tk('Mensagens'), tk('Conversas e grupos')],
+  follows: [tk('Seguidores'), tk('Quem começa a seguir-te e pedidos aceites')],
+  comments: [tk('Comentários e respostas'), tk('Na tua publicação, no teu comentário e nos teus stories')],
+  mentions: [tk('Menções e marcações'), tk('Quando alguém te menciona ou te identifica')],
+  reposts: [tk('Reposts'), tk('Quando repostam uma publicação tua')],
+  gifts: [tk('Brindes'), tk('Quando te oferecem vibes')],
+  reactions: [tk('Reações'), tk('Nas tuas notas e nos teus Zás')],
+  invites: [tk('Convites'), tk('Quando alguém entra com o teu convite')],
 };
 
 /** Cada tipo de aviso liga-se ou desliga-se (nada na lista e nada no telemóvel). Os pedidos de seguir ficam sempre na lista. */
@@ -384,7 +384,7 @@ export default function Settings() {
         </Link>
         <Link to="/language" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="globe" /></span>
-          <span className="flex-1 font-semibold">{tr('Idioma e traduções')}</span>
+          <span className="flex-1 font-semibold">{tr('Idiomas')}</span>
           <span className="text-xl text-zinc-400" aria-hidden>›</span>
         </Link>
         <Link to="/about" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">

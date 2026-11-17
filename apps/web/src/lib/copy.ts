@@ -1,4 +1,4 @@
-import { tr } from './i18n';
+import { tr, tk } from './i18n';
 
 /**
  * Frases com graça para os momentos pequenos (copiado, nada encontrado, enviado, falhou…), no tom da malta.
@@ -6,10 +6,10 @@ import { tr } from './i18n';
  * Só gíria de que temos a certeza (malta, bora, paulada, txilar, maningue).
  */
 const LINES = {
-  copied: ['Link copiado. Bora espalhar!', 'Copiado! Agora é colar e mandar à malta.'],
-  none: ['Procurámos em tudo e nada. Tenta outra vibe.', 'Nada por aqui. Experimenta outra palavra.'],
-  sent: ['Enviado! A malta já recebeu.', 'Foi! Já está a caminho.'],
-  failed: ['Ups, escorregou! Tenta outra vez.', 'Ups, a vibe falhou. Tenta de novo.'],
+  copied: [tk('Link copiado. Bora espalhar!'), tk('Copiado! Agora é colar e mandar à malta.')],
+  none: [tk('Procurámos em tudo e nada. Tenta outra vibe.'), tk('Nada por aqui. Experimenta outra palavra.')],
+  sent: [tk('Enviado! A malta já recebeu.'), tk('Foi! Já está a caminho.')],
+  failed: [tk('Ups, escorregou! Tenta outra vez.'), tk('Ups, a vibe falhou. Tenta de novo.')],
 } as const;
 
 export type FunnyKind = keyof typeof LINES;
