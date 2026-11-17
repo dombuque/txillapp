@@ -756,10 +756,10 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
                   style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingVertical: 12, backgroundColor: pressed ? (danger ? colors.rose50 : colors.zinc100) : 'transparent' })}
                 >
                   <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? colors.rose50 : colors.zinc100 }}>
-                    <Icon name={ic} size={22} color={danger ? '#b91c1c' : colors.zinc800} />
+                    <Icon name={ic} size={22} color={danger ? colors.danger : colors.zinc800} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 17, fontWeight: '600', color: danger ? '#b91c1c' : colors.zinc900 }}>{label}</Text>
+                    <Text style={{ fontSize: 17, fontWeight: '600', color: danger ? colors.danger : colors.zinc900 }}>{label}</Text>
                     <Text style={{ fontSize: 14, color: colors.zinc600 }}>{text}</Text>
                   </View>
                 </Pressable>
@@ -771,7 +771,7 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
           <Sheet title={deleteTexts(del).title} onClose={() => setDel(null)}>
             <View style={{ paddingHorizontal: 24 }}>
               <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>{deleteTexts(del).body}</Text>
-              <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: '#b91c1c' }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Apagar</Text></Pressable>
+              <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: colors.danger }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Apagar</Text></Pressable>
               <Pressable onPress={() => setDel(null)} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}><Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>Cancelar</Text></Pressable>
             </View>
           </Sheet>
@@ -1281,7 +1281,7 @@ const st = StyleSheet.create({
   edge: { width: 22, height: 54, borderTopLeftRadius: 16, borderBottomLeftRadius: 16, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' },
   hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
   small: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
-  cam: { borderRadius: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181b' },
+  cam: { borderRadius: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.zinc900 },
   err: { position: 'absolute', left: 32, right: 32, bottom: 24, overflow: 'hidden', borderRadius: 22, backgroundColor: 'rgba(220,38,38,0.9)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
   sent: { alignSelf: 'center', width: '100%', maxWidth: 384, marginBottom: 12, overflow: 'hidden', borderRadius: 28, backgroundColor: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' },
   shutterRing: { width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

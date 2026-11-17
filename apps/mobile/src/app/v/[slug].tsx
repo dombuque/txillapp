@@ -109,7 +109,7 @@ export default function VenueScreen() {
   const head = v && (
     <>
       {v.mine && v.reviewStatus && v.reviewStatus !== 'approved' ? (
-        <View style={[st.reviewBox, v.reviewStatus === 'rejected' && { backgroundColor: '#fef2f2' }]} accessibilityRole="alert">
+        <View style={[st.reviewBox, v.reviewStatus === 'rejected' && { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
           <Icon name={v.reviewStatus === 'rejected' ? 'alert' : 'clock'} size={20} color={v.reviewStatus === 'rejected' ? colors.red600 : '#b45309'} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={st.reviewTitle}>{v.reviewStatus === 'rejected' ? 'A equipa não aprovou esta página' : 'Página em análise'}</Text>

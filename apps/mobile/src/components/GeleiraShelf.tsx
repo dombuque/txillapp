@@ -544,7 +544,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
 
   const cardStyle = [st.card, { marginHorizontal: margin, borderColor: pointed ? colors.zinc300 : colors.zinc200, paddingTop: folded ? 12 : 16 }];
   const inner = (
-    <LinearGradient colors={['#fafafa', '#fff', 'rgba(255,255,255,0.6)']} style={StyleSheet.absoluteFill} />
+    <LinearGradient colors={[colors.zinc50, '#fff', 'rgba(255,255,255,0.6)']} style={StyleSheet.absoluteFill} />
   );
   // Fechada, o cabeçalho todo abre a geleira; os brindes ficam fora desse toque (botões próprios para o leitor de ecrã).
   // Os copos (CheersPour) ocupam o cartão inteiro e ficam centrados nele.

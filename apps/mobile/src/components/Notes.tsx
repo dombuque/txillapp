@@ -149,7 +149,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               )}
               <Text style={styles.hint}>{timeAgo(current.createdAt)} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.</Text>
               {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-              <Pressable disabled={busy} onPress={() => setConfirmDelete(true)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 12 }, pressed && { backgroundColor: '#fef2f2' }]}><Text style={[styles.ghostText, { color: '#b91c1c' }]}>Apagar nota</Text></Pressable>
+              <Pressable disabled={busy} onPress={() => setConfirmDelete(true)} style={({ pressed }) => [styles.ghostBtn, { marginTop: 12 }, pressed && { backgroundColor: colors.dangerSoft }]}><Text style={[styles.ghostText, { color: colors.danger }]}>Apagar nota</Text></Pressable>
             </>
           ) : (
             <>

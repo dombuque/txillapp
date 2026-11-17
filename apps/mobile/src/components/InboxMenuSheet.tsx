@@ -36,9 +36,9 @@ export function InboxMenuSheet({ name, who, sub, photo, items, onPick, onClose }
             <Text style={st.cancelText}>{it.label}</Text>
           </Pressable>
         ) : (
-          <Pressable key={it.id} onPress={() => onPick(it.id)} style={({ pressed }) => [st.row, pressed && { backgroundColor: it.danger ? '#fef2f2' : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={it.label}>
-            <View style={[st.icon, it.danger && { backgroundColor: '#fef2f2' }]}><Icon name={it.icon} size={22} color={it.danger ? '#b91c1c' : colors.zinc800} /></View>
-            <Text style={[st.label, it.danger && { color: '#b91c1c' }]} numberOfLines={1}>{it.label}</Text>
+          <Pressable key={it.id} onPress={() => onPick(it.id)} style={({ pressed }) => [st.row, pressed && { backgroundColor: it.danger ? colors.dangerSoft : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={it.label}>
+            <View style={[st.icon, it.danger && { backgroundColor: colors.dangerSoft }]}><Icon name={it.icon} size={22} color={it.danger ? colors.danger : colors.zinc800} /></View>
+            <Text style={[st.label, it.danger && { color: colors.danger }]} numberOfLines={1}>{it.label}</Text>
           </Pressable>
         ))}
       </View>

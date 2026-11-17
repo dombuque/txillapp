@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   attachItem: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 16 },
   attachIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   attachLabel: { fontSize: 12, fontWeight: '600', color: colors.zinc700 },
-  reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
+  reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
   replyBar: { alignSelf: 'stretch', width: 3, borderRadius: 2, backgroundColor: colors.brand },
   replyWho: { fontSize: 13, lineHeight: 17, fontWeight: '700', color: colors.brand },
   replyText: { fontSize: 13, lineHeight: 18, color: colors.zinc600 },

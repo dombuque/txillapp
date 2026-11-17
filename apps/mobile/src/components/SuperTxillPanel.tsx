@@ -357,5 +357,5 @@ const s = StyleSheet.create({
   who: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   reason: { fontSize: 14, color: colors.zinc500 },
-  box: { marginTop: 24, borderRadius: 16, backgroundColor: '#fafafa', padding: 14, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
+  box: { marginTop: 24, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
 });

@@ -286,7 +286,7 @@ const st = StyleSheet.create({
   brand: { fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' },
   title: { fontSize: 19, fontWeight: '800', letterSpacing: -0.3, color: '#fff' },
   handle: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
-  card: { borderRadius: 28, overflow: 'hidden', backgroundColor: '#18181b', boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)' },
+  card: { borderRadius: 28, overflow: 'hidden', backgroundColor: colors.zinc900, boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)' },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, maxWidth: 460 },
   privacyText: { flexShrink: 1, fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.75)' },
   primary: { height: 52, borderRadius: 999, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(214,51,79,0.4)' },

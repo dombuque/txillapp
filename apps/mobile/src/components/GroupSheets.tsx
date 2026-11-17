@@ -338,8 +338,8 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
             );
           }}
           ListFooterComponent={
-            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: '#fef2f2' }]} accessibilityRole="button">
-              <Icon name="logout" size={18} color="#b91c1c" />
+            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: colors.dangerSoft }]} accessibilityRole="button">
+              <Icon name="logout" size={18} color={colors.danger} />
               <Text style={styles.exitText}>Sair do TxillGroup</Text>
             </Pressable>
           }
@@ -398,12 +398,12 @@ function MemberMenuSheet({ member, actions, note, onRole, onRemove, onClose }: {
             key={a.id}
             disabled={!!busy}
             onPress={() => void press(a)}
-            style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: a.destructive ? '#fef2f2' : colors.zinc100 }, !!busy && busy !== a.id && { opacity: 0.5 }]}
+            style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: a.destructive ? colors.dangerSoft : colors.zinc100 }, !!busy && busy !== a.id && { opacity: 0.5 }]}
             accessibilityRole="button"
             accessibilityState={{ disabled: !!busy, busy: busy === a.id }}
           >
-            <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? '#b91c1c' : colors.zinc700} />
-            <Text style={[styles.menuText, a.destructive && { color: '#b91c1c' }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
+            <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? colors.danger : colors.zinc700} />
+            <Text style={[styles.menuText, a.destructive && { color: colors.danger }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
           </Pressable>
         ))}
         {note ? <Text style={styles.menuNote}>{note}</Text> : null}
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   menuNote: { paddingHorizontal: 4, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   kick: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   exit: { marginTop: 12, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  exitText: { fontSize: 16, fontWeight: '600', color: '#b91c1c' },
+  exitText: { fontSize: 16, fontWeight: '600', color: colors.danger },
   info: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, borderRadius: 20, backgroundColor: colors.zinc100, padding: 12 },
   infoKind: { fontSize: 13, fontWeight: '800', color: colors.brand },
   infoDesc: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.zinc700 },

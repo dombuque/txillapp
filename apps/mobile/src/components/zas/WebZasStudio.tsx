@@ -307,7 +307,7 @@ export function WebZasStudio({ caption, onCaption, captionFont, onCaptionFont, a
             {dom(
               'div',
               {
-                style: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#18181b', touchAction: 'pan-y', ...(squircle(cw) as object) },
+                style: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: colors.zinc900, touchAction: 'pan-y', ...(squircle(cw) as object) },
                 onTouchStart: (e: TouchEvent) => {
                   if (e.touches.length >= 2) {
                     swipe.current = null;

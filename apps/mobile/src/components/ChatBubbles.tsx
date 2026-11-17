@@ -67,7 +67,7 @@ const QUOTE_BAR_MINE = 'rgba(214,51,79,0.45)';
 export type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } & Badged };
 
 /** Cada pessoa tem a sua cor nos grupos (a mesma do site, apps/web/src/lib/senderColor.ts). */
-const PALETTE = ['#d6334f', '#ea580c', '#b45309', '#15803d', '#0f766e', '#9f1239', '#3f3f46', '#4d7c0f'];
+const PALETTE = [colors.brand, '#ea580c', '#b45309', '#15803d', '#0f766e', '#9f1239', '#3f3f46', '#4d7c0f'];
 export function senderColor(username: string): string {
   let h = 7;
   for (const c of username.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -128,7 +128,7 @@ function TileMap({ lat, lng, width, height }: { lat: number; lng: number; width:
       ))}
       <View style={{ position: 'absolute', left: width / 2 - 15, top: height / 2 - 38 }}>
         <Svg width={30} height={38} viewBox="0 0 30 38" fill="none">
-          <Path d="M15 37C15 37 28 24.5 28 14.5a13 13 0 1 0-26 0C2 24.5 15 37 15 37Z" fill="#d6334f" stroke="#fff" strokeWidth={2.5} />
+          <Path d="M15 37C15 37 28 24.5 28 14.5a13 13 0 1 0-26 0C2 24.5 15 37 15 37Z" fill={colors.brand} stroke="#fff" strokeWidth={2.5} />
           <Circle cx={15} cy={14.5} r={5} fill="#fff" />
         </Svg>
       </View>
@@ -815,7 +815,7 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.live ? '#10b981' : colors.zinc300 }} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>{m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}</Text>
-          {m.live && mine && <Pressable {...hold} onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: '#fef2f2', paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: '#b91c1c' }}>Parar</Text></Pressable>}
+          {m.live && mine && <Pressable {...hold} onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: colors.dangerSoft, paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.danger }}>Parar</Text></Pressable>}
         </View>
       ) : null}
       {m.state === 'failed' ? (

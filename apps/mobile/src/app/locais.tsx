@@ -128,12 +128,12 @@ export default function Locais() {
 
 const st = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '800', color: colors.zinc900, marginBottom: 4 },
-  row: { borderRadius: 20, backgroundColor: '#fafafa', paddingHorizontal: 14, paddingVertical: 8, gap: 8, marginBottom: 8 },
+  row: { borderRadius: 20, backgroundColor: colors.zinc50, paddingHorizontal: 14, paddingVertical: 8, gap: 8, marginBottom: 8 },
   invite: { borderRadius: 20, backgroundColor: colors.rose50, paddingHorizontal: 14, paddingVertical: 8 },
   small: { height: 34, borderRadius: 999, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100 },
   smallText: { fontSize: 13, fontWeight: '700', color: colors.zinc900 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14 },
   warn: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 14, backgroundColor: '#fffbeb', paddingHorizontal: 12, paddingVertical: 10 },
   warnText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#78350f' },
 

@@ -190,10 +190,10 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
   }
 
   const row = (icon: IconName, title: string, sub: string | null, run: () => void, danger = false) => (
-    <Pressable key={title} onPress={run} style={({ pressed }) => [st.row, pressed && { backgroundColor: danger ? '#fef2f2' : colors.zinc100 }]} accessibilityRole="button">
-      <View style={[st.rowIcon, danger && { backgroundColor: '#fef2f2' }]}><Icon name={icon} size={22} color={danger ? '#b91c1c' : colors.zinc800} /></View>
+    <Pressable key={title} onPress={run} style={({ pressed }) => [st.row, pressed && { backgroundColor: danger ? colors.dangerSoft : colors.zinc100 }]} accessibilityRole="button">
+      <View style={[st.rowIcon, danger && { backgroundColor: colors.dangerSoft }]}><Icon name={icon} size={22} color={danger ? colors.danger : colors.zinc800} /></View>
       <View style={{ flex: 1 }}>
-        <Text style={[st.rowTitle, danger && { color: '#b91c1c' }]}>{title}</Text>
+        <Text style={[st.rowTitle, danger && { color: colors.danger }]}>{title}</Text>
         {sub ? <Text style={st.rowSub}>{sub}</Text> : null}
       </View>
     </Pressable>
@@ -231,7 +231,7 @@ export function RequestBar({ name, bottom, onAccept, onDecline, onBlock }: { nam
       <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
         <Pressable onPress={onAccept} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={[st.btnText, { color: '#fff', fontWeight: '700' }]}>Aceitar</Text></Pressable>
         <Pressable onPress={onDecline} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.zinc800 }]}>Recusar</Text></Pressable>
-        <Pressable onPress={onBlock} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: '#b91c1c' }]}>Bloquear</Text></Pressable>
+        <Pressable onPress={onBlock} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.danger }]}>Bloquear</Text></Pressable>
       </View>
     </View>
   );
@@ -270,7 +270,7 @@ const st = StyleSheet.create({
   requestText: { textAlign: 'center', fontSize: 14, lineHeight: 19, color: colors.zinc700 },
   btn: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontSize: 16, fontWeight: '600' },
-  note: { alignSelf: 'center', marginTop: 12, marginBottom: 8, maxWidth: 384, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
+  note: { alignSelf: 'center', marginTop: 12, marginBottom: 8, maxWidth: 384, borderRadius: 16, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
   noteText: { textAlign: 'center', fontSize: 13, lineHeight: 18, color: colors.zinc600 },
   day: { alignSelf: 'center', marginTop: 24, marginBottom: 8, fontSize: 12, fontWeight: '600', letterSpacing: 0.6, color: colors.zinc500 },
 });
