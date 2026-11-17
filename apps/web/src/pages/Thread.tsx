@@ -1,6 +1,6 @@
 import { buzz } from '../lib/haptics';
 import { track } from '../lib/analytics';
-import { tr, locale } from '../lib/i18n';
+import { tr, tk, locale } from '../lib/i18n';
 import { formatVibes } from '../lib/vibes';
 import { sized } from '../lib/media';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -89,9 +89,9 @@ interface Draft {
   replyTo?: string;
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
+const KIND_LABEL: Record<string, string> = { image: tk('Foto'), video: tk('Vídeo'), voice: tk('Mensagem de voz'), sticker: tk('Sticker'), post: tk('Publicação'), location: tk('Localização'), gift: tk('Presente') };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
-const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
+const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? tk('Mensagem')));
 
 /** Vídeo da conversa: controlos normais e um botão que o abre em ecrã inteiro (visualizador da app, igual em todos os aparelhos). */
 function ChatVideo({ src }: { src: string }) {

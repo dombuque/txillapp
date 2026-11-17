@@ -16,6 +16,7 @@ import { notReportedBy } from '../social/visibility';
 import { livekitEnabled } from './livekit';
 import { assertCanHost } from './txillada-host';
 import { txilladaVisible } from './txillada-visibility';
+import { t } from '../i18n/i18n';
 
 /**
  * Txillada agendada (0176) — docs/txillada-agendar.md. O anfitrião marca dia e hora; quem a pode ver pede «Lembrar-me»; na
@@ -506,12 +507,16 @@ export class TxilladaSchedulesService implements OnModuleInit {
     );
     for (const r of rows) {
       const n = Number(r.reminders ?? 0);
-      const who = n === 1 ? ' 1 pessoa pediu para ser lembrada.' : n > 1 ? ` ${n} pessoas pediram para ser lembradas.` : '';
+      // No idioma do anfitrião (o número muda a frase).
+      const lang = await this.notifications.langOf(r.host_id as string);
+      const body = n > 0
+        ? t('Está na hora da tua Txillada. {count} pessoa pediu para ser lembrada.', { count: n, other: 'Está na hora da tua Txillada. {count} pessoas pediram para ser lembradas.' }, lang)
+        : t('Está na hora da tua Txillada.', {}, lang);
       await this.notifications.notifySelf({
         userId: r.host_id as string,
         kind: 'txillada_scheduled_now',
         data: { scheduleId: r.id as string, startsAt: iso(r.starts_at), title: r.title as string, reminders: n },
-        push: { title: 'Txillada', body: `Está na hora da tua Txillada.${who}`, url: `/txillada/agendada/${r.id as string}`, tag: `txillada-schedule:${r.id as string}` },
+        push: { title: 'Txillada', body, url: `/txillada/agendada/${r.id as string}`, tag: `txillada-schedule:${r.id as string}` },
       });
     }
     return rows.length;

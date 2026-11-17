@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import type { JWTVerifyGetKey } from 'jose';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
+import { requestLangMiddleware } from './i18n/request-lang';
 
 export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: import('./moderation/image-moderation.service').ImageClassifier; bodyDetector?: import('./moderation/image-moderation.service').BodyPartDetector; esClient?: import('@elastic/elasticsearch').Client; livekitRooms?: import('./txillada/livekit').LiveKitRooms | null } = {}) {
   // Cada série das métricas leva o papel do processo (web, worker ou api); o Prometheus junta a instância (docs/escala.md).
@@ -22,6 +23,8 @@ export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTV
   // a compressão guarda os bytes em memória até encher e as mensagens chegariam com atraso.
   app.use(compression({ filter: (req, res) => !String(res.getHeader('Content-Type') ?? '').includes('text/event-stream') && compression.filter(req, res) }));
   app.use(cookieParser());
+  // O idioma do pedido (Accept-Language), para os erros e os textos feitos no servidor (docs/idiomas-api.md).
+  app.use(requestLangMiddleware);
   // O webhook do LiveKit (Txillada) vem como application/webhook+json: chega em texto, para a assinatura (o sha256 do corpo) bater certo.
   app.useBodyParser('text', { type: 'application/webhook+json', limit: '256kb' });
   // WEB_ORIGIN pode listar várias origens separadas por vírgula (por exemplo app e admin).

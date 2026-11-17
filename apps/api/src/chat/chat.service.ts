@@ -16,6 +16,7 @@ import { mixarCards, mixarCardText } from '../mixar/mixar-cards';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from './screenshot';
 import { pushFor } from './hidden-push';
+import { msg } from '../i18n/i18n';
 
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada' | 'mixar';
 
@@ -1226,7 +1227,7 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
+    const what: Partial<Record<MessageKind, string>> = { story_reply: msg('respondeu ao teu mimo'), story_reaction: msg('reagiu ao teu mimo'), image: msg('enviou-te uma foto'), video: msg('enviou-te um vídeo'), voice: msg('enviou-te uma mensagem de voz'), sticker: msg('enviou-te um sticker'), gif: msg('enviou-te um GIF'), location: msg('partilhou a localização contigo'), post: msg('partilhou uma publicação contigo'), gift: msg('enviou-te um presente') };
     // Conversa que a outra pessoa escondeu (0160): o aviso vai sem pré-visualização (chat/hidden-push.ts).
     if (!extra.silent && !(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, pushFor({ title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' }, theirs.stashed));
     return { id, kind, expiresAt };

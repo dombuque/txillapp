@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { tr } from '../../lib/i18n';
+import { tr, tk } from '../../lib/i18n';
 import { useState } from 'react';
 import { LoadingBlock } from '../../components/Loading';
 import { PageHeader } from './bo';
 import { api, type VerificationItem } from '../../lib/api';
 import { TIERS, TierPicker, type Tier } from './ui/contas-ui';
 
-const DOC_LABELS = { id_card: 'BI ou cartão de eleitor', passport: 'Passaporte', driver_licence: 'Carta de condução', residence: 'DIRE (residente)', other: 'Outro documento oficial' } as const;
+const DOC_LABELS = { id_card: tk('BI ou cartão de eleitor'), passport: tk('Passaporte'), driver_licence: tk('Carta de condução'), residence: tk('DIRE (residente)'), other: tk('Outro documento oficial') } as const;
 
 function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -38,7 +38,7 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
       <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-zinc-50 p-3 text-sm">{item.proof}</p>
       <p className="mt-3 text-sm font-semibold">{tr('Documento')}: {item.docType ? tr(DOC_LABELS[item.docType]) : tr('(não indicado)')}</p>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        {([[item.docUrl, 'Documento (frente)'], [item.docBackUrl, 'Documento (verso)'], [item.faceUrl, 'Leitura da cara'], [item.selfieUrl, 'Selfie com o documento']] as const).map(([url, label]) =>
+        {([[item.docUrl, tk('Documento (frente)')], [item.docBackUrl, tk('Documento (verso)')], [item.faceUrl, tk('Leitura da cara')], [item.selfieUrl, tk('Selfie com o documento')]] as const).map(([url, label]) =>
           url ? (
             <a key={label} href={url} target="_blank" rel="noreferrer" className="block">
               <img src={url} alt={tr(label)} className="h-36 w-full rounded-xl object-cover" />

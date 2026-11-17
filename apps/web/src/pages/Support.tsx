@@ -288,19 +288,18 @@ export function Orders() {
   );
 }
 
-/** Idioma: o idioma da app (muda e recarrega). Só os idiomas que existem. */
+/** Idiomas: a lista de idiomas, cada um com o próprio nome; tocar muda e recarrega. */
 export function Language() {
   return (
-    <StackPage title={tr('Idioma')}>
+    <StackPage title={tr('Idiomas')}>
       <Group title={tr('Idioma da app')}>
         {LANGS.map((l) => (
-          <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
-            <span className="flex-1 font-semibold">{l.label}</span>
+          <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} lang={l.locale} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
+            <span className="flex-1 font-semibold">{l.native}</span>
             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${lang === l.id ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{lang === l.id && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
       </Group>
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês.')}</p>
     </StackPage>
   );
 }

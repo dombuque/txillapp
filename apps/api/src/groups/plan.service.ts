@@ -8,6 +8,7 @@ import { GroupAccess, pendingVisible, venueOnMap } from './group-access';
 import { PotService } from './pot.service';
 import { mzn, settle, splitCents, toCents } from './settle';
 import { badge, type Badge } from '../common/badge';
+import { msg } from '../i18n/i18n';
 
 /*
  * TxillGroups: o plano de cada grupo (um por grupo). Os administradores mudam o destino, o local e as datas;
@@ -296,7 +297,7 @@ export class PlanService {
       c.release();
     }
     // A sondagem aparece na conversa (body = id da sondagem).
-    await this.access.postMessage(groupId, me, 'poll', id, 'criou uma sondagem');
+    await this.access.postMessage(groupId, me, 'poll', id, msg('criou uma sondagem'));
     await this.access.changed(groupId, 'poll');
     return this.poll(me, groupId, id);
   }

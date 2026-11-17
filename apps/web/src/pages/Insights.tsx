@@ -6,7 +6,7 @@ import Icon, { type IconName } from '../components/Icon';
 import { LoadingBlock } from '../components/Loading';
 import StackPage from '../components/StackPage';
 import { api } from '../lib/api';
-import { tr, locale } from '../lib/i18n';
+import { tr, tk, locale } from '../lib/i18n';
 
 type Period = 7 | 30 | 90;
 
@@ -47,8 +47,8 @@ function Bars({ title, rows, hint }: { title: string; rows: { label: string; pct
   );
 }
 
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const GENDER: Record<string, string> = { female: 'Mulheres', male: 'Homens', other: 'Outro' };
+const DAYS = [tk('Dom'), tk('Seg'), tk('Ter'), tk('Qua'), tk('Qui'), tk('Sex'), tk('Sáb')];
+const GENDER: Record<string, string> = { female: tk('Mulheres'), male: tk('Homens'), other: tk('Outro') };
 
 /** As estatísticas do teu perfil, como os Insights de outras redes: só tu as vês. */
 export default function Insights() {

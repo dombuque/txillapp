@@ -48,11 +48,12 @@ test('4.8: o «Entrar com Google» só aparece na web, nunca na versão da App S
   assert.match(read('src/components/GoogleButton.tsx'), /if \(!googleSignInAllowed\(Platform\.OS, CHANNEL\)\) return null;/);
 });
 
-test('2.1/2.2: o ecrã do idioma mostra só o português, sem idiomas nem traduções por vir (ver tests/semEmBreve.test.mjs)', () => {
+test('2.1/2.2: o ecrã «Idiomas» mostra os idiomas que existem, sem nada por vir nem traduções (ver tests/semEmBreve.test.mjs)', () => {
+  // O ecrã «Idiomas» é igual em todas as versões: a lista de LANGS (o inglês já existe), sem «em breve» nem tema.
+  const src = read('src/app/language.tsx');
+  assert.match(src, /LANGS\.map/);
   for (const f of ['src/app/language.tsx', 'src/app/settings/aparencia.tsx']) {
-    const src = read(f);
-    assert.match(src, /Português \(Moçambique\)/, f);
-    assert.doesNotMatch(src, /showComingSoon|English|Traduzir publicações|anchor="theme"|modo escuro/, f);
+    assert.doesNotMatch(read(f), /em breve|showComingSoon|Traduções|Traduzir publicações|anchor="theme"|modo escuro/i, f);
   }
   assert.doesNotMatch(read('src/lib/storeRules.ts'), /showComingSoon/);
 });

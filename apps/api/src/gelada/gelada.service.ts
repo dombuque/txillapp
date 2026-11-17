@@ -16,6 +16,7 @@ import { SearchIndexer } from '../search/search-index';
 import { blockedBetween, canView } from '../social/visibility';
 import { geladaTexts } from './gelada-texts';
 import { adultSql, maskFor, requestCards, requestText, roundCards, type Drink, type Person, type RequestDto } from './gelada-cards';
+import { msg } from '../i18n/i18n';
 
 /**
  * «Paga-me uma» (0145), fase 1: sem dinheiro. Nada aqui mexe em Txills nem em pagamentos.
@@ -257,7 +258,7 @@ export class GeladaService {
           [id, me, p.id, d.id || null, d.slug, d.name, d.category, d.alcoholic, msgId],
         );
         try {
-          await this.chat.sendCard(me, p.id, 'gelada', requestText(d), d.alcoholic ? 'pede-te uma gelada 🍻' : 'pede-te um refresco 🥤', msgId);
+          await this.chat.sendCard(me, p.id, 'gelada', requestText(d), msg(d.alcoholic ? 'pede-te uma gelada 🍻' : 'pede-te um refresco 🥤'), msgId);
         } catch (e) {
           await this.pool.query('DELETE FROM taste.gelada_requests WHERE id = $1', [id]);
           throw e;
@@ -590,7 +591,7 @@ export class GeladaService {
       if ((e as { code?: string }).code === '23505') throw new ConflictException('Já há uma rodada aberta neste grupo');
       throw e;
     }
-    await this.access.postMessage(groupId, me, 'rodada', 'Abriu uma rodada! Quem entra? 🙌', 'abriu uma rodada. Quem entra?', msgId);
+    await this.access.postMessage(groupId, me, 'rodada', 'Abriu uma rodada! Quem entra? 🙌', msg('abriu uma rodada. Quem entra?'), msgId);
     return this.round(me, id);
   }
 

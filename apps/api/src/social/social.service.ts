@@ -15,6 +15,7 @@ import { ModuleRef } from '@nestjs/core';
 import { dropDownloadCopies } from '../posts/download-copies';
 import { PostDownloadService } from '../posts/post-download.service';
 import { shownPost } from '../posts/hidden';
+import type { Lang } from '../i18n/i18n';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -168,7 +169,7 @@ export class SocialService {
    * Editar o próprio perfil. Só campos enviados são alterados. Passar a público aceita os pedidos pendentes. Passar a privada
    * apaga logo as cópias guardadas das tchekas (e dos duetos de outros com o vídeo dela), que deixam de ser permitidas.
    */
-  async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }) {
+  async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string; language?: Lang | null }) {
     this.filter.assertClean(patch.displayName, patch.bio, patch.city);
     const client = await this.pool.connect();
     try {
@@ -179,9 +180,10 @@ export class SocialService {
             bio = CASE WHEN $3::boolean THEN NULLIF($4, '') ELSE bio END,
             is_private = COALESCE($5, is_private),
             website = CASE WHEN $6::boolean THEN NULLIF($7, '') ELSE website END,
-            city = CASE WHEN $8::boolean THEN NULLIF($9, '') ELSE city END
-          WHERE id = $1 RETURNING id, username, display_name, bio, is_private, website, city`,
-        [userId, patch.displayName ?? null, patch.bio !== undefined, patch.bio ?? null, patch.isPrivate ?? null, patch.website !== undefined, patch.website ?? null, patch.city !== undefined, patch.city ?? null],
+            city = CASE WHEN $8::boolean THEN NULLIF($9, '') ELSE city END,
+            language = CASE WHEN $10::boolean THEN $11 ELSE language END
+          WHERE id = $1 RETURNING id, username, display_name, bio, is_private, website, city, language`,
+        [userId, patch.displayName ?? null, patch.bio !== undefined, patch.bio ?? null, patch.isPrivate ?? null, patch.website !== undefined, patch.website ?? null, patch.city !== undefined, patch.city ?? null, patch.language !== undefined, patch.language ?? null],
       );
       if (patch.isPrivate === false) {
         await client.query(
@@ -195,7 +197,7 @@ export class SocialService {
       await client.query('COMMIT');
       this.downloads.purge(gone);
       this.indexer.userChanged(userId);
-      return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private, website: rows[0].website as string | null, city: rows[0].city as string | null };
+      return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private, website: rows[0].website as string | null, city: rows[0].city as string | null, language: (rows[0].language as Lang | null) ?? null };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;

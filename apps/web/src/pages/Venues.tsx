@@ -5,7 +5,7 @@ import Icon from '../components/Icon';
 import StackPage from '../components/StackPage';
 import { fieldInput } from '../components/ui';
 import { api } from '../lib/api';
-import { tr } from '../lib/i18n';
+import { tr, tk } from '../lib/i18n';
 import { KIND_LABEL } from './VenuePage';
 
 const KINDS = ['bar', 'restaurante', 'discoteca', 'cafe', 'hotel', 'evento', 'outro'] as const;
@@ -49,7 +49,7 @@ export default function Venues() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 text-white"><Icon name="map-pin" size={20} /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{v.name}</span>
-                    <span className="block text-sm text-zinc-600">{tr(KIND_LABEL[v.kind] ?? 'Outro')} · {v.verified ? tr('Verificado') : tr('Em análise')} · {v.checkins} {tr('check-ins')}</span>
+                    <span className="block text-sm text-zinc-600">{tr(KIND_LABEL[v.kind] ?? tk('Outro'))} · {v.verified ? tr('Verificado') : tr('Em análise')} · {v.checkins} {tr('check-ins')}</span>
                   </span>
                   <span className="text-xl text-zinc-400" aria-hidden>›</span>
                 </Link>

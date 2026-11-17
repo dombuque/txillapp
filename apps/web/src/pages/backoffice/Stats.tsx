@@ -1,5 +1,5 @@
 import { LoadingBlock } from '../../components/Loading';
-import { tr } from '../../lib/i18n';
+import { tr, tk } from '../../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import BarChart from '../../components/BarChart';
@@ -23,7 +23,7 @@ const LIMITS: Record<string, { good: number; poor: number; unit: string; label: 
 };
 
 /** Nomes das plataformas (browser/pwa: o site antigo; web/android/ios: a app nova, que também é o site). */
-const PLATFORM: Record<string, string> = { android: 'Android', ios: 'iPhone', web: 'Site (app nova)', pwa: 'Site antigo instalado', browser: 'Site antigo no browser' };
+const PLATFORM: Record<string, string> = { android: tk('Android'), ios: tk('iPhone'), web: tk('Site (app nova)'), pwa: tk('Site antigo instalado'), browser: tk('Site antigo no browser') };
 
 const pct = (v: number | null) => (v === null ? '—' : `${v}%`);
 const pctOf = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 1000) / 10}%` : '—');

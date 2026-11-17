@@ -51,7 +51,7 @@ export class ExportService {
     const q = async (sql: string) => (await this.pool.query(sql, [userId])).rows;
     const [profile] = await q(
       `SELECT username, display_name AS "displayName", email, bio, city, website, gender, show_gender AS "showGender", birth_date AS "birthDate", is_private AS "isPrivate",
-              country, created_at AS "joinedAt", terms_version AS "termsVersion", terms_accepted_at AS "termsAcceptedAt"
+              country, language, created_at AS "joinedAt", terms_version AS "termsVersion", terms_accepted_at AS "termsAcceptedAt"
          FROM identity.users WHERE id = $1`,
     );
     const settings = (

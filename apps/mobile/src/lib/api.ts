@@ -8,6 +8,7 @@ import { friendlyFetchError } from './netError';
 import { installId } from './installId';
 import { uploadRequest } from './signedMedia';
 import { track, trackOk, trackThrottled } from './analytics';
+import { currentLanguage } from './i18n';
 import type { SponsoredSlot } from './api.boosts';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
@@ -509,6 +510,8 @@ function deviceHeaders(): Record<string, string> {
 }
 
 const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
+/** Os cabeçalhos de todos os pedidos, com o idioma ativo (a API responde nele: docs/idiomas.md). */
+const headersNow = (): Record<string, string> => ({ ...baseHeaders, 'Accept-Language': currentLanguage() });
 
 /** Cabeçalho da prova de humano (só no login, no registo e no «Esqueci-me da senha», quando há código). */
 const humanHeader = (token?: string): Record<string, string> => (token ? { 'X-Turnstile-Token': token } : {});
@@ -520,7 +523,7 @@ async function call(path: string, init: RequestInit = {}, auth = true): Promise<
     return await fetch(`${SITE_URL}/api/v1${path}`, {
       ...(isWeb ? { credentials: 'include' as const } : {}),
       ...init,
-      headers: { ...baseHeaders, ...(iid ? { 'X-Install-Id': iid } : {}), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
+      headers: { ...headersNow(), ...(iid ? { 'X-Install-Id': iid } : {}), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
     });
   } catch (e) {
     // Sem rede o fetch lança "Failed to fetch" / "Load failed" (em inglês), que ia parar ao ecrã (ex.: no login): passa a português.
@@ -549,7 +552,7 @@ export async function migrateWebAccounts(): Promise<void> {
   for (const a of await accounts.list()) {
     if (!a.refreshToken || a.username === cur?.username) continue;
     try {
-      const res = await fetch(`${SITE_URL}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers: { ...baseHeaders, ...(a.id ? { 'X-Account': a.id } : {}), 'X-Refresh-Token': a.refreshToken } });
+      const res = await fetch(`${SITE_URL}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers: { ...headersNow(), ...(a.id ? { 'X-Account': a.id } : {}), 'X-Refresh-Token': a.refreshToken } });
       if (res.ok) {
         const r = (await res.json()) as AuthResult;
         await accounts.patch(a.username, { id: r.user.id, refreshToken: '' });
@@ -561,7 +564,7 @@ export async function migrateWebAccounts(): Promise<void> {
 }
 
 /** Cabeçalhos de um pedido com sessão (para descarregar ficheiros fora do `raw`). */
-export const authHeaders = (): Record<string, string> => ({ ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) });
+export const authHeaders = (): Record<string, string> => ({ ...headersNow(), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) });
 /** Um pedido com sessão que devolve a resposta tal e qual (ficheiros); com a sessão caducada renova uma vez. */
 export async function fetchAuthed(path: string): Promise<Response> {
   let res = await call(path);
@@ -879,7 +882,7 @@ export const api = {
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
   unblock: (username: string): Promise<({ username: string; displayName: string } & Badged)[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   invites: (): Promise<InvitesInfo> => raw('/invites/me'),
-  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
+  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string; language?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   setAvatar: (mediaId: string): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'PUT', body: JSON.stringify({ mediaId }) }),
   clearAvatar: (): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'DELETE' }),
   followRequests: (): Promise<({ username: string; displayName: string; requestedAt: string } & Badged)[]> => raw('/follow-requests'),

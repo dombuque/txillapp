@@ -1,6 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import type { JWTVerifyGetKey } from 'jose';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { I18nExceptionFilter } from './i18n/i18n.filter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppConfig, CONFIG } from './config';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -135,6 +136,8 @@ export class AppModule {
         // O LiveKit da Txillada (tirar pessoas, fechar salas). Sem LIVEKIT_*, null. Os testes passam um falso.
         { provide: LIVEKIT_ROOMS, useValue: opts.livekitRooms !== undefined ? opts.livekitRooms : livekitRoomsFromConfig(config) },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
+        // Os erros no idioma do pedido (src/i18n, docs/idiomas-api.md).
+        { provide: APP_FILTER, useClass: I18nExceptionFilter },
       ],
       exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, BODY_DETECTOR, ES_CLIENT, LIVEKIT_ROOMS],
     };
