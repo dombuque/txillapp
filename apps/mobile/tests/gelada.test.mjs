@@ -98,7 +98,7 @@ test('ligações: o ecrã do livro existe e a folha do pedido tem a assinatura c
   assert.match(read('app', 'geladas.tsx'), /pedir === '1'/);
   assert.match(read('components', 'gelada', 'AskSheet.tsx'), /export function AskSheet\(\{ to, itemId, lockTo = false, defaultChannel = 'chat', onClose \}/);
   assert.match(read('components', 'GeleiraShelf.tsx'), /GeladaSection/);
-  assert.match(read('components', 'ProfileView.tsx'), /setSheet\('gelada'\)[\s\S]*?>Paga-me uma<\/Text>/);
+  assert.match(read('components', 'ProfileView.tsx'), /setSheet\('gelada'\)[\s\S]*?<Icon name="ask-drink"/);
   assert.match(read('components', 'ProfileView.tsx'), /sheet === 'menu'[\s\S]*?setSheet\('qr'\)[\s\S]*?Partilhar o perfil/);
 });
 
@@ -171,4 +171,11 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
     assert.match(src, /geladaErrorText\(e, '/, file.join('/'));
     assert.doesNotMatch(src, /e instanceof ApiError && e\.message \? e\.message/, file.join('/'));
   }
+});
+
+test('publicar com um hit: o botão «Adicionar um hit» só no pedido publicado, e a música vai no pedido', () => {
+  const ask = read('components', 'gelada', 'AskSheet.tsx');
+  assert.match(ask, /channel === 'post' && \(hit \?[\s\S]*?>Adicionar um hit<\/Text>/);
+  assert.match(ask, /music: channel === 'post' \? hit : null/);
+  assert.match(read('lib', 'api.gelada.ts'), /music: b\.channel === 'post' && b\.music \? musicPayload\(b\.music\) : undefined/);
 });

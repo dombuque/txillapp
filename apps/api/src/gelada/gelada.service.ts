@@ -9,6 +9,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { GroupAccess } from '../groups/group-access';
 import { mentionableBy, NotificationsService } from '../notifications/notifications.service';
+import { MusicService, type MusicInput } from '../music/music.service';
 import { PostsService } from '../posts/posts.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { SearchIndexer } from '../search/search-index';
@@ -114,6 +115,7 @@ export class GeladaService {
     private readonly posts: PostsService,
     private readonly indexer: SearchIndexer,
     private readonly filter: TextFilter,
+    private readonly music: MusicService,
   ) {}
 
   /* ───────────── peças ───────────── */
@@ -186,12 +188,13 @@ export class GeladaService {
    * seja (uma pessoa que não pode receber faz falhar o pedido todo, com o @ dela na mensagem). Devolve os pedidos (como eu os
    * vejo) e, na publicação, a publicação.
    */
-  async ask(me: string, b: { to: string[]; itemId: string; channel: 'chat' | 'post'; caption?: string }) {
+  async ask(me: string, b: { to: string[]; itemId: string; channel: 'chat' | 'post'; caption?: string; music?: MusicInput | null }) {
     const names = [...new Set(b.to.map((n) => n.trim().replace(/^@/, '').toLowerCase()).filter(Boolean))];
     if (!names.length) throw new BadRequestException('Escolhe pelo menos um amigo');
     if (names.length > DAY_MAX) throw new BadRequestException(`No máximo ${DAY_MAX} amigos de cada vez`);
     const caption = (b.caption ?? '').trim().slice(0, 300);
-    if (b.channel === 'post') this.filter.assertClean(caption);
+    if (b.channel === 'post') this.filter.assertClean(caption, b.music?.title, b.music && 'artist' in b.music ? (b.music as { artist?: string }).artist : undefined);
+    if (b.music && b.channel !== 'post') throw new BadRequestException('O hit só vai no pedido publicado');
     const iAmAdult = await this.adult(me);
     const picked = await this.drinkOf(me, b.itemId, iAmAdult);
     const people = [];
@@ -267,14 +270,16 @@ export class GeladaService {
     // Publicar: uma publicação com o cartão; cada pessoa identificada tem o seu pedido.
     const drinks = await Promise.all(people.map((p) => drinkFor(p.adult)));
     const postDrink = drinks.find((d) => d.alcoholic) ?? drinks[0];
+    // O hit (opcional), validado como numa publicação sem fotos (as músicas dos artistas locais só vão em mimos e tchekas).
+    const postMusic = await this.music.prepare(me, b.music ?? null, 'post', []);
     const postId = uuidv7();
     const ids: string[] = [];
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const topics = [...new Set(['bebidas', ...classify(caption, extractHashtags(caption))])];
-      await client.query('INSERT INTO content.posts (id, author_id, body, topics, gelada) VALUES ($1, $2, $3, $4, $5)', [
-        postId, me, caption, topics, JSON.stringify({ v: 1, drink: { slug: postDrink.slug, name: postDrink.name, category: postDrink.category, alcoholic: postDrink.alcoholic }, count: people.length }),
+      await client.query('INSERT INTO content.posts (id, author_id, body, topics, gelada, music) VALUES ($1, $2, $3, $4, $5, $6)', [
+        postId, me, caption, topics, JSON.stringify({ v: 1, drink: { slug: postDrink.slug, name: postDrink.name, category: postDrink.category, alcoholic: postDrink.alcoholic }, count: people.length }), postMusic ? JSON.stringify(postMusic) : null,
       ]);
       for (const tag of extractHashtags(caption)) await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, tag]);
       for (const [i, p] of people.entries()) {

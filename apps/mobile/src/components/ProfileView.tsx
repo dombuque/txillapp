@@ -63,6 +63,8 @@ const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> =
 
 /** Os botões da fila do perfil têm 36 de altura: com 4 em cima e em baixo o toque chega aos 44. */
 const ROW_SLOP = { top: 4, bottom: 4 };
+/** O mesmo tamanho para todos os ícones da fila de ações do perfil. */
+const ROW_ICON = 20;
 
 function QrGlyph() {
   return (
@@ -246,6 +248,11 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   }
 
   const blocked = p.blockedByMe || p.blockedMe;
+  // A ponta da prateleira aponta para o meio do botão da geleira (o último da fila). No meu perfil, 5 botões iguais; nos
+  // outros, «Seguir» conta 2 e cada ícone 1 (presente só se sigo, mensagem, «Paga-me uma», geleira).
+  const rowUnits = p.isMe ? 5 : 2 + (p.following ? 1 : 0) + 3;
+  const rowButtons = p.isMe ? 5 : 1 + (p.following ? 1 : 0) + 3;
+  const tipRight = rowW ? (rowW - 6 * (rowButtons - 1)) / rowUnits / 2 - 11 : 11;
   const stat = (n: number, label: string, go?: () => void) => (
     <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString('pt-PT')} ${label}`} accessibilityHint={go ? 'Abre a lista' : undefined}>
       <Text style={styles.statN}>{n.toLocaleString('pt-PT')}</Text>
@@ -380,21 +387,21 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               </>
             ) : (
               <>
-                <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} />
+                <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} style={styles.rowFollow} />
                 {p.following && (
                   // Só o ícone, como os outros da fila (com o texto ficava «Pr…» cortado).
-                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityRole="button" accessibilityLabel={`Presentear ${p.displayName}`}>
-                    <Icon name="gift" size={19} />
+                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Presentear ${p.displayName}`}>
+                    <Icon name="gift" size={ROW_ICON} />
                   </Pressable>
                 )}
-                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
-                {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). Com o
-                    nome escrito: só o ícone das canecas parecia «brindar com a pessoa». O «Partilhar perfil» passou para o «⋯». */}
-                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.askDrink]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
-                  {rowW > 340 ? <Icon name="beer" size={17} /> : null}
-                  <Text style={styles.askDrinkText} numberOfLines={1}>Paga-me uma</Text>
+                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={ROW_ICON} /></Pressable>
+                {/* «Paga-me uma» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). O
+                    ícone é uma mão com a caneca e um «?» (um pedido): as duas canecas pareciam «brindar com a pessoa». O
+                    «Partilhar perfil» passou para o «⋯». */}
+                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, styles.rowIcon]} accessibilityLabel={`Paga-me uma: pede a ${p.displayName} que te pague uma bebida`}>
+                  <Icon name="ask-drink" size={ROW_ICON} />
                 </Pressable>
-                {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
+                {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />}
               </>
             )}
           </View>
@@ -403,7 +410,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         {/* A geleira abre para baixo, dentro do mesmo cartão, com a ponta a apontar para o botão. */}
         {!blocked && p.canView && geleiraOpen && (
           <View>
-            <View pointerEvents="none" style={[styles.tip, { right: p.isMe && rowW ? (rowW - 24) / 5 / 2 - 11 : 11 }]} />
+            <View pointerEvents="none" style={[styles.tip, { right: tipRight }]} />
             <GeleiraShelf username={p.username} name={p.displayName} isMe={p.isMe} flush pointed />
           </View>
         )}
@@ -545,9 +552,10 @@ const styles = StyleSheet.create({
   noticeText: { marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' },
   tip: { position: 'absolute', top: 6, zIndex: 10, width: 0, height: 0, borderLeftWidth: 11, borderRightWidth: 11, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.zinc300 },
   btnRow: { marginTop: 16, flexDirection: 'row', gap: 6 },
+  // A fila dos outros enche a largura: «Seguir» com o dobro, os ícones repartem o resto (nunca menos de 44 px).
+  rowFollow: { flex: 2, minWidth: 88 },
+  rowIcon: { flex: 1, minWidth: 44, paddingHorizontal: 0 },
   small: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  askDrink: { flexDirection: 'row', gap: 5, paddingHorizontal: 12, flexShrink: 1, minWidth: 44 },
-  askDrinkText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   smallText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   requests: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, backgroundColor: colors.rose50, paddingHorizontal: 16, paddingVertical: 12 },
   requestsText: { fontWeight: '600', color: colors.brand },

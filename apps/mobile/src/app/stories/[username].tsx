@@ -6,7 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { limitBuffer } from '@/lib/videoMemory';
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, Easing, PanResponder, PixelRatio, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, AppState, Easing, Keyboard, PanResponder, PixelRatio, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -20,7 +20,7 @@ import { StoryFloatComments } from '@/components/StoryFloatComments';
 import { captionSpot, floatColumn, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
-import { sheetViewport } from '@/lib/sheetViewport';
+import { barBottom, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { servedWidth } from '@/lib/photoSize';
@@ -137,16 +137,17 @@ export default function StoryViewer() {
   const [tune, setTune] = useState<{ playing: boolean; player: AudioPlayer | null }>({ playing: false, player: null });
   const [tuneMuted] = useMusicMuted();
   const kb = useKeyboardHeight();
-  // Na web (iPhone) o teclado tapa a página sem a encolher: o visor passa a ocupar só a zona visível e a página não rola.
+  // Na web (iPhone) o teclado tapa a página sem a encolher: só a zona visível fica mais baixa (lib/keyboardFrame). O
+  // mimo fica do mesmo tamanho, atrás, e só a barra de responder sobe para cima do teclado; a página não rola.
   const vv = useVisibleViewport();
-  const vvOn = Platform.OS === 'web' && typeof window !== 'undefined' && !!sheetViewport(vv, window.innerHeight, window.innerWidth);
+  const vvBox = Platform.OS === 'web' && typeof window !== 'undefined' ? webKeyboardBox(vv, window.innerHeight, window.innerWidth) : null;
   useEffect(() => {
-    if (!vvOn || typeof window === 'undefined') return;
-    const fix = () => window.scrollTo(0, 0);
+    if (!vvBox || typeof window === 'undefined') return;
+    const fix = () => { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); };
     fix();
     window.addEventListener('scroll', fix);
     return () => window.removeEventListener('scroll', fix);
-  }, [vvOn, vv?.top, vv?.height]);
+  }, [!!vvBox, vv?.top, vv?.height]); // eslint-disable-line react-hooks/exhaustive-deps
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false, refetchOnMount: 'always' });
   const tray = useQuery({ queryKey: ['stories'], queryFn: api.stories });
   const stories = q.data ?? [];
@@ -163,9 +164,12 @@ export default function StoryViewer() {
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
   const [photoRatio, setPhotoRatio] = useState<{ id: string; r: number } | null>(null); // a forma da foto (para encher o cartão quando é a mesma)
-  /** O tamanho do visor sem o teclado (fica parado enquanto se escreve: o cartão não salta) e a altura de agora. */
-  const [screen, setScreen] = useState({ w: 0, h: 0 });
-  const [rootH, setRootH] = useState(0);
+  /** O tamanho medido do visor agora (com o teclado aberto pode ser mais baixo: o visor desenha-se com `still`). */
+  const [root, setRoot] = useState<Size>({ w: 0, h: 0 });
+  /** O tamanho do visor sem o teclado: fica parado enquanto se escreve (o mimo não encolhe nem salta). */
+  const still = useRef<Size>({ w: 0, h: 0 });
+  /** Acabou de se escrever: o teclado ainda está a fechar (o tamanho continua parado um bocadinho). */
+  const [typedTail, setTypedTail] = useState(false);
   /** A segurar o mimo há um bocadinho: o cabeçalho e a legenda saem da frente (como nos visores pro). */
   const [hideUi, setHideUi] = useState(false);
   const [saving, setSaving] = useState(false); // a guardar o mimo na galeria (antes do primeiro `return`, como todos os hooks)
@@ -194,6 +198,15 @@ export default function StoryViewer() {
     return () => clearTimeout(t);
   }, [holding]);
   const paused = storyPaused({ held, typing, panelOpen: panel !== null, away, background });
+  useEffect(() => {
+    if (typing) { setTypedTail(true); return; }
+    const t = setTimeout(() => setTypedTail(false), 450);
+    return () => clearTimeout(t);
+  }, [typing]);
+  /** A escrever, a responder: um toque no mimo (ou arrastá-lo) só fecha o teclado, como no Instagram. */
+  const typingRef = useRef(false);
+  typingRef.current = typing;
+  const dismiss = () => { replyRef.current?.blur(); Keyboard.dismiss(); };
   // Com rato (computador) não se arrasta o mimo: muda-se com os cliques nas metades, com ←/→ e fecha-se com Esc.
   const mouse = finePointer();
 
@@ -302,7 +315,9 @@ export default function StoryViewer() {
   const pan = useRef(
     PanResponder.create({
       // Com um painel aberto (visualizações, comentários, menu) o gesto é do painel: não sai do story.
-      onMoveShouldSetPanResponder: (_e, g) => panelOpen.current
+      onMoveShouldSetPanResponder: (_e, g) => typingRef.current
+        ? false
+        : panelOpen.current
         ? g.dy > 14 && g.dy > Math.abs(g.dx) * 1.5
         : (Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5) || (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5),
       onPanResponderMove: (_e, g) => {
@@ -417,17 +432,26 @@ export default function StoryViewer() {
     setAway(false);
   }
   // O cartão do mimo e a barra por baixo dele (lib/storyFrame): a barra nunca vai para cima da imagem, por isso a
-  // assinatura «txillapp @…» do canto de baixo à direita fica sempre à vista. Medido sem o teclado (não salta ao escrever).
-  const frame = storyFrame({ w: screen.w || width, h: screen.h || winH, top: insets.top, bottom: insets.bottom, wide });
+  // assinatura «txillapp @…» do canto de baixo à direita fica sempre à vista. Medido sem o teclado (lib/keyboardFrame): com
+  // o teclado aberto o mimo fica do mesmo tamanho, em ecrã inteiro, e só a barra de responder sobe, colada ao teclado.
+  // Na web conta também um campo com o foco (no iPhone a janela pode encolher com o teclado antes de se dar pelo foco).
+  const domTyping = Platform.OS === 'web' && typeof document !== 'undefined' && /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName ?? '');
+  const keyboardOpen = typing || typedTail || domTyping || kb > 0 || !!vvBox;
+  const rootH = root.h || winH;
+  still.current = heldSize(still.current, { w: root.w || width, h: rootH }, keyboardOpen);
+  const stage = still.current;
+  const frame = storyFrame({ w: stage.w, h: stage.h, top: insets.top, bottom: insets.bottom, wide });
+  const kbArea = keyboardCover({ web: Platform.OS === 'web', vv: vvBox, rootH, screenH: stage.h, kb: Platform.OS === 'web' ? 0 : kb });
   const ratio = cur.mediaKind === 'image' && photoRatio?.id === cur.id ? photoRatio.r : null;
   const cap = captionSpot(frame.cardW, frame.cardH, ratio);
   const floatCol = floatColumn(frame.cardW, frame.cardH, ratio, cur.caption ? (capH?.id === cur.id ? capH.h : 56) : 0);
-  // A barra presa ao fim do cartão; a escrever sobe para cima do teclado (no nativo o teclado não encolhe o visor; na
-  // web o visor já é só a zona visível). No computador não há teclado no ecrã e a barra fica onde está.
-  const liveH = rootH || winH;
-  const restBottom = liveH - (frame.barTop + frame.barH);
-  const lift = 6 + (Platform.OS !== 'web' ? Math.max(0, kb - Math.max(0, (screen.h || winH) - liveH)) : 0);
-  const barBottom = typing || kb ? Math.max(restBottom, lift) : restBottom;
+  // A barra presa ao fim do cartão; com o teclado aberto sobe para cima dele, colada (com as reações rápidas por cima).
+  // No computador não há teclado no ecrã e a barra fica onde está.
+  const restBottom = stage.h - (frame.barTop + frame.barH);
+  const replyBottom = barBottom(restBottom, panel === null ? kbArea.cover : 0);
+  // Um painel (os comentários) com o teclado aberto: na web acaba onde acaba a zona visível; no telemóvel o próprio
+  // painel junta a altura do teclado por baixo (só falta o que a janela encolheu a mais).
+  const panelBottom = Platform.OS === 'web' ? kbArea.cover : Math.max(0, kbArea.cover - kb);
   const sub = [
     cur.audience === 'close_friends' ? 'Amigos próximos' : null,
     cur.sharedFrom ? `Publicação de @${cur.sharedFrom.username}` : null,
@@ -437,17 +461,16 @@ export default function StoryViewer() {
 
   return (
     <View
-      style={[st.screen, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}
+      style={st.screen}
       onLayout={(e) => {
         const { width: w, height: h } = e.nativeEvent.layout;
-        if (h !== rootH) setRootH(h);
-        if (!typing && !kb && !vvOn && (w !== screen.w || h !== screen.h)) setScreen({ w, h });
+        if (w !== root.w || h !== root.h) setRoot({ w, h });
       }}
     >
       {/* No computador: o fundo é a própria foto, desfocada e escura, à volta do cartão. */}
       {wide && cur.mediaKind === 'image' ? <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.28 }]} contentFit="cover" blurRadius={60} /> : null}
       <Animated.View
-        style={[StyleSheet.absoluteFill, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
+        style={[st.stage, { top: kbArea.shift, height: stage.h || '100%', transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
         {...(mouse ? {} : pan.panHandlers)}
       >
         <View style={[st.card, { left: frame.cardLeft, top: frame.cardTop, width: frame.cardW, height: frame.cardH, borderRadius: frame.radius }]}>
@@ -468,7 +491,6 @@ export default function StoryViewer() {
           {cur.music ? <SoundWaves active={tune.playing && !tuneMuted && !typing} colors={trackColors(cur.music)} player={tune.player} band={0.3} /> : null}
           <StickerLayer stickers={cur.stickers} width={frame.cardW} height={frame.cardH} animate={!paused} />
 
-          {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
           <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />
           {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel="Mostrar a ligação à publicação" />}
           <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
@@ -481,6 +503,9 @@ export default function StoryViewer() {
           )}
 
           <CheersPour n={burst} size={Math.min(240, frame.cardW * 0.6)} />
+
+          {/* A escrever: o mimo fica atrás, pausado e um pouco mais escuro; um toque nele só fecha o teclado. */}
+          {typing && <Pressable style={[StyleSheet.absoluteFill, st.dim]} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fechar o teclado" />}
 
           {/* Em cima do cartão, num degradê suave: o progresso, o autor e as ações (longe do canto da assinatura). */}
           <LinearGradient colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.22)', 'transparent']} style={[st.top, fade]} pointerEvents="box-none">
@@ -528,7 +553,7 @@ export default function StoryViewer() {
         </View>
 
         {/* A barra, fora do mimo, sobre o fundo escuro: responder, comentar, brindar e partilhar (ou a atividade, nos meus). */}
-        <View style={[st.bar, { left: frame.cardLeft, width: frame.cardW, minHeight: frame.barH, bottom: barBottom }]} pointerEvents="box-none">
+        <View style={[st.bar, { left: frame.cardLeft, width: frame.cardW, minHeight: frame.barH, bottom: replyBottom }]} pointerEvents="box-none">
           {mine && (
             <View style={st.barRow}>
               <Pressable onPress={() => setPanel('viewers')} style={({ pressed }) => [st.activity, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${cur.viewCount ?? 0} visualizações`}>
@@ -555,7 +580,7 @@ export default function StoryViewer() {
           )}
         </View>
 
-        {panel !== null && <View style={[StyleSheet.absoluteFill, wide && { left: frame.cardLeft, width: frame.cardW, top: frame.cardTop, height: frame.cardH + frame.barH, right: undefined, bottom: undefined, borderRadius: frame.radius, overflow: 'hidden' }]} pointerEvents="box-none">
+        {panel !== null && <View style={[StyleSheet.absoluteFill, { bottom: panelBottom }, wide && { left: frame.cardLeft, width: frame.cardW, top: frame.cardTop, height: frame.cardH + frame.barH, right: undefined, bottom: undefined, borderRadius: frame.radius, overflow: 'hidden' }]} pointerEvents="box-none">
 
         {panel === 'menu' && (
           <Panel title="O teu mimo" onClose={() => setPanel(null)}>
@@ -587,6 +612,10 @@ export default function StoryViewer() {
 
 const st = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000', overflow: 'hidden' },
+  // O visor desenhado: do tamanho do ecrã sem o teclado (com ele aberto passa por baixo dele, não encolhe).
+  stage: { position: 'absolute', left: 0, right: 0 },
+  // Por cima do mimo enquanto se escreve (por baixo do cabeçalho, que continua a fechar o visor).
+  dim: { zIndex: 4, backgroundColor: 'rgba(0,0,0,0.4)' },
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   btn: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 24, paddingVertical: 12 },
   // O cartão do mimo (a forma e o lugar vêm de lib/storyFrame).

@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { musicSchema } from '../music/music.service';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -20,6 +21,8 @@ const askSchema = z.object({
   channel: z.enum(['chat', 'post']).default('chat'),
   /** Legenda da publicação (opcional). */
   caption: z.string().max(300).optional(),
+  /** Um hit na publicação (como nas publicações): só com channel 'post'. As músicas dos artistas locais não entram (só mimos e tchekas). */
+  music: musicSchema.nullable().optional(),
 });
 const answerSchema = z.object({ answer: z.enum(['accept', 'decline', 'owe']) });
 const oweSchema = z.object({ to: handle, itemId });

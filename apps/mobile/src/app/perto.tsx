@@ -4,7 +4,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, AppState, FlatList, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type AccessibilityActionInfo, type LayoutChangeEvent } from 'react-native';
+import { Alert, Animated, AppState, FlatList, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type AccessibilityActionInfo, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { BackButton } from '@/components/BackButton';
@@ -26,9 +27,9 @@ import { eventWhen, kmLabel, nearbyApi, round2, type NearbyGroup, type NearbyRes
 import { SITE_URL, sized } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
 import { kvGet, kvSet } from '@/lib/kv';
-import { emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
+import { EMPTY_EXTRA_LABEL, emptyExtras, emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type EmptyExtra, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
 import { RADIUS, RADIUS_MARKS, RADIUS_STEPS } from '@/lib/radius';
-import { colors } from '@/lib/theme';
+import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { RangeSlider } from '@/components/RangeSlider';
 
@@ -111,6 +112,10 @@ interface Item {
   lat: number;
   lng: number;
   date?: string;
+  /** Só locais: o tipo (bar, restaurante…), para o ícone. */
+  category?: string;
+  /** Só pessoas: há quanto tempo esteve por aqui («há 12 min»). */
+  ago?: string;
   /** O selo de verificado (do local, da pessoa ou de quem publicou quando o título é o nome dela). */
   who?: Badged;
   username?: string;
@@ -136,7 +141,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
   const out: Item[] = [];
   for (const v of d.venues ?? [])
     out.push({
-      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null,
+      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null, category: v.kind,
       sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita vibes' : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
@@ -157,7 +162,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
   for (const u of d.people ?? [])
     out.push({
       key: `u:${u.username}`, kind: 'person', title: u.displayName, who: u, username: u.username, image: u.hasAvatar ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(u.username)}` : null,
-      distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, sub: `perto de ti · ${agoText(u.ago)}`,
+      distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, ago: agoText(u.ago), sub: `Por perto ${agoText(u.ago)}`,
     });
   out.sort((a, b) => a.distanceKm - b.distanceKm);
   // Os destaques do Bombar vão à frente (entre eles, pela distância).
@@ -301,7 +306,7 @@ export default function Perto() {
       setPulling(false);
     }
   };
-  const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null, boosted: !!i.boost })), [items]);
+  const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null, category: i.category ?? null, boosted: !!i.boost })), [items]);
   const center = useMemo(() => (place ? (place.gps && place.at) || { lat: place.lat, lng: place.lng } : { lat: -25.97, lng: 32.57 }), [place]);
 
   const setVis = useMutation({
@@ -372,102 +377,136 @@ export default function Perto() {
   };
 
   // ----- Partes do ecrã -----
+  // Visível / Invisível: um estado claro (bolinha verde ou cinzenta) com o nome. Invisível abre as opções; visível fica
+  // invisível logo (sair do mapa nunca pede confirmação).
   const eyeButton =
     visibility === null || (!canEnable && !visible) ? null : (
       <Pressable
         onPress={() => (visible ? setVis.mutate('off') : setVisSheet(true))}
         disabled={setVis.isPending}
-        style={[st.eye, visible && { backgroundColor: colors.rose50 }]}
+        style={({ pressed }) => [st.eye, visible && st.eyeOn, pressed && { opacity: 0.75 }]}
         accessibilityRole="button"
-        accessibilityLabel={visible ? 'Estás visível. Tocar para ficar invisível' : 'Estás invisível. Escolher quem te vê'}
+        accessibilityLabel={visible ? 'Estás visível para a malta' : 'Estás invisível para a malta'}
+        accessibilityHint={visible ? 'Toca para ficares invisível já' : 'Toca para escolher quem te vê'}
         hitSlop={6}
       >
-        <Icon name={visible ? 'eye' : 'eye-off'} size={18} color={visible ? colors.brand : colors.zinc700} />
-        <Text style={[st.eyeText, visible && { color: colors.brand }]}>{visible ? 'Visível' : 'Invisível'}</Text>
+        <View style={[st.eyeDot, { backgroundColor: visible ? colors.green600 : colors.zinc300 }]} />
+        <Icon name={visible ? 'eye' : 'eye-off'} size={17} color={visible ? colors.green700 : colors.zinc700} />
+        <Text style={[st.eyeText, visible && { color: colors.green700 }]}>{visible ? 'Visível' : 'Invisível'}</Text>
       </Pressable>
     );
 
   // ----- Filtros: uma só fila (zona e distância num chip que abre a folha "Onde procurar", depois o que mostrar) -----
   // À procura do GPS (pedido na folha "Onde procurar"): o chip diz, para o toque não parecer perdido.
-  const zoneLabel = place ? (ask === 'locating' ? 'A ver onde estás…' : `${place.label} · ${liveRadius} km`) : '';
+  const locating = ask === 'locating';
   const zonePill = place ? (
     <Pressable
       onPress={() => setPlaceSheet(true)}
-      style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.zinc100 }]}
+      style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.rose50 }]}
       hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"
       accessibilityLabel={`Zona: ${place.label}, até ${liveRadius} km. Mudar o sítio ou a distância`}
     >
       <Icon name={place.gps ? 'locate' : 'map-pin'} size={16} color={colors.brand} />
-      <Text style={st.zoneText} numberOfLines={1}>{zoneLabel}</Text>
+      <Text style={st.zoneText} numberOfLines={1}>{locating ? 'A ver onde estás…' : place.label}</Text>
+      {locating ? null : (
+        <View style={st.zoneKm}>
+          <Text style={st.zoneKmText}>{liveRadius} km</Text>
+        </View>
+      )}
       <View style={st.zoneCaret}><Icon name="chevron-right" size={14} strokeWidth={2.4} color={colors.zinc500} /></View>
     </Pressable>
   ) : null;
 
+  const chipAt = useRef<Record<string, { x: number; w: number }>>({});
+  const chipGroupX = useRef(0);
+  const [chipFocus, setChipFocus] = useState<{ x: number; w: number } | null>(null);
   const chips = (
     <View style={st.filters}>
-      <View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
-          {zonePill}
-          <View style={st.chipSep} />
-          <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Mostrar">
-            {FILTERS.map((f) => (
-              <Chip key={f.key} label={f.label} on={filter === f.key} onPress={() => { if (f.key !== 'events') setWhen('today'); setFilter(f.key); setSelected(null); }} dark />
-            ))}
-          </View>
-        </ScrollView>
-        {/* Esbatido à direita: a fila continua para o lado sem um chip cortado a seco. */}
-        <LinearGradient pointerEvents="none" colors={['rgba(255,255,255,0)', colors.white]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.chipFade} />
-      </View>
+      <FadeRow contentContainerStyle={st.chipRow} focus={chipFocus}>
+        {zonePill}
+        <View style={st.chipSep} />
+        <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Mostrar" onLayout={(e) => { chipGroupX.current = e.nativeEvent.layout.x; }}>
+          {FILTERS.map((f) => (
+            <Chip
+              key={f.key}
+              label={f.label}
+              on={filter === f.key}
+              onLayout={(e) => { chipAt.current[f.key] = { x: e.nativeEvent.layout.x, w: e.nativeEvent.layout.width }; }}
+              onPress={() => {
+                if (f.key !== 'events') setWhen('today');
+                setFilter(f.key);
+                setSelected(null);
+                // O chip escolhido fica todo à vista (não meio escondido no esbatido da ponta).
+                const at = chipAt.current[f.key];
+                if (at) setChipFocus({ x: chipGroupX.current + at.x, w: at.w });
+              }}
+              dark
+            />
+          ))}
+        </View>
+      </FadeRow>
       {/* Quando (só dos eventos): só aparece com "Eventos" escolhido. Ao sair de "Eventos" volta a Hoje (sem filtro ativo escondido). */}
       {filter === 'events' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
+        <FadeRow contentContainerStyle={st.chipRow}>
           <Icon name="calendar" size={15} color={colors.zinc500} />
           <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Quando">
             {WHENS.map((w) => (
               <Chip key={w.key} label={w.label} on={when === w.key} onPress={() => setWhen(w.key)} small soft />
             ))}
           </View>
-        </ScrollView>
+        </FadeRow>
       ) : null}
     </View>
   );
 
   const card =
     visibility === 'off' && canEnable && !hideCard && (filter === 'all' || filter === 'people') ? (
-      <VisibilityStrip onOpen={() => setVisSheet(true)} onLater={() => setHideCard(true)} />
+      <VisibilityCard onOpen={() => setVisSheet(true)} onLater={() => setHideCard(true)} />
     ) : null;
 
-  // Vazio: a razão certa para cada filtro (a malta só com visibilidade, eventos de hoje vs. da semana…) e o botão que resolve.
+  // Vazio: a razão certa para cada filtro (a malta só com visibilidade, eventos de hoje vs. da semana…), o botão que resolve
+  // e mais dois caminhos (mudar o sítio, convidar a malta, registar o local ou voltar a Tudo).
   const hint = emptyHint({ filter, when: fetchWhen, radius, radii: RADIUS_STEPS, canEnable });
+  const extra = (e: EmptyExtra) => {
+    if (e === 'place') setPlaceSheet(true);
+    else if (e === 'invite') router.push('/invites' as never);
+    else if (e === 'venue') router.push('/locais' as never);
+    else {
+      setWhen('today');
+      setFilter('all');
+    }
+  };
   const listEmpty = q.isLoading ? (
-    <View style={st.center}><ActivityIndicator /></View>
+    <SkeletonList />
   ) : q.isError ? (
-    <View style={st.center}>
-      <View style={st.emptyIcon}><Icon name="alert" size={24} color={colors.brand} /></View>
-      <Text style={st.emptyTitle}>Não consegui ver o que há à volta</Text>
-      <Text style={st.emptySub}>{loadErrorText(q.error instanceof ApiError ? q.error.status : null)}</Text>
-      <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
-    </View>
+    <EmptyState
+      art={<View style={[st.errIcon, !desktop && { width: 56, height: 56, borderRadius: 28 }]}><Icon name="alert" size={desktop ? 28 : 24} color={colors.brand} /></View>}
+      compact={!desktop}
+      title="Não consegui ver o que há à volta"
+      sub={loadErrorText(q.error instanceof ApiError ? q.error.status : null)}
+      primary={{ label: 'Tentar outra vez', onPress: () => void q.refetch() }}
+    />
   ) : (
-    <View style={st.center}>
-      <View style={st.emptyIcon}><Icon name="compass" size={26} color={colors.brand} /></View>
-      <Text style={st.emptyTitle}>{hint.title}</Text>
-      <Text style={st.emptySub}>{hint.sub}</Text>
-      {hint.action ? (
-        <Pressable
-          onPress={() => {
-            const a = hint.action!;
-            if (a.radius) pickRadius(a.radius);
-            if (a.when) setWhen(a.when);
-          }}
-          style={st.retry}
-          accessibilityRole="button"
-        >
-          <Text style={st.retryText}>{hint.action.label}</Text>
-        </Pressable>
-      ) : null}
-    </View>
+    <EmptyState
+      art={<RadarArt size={desktop ? 112 : 68} />}
+      compact={!desktop}
+      title={hint.title}
+      sub={hint.sub}
+      primary={
+        hint.action
+          ? {
+              label: hint.action.label,
+              onPress: () => {
+                const a = hint.action!;
+                if (a.radius) pickRadius(a.radius);
+                if (a.when) setWhen(a.when);
+              },
+            }
+          : undefined
+      }
+      extras={emptyExtras({ filter, canEnable }).map((e) => ({ key: e, label: EMPTY_EXTRA_LABEL[e], icon: EXTRA_ICON[e], onPress: () => extra(e) }))}
+    />
   );
   const listState = { loading: q.isLoading, updating: q.isPlaceholderData, failed: q.isError };
 
@@ -572,14 +611,15 @@ export default function Perto() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.white }}>
         <View style={st.deskHead}>
-          <Text style={st.deskTitle}>À tua volta</Text>
-          {q.isFetching ? <ActivityIndicator /> : null}
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={st.deskTitle} accessibilityRole="header">À tua volta</Text>
+            <Text style={st.deskSub} numberOfLines={1}>Locais, eventos, a malta e o que se publica perto de ti</Text>
+          </View>
           {eyeButton}
         </View>
         <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>{chips}</View>
         <View style={{ flex: 1, flexDirection: 'row', gap: 16, paddingHorizontal: 24, paddingBottom: 24 }}>
-          <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: colors.zinc200 }}>
+          <View style={st.deskMap}>
             <NearbyMap center={center} radiusKm={liveRadius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} zoomControl />
           </View>
           <View style={st.deskList}>
@@ -598,6 +638,7 @@ export default function Perto() {
       <View style={st.phoneTop}>{chips}</View>
       <PhoneBody
         items={items}
+        peek={items.length ? PEEK_ROWS : PEEK_EMPTY}
         selected={selected}
         head={<ListHead items={items} {...listState} />}
         header={card}
@@ -632,10 +673,11 @@ function PertoPage({ right, line = false, children }: { right?: React.ReactNode;
   );
 }
 
-function Chip({ label, on, onPress, dark = false, small = false, soft = false }: { label: string; on: boolean; onPress: () => void; dark?: boolean; small?: boolean; soft?: boolean }) {
+function Chip({ label, on, onPress, onLayout, dark = false, small = false, soft = false }: { label: string; on: boolean; onPress: () => void; onLayout?: (e: LayoutChangeEvent) => void; dark?: boolean; small?: boolean; soft?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
+      onLayout={onLayout}
       // 36 pt de altura (32 nos pequenos) + 4 em cima e em baixo: o toque chega aos 44 sem os chips ficarem maiores.
       hitSlop={{ top: 4, bottom: 4 }}
       style={[
@@ -662,6 +704,11 @@ function CityGrid({ onPick, current }: { onPick: (c: (typeof CITIES)[number]) =>
 }
 
 const KIND_ICON: Record<MapMarkerKind, IconName> = { venue: 'map-pin', event: 'calendar', post: 'image', group: 'users', person: 'user' };
+/** O ícone de cada tipo de local: o mesmo do pino no mapa (mapRuntime VENUE_ICON). */
+const VENUE_ICON: Record<string, IconName> = { bar: 'martini', restaurante: 'utensils', cafe: 'coffee', discoteca: 'music', hotel: 'key', evento: 'calendar' };
+const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const EXTRA_ICON: Record<EmptyExtra, IconName> = { place: 'map-pin', invite: 'user-plus', venue: 'store', all: 'compass' };
+const GROUP_PURPLE = '#7c3aed';
 
 /**
  * Ação do leitor de ecrã em cada linha: "Abrir" abre logo, sem passar pelo mapa. O toque normal (activate) não se declara
@@ -669,13 +716,51 @@ const KIND_ICON: Record<MapMarkerKind, IconName> = { venue: 'map-pin', event: 'c
  */
 const OPEN_ACTIONS: AccessibilityActionInfo[] = [{ name: 'open', label: 'Abrir' }];
 
+/** A imagem da linha: a foto com o anel da marca (pessoas), o logótipo ou o ícone do tipo (locais), a folha do calendário (eventos)… */
+function Thumb({ item }: { item: Item }) {
+  if (item.kind === 'person') {
+    return (
+      <View style={st.ring}>
+        <LinearGradient colors={[colors.brand, colors.brandWarm]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 27 }]} />
+        <View style={st.ringInner}><Avatar name={item.title} username={item.username} size={46} /></View>
+      </View>
+    );
+  }
+  if (item.kind === 'event') {
+    const d = item.date ? new Date(item.date) : null;
+    const ok = !!d && !isNaN(d.getTime());
+    if (item.image) {
+      return (
+        <View style={st.thumb}>
+          <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          {ok ? <View style={st.dateChip}><Text style={st.dateChipText}>{`${d!.getDate()} ${MONTHS[d!.getMonth()]}`}</Text></View> : null}
+        </View>
+      );
+    }
+    return (
+      <View style={st.cal}>
+        <View style={st.calTop}><Text style={st.calMonth}>{ok ? MONTHS[d!.getMonth()] : ''}</Text></View>
+        <View style={st.calBody}>{ok ? <Text style={st.calDay}>{d!.getDate()}</Text> : <Icon name="calendar" size={20} color={colors.brand} />}</View>
+      </View>
+    );
+  }
+  const round = item.kind === 'group';
+  const icon = item.kind === 'venue' ? (VENUE_ICON[item.category ?? ''] ?? 'map-pin') : KIND_ICON[item.kind];
+  return (
+    <View style={[st.thumb, round && { borderRadius: 27 }, item.kind === 'group' && { backgroundColor: GROUP_PURPLE }, item.kind === 'post' && { backgroundColor: colors.zinc200 }]}>
+      <Icon name={icon} size={22} color={item.kind === 'post' ? colors.zinc500 : colors.white} />
+      {item.image ? <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+    </View>
+  );
+}
+
 function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selected: boolean; onPress: () => void; onOpen: () => void; onHover?: () => void }) {
-  const round = item.kind === 'person' || item.kind === 'group';
+  const km = kmLabel(item.distanceKm).replace(/^a /, '');
   return (
     <Pressable
       onPress={onPress}
       onHoverIn={onHover}
-      style={(s) => [st.row, selected && st.rowSel, (s as { hovered?: boolean }).hovered && !selected && { backgroundColor: colors.zinc100 }]}
+      style={(s) => [st.row, (s as { hovered?: boolean }).hovered && !selected && st.rowHover, s.pressed && !selected && st.rowHover, selected && st.rowSel]}
       accessibilityRole="button"
       accessibilityLabel={`${item.boost ? `${item.boost.label.replace(' · ', ', ')}. ` : ''}${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
       // O primeiro toque mostra no mapa, o segundo abre. Com o leitor de ecrã há também a ação "Abrir", que abre logo.
@@ -686,14 +771,7 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
         if (e.nativeEvent.actionName === 'open') onOpen();
       }}
     >
-      {item.kind === 'person' ? (
-        <View style={st.personHalo}><Avatar name={item.title} username={item.username} size={44} /></View>
-      ) : (
-        <View style={[st.thumb, round && { borderRadius: 26 }, item.kind === 'event' && { backgroundColor: colors.brand }, item.kind === 'group' && { backgroundColor: '#7c3aed' }]}>
-          <Icon name={KIND_ICON[item.kind]} size={22} color={item.kind === 'post' ? colors.zinc500 : colors.white} />
-          {item.image ? <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
-        </View>
-      )}
+      <Thumb item={item} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <NameWithBadge name={item.title} who={item.who} style={st.rowTitle} gap={4} />
         <Text style={st.rowSub} numberOfLines={1}>{item.sub}</Text>
@@ -704,11 +782,150 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
           </View>
         ) : null}
       </View>
-      <Text style={st.rowKm}>{kmLabel(item.distanceKm).replace(/^a /, '')}</Text>
-      <Pressable onPress={onOpen} hitSlop={8} style={st.rowOpen} accessibilityRole="link" accessibilityLabel={`Abrir ${item.title}`}>
-        <Icon name="chevron-right" size={18} color={colors.zinc500} />
+      <View style={[st.kmPill, selected && { borderColor: '#f6c9d1' }]}>
+        <Text style={st.kmText} numberOfLines={1}>{km}</Text>
+      </View>
+      <Pressable onPress={onOpen} hitSlop={{ top: 4, bottom: 4, left: 7, right: 7 }} style={({ pressed }) => [st.rowOpen, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="link" accessibilityLabel={`Abrir ${item.title}`}>
+        <Icon name="chevron-right" size={18} strokeWidth={2.2} color={selected ? colors.brand : colors.zinc500} />
       </Pressable>
     </Pressable>
+  );
+}
+
+/** Fila de chips que rola para o lado: esbatida nas pontas onde ainda há mais (à direita no início, dos dois lados a meio). */
+function FadeRow({ children, contentContainerStyle, focus }: { children: React.ReactNode; contentContainerStyle?: StyleProp<ViewStyle>; focus?: { x: number; w: number } | null }) {
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const box = useRef({ w: 0, cw: 0, x: 0 });
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  // Um chip escolhido perto da ponta: a fila rola até ele ficar fora do esbatido.
+  useEffect(() => {
+    if (!focus) return;
+    const { w, x } = box.current;
+    const pad = 48;
+    if (focus.x < x + pad) scroll.current?.scrollTo({ x: Math.max(0, focus.x - pad), animated: true });
+    else if (focus.x + focus.w > x + w - pad) scroll.current?.scrollTo({ x: focus.x + focus.w - w + pad, animated: true });
+  }, [focus]);
+  const sync = () => {
+    const { w, cw, x } = box.current;
+    const left = x > 4;
+    const right = w > 0 && x + w < cw - 4;
+    setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+  };
+  return (
+    <View>
+      <ScrollView
+        ref={scroll}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={contentContainerStyle}
+        scrollEventThrottle={32}
+        onLayout={(e) => { box.current.w = e.nativeEvent.layout.width; sync(); }}
+        onContentSizeChange={(w) => { box.current.cw = w; sync(); }}
+        onScroll={(e) => { box.current.x = e.nativeEvent.contentOffset.x; sync(); }}
+      >
+        {children}
+      </ScrollView>
+      {edges.left ? <LinearGradient pointerEvents="none" colors={[colors.white, 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[st.chipFade, { left: 0 }]} /> : null}
+      {edges.right ? <LinearGradient pointerEvents="none" colors={['rgba(255,255,255,0)', colors.white]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[st.chipFade, { right: 0 }]} /> : null}
+    </View>
+  );
+}
+
+/**
+ * Estado vazio (ou de erro): o desenho, o título, uma frase curta, o botão que resolve e mais caminhos. `compact` (telemóvel):
+ * o desenho ao lado do texto e os botões numa fila, para tudo caber na folha em baixo sem tapar o mapa.
+ */
+function EmptyState({ art, title, sub, primary, extras = [], compact = false }: { art: React.ReactNode; title: string; sub: string; primary?: { label: string; onPress: () => void }; extras?: { key: string; label: string; icon: IconName; onPress: () => void }[]; compact?: boolean }) {
+  const main = primary ? (
+    <Pressable onPress={primary.onPress} style={({ pressed }) => [st.emptyPrimary, compact && st.emptyPrimaryC, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+      <Text style={st.emptyPrimaryText}>{primary.label}</Text>
+    </Pressable>
+  ) : null;
+  const more = (
+    <>
+      {extras.map((e) => (
+        <Pressable key={e.key} onPress={e.onPress} style={({ pressed }) => [st.extra, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button">
+          <Icon name={e.icon} size={16} color={colors.zinc700} />
+          <Text style={st.extraText}>{e.label}</Text>
+        </Pressable>
+      ))}
+    </>
+  );
+  if (compact) {
+    return (
+      <View style={st.emptyC}>
+        <View style={st.emptyCRow}>
+          {art}
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+            <Text style={st.emptyTitleC} accessibilityRole="header">{title}</Text>
+            <Text style={st.emptySubC}>{sub}</Text>
+          </View>
+        </View>
+        {primary || extras.length ? <View style={st.extrasC}>{main}{more}</View> : null}
+      </View>
+    );
+  }
+  return (
+    <View style={st.empty}>
+      {art}
+      <Text style={st.emptyTitle} accessibilityRole="header">{title}</Text>
+      <Text style={st.emptySub}>{sub}</Text>
+      {main}
+      {extras.length ? <View style={st.extras}>{more}</View> : null}
+    </View>
+  );
+}
+
+/** O desenho do vazio: um radar com a bússola ao meio e uns pontos à volta (locais, eventos, a malta) ainda por aparecer. */
+function RadarArt({ size = 112 }: { size?: number }) {
+  const core = Math.round(size * 0.43);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width={size} height={size} viewBox="0 0 128 128">
+        <Circle cx={64} cy={64} r={62} fill={colors.rose50} />
+        <Circle cx={64} cy={64} r={44} fill="#ffe4e8" />
+        <Circle cx={64} cy={64} r={62} fill="none" stroke="#fecdd6" strokeWidth={1} />
+        <Circle cx={64} cy={64} r={44} fill="none" stroke="#fda4b4" strokeWidth={1} strokeDasharray="3 4" />
+        <Circle cx={22} cy={44} r={6} fill={colors.zinc900} stroke={colors.white} strokeWidth={2.5} />
+        <Circle cx={104} cy={36} r={6} fill={GROUP_PURPLE} stroke={colors.white} strokeWidth={2.5} />
+        <Circle cx={100} cy={96} r={7} fill={colors.brandWarm} stroke={colors.white} strokeWidth={2.5} />
+        <Circle cx={34} cy={102} r={5} fill={colors.sky} stroke={colors.white} strokeWidth={2.5} />
+      </Svg>
+      <View style={[st.radarCore, { width: core, height: core, borderRadius: core / 2, borderWidth: size < 90 ? 2 : 3 }]}>
+        <Icon name="compass" size={Math.round(core * 0.54)} strokeWidth={2} color={colors.white} />
+      </View>
+    </View>
+  );
+}
+
+/** A carregar: linhas a fingir (com a forma das de verdade) a pulsar devagar, em vez de uma roda a girar. */
+function SkeletonList() {
+  const a = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    const nd = Platform.OS !== 'web';
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(a, { toValue: 1, duration: 650, useNativeDriver: nd }),
+        Animated.timing(a, { toValue: 0.5, duration: 650, useNativeDriver: nd }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+  const W = ['64%', '48%', '72%', '42%'] as const;
+  return (
+    <Animated.View style={{ opacity: a, paddingTop: 2 }} accessibilityRole="progressbar" accessibilityLabel="A procurar o que há à tua volta">
+      {W.map((w, i) => (
+        <View key={i} style={st.skRow}>
+          <View style={[st.skThumb, i % 2 === 1 && { borderRadius: 27 }]} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={[st.skLine, { width: w }]} />
+            <View style={[st.skLine, { width: '36%', height: 10 }]} />
+          </View>
+          <View style={st.skPill} />
+        </View>
+      ))}
+    </Animated.View>
   );
 }
 
@@ -753,40 +970,47 @@ const KIND_COUNT: Record<MapMarkerKind, [string, string]> = {
   group: ['TxillGroup', 'TxillGroups'],
   person: ['pessoa', 'pessoas'],
 };
+const KIND_ORDER: MapMarkerKind[] = ['venue', 'event', 'person', 'group', 'post'];
 
-/** Cabeçalho da lista: quantos há (grande) e de que tipo (pequeno). `updating`: o que se vê é o anterior, a resposta nova vem a caminho. */
+/**
+ * Cabeçalho da lista: quantos há (grande) e, por baixo, quantos de cada tipo (ícone e número, curtos para caberem numa linha).
+ * `updating`: o que se vê é o anterior, a resposta nova vem a caminho.
+ */
 function ListHead({ items, loading, updating, failed }: { items: Item[]; loading: boolean; updating: boolean; failed: boolean }) {
   const n = items.length;
   const by = new Map<MapMarkerKind, number>();
   for (const i of items) by.set(i.kind, (by.get(i.kind) ?? 0) + 1);
-  const parts = [...by.entries()].map(([k, c]) => `${c} ${KIND_COUNT[k][c === 1 ? 0 : 1]}`);
-  const sub =
-    loading || (updating && !n)
-      ? 'A procurar…'
-      : updating
-        ? 'A atualizar…'
-        : n
-          ? parts.length > 1
-            ? `${parts.join(' · ')} · mais perto primeiro`
-            : 'Mais perto primeiro'
-          : failed
-            ? 'Sem resposta do servidor'
-            : 'Nada por perto com estes filtros';
+  const kinds = KIND_ORDER.filter((k) => by.has(k));
+  const parts = kinds.map((k) => `${by.get(k)} ${KIND_COUNT[k][by.get(k) === 1 ? 0 : 1]}`);
+  const busy = loading || (updating && !n);
+  const sub = busy ? 'A procurar…' : updating ? 'A atualizar…' : n ? 'Mais perto primeiro' : failed ? 'Sem resposta do servidor' : 'Nada por perto com estes filtros';
   return (
-    <View style={st.listHead} accessibilityRole="header" accessibilityLabel={n ? `${n} à tua volta. ${sub}` : `À tua volta. ${sub}`}>
+    <View style={st.listHead} accessibilityRole="header" accessibilityLabel={n ? `${n} à tua volta. ${parts.join(', ')}. ${sub}` : `À tua volta. ${sub}`}>
       <Text style={st.listHeadTitle} numberOfLines={1}>{n ? `${n} à tua volta` : 'À tua volta'}</Text>
-      <Text style={st.listHeadSub} numberOfLines={1}>{sub}</Text>
+      <View style={st.listHeadRow}>
+        {n && !busy && kinds.length > 1
+          ? kinds.map((k) => (
+              <View key={k} style={st.token}>
+                <Icon name={KIND_ICON[k]} size={13} strokeWidth={2} color={colors.zinc600} />
+                <Text style={st.tokenText}>{by.get(k)}</Text>
+              </View>
+            ))
+          : null}
+        <Text style={st.listHeadSub} numberOfLines={1}>{n && !busy && kinds.length === 1 ? `${parts[0]} · ${sub.toLowerCase()}` : sub}</Text>
+      </View>
     </View>
   );
 }
 
 /** Quanto da lista se vê com a folha em baixo, além do cabeçalho: uma linha inteira e um pouco da seguinte. */
 const PEEK_ROWS = 90;
+/** Sem nada para mostrar (vazio ou erro): a folha espreita o suficiente para se ver o desenho, a frase e o botão. */
+const PEEK_EMPTY = 150;
 /** Altura do cabeçalho até ser medido (pega + contagem). */
 const HEAD_GUESS = 72;
 
 /** Telemóvel: o mapa ocupa tudo e a lista vive numa folha com três alturas (espreitar, meio e cheia). Em repouso só espreita. */
-function PhoneBody({ items, selected, head, header, empty, render, refreshing, onRefresh, map }: ListProps & { head: React.ReactElement; map: (coverBottom: number) => React.ReactNode }) {
+function PhoneBody({ items, selected, head, header, empty, render, refreshing, onRefresh, map, peek = PEEK_ROWS }: ListProps & { head: React.ReactElement; map: (coverBottom: number) => React.ReactNode; peek?: number }) {
   const insets = useSafeAreaInsets();
   const [h, setH] = useState(0);
   /** Quanto do mapa a folha tapa (na altura em que parou): o mapa enquadra o raio e o item escolhido acima dela. */
@@ -800,11 +1024,13 @@ function PhoneBody({ items, selected, head, header, empty, render, refreshing, o
   const bottom = useRef(insets.bottom);
   bottom.current = insets.bottom;
   const list = useRef<FlatList<Item>>(null);
+  const peekRef = useRef(peek);
   const nd = Platform.OS !== 'web';
   // Em baixo: o cabeçalho (com a faixa de visibilidade, se houver) e cerca de uma linha; nunca acima do meio.
+  // Sem resultados (e a carregar) espreita um pouco mais (o peek): o vazio compacto ou duas linhas do esqueleto.
   const snaps = (H: number) => {
     const mid = Math.round(H * 0.48);
-    return [24, mid, Math.max(mid + 40, H - (headH.current + PEEK_ROWS + bottom.current))];
+    return [24, mid, Math.max(mid + 40, H - (headH.current + peekRef.current + bottom.current))];
   };
   const nearest = (v: number) => snaps(hRef.current).reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 
@@ -876,6 +1102,15 @@ function PhoneBody({ items, selected, head, header, empty, render, refreshing, o
       onPanResponderTerminate: () => snapTo(nearest(pos.current)),
     }),
   ).current;
+
+  // Ficou vazio (ou deixou de estar): se a folha estava em baixo, sobe ou desce para a nova altura de espreitar.
+  useEffect(() => {
+    if (peekRef.current === peek) return;
+    const wasLow = hRef.current > 0 && Math.abs(pos.current - snaps(hRef.current)[2]) < 12;
+    peekRef.current = peek;
+    if (wasLow) snapTo(snaps(hRef.current)[2]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peek]);
 
   // Tocaste num marcador: a folha sobe (se estava em baixo) e o item aparece na lista.
   useEffect(() => {
@@ -971,20 +1206,37 @@ function VisibilityOptions({ value, onPick, busy, gps, onUseGps }: { value: Near
   );
 }
 
-/** Faixa curta na folha: "Estás invisível · Mudar". As opções (e a explicação de privacidade) abrem numa folha própria. */
-function VisibilityStrip({ onOpen, onLater }: { onOpen: () => void; onLater: () => void }) {
+/**
+ * Cartão na folha quando estás invisível: o que a malta vê agora (nada), o que vês tu (tudo) e o que veriam se aparecesses
+ * (só o bairro). "Aparecer à malta" abre as opções (e a explicação de privacidade) numa folha própria.
+ */
+function VisibilityCard({ onOpen, onLater }: { onOpen: () => void; onLater: () => void }) {
   return (
-    <View style={st.strip}>
-      <Pressable onPress={onOpen} style={st.stripMain} accessibilityRole="button" accessibilityLabel="Estás invisível para a malta. Mudar quem te vê" hitSlop={4}>
-        <View style={st.stripIcon}><Icon name="eye-off" size={16} color={colors.zinc700} /></View>
-        <Text style={st.stripText} numberOfLines={1}>
-          Estás invisível <Text style={st.stripDim}>para a malta</Text>
-        </Text>
-        <Text style={st.stripLink}>Mudar</Text>
-      </Pressable>
-      <Pressable onPress={onLater} hitSlop={10} style={st.stripX} accessibilityRole="button" accessibilityLabel="Agora não">
-        <Icon name="x" size={16} color={colors.zinc500} />
-      </Pressable>
+    <View style={st.vis}>
+      <View style={st.visHead}>
+        <View style={st.visIcon}><Icon name="eye-off" size={18} color={colors.zinc700} /></View>
+        <Text style={st.visTitle} numberOfLines={1}>Estás invisível</Text>
+        <Pressable onPress={onLater} hitSlop={4} style={({ pressed }) => [st.visX, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel="Agora não">
+          <Icon name="x" size={16} color={colors.zinc500} />
+        </Pressable>
+      </View>
+      <Text style={st.visText}>A malta não te vê no mapa. Tu vês tudo na mesma.</Text>
+      <View style={st.visFoot}>
+        <Pressable
+          onPress={onOpen}
+          style={({ pressed }) => [st.visBtn, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Aparecer à malta. Escolher quem te vê"
+          accessibilityHint="Mostramos só a zona aproximada, nunca o sítio exato"
+        >
+          <Icon name="eye" size={16} color={colors.white} />
+          <Text style={st.visBtnText}>Aparecer à malta</Text>
+        </Pressable>
+        <View style={st.visSafe} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Icon name="shield" size={14} color={colors.zinc500} />
+          <Text style={st.visSafeText} numberOfLines={2}>Só o bairro, nunca o sítio exato</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -1041,10 +1293,29 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
 
 const st = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
-  emptySub: { fontSize: 14, color: colors.zinc500, textAlign: 'center' },
-  retry: { marginTop: 6, height: 40, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.zinc100, justifyContent: 'center' },
-  retryText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
+  // Vazio e erro.
+  empty: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, paddingBottom: 28, gap: 6 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, textAlign: 'center', letterSpacing: -0.2, marginTop: 6 },
+  emptySub: { fontSize: 14, lineHeight: 20, color: colors.zinc500, textAlign: 'center', maxWidth: 320 },
+  emptyPrimary: { marginTop: 10, minHeight: 46, paddingHorizontal: 24, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(214,51,79,0.28)' },
+  emptyPrimaryText: { fontSize: 15, fontWeight: '800', color: colors.white },
+  extras: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 8 },
+  extra: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.zinc100 },
+  extraText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
+  radarCore: { position: 'absolute', backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.white, boxShadow: '0 4px 12px rgba(214,51,79,0.35)' },
+  // Vazio no telemóvel: o desenho ao lado do texto e os botões numa fila.
+  emptyC: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 24, gap: 12 },
+  emptyCRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  emptyTitleC: { fontSize: 17, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.2 },
+  emptySubC: { fontSize: 13, lineHeight: 18, color: colors.zinc500 },
+  extrasC: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  emptyPrimaryC: { marginTop: 0, minHeight: 44, paddingHorizontal: 18, boxShadow: '0 3px 10px rgba(214,51,79,0.25)' },
+  errIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
+  // A carregar.
+  skRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 8, paddingHorizontal: 10, paddingVertical: 10 },
+  skThumb: { width: 54, height: 54, borderRadius: 15, backgroundColor: colors.zinc200 },
+  skLine: { height: 13, borderRadius: 7, backgroundColor: colors.zinc200 },
+  skPill: { width: 48, height: 24, borderRadius: 12, backgroundColor: colors.zinc100, marginRight: 8 },
   explain: { alignItems: 'center', gap: 14, paddingTop: 24 },
   explainIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
   explainTitle: { fontSize: 22, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
@@ -1055,51 +1326,74 @@ const st = StyleSheet.create({
   secondaryText: { color: colors.zinc900, fontSize: 15, fontWeight: '700' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8, paddingRight: 12, paddingVertical: 2, backgroundColor: colors.white },
   headLine: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingBottom: 6 },
-  headTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.zinc900 },
-  phoneTop: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, backgroundColor: colors.white },
+  headTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.3 },
+  // A fila dos filtros fica por cima do mapa, com uma sombra curta em vez de um traço (o mapa parece passar por baixo).
+  phoneTop: { backgroundColor: colors.white, zIndex: 2, boxShadow: '0 4px 10px rgba(0,0,0,0.06)' },
   filters: { gap: 8, paddingTop: 2, paddingBottom: 10 },
-  chipRow: { paddingLeft: 12, paddingRight: 28, gap: 8, alignItems: 'center' },
+  chipRow: { paddingLeft: 12, paddingRight: 16, gap: 8, alignItems: 'center' },
   chipGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chipSep: { width: 1, height: 20, backgroundColor: colors.zinc200 },
-  chipFade: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 28 },
+  chipFade: { position: 'absolute', top: 0, bottom: 0, width: 40 },
   chip: { height: 36, borderRadius: 999, paddingHorizontal: 15, borderWidth: 1, borderColor: colors.zinc100, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
-  zone: { height: 36, borderRadius: 999, paddingLeft: 11, paddingRight: 10, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 230 },
+  zone: { height: 36, borderRadius: 999, paddingLeft: 11, paddingRight: 9, borderWidth: 1, borderColor: '#f6c9d1', backgroundColor: colors.white, flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 240 },
   zoneText: { fontSize: 14, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
+  zoneKm: { height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.rose50, justifyContent: 'center' },
+  zoneKmText: { fontSize: 12, fontWeight: '800', color: colors.brand, fontVariant: ['tabular-nums'] },
   zoneCaret: { transform: [{ rotate: '90deg' }], marginLeft: -1 },
   sheetLabel: { fontSize: 13, fontWeight: '700', color: colors.zinc500 },
   distHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   distValue: { fontSize: 17, fontWeight: '800', color: colors.zinc900, fontVariant: ['tabular-nums'] },
-  eye: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.zinc100 },
-  eyeText: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
+  eye: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingLeft: 10, paddingRight: 13, borderRadius: 999, backgroundColor: colors.zinc100 },
+  eyeOn: { backgroundColor: '#e9f9ef' },
+  eyeDot: { width: 7, height: 7, borderRadius: 4 },
+  eyeText: { fontSize: 13, fontWeight: '800', color: colors.zinc700 },
   mineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.rose50 },
   mineText: { fontSize: 15, fontWeight: '700', color: colors.brand },
-  sheet: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, boxShadow: '0 -4px 20px rgba(0,0,0,0.12)' },
-  grab: { paddingTop: 8, paddingBottom: 4, alignItems: 'center', gap: 8 },
-  grabBar: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.zinc300 },
-  listHead: { paddingHorizontal: 16, paddingBottom: 6, alignSelf: 'stretch' },
-  listHeadTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.2 },
-  listHeadSub: { fontSize: 13, fontWeight: '500', color: colors.zinc500, marginTop: 1 },
-  strip: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginTop: 2, marginBottom: 6, paddingLeft: 8, paddingRight: 4, minHeight: 44, borderRadius: 14, backgroundColor: colors.zinc100 },
-  stripMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  stripIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  stripText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.zinc900 },
-  stripDim: { fontWeight: '500', color: colors.zinc500 },
-  stripLink: { fontSize: 14, fontWeight: '800', color: colors.brand, paddingHorizontal: 6 },
-  stripX: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
+  sheet: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, boxShadow: '0 -6px 24px rgba(0,0,0,0.14)' },
+  grab: { paddingTop: 8, paddingBottom: 4, alignItems: 'center', gap: 10 },
+  grabBar: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.zinc300 },
+  listHead: { paddingHorizontal: 18, paddingBottom: 8, alignSelf: 'stretch' },
+  listHeadTitle: { fontSize: 20, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.3 },
+  listHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, minHeight: 22 },
+  listHeadSub: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: colors.zinc500 },
+  token: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.zinc100 },
+  tokenText: { fontSize: 12, fontWeight: '800', color: colors.zinc700, fontVariant: ['tabular-nums'] },
+  // Invisível.
+  vis: { marginHorizontal: 12, marginTop: 0, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 18, backgroundColor: colors.zinc100, gap: 6 },
+  visHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  visIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  visTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.zinc900 },
+  visX: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: -6, marginVertical: -4 },
+  visText: { fontSize: 13, lineHeight: 18, color: colors.zinc600 },
+  visFoot: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
+  visBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc900 },
+  visBtnText: { fontSize: 14, fontWeight: '800', color: colors.white },
+  visSafe: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  visSafeText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.zinc500 },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100 },
   problem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100, alignSelf: 'stretch' },
-  emptyIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  rowSel: { backgroundColor: colors.rose50 },
-  thumb: { width: 52, height: 52, borderRadius: 14, backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  personHalo: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(214,51,79,0.14)', alignItems: 'center', justifyContent: 'center' },
+  // Linhas (cartões) da lista.
+  row: { flexDirection: 'row', alignItems: 'center', gap: 11, marginHorizontal: 8, paddingLeft: 10, paddingRight: 2, paddingVertical: 9, borderRadius: 18, borderWidth: 1, borderColor: 'transparent' },
+  rowHover: { backgroundColor: colors.zinc100 },
+  rowSel: { backgroundColor: colors.rose50, borderColor: '#f9d0d8' },
+  thumb: { width: 54, height: 54, borderRadius: 15, backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ring: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  ringInner: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  cal: { width: 54, height: 54, borderRadius: 15, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden' },
+  calTop: { height: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  calMonth: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: colors.white },
+  calBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  calDay: { fontSize: 20, fontWeight: '800', color: colors.zinc900, fontVariant: ['tabular-nums'] },
+  dateChip: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.white },
+  dateChipText: { fontSize: 9, fontWeight: '800', color: colors.brand, letterSpacing: 0.3 },
   rowTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
-  rowSub: { fontSize: 13, color: colors.zinc500, marginTop: 2 },
-  boostTag: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 8, paddingVertical: 2 },
+  rowSub: { fontSize: 13, color: colors.zinc500, marginTop: 3 },
+  boostTag: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 5, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 8, paddingVertical: 2 },
   boostText: { fontSize: 11, fontWeight: '800', color: colors.brand },
-  rowKm: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
-  rowOpen: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  kmPill: { height: 24, paddingHorizontal: 7, borderRadius: 12, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, justifyContent: 'center' },
+  kmText: { fontSize: 12, fontWeight: '800', color: colors.zinc700, fontVariant: ['tabular-nums'] },
+  rowOpen: { width: 30, height: 36, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   cardText: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.zinc200 },
   optOn: { borderColor: colors.brand, backgroundColor: colors.rose50 },
@@ -1108,6 +1402,8 @@ const st = StyleSheet.create({
   optTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   optSub: { fontSize: 13, color: colors.zinc500, marginTop: 1 },
   deskHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingTop: 22 },
-  deskTitle: { fontSize: 24, fontWeight: '800', color: colors.zinc900 },
-  deskList: { width: 380, borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden', paddingTop: 12, backgroundColor: colors.white },
+  deskTitle: { fontSize: 26, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.4 },
+  deskSub: { fontSize: 14, fontWeight: '500', color: colors.zinc500, marginTop: 2 },
+  deskMap: { flex: 1, borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: colors.zinc200, backgroundColor: '#f2efe9' },
+  deskList: { width: 400, borderRadius: 22, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden', paddingTop: 16, backgroundColor: colors.white, ...cardShadow },
 });

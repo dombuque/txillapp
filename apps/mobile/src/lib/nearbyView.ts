@@ -121,9 +121,33 @@ export function emptyHint(o: { filter: NearbyFilter; when: NearbyWhen; radius: n
       // "Tudo" já traz os eventos da semana inteira (não só os de hoje).
       return {
         title: 'Por aqui está calmo',
-        sub: wider ? 'Não há nada perto (nem eventos esta semana). Vê um pouco mais longe ou troca o filtro.' : 'Não há nada perto, nem eventos esta semana. Volta mais logo: há sempre coisas novas.',
+        sub: `Nada num raio de ${o.radius} km, nem eventos esta semana.${wider ? '' : ' Volta mais logo: há sempre coisas novas.'}`,
         action: widen,
       };
+  }
+}
+
+/** Os outros caminhos do estado vazio (além do botão principal do emptyHint). */
+export type EmptyExtra = 'place' | 'invite' | 'venue' | 'all';
+export const EMPTY_EXTRA_LABEL: Record<EmptyExtra, string> = { place: 'Mudar o sítio', invite: 'Convidar a malta', venue: 'Tenho um local', all: 'Ver tudo' };
+
+/**
+ * No máximo dois caminhos a mais no vazio, conforme o filtro: mudar o sítio, convidar a malta (para haver quem apareça),
+ * registar o local (os eventos e os locais vêm das páginas dos locais) ou voltar a «Tudo». Menores de 18 não veem a malta:
+ * no filtro da malta só lhes fica «Ver tudo».
+ */
+export function emptyExtras(o: { filter: NearbyFilter; canEnable: boolean }): EmptyExtra[] {
+  switch (o.filter) {
+    case 'all':
+      return ['place', 'invite'];
+    case 'people':
+      return o.canEnable ? ['invite', 'all'] : ['all'];
+    case 'events':
+      return ['all', 'venue'];
+    case 'venues':
+      return ['place', 'venue'];
+    default:
+      return ['all', 'place'];
   }
 }
 

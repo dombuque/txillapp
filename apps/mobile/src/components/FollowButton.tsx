@@ -1,11 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { ApiError, api, type FollowState } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
 /** Seguir / A seguir / Pedido enviado (perfis privados). Responde já e volta atrás se falhar. */
-export function FollowButton({ username, following, requested, isPrivate }: { username: string; following: boolean; requested: boolean; isPrivate: boolean }) {
+export function FollowButton({ username, following, requested, isPrivate, style }: { username: string; following: boolean; requested: boolean; isPrivate: boolean; style?: StyleProp<ViewStyle> }) {
   const qc = useQueryClient();
   const [s, setS] = useState({ following, requested });
   const [busy, setBusy] = useState(false);
@@ -34,7 +34,7 @@ export function FollowButton({ username, following, requested, isPrivate }: { us
   }
   const on = s.following || s.requested;
   return (
-    <Pressable onPress={() => void toggle()} disabled={busy} style={[st.btn, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
+    <Pressable onPress={() => void toggle()} disabled={busy} style={[st.btn, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }, style]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
       <Text style={[st.text, !on && { color: '#fff' }]}>{s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}</Text>
     </Pressable>
   );
