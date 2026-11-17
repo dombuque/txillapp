@@ -14,7 +14,8 @@
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 import { fmtVibesNumber, formatVibes } from '@/lib/vibes';
 import { REMINDER_LIVE_TEXT, fromReminder } from '@/lib/txilladaSchedule';
-import { t } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /**
  * Quem pode ver (0167): 'everyone' (Pública), 'friends' (Para amigos: quem segues e te segue), 'close' (Para amigos com «Só
@@ -576,7 +577,7 @@ export function shareMessage(dto: Pick<TxilladaDto, 'title' | 'host'>): string {
 
 /** Os erros da API em palavras para a pessoa (a mensagem do servidor, quando a há, vale mais). */
 export function errorText(status: number | undefined, message?: string | null): string {
-  const m = message && message !== 'Erro inesperado' ? message : '';
+  const m = message && message !== UNEXPECTED_TEXT() ? message : '';
   switch (status) {
     case 402: return m || t('Esta Txillada é privada: paga a entrada para entrar.');
     case 403: return m || t('Não podes ver esta Txillada.');

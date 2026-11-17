@@ -21,6 +21,7 @@ export class ZodPipe<T> implements PipeTransform {
     const result = this.schema.safeParse(value, error ? { error } : undefined);
     if (!result.success) {
       throw new BadRequestException({
+        code: 'invalid_input',
         message: 'Dados inválidos',
         issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       });

@@ -159,8 +159,12 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
   const limit = 'Já pediste 3 geladas ao @ana hoje. Amanhã há mais 🍻';
   assert.equal(g.geladaErrorText({ status: 429, message: limit }, f), limit);
   assert.equal(g.geladaErrorText({ status: 403, message: 'O @rui não aceita pedidos públicos: manda-lhe no chat.' }, f), 'O @rui não aceita pedidos públicos: manda-lhe no chat.');
-  assert.match(g.geladaErrorText({ status: 429, message: 'ThrottlerException: Too Many Requests' }, f), /^Foram muitos pedidos seguidos/);
-  for (const message of ['Erro inesperado', 'Forbidden', 'Internal server error', 'Dados inválidos', 'Bad Request', '']) assert.equal(g.geladaErrorText({ status: 500, message }, f), f);
+  // As genéricas reconhecem-se pelo `code` da API (o texto vem no idioma da pessoa), não pelo texto.
+  assert.match(g.geladaErrorText({ status: 429, code: 'too_many_requests', message: 'ThrottlerException: Too Many Requests' }, f), /^Foram muitos pedidos seguidos/);
+  for (const [status, code, message] of [[403, 'generic', 'Forbidden'], [404, 'generic', 'Not Found'], [400, 'invalid_input', 'Dados inválidos'], [400, 'invalid_input', 'Invalid data'], [500, 'unexpected', 'Erro inesperado']]) assert.equal(g.geladaErrorText({ status, code, message }, f), f);
+  // O code também pode vir no resto da resposta (ApiError.extra).
+  assert.equal(g.geladaErrorText({ status: 403, message: 'Forbidden', extra: { code: 'generic' } }, f), f);
+  for (const message of ['Erro inesperado', 'Internal server error', '']) assert.equal(g.geladaErrorText({ status: 500, message }, f), f);
   assert.match(g.geladaErrorText(new TypeError('Failed to fetch'), f), /sem rede/);
   assert.equal(g.geladaErrorText(new Error('Não consegui carregar a foto.'), f), 'Não consegui carregar a foto.');
   assert.equal(g.geladaErrorText(null, f), f);

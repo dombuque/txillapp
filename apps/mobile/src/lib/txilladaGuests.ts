@@ -9,7 +9,8 @@
  * - O que cada um vê (`guestUi`) e os avisos (`guestNotice`).
  */
 import type { TxilladaPerson } from '@/lib/txillada';
-import { t } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /** No máximo 3 convidados ao mesmo tempo (o servidor responde 409 acima disso). */
 export const GUESTS_MAX = 3;
@@ -256,7 +257,7 @@ export function inviteSentText(username: string): string {
  */
 export function inviteErrorText(e: { status?: number; code?: string; message?: string; extra?: Record<string, unknown> } | null | undefined, username: string): string {
   const code = e?.code ?? (typeof e?.extra?.code === 'string' ? e.extra.code : undefined);
-  const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
+  const m = e?.message && e.message !== UNEXPECTED_TEXT() ? e.message : '';
   switch (e?.status) {
     case 404: return t('Não encontrámos @{username}. Confirma o @ e tenta outra vez.', { username });
     case 409:

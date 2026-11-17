@@ -11,6 +11,7 @@ import { track, trackOk, trackThrottled } from './analytics';
 import { currentLanguage } from './i18n';
 import type { SponsoredSlot } from './api.boosts';
 import { t } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser {
@@ -427,6 +428,7 @@ export interface StoryComment { id: string; body: string; createdAt: string; min
 export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string; price?: number } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
+export { GENERIC_ERROR_CODES, UNEXPECTED_TEXT } from '@/lib/apiErrors';
 export class ApiError extends Error {
   /** `extra`: o resto da resposta do servidor (ex.: `assetId` de uma foto recusada, ver lib/photoAppeal). */
   constructor(public status: number, message: string, public code?: string, public extra?: Record<string, unknown>) {
@@ -536,7 +538,8 @@ async function parse(res: Response) {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string | string[]; code?: string };
     if (res.status === 403 && body.code === 'email_not_verified') for (const f of needVerifyListeners) f();
-    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado', body.code, body as Record<string, unknown>);
+    const message = Array.isArray(body.message) ? body.message[0] : body.message;
+    throw new ApiError(res.status, message ?? UNEXPECTED_TEXT(), body.code ?? (message ? undefined : 'unexpected'), body as Record<string, unknown>);
   }
   if (res.status === 204) return undefined;
   const text = await res.text();

@@ -3,7 +3,8 @@
  * servidor (apps/api/src/gelada/gelada-cards.ts): o álcool nunca aparece a quem tem menos de 18 anos.
  */
 
-import { t } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
+import { GENERIC_ERROR_CODES } from '@/lib/apiErrors';
 export interface DrinkLike { slug: string; name: string; category: string; alcoholic: boolean; masked?: boolean }
 export interface PersonLike { username: string; displayName: string }
 export type StatusLike = 'pending' | 'accepted' | 'declined' | 'owed' | 'untagged';
@@ -170,18 +171,19 @@ export function venuesByDistance<T extends { slug: string; lat: number | null; l
 
 /* ───────────── erros ───────────── */
 
-/** Mensagens que não servem para mostrar (genéricas ou em inglês): no lugar delas vai a frase do ecrã. */
-const GENERIC = /^(Erro inesperado|Dados inválidos|Forbidden|Bad Request|Not Found|Unauthorized|Conflict|Internal server error|Too Many Requests|ThrottlerException.*)$/i;
+/** Os `code` da API dos erros sem frase própria (genéricos, validação, sem mensagem): no lugar deles vai a frase do ecrã. */
+const GENERIC_CODES = GENERIC_ERROR_CODES;
 
 /**
  * O texto do erro de um pedido da gelada: a frase do servidor (já em português, com o @ da pessoa, p.ex. «Já pediste 3
  * geladas ao @ana hoje. Amanhã há mais 🍻»), menos quando é genérica ou em inglês. `fallback`: a frase do ecrã.
  */
 export function geladaErrorText(e: unknown, fallback: string): string {
-  const err = (e ?? {}) as { status?: number; message?: unknown };
+  const err = (e ?? {}) as { status?: number; message?: unknown; code?: unknown; extra?: Record<string, unknown> };
   const msg = typeof err.message === 'string' ? err.message.trim() : '';
-  if (err.status === 429 && (!msg || /throttler|too many/i.test(msg))) return t('Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez.');
+  const code = typeof err.code === 'string' ? err.code : typeof err.extra?.code === 'string' ? err.extra.code : undefined;
+  if (err.status === 429 && (!msg || code === 'too_many_requests')) return t('Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez.');
   if (!err.status && /failed to fetch|network|timeout|load failed/i.test(msg)) return t('Parece que estás sem rede. Tenta outra vez quando tiveres ligação.');
-  if (!msg || GENERIC.test(msg) || /^[A-Z][a-z]+ ?Exception/.test(msg)) return fallback;
+  if (!msg || (code && GENERIC_CODES.has(code)) || (err.status ?? 0) >= 500) return fallback;
   return msg;
 }
