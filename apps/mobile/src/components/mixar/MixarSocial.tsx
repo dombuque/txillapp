@@ -10,6 +10,7 @@ import {
   BURST_MS, canSend, COMMENT_MAX, commentA11y, commentBadge, commentErrorText, commentLeft, commentsEmpty, hereLine, moreLine, saveA11y,
   savedByText, savedEmpty, savedEnd, togetherLine, togetherSub, type Presence,
 } from '@/lib/mixarSocial';
+import { GROUP_COMMENTS, GROUP_SAVED_EMPTY } from '@/lib/mixarGrupo';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from '../Avatar';
@@ -71,7 +72,7 @@ function MixarCircle({ children, on = false }: { children: ReactNode; on?: boole
 /* ---------- A conversa do item ---------- */
 
 /** A folha com a conversa daquele vídeo: só os dois a veem. O meu apaga-se; o do outro denuncia-se. */
-export function MixarCommentsSheet({ mixarId, postId, partner, onClose }: { mixarId: string; postId: string; partner: Partner; onClose: () => void }) {
+export function MixarCommentsSheet({ mixarId, postId, partner, onClose, group = false }: { mixarId: string; postId: string; partner: Partner; onClose: () => void; /** Mixar de grupo (0173): os textos para o grupo. */ group?: boolean }) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const key = mixarSocialKeys.comments(mixarId, postId);
@@ -91,7 +92,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose }: { mixa
   // Fica no fim (o mais recente) até a pessoa pedir as mais antigas; enviar volta a pôr no fim.
   const stick = useRef(true);
   const left = commentLeft(text);
-  const empty = commentsEmpty(partner.name);
+  const empty = group ? GROUP_COMMENTS.empty : commentsEmpty(partner.name);
 
   const refreshCounts = () => void qc.invalidateQueries({ queryKey: mixarSocialKeys.social(mixarId) });
   async function send() {
@@ -122,7 +123,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose }: { mixa
       }
     };
     if (isWeb) { void go(); return; }
-    Alert.alert('Apagar o comentário?', `Deixa de se ver para ti e para ${partner.name}.`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: () => void go() }]);
+    Alert.alert('Apagar o comentário?', group ? GROUP_COMMENTS.remove : `Deixa de se ver para ti e para ${partner.name}.`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: () => void go() }]);
   }
   const hide = (c: MixarComment) => qc.setQueryData<InfiniteData<MixarCommentsPage>>(key, (d) => (d ? { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) } : d));
 
@@ -132,7 +133,7 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose }: { mixa
     <Sheet title="Conversa sobre este vídeo" onClose={onClose}>
       <View style={st.private}>
         <Icon name="lock" size={14} color={colors.zinc500} />
-        <Text style={st.privateText}>Só tu e {partner.name} veem isto</Text>
+        <Text style={st.privateText}>{group ? GROUP_COMMENTS.private : `Só tu e ${partner.name} veem isto`}</Text>
       </View>
       <FlatList
         ref={list}
@@ -192,11 +193,11 @@ export function MixarCommentsSheet({ mixarId, postId, partner, onClose }: { mixa
               value={text}
               onChangeText={(t) => { setText(t); if (err) setErr(''); }}
               maxLength={COMMENT_MAX + 50}
-              placeholder={`Diz a ${partner.name}…`}
+              placeholder={group ? GROUP_COMMENTS.placeholder : `Diz a ${partner.name}…`}
               placeholderTextColor={colors.zinc500}
               style={st.input}
               multiline
-              accessibilityLabel={`Escrever a ${partner.name} sobre este vídeo`}
+              accessibilityLabel={group ? 'Escrever ao grupo sobre este vídeo' : `Escrever a ${partner.name} sobre este vídeo`}
               onSubmitEditing={() => void send()}
               blurOnSubmit={false}
               onKeyPress={isWeb ? (e) => { const k = e.nativeEvent as unknown as { key: string; shiftKey?: boolean; preventDefault?: () => void }; if (k.key === 'Enter' && !k.shiftKey) { (e as unknown as { preventDefault: () => void }).preventDefault?.(); void send(); } } : undefined}
@@ -290,8 +291,8 @@ export function ReactionBurst({ reaction, seq, partner }: { reaction: MixarReact
 }
 
 /** Nos Guardados: quem guardou («Guardado por Zeca», «Os dois reagiram»). */
-export function SavedByChip({ by, partner }: { by: 'me' | 'them' | 'both'; partner: string }) {
-  const text = savedByText(by, partner);
+export function SavedByChip({ by, partner, text: override }: { by: 'me' | 'them' | 'both'; partner: string; /** Mixar de grupo: o texto já feito (lib/mixarGrupo). */ text?: string }) {
+  const text = override ?? savedByText(by, partner);
   return (
     <View style={st.savedBy} accessibilityRole="text" accessibilityLabel={text}>
       <BookmarkIcon on size={12} color="#f5c518" />
@@ -311,8 +312,8 @@ export function SavedHeaderButton({ onPress }: { onPress: () => void }) {
 }
 
 /** O fim dos Guardados (ou os Guardados vazios). */
-export function SavedEndPage({ height, partner, empty, onBack }: { height: number; partner: string; empty: boolean; onBack: () => void }) {
-  const t = empty ? savedEmpty(partner) : savedEnd;
+export function SavedEndPage({ height, partner, empty, onBack, group = false }: { height: number; partner: string; empty: boolean; onBack: () => void; group?: boolean }) {
+  const t = empty ? (group ? GROUP_SAVED_EMPTY : savedEmpty(partner)) : savedEnd;
   return (
     <View style={[{ height, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#0b0b0c' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]}>
       <LinearGradient colors={['rgba(245,197,24,0.18)', 'rgba(0,0,0,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.7 }} style={StyleSheet.absoluteFill} />

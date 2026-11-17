@@ -11,7 +11,8 @@ import { TextFilter } from '../safety/text-filter.service';
 import { notReportedBy } from '../social/visibility';
 import { controlCandidates, dropTopics, loadControl, maskTopic, mixarOffTopics, privateTopicsOfAll } from './mixar-controlo';
 import { mixarDay, pickDaily, type From } from './mixar-pick';
-import { bothSee, MixarService, type MixarItem, type ReactionId, type Row } from './mixar.service';
+import { MixarGrupoService } from './mixar-grupo.service';
+import { bothSee, MixarService, seeAll, type MixarItem, type ReactionId, type Row } from './mixar.service';
 
 /** Quantas vezes por dia se pode pedir «Mais 5» em cada Mixar, e quantos itens vêm de cada vez. */
 export const MORE_PER_DAY = 3;
@@ -37,6 +38,8 @@ export interface MixarSavedItem extends MixarItem {
   savedAt: string;
   /** Quem guardou: eu, o outro, ou os dois (entrou sozinho porque os dois reagiram). */
   savedBy: 'me' | 'them' | 'both';
+  /** Mixar de grupo (0173): quem guardou, quando foi outra pessoa à mão ('both' = entrou sozinho porque a maioria reagiu). */
+  savedByPerson?: Person | null;
 }
 
 /**
@@ -79,6 +82,7 @@ export class MixarSocialService implements OnModuleInit {
     private readonly bus: RealtimeBus,
     private readonly scheduler: Scheduler,
     private readonly filter: TextFilter,
+    private readonly grupo: MixarGrupoService,
   ) {}
 
   onModuleInit() {
@@ -188,6 +192,7 @@ export class MixarSocialService implements OnModuleInit {
   /** Os Guardados, do mais recente para o mais antigo, só com o que os dois podem ver agora (nada removido nem ocultado). */
   async saved(me: string, id: string, cursor: string | undefined, limit: number): Promise<{ items: MixarSavedItem[]; nextCursor: string | null }> {
     const m = await this.mixar.active(me, id);
+    if (m.group_id) return this.savedGroup(me, m, cursor, limit);
     let at: string | null = null;
     let after: string | null = null;
     if (cursor) {
@@ -235,6 +240,54 @@ export class MixarSocialService implements OnModuleInit {
     return { items, nextCursor: rows.length > limit && last ? `${last.ck as string}_${last.post_id as string}` : null };
   }
 
+  /**
+   * Os Guardados de um Mixar de grupo (0173): o mesmo que no Mixar a dois, com as reações e os vistos de todos e quem guardou
+   * (`savedBy` 'me', 'them' com `savedByPerson`, ou 'both' quando entrou sozinho porque a maioria reagiu).
+   */
+  private async savedGroup(me: string, m: Row, cursor: string | undefined, limit: number) {
+    let at: string | null = null;
+    let after: string | null = null;
+    if (cursor) {
+      const c = SAVED_CURSOR.exec(cursor);
+      if (!c) throw new BadRequestException('cursor inválido');
+      [, at, after] = c;
+    }
+    const ids = [me, ...m.others];
+    const { rows } = await this.pool.query(
+      `SELECT s.post_id, s.saved_by, s.created_at,
+              to_char(s.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ck,
+              li.source, li.topic, li.fans,
+              (SELECT json_agg(json_build_object('u', r.user_id, 'r', r.reaction)) FROM social.mixar_reactions r
+                WHERE r.mixar_id = s.mixar_id AND r.post_id = s.post_id AND r.user_id = ANY($1::uuid[])) AS reactions,
+              ARRAY(SELECT v.user_id FROM social.mixar_views v WHERE v.mixar_id = s.mixar_id AND v.post_id = s.post_id AND v.user_id = ANY($1::uuid[])) AS seen
+         FROM social.mixar_saves s
+         JOIN content.posts p ON p.id = s.post_id JOIN identity.users u ON u.id = p.author_id
+         LEFT JOIN LATERAL (SELECT i.source, i.topic, i.fans FROM social.mixar_items i WHERE i.mixar_id = s.mixar_id AND i.post_id = s.post_id ORDER BY i.day DESC LIMIT 1) li ON true
+        WHERE s.mixar_id = $2 AND s.removed_at IS NULL AND ${seeAll('$1')}
+          AND ($3::timestamptz IS NULL OR (s.created_at, s.post_id) < ($3::timestamptz, $4::uuid))
+        ORDER BY s.created_at DESC, s.post_id DESC LIMIT $5`,
+      [ids, m.id, at, after, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    const off = await mixarOffTopics(this.pool, m.id);
+    const items = await this.grupo.items(me, m, page.map((r) => ({ ...r, topic: r.topic && off.has(r.topic as string) ? null : r.topic })));
+    const byPost = new Map(page.map((r) => [r.post_id as string, r]));
+    const people = new Map((m.people ?? []).map((p) => [p.id, p]));
+    const out = items.map((it) => {
+      const r = byPost.get(it.post.id)!;
+      const by = r.saved_by as string | null;
+      const who = by && by !== me ? people.get(by) : undefined;
+      return {
+        ...it,
+        savedAt: (r.created_at as Date).toISOString(),
+        savedBy: (by === me ? 'me' : by ? 'them' : 'both') as MixarSavedItem['savedBy'],
+        savedByPerson: who ? { username: who.username, displayName: who.displayName, hasAvatar: who.hasAvatar, verified: who.verified, verifiedTier: who.verifiedTier } : null,
+      };
+    });
+    const last = page[page.length - 1];
+    return { items: out, nextCursor: rows.length > limit && last ? `${last.ck as string}_${last.post_id as string}` : null };
+  }
+
   /* ───────────── «Mais 5» ───────────── */
 
   async moreLeft(me: string, id: string) {
@@ -263,18 +316,11 @@ export class MixarSocialService implements OnModuleInit {
       if (rounds >= MORE_PER_DAY) {
         throw new HttpException(`Já pediram mais ${MORE_PER_DAY} vezes hoje. Amanhã às 05:00 há uma seleção nova`, HttpStatus.TOO_MANY_REQUESTS);
       }
-      const [pa, pb, pm, cands, before, ctl] = await Promise.all([
-        this.mixar.profile(m.user_a),
-        this.mixar.profile(m.user_b),
-        this.mixar.mixarProfile(id, day),
-        this.mixar.candidates(m.user_a, m.user_b),
-        client.query(
-          `SELECT i.post_id, p.author_id, (i.day = $2::date) AS today, i.position
-             FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id WHERE i.mixar_id = $1`,
-          [id, day],
-        ),
-        loadControl(this.pool, id, m.user_a, m.user_b),
-      ]);
+      const before = await client.query(
+        `SELECT i.post_id, p.author_id, (i.day = $2::date) AS today, i.position
+           FROM social.mixar_items i JOIN content.posts p ON p.id = i.post_id WHERE i.mixar_id = $1`,
+        [id, day],
+      );
       // No máximo 2 do mesmo autor no dia (contando com o que já lá está).
       const perAuthor = new Map<string, number>();
       let next = 0;
@@ -283,21 +329,36 @@ export class MixarSocialService implements OnModuleInit {
         perAuthor.set(r.author_id as string, (perAuthor.get(r.author_id as string) ?? 0) + 1);
         next = Math.max(next, (r.position as number) + 1);
       }
-      const picked = pickDaily({
-        // 0172: como na seleção do dia, sem os temas tirados e com o «Menos disto» (temas e autores) a pesar menos.
-        a: dropTopics(pa, ctl.off),
-        b: dropTopics(pb, ctl.off),
-        mixar: dropTopics(pm, ctl.off),
-        candidates: controlCandidates(cands, ctl).filter((c) => (perAuthor.get(c.authorId) ?? 0) < 2),
-        exclude: before.rows.map((r) => r.post_id as string),
-        max: MORE_ITEMS,
-        perAuthor: 1,
-        seed: `${id}:${day}:mais${rounds + 1}`,
-      });
+      const exclude = before.rows.map((r) => r.post_id as string);
+      const seed = `${id}:${day}:mais${rounds + 1}`;
+      let picked: { postId: string; from: string; topic: string | null; score: number; fans?: string[] }[];
+      if (m.group_id) {
+        // Mixar de grupo (0173): a escolha com os gostos de todos os participantes (MixarGrupoService.pickFor).
+        picked = (await this.grupo.pickFor(id, [me, ...m.others], day, { exclude, max: MORE_ITEMS, perAuthor: 1, seed, skipAuthors: perAuthor })).picked;
+      } else {
+        const [pa, pb, pm, cands, ctl] = await Promise.all([
+          this.mixar.profile(m.user_a),
+          this.mixar.profile(m.user_b),
+          this.mixar.mixarProfile(id, day),
+          this.mixar.candidates(m.user_a, m.user_b),
+          loadControl(this.pool, id, m.user_a, m.user_b),
+        ]);
+        picked = pickDaily({
+          // 0172: como na seleção do dia, sem os temas tirados e com o «Menos disto» (temas e autores) a pesar menos.
+          a: dropTopics(pa, ctl.off),
+          b: dropTopics(pb, ctl.off),
+          mixar: dropTopics(pm, ctl.off),
+          candidates: controlCandidates(cands, ctl).filter((c) => (perAuthor.get(c.authorId) ?? 0) < 2),
+          exclude,
+          max: MORE_ITEMS,
+          perAuthor: 1,
+          seed,
+        });
+      }
       for (const [i, p] of picked.entries()) {
         const ins = await client.query(
-          'INSERT INTO social.mixar_items (mixar_id, day, post_id, position, source, topic, score) VALUES ($1, $2::date, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING',
-          [id, day, p.postId, next + i, p.from, p.topic, p.score],
+          'INSERT INTO social.mixar_items (mixar_id, day, post_id, position, source, topic, score, fans) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8::uuid[]) ON CONFLICT DO NOTHING',
+          [id, day, p.postId, next + i, p.from, p.topic, p.score, p.fans ?? null],
         );
         added += ins.rowCount ?? 0;
       }
@@ -329,17 +390,28 @@ export class MixarSocialService implements OnModuleInit {
     if (leave) {
       const was = await this.bus.getFlag(key);
       await this.bus.delFlag(key);
-      if (was !== null) this.bus.publish(m.other_id, { type: 'mixar.live', id, what: 'presence', here: false, postId: null } satisfies MixarLiveEvent);
+      if (was !== null) for (const o of m.others) this.bus.publish(o, { type: 'mixar.live', id, what: 'presence', here: false, postId: null } satisfies MixarLiveEvent);
     } else {
       if (postId) {
         const ok = await this.pool.query('SELECT 1 FROM social.mixar_items WHERE mixar_id = $1 AND post_id = $2 LIMIT 1', [id, postId]);
         if (!ok.rowCount) postId = null;
       }
       const was = await this.bus.swap(key, postId ?? '', PRESENCE_MS);
-      if (was !== (postId ?? '')) this.bus.publish(m.other_id, { type: 'mixar.live', id, what: 'presence', here: true, postId } satisfies MixarLiveEvent);
+      if (was !== (postId ?? '')) for (const o of m.others) this.bus.publish(o, { type: 'mixar.live', id, what: 'presence', here: true, postId } satisfies MixarLiveEvent);
     }
-    const theirs = await this.bus.getFlag(presenceKey(id, m.other_id));
-    return { partner: { here: theirs !== null, postId: theirs ? theirs : null } };
+    if (!m.group_id) {
+      const theirs = await this.bus.getFlag(presenceKey(id, m.other_id));
+      return { partner: { here: theirs !== null, postId: theirs ? theirs : null } };
+    }
+    // Mixar de grupo: quem mais está (pela ordem de entrada).
+    const people = new Map((m.people ?? []).map((p) => [p.id, p]));
+    const here: { username: string; displayName: string; hasAvatar: boolean; verified: boolean; verifiedTier?: string | null; postId: string | null }[] = [];
+    for (const o of m.others) {
+      const f = await this.bus.getFlag(presenceKey(id, o));
+      const p = people.get(o);
+      if (f !== null && p) here.push({ username: p.username, displayName: p.displayName, hasAvatar: p.hasAvatar, verified: p.verified, verifiedTier: p.verifiedTier, postId: f || null });
+    }
+    return { partner: { here: here.length > 0, postId: here[0]?.postId ?? null }, here };
   }
 
   /* ───────────── ajudas ───────────── */
@@ -357,7 +429,7 @@ export class MixarSocialService implements OnModuleInit {
   /** Evento para o outro e eco para os meus outros aparelhos. */
   private live(m: Row, me: string, e: Omit<MixarLiveEvent, 'type' | 'id' | 'self'>) {
     try {
-      this.bus.publish(m.other_id, { type: 'mixar.live', id: m.id, ...e } satisfies MixarLiveEvent);
+      for (const o of m.others) this.bus.publish(o, { type: 'mixar.live', id: m.id, ...e } satisfies MixarLiveEvent);
       this.bus.publish(me, { type: 'mixar.live', id: m.id, ...e, self: true } satisfies MixarLiveEvent);
     } catch (err) {
       this.log.warn(`evento do Mixar ${m.id}: ${(err as Error).message}`);

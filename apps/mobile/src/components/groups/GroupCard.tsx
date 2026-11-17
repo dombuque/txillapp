@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { MixarDot } from '@/components/mixar/MixarBits';
 import { GroupCover } from '@/components/groups/GroupParts';
 import { countdown, dateRange, groupKindOf, kindInfo, type GroupKind, type TxillGroupSummary } from '@/lib/api.groups';
 import { sized } from '@/lib/config';
@@ -12,6 +13,8 @@ import { timeAgo } from '@/lib/time';
 /** O que o cartão precisa (tudo simples, para a lista e para o laboratório visual). */
 export interface GroupCardProps {
   name: string;
+  /** Mixar do grupo (0173) com novidades: o ícone do Mixar com a bolinha azul (lib/mixarGrupo: groupShowDot). */
+  mixarNew?: boolean;
   kind?: GroupKind | null;
   /** Capa (foto larga). Sem capa, a faixa leva as cores e o ícone do tipo. */
   coverUrl?: string | null;
@@ -106,6 +109,7 @@ export function GroupCard(p: GroupCardProps) {
     when,
     `Última mensagem: ${p.lastMessage}, ${timeAgo(p.at).toLowerCase()}`,
     unread ? `${p.unread} por ler` : null,
+    p.mixarNew ? 'Mixar do grupo com novidades' : null,
     requests ? `${requests} ${requests === 1 ? 'pedido' : 'pedidos'} para entrar` : null,
   ].filter(Boolean).join('. ');
 
@@ -170,6 +174,7 @@ export function GroupCard(p: GroupCardProps) {
             </View>
             <View style={s.line}>
               <Text style={[s.msg, unread && { color: colors.zinc900, fontWeight: '600' }]} numberOfLines={1}>{p.lastMessage}</Text>
+              {p.mixarNew ? <View style={s.mixar}><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View> : null}
               {unread ? (
                 <View style={s.count}><Text style={s.countText}>{p.unread > 99 ? '99+' : p.unread}</Text></View>
               ) : null}
@@ -215,6 +220,7 @@ const s = StyleSheet.create({
   time: { fontSize: 12, color: colors.zinc500 },
   context: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.zinc600 },
   msg: { flex: 1, fontSize: 14, color: colors.zinc500 },
+  mixar: { marginLeft: 6, marginRight: 2 },
   count: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 11, fontWeight: '800', color: '#fff' },
   reqs: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },

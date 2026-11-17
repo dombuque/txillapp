@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, forwardRef, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { ChatEvents, type MixarEvent } from '../chat/chat.events';
 import { ChatService } from '../chat/chat.service';
@@ -14,6 +14,7 @@ import { Scheduler } from '../realtime/scheduler';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { blockedBetween, canView, inMyNetwork, notReportedBy } from '../social/visibility';
 import { MixarAvisosService } from './mixar-avisos.service';
+import { MixarGrupoService } from './mixar-grupo.service';
 import { MIXAR_CARD_TEXT } from './mixar-cards';
 import { controlCandidates, dropTopics, loadControl, maskTopic, mixarOffTopics, notOffSql, privateTopicsOf, privateTopicsOfAll } from './mixar-controlo';
 import { pushFor } from '../chat/hidden-push';
@@ -35,6 +36,8 @@ const DAILY_BATCH = 200;
 const CANDIDATES = 600;
 /** Um dia que ficou sem itens volta a ser gerado ao fim de uma hora (pode ter aparecido conteúdo novo). */
 const EMPTY_RETRY = "interval '1 hour'";
+/** Quantos dias se guardam os registos dos avisos do Mixar já enviados (social.mixar_notices). */
+export const NOTICES_KEEP_DAYS = 30;
 
 export const REACTIONS = ['kkk', 'fogo', 'amor', 'uau', 'brinde', 'nah'] as const;
 export type ReactionId = (typeof REACTIONS)[number];
@@ -108,6 +111,15 @@ export interface Row {
   my_first: string;
   their_first: string;
   blocked: boolean;
+  /** Mixar de grupo (0173): o grupo; null no Mixar a dois. */
+  group_id?: string | null;
+  group_name?: string | null;
+  /** Os outros participantes (no Mixar a dois, só o outro). */
+  others: string[];
+  /** Só no Mixar de grupo: o meu estado e os participantes (mixar-grupo.service.ts). */
+  my_state?: 'in' | 'declined' | 'left' | null;
+  people?: ({ id: string; username: string; displayName: string; hasAvatar: boolean } & Badge)[];
+  group_size?: number;
 }
 
 /**
@@ -115,7 +127,7 @@ export interface Row {
  * (canView: conta ativa, sem bloqueio dos dois lados, pública ou seguida), e nada do que escondeu («não me interessa»),
  * marcou «não interessado», denunciou ou de quem pediu para ver menos.
  */
-const seesFor = (viewer: string) => `(${canView('u', viewer)}
+export const seesFor = (viewer: string) => `(${canView('u', viewer)}
   AND NOT EXISTS (SELECT 1 FROM content.feed_impressions mhi WHERE mhi.user_id = ${viewer} AND mhi.post_id = p.id AND mhi.hidden)
   AND NOT EXISTS (SELECT 1 FROM content.post_feedback mfb WHERE mfb.user_id = ${viewer} AND mfb.post_id = p.id AND mfb.value < 0)
   AND NOT EXISTS (SELECT 1 FROM social.explore_people mep WHERE mep.user_id = ${viewer} AND mep.person_id = p.author_id AND mep.pref < 0)
@@ -123,6 +135,14 @@ const seesFor = (viewer: string) => `(${canView('u', viewer)}
 
 /** Os dois podem ver, a publicação não foi removida nem ocultada pelo autor (0169) e não é de nenhum dos dois. Reavaliado em cada leitura. */
 export const bothSee = (a: string, b: string) => `(p.removed_at IS NULL AND p.hidden_at IS NULL AND p.author_id <> ${a} AND p.author_id <> ${b} AND ${seesFor(a)} AND ${seesFor(b)})`;
+
+/**
+ * O mesmo para N pessoas (o Mixar de grupo, 0173, e as verificações de um item): `ids` é um parâmetro uuid[] com todas.
+ * Para duas pessoas é exatamente o bothSee.
+ */
+export const seeAll = (ids: string) =>
+  `(p.removed_at IS NULL AND p.hidden_at IS NULL AND NOT (p.author_id = ANY(${ids}::uuid[]))
+    AND NOT EXISTS (SELECT 1 FROM unnest(${ids}::uuid[]) AS msv(id) WHERE NOT ${seesFor('msv.id')}))`;
 
 /**
  * Mixar (0150, docs/mixar-contrato.md): um feed a dois. O convite vai como um cartão no chat (kind 'mixar'); aceite, os dois
@@ -144,6 +164,7 @@ export class MixarService implements OnModuleInit {
     private readonly scheduler: Scheduler,
     @Inject(RATE_STORE) private readonly store: RateStore,
     private readonly avisos: MixarAvisosService,
+    @Inject(forwardRef(() => MixarGrupoService)) private readonly grupo: MixarGrupoService,
   ) {}
 
   onModuleInit() {
@@ -154,9 +175,11 @@ export class MixarService implements OnModuleInit {
   /**
    * Os Mixar recusados ou terminados há mais de 30 dias apagam-se de vez (com os itens, as reações, os vistos, os
    * desafios e as escolhas, pelo CASCADE). Os convites pendentes há mais de 30 dias passam a terminados (e 30 dias depois
-   * apagam-se também). Devolve quantos apagou.
+   * apagam-se também). Os registos dos avisos já enviados (social.mixar_notices, a dois e de grupo) com mais de 30 dias
+   * apagam-se: só servem para não repetir o aviso do dia ou do desafio, que já passaram. Devolve quantos Mixar apagou.
    */
   async purge(now = new Date()): Promise<number> {
+    await this.pool.query(`DELETE FROM social.mixar_notices WHERE created_at < $1::timestamptz - make_interval(days => $2)`, [now, NOTICES_KEEP_DAYS]);
     await this.pool.query(
       `UPDATE social.mixars SET status = 'ended', ended_at = $1, updated_at = $1
         WHERE status = 'pending' AND created_at < $1::timestamptz - interval '30 days'`,
@@ -225,6 +248,7 @@ export class MixarService implements OnModuleInit {
 
   async accept(me: string, id: string): Promise<MixarDto> {
     const m = await this.row(me, id);
+    if (m.group_id) return this.grupo.accept(me, m);
     if (m.status !== 'pending') throw new ConflictException('Este convite já não está à espera de resposta');
     if (m.invited_by === me) throw new ForbiddenException('Foste tu que convidaste: espera pela resposta');
     if ((await this.activeCount(me)) >= MAX_ACTIVE) throw new HttpException(`Já tens ${MAX_ACTIVE} Mixar ativos. Sai de um para aceitar este`, HttpStatus.TOO_MANY_REQUESTS);
@@ -241,6 +265,7 @@ export class MixarService implements OnModuleInit {
 
   async decline(me: string, id: string) {
     const m = await this.row(me, id);
+    if (m.group_id) return this.grupo.decline(me, m);
     if (m.status !== 'pending') throw new ConflictException('Este convite já não está à espera de resposta');
     if (m.invited_by === me) throw new ForbiddenException('Foste tu que convidaste: para desistir, sai do Mixar');
     const done = await this.pool.query(`UPDATE social.mixars SET status = 'declined', ended_at = now(), ended_by = $2, updated_at = now() WHERE id = $1 AND status = 'pending'`, [id, me]);
@@ -252,6 +277,7 @@ export class MixarService implements OnModuleInit {
   /** Sair (qualquer um dos dois; também quem convidou, antes da resposta). */
   async leave(me: string, id: string) {
     const m = await this.row(me, id);
+    if (m.group_id) return this.grupo.leave(me, m);
     if (m.status !== 'pending' && m.status !== 'active') throw new NotFoundException('Mixar não encontrado');
     await this.pool.query(`UPDATE social.mixars SET status = 'ended', ended_at = now(), ended_by = $2, updated_at = now() WHERE id = $1 AND status IN ('pending', 'active')`, [id, me]);
     await this.chat.cardChanged(me, m.other_id);
@@ -261,12 +287,15 @@ export class MixarService implements OnModuleInit {
   /* ───────────── leitura ───────────── */
 
   /** Os meus Mixar ativos e os convites pendentes (recebidos primeiro). Com bloqueio ou conta eliminada, desaparece. */
-  async list(me: string): Promise<{ items: MixarSummary[] }> {
-    return { items: await this.summaries(me, mixarDay()) };
+  async list(me: string): Promise<{ items: MixarSummary[]; groups: Awaited<ReturnType<MixarGrupoService['summaries']>> }> {
+    const day = mixarDay();
+    // Os Mixar de grupo (0173) vão à parte: as versões antigas da app só leem `items`.
+    return { items: await this.summaries(me, day), groups: await this.grupo.summaries(me, day) };
   }
 
   async get(me: string, id: string): Promise<MixarDto> {
     const m = await this.row(me, id);
+    if (m.group_id) return this.grupo.get(me, m);
     if (m.status !== 'pending' && m.status !== 'active') throw new NotFoundException('Mixar não encontrado');
     const day = mixarDay();
     if (m.status === 'active') await this.ensureDay(m, day);
@@ -313,6 +342,7 @@ export class MixarService implements OnModuleInit {
   /** A seleção de hoje (gerada na hora se ainda não existe), só com o que os dois podem ver agora. */
   async feed(me: string, id: string, cursor: string | undefined, limit: number) {
     const m = await this.active(me, id);
+    if (m.group_id) return this.grupo.feed(me, m, cursor, limit);
     const day = mixarDay();
     await this.ensureDay(m, day);
     const offset = cursor && /^\d{1,3}$/.test(cursor) ? Number(cursor) : 0;
@@ -351,6 +381,7 @@ export class MixarService implements OnModuleInit {
 
   async react(me: string, id: string, postId: string, reaction: ReactionId | null) {
     const m = await this.active(me, id);
+    if (m.group_id) return this.grupo.react(me, m, postId, reaction);
     await this.assertItem(me, m, postId);
     if (reaction === null) await this.pool.query('DELETE FROM social.mixar_reactions WHERE mixar_id = $1 AND post_id = $2 AND user_id = $3', [id, postId, me]);
     else {
@@ -392,6 +423,7 @@ export class MixarService implements OnModuleInit {
 
   async challenge(me: string, id: string): Promise<ChallengeDto | null> {
     const m = await this.active(me, id);
+    if (m.group_id) return this.grupo.challenge(me, m);
     const day = mixarDay();
     await this.ensureDay(m, day);
     const ch = (await this.pool.query('SELECT id, kind, day::text AS day, options FROM social.mixar_challenges WHERE mixar_id = $1 AND day = $2::date', [id, day])).rows[0];
@@ -400,6 +432,7 @@ export class MixarService implements OnModuleInit {
 
   async pick(me: string, id: string, challengeId: string, postId: string): Promise<ChallengeDto> {
     const m = await this.active(me, id);
+    if (m.group_id) return this.grupo.pick(me, m, challengeId, postId);
     const client = await this.pool.connect();
     let both = false;
     let ch: Record<string, any>;
@@ -492,12 +525,19 @@ export class MixarService implements OnModuleInit {
     }
     // Os avisos da seleção de hoje (0170): uma vez por Mixar e por pessoa, só a quem ainda não abriu e entre as 08:00 e as 21:00.
     await this.avisos.dailyNotices({ now: opts.now }).catch((e) => this.log.warn(`avisos da seleção: ${(e as Error).message}`));
+    // Os Mixar de grupo (0173): a mesma volta (seleção e avisos), com os gostos de todos os participantes.
+    total += await this.grupo.runDaily(day, limit).catch((e) => {
+      this.log.warn(`seleção dos grupos: ${(e as Error).message}`);
+      return 0;
+    });
+    await this.grupo.dailyNotices(opts.now).catch((e) => this.log.warn(`avisos da seleção dos grupos: ${(e as Error).message}`));
     return total;
   }
 
   /** Garante a seleção do dia (gera na hora quando falta; um dia vazio volta a tentar ao fim de uma hora). */
-  async ensureDay(m: Pick<Row, 'id' | 'user_a' | 'user_b' | 'status'>, day: string) {
+  async ensureDay(m: Pick<Row, 'id' | 'user_a' | 'user_b' | 'status' | 'group_id'>, day: string) {
     if (m.status !== 'active') return;
+    if (m.group_id) return this.grupo.ensureDay(m, day);
     const d = (await this.pool.query(`SELECT items, generated_at < now() - ${EMPTY_RETRY} AS stale FROM social.mixar_days WHERE mixar_id = $1 AND day = $2::date`, [m.id, day])).rows[0];
     if (d && !(d.items === 0 && d.stale)) return;
     await this.generate(m.id, m.user_a, m.user_b, day);
@@ -667,9 +707,11 @@ export class MixarService implements OnModuleInit {
         [me, id],
       )
     ).rows[0];
-    if (!r || r.o_status !== 'active') throw new NotFoundException('Mixar não encontrado');
+    // Não é um Mixar a dois meu: pode ser o Mixar de um grupo de que sou membro (0173).
+    if (!r) return this.grupo.row(me, id);
+    if (r.o_status !== 'active') throw new NotFoundException('Mixar não encontrado');
     if (r.blocked) throw new ForbiddenException('Não tens acesso a este Mixar');
-    return r as Row;
+    return { ...r, group_id: null, group_name: null, others: [r.other_id as string] } as Row;
   }
 
   /** O Mixar ativo `id`, se for meu (409 pendente; 404 terminado). Também o usa mixar-controlo.service.ts. */
@@ -677,16 +719,25 @@ export class MixarService implements OnModuleInit {
     const m = await this.row(me, id);
     if (m.status === 'pending') throw new ConflictException('O Mixar ainda não foi aceite');
     if (m.status !== 'active') throw new NotFoundException('Mixar não encontrado');
+    // No grupo, só quem entrou (os outros membros veem o convite, mas não o feed, a conversa ou os Guardados).
+    if (m.group_id) this.grupo.assertIn(m);
     return m;
   }
 
   /** O item tem de ser deste Mixar (de qualquer dia) e os dois têm de o poder ver agora. */
   async assertItem(me: string, m: Row, postId: string) {
-    const ok = await this.pool.query(
-      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-        WHERE p.id = $3 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $4 AND i.post_id = p.id) AND ${bothSee('$1', '$2')}`,
-      [me, m.other_id, postId, m.id],
-    );
+    // No Mixar a dois, exatamente o bothSee de sempre; no de grupo, todos os participantes (seeAll).
+    const ok = m.group_id
+      ? await this.pool.query(
+          `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+            WHERE p.id = $2 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $3 AND i.post_id = p.id) AND ${seeAll('$1')}`,
+          [[me, ...m.others], postId, m.id],
+        )
+      : await this.pool.query(
+          `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+            WHERE p.id = $3 AND EXISTS (SELECT 1 FROM social.mixar_items i WHERE i.mixar_id = $4 AND i.post_id = p.id) AND ${bothSee('$1', '$2')}`,
+          [me, m.other_id, postId, m.id],
+        );
     if (!ok.rowCount) throw new NotFoundException('Publicação não encontrada neste Mixar');
   }
 

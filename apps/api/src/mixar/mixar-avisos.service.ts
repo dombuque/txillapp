@@ -78,13 +78,15 @@ export class MixarAvisosService {
   async open(me: string, id: string): Promise<{ openedAt: string }> {
     const m = (
       await this.pool.query(
-        `SELECT x.status, o.status AS o_status, ${blockedBetween('o.id', '$1')} AS blocked
-           FROM social.mixars x JOIN identity.users o ON o.id = CASE WHEN x.user_a = $1 THEN x.user_b ELSE x.user_a END
-          WHERE x.id = $2 AND (x.user_a = $1 OR x.user_b = $1)`,
+        `SELECT x.status, x.group_id, o.status AS o_status, (o.id IS NOT NULL AND ${blockedBetween('o.id', '$1')}) AS blocked
+           FROM social.mixars x LEFT JOIN identity.users o ON x.group_id IS NULL AND o.id = CASE WHEN x.user_a = $1 THEN x.user_b ELSE x.user_a END
+          WHERE x.id = $2 AND ((x.user_a = $1 OR x.user_b = $1)
+             OR (x.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = x.group_id AND gm.user_id = $1)))`,
         [me, id],
       )
     ).rows[0];
-    if (!m || m.o_status !== 'active' || (m.status !== 'pending' && m.status !== 'active')) throw new NotFoundException('Mixar não encontrado');
+    // Mixar de grupo (0173): qualquer membro do grupo abre (quem ainda não entrou, para a bolinha do convite sumir).
+    if (!m || (!m.group_id && m.o_status !== 'active') || (m.status !== 'pending' && m.status !== 'active')) throw new NotFoundException('Mixar não encontrado');
     if (m.blocked) throw new ForbiddenException('Não tens acesso a este Mixar');
     const r = await this.pool.query(
       `INSERT INTO social.mixar_opens (mixar_id, user_id, opened_at)
@@ -96,7 +98,7 @@ export class MixarAvisosService {
     await this.pool
       .query(
         `UPDATE social.notifications SET read_at = now()
-          WHERE user_id = $1 AND kind IN ('mixar_daily', 'mixar_pick', 'mixar_result') AND data->>'mixarId' = $2 AND read_at IS NULL`,
+          WHERE user_id = $1 AND kind IN ('mixar_daily', 'mixar_pick', 'mixar_result', 'mixar_group') AND data->>'mixarId' = $2 AND read_at IS NULL`,
         [me, id],
       )
       .catch(() => undefined);

@@ -48,6 +48,7 @@ import { useTabPress } from '@/lib/tabPress';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { mixarPreview, mixarShowDot } from '@/lib/mixar';
 import { useMixarSeen } from '@/lib/mixarSeen';
+import { groupShowDot } from '@/lib/mixarGrupo';
 import { MixarEntry, useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { useChatHiding } from '@/components/ChatHide';
@@ -247,6 +248,8 @@ export default function Messages() {
   const mixarList = useMixarList();
   const mixarSeen = useMixarSeen();
   const mixarNew = new Set((mixarList.data?.items ?? []).filter((s) => mixarShowDot(s, mixarSeen[s.id])).map((s) => s.partner.username));
+  // Mixar de grupo (0173): a mesma bolinha na linha do grupo (convite por responder ou novidades de hoje, até abrir).
+  const mixarGroupNew = new Set((mixarList.data?.groups ?? []).filter((s) => groupShowDot(s, mixarSeen[s.id])).map((s) => s.group.groupId));
   // Esconder a conversa (sai da lista e do contador; fica em «Conversas ocultas», no "⋯" de cima).
   const hiding = useChatHiding();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -497,7 +500,7 @@ export default function Messages() {
           return (
           <SwipeRow left={[]} right={[]} onHold={hold} active={!!openPath && r.to === openPath} onDeskMenu={hold ? (at) => setDeskMenu({ key: r.key, at }) : undefined}>
           {r.g ? (
-            <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
+            <GroupCard {...groupCardData(r.g)} mixarNew={mixarGroupNew.has(r.g.id)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
           ) : (
           <Pressable
             onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }}

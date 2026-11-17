@@ -675,6 +675,19 @@ export class AuthService implements OnModuleInit {
       // Mixar, controlo (0172): os temas privados e o «menos» dos outros sobre esta conta (o resto foi com os Mixar).
       await client.query('DELETE FROM social.mixar_private_topics WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.mixar_author_less WHERE author_id = $1', [userId]);
+      // Mixar de grupo (0173): a pessoa já saiu dos grupos (e, pelo gatilho, dos Mixar deles); sai também o que fez lá dentro
+      // (o estado, as reações, os vistos, as escolhas, os comentários, o que guardou à mão, as aberturas, os avisos e os temas).
+      // Os Mixar de grupo que ela propôs continuam para os outros.
+      await client.query('DELETE FROM social.mixar_reactions WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_views WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_picks WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_comments WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_saves WHERE saved_by = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_opens WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_notices WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_topic_prefs WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_author_less WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM social.mixar_members WHERE user_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);

@@ -6,13 +6,14 @@ import type { Post } from '@/lib/api';
 import type { Mixar, MixarChallenge } from '@/lib/api.mixar';
 import { abs, sized } from '@/lib/config';
 import { CHALLENGE_GAP, canPick, challengeCols, challengeQuestion, challengeTile, challengeView, daysLabel, endOfDay, matchLine, matchPercent, optionBadge, timesLabel } from '@/lib/mixar';
+import { countOf, groupChallengeLine, pickedLabel } from '@/lib/mixarGrupo';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { NameWithBadge } from '../NameWithBadge';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
-import { MIXAR_GRADIENT, PairAvatars, TopicChips } from './MixarBits';
+import { GroupAvatars, MIXAR_GRADIENT, PairAvatars, TopicChips } from './MixarBits';
 
 const isWeb = Platform.OS === 'web';
 type Who = { name: string; username?: string };
@@ -27,40 +28,56 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, on
     <Sheet title="Descoberta de interesses" onClose={onClose}>
       <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 12 }}>
         <View style={{ alignItems: 'center', marginBottom: 18 }}>
-          <PairAvatars me={me} them={them} size={56} />
-          <NameWithBadge name={mixar.name} who={mixar.partner} style={ds.name} center numberOfLines={2} />
+          {mixar.group ? <GroupAvatars people={mixar.group.people} size={52} max={5} /> : <PairAvatars me={me} them={them} size={56} />}
+          {mixar.group ? <Text style={[ds.name, { textAlign: 'center' }]} numberOfLines={2}>{mixar.group.groupName}</Text> : <NameWithBadge name={mixar.name} who={mixar.partner} style={ds.name} center numberOfLines={2} />}
+          {mixar.group ? <GroupPeople people={mixar.group.people} /> : null}
           <View style={ds.meter} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: p }} accessibilityLabel={`${p}% de match`}>
             <LinearGradient colors={MIXAR_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[ds.meterFill, { width: `${Math.max(4, p)}%` }]} />
           </View>
           <Text style={ds.match}><Text style={{ color: colors.brand }}>{p}%</Text> de match · {matchLine(p)}</Text>
         </View>
 
-        <Section title="Em comum" empty="Ainda a descobrir: reajam e vejam juntos para o Mixar aprender.">
+        <Section title={mixar.group ? 'Do gosto de todos' : 'Em comum'} empty="Ainda a descobrir: reajam e vejam juntos para o Mixar aprender.">
           {mixar.common.length ? <TopicChips topics={mixar.common} accent /> : null}
         </Section>
         <View style={{ flexDirection: 'row', gap: 16 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Section title="Só teu" empty="Nada só teu, por agora.">{mixar.onlyMe.length ? <TopicChips topics={mixar.onlyMe} /> : null}</Section>
           </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Section title={`Só de ${them.name}`} empty="Nada só dele ou dela, por agora.">{mixar.onlyThem.length ? <TopicChips topics={mixar.onlyThem} /> : null}</Section>
-          </View>
+          {mixar.group ? null : (
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Section title={`Só de ${them.name}`} empty="Nada só dele ou dela, por agora.">{mixar.onlyThem.length ? <TopicChips topics={mixar.onlyThem} /> : null}</Section>
+            </View>
+          )}
         </View>
 
         <View style={ds.stats}>
           <Stat icon="flame" value={daysLabel(mixar.streak)} label="Série no Mixa Challenge" />
-          <Stat icon="party" value={timesLabel(mixar.matches)} label="Escolheram o mesmo" />
+          <Stat icon="party" value={timesLabel(mixar.matches)} label={mixar.group ? 'Escolheram todos o mesmo' : 'Escolheram o mesmo'} />
         </View>
         {/* Controlo (0172): afinar os temas deste Mixar e os temas privados (components/mixar/MixarControloSheets). */}
         {onTopics || onPrivate ? <ControlLinks onTopics={onTopics} onPrivate={onPrivate} /> : null}
         {onLeave ? (
           <Pressable onPress={onLeave} style={({ pressed }) => [ds.leave, pressed && { opacity: 0.6 }]} accessibilityRole="button">
             <Icon name="logout" size={16} color={colors.red600} />
-            <Text style={ds.leaveText}>Sair do Mixar</Text>
+            <Text style={ds.leaveText}>{mixar.group ? 'Sair do Mixar do grupo' : 'Sair do Mixar'}</Text>
           </Pressable>
         ) : null}
       </ScrollView>
     </Sheet>
+  );
+}
+
+/** No grupo: quem está no Mixar, com o selo de verificado. */
+function GroupPeople({ people }: { people: NonNullable<Mixar['group']>['people'] }) {
+  return (
+    <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, maxWidth: 320 }} accessibilityLabel="Quem está no Mixar do grupo">
+      {people.map((p) => (
+        <View key={p.username} style={ds.person}>
+          <NameWithBadge name={p.displayName} who={p} style={ds.personText} gap={3} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -119,6 +136,8 @@ const ds = StyleSheet.create({
   linkText: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   leave: { marginTop: 18, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   leaveText: { fontSize: 15, fontWeight: '700', color: colors.red600 },
+  person: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 10, paddingVertical: 4 },
+  personText: { fontSize: 13, fontWeight: '700', color: colors.zinc800 },
 });
 
 /* ---------- Mixa Challenge ---------- */
@@ -144,7 +163,9 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
   topInset: number;
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
-  const v = challengeView(c, them.name);
+  // Mixar de grupo (0173): cada um escolhe; no fim, quantos escolheram cada opção (sem dizer quem).
+  const grp = c.group ?? null;
+  const v = grp ? { ...groupChallengeLine({ ...c, group: grp }), match: grp.counts ? !!c.match : null } : challengeView(c, them.name);
   const picking = canPick(c);
   const cols = challengeCols(c.options.length);
   // A grelha mede-se (onLayout) e as miniaturas levam largura e altura em px (lib/mixar: challengeTile).
@@ -163,9 +184,10 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
 
         <View style={[cs.grid, { maxWidth: cols === 3 ? 420 : 360 }]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setGridW((o) => (o === w ? o : w)); }}>
           {tile && c.options.map((p) => {
-            const badge = optionBadge(c, p.id);
+            const badge = grp ? (c.myPick === p.id ? 'mine' : null) : optionBadge(c, p.id);
+            const n = grp ? countOf(c, p.id) : null;
             const sel = picking && chosen === p.id;
-            const lost = v.phase === 'result' && !badge;
+            const lost = v.phase === 'result' && (grp ? !n : !badge);
             return (
               <Pressable
                 key={p.id}
@@ -174,7 +196,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
                 style={({ pressed }) => [cs.opt, { width: tile.width, height: tile.height }, (sel || badge === 'mine' || badge === 'both') && cs.optMine, badge === 'theirs' && cs.optTheirs, lost && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]}
                 accessibilityRole={picking ? 'radio' : 'button'}
                 accessibilityState={picking ? { selected: sel } : undefined}
-                accessibilityLabel={`${p.author.displayName}${p.body ? `: ${p.body.slice(0, 60)}` : ''}${badge === 'both' ? '. Os dois escolheram esta' : badge === 'mine' ? '. A tua escolha' : badge === 'theirs' ? `. ${them.name} escolheu esta` : ''}`}
+                accessibilityLabel={`${p.author.displayName}${p.body ? `: ${p.body.slice(0, 60)}` : ''}${badge === 'both' ? '. Os dois escolheram esta' : badge === 'mine' ? '. A tua escolha' : badge === 'theirs' ? `. ${them.name} escolheu esta` : ''}${n != null ? `. ${pickedLabel(n)}` : ''}`}
               >
                 {thumbOf(p) ? <Image source={{ uri: thumbOf(p) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: '#333' }]} />}
                 {p.media[0]?.kind === 'video' ? <View style={cs.play}><Icon name="play" size={14} color="#fff" solid /></View> : null}
@@ -185,6 +207,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
                   </View>
                 ) : null}
                 {badge === 'both' ? <Text style={cs.party} allowFontScaling={false}>🎉</Text> : null}
+                {n != null ? <View style={cs.count}><Text style={cs.countText}>{pickedLabel(n)}</Text></View> : null}
                 {sel ? <View style={cs.tick}><Icon name="check" size={16} color="#fff" strokeWidth={3} /></View> : null}
               </Pressable>
             );
@@ -196,7 +219,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={cs.ctaText}>{chosen ? 'Escolher esta' : 'Toca numa para escolher'}</Text>}
           </Pressable>
         ) : v.phase === 'waiting' ? (
-          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>Avisamos quando {them.name} escolher.</Text></View>
+          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>{grp ? 'Avisamos quando todos escolherem.' : `Avisamos quando ${them.name} escolher.`}</Text></View>
         ) : null}
 
         <View style={cs.more}>
@@ -222,6 +245,8 @@ const cs = StyleSheet.create({
   badges: { position: 'absolute', right: 6, bottom: 6, flexDirection: 'row' },
   face: { borderRadius: 13, borderWidth: 2, borderColor: '#fff' },
   party: { position: 'absolute', left: 6, bottom: 4, fontSize: 24 },
+  count: { position: 'absolute', left: 6, bottom: 6, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.72)', paddingHorizontal: 8, paddingVertical: 3 },
+  countText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   tick: { position: 'absolute', right: 6, top: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   cta: { marginTop: 22, minHeight: 48, minWidth: 220, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '800' },
