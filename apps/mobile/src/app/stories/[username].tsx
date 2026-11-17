@@ -17,6 +17,8 @@ import { RichText } from '@/components/RichText';
 import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, BarButton, CommentsPanel, Panel, ReplyBar, shareSharedPost, useKeyboardHeight } from '@/components/StoryParts';
 import { StoryFloatComments } from '@/components/StoryFloatComments';
+import { ActionRow } from '@/components/ui/ActionRow';
+import { confirm } from '@/lib/confirm';
 import { captionSpot, floatColumn, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
@@ -362,30 +364,25 @@ export default function StoryViewer() {
   async function remove() {
     if (!cur) return;
     setPanel(null);
-    Alert.alert('Apagar o mimo?', 'Desaparece para toda a gente.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: async () => { await api.deleteStory(cur.id).catch(() => undefined); await q.refetch(); void qc.invalidateQueries({ queryKey: ['stories'] }); if (stories.length <= 1) close(); } },
-    ]);
+    if (!(await confirm({ title: 'Apagar o mimo?', message: 'Desaparece para toda a gente.', confirm: 'Apagar', danger: true }))) return;
+    await api.deleteStory(cur.id).catch(() => undefined);
+    await q.refetch();
+    void qc.invalidateQueries({ queryKey: ['stories'] });
+    if (stories.length <= 1) close();
   }
   /** Bloquear quem publicou o mimo (como no perfil, lib/api `block`): os mimos dela saem e o visor fecha. */
-  function confirmBlock() {
+  async function confirmBlock() {
     if (!cur) return;
     const u = cur.author.username;
     setPanel(null);
-    Alert.alert(`Bloquear @${u}?`, 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Bloquear',
-        style: 'destructive',
-        onPress: () => void api.block(u).then(
-          () => {
-            for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
-            close();
-          },
-          (e: { message?: string }) => Alert.alert('Não deu', e?.message || 'Não consegui bloquear agora. Tenta outra vez.'),
-        ),
-      },
-    ]);
+    if (!(await confirm({ title: `Bloquear @${u}?`, message: 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo.', confirm: 'Bloquear', danger: true }))) return;
+    try {
+      await api.block(u);
+      for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
+      close();
+    } catch (e) {
+      Alert.alert('Não deu', (e as Error)?.message || 'Não consegui bloquear agora. Tenta outra vez.');
+    }
   }
   async function toggleComments() {
     if (!cur) return;
@@ -603,22 +600,20 @@ export default function StoryViewer() {
         {panel !== null && <View style={[StyleSheet.absoluteFill, { bottom: panelBottom }, wide && { left: frame.cardLeft, width: frame.cardW, top: frame.cardTop, height: frame.cardH + frame.barH, right: undefined, bottom: undefined, borderRadius: frame.radius, overflow: 'hidden' }]} pointerEvents="box-none">
 
         {panel === 'menu' && (
-          <Panel title="O teu mimo" onClose={() => setPanel(null)}>
-            <Pressable onPress={() => { close(); router.push('/settings/privacidade?o=storyReplies' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do mimo</Text></Pressable>
-            <Pressable onPress={() => void saveMimo()} style={st.menuRow}><Text style={st.menuText}>{saving ? 'A guardar…' : 'Guardar na galeria'}</Text></Pressable>
-            <Pressable onPress={() => void shareMimo()} style={st.menuRow}><Text style={st.menuText}>Partilhar</Text></Pressable>
-            <Pressable onPress={() => void toggleComments()} style={st.menuRow}><Text style={st.menuText}>{cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'}</Text></Pressable>
-            <Pressable onPress={() => void remove()} style={st.menuRow}><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Apagar mimo</Text></Pressable>
-            <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
+          <Panel title="O teu mimo" onClose={() => setPanel(null)} cancel>
+            <ActionRow icon="settings" title="Definições do mimo" onPress={() => { close(); router.push('/settings/privacidade?o=storyReplies' as never); }} />
+            <ActionRow icon="download" title={saving ? 'A guardar…' : 'Guardar na galeria'} disabled={saving} onPress={() => void saveMimo()} />
+            <ActionRow icon="share" title="Partilhar" onPress={() => void shareMimo()} />
+            <ActionRow icon={cur.commentsOff ? 'comment' : 'comment-off'} title={cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} onPress={() => void toggleComments()} />
+            <ActionRow icon="trash" title="Apagar mimo" danger onPress={() => void remove()} />
           </Panel>
         )}
         {panel === 'more' && (
-          <Panel title={`Mimo de @${cur.author.username}`} onClose={() => setPanel(null)}>
-            {cur.sharedFrom && <Pressable onPress={() => { setPanel(null); void shareSharedPost(cur); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{cur.mediaKind === 'video' ? 'Partilhar a tcheka' : 'Partilhar a publicação'}</Text></Pressable>}
-            <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Denunciar mimo</Text></Pressable>
-            <Pressable onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil</Text></Pressable>
-            <Pressable onPress={confirmBlock} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Bloquear @{cur.author.username}</Text></Pressable>
-            <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
+          <Panel title={`Mimo de @${cur.author.username}`} onClose={() => setPanel(null)} cancel>
+            {cur.sharedFrom && <ActionRow icon="share" title={cur.mediaKind === 'video' ? 'Partilhar a tcheka' : 'Partilhar a publicação'} onPress={() => { setPanel(null); void shareSharedPost(cur); }} />}
+            <ActionRow icon="user" title="Ver o perfil" onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} />
+            <ActionRow icon="flag" title="Denunciar mimo" danger onPress={() => setPanel('report')} />
+            <ActionRow icon="block" title={`Bloquear @${cur.author.username}`} danger onPress={() => void confirmBlock()} />
           </Panel>
         )}
         {/* Denunciado, o mimo sai para quem denunciou: ao fechar passa ao seguinte (o servidor também já não o devolve). */}
@@ -671,6 +666,5 @@ const st = StyleSheet.create({
   noReply: { flex: 1, minWidth: 0, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
   noReplyText: { flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.72)' },
   seePost: { position: 'absolute', left: '50%', top: '50%', marginLeft: -84, marginTop: -22, zIndex: 10, minHeight: 44, width: 168, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 22, backgroundColor: 'rgba(14,14,18,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
-  menuRow: { paddingVertical: 14, alignItems: 'center' },
-  menuText: { fontSize: 18, color: '#18181b' },
+
 });
