@@ -111,7 +111,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
 
   const head = title && !plain ? (
     <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead]}>
-      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1}>{title}</Text>
+      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1} accessibilityRole="header">{title}</Text>
       {mode === 'dialog' || mode === 'panel' ? (
         <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
           <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />

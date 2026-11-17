@@ -13,7 +13,7 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'value' | 'onChang
   ref?: Ref<ComponentRef<typeof TextInput>>;
 };
 
-/** Caixa de pesquisa: 44 de altura, pílula, lupa de 18 e o X «Limpar a pesquisa» quando há texto. */
+/** Caixa de pesquisa: 44 de altura, pílula, lupa e X de 18 (iconSize.field), o X «Limpar a pesquisa» quando há texto. */
 export function SearchField({ value, onChangeText, onClear, dark = false, style, placeholder = 'Pesquisar', ref, ...rest }: SearchFieldProps) {
   const fg = dark ? D.sub : colors.zinc500;
   return (
@@ -34,7 +34,7 @@ export function SearchField({ value, onChangeText, onClear, dark = false, style,
       />
       {value ? (
         <Pressable onPress={() => { onChangeText(''); onClear?.(); }} hitSlop={10} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
-          <Icon name="x" size={16} color={fg} strokeWidth={2.2} />
+          <Icon name="x" size={iconSize.field} color={fg} />
         </Pressable>
       ) : null}
     </View>

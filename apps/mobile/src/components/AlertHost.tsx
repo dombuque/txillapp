@@ -19,7 +19,7 @@ export function AlertHost() {
     <Modal transparent animationType="fade" onRequestClose={() => closeAlert(cancel)} statusBarTranslucent>
       <Pressable style={st.back} onPress={() => closeAlert(cancel)} accessibilityRole="none">
         <Pressable style={st.card} onPress={() => undefined} accessibilityRole="alert">
-          <Text style={st.title}>{r.title}</Text>
+          <Text style={st.title} accessibilityRole="header">{r.title}</Text>
           {r.message ? <Text style={st.msg}>{r.message}</Text> : null}
           <View style={[st.btns, row && { flexDirection: 'row' }]}>
             {r.buttons.map((b, i) => (

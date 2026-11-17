@@ -1,8 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { FlatList, Text, View } from 'react-native';
-import { ActivityIndicator, PageLoader } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
 import { EmptyState } from '@/components/Empty';
+import { LoadMore } from '@/components/LoadMore';
 import { PostCard } from '@/components/PostCard';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { api } from '@/lib/api';
@@ -21,21 +23,28 @@ export default function Saved() {
     retry: false,
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  const pull = usePullToRefresh(() => q.refetch());
   return (
     <StackPage title="Guardados">
+      <PullView pull={pull}>
       <FlatList
         data={items}
         keyExtractor={(p) => p.id}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
-        onRefresh={() => void q.refetch()}
-        refreshing={q.isRefetching && !q.isFetchingNextPage}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         ListHeaderComponent={<Text style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só tu vês os teus guardados.</Text>}
         ListEmptyComponent={q.isLoading ? <PageLoader /> : q.isError ? <ErrorState what="os guardados" onRetry={() => void q.refetch()} /> : <EmptyState icon="bookmark" title="Ainda não guardaste nada" text="Toca no marcador de uma publicação para a guardares aqui." />}
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} /> : <View style={{ height: 32 }} />}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}
         viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
+      </PullView>
     </StackPage>
   );
 }

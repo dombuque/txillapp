@@ -609,7 +609,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { ur
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
           <Pressable onPress={() => set({ rot: ((edit.rot + 90) % 360) as Edit['rot'], ox: 0, oy: 0 })} style={st.toolBtn} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /><Text style={st.chipText}>Rodar</Text></Pressable>
-          <Pressable onPress={() => set({ flip: !edit.flip })} style={[st.toolBtn, edit.flip && st.chipOn]} accessibilityRole="button" accessibilityLabel="Espelhar" accessibilityState={{ selected: edit.flip }}><Icon name="flip-camera" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /><Text style={[st.chipText, edit.flip && st.chipTextOn]}>Espelhar</Text></Pressable>
+          <Pressable onPress={() => set({ flip: !edit.flip })} style={[st.toolBtn, edit.flip && st.chipOn]} accessibilityRole="button" accessibilityLabel="Espelhar" accessibilityState={{ selected: edit.flip }}><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /><Text style={[st.chipText, edit.flip && st.chipTextOn]}>Espelhar</Text></Pressable>
           <View style={st.sep} />
           {ASPECTS.map((a) => {
             const on = a.v === null ? edit.aspect === null : edit.aspect !== null && Math.abs(edit.aspect - a.v) < 0.01;

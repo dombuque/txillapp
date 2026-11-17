@@ -1936,7 +1936,7 @@ export function TxCamera({
                 {tool === 'crop' && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.looks, { flexGrow: 1, justifyContent: 'center' }]}>
                     <Pressable onPress={rotate} style={st.cropIcon} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /></Pressable>
-                    <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel="Espelhar"><Icon name="flip-camera" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
+                    <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel="Espelhar"><Icon name="cam-flip" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
                     <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
                       <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
                     </Pressable>
