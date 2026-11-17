@@ -2,6 +2,7 @@
  * O logótipo "txillapp" em traços (os mesmos do componente Wordmark): serve para desenhar a assinatura nas fotos,
  * no browser (canvas) e no telemóvel (Skia). Caixa de -4,-3 a 150,51; traço de 7 com pontas redondas; o ponto do i a coral.
  */
+import { t } from '@/lib/i18n';
 const circle = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
 
 export const WORDMARK_BOX = { x: -4, y: -3, w: 154, h: 54 };
@@ -51,9 +52,9 @@ export function sealOf(u?: { verified?: boolean | null; verifiedTier?: string | 
 export const sealPaint = (tier: SealTier): 'blue' | 'coral' => (tier === 'paid' ? 'blue' : 'coral');
 /** O que o leitor de ecrã diz de cada selo. */
 export const SEAL_LABEL: Record<SealTier, string> = {
-  verified: 'Perfil verificado',
-  official: 'Conta oficial do Txillapp',
-  paid: 'Verificado com subscrição',
+  get verified() { return t('Perfil verificado'); },
+  get official() { return t('Conta oficial do Txillapp'); },
+  get paid() { return t('Verificado com subscrição'); },
 };
 
 /** O selo mede 1,05 vezes a letra do @ e fica a uma pequena folga dele (em frações da letra). */

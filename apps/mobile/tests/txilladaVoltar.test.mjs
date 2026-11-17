@@ -200,7 +200,7 @@ test('as @menções: o contexto txillada nas sugestões, os balões tocáveis e 
   // Nas publicações, o @ sozinho já pede pessoas (a pesquisa com q vazio; o servidor devolve as mais próximas).
   const ms = read('components/MentionSuggest.tsx');
   assert.match(ms, /enabled: debounced !== null,/);
-  assert.match(read('lib/mentions.ts'), /case 'anfitriao': return 'Anfitrião';/);
+  assert.match(read('lib/mentions.ts'), /case 'anfitriao': return t\('Anfitrião'\);/);
   assert.match(read('components/StoryFloatComments.tsx'), /\{onMention \? <MentionText text=\{text\} onMention=\{onMention\} \/> : text\}/);
   // O toque num @ não abre também o menu do comentário.
   assert.match(read('components/txillada/MentionText.tsx'), /stopPropagation\?\.\(\);\n\s+onMention\(p\.u\);/);
@@ -215,7 +215,7 @@ test('as @menções: o contexto txillada nas sugestões, os balões tocáveis e 
 // ── 8. A câmara desligada sem sair ───────────────────────────────────────────────────────────────────────────────────
 
 test('câmara: o anfitrião desliga-a sem terminar (foto e «Câmara desligada»); o convidado desliga e fica a ver', () => {
-  assert.equal(chat.CAM_OFF, 'Câmara desligada');
+  assert.equal(chat.CAM_OFF(), 'Câmara desligada');
   assert.equal(chat.camLabel(true), 'Desligar a câmara');
   assert.equal(chat.camLabel(false), 'Ligar a câmara');
   const room = read('lib/txilladaRoom.ts');

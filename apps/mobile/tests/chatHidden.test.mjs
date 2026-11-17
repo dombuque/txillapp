@@ -2,6 +2,7 @@
 // o "⋯" das Mensagens, o "⋯" dentro da conversa (a dois e TxillGroup), o ecrã próprio e as notificações discretas.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -16,7 +17,7 @@ const read = (f) => readFileSync(path.join(ROOT, ...f.split('/')), 'utf8').repla
 test('os textos: o botão, a pergunta (diz onde fica e que o outro não sabe) e o ecrã', () => {
   assert.equal(h.hideLabel(false), 'Ocultar conversa');
   assert.equal(h.hideLabel(true), 'Mostrar outra vez');
-  assert.equal(h.HIDDEN_TITLE, 'Conversas ocultas');
+  assert.equal(h.HIDDEN_TITLE(), 'Conversas ocultas');
   assert.equal(h.HIDDEN_PATH, '/messages/escondidas');
   const a = h.hideAsk('Ana Lopes', false);
   assert.equal(a.title, 'Ocultar esta conversa?');
@@ -75,7 +76,7 @@ test('o ecrã: rota própria, fora das conversas do computador; o "⋯" das Mens
   assert.equal(k.openChatPath('/messages/ana'), '/messages/ana');
   const inbox = read('src/app/(tabs)/messages.tsx');
   assert.match(inbox, /accessibilityLabel=\{t\('Mais opções das mensagens'\)\}/);
-  assert.match(inbox, /label: HIDDEN_TITLE, onPress: \(\) => router\.push\(HIDDEN_PATH as never\)/);
+  assert.match(inbox, /label: HIDDEN_TITLE\(\), onPress: \(\) => router\.push\(HIDDEN_PATH as never\)/);
   assert.match(inbox, /else if \(a === 'hide'\) hiding\.hide\(\{ username: u \}, r\.name\);/);
   assert.match(inbox, /if \(a === 'hide'\) hiding\.hide\(\{ groupId: r\.g\.id \}, r\.name\);/);
   const screen = read('src/app/messages/escondidas.tsx');

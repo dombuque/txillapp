@@ -1,4 +1,5 @@
 import { firstName, matchPercent } from '@/lib/mixar';
+import { t } from '@/lib/i18n';
 
 /**
  * Mixar: avisos e descoberta (0170, docs/mixar-contrato.md «Avisos e descoberta»), a lógica pura (sem React): os textos dos
@@ -21,16 +22,16 @@ export const isMixarNotice = (kind: string): kind is MixarNoticeKind => kind ===
 export function mixarNoticeText(kind: MixarNoticeKind, data: MixarNoticeData | null | undefined): { text: string; sub?: string } {
   // Mixar de grupo (0173): «propôs um Mixar do grupo», «e o resto do grupo: …», «também escolheu: já todos escolheram».
   const group = kind === 'mixar_group' || data?.group === true;
-  const sub = data?.name ? (group ? `Mixar do grupo ${data.name}` : `Mixar ${data.name}`) : undefined;
-  if (kind === 'mixar_group') return { text: 'propôs um Mixar do grupo', sub };
+  const sub = data?.name ? (group ? t('Mixar do grupo {name}', { name: data.name }) : `Mixar ${data.name}`) : undefined;
+  if (kind === 'mixar_group') return { text: t('propôs um Mixar do grupo'), sub };
   if (group) {
-    if (kind === 'mixar_daily') return { text: 'e o resto do grupo: a vossa seleção de hoje está pronta', sub };
-    if (kind === 'mixar_pick') return { text: 'já escolheu no Mixa Challenge, falta tu', sub };
-    return { text: data?.match ? 'também escolheu: escolheram todos o mesmo' : 'também escolheu: já todos escolheram', sub };
+    if (kind === 'mixar_daily') return { text: t('e o resto do grupo: a vossa seleção de hoje está pronta'), sub };
+    if (kind === 'mixar_pick') return { text: t('já escolheu no Mixa Challenge, falta tu'), sub };
+    return { text: data?.match ? t('também escolheu: escolheram todos o mesmo') : t('também escolheu: já todos escolheram'), sub };
   }
-  if (kind === 'mixar_daily') return { text: 'e tu: a vossa seleção de hoje está pronta', sub };
-  if (kind === 'mixar_pick') return { text: 'já escolheu no Mixa Challenge, falta tu', sub };
-  return { text: data?.match ? 'também escolheu: acertaram no mesmo' : 'também escolheu: escolheram diferente', sub };
+  if (kind === 'mixar_daily') return { text: t('e tu: a vossa seleção de hoje está pronta'), sub };
+  if (kind === 'mixar_pick') return { text: t('já escolheu no Mixa Challenge, falta tu'), sub };
+  return { text: data?.match ? t('também escolheu: acertaram no mesmo') : t('também escolheu: escolheram diferente'), sub };
 }
 
 /** Tocar abre o Mixar (se já não existir, o ecrã diz que acabou). */
@@ -42,11 +43,11 @@ export function mixarNoticeTarget(data: MixarNoticeData | null | undefined): str
 /* ---------- Sugestões «Faz um Mixar com…» ---------- */
 
 /** «Faz um Mixar com Lina» (o primeiro nome; o selo vem a seguir, no ecrã). */
-export const suggestionTitle = (displayName: string | null | undefined) => `Faz um Mixar com ${firstName(displayName)}`;
+export const suggestionTitle = (displayName: string | null | undefined) => t('Faz um Mixar com {firstName}', { firstName: firstName(displayName) });
 
 /** A linha de baixo: falam muito e quanto batem os gostos. */
 export function suggestionLine(match: number | null | undefined): string {
-  return `Falam muito e os gostos batem ${matchPercent(match)}%`;
+  return t('Falam muito e os gostos batem {matchPercent}%', { matchPercent: matchPercent(match) });
 }
 
 /**

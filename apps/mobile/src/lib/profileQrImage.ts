@@ -7,6 +7,7 @@ import { drawText } from './inviteCardImage';
 import { qrCardLayout, qrFileName, type QrShareOutcome } from './profileQrCard';
 import { qrMatrix } from './qr';
 import { linkShare } from './shareLink';
+import { t } from '@/lib/i18n';
 
 /**
  * O cartão do QR do perfil no telemóvel: desenhado no aparelho com a Skia (o SVG do fundo, do QR e do logótipo, e o @ com a
@@ -17,10 +18,10 @@ export interface QrImage { uri: string; width: number; height: number; name: str
 export async function renderProfileQr(url: string, username: string): Promise<QrImage> {
   const l = qrCardLayout(qrMatrix(url), username);
   const surface = Skia.Surface.MakeOffscreen(l.width, l.height) ?? Skia.Surface.Make(l.width, l.height);
-  if (!surface) throw new Error('Não consegui desenhar o QR');
+  if (!surface) throw new Error(t('Não consegui desenhar o QR'));
   const canvas = surface.getCanvas();
   const svg = Skia.SVG.MakeFromString(l.svg);
-  if (!svg) throw new Error('Não consegui desenhar o QR');
+  if (!svg) throw new Error(t('Não consegui desenhar o QR'));
   canvas.drawSvg(svg, l.width, l.height);
   drawText(canvas, l.text);
   surface.flush();
@@ -59,7 +60,7 @@ export async function shareProfileQr(img: QrImage | null, text: string, url: str
     }
     // Android com o expo-sharing (desde a 1.51.0): a folha do sistema leva a própria imagem (o QR já leva a ligação).
     if (img && Platform.OS === 'android' && (await Sharing.isAvailableAsync().catch(() => false))) {
-      await Sharing.shareAsync(img.uri, { mimeType: 'image/png', dialogTitle: title ?? 'Partilhar perfil' });
+      await Sharing.shareAsync(img.uri, { mimeType: 'image/png', dialogTitle: title ?? t('Partilhar perfil') });
       return 'shared';
     }
     let kept = false;

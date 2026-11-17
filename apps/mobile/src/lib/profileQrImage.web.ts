@@ -1,6 +1,7 @@
 import { drawText } from './inviteCardImage.web';
 import { qrCardLayout, qrFileName, type QrShareOutcome } from './profileQrCard';
 import { qrMatrix } from './qr';
+import { t } from '@/lib/i18n';
 
 /**
  * O cartão do QR do perfil no browser: desenhado num <canvas> (o SVG do fundo, do QR e do logótipo, e o @ com a letra do
@@ -22,11 +23,11 @@ export async function renderProfileQr(url: string, username: string): Promise<Qr
   c.width = l.width;
   c.height = l.height;
   const g = c.getContext('2d');
-  if (!g) throw new Error('Não consegui desenhar o QR');
+  if (!g) throw new Error(t('Não consegui desenhar o QR'));
   g.imageSmoothingEnabled = false;
   g.drawImage(await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(l.svg)}`), 0, 0, l.width, l.height);
   drawText(g, l.text);
-  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Não consegui criar a imagem'))), 'image/png'));
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error(t('Não consegui criar a imagem')))), 'image/png'));
   return { uri: URL.createObjectURL(blob), width: l.width, height: l.height, name: qrFileName(username), label: l.label, blob };
 }
 

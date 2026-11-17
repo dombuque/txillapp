@@ -1,5 +1,6 @@
 import { post, raw, type Post } from '@/lib/api';
 import type { MixarPerson, MixarReactionId, MixarTopic } from '@/lib/api.mixar';
+import { t } from '@/lib/i18n';
 
 /**
  * Mixar, controlo e resumo (0172, docs/mixar-contrato.md, «Controlo e resumo»): afinar os temas de um Mixar, os temas
@@ -69,11 +70,11 @@ export const mixarControloKeys = {
 /* ---------- Pré-visualização (só com __DEV__: /mixar/exemplo) ---------- */
 
 const CATALOG: MixarTopic[] = [
-  { topic: 'comida', label: 'Comida' }, { topic: 'comedia', label: 'Comédia' }, { topic: 'danca', label: 'Dança' },
-  { topic: 'fe', label: 'Fé' }, { topic: 'futebol', label: 'Futebol' }, { topic: 'humor', label: 'Humor' },
-  { topic: 'moda', label: 'Moda' }, { topic: 'musica', label: 'Música' },
+  { topic: 'comida', get label() { return t('Comida'); } }, { topic: 'comedia', get label() { return t('Comédia'); } }, { topic: 'danca', get label() { return t('Dança'); } },
+  { topic: 'fe', get label() { return t('Fé'); } }, { topic: 'futebol', get label() { return t('Futebol'); } }, { topic: 'humor', get label() { return t('Humor'); } },
+  { topic: 'moda', get label() { return t('Moda'); } }, { topic: 'musica', get label() { return t('Música'); } },
 ];
-const prev = { mine: [{ topic: 'futebol', label: 'Futebol', mode: 'less' }] as MixarTopics['mine'], theirsOff: [{ topic: 'fe', label: 'Fé' }], priv: [] as MixarTopic[] };
+const prev = { mine: [{ topic: 'futebol', get label() { return t('Futebol'); }, mode: 'less' }] as MixarTopics['mine'], theirsOff: [{ topic: 'fe', get label() { return t('Fé'); } }], priv: [] as MixarTopic[] };
 const wait = <T>(v: T, ms = 200) => new Promise<T>((r) => setTimeout(() => r(JSON.parse(JSON.stringify(v)) as T), ms));
 const prevTopics = (): MixarTopics => ({ mine: prev.mine, theirsOff: prev.theirsOff, lessAuthors: 1, all: CATALOG });
 
@@ -85,12 +86,12 @@ export const previewControloApi: typeof mixarControloApi = {
     if (mode) prev.mine.unshift({ topic, label: CATALOG.find((c) => c.topic === topic)?.label ?? topic, mode });
     return wait(prevTopics());
   },
-  less: async (_id, _postId) => wait({ topic: { topic: 'musica', label: 'Música' }, author: { username: 'dj_maputo', displayName: 'DJ Maputo', hasAvatar: false, verified: false, verifiedTier: null }, topics: prevTopics() }),
+  less: async (_id, _postId) => wait({ topic: { topic: 'musica', label: t('Música') }, author: { username: 'dj_maputo', displayName: 'DJ Maputo', hasAvatar: false, verified: false, verifiedTier: null }, topics: prevTopics() }),
   privateTopics: () => wait({ topics: prev.priv, all: CATALOG }),
   setPrivateTopics: async (topics) => {
     prev.priv = CATALOG.filter((c) => topics.includes(c.topic));
     return wait({ topics: prev.priv, all: CATALOG });
   },
-  week: () => wait({ from: '2026-11-10', to: '2026-11-16', label: '10 a 16 nov', recapDay: true, top: null, challenge: { offered: 6, played: 5, matches: 3 }, streak: 4, topics: [{ topic: 'musica', label: 'Música' }, { topic: 'comedia', label: 'Comédia' }, { topic: 'comida', label: 'Comida' }], videos: 23, together: 14 }),
+  week: () => wait({ from: '2026-11-10', to: '2026-11-16', label: t('10 a 16 nov'), recapDay: true, top: null, challenge: { offered: 6, played: 5, matches: 3 }, streak: 4, topics: [{ topic: 'musica', label: t('Música') }, { topic: 'comedia', label: t('Comédia') }, { topic: 'comida', label: t('Comida') }], videos: 23, together: 14 }),
   shareWeek: async (_id, to) => wait({ to, id: 'exemplo' }, 600),
 };

@@ -1,7 +1,8 @@
 // A linha de uma conversa na lista de Mensagens: a hora à direita do nome e o contador de por ler.
 // Sem dependências (os testes correm em Node: tests/inboxRow.test.mjs).
 
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+import { t } from '@/lib/i18n';
+const DAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
 const two = (n: number) => String(n).padStart(2, '0');
 
 /** Meia-noite local do dia de `d`. */
@@ -20,8 +21,8 @@ export function listTime(iso: string, now: Date = new Date()): string {
   // Dias de calendário (arredondado: a mudança de hora de verão faz um dia ter 23 ou 25 horas).
   const days = Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
   if (days <= 0) return `${two(d.getHours())}:${two(d.getMinutes())}`;
-  if (days === 1) return 'Ontem';
-  if (days < 7) return DAYS[d.getDay()];
+  if (days === 1) return t('Ontem');
+  if (days < 7) return DAYS()[d.getDay()];
   const dm = `${two(d.getDate())}/${two(d.getMonth() + 1)}`;
   return d.getFullYear() === now.getFullYear() ? dm : `${dm}/${two(d.getFullYear() % 100)}`;
 }
@@ -47,6 +48,6 @@ export function groupSenderPrefix(last: { fromMe: boolean; kind: string; senderN
 
 /** O que o leitor de ecrã diz da linha: nome, pré-visualização, hora e por ler. */
 export function rowLabel(name: string, preview: string, time: string, unread: number, marked = false): string {
-  const tail = !(unread > 0) ? '' : marked ? ', marcada como por ler' : `, ${unread === 1 ? '1 mensagem por ler' : `${unread} mensagens por ler`}`;
+  const tail = !(unread > 0) ? '' : marked ? t(', marcada como por ler') : `, ${t('{count} mensagem por ler', { count: unread, other: '{count} mensagens por ler' })}`;
   return `${name}, ${preview}${time ? `, ${time}` : ''}${tail}`;
 }

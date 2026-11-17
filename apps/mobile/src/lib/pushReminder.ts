@@ -10,6 +10,7 @@
  */
 
 /** O estado das notificações neste aparelho. */
+import { t } from '@/lib/i18n';
 export type PushStatus =
   /** Ligadas (licença dada e, na web, com subscrição). */
   | 'granted'
@@ -40,15 +41,15 @@ export const SNOOZE_DAYS = [3, 7, 14, 30] as const;
 /** Chave no aparelho (o cofre do telemóvel só aceita letras, números, ".", "-" e "_"). */
 export const REMINDER_KEY = 'tx_push_reminder_v1';
 
-export const REMINDER_TITLE = 'As tuas notificações estão desligadas';
-export const REMINDER_BUTTON = 'Ligar notificações';
-export const REMINDER_LATER = 'Agora não';
-export const SETTINGS_BANNER = 'As notificações estão desligadas neste aparelho';
+export const REMINDER_TITLE = () => t('As tuas notificações estão desligadas');
+export const REMINDER_BUTTON = () => t('Ligar notificações');
+export const REMINDER_LATER = () => t('Agora não');
+export const SETTINGS_BANNER = () => t('As notificações estão desligadas neste aparelho');
 
 /** O texto da folha: com o nome de quem acabaste de escrever, ou o geral. */
 export function reminderText(name?: string | null): string {
   const n = (name ?? '').trim();
-  return n ? `Não percas quando ${n} responder.` : 'Não percas mensagens, chamadas e quem brinda o que publicas.';
+  return n ? t('Não percas quando {n} responder.', { n }) : t('Não percas mensagens, chamadas e quem brinda o que publicas.');
 }
 
 /* ───────────── o que se guarda neste aparelho ───────────── */
@@ -227,26 +228,26 @@ export function blockedSteps(kind: WebKind): string[] {
   switch (kind) {
     case 'ios-pwa':
     case 'ios-browser':
-      return ['Abre as Definições do iPhone.', 'Toca em Notificações e escolhe Txillapp.', 'Liga “Permitir notificações” e volta ao Txillapp.'];
+      return [t('Abre as Definições do iPhone.'), t('Toca em Notificações e escolhe Txillapp.'), t('Liga “Permitir notificações” e volta ao Txillapp.')];
     case 'android':
-      return ['Toca no ícone à esquerda do endereço, em cima (o cadeado ou o das definições).', 'Toca em Permissões › Notificações e escolhe Permitir.', 'Volta aqui e recarrega a página.'];
+      return [t('Toca no ícone à esquerda do endereço, em cima (o cadeado ou o das definições).'), t('Toca em Permissões › Notificações e escolhe Permitir.'), t('Volta aqui e recarrega a página.')];
     case 'android-pwa':
-      return ['Toca sem largar no ícone do Txillapp no ecrã principal e escolhe Informações da app (ⓘ).', 'Toca em Notificações e liga-as.', 'Volta ao Txillapp.'];
+      return [t('Toca sem largar no ícone do Txillapp no ecrã principal e escolhe Informações da app (ⓘ).'), t('Toca em Notificações e liga-as.'), t('Volta ao Txillapp.')];
     case 'mac-safari':
-      return ['No menu Safari, abre Definições › Websites.', 'À esquerda, escolhe Notificações.', 'Ao lado do Txillapp, escolhe Permitir e recarrega a página.'];
+      return [t('No menu Safari, abre Definições › Websites.'), t('À esquerda, escolhe Notificações.'), t('Ao lado do Txillapp, escolhe Permitir e recarrega a página.')];
     default:
-      return ['Clica no cadeado (ou no ícone das definições) à esquerda do endereço.', 'Em Notificações, escolhe Permitir.', 'Recarrega a página.'];
+      return [t('Clica no cadeado (ou no ícone das definições) à esquerda do endereço.'), t('Em Notificações, escolhe Permitir.'), t('Recarrega a página.')];
   }
 }
 
 /** iPhone sem a app no ecrã principal: os passos para a pôr lá (no Safari; noutro browser, primeiro abrir no Safari). */
 export function installSteps(safari: boolean): string[] {
   const steps = [
-    'Toca em Partilhar (o quadrado com a seta para cima).',
-    'Escolhe “Adicionar ao ecrã principal” e depois “Adicionar”.',
-    'Abre o Txillapp pelo ícone novo e liga as notificações.',
+    t('Toca em Partilhar (o quadrado com a seta para cima).'),
+    t('Escolhe “Adicionar ao ecrã principal” e depois “Adicionar”.'),
+    t('Abre o Txillapp pelo ícone novo e liga as notificações.'),
   ];
-  return safari ? steps : ['Abre o Txillapp no Safari.', ...steps];
+  return safari ? steps : [t('Abre o Txillapp no Safari.'), ...steps];
 }
 
-export const INSTALL_NOTE = 'No iPhone, as notificações só funcionam com o Txillapp no ecrã principal.';
+export const INSTALL_NOTE = () => t('No iPhone, as notificações só funcionam com o Txillapp no ecrã principal.');

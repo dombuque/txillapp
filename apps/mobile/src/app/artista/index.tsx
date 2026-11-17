@@ -73,7 +73,7 @@ export default function SouArtista() {
               </Text>
               <Text style={[ast.cardSub, { marginTop: 10 }]}>
                 {t('Direitos de autor:')}{' '}
-                <Text style={{ fontWeight: '600', textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT)}`)}>{RIGHTS_CONTACT}</Text>
+                <Text style={{ fontWeight: '600', textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT())}`)}>{RIGHTS_CONTACT}</Text>
               </Text>
             </View>
           </>

@@ -574,7 +574,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                   </View>
                 ))}
               </View>
-              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen(t('intro:zas')); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen('intro:zas'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{t('Percebi')}</Text>
               </Pressable>
             </View>

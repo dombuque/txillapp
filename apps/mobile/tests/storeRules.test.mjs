@@ -2,11 +2,12 @@
 // nas versões das lojas (play, appstore) não se compra nada digital por fora da loja, e todo o conteúdo se denuncia.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STORE_TOPUP_READY, helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } from '../src/lib/storeRules.ts';
+const { STORE_TOPUP_READY, helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } = await import('../src/lib/storeRules.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(path.join(ROOT, 'src', ...p), 'utf8').replace(/\r\n/g, '\n');

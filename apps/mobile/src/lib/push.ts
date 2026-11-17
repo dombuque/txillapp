@@ -1,5 +1,6 @@
 import { pushApi } from '@/lib/api.settings';
 import { track } from '@/lib/analytics';
+import { t } from '@/lib/i18n';
 
 /**
  * Web Push (só na web; o service worker é o /sw.js, que importa o /push-sw.js). Porta de apps/web/src/lib/push.ts.
@@ -74,15 +75,15 @@ const askPermission = () =>
 export async function enablePush(): Promise<'on' | 'denied' | 'off'> {
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent);
   const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  if (ios && !standalone) throw new Error('No iPhone, abre o Txillapp pelo ícone no ecrã principal (Partilhar › Adicionar ao ecrã principal) e tenta outra vez.');
+  if (ios && !standalone) throw new Error(t('No iPhone, abre o Txillapp pelo ícone no ecrã principal (Partilhar › Adicionar ao ecrã principal) e tenta outra vez.'));
   const perm = await askPermission();
   if (perm === 'denied') return 'denied';
   if (perm !== 'granted') return 'off';
-  const { publicKey } = await wait(pushApi.pushKey(), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
-  if (!publicKey) throw new Error('As notificações ainda não estão ativas neste servidor.');
-  const reg = await wait(navigator.serviceWorker.ready, 8_000, 'O serviço de notificações ainda não arrancou. Fecha e abre a app e tenta outra vez.');
-  const sub = await wait(freshSubscription(reg, publicKey), 15_000, 'Não consegui registar este telemóvel. Tenta outra vez daqui a pouco.');
-  await wait(registerSubscription(sub), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
+  const { publicKey } = await wait(pushApi.pushKey(), 10_000, t('Sem ligação ao servidor. Tenta outra vez.'));
+  if (!publicKey) throw new Error(t('As notificações ainda não estão ativas neste servidor.'));
+  const reg = await wait(navigator.serviceWorker.ready, 8_000, t('O serviço de notificações ainda não arrancou. Fecha e abre a app e tenta outra vez.'));
+  const sub = await wait(freshSubscription(reg, publicKey), 15_000, t('Não consegui registar este telemóvel. Tenta outra vez daqui a pouco.'));
+  await wait(registerSubscription(sub), 10_000, t('Sem ligação ao servidor. Tenta outra vez.'));
   setChoice('on');
   track('push_enabled', { via: 'webpush' });
   return 'on';
@@ -106,7 +107,7 @@ export async function disablePush(): Promise<void> {
 export async function syncPush(): Promise<boolean> {
   try {
     if (!supported() || Notification.permission !== 'granted') return false;
-    const reg = await wait(navigator.serviceWorker.ready, 8_000, 'sem service worker');
+    const reg = await wait(navigator.serviceWorker.ready, 8_000, t('sem service worker'));
     const had = !!(await reg.pushManager.getSubscription());
     if (!had && webPushChoice() !== 'on') return false;
     const { publicKey } = await pushApi.pushKey().catch(() => ({ publicKey: null }));

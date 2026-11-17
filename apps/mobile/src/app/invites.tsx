@@ -180,7 +180,7 @@ export default function Invites() {
               {drawing && !card && <ActivityIndicator color={colors.brand} />}
               {drawError && !card && <Text style={{ color: colors.zinc600, textAlign: 'center', padding: 16 }}>{t('Não consegui desenhar o cartão. A ligação funciona na mesma.')}</Text>}
             </View>
-            <Button label={t('Outra frase')} icon="repeat" kind="ghost" size="md" onPress={() => setPhrase(nextPhrase(ph))} accessibilityHint={t('Agora: {invitePhrase}', { invitePhrase: INVITE_PHRASES[ph] })} style={st.again} />
+            <Button label={t('Outra frase')} icon="repeat" kind="ghost" size="md" onPress={() => setPhrase(nextPhrase(ph))} accessibilityHint={t('Agora: {invitePhrase}', { invitePhrase: INVITE_PHRASES()[ph] })} style={st.again} />
             {d.card && !d.card.geleiraPublic ? <Text style={st.small}>{t('A tua Geleira não está à vista de todos, por isso não vai no cartão.')}</Text> : null}
 
             <View style={{ gap: 10, marginTop: 12 }}>

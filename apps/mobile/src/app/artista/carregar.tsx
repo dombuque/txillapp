@@ -103,7 +103,7 @@ export default function CarregarMusica() {
               ) : (
                 <View style={[ast.card, { marginTop: 0 }]}>
                   <Text style={ast.cardSub}>{t('Nesta versão da app ainda não dá para escolher ficheiros de música. Carrega no site, com a mesma conta:')}</Text>
-                  <Text style={[ast.cardSub, { color: colors.brand, fontWeight: '600' }]} onPress={() => void Linking.openURL('https://txillapp.com/artista/carregar')}>{t('txillapp.com/artista/carregar')}</Text>
+                  <Text style={[ast.cardSub, { color: colors.brand, fontWeight: '600' }]} onPress={() => void Linking.openURL('https://txillapp.com/artista/carregar')}>txillapp.com/artista/carregar</Text>
                 </View>
               )}
               {tooBig ? <Text style={ast.err}>{t('O ficheiro tem mais de {maxMb} MB.', { maxMb: MAX_MB })}</Text> : null}

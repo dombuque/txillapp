@@ -7,12 +7,13 @@ import { View } from 'react-native';
 import type { IceServer } from './types';
 import type { AudioOutput, PeerLike, VideoViewProps } from './peer';
 import { isAppleMobile, speakerUi, type AudioReport, type SpeakerUi } from './speaker';
+import { t } from '@/lib/i18n';
 
 export const rtcSupported = () => typeof window !== 'undefined' && typeof window.RTCPeerConnection === 'function' && !!navigator.mediaDevices?.getUserMedia;
 
 /** `relayOnly`: só pelo TURN (o outro lado não vê o IP desta pessoa). */
 export function createPeer(iceServers: IceServer[], relayOnly = false): PeerLike {
-  if (!rtcSupported()) throw new Error('Este browser não faz chamadas. Experimenta o Chrome, o Safari ou a app.');
+  if (!rtcSupported()) throw new Error(t('Este browser não faz chamadas. Experimenta o Chrome, o Safari ou a app.'));
   return new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle', iceTransportPolicy: relayOnly ? 'relay' : 'all' }) as unknown as PeerLike;
 }
 
@@ -20,14 +21,14 @@ const videoConstraints = (front: boolean): MediaTrackConstraints => ({ facingMod
 
 function explain(e: unknown): Error {
   const n = (e as { name?: string })?.name;
-  if (n === 'NotAllowedError' || n === 'SecurityError') return new Error('Sem acesso ao microfone ou à câmara. Dá permissão no browser e tenta outra vez.');
-  if (n === 'NotFoundError' || n === 'OverconstrainedError') return new Error('Não encontrei microfone ou câmara neste aparelho.');
-  if (n === 'NotReadableError') return new Error('O microfone ou a câmara estão ocupados noutra app.');
-  return e instanceof Error ? e : new Error('Não consegui abrir o microfone.');
+  if (n === 'NotAllowedError' || n === 'SecurityError') return new Error(t('Sem acesso ao microfone ou à câmara. Dá permissão no browser e tenta outra vez.'));
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return new Error(t('Não encontrei microfone ou câmara neste aparelho.'));
+  if (n === 'NotReadableError') return new Error(t('O microfone ou a câmara estão ocupados noutra app.'));
+  return e instanceof Error ? e : new Error(t('Não consegui abrir o microfone.'));
 }
 
 export async function openMedia(video: boolean, front: boolean): Promise<unknown> {
-  if (!rtcSupported()) throw new Error('Este browser não faz chamadas. Experimenta o Chrome, o Safari ou a app.');
+  if (!rtcSupported()) throw new Error(t('Este browser não faz chamadas. Experimenta o Chrome, o Safari ou a app.'));
   const audio: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
   try {
     return await navigator.mediaDevices.getUserMedia({ audio, video: video ? videoConstraints(front) : false });
@@ -174,7 +175,7 @@ export async function audioOutputs(): Promise<AudioOutput[]> {
   if (!sinkSupported() || appleMobileWeb()) return [];
   try {
     const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'communications');
-    return all.map((d, i) => ({ id: d.deviceId, label: d.deviceId === 'default' ? 'Predefinida do sistema' : d.label || `Saída ${i + 1}` }));
+    return all.map((d, i) => ({ id: d.deviceId, label: d.deviceId === 'default' ? t('Predefinida do sistema') : d.label || t('Saída {n}', { n: i + 1 }) }));
   } catch {
     return [];
   }

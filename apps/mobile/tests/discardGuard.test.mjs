@@ -3,6 +3,7 @@
 // - na câmara, o voltar do Android na pré-visualização de um vídeo acabado de gravar deitava-o fora logo.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

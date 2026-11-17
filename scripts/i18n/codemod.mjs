@@ -35,7 +35,8 @@ const LIST = args.includes('--list');
 const REPORT = opt('--report') ?? 'C:/dombuque/tmp-apk/codemod-relatorio.md';
 const LOG_JSON = REPORT.replace(/\.md$/, '.json');
 
-const EXCLUDE_FILES = [/\/src\/lib\/legalText\.ts$/, /\/src\/lib\/i18n\.ts$/, /\/src\/icons\//, /\.d\.ts$/];
+// tchekaRules.ts é cópia à letra de um ficheiro do servidor (tests/studioAudio.test.mjs compara as duas).
+const EXCLUDE_FILES = [/\/src\/lib\/legalText\.ts$/, /\/src\/lib\/i18n\.ts$/, /\/src\/lib\/tchekaRules\.ts$/, /\/src\/icons\//, /\.d\.ts$/];
 const GLOSSARY = (() => {
   const p = path.join(ROOT, 'scripts/i18n/glossary.json');
   const base = ['Txillapp', 'Txillada', 'Txilladas', 'mimo', 'mimos', 'tchekas', 'tcheka', 'Zás', 'vibes', 'vib', 'Mixar', 'geleira', 'gelada', 'geladas', 'TxillGroup', 'TxillGroups', 'SuperTxill', 'Paga-me uma', 'malta'];
@@ -69,6 +70,9 @@ function codeLike(s) {
   const t = s.replace(/\{\w+\}/g, ' ');
   if (/:\/\/|^\s*www\.|^mailto:|^tel:|^data:|^blob:|^file:/i.test(t)) return 'url';
   if (/^\s*[\w.+-]+@[\w-]+(\.[\w-]+)+\s*$/.test(t)) return 'email';
+  if (/^\s*[a-z][a-z0-9+.-]*:[^\s]+\s*$/i.test(t) && !/:$/.test(t.trim())) return 'url (esquema:…)';
+  if (/\b(noindex|nofollow|noarchive|nosnippet|noimageindex)\b/.test(t)) return 'meta robots';
+  if (/^\s*[\w-]+(\.[\w-]+)+\/\S*\s*$/.test(t)) return 'url (domínio/caminho)';
   if (/^\s*[\w-]+(\.[\w-]+)*\.(com|co\.mz|mz|app|pt|org|net|io)\s*$/i.test(t)) return 'domínio';
   if (/^\s*[\/~#]|^\s*\.\.?\//.test(t) || /^\s*@\//.test(t)) return 'caminho';
   if (/[{}<>=\\`$]/.test(t)) return 'caracteres de código';
@@ -77,6 +81,7 @@ function codeLike(s) {
   if (/\b(rgba?|hsla?|var|calc|translate[XYZ3d]*|rotate[XYZ]?|scale[XYZ]?|cubic-bezier|steps|linear-gradient|radial-gradient|conic-gradient|url|blur|drop-shadow|matrix)\(/.test(t)) return 'função CSS';
   const words = t.trim().split(/\s+/).filter(Boolean);
   if (words.length && words.every((w) => CSS_WORDS.has(w.replace(/[,()]/g, '').toLowerCase()) || /^[\d.,%+-]+$/.test(w))) return 'palavras CSS';
+  if (words.length && words.every((w) => /^[a-z0-9]+(-[a-z0-9]+)+$/.test(w))) return 'palavras CSS (kebab)';
   if (words.length === 1) {
     const w = words[0];
     if (/^[a-z]+[A-Z]\w*$/.test(w)) return 'identificador camelCase';
@@ -386,6 +391,8 @@ function transformFile(sf, seed) {
       if (looksProse(phrase.staticText) || ctx.strength === 'strong' && LETTER.test(phrase.staticText)) logSkip(u, phrase.key, verdict.why + (ctx.where ? ` (${ctx.where})` : ''));
       return;
     }
+    // { answer: 'decline' }: numa propriedade de objeto, uma palavra minúscula sozinha é quase sempre uma chave
+    if (!phrase.vars.length && !phrase.plural && /:( \(plural\))?$/.test(ctx.where ?? '') && /^[a-z]+$/.test(phrase.key) && !/\(plural\)/.test(ctx.where)) return logSkip(u, phrase.key, `palavra minúscula sozinha numa propriedade (parece chave) (${ctx.where})`);
     const valueSet = ctx.strength === 'strong' ? fileSet : new Set([...fileSet, ...globalValues]);
     if (!phrase.vars.length && valueSet.has(phrase.key)) return logSkip(u, phrase.key, 'o mesmo texto é usado como valor (comparação, case, includes…)');
     // tipo literal esperado ali (ex.: style: 'cancel' | 'default')
@@ -423,6 +430,7 @@ function transformFile(sf, seed) {
           const nm = lastName(p.left);
           if (/^(textContent|innerText|title|placeholder|ariaLabel|alt|label|value)$/.test(nm ?? '')) return { strength: 'strong', where: `= ${nm}` };
           if (/^(innerHTML|outerHTML|cssText|className|src|href|id|d)$/.test(nm ?? '')) return { skip: `atribuição a ${nm}` };
+          if (nm && CSS_PROP.test(nm) && !VIS_SUFFIX.test(nm) || ts.isPropertyAccessExpression(p.left) && /\.style$/.test(p.left.expression.getText(sf))) return { skip: `atribuição a ${nm} (estilo)` };
           return byName(nm, 'atribuição', viaArray);
         }
         return { skip: 'operação ' + ts.tokenToString(k) };
@@ -461,7 +469,7 @@ function transformFile(sf, seed) {
         // 'texto'.toUpperCase() e afins: decide o de cima, com a mesma força
         if (ts.isCallExpression(p.parent) && /^(toUpperCase|toLowerCase|trim)$/.test(p.name.text)) { c = p.parent; p = c.parent; continue; }
         // ['Frase a', 'Frase b'].map(…) / .join(…): uma lista de textos para mostrar
-        if (viaArray && ts.isCallExpression(p.parent) && /^(map|join|forEach|flatMap)$/.test(p.name.text)) return { strength: 'weak', where: `lista .${p.name.text}()` };
+        if (viaArray && ts.isCallExpression(p.parent) && /^(map|join|forEach|flatMap|filter|slice|concat)$/.test(p.name.text)) return { strength: 'weak', where: `lista .${p.name.text}()` };
         return { skip: 'acesso a propriedade' };
       }
       if (ts.isCaseClause(p) || ts.isSwitchStatement(p)) return { skip: 'case' };

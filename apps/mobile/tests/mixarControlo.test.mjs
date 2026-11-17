@@ -3,6 +3,7 @@
 // e as entradas nos ecrãs (menu do item, cabeçalho, Descoberta, Definições › Privacidade).
 // Correr em apps/mobile:  node --test tests/mixarControlo.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

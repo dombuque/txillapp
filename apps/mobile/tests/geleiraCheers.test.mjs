@@ -1,6 +1,7 @@
 // Testes dos brindes à geleira (src/lib/geleiraCheers.ts): os textos da contagem e dos botões e a atualização otimista.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

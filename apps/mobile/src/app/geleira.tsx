@@ -27,9 +27,9 @@ const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
 /** Nota de 1 a 5 flocos de gelo. Tocar no mesmo outra vez tira a nota. */
 function IceRating({ value, onChange, size = 30 }: { value: number | null; onChange: (v: number | null) => void; size?: number }) {
   return (
-    <View style={{ flexDirection: 'row' }} accessibilityRole="radiogroup" accessibilityLabel={value ? t('Nota {value} de 5: {ice}', { value, ice: ICE[value] }) : t('Sem nota')}>
+    <View style={{ flexDirection: 'row' }} accessibilityRole="radiogroup" accessibilityLabel={value ? t('Nota {value} de 5: {ice}', { value, ice: ICE()[value] }) : t('Sem nota')}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <Pressable key={n} onPress={() => onChange(value === n ? null : n)} accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={t('{n} de 5: {ice}', { n, ice: ICE[n] })} style={st.ice}>
+        <Pressable key={n} onPress={() => onChange(value === n ? null : n)} accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={t('{n} de 5: {ice}', { n, ice: ICE()[n] })} style={st.ice}>
           <Icon name="snowflake" size={size} color={!!value && n <= value ? SKY500 : colors.zinc300} />
         </Pressable>
       ))}
@@ -303,7 +303,7 @@ export default function GeleiraEditor() {
                               {i.favorite && <Icon name="heart" size={14} solid color={colors.brand} />}
                             </View>
                             <Text numberOfLines={1} style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>
-                              {i.pending ? t('À espera de aprovação') : i.mine ? (i.rating ? ICE[i.rating] : t('Dá-lhe gelo')) : others(i) > 0 ? t('{fmt} na geleira da malta', { fmt: fmt(others(i)) }) : t('Ninguém tem ainda. Sê o primeiro')}
+                              {i.pending ? t('À espera de aprovação') : i.mine ? (i.rating ? ICE()[i.rating] : t('Dá-lhe gelo')) : others(i) > 0 ? t('{fmt} na geleira da malta', { fmt: fmt(others(i)) }) : t('Ninguém tem ainda. Sê o primeiro')}
                             </Text>
                           </View>
                         </Pressable>

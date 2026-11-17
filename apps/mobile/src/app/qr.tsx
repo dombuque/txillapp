@@ -111,7 +111,7 @@ export default function QrScreen() {
     try {
       const data = await scanImage(uri);
       if (data) handle(data);
-      else setErr(NO_QR_IN_IMAGE);
+      else setErr(NO_QR_IN_IMAGE());
     } finally {
       setBusy(false);
     }

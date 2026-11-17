@@ -2,6 +2,7 @@
 // Vêm em nome do «Txillapp» (o servidor nunca mostra a pessoa da equipa) e não se desligam nas definições.
 // Sem dependências (os testes correm em Node: tests/moderationNotice.test.mjs).
 
+import { t } from '@/lib/i18n';
 export type ModerationKind = 'content_removed' | 'content_restored' | 'moderation_warning';
 export interface ModerationData { type?: string; reason?: string; postId?: string; tcheka?: boolean }
 
@@ -11,27 +12,27 @@ export const isModerationKind = (k: string): k is ModerationKind => (MODERATION_
 /** «a tua publicação», «o teu comentário», «o teu mimo»… */
 export function moderationNoun(d: ModerationData): string {
   switch (d.type) {
-    case 'comment': return 'o teu comentário';
-    case 'story_comment': return 'o teu comentário no mimo';
-    case 'txillada': return 'a tua Txillada';
-    case 'txillada_schedule': return 'a tua Txillada agendada';
-    case 'txillada_comment': return 'o teu comentário na Txillada';
-    case 'mixar_comment': return 'o teu comentário no Mixar';
-    case 'story': return 'o teu mimo';
-    case 'message': return 'a tua mensagem';
-    case 'media': return 'a tua foto';
-    case 'user': return 'o teu perfil';
-    case 'venue': return 'a página do teu local';
-    default: return d.tcheka ? 'a tua tcheka' : 'a tua publicação';
+    case 'comment': return t('o teu comentário');
+    case 'story_comment': return t('o teu comentário no mimo');
+    case 'txillada': return t('a tua Txillada');
+    case 'txillada_schedule': return t('a tua Txillada agendada');
+    case 'txillada_comment': return t('o teu comentário na Txillada');
+    case 'mixar_comment': return t('o teu comentário no Mixar');
+    case 'story': return t('o teu mimo');
+    case 'message': return t('a tua mensagem');
+    case 'media': return t('a tua foto');
+    case 'user': return t('o teu perfil');
+    case 'venue': return t('a página do teu local');
+    default: return d.tcheka ? t('a tua tcheka') : t('a tua publicação');
   }
 }
 
 /** O texto da linha (depois de «Txillapp») e, por baixo, o motivo. */
 export function moderationVerb(kind: ModerationKind, d: ModerationData): { text: string; sub?: string } {
-  const why = typeof d.reason === 'string' && d.reason.trim() ? `Motivo: ${d.reason.trim()}` : undefined;
-  if (kind === 'content_removed') return { text: `removeu ${moderationNoun(d)} por não cumprir as regras`, sub: why ?? 'Não cumpria as regras do Txillapp.' };
-  if (kind === 'content_restored') return { text: `repôs ${moderationNoun(d)}`, sub: why };
-  return { text: `deixou-te um aviso sobre ${moderationNoun(d)}`, sub: why };
+  const why = typeof d.reason === 'string' && d.reason.trim() ? t('Motivo: {reason}', { reason: d.reason.trim() }) : undefined;
+  if (kind === 'content_removed') return { text: t('removeu {moderationNoun} por não cumprir as regras', { moderationNoun: moderationNoun(d) }), sub: why ?? t('Não cumpria as regras do Txillapp.') };
+  if (kind === 'content_restored') return { text: t('repôs {moderationNoun}', { moderationNoun: moderationNoun(d) }), sub: why };
+  return { text: t('deixou-te um aviso sobre {moderationNoun}', { moderationNoun: moderationNoun(d) }), sub: why };
 }
 
 /**

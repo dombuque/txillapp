@@ -57,7 +57,7 @@ function Explain() {
       <Text style={st.p}>{t('Podes apagar a tua conta e os teus dados quando quiseres. Não se desfaz.')}</Text>
 
       <Text style={st.h2} accessibilityRole="header">{t('Na app')}</Text>
-      {DELETION_STEPS.map((s, i) => (
+      {DELETION_STEPS().map((s, i) => (
         <View key={s} style={st.step}><Text style={st.num}>{i + 1}</Text><Text style={[st.p, { flex: 1 }]}>{s}</Text></View>
       ))}
       <Text style={st.note}>{t('No site txillapp.com é igual: entra na tua conta e segue os mesmos passos.')}</Text>
@@ -105,11 +105,11 @@ function What() {
   return (
     <>
       <Text style={st.h2} accessibilityRole="header">{t('O que é apagado')}</Text>
-      {DELETION_DELETED.map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
+      {DELETION_DELETED().map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
       <Text style={st.h2} accessibilityRole="header">{t('O que fica, e porquê')}</Text>
-      {DELETION_KEPT.map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
+      {DELETION_KEPT().map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
       <Text style={st.h2} accessibilityRole="header">{t('Quando')}</Text>
-      <Text style={st.p}>{DELETION_WHEN}</Text>
+      <Text style={st.p}>{DELETION_WHEN()}</Text>
     </>
   );
 }

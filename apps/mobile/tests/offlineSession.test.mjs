@@ -2,6 +2,7 @@
 // pessoa da conta; a app abre com a conta da última vez e confirma quando a rede voltar. Só um 401 termina a sessão.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

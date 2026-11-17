@@ -5,6 +5,7 @@
  */
 
 /** O mínimo de uma faixa que esta lógica precisa (compatível com `Track` de api.music). */
+import { t } from '@/lib/i18n';
 export interface TrackLike {
   id: string;
   kind?: string;
@@ -23,10 +24,10 @@ export interface HomeLike<T extends TrackLike = TrackLike> { styles: StyleLike[]
 
 /** Como se lê a licença no crédito. */
 export const licenseLabel = (l: string) =>
-  l === 'own' ? 'Original'
+  l === 'own' ? t('Original')
     : l === 'cc0' ? 'CC0'
-      : l === 'pdm' ? 'Domínio público'
-        : l === 'txillapp' ? 'Artista no Txillapp'
+      : l === 'pdm' ? t('Domínio público')
+        : l === 'txillapp' ? t('Artista no Txillapp')
           : `CC ${l.toUpperCase()}`;
 
 /**
@@ -38,10 +39,10 @@ export const licenseLabel = (l: string) =>
  */
 export type PickerTab = 'forYou' | 'trending' | 'sounds' | 'saved';
 export const PICKER_TABS: readonly { id: PickerTab; label: string }[] = [
-  { id: 'forYou', label: 'Para ti' },
-  { id: 'trending', label: 'Em alta' },
-  { id: 'sounds', label: 'Sons originais' },
-  { id: 'saved', label: 'Guardadas' },
+  { id: 'forYou', get label() { return t('Para ti'); } },
+  { id: 'trending', get label() { return t('Em alta'); } },
+  { id: 'sounds', get label() { return t('Sons originais'); } },
+  { id: 'saved', get label() { return t('Guardadas'); } },
 ];
 /** Os quatro separadores, sempre pela mesma ordem (o que muda é o que há dentro de cada um). */
 export const pickerTabs = () => PICKER_TABS;
@@ -66,7 +67,7 @@ export type ForYouFilter = null | 'local' | `style:${string}`;
  */
 export function forYouChips(home: Pick<HomeLike, 'local' | 'styles'> | null | undefined, allowLocal: boolean, suggested?: string | null): { id: Exclude<ForYouFilter, null>; label: string }[] {
   const out: { id: Exclude<ForYouFilter, null>; label: string }[] = [];
-  if (allowLocal && hasLocal(home)) out.push({ id: 'local', label: 'Artistas de Moçambique' });
+  if (allowLocal && hasLocal(home)) out.push({ id: 'local', label: t('Artistas de Moçambique') });
   for (const s of styleChips(home?.styles, suggested)) out.push({ id: `style:${s.id}`, label: s.label });
   return out;
 }
@@ -175,20 +176,20 @@ export function usesText(n: number | null | undefined): string {
 /** "usada 12 vezes esta semana" (nada para 0 ou sem número). */
 export function usesLabel(n: number | null | undefined): string {
   if (!n || n < 1) return '';
-  return n === 1 ? 'usada 1 vez esta semana' : `usada ${n} vezes esta semana`;
+  return t('usada {count} vez esta semana', { count: n, other: 'usada {count} vezes esta semana' });
 }
 
 /** O crédito por baixo do título: artista (com o @ na fonte local), duração. */
-export function creditLine(t: TrackLike & { durationMs?: number | null }, mmss: (ms: number | null) => string): string {
-  const who = t.artistUsername ? `${t.artist || t.artistUsername} · @${t.artistUsername}` : t.artist || 'Autor desconhecido';
-  const d = t.durationMs ? mmss(t.durationMs) : '';
+export function creditLine(track: TrackLike & { durationMs?: number | null }, mmss: (ms: number | null) => string): string {
+  const who = track.artistUsername ? `${track.artist || track.artistUsername} · @${track.artistUsername}` : track.artist || t('Autor desconhecido');
+  const d = track.durationMs ? mmss(track.durationMs) : '';
   return d ? `${who} · ${d}` : who;
 }
 
 /** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil usos · 2:53» (os usos desde sempre, quando os há). */
-export function rowMeta(t: TrackLike): string {
-  const who = t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
-  return [who, usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
+export function rowMeta(track: TrackLike): string {
+  const who = track.artist || (track.artistUsername ? `@${track.artistUsername}` : '') || (track.kind === 'sound' ? t('Som') : t('Autor desconhecido'));
+  return [who, usesText(track.usesTotal ?? track.uses), track.durationMs ? mmss(track.durationMs) : ''].filter(Boolean).join(' · ');
 }
 
 export const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');

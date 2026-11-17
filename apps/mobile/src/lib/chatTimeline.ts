@@ -10,6 +10,7 @@
  */
 
 /** Mais do que isto entre duas mensagens: separador de hora. */
+import { t } from '@/lib/i18n';
 export const GAP_MS = 15 * 60_000;
 /** Mensagens seguidas da mesma pessoa até isto: juntam-se (cantos interiores e 2 pt entre elas). */
 export const JOIN_MS = 3 * 60_000;
@@ -33,10 +34,10 @@ export interface TimelineRow {
   nextSame: boolean;
 }
 
-const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const WEEKDAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-const t = (iso: string) => new Date(iso).getTime();
+const tv = (iso: string) => new Date(iso).getTime();
 const pad = (n: number) => String(n).padStart(2, '0');
 const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -49,9 +50,9 @@ const dayMonth = (d: Date, now: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]}
 export function dayLabel(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   const days = daysAgo(d, now);
-  if (days <= 0) return `Hoje, ${dayMonth(d, now)}`;
-  if (days === 1) return 'Ontem';
-  if (days < 7) return `${WEEKDAYS[d.getDay()]}, ${dayMonth(d, now)}`;
+  if (days <= 0) return t('Hoje, {dayMonth}', { dayMonth: dayMonth(d, now) });
+  if (days === 1) return t('Ontem');
+  if (days < 7) return `${WEEKDAYS()[d.getDay()]}, ${dayMonth(d, now)}`;
   return dayMonth(d, now);
 }
 
@@ -59,7 +60,7 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
 export function timeLabel(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   const days = daysAgo(d, now);
-  const day = days <= 0 ? 'Hoje' : days === 1 ? 'Ontem' : days < 7 ? WEEKDAYS[d.getDay()] : dayMonth(d, now);
+  const day = days <= 0 ? 'Hoje' : days === 1 ? t('Ontem') : days < 7 ? WEEKDAYS()[d.getDay()] : dayMonth(d, now);
   return `${day}, ${hhmm(d)}`;
 }
 
@@ -69,10 +70,10 @@ export function activeLabel(iso: string | null | undefined, now: Date = new Date
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   const mins = Math.floor((now.getTime() - d.getTime()) / 60_000);
-  if (mins < 1) return 'Ativo agora';
-  if (mins < 60) return `Ativo há ${mins} min`;
-  if (mins < 24 * 60) return `Ativo há ${Math.floor(mins / 60)} h`;
-  if (daysAgo(d, now) <= 1) return 'Ativo ontem';
+  if (mins < 1) return t('Ativo agora');
+  if (mins < 60) return t('Ativo há {mins} min', { mins });
+  if (mins < 24 * 60) return t('Ativo há {n} h', { n: Math.floor(mins / 60) });
+  if (daysAgo(d, now) <= 1) return t('Ativo ontem');
   return `Ativo a ${dayMonth(d, now)}`;
 }
 
@@ -89,7 +90,7 @@ export function sameAuthor(a: TimelineMsg, b: TimelineMsg, group = false): boole
 /** Duas mensagens seguidas (a antes de b) juntam-se: mesma pessoa, mesmo dia, ≤ 3 min. Chamadas e reações a mimos ficam sozinhas. */
 export function joins(a: TimelineMsg, b: TimelineMsg, group = false): boolean {
   if (!sameAuthor(a, b, group) || LONERS.has(a.kind ?? '') || LONERS.has(b.kind ?? '')) return false;
-  const gap = t(b.at) - t(a.at);
+  const gap = tv(b.at) - tv(a.at);
   return gap >= 0 && gap <= JOIN_MS && sameDay(a.at, b.at);
 }
 
@@ -117,7 +118,7 @@ export function chatTimeline(msgs: readonly TimelineMsg[], opts: { group?: boole
   const rows: TimelineRow[] = msgs.map((m, i) => {
     const prev = msgs[i - 1];
     const newDay = !prev || !sameDay(prev.at, m.at);
-    const gap = newDay || t(m.at) - t(prev.at) > GAP_MS;
+    const gap = newDay || tv(m.at) - tv(prev.at) > GAP_MS;
     const newMark = !!opts.newFrom && m.id === opts.newFrom;
     return { divider: newDay ? dayLabel(m.at, now) : gap ? timeLabel(m.at, now) : null, newMark, prevSame: !!prev && !gap && !newMark && joins(prev, m, opts.group), nextSame: false };
   });

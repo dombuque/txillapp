@@ -4,6 +4,7 @@
  */
 
 /** Os dois separadores principais (o que se lembra entre visitas). */
+import { t } from '@/lib/i18n';
 export type InboxTab = 'chats' | 'groups';
 /** O que a lista está a mostrar: um dos separadores ou os pedidos. */
 export type InboxView = InboxTab | 'requests';
@@ -70,7 +71,7 @@ export function badgeText(n: number): string {
 }
 
 /** O que o leitor de ecrã diz de cada separador. */
-export function tabLabel(name: string, n: number, what = 'por ler'): string {
+export function tabLabel(name: string, n: number, what = t('por ler')): string {
   return n > 0 ? `${name}, ${n} ${what}` : name;
 }
 

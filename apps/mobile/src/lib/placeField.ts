@@ -5,6 +5,7 @@
  */
 
 /** O sítio escolhido: o ponto exato, a morada e a cidade (o nome só quando veio de uma sugestão). */
+import { t } from '@/lib/i18n';
 export interface PlaceValue {
   name?: string | null;
   address: string | null;
@@ -170,7 +171,7 @@ export function formatAddress(p: { address?: string | null; city?: string | null
 
 /** O título do sítio escolhido: o nome, senão a morada, senão "Ponto marcado no mapa". */
 export function placeTitle(p: PlaceValue): string {
-  return clean(p.name, 120) ?? clean(p.address, ADDRESS_MAX) ?? clean(p.city, CITY_MAX) ?? 'Ponto marcado no mapa';
+  return clean(p.name, 120) ?? clean(p.address, ADDRESS_MAX) ?? clean(p.city, CITY_MAX) ?? t('Ponto marcado no mapa');
 }
 
 /** A linha por baixo do título (o que ainda não está no título). */
@@ -184,7 +185,7 @@ export function placeSubtitle(p: PlaceValue): string {
 /** O texto para os leitores de ecrã: "Sítio escolhido: Bar do Ponto, Av. Marginal 141, Maputo." */
 export function placeA11y(p: PlaceValue): string {
   const sub = placeSubtitle(p);
-  return `Sítio escolhido: ${placeTitle(p)}${sub ? `, ${sub}` : ''}.`;
+  return t('Sítio escolhido: {placeTitle}{value}.', { placeTitle: placeTitle(p), value: sub ? `, ${sub}` : '' });
 }
 
 /** O sítio que o local já tem (para o campo de editar): só com coordenadas; sem elas o campo começa vazio. */
@@ -231,9 +232,9 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
  * sem sítio (escreveu e não escolheu, ou nem escreveu) e com o local escondido do mapa.
  */
 export function createPlaceWarning(p: PlaceValue | null, typed: string, showOnMap: boolean): string | null {
-  if (p) return showOnMap ? null : 'O local fica fora do mapa do À tua volta. Quem abre a página vê na mesma a morada.';
-  if (searchQuery(typed)) return 'Escolhe uma sugestão ou marca no mapa: sem isso o local não aparece no mapa do À tua volta. Podes marcar depois em Gerir.';
-  return 'Ainda não disseste onde fica: o local não aparece no mapa do À tua volta. Podes marcar depois em Gerir.';
+  if (p) return showOnMap ? null : t('O local fica fora do mapa do À tua volta. Quem abre a página vê na mesma a morada.');
+  if (searchQuery(typed)) return t('Escolhe uma sugestão ou marca no mapa: sem isso o local não aparece no mapa do À tua volta. Podes marcar depois em Gerir.');
+  return t('Ainda não disseste onde fica: o local não aparece no mapa do À tua volta. Podes marcar depois em Gerir.');
 }
 
 /** O ícone de cada tipo de sugestão (os nomes dos ícones Tx). */

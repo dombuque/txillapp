@@ -22,6 +22,7 @@
  * com o nome da conversa (`notePendingTitle`, para o cabeçalho sem rede), e voltam ao abrir a app.
  */
 
+import { t } from '@/lib/i18n';
 export type PendingState = 'sending' | 'waiting' | 'failed' | 'sent';
 export type PendingKind = 'text' | 'sticker' | 'gif' | 'voice' | 'image' | 'video';
 const KINDS: readonly PendingKind[] = ['text', 'sticker', 'gif', 'voice', 'image', 'video'];
@@ -703,9 +704,9 @@ export function mergePending<T extends { id: string }>(server: readonly T[], pen
 /** O texto curto de uma mensagem por enviar (na lista de Mensagens sem rede). */
 export function pendingPreview(p: Pick<PendingMsg, 'kind' | 'body'>): string {
   if (p.kind === 'text') return p.body;
-  if (p.kind === 'sticker') return 'Sticker';
+  if (p.kind === 'sticker') return t('Sticker');
   if (p.kind === 'gif') return 'GIF';
-  if (p.kind === 'voice') return 'Mensagem de voz';
-  if (p.kind === 'image') return p.body ? `Foto: ${p.body}` : 'Foto';
-  return p.body ? `Vídeo: ${p.body}` : 'Vídeo';
+  if (p.kind === 'voice') return t('Mensagem de voz');
+  if (p.kind === 'image') return p.body ? t('Foto: {body}', { body: p.body }) : t('Foto');
+  return p.body ? t('Vídeo: {body}', { body: p.body }) : t('Vídeo');
 }

@@ -1,16 +1,17 @@
 // Bombar (destaques pagos dos locais): regras e textos que não dependem do React (onde entra cada destaque no feed,
 // a posição que vai para o servidor, preços, estados e o relatório). Sem dependências: tests/boostView.test.mjs.
 
+import { t } from '@/lib/i18n';
 export type BoostPackageId = '1d' | '3d' | '7d';
 /** 'draft': pago pela loja, à espera da confirmação da compra (o verify). */
 export type BoostState = 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending' | 'draft';
 
 /** A etiqueta obrigatória (publicidade identificada). O servidor manda a mesma em cada destaque. */
-export const SPONSORED_LABEL = 'Bombado · Patrocinado';
+export const SPONSORED_LABEL = () => t('Bombado · Patrocinado');
 
 /** O que o leitor de ecrã diz antes do cartão: a etiqueta e quem paga. */
-export function sponsoredA11y(venueName: string, label: string = SPONSORED_LABEL): string {
-  return `${label.replace(' · ', ', ')}. Publicidade de ${venueName}.`;
+export function sponsoredA11y(venueName: string, label: string = SPONSORED_LABEL()): string {
+  return t('{label}. Publicidade de {venueName}.', { label: label.replace(' · ', ', '), venueName });
 }
 
 /** Um destaque do feed, como vem do servidor (GET /feed?lat&lng → `sponsored`). */
@@ -55,7 +56,7 @@ export function feedNear(saved: string | null, cities: CityLike[], device: { lat
 
 /** "1500 vibes" (e "1 vibe"; as mesmas palavras de lib/vibes, que este ficheiro não importa: os testes leem-no sozinho). */
 export function txills(n: number): string {
-  return `${Math.round(n).toLocaleString('pt-PT')} ${Math.round(n) === 1 ? 'vibe' : 'vibes'}`;
+  return `${Math.round(n).toLocaleString('pt-PT')} ${Math.round(n) === 1 ? t('vibe') : 'vibes'}`;
 }
 
 /** O preço do pacote num raio (o servidor manda a tabela; sem ela, nada). */
@@ -66,13 +67,13 @@ export function priceFor(packages: { id: string; prices: Record<string | number,
 }
 
 export const STATE_LABEL: Record<BoostState, string> = {
-  scheduled: 'Agendada',
+  get scheduled() { return t('Agendada'); },
   active: 'A bombar',
-  ended: 'Terminada',
-  stopped: 'Parada',
-  suspended: 'Suspensa pela equipa',
-  pending: 'À espera da equipa',
-  draft: 'À espera do pagamento',
+  get ended() { return t('Terminada'); },
+  get stopped() { return t('Parada'); },
+  get suspended() { return t('Suspensa pela equipa'); },
+  get pending() { return t('À espera da equipa'); },
+  get draft() { return t('À espera do pagamento'); },
 };
 
 /** O texto do que se devolve ao parar (a mesma regra do servidor: os dias inteiros que faltam; tudo se ainda não começou). */
@@ -98,13 +99,13 @@ export interface BoostReportLike {
 /** As linhas do relatório (só totais). */
 export function reportLines(r: BoostReportLike): { label: string; value: number }[] {
   const out = [
-    { label: 'Vezes mostrado', value: r.impressions },
-    { label: 'Pessoas', value: r.people },
-    { label: 'Toques', value: r.taps },
+    { label: t('Vezes mostrado'), value: r.impressions },
+    { label: t('Pessoas'), value: r.people },
+    { label: t('Toques'), value: r.taps },
   ];
-  if (r.interested != null) out.push({ label: '"Tenho interesse"', value: r.interested });
-  if (r.cheers != null) out.push({ label: 'Brindes', value: r.cheers });
-  out.push({ label: 'Check-ins', value: r.checkins }, { label: 'Check-ins de quem viu', value: r.checkinsAfterSeeing });
+  if (r.interested != null) out.push({ label: t('"Tenho interesse"'), value: r.interested });
+  if (r.cheers != null) out.push({ label: t('Brindes'), value: r.cheers });
+  out.push({ label: t('Check-ins'), value: r.checkins }, { label: t('Check-ins de quem viu'), value: r.checkinsAfterSeeing });
   return out;
 }
 

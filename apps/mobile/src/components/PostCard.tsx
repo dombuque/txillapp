@@ -298,7 +298,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         // Oculta (0169): só o autor a vê assim; um toque volta a mostrá-la (no mesmo sítio, com tudo o que tinha).
         <View style={styles.hiddenBar} accessibilityRole="text">
           <Icon name="eye-off" size={16} color={colors.zinc600} />
-          <Text style={styles.hiddenText} numberOfLines={2}>{HIDDEN_BANNER}</Text>
+          <Text style={styles.hiddenText} numberOfLines={2}>{HIDDEN_BANNER()}</Text>
           <Pressable onPress={() => void setPostHidden(qc, post, false)} hitSlop={8} style={(s) => [styles.hiddenBtn, (s as Hover).pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Voltar a mostrar a publicação')}>
             <Text style={styles.hiddenBtnText}>{t('Voltar a mostrar')}</Text>
           </Pressable>

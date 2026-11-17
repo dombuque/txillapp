@@ -17,6 +17,7 @@
  * são «worklets».
  */
 
+import { t } from '@/lib/i18n';
 export type ClipFit = 'cover' | 'blur';
 
 /** Até esta largura/altura (já com a rotação) o automático enche; acima, mostra o clipe inteiro. 4:5 = 0,8. */
@@ -66,7 +67,7 @@ export function clipFit(c: FitClip, w: number, h: number, rotation = 0): ClipFit
 
 /** O que o painel do clipe mostra: a escolha da pessoa ou o automático (com o que dá agora). */
 export function fitLabel(fit: ClipFit): string {
-  return fit === 'blur' ? 'Inteiro' : 'Encher';
+  return fit === 'blur' ? t('Inteiro') : t('Encher');
 }
 
 /** Muda a escolha da pessoa: tocar no que o automático já faz deixa-a escrita (fica assim mesmo que o ficheiro mude). */

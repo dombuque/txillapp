@@ -3,6 +3,7 @@
 // correm em Node: tests/geleiraLevel.test.mjs).
 
 /** Os pontos de cada nível (0 a 4), se o servidor não os mandar. */
+import { t } from '@/lib/i18n';
 export const LEVEL_STEPS = [0, 1, 40, 100, 180] as const;
 /** O que os níveis de cima pedem além dos pontos: pessoas diferentes e semanas com atividade. */
 export const LEVEL_GATES = [
@@ -34,13 +35,13 @@ const pl = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : man
 
 /** As cinco linhas do detalhe, com ícone, nome, pontos e uma nota (o que já conta, ou como começar). */
 export function levelRows(d: LevelDetail): LevelRow[] {
-  const g = d.geladas, b = d.brindes, s = d.sitios, r = d.rodadas, t = d.gostos;
+  const g = d.geladas, b = d.brindes, s = d.sitios, r = d.rodadas, tv = d.gostos;
   return [
-    { key: 'geladas', icon: 'soda', label: 'Geladas', points: n(g.points), note: n(g.paid) + n(g.received) ? `${pl(n(g.paid), 'paga', 'pagas')} · ${pl(n(g.received), 'recebida', 'recebidas')}` : 'Paga ou recebe uma gelada (confirmada)' },
-    { key: 'brindes', icon: 'cheers', label: 'Brindes', points: n(b.points), note: n(b.people) ? `de ${pl(n(b.people), 'amigo', 'amigos')}` : 'Brindes de amigos que te seguem e que segues' },
-    { key: 'sitios', icon: 'map-pin', label: 'Sítios', points: n(s.points), note: n(s.places) ? `${pl(n(s.places), 'local', 'locais')} · ${pl(n(s.visits), 'check-in', 'check-ins')}` : 'Faz check-in com o QR do local' },
-    { key: 'rodadas', icon: 'users', label: 'Rodadas', points: n(r.points), note: n(r.joined) + n(r.paid) ? `${pl(n(r.joined), 'entrada', 'entradas')} · ${pl(n(r.paid), 'paga', 'pagas')}` : 'Entra ou paga uma rodada no TxillGroup' },
-    { key: 'gostos', icon: 'snowflake', label: 'Gostos', points: n(t.points), note: `${pl(n(t.groups), 'grupo', 'grupos')} · ${pl(n(t.rated), 'com nota', 'com nota')} (máx. ${n(t.max) || 8})` },
+    { key: 'geladas', icon: 'soda', label: 'Geladas', points: n(g.points), note: n(g.paid) + n(g.received) ? `${pl(n(g.paid), 'paga', 'pagas')} · ${pl(n(g.received), 'recebida', 'recebidas')}` : t('Paga ou recebe uma gelada (confirmada)') },
+    { key: 'brindes', icon: 'cheers', label: t('Brindes'), points: n(b.points), note: n(b.people) ? t('de {pl}', { pl: pl(n(b.people), 'amigo', 'amigos') }) : t('Brindes de amigos que te seguem e que segues') },
+    { key: 'sitios', icon: 'map-pin', label: t('Sítios'), points: n(s.points), note: n(s.places) ? `${pl(n(s.places), 'local', 'locais')} · ${pl(n(s.visits), 'check-in', 'check-ins')}` : t('Faz check-in com o QR do local') },
+    { key: 'rodadas', icon: 'users', label: t('Rodadas'), points: n(r.points), note: n(r.joined) + n(r.paid) ? `${pl(n(r.joined), 'entrada', 'entradas')} · ${pl(n(r.paid), 'paga', 'pagas')}` : t('Entra ou paga uma rodada no TxillGroup') },
+    { key: 'gostos', icon: 'snowflake', label: t('Gostos'), points: n(tv.points), note: t('{pl} · {pl2} (máx. {n})', { pl: pl(n(tv.groups), 'grupo', 'grupos'), pl2: pl(n(tv.rated), t('com nota'), t('com nota')), n: n(tv.max) || 8 }) },
   ];
 }
 
@@ -66,10 +67,10 @@ export function needsText(needs: LevelDetail['needs']): string | null {
   if (!needs) return null;
   const parts = [n(needs.points) ? pl(n(needs.points), 'ponto', 'pontos') : '', n(needs.people) ? pl(n(needs.people), 'pessoa', 'pessoas') : '', n(needs.weeks) ? pl(n(needs.weeks), 'semana', 'semanas') : ''].filter(Boolean);
   if (!parts.length) return null;
-  const first = parts[0].startsWith('1 ') ? 'Falta' : 'Faltam';
+  const first = parts[0].startsWith('1 ') ? t('Falta') : t('Faltam');
   return `${first} ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`}`;
 }
 
 /** A regra, para quem pergunta (a mesma dos Termos e da Ajuda). */
 export const LEVEL_RULES =
-  'Contam os últimos 90 dias: geladas pagas e confirmadas, brindes de amigos, check-ins em sítios e rodadas no TxillGroup, e um pouco dos teus gostos. O álcool não conta (um refresco vale o mesmo) e as vibes da carteira também não. A mesma pessoa vale no máximo 6 pontos por semana. Se deixares de sair, o nível desce devagar: no máximo um por semana.';
+  () => t('Contam os últimos 90 dias: geladas pagas e confirmadas, brindes de amigos, check-ins em sítios e rodadas no TxillGroup, e um pouco dos teus gostos. O álcool não conta (um refresco vale o mesmo) e as vibes da carteira também não. A mesma pessoa vale no máximo 6 pontos por semana. Se deixares de sair, o nível desce devagar: no máximo um por semana.');

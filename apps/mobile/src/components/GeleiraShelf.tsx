@@ -54,7 +54,7 @@ function HowSheet({ onClose, level, top, steps, onHowUp }: { onClose: () => void
           {[1, 2, 3, 4, 5].map((n) => (
             <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ flexDirection: 'row', gap: 1, width: 64 }}>{[1, 2, 3, 4, 5].map((k) => <Icon key={k} name="snowflake" size={11} strokeWidth={2.6} color={k <= n ? SKY : colors.zinc200} />)}</View>
-              <Text style={st.howText}>{ICE[n]}</Text>
+              <Text style={st.howText}>{ICE()[n]}</Text>
             </View>
           ))}
           <Text style={[st.howText, { color: colors.zinc500 }]}>{t('Quanto mais gelado, mais gostas. Dás a nota no editor da geleira.')}</Text>
@@ -151,7 +151,7 @@ function HowUpSheet({ lv, onClose }: { lv: GeleiraLevel; onClose: () => void }) 
             ))}
           </View>
         ) : null}
-        <Text style={st.upRules}>{t('{levelRules} Só tu vês este detalhe: quem visita vê o nome do nível e a barra.', { levelRules: LEVEL_RULES })}</Text>
+        <Text style={st.upRules}>{t('{levelRules} Só tu vês este detalhe: quem visita vê o nome do nível e a barra.', { levelRules: LEVEL_RULES() })}</Text>
       </ScrollView>
     </Sheet>
   );
@@ -270,7 +270,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
 
 /** Um gosto: bolinha de vidro com o ícone, o nome e a nota. O favorito leva um coração. */
 function Tile({ item, onPress, hint }: { item: Shown; /** Visitante: tocar brinda este gosto (o mesmo brinde que no post da geleira); numa bebida abre as ações. */ onPress?: () => void; hint?: string }) {
-  const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
+  const label = `${item.name}${item.rating ? `, ${ICE()[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
   const n = item.cheers ?? 0;
   const Box = onPress ? Pressable : View;
   const a11y = onPress

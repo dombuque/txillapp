@@ -5,6 +5,7 @@
  * Sem imports da app: os testes (tests/sendLocation.test.mjs) correm-no direto no Node.
  */
 
+import { t } from '@/lib/i18n';
 export interface LatLng {
   lat: number;
   lng: number;
@@ -41,9 +42,9 @@ export interface LocationMessage {
 
 /** As durações da partilha em direto que o servidor aceita (chat.controller.ts: 15, 60 ou 480 minutos). */
 export const LIVE_DURATIONS = [
-  { minutes: 15, label: '15 minutos' },
-  { minutes: 60, label: '1 hora' },
-  { minutes: 480, label: '8 horas' },
+  { minutes: 15, get label() { return t('15 minutos'); } },
+  { minutes: 60, get label() { return t('1 hora'); } },
+  { minutes: 480, get label() { return t('8 horas'); } },
 ] as const;
 export type LiveMinutes = (typeof LIVE_DURATIONS)[number]['minutes'];
 
@@ -100,7 +101,7 @@ export function accuracyValue(m: number | null | undefined): string | null {
 /** "Precisão de 12 m" (por cima do mapa e por baixo de "Enviar a tua localização atual"). */
 export function accuracyText(m: number | null | undefined): string {
   const v = accuracyValue(m);
-  return v ? `Precisão de ${v}` : 'Precisão desconhecida';
+  return v ? t('Precisão de {v}', { v }) : t('Precisão desconhecida');
 }
 
 /** A posição é fraca (mais de 100 m de erro): avisa-se que pode valer mais a pena escolher um sítio. */
@@ -137,20 +138,20 @@ export interface MainButton {
  */
 export function mainButton(s: SheetState): MainButton {
   if (s.dragged && validPoint(s.center)) {
-    return { action: 'pin', label: 'Enviar esta localização', sub: 'O ponto do pino no mapa' };
+    return { action: 'pin', label: t('Enviar esta localização'), sub: t('O ponto do pino no mapa') };
   }
   if (s.permission !== 'granted') {
-    const sub = s.permission === 'checking' ? 'A ver a autorização…' : 'Sem acesso à localização. Podes procurar um sítio ou arrastar o mapa.';
-    return { action: null, label: 'Enviar a tua localização atual', sub };
+    const sub = s.permission === 'checking' ? t('A ver a autorização…') : t('Sem acesso à localização. Podes procurar um sítio ou arrastar o mapa.');
+    return { action: null, label: t('Enviar a tua localização atual'), sub };
   }
-  if (!s.fix || !validPoint(s.fix)) return { action: null, label: 'Enviar a tua localização atual', sub: 'A procurar a tua posição…' };
-  return { action: 'current', label: 'Enviar a tua localização atual', sub: accuracyText(s.fix.accuracy) };
+  if (!s.fix || !validPoint(s.fix)) return { action: null, label: t('Enviar a tua localização atual'), sub: t('A procurar a tua posição…') };
+  return { action: 'current', label: t('Enviar a tua localização atual'), sub: accuracyText(s.fix.accuracy) };
 }
 
 /** O texto para os leitores de ecrã de "Enviar a tua localização atual (precisão de 12 m)". */
 export function currentA11y(fix: Fix | null): string {
   const v = fix ? accuracyValue(fix.accuracy) : null;
-  return `Enviar a tua localização atual${v ? ` (precisão de ${v})` : ''}`;
+  return t('Enviar a tua localização atual{value}', { value: v ? (' ' + t('(precisão de {v})', { v })) : '' });
 }
 
 /** "durante 1 hora", para a confirmação e o rótulo da duração. */
@@ -169,8 +170,8 @@ export function liveMinutes(m: unknown): LiveMinutes {
  */
 export function liveConfirmText(minutes: number, who?: string | null): string {
   const name = clean(who, 40);
-  const whom = name ? name : 'A outra pessoa';
-  return `${whom} vai ver a tua posição em tempo real durante ${liveLabel(minutes)}. A posição atualiza-se enquanto o Txillapp estiver aberto neste aparelho. Podes parar quando quiseres, na própria mensagem.`;
+  const whom = name ? name : t('A outra pessoa');
+  return t('{whom} vai ver a tua posição em tempo real durante {liveLabel}. A posição atualiza-se enquanto o Txillapp estiver aberto neste aparelho. Podes parar quando quiseres, na própria mensagem.', { whom, liveLabel: liveLabel(minutes) });
 }
 
 /** Porque é que a localização não está disponível e o que oferecer: pedir, abrir as definições (só na app) ou explicar o cadeado (site). */
@@ -190,33 +191,33 @@ export function permissionNotice(permission: SheetState['permission'], web: bool
   if (permission === 'granted' || permission === 'checking') return null;
   if (permission === 'ask') {
     return {
-      title: 'Partilhar onde estás',
-      text: 'Para mostrar onde estás e os sítios perto, o Txillapp precisa da tua localização. Só é enviada quando tocares em Enviar.',
+      title: t('Partilhar onde estás'),
+      text: t('Para mostrar onde estás e os sítios perto, o Txillapp precisa da tua localização. Só é enviada quando tocares em Enviar.'),
       action: 'ask',
-      actionLabel: 'Continuar',
+      actionLabel: t('Continuar'),
     };
   }
   if (web) {
     return {
-      title: 'Localização bloqueada neste browser',
-      text: 'Toca no cadeado ao lado do endereço, em cima, e permite a Localização para este site. Depois volta a abrir esta folha. Entretanto, podes procurar um sítio.',
+      title: t('Localização bloqueada neste browser'),
+      text: t('Toca no cadeado ao lado do endereço, em cima, e permite a Localização para este site. Depois volta a abrir esta folha. Entretanto, podes procurar um sítio.'),
       action: null,
       actionLabel: null,
     };
   }
   if (permission === 'denied') {
     return {
-      title: 'Sem acesso à localização',
-      text: 'Sem autorização não consigo enviar onde estás. Podes procurar um sítio ou arrastar o mapa, ou autorizar nas definições.',
+      title: t('Sem acesso à localização'),
+      text: t('Sem autorização não consigo enviar onde estás. Podes procurar um sítio ou arrastar o mapa, ou autorizar nas definições.'),
       action: 'settings',
-      actionLabel: 'Abrir definições',
+      actionLabel: t('Abrir definições'),
     };
   }
   return {
-    title: 'Localização bloqueada',
-    text: 'O Txillapp não tem autorização para usar a localização. Autoriza nas definições do telemóvel ou procura um sítio.',
+    title: t('Localização bloqueada'),
+    text: t('O Txillapp não tem autorização para usar a localização. Autoriza nas definições do telemóvel ou procura um sítio.'),
     action: 'settings',
-    actionLabel: 'Abrir definições',
+    actionLabel: t('Abrir definições'),
   };
 }
 
@@ -299,7 +300,7 @@ export function searchRows(hits: SearchHit[] | null | undefined, from: LatLng | 
 
 /** O que se lê por baixo do nome no passo de confirmar um sítio. */
 export function placeConfirmA11y(p: SpotChoice): string {
-  return `Enviar ${p.name}${p.address ? `, ${p.address}` : ''}`;
+  return t('Enviar {name}{value}', { name: p.name, value: p.address ? `, ${p.address}` : '' });
 }
 
 /** As coordenadas como se escrevem (6 casas, ~10 cm), para quando o pino não tem morada. */
@@ -342,8 +343,8 @@ export function bubbleLines(m: { body?: string | null; placeName?: string | null
   if (name) return { title: name, sub: address, named: true };
   if (address) return { title: address, sub: null, named: true };
   const body = clean(m.body, NAME_MAX);
-  if (m.liveUntil) return { title: body ?? 'Localização em direto', sub: null, named: false };
-  return { title: body ?? 'Localização', sub: null, named: false };
+  if (m.liveUntil) return { title: body ?? t('Localização em direto'), sub: null, named: false };
+  return { title: body ?? t('Localização'), sub: null, named: false };
 }
 
 /**

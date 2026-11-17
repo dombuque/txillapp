@@ -15,6 +15,7 @@
  */
 
 /** Por onde está a sair o som da chamada. */
+import { t } from '@/lib/i18n';
 export type AudioRoute = 'speaker' | 'earpiece' | 'wired' | 'bluetooth' | 'unknown';
 /** Auscultadores ligados ao telemóvel (com fio ou Bluetooth), ou nenhum. */
 export type Headset = 'wired' | 'bluetooth' | null;
@@ -38,7 +39,7 @@ export function speakerLit(speaker: boolean, route: AudioRoute | null | undefine
   return route === 'speaker';
 }
 
-export const speakerLabel = (lit: boolean) => (lit ? 'Altifalante ligado' : 'Altifalante desligado');
+export const speakerLabel = (lit: boolean) => (lit ? t('Altifalante ligado') : t('Altifalante desligado'));
 
 /** Como aparece o botão nesta plataforma. */
 export type SpeakerUi = 'toggle' | 'picker' | 'none';

@@ -2,6 +2,7 @@
 // cada browser ("Failed to fetch", "Load failed"…) que iam parar ao ecrã de entrar, ao registo e a muitas folhas.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,9 +15,9 @@ test('os erros de rede de cada sítio passam a uma frase em português (e contin
   for (const m of ['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.', 'Network request failed']) {
     const e = friendlyFetchError(new TypeError(m));
     assert.ok(e instanceof TypeError, m);
-    assert.equal(e.message, OFFLINE_TEXT, m);
+    assert.equal(e.message, OFFLINE_TEXT(), m);
   }
-  assert.match(OFFLINE_TEXT, /^Sem ligação à internet/);
+  assert.match(OFFLINE_TEXT(), /^Sem ligação à internet/);
 });
 
 test('o resto passa como está: outros TypeError, cancelamentos e erros do servidor', () => {

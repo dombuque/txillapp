@@ -3,6 +3,7 @@
 // feed, o fim do dia (05:00 de Maputo), o acesso nas Mensagens, os erros, o tempo real e as entradas nos ecrãs.
 // Correr em apps/mobile:  node --test tests/mixar.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

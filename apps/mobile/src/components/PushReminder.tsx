@@ -185,13 +185,13 @@ export function PushReminderSheet({ device, name, start = 'main', onDone }: { de
   }
 
   const steps = view === 'steps' ? blockedSteps(device.kind ?? 'desktop') : view === 'install' ? installSteps(device.safari !== false) : [];
-  const title = view === 'install' ? t('Adiciona o Txillapp ao ecrã principal') : view === 'steps' ? t('Liga as notificações no browser') : REMINDER_TITLE;
+  const title = view === 'install' ? t('Adiciona o Txillapp ao ecrã principal') : view === 'steps' ? t('Liga as notificações no browser') : REMINDER_TITLE();
   const lead =
-    view === 'install' ? INSTALL_NOTE
+    view === 'install' ? INSTALL_NOTE()
     : view === 'steps' ? t('Bloqueaste as notificações do Txillapp neste browser. Para as ligar:')
     : settings ? t('Nas definições do telemóvel, toca em Notificações e liga-as. Depois volta aqui.')
     : reminderText(name);
-  const primary = view === 'install' ? t('Percebi') : view === 'steps' ? t('Já está, tentar outra vez') : settings ? t('Abrir as definições outra vez') : REMINDER_BUTTON;
+  const primary = view === 'install' ? t('Percebi') : view === 'steps' ? t('Já está, tentar outra vez') : settings ? t('Abrir as definições outra vez') : REMINDER_BUTTON();
 
   return (
     <Sheet onClose={() => onDone(false)}>
@@ -215,7 +215,7 @@ export function PushReminderSheet({ device, name, start = 'main', onDone }: { de
         </SheetScroll>
         <View style={st.foot}>
           <Button label={primary} onPress={() => void press()} loading={busy} block />
-          {view !== 'install' ? <Button label={REMINDER_LATER} kind="ghost" onPress={() => onDone(false)} block /> : null}
+          {view !== 'install' ? <Button label={REMINDER_LATER()} kind="ghost" onPress={() => onDone(false)} block /> : null}
         </View>
       </View>
     </Sheet>
@@ -378,14 +378,14 @@ export function PushOffBanner({ device, onRefresh }: { device: DeviceNotif; onRe
       <View style={st.bannerRow}>
         <View style={st.bannerIcon}><Icon name="bell-off" size={20} color={colors.brand} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.bannerTitle}>{SETTINGS_BANNER}</Text>
+          <Text style={st.bannerTitle}>{SETTINGS_BANNER()}</Text>
           <Text style={st.bannerText}>
-            {device.status === 'needs-install' ? INSTALL_NOTE : reminderText()}
+            {device.status === 'needs-install' ? INSTALL_NOTE() : reminderText()}
           </Text>
         </View>
       </View>
       {err ? <Text style={[st.err, { textAlign: 'left' }]} accessibilityLiveRegion="polite">{err}</Text> : null}
-      <Button label={REMINDER_BUTTON} onPress={() => void press()} loading={busy} size="md" block />
+      <Button label={REMINDER_BUTTON()} onPress={() => void press()} loading={busy} size="md" block />
       {sheet ? (
         <PushReminderSheet
           device={device}

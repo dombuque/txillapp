@@ -193,7 +193,7 @@ test('as notificações novas: texto, destino e o txillada_live de um lembrete',
   assert.equal(s.scheduleNoticeTarget({}), null);
   assert.equal(s.fromReminder({ fromReminder: true }), true);
   assert.equal(s.fromReminder({ title: 'x' }), false);
-  assert.equal(s.REMINDER_LIVE_TEXT, 'começou a Txillada que pediste para lembrar');
+  assert.equal(s.REMINDER_LIVE_TEXT(), 'começou a Txillada que pediste para lembrar');
   assert.equal(tx.noticeText({ title: 'Bom dia', fromReminder: true }), 'começou a Txillada que pediste para lembrar');
   assert.equal(tx.noticeText({ title: 'Bom dia', fromReminder: true, reopened: true }), 'reabriu a Txillada: Bom dia');
   assert.equal(tx.noticeText({ title: 'Bom dia' }), 'abriu uma Txillada: Bom dia');
@@ -302,7 +302,7 @@ test('denunciar e retirar: o estado do cartão, o aviso de retirada e o cliente 
   assert.equal(s.scheduleView(sched({ status: 'removed' })), 'removed');
   assert.equal(s.viewText('removed'), 'Esta Txillada foi retirada por não cumprir as regras');
   assert.equal(s.viewText('removed', true), 'Esta Txillada foi retirada por não cumprir as regras');
-  assert.equal(s.GONE_TITLE, 'Esta Txillada já não existe');
+  assert.equal(s.GONE_TITLE(), 'Esta Txillada já não existe');
   const data = { scheduleId: 's1', startsAt: new Date(at(21, 20)).toISOString(), title: 'Bom dia', moved: false, removed: true };
   assert.deepEqual(s.scheduleNoticeText('txillada_scheduled_cancelled', data, TUE_10, 'zeca'), { text: 'A Txillada de @zeca foi retirada', sub: 'Bom dia' });
   assert.equal(s.scheduleNoticeText('txillada_scheduled_cancelled', { ...data, title: '' }, TUE_10).text, 'Uma Txillada agendada foi retirada');
@@ -330,12 +330,12 @@ test('o cartão: «Denunciar» abre o ReportSheet só a quem não é anfitrião,
   // Depois de denunciar: esquece o cartão, volta a pedir as listas e sai.
   assert.match(card, /qc\.removeQueries\(\{ queryKey: scheduleKey\(id\) \}\)/);
   assert.match(card, /router\.back\(\)/);
-  assert.match(card, /title=\{GONE_TITLE\}/);
+  assert.match(card, /title=\{GONE_TITLE\(\)\}/);
   const sheet = read('components/ReportSheet.tsx');
   assert.match(sheet, /type === 'txillada_schedule'\) await txilladaApi\.reportSchedule\(id, reason, note\.trim\(\) \|\| undefined\)/);
   assert.ok(sheet.includes("get txillada_schedule() { return t('esta Txillada agendada'); }"));
   const notif = read('app/notifications.tsx');
   assert.match(notif, /scheduleNoticeText\(n\.kind, n\.data, Date\.now\(\), n\.actor\.username\)/);
   assert.match(notif, /zasRecap \|\| hostNotice \|\| removedNotice \? null/);
-  assert.match(read('lib/moderationNotice.ts'), /case 'txillada_schedule': return 'a tua Txillada agendada';/);
+  assert.match(read('lib/moderationNotice.ts'), /case 'txillada_schedule': return t\('a tua Txillada agendada'\);/);
 });

@@ -298,8 +298,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const [beatInfo, setBeatInfo] = useState<BeatState | null>(null);
   // Os volumes fazem parte do projeto (desfazer/refazer); arrastar uma barra é um passo só.
   const { origVol, musicVol, applied } = hist.present;
-  const setOrigVol = (v: number) => commit((p) => (p.origVol === v ? p : { ...p, origVol: v }), { coalesce: t('vol:orig') });
-  const setMusicVol = (v: number) => commit((p) => (p.musicVol === v ? p : { ...p, musicVol: v }), { coalesce: t('vol:music') });
+  const setOrigVol = (v: number) => commit((p) => (p.origVol === v ? p : { ...p, origVol: v }), { coalesce: 'vol:orig' });
+  const setMusicVol = (v: number) => commit((p) => (p.musicVol === v ? p : { ...p, musicVol: v }), { coalesce: 'vol:music' });
   /** O som do estúdio: um passo para desfazer, ou (`auto`) um acerto do próprio estúdio. A voz-off nova passa a ser do estúdio. */
   const setMix = (fn: (m: StudioMix) => StudioMix, auto = false) => {
     const step = (p: Project): Project => {

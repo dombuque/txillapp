@@ -119,7 +119,7 @@ export default function BlueSeal() {
         {state === 'offer' || state === 'active' || state === 'not-eligible' ? (
           <View style={{ gap: 8 }}>
             <Text style={st.label}>{t('O que tens')}</Text>
-            {BLUE_BENEFITS.map((b) => (
+            {BLUE_BENEFITS().map((b) => (
               <View key={b} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                 <Icon name="check" size={18} color={colors.sky} />
                 <Text style={[st.text, { flex: 1 }]}>{b}</Text>

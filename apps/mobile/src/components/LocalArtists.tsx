@@ -67,7 +67,7 @@ export function RightsReportSheet({ track, onClose }: { track: Track; onClose: (
             <Pressable disabled={!ready} onPress={() => void send()} style={[ast.primary, !ready && { opacity: 0.45 }]} accessibilityRole="button"><Text style={ast.primaryTxt}>{busy ? t('A enviar…') : t('Denunciar')}</Text></Pressable>
             <Text style={[ast.hint, { textAlign: 'center' }]}>
               {t('Também podes escrever para')}{' '}
-              <Text style={{ textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT)}`)}>{RIGHTS_CONTACT}</Text>
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT())}`)}>{RIGHTS_CONTACT}</Text>
             </Text>
           </>
         )}

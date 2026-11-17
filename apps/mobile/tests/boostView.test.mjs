@@ -2,6 +2,7 @@
 // a etiqueta para o leitor de ecrã, preços, devolução ao parar, relatório e o realce no mapa.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -33,7 +34,7 @@ test('a posição do feed: a cidade escolhida ou o GPS (só com autorização), 
 });
 
 test('a etiqueta "Patrocinado" é o que o leitor de ecrã diz primeiro, com quem paga', () => {
-  assert.equal(b.SPONSORED_LABEL, 'Bombado · Patrocinado');
+  assert.equal(b.SPONSORED_LABEL(), 'Bombado · Patrocinado');
   const t = b.sponsoredA11y('Bar da Marginal');
   assert.match(t, /^Bombado, Patrocinado\./);
   assert.match(t, /Publicidade de Bar da Marginal/);

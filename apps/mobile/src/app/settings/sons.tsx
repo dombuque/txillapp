@@ -29,7 +29,7 @@ export default function MySounds() {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function retire(x: MySound) {
-    if (!(await confirm({ title: RETIRE_SOUND_TITLE, message: RETIRE_SOUND_TEXT, confirm: t('Retirar'), danger: true }))) return;
+    if (!(await confirm({ title: RETIRE_SOUND_TITLE(), message: RETIRE_SOUND_TEXT(), confirm: t('Retirar'), danger: true }))) return;
     setBusy(x.id);
     soundsApi
       .retire(x.id)

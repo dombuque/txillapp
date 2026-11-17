@@ -40,7 +40,7 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
           <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={96} />
           <View style={st.camOffTag}>
             <CallIcon name="video-off" size={15} color="#fff" />
-            <Text style={st.camOffText}>{CAM_OFF}</Text>
+            <Text style={st.camOffText}>{CAM_OFF()}</Text>
           </View>
         </View>
       );
@@ -60,7 +60,7 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
             {!t.track || !t.cam ? (
               <View style={[StyleSheet.absoluteFill, st.center, !t.cam && st.camOff]}>
                 <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={small ? 52 : 72} />
-                {!t.cam ? <Text style={[st.camOffText, { marginTop: 8 }]}>{CAM_OFF}</Text> : null}
+                {!t.cam ? <Text style={[st.camOffText, { marginTop: 8 }]}>{CAM_OFF()}</Text> : null}
               </View>
             ) : null}
             {t.speaking ? <View style={[StyleSheet.absoluteFill, st.speaking]} /> : null}

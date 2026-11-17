@@ -2,12 +2,13 @@
 // app.json. Regras puras em src/lib/storeRules.ts; o resto lê os ficheiros.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed, showComingSoon } from '../src/lib/storeRules.ts';
-import { permissionView } from '../src/lib/cameraControls.ts';
+const { onboardingSteps, prePromptButtons, askButtonLabel, googleSignInAllowed, showComingSoon } = await import('../src/lib/storeRules.ts');
+const { permissionView } = await import('../src/lib/cameraControls.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');

@@ -6,13 +6,14 @@
  * para toda a gente.
  */
 import type { ChatMixar, MixarChallenge, MixarFrom, MixarItem, MixarReactionId, MixarSummary, MixarTopic } from './api.mixar';
+import { t } from '@/lib/i18n';
 
 /* ---------- Nomes ---------- */
 
 /** O primeiro nome («Ana Maria» → «Ana»); sem nome, «a outra pessoa». */
 export function firstName(displayName: string | null | undefined): string {
   const f = (displayName ?? '').trim().split(/\s+/)[0];
-  return f || 'a outra pessoa';
+  return f || t('a outra pessoa');
 }
 
 /* ---------- Reações exclusivas ---------- */
@@ -24,12 +25,12 @@ export interface MixarReaction { id: MixarReactionId; emoji: string; label: stri
  * no resto: os menores também usam o Mixar); as outras com o emoji.
  */
 export const MIXAR_REACTIONS: readonly MixarReaction[] = [
-  { id: 'kkk', emoji: '😂', label: 'Kkk' },
-  { id: 'fogo', emoji: '🔥', label: 'Fogo' },
-  { id: 'amor', emoji: '😍', label: 'Amor' },
-  { id: 'uau', emoji: '😮', label: 'Uau' },
-  { id: 'brinde', emoji: '🙌', label: 'Brinde' },
-  { id: 'nah', emoji: '🙄', label: 'Nah' },
+  { id: 'kkk', emoji: '😂', get label() { return t('Kkk'); } },
+  { id: 'fogo', emoji: '🔥', get label() { return t('Fogo'); } },
+  { id: 'amor', emoji: '😍', get label() { return t('Amor'); } },
+  { id: 'uau', emoji: '😮', get label() { return t('Uau'); } },
+  { id: 'brinde', emoji: '🙌', get label() { return t('Brinde'); } },
+  { id: 'nah', emoji: '🙄', get label() { return t('Nah'); } },
 ];
 
 export const reactionOf = (id: string | null | undefined): MixarReaction | null => MIXAR_REACTIONS.find((r) => r.id === id) ?? null;
@@ -42,7 +43,7 @@ export function nextReaction(current: MixarReactionId | null, tapped: MixarReact
 /** O que o leitor de ecrã diz de um botão da barra. */
 export function reactionA11y(r: MixarReaction, mine: boolean, theirs: boolean, partner: string): string {
   const who = mine && theirs ? `tu e ${partner}` : mine ? 'tu' : theirs ? partner : '';
-  return `${r.label}${who ? ` (${who})` : ''}${mine ? '. Toca para tirar' : ''}`;
+  return `${r.label}${who ? ` (${who})` : ''}${mine ? t('. Toca para tirar') : ''}`;
 }
 
 /* ---------- A razão de cada item ---------- */
@@ -51,13 +52,13 @@ export function reactionA11y(r: MixarReaction, mine: boolean, theirs: boolean, p
 export function reasonText(from: MixarFrom, topic: MixarTopic | null | undefined, partner: string): string {
   const label = topic?.label?.trim();
   if (!label) {
-    if (from === 'me') return 'Escolhido pelos teus gostos';
-    if (from === 'them') return `Escolhido pelos gostos de ${partner}`;
-    return 'Escolhido para os dois';
+    if (from === 'me') return t('Escolhido pelos teus gostos');
+    if (from === 'them') return t('Escolhido pelos gostos de {partner}', { partner });
+    return t('Escolhido para os dois');
   }
-  if (from === 'me') return `Porque gostas de ${label}`;
-  if (from === 'them') return `Porque ${partner} gosta de ${label}`;
-  return `Os dois gostam de ${label}`;
+  if (from === 'me') return t('Porque gostas de {label}', { label });
+  if (from === 'them') return t('Porque {partner} gosta de {label}', { partner, label });
+  return t('Os dois gostam de {label}', { label });
 }
 
 /** O ícone pequeno ao lado da razão. */
@@ -73,17 +74,17 @@ export function matchPercent(n: number | null | undefined): number {
 
 /** O texto curto do match no cabeçalho. */
 export function matchLabel(n: number | null | undefined): string {
-  return `${matchPercent(n)}% de match`;
+  return t('{matchPercent}% de match', { matchPercent: matchPercent(n) });
 }
 
 /** Uma frase para o match (na Descoberta de interesses). */
 export function matchLine(n: number | null | undefined): string {
   const p = matchPercent(n);
-  if (p >= 80) return 'Almas gémeas do feed';
-  if (p >= 60) return 'Batem muito bem';
-  if (p >= 40) return 'Têm bastante em comum';
-  if (p >= 20) return 'Gostos diferentes, boas descobertas';
-  return 'Mundos diferentes: vão descobrir muita coisa';
+  if (p >= 80) return t('Almas gémeas do feed');
+  if (p >= 60) return t('Batem muito bem');
+  if (p >= 40) return t('Têm bastante em comum');
+  if (p >= 20) return t('Gostos diferentes, boas descobertas');
+  return t('Mundos diferentes: vão descobrir muita coisa');
 }
 
 /** «1 dia» / «3 dias». */
@@ -103,29 +104,29 @@ export interface MixarCardState {
   actions: MixarCardAction[];
 }
 
-export const CARD_ACTION_LABEL: Record<MixarCardAction, string> = { accept: 'Aceitar', decline: 'Agora não', open: 'Abrir o Mixar' };
+export const CARD_ACTION_LABEL: Record<MixarCardAction, string> = { accept: 'Aceitar', get decline() { return t('Agora não'); }, get open() { return t('Abrir o Mixar'); } };
 
 /** O que o cartão mostra, para quem convidou e para quem recebeu, em cada estado (sempre o atual). */
 export function mixarCardState(m: ChatMixar | null | undefined, partner: string): MixarCardState {
-  if (!m) return { tone: 'gone', title: 'Mixar', line: 'Este Mixar já não existe', actions: [] };
+  if (!m) return { tone: 'gone', title: 'Mixar', line: t('Este Mixar já não existe'), actions: [] };
   switch (m.status) {
     case 'pending':
       return m.invitedByMe
-        ? { tone: 'waiting', title: 'Convidaste para um Mixar', line: `À espera de ${partner}`, actions: [] }
-        : { tone: 'invite', title: `${partner} convidou-te para um Mixar`, line: 'Um feed só vosso, com o que os dois curtem. Novo todos os dias.', actions: ['accept', 'decline'] };
+        ? { tone: 'waiting', title: t('Convidaste para um Mixar'), line: t('À espera de {partner}', { partner }), actions: [] }
+        : { tone: 'invite', title: t('{partner} convidou-te para um Mixar', { partner }), line: t('Um feed só vosso, com o que os dois curtem. Novo todos os dias.'), actions: ['accept', 'decline'] };
     case 'active':
-      return { tone: 'active', title: m.name || 'O vosso Mixar', line: 'O vosso Mixar está ativo', actions: ['open'] };
+      return { tone: 'active', title: m.name || t('O vosso Mixar'), line: t('O vosso Mixar está ativo'), actions: ['open'] };
     case 'declined':
-      return { tone: 'off', title: 'Mixar', line: m.invitedByMe ? 'Este convite já não está ativo' : 'Recusaste este Mixar', actions: [] };
+      return { tone: 'off', title: 'Mixar', line: m.invitedByMe ? t('Este convite já não está ativo') : t('Recusaste este Mixar'), actions: [] };
     case 'ended':
     default:
-      return { tone: 'off', title: m.name || 'Mixar', line: 'Este Mixar terminou', actions: [] };
+      return { tone: 'off', title: m.name || 'Mixar', line: t('Este Mixar terminou'), actions: [] };
   }
 }
 
 /** A última mensagem 'mixar' na lista das conversas (o texto é sempre para quem o vê). */
 export function mixarPreview(m: { fromMe: boolean }): string {
-  return m.fromMe ? 'Convidaste para um Mixar' : 'Convidou-te para um Mixar';
+  return m.fromMe ? t('Convidaste para um Mixar') : t('Convidou-te para um Mixar');
 }
 
 /* ---------- Sinais: quando mandar /seen ---------- */
@@ -183,22 +184,22 @@ export interface ChallengeView {
 
 /** As perguntas fixas (a API manda `question`; isto é o recurso se vier vazia). */
 export const CHALLENGE_QUESTION: Record<MixarChallenge['kind'], string> = {
-  mais_engracado: 'Qual é o mais engraçado?',
-  mais_txilado: 'Qual tem mais vibe?',
-  partilhavas: 'Qual mandavas ao grupo?',
-  repetias: 'Qual vias outra vez?',
+  get mais_engracado() { return t('Qual é o mais engraçado?'); },
+  get mais_txilado() { return t('Qual tem mais vibe?'); },
+  get partilhavas() { return t('Qual mandavas ao grupo?'); },
+  get repetias() { return t('Qual vias outra vez?'); },
 };
-export const challengeQuestion = (c: Pick<MixarChallenge, 'kind' | 'question'>) => c.question?.trim() || CHALLENGE_QUESTION[c.kind] || 'Qual escolhes?';
+export const challengeQuestion = (c: Pick<MixarChallenge, 'kind' | 'question'>) => c.question?.trim() || CHALLENGE_QUESTION[c.kind] || t('Qual escolhes?');
 
 /** Em que fase está o desafio e o que se diz: escolher, à espera do outro, ou o resultado. */
 export function challengeView(c: Pick<MixarChallenge, 'myPick' | 'theirPicked' | 'theirPick' | 'match'>, partner: string): ChallengeView {
   if (!c.myPick) {
-    return { phase: 'pick', line: c.theirPicked ? `${partner} já escolheu. Agora tu!` : `Escolhe um. ${partner} só vê a tua escolha depois de escolher.`, match: null };
+    return { phase: 'pick', line: c.theirPicked ? t('{partner} já escolheu. Agora tu!', { partner }) : t('Escolhe um. {partner} só vê a tua escolha depois de escolher.', { partner }), match: null };
   }
-  if (c.theirPick == null || c.match == null) return { phase: 'waiting', line: `À espera de ${partner}…`, match: null };
+  if (c.theirPick == null || c.match == null) return { phase: 'waiting', line: t('À espera de {partner}…', { partner }), match: null };
   return c.match
-    ? { phase: 'result', line: 'Escolheram o mesmo!', match: true }
-    : { phase: 'result', line: `${partner} escolheu esta`, match: false };
+    ? { phase: 'result', line: t('Escolheram o mesmo!'), match: true }
+    : { phase: 'result', line: t('{partner} escolheu esta', { partner }), match: false };
 }
 
 /** O selo de uma miniatura: a minha escolha, a do outro (só no resultado) ou as duas. */
@@ -266,22 +267,22 @@ export function nextRefresh(now: Date = new Date()): { when: 'hoje' | 'amanhã';
 export function endOfDay(now: Date = new Date()): { title: string; line: string } {
   const r = nextRefresh(now);
   return r.when === 'amanhã'
-    ? { title: 'Volta amanhã para mais', line: `Viste a seleção de hoje. A próxima chega amanhã às ${r.at}.` }
-    : { title: 'Volta daqui a pouco para mais', line: `Viste esta seleção. A próxima chega hoje às ${r.at}.` };
+    ? { title: t('Volta amanhã para mais'), line: t('Viste a seleção de hoje. A próxima chega amanhã às {at}.', { at: r.at }) }
+    : { title: t('Volta daqui a pouco para mais'), line: t('Viste esta seleção. A próxima chega hoje às {at}.', { at: r.at }) };
 }
 
 /* ---------- A lista dos meus Mixar e o acesso nas Mensagens ---------- */
 
 /** «1 novo hoje» / «5 novos hoje». */
-export const newTodayLabel = (n: number) => `${n} ${n === 1 ? 'novo' : 'novos'} hoje`;
+export const newTodayLabel = (n: number) => t('{count} novo hoje', { count: n, other: '{count} novos hoje' });
 
 /** A linha de baixo de um Mixar na lista. */
 export function summaryLine(s: Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'>, partner: string): string {
-  if (s.status === 'pending') return s.invitedByMe ? `À espera de ${partner}` : 'Convidou-te para um Mixar';
+  if (s.status === 'pending') return s.invitedByMe ? t('À espera de {partner}', { partner }) : t('Convidou-te para um Mixar');
   const parts: string[] = [];
   if (s.newToday > 0) parts.push(newTodayLabel(s.newToday));
-  if (s.challengePending) parts.push('Mixa Challenge à tua espera');
-  return parts.length ? parts.join(' · ') : 'Tudo visto por hoje';
+  if (s.challengePending) parts.push(t('Mixa Challenge à tua espera'));
+  return parts.length ? parts.join(' · ') : t('Tudo visto por hoje');
 }
 
 /** Os ativos primeiro, depois os convites que recebi, depois os que mandei; dentro de cada um, o mais recente primeiro. */
@@ -334,26 +335,26 @@ export function mixarsWithDot<T extends Pick<MixarSummary, 'id' | 'status' | 'in
 
 export function inboxEntry(items: readonly Pick<MixarSummary, 'status' | 'invitedByMe' | 'newToday' | 'challengePending'>[] | null | undefined): { show: boolean; line: string; hot: boolean } {
   const list = items ?? [];
-  if (!list.length) return { show: false, line: 'Junta os teus gostos com alguém: abre uma conversa e toca em «Mixar».', hot: false };
+  if (!list.length) return { show: false, line: t('Junta os teus gostos com alguém: abre uma conversa e toca em «Mixar».'), hot: false };
   const invites = list.filter((s) => s.status === 'pending' && !s.invitedByMe).length;
   const active = list.filter((s) => s.status === 'active');
   const challenges = active.filter((s) => s.challengePending).length;
   const fresh = active.reduce((n, s) => n + Math.max(0, s.newToday || 0), 0);
-  if (invites) return { show: true, line: invites === 1 ? '1 convite por responder' : `${invites} convites por responder`, hot: true };
-  if (challenges) return { show: true, line: challenges === 1 ? 'Mixa Challenge à tua espera' : `${challenges} Mixa Challenges à tua espera`, hot: true };
+  if (invites) return { show: true, line: t('{count} convite por responder', { count: invites, other: '{count} convites por responder' }), hot: true };
+  if (challenges) return { show: true, line: t('Mixa Challenge à tua espera', { count: challenges, other: '{count} Mixa Challenges à tua espera' }), hot: true };
   if (fresh) return { show: true, line: newTodayLabel(fresh), hot: true };
-  if (!active.length) return { show: true, line: list.length === 1 ? 'Convite enviado' : `${list.length} convites enviados`, hot: false };
-  return { show: true, line: active.length === 1 ? 'O vosso feed a dois' : `${active.length} feeds a dois`, hot: false };
+  if (!active.length) return { show: true, line: t('Convite enviado', { count: list.length, other: '{count} convites enviados' }), hot: false };
+  return { show: true, line: t('O vosso feed a dois', { count: active.length, other: '{count} feeds a dois' }), hot: false };
 }
 
 /* ---------- Erros ---------- */
 
 /** O texto para um erro de convidar, aceitar ou abrir (409 trata-se à parte: abre o Mixar que já existe). */
-export function mixarErrorText(e: unknown, fallback = 'Não deu agora. Tenta outra vez.'): string {
+export function mixarErrorText(e: unknown, fallback = t('Não deu agora. Tenta outra vez.')): string {
   const status = (e as { status?: number } | null)?.status;
-  if (status === 403) return 'Não podes fazer um Mixar com esta pessoa (as mesmas regras das mensagens).';
-  if (status === 404) return 'Este Mixar já não existe.';
-  if (status === 429) return 'Chegaste ao limite: até 10 convites por dia e 20 Mixar ativos. Tenta mais tarde.';
+  if (status === 403) return t('Não podes fazer um Mixar com esta pessoa (as mesmas regras das mensagens).');
+  if (status === 404) return t('Este Mixar já não existe.');
+  if (status === 429) return t('Chegaste ao limite: até 10 convites por dia e 20 Mixar ativos. Tenta mais tarde.');
   return fallback;
 }
 

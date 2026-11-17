@@ -260,7 +260,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
     } catch (e) {
       if (optimistic) patchRole(m.username, before);
       // 409: era o último administrador. O servidor diz porquê; sem mensagem, diz-se o mesmo.
-      throw new Error((e as Error).message || (e instanceof ApiError && e.status === 409 ? LAST_ADMIN_MESSAGE : t('Não consegui mudar. Tenta outra vez.')));
+      throw new Error((e as Error).message || (e instanceof ApiError && e.status === 409 ? LAST_ADMIN_MESSAGE() : t('Não consegui mudar. Tenta outra vez.')));
     } finally {
       onChanged();
     }

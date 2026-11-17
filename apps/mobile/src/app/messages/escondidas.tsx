@@ -43,7 +43,7 @@ export default function HiddenChats() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <View style={st.header}>
         <BackButton fallback="/messages" style={st.back} />
-        <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{HIDDEN_TITLE}</Text>
+        <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{HIDDEN_TITLE()}</Text>
         <View style={st.back} />
       </View>
       <HiddenLock>
@@ -54,7 +54,7 @@ export default function HiddenChats() {
           ListHeaderComponent={
             <View style={st.note}>
               <Icon name="eye-off" size={18} color={colors.zinc500} />
-              <Text style={st.noteText}>{HIDDEN_NOTE}</Text>
+              <Text style={st.noteText}>{HIDDEN_NOTE()}</Text>
             </View>
           }
           renderItem={({ item: r }) => {

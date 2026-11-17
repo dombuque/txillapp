@@ -25,7 +25,7 @@ test('apagar a conta sem sessão: pede o email, manda a ligação e só apaga de
   const confirmCalls = page.match(/emailApi\.confirmDeletion\(/g) ?? [];
   assert.equal(confirmCalls.length, 1);
   assert.match(page, /async function confirm\(\) \{[\s\S]*emailApi\.confirmDeletion\(token\)/);
-  assert.match(page, /DELETION_STEPS\.map/);
+  assert.match(page, /DELETION_STEPS\(\)\.map/);
   const api = read('lib/api.email.ts');
   assert.match(api, /'\/auth\/delete-account\/request'/);
   assert.match(api, /'\/auth\/delete-account\/preview'/);

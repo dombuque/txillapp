@@ -37,7 +37,7 @@ export function TtlSheet({ ttl, group = false, canChange, onPick, onClose }: {
     }
   }
   return (
-    <Sheet title={TTL_TITLE} onClose={onClose}>
+    <Sheet title={TTL_TITLE()} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }} accessibilityRole="radiogroup">
         <View style={st.hero}>
           <View style={st.heroIcon}><Icon name="clock" size={26} color={colors.zinc800} /></View>

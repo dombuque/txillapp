@@ -7,6 +7,7 @@
  * globais (TextEncoder, DOMException…) que o resto da app não precisa de ter desde o arranque.
  */
 import { PermissionsAndroid, Platform } from 'react-native';
+import { t } from '@/lib/i18n';
 
 type LK = typeof import('livekit-client');
 type RN = typeof import('@livekit/react-native');
@@ -25,7 +26,7 @@ export function loadLiveKit(): Promise<LK> {
   })().catch((e) => {
     loaded = null;
     console.warn('[txillada] livekit', e);
-    throw new Error('A Txillada chega na próxima versão da app. Atualiza o Txillapp.');
+    throw new Error(t('A Txillada chega na próxima versão da app. Atualiza o Txillapp.'));
   });
   return loaded.then((m) => m.lk);
 }
@@ -40,7 +41,7 @@ export function nativeVideoView(): RN['VideoView'] | null {
   }
 }
 
-const CAM_DENIED = 'Sem acesso à câmara e ao microfone. Dá permissão ao Txillapp para abrires uma Txillada.';
+const CAM_DENIED = () => t('Sem acesso à câmara e ao microfone. Dá permissão ao Txillapp para abrires uma Txillada.');
 const CAM_BLOCKED = 'A câmara ou o microfone estão bloqueados para o Txillapp. Ativa-os nas Definições do telemóvel > Apps > Txillapp > Permissões.';
 
 /**
@@ -50,20 +51,20 @@ const CAM_BLOCKED = 'A câmara ou o microfone estão bloqueados para o Txillapp.
 export async function askBroadcast(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const r = await PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.CAMERA, PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]).catch(() => null);
-  if (!r) throw new Error(CAM_DENIED);
+  if (!r) throw new Error(CAM_DENIED());
   const vals = Object.values(r);
   if (vals.some((v) => v === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) throw new Error(CAM_BLOCKED);
-  if (vals.some((v) => v !== PermissionsAndroid.RESULTS.GRANTED)) throw new Error(CAM_DENIED);
+  if (vals.some((v) => v !== PermissionsAndroid.RESULTS.GRANTED)) throw new Error(CAM_DENIED());
 }
 
 /** Erros do WebRTC em português (vêm em inglês). */
 export function mediaError(e: unknown): Error {
   const n = (e as { name?: string })?.name ?? '';
   const msg = (e as { message?: string })?.message ?? '';
-  if ([CAM_DENIED, CAM_BLOCKED].includes(msg)) return e as Error;
-  if (n === 'NotAllowedError' || n === 'SecurityError' || /permission/i.test(msg)) return new Error(CAM_DENIED);
-  if (n === 'NotReadableError' || /busy|in use/i.test(msg)) return new Error('A câmara ou o microfone estão ocupados noutra app.');
-  return new Error(`Não consegui abrir a câmara${msg ? ` (${msg})` : ''}.`);
+  if ([CAM_DENIED(), CAM_BLOCKED].includes(msg)) return e as Error;
+  if (n === 'NotAllowedError' || n === 'SecurityError' || /permission/i.test(msg)) return new Error(CAM_DENIED());
+  if (n === 'NotReadableError' || /busy|in use/i.test(msg)) return new Error(t('A câmara ou o microfone estão ocupados noutra app.'));
+  return new Error(t('Não consegui abrir a câmara{value}.', { value: msg ? ` (${msg})` : '' }));
 }
 
 /**

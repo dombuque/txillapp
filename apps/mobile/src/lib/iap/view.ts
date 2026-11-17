@@ -1,4 +1,5 @@
 import type { IapCatalog, IapChannel, IapPlatform } from './core';
+import { t } from '@/lib/i18n';
 
 /**
  * Textos e estados dos ecrãs das compras pela loja (o selo azul e o Bombar), sem React Native, para os testes
@@ -9,29 +10,29 @@ import type { IapCatalog, IapChannel, IapPlatform } from './core';
 export const TERMS_URL = 'https://txillapp.com/termos';
 export const PRIVACY_URL = 'https://txillapp.com/privacidade';
 
-export const storeName = (platform: IapPlatform) => (platform === 'ios' ? 'App Store' : 'Google Play');
+export const storeName = (platform: IapPlatform) => (platform === 'ios' ? t('App Store') : t('Google Play'));
 
 /** «por mês» / «por ano». */
-export const periodLabel = (period: 'month' | 'year') => (period === 'year' ? 'por ano' : 'por mês');
+export const periodLabel = (period: 'month' | 'year') => (period === 'year' ? t('por ano') : t('por mês'));
 /** «Mensal» / «Anual». */
-export const periodTitle = (period: 'month' | 'year') => (period === 'year' ? 'Anual' : 'Mensal');
+export const periodTitle = (period: 'month' | 'year') => (period === 'year' ? t('Anual') : t('Mensal'));
 
 /** O que o selo azul dá. */
-export const BLUE_BENEFITS: readonly string[] = [
-  'O selo azul junto ao teu nome em todo o Txillapp: perfil, publicações, comentários, mensagens e mimos.',
-  'Quem te encontra sabe que a conta é mesmo tua: a verificação continua a passar pela moderação.',
-  'O selo vai também na assinatura das fotos e vídeos que guardas.',
+export const BLUE_BENEFITS: () => readonly string[] = () => [
+  t('O selo azul junto ao teu nome em todo o Txillapp: perfil, publicações, comentários, mensagens e mimos.'),
+  t('Quem te encontra sabe que a conta é mesmo tua: a verificação continua a passar pela moderação.'),
+  t('O selo vai também na assinatura das fotos e vídeos que guardas.'),
 ];
 
 /** As condições da subscrição, sempre à vista no ecrã (antes do botão Subscrever). */
 export function subscriptionTerms(platform: IapPlatform): string[] {
   const store = storeName(platform);
   return [
-    `O pagamento é cobrado na tua conta da ${store} quando confirmas a compra.`,
-    'A subscrição renova-se automaticamente no fim de cada período, ao mesmo preço, a não ser que a canceles pelo menos 24 horas antes do fim.',
+    t('O pagamento é cobrado na tua conta da {store} quando confirmas a compra.', { store }),
+    t('A subscrição renova-se automaticamente no fim de cada período, ao mesmo preço, a não ser que a canceles pelo menos 24 horas antes do fim.'),
     platform === 'ios'
-      ? 'Cancelas quando quiseres em Definições do iPhone, o teu nome, Subscrições (ou aqui, em «Gerir subscrição»). O selo fica até ao fim do período já pago.'
-      : 'Cancelas quando quiseres na Google Play, Pagamentos e subscrições, Subscrições (ou aqui, em «Gerir subscrição»). O selo fica até ao fim do período já pago.',
+      ? t('Cancelas quando quiseres em Definições do iPhone, o teu nome, Subscrições (ou aqui, em «Gerir subscrição»). O selo fica até ao fim do período já pago.')
+      : t('Cancelas quando quiseres na Google Play, Pagamentos e subscrições, Subscrições (ou aqui, em «Gerir subscrição»). O selo fica até ao fim do período já pago.'),
   ];
 }
 
@@ -39,7 +40,7 @@ export function subscriptionTerms(platform: IapPlatform): string[] {
 export function activeText(active: { expiresAt: string; autoRenew: boolean }): string {
   const d = new Date(active.expiresAt);
   const when = Number.isNaN(d.getTime()) ? active.expiresAt : d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return active.autoRenew ? `O teu selo azul está ativo e renova a ${when}.` : `O teu selo azul está ativo até ${when}. Não vai renovar.`;
+  return active.autoRenew ? t('O teu selo azul está ativo e renova a {when}.', { when }) : t('O teu selo azul está ativo até {when}. Não vai renovar.', { when });
 }
 
 export type BlueScreenState = 'hidden' | 'loading' | 'not-eligible' | 'active' | 'offer';
@@ -66,10 +67,10 @@ export function approvedForBlue(v: { paidEligible?: boolean; request?: { status:
  */
 export function blueSealEntry(v: { verified: boolean; tier: 'verified' | 'official' | 'paid' | null; paidEligible?: boolean; request?: { status: string } | null }): { title: string; description: string } | null {
   if (v.tier === 'official') return null;
-  if (v.tier === 'paid') return { title: 'Selo azul', description: 'A tua subscrição, pela loja.' };
-  if (approvedForBlue(v)) return { title: 'Ativar o selo azul', description: 'A tua identidade foi aprovada: ativa o selo azul com uma subscrição, pela loja.' };
+  if (v.tier === 'paid') return { title: t('Selo azul'), description: t('A tua subscrição, pela loja.') };
+  if (approvedForBlue(v)) return { title: t('Ativar o selo azul'), description: t('A tua identidade foi aprovada: ativa o selo azul com uma subscrição, pela loja.') };
   if (v.verified) return null;
-  return { title: 'Selo azul', description: 'Depois de a verificação ser aprovada, podes ativar o selo azul com uma subscrição.' };
+  return { title: t('Selo azul'), description: t('Depois de a verificação ser aprovada, podes ativar o selo azul com uma subscrição.') };
 }
 
 /** O pacote do Bombar na API ('1d', '3d', '7d') a partir dos dias do produto da loja. */
@@ -79,5 +80,5 @@ export function boostPackageFor(days: number): '1d' | '3d' | '7d' {
 
 /** «3 dias · 5 km». */
 export function boostPackLabel(p: { days: number; radiusKm: number }): string {
-  return `${p.days} ${p.days === 1 ? 'dia' : 'dias'} · ${p.radiusKm} km`;
+  return t('{count} dia · {radiusKm} km', { count: p.days, radiusKm: p.radiusKm, other: '{count} dias · {radiusKm} km' });
 }

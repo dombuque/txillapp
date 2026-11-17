@@ -3,6 +3,7 @@
 // site), o som do servidor a 4 Hz, o ponto de interesse dos vídeos, a grelha escondida, os lotes no tempo e as fases.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

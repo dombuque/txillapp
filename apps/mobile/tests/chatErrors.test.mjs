@@ -3,6 +3,7 @@
 // rede (o refetch de 30 em 30 s, a app a voltar do fundo). E a lista vazia por falta de rede não é "Ainda sem cochichos".
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

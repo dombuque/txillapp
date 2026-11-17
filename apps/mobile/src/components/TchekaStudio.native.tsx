@@ -192,8 +192,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const [coverAt, setCoverAt] = useState(num(init.coverAt, 0.5));
   const [freezing, setFreezing] = useState(false);
   const { origVol, musicVol, applied, mix } = hist.present;
-  const setOrigVol = (v: number) => commit((p) => (p.origVol === v ? p : { ...p, origVol: v }), { coalesce: t('vol:orig') });
-  const setMusicVol = (v: number) => commit((p) => (p.musicVol === v ? p : { ...p, musicVol: v }), { coalesce: t('vol:music') });
+  const setOrigVol = (v: number) => commit((p) => (p.origVol === v ? p : { ...p, origVol: v }), { coalesce: 'vol:orig' });
+  const setMusicVol = (v: number) => commit((p) => (p.musicVol === v ? p : { ...p, musicVol: v }), { coalesce: 'vol:music' });
   const setMix = (fn: (m: StudioMix) => StudioMix, coalesce = 'mix') => commit((p) => { const m = fn(p.mix); return m === p.mix ? p : { ...p, mix: m, uris: m.voice?.uri ? [m.voice.uri] : [] }; }, { coalesce });
   const setClipSound = (key: string, v: { on?: boolean; volume?: number }) => setItems((l) => l.map((c) => {
     if (c.key !== key || !c.video) return c;

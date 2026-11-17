@@ -9,6 +9,7 @@
  * Só importa tipos (o node corre este ficheiro direto).
  */
 import type { ProjectClip } from './project';
+import { t } from '@/lib/i18n';
 
 export const MAX_DRAFTS = 10;
 export const DRAFT_DEBOUNCE_MS = 700;
@@ -70,11 +71,11 @@ export function draftLabel(d: Pick<StudioDraft, 'clips' | 'seconds'>): string {
 /** «agora mesmo», «há 5 min», «há 2 h», «ontem», «há 3 dias». */
 export function agoLabel(at: number, now = Date.now()): string {
   const s = Math.max(0, (now - at) / 1000);
-  if (s < 60) return 'agora mesmo';
-  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+  if (s < 60) return t('agora mesmo');
+  if (s < 3600) return t('há {n} min', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('há {n} h', { n: Math.floor(s / 3600) });
   const d = Math.floor(s / 86400);
-  return d === 1 ? 'ontem' : `há ${d} dias`;
+  return t('ontem', { count: d, other: 'há {count} dias' });
 }
 
 /** Os mais recentes primeiro. */

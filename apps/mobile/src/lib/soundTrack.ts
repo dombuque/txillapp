@@ -1,5 +1,6 @@
 import type { Track } from './api.music';
 import type { Sound as ApiSound } from './api.sounds';
+import { t } from '@/lib/i18n';
 
 /**
  * Um «som» do Txillapp como o estúdio o usa: o contrato é o de `GET /sounds/:id` (lib/api.sounds.ts, docs/sons.md), o áudio
@@ -26,7 +27,7 @@ export function soundTrack(s: Sound): Track & { bpm?: number } {
     ...(base ?? {}),
     kind: base?.kind ?? (s.kind === 'original' ? 'sound' : 'music'),
     id: base?.id ?? `sound:${s.id}`,
-    title: s.title || base?.title || 'Som original',
+    title: s.title || base?.title || t('Som original'),
     artist: credit ?? base?.artist ?? '',
     url: s.previewUrl || base?.url || '',
     landing: base?.landing ?? null,

@@ -80,7 +80,7 @@ export default function SoundScreen() {
   // «Retirar o som» (só o autor): deixa de tocar em todo o lado e o áudio é apagado. Não se desfaz.
   function retire() {
     if (!s) return;
-    Alert.alert(RETIRE_SOUND_TITLE, RETIRE_SOUND_TEXT, [
+    Alert.alert(RETIRE_SOUND_TITLE(), RETIRE_SOUND_TEXT(), [
       { text: t('Cancelar'), style: 'cancel' },
       { text: t('Retirar'), style: 'destructive', onPress: () => void soundsApi.retire(s.id)
         .then(() => {

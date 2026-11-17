@@ -1,6 +1,7 @@
 // Testes da nota no cabeçalho da conversa (src/lib/chatPeerNote.ts): quando o balão aparece, encolhe e o que diz.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

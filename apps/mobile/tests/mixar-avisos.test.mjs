@@ -99,7 +99,7 @@ test('os avisos na lista: textos, o nome do Mixar por baixo e para onde levam', 
 test('definições: uma opção «Mixar» (as mensagens já não falam do Mixar)', () => {
   const idx = read('lib/settingsIndex.ts');
   assert.match(idx, /mixar: \['Mixar', '[^']+'\]/);
-  assert.doesNotMatch(idx.match(/messages: \['Mensagens', '([^']+)'\]/)[1], /Mixar/);
+  assert.doesNotMatch(idx.match(/messages\(\) \{ return \[t\('Mensagens'\), t\('([^']+)'\)\]/)[1], /Mixar/);
   assert.match(read('components/settings/device.tsx'), /c === 'mixar' \? 'mixar'/);
 });
 

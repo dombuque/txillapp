@@ -172,7 +172,7 @@ export default function ScheduledTxilladaScreen() {
     body = (
       <View style={st.center}>
         {missing
-          ? <EmptyState dark icon="calendar" title={GONE_TITLE} text={t('Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou.')} />
+          ? <EmptyState dark icon="calendar" title={GONE_TITLE()} text={t('Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou.')} />
           : <ErrorState dark what={t('esta Txillada')} onRetry={() => void q.refetch()} />}
       </View>
     );

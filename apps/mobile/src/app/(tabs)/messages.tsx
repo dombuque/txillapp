@@ -613,7 +613,7 @@ export default function Messages() {
           title={t('Mensagens')}
           onClose={() => setMoreOpen(false)}
           items={[
-            { icon: 'eye-off', label: HIDDEN_TITLE, onPress: () => router.push(HIDDEN_PATH as never) },
+            { icon: 'eye-off', label: HIDDEN_TITLE(), onPress: () => router.push(HIDDEN_PATH as never) },
             ...(desk ? [{ icon: 'info' as const, label: t('Atalhos do teclado'), onPress: () => setHelp(true) }] : []),
           ]}
         />

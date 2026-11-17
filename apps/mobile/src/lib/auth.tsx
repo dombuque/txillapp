@@ -9,6 +9,7 @@ import { forgetOutboxUser, setOutboxUser, startChatOutbox } from './chatOutbox';
 import { leaveMapOnSignOut } from './api.nearby';
 import { hangUp } from './calls/session';
 import { unregisterNativePush } from './nativePush';
+import { t } from '@/lib/i18n';
 
 interface AuthState {
   user: PublicUser | null;
@@ -33,7 +34,7 @@ interface AuthState {
 const Ctx = createContext<AuthState | null>(null);
 export const useAuth = () => {
   const v = useContext(Ctx);
-  if (!v) throw new Error('useAuth fora do AuthProvider');
+  if (!v) throw new Error(t('useAuth fora do AuthProvider'));
   return v;
 };
 

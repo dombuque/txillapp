@@ -8,6 +8,7 @@
  * Só tipos de fora (os valores ficam aqui), para correr no Node sem compilar.
  */
 import type { SfxId, VoiceFxId } from './audioDsp';
+import { t } from '@/lib/i18n';
 
 const EPS = 1e-6;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -331,11 +332,11 @@ export interface Template {
 }
 
 export const TEMPLATES: Template[] = [
-  { id: 'rapido', name: 'Rápido', desc: 'Um corte por batida, secos, no refrão', photoBeats: 1, videoBeats: 2, photoSeconds: 2, transition: 'none', start: 'forte', fadeIn: 0, fadeOut: 0.5, pattern: [1, 1, 1, 1, 1, 1, 1, 1] },
-  { id: 'cinematico', name: 'Cinemático', desc: '4 batidas por plano, a fundir, com a subida', photoBeats: 4, videoBeats: null, photoSeconds: 5, transition: 'fade', start: 'subida', fadeIn: 1.5, fadeOut: 2.5, pattern: [4, 4, 4] },
-  { id: 'amapiano', name: 'Amapiano', desc: '2 batidas, a deslizar, no log drum', photoBeats: 2, videoBeats: 4, photoSeconds: 3, transition: 'slide', start: 'forte', fadeIn: 0.3, fadeOut: 1, pattern: [2, 2, 1, 1, 2, 2] },
-  { id: 'marrabenta', name: 'Marrabenta', desc: 'Ritmo de festa: 1 e 2 batidas, secos', photoBeats: 2, videoBeats: 2, photoSeconds: 2, transition: 'none', start: 'forte', fadeIn: 0, fadeOut: 1, pattern: [1, 2, 1, 2, 1, 2] },
-  { id: 'slow', name: 'Slow', desc: 'Planos longos a fundir, na parte calma', photoBeats: 4, videoBeats: null, photoSeconds: 5, transition: 'fade', start: 'calmo', fadeIn: 2, fadeOut: 3, pattern: [5, 5] },
+  { id: 'rapido', get name() { return t('Rápido'); }, get desc() { return t('Um corte por batida, secos, no refrão'); }, photoBeats: 1, videoBeats: 2, photoSeconds: 2, transition: 'none', start: 'forte', fadeIn: 0, fadeOut: 0.5, pattern: [1, 1, 1, 1, 1, 1, 1, 1] },
+  { id: 'cinematico', get name() { return t('Cinemático'); }, get desc() { return t('4 batidas por plano, a fundir, com a subida'); }, photoBeats: 4, videoBeats: null, photoSeconds: 5, transition: 'fade', start: 'subida', fadeIn: 1.5, fadeOut: 2.5, pattern: [4, 4, 4] },
+  { id: 'amapiano', get name() { return t('Amapiano'); }, get desc() { return t('2 batidas, a deslizar, no log drum'); }, photoBeats: 2, videoBeats: 4, photoSeconds: 3, transition: 'slide', start: 'forte', fadeIn: 0.3, fadeOut: 1, pattern: [2, 2, 1, 1, 2, 2] },
+  { id: 'marrabenta', get name() { return t('Marrabenta'); }, get desc() { return t('Ritmo de festa: 1 e 2 batidas, secos'); }, photoBeats: 2, videoBeats: 2, photoSeconds: 2, transition: 'none', start: 'forte', fadeIn: 0, fadeOut: 1, pattern: [1, 2, 1, 2, 1, 2] },
+  { id: 'slow', get name() { return t('Slow'); }, get desc() { return t('Planos longos a fundir, na parte calma'); }, photoBeats: 4, videoBeats: null, photoSeconds: 5, transition: 'fade', start: 'calmo', fadeIn: 2, fadeOut: 3, pattern: [5, 5] },
 ];
 
 /**

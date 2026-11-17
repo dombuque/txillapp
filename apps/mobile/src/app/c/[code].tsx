@@ -31,7 +31,7 @@ export default function InviteLanding() {
   const q = useQuery({ queryKey: ['invite-preview', code], queryFn: () => api.invitePreview(code), enabled: code.length >= 4, retry: false, staleTime: 60_000 });
   const p = q.data;
   const i = phraseIndexOf(code);
-  const phrase = p?.phrase ?? INVITE_PHRASES[i];
+  const phrase = p?.phrase ?? INVITE_PHRASES()[i];
   const sticker = stickerById(PHRASE_STICKERS[i]);
   // Sem rede (ou o servidor em baixo) não é "o convite já não está ativo": deixa tentar outra vez.
   const offline = q.isError && !(q.error instanceof ApiError && q.error.status < 500);

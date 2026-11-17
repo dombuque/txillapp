@@ -5,6 +5,7 @@
 // E: o componente (folha escura, linhas com capa e marcador, menu com «Não gosto desta») e o que vai para o servidor.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

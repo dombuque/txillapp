@@ -8,6 +8,7 @@
 // - as ondas: transparentes, sem apanhar toques, por baixo dos stickers e dos controlos, e a pastilha do mimo à esquerda.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

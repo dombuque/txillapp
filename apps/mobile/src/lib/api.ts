@@ -10,6 +10,7 @@ import { uploadRequest } from './signedMedia';
 import { track, trackOk, trackThrottled } from './analytics';
 import { currentLanguage } from './i18n';
 import type { SponsoredSlot } from './api.boosts';
+import { t } from '@/lib/i18n';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser {
@@ -576,7 +577,7 @@ let refreshing: Promise<AuthResult> | null = null;
 export function refreshSession(): Promise<AuthResult> {
   return (refreshing ??= (async () => {
     const headers = await refreshStore.get();
-    if (!headers) throw new ApiError(401, 'Sem sessão');
+    if (!headers) throw new ApiError(401, t('Sem sessão'));
     const res = await call('/auth/refresh', { method: 'POST', headers }, false);
     const r = (await parse(res)) as AuthResult;
     accessToken = r.accessToken;
@@ -648,8 +649,8 @@ export async function waitMediaReady(id: string, first: MediaState, onWait?: () 
     st = (await raw(`/media/${id}/status`)) as MediaState;
   }
   if (st.status === 'ready') return;
-  if (st.status === 'processing') throw new ApiError(504, 'O vídeo ainda está a ser preparado. Tenta outra vez daqui a pouco.');
-  throw new ApiError(422, st.error ?? 'Não consegui preparar este ficheiro. Tenta outro.');
+  if (st.status === 'processing') throw new ApiError(504, t('O vídeo ainda está a ser preparado. Tenta outra vez daqui a pouco.'));
+  throw new ApiError(422, st.error ?? t('Não consegui preparar este ficheiro. Tenta outro.'));
 }
 
 /**
@@ -666,7 +667,7 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
     if (onProgress) x.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total); };
     x.onload = () => {
       if (x.status >= 200 && x.status < 300) return resolve();
-      let msg = 'Não consegui enviar o ficheiro';
+      let msg = t('Não consegui enviar o ficheiro');
       let body: Record<string, unknown> | undefined;
       try {
         body = JSON.parse(x.responseText) as Record<string, unknown>;
@@ -674,8 +675,8 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
       } catch { /* resposta sem JSON */ }
       reject(new ApiError(x.status, msg, typeof body?.code === 'string' ? body.code : undefined, body));
     };
-    x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
-    x.ontimeout = () => reject(new ApiError(0, 'O envio demorou demasiado. Tenta outra vez.'));
+    x.onerror = () => reject(new ApiError(0, t('Sem ligação. Vê a rede e tenta outra vez.')));
+    x.ontimeout = () => reject(new ApiError(0, t('O envio demorou demasiado. Tenta outra vez.')));
     x.send(blob);
   });
 }
@@ -917,7 +918,7 @@ export const api = {
   deleteAccount: (confirmUsername: string, password?: string): Promise<void> => raw('/auth/delete-account', post({ confirmUsername, password })),
   async exportData(): Promise<string> {
     const res = await call('/me/export');
-    if (!res.ok) throw new ApiError(res.status, res.status === 429 ? 'Já descarregaste vários ficheiros. Tenta daqui a pouco.' : 'Não consegui preparar o ficheiro');
+    if (!res.ok) throw new ApiError(res.status, res.status === 429 ? t('Já descarregaste vários ficheiros. Tenta daqui a pouco.') : t('Não consegui preparar o ficheiro'));
     return res.text();
   },
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),

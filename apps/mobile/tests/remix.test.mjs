@@ -2,6 +2,7 @@
 // para onde leva cada coisa, a montagem lado a lado, o autocolante e o que os ecrãs ligam (sem React).
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -149,13 +150,13 @@ test('os ecrãs ligam o remix: rota do estúdio, lista, botões, etiqueta, autoc
   assert.match(read('app', 'settings', 'conteudo.tsx'), /remixAllowed/);
   const idx = read('lib', 'settingsIndex.ts');
   assert.match(idx, /id: 'remix', group: 'conteudo'/);
-  assert.match(idx, /remixes: \['Duetos e respostas'/);
+  assert.match(idx, /remixes\(\) \{ return \[t\('Duetos e respostas'\)/);
   // A publicação leva o remix e, num dueto sem som, music: null.
   assert.match(read('lib', 'api.compose.ts'), /remixOf\?: RemixInput/);
 });
 
 test('«Retirar o dueto» (0140): só o autor do original, só em duetos, com aviso a quem o fez', () => {
-  assert.equal(r.takedownTitle, 'Retirar este dueto?');
+  assert.equal(r.takedownTitle(), 'Retirar este dueto?');
   assert.match(r.takedownText('ana'), /@ana recebe um aviso/);
   assert.match(r.takedownText('ana'), /Não dá para desfazer/);
   assert.match(r.takedownText(null), /quem o fez/);

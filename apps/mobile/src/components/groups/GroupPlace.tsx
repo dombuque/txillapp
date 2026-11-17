@@ -27,7 +27,7 @@ export function PlaceStep({ onVenue, onMap, onKeep }: { onVenue: () => void; onM
       <Pill label={t('Marcar no mapa')} icon="map-pin" kind="soft" onPress={onMap} />
       <View style={s.note}>
         <Icon name="lock" size={14} color={colors.zinc500} />
-        <Text style={s.noteText}>{PRIVACY_NOTE}</Text>
+        <Text style={s.noteText}>{PRIVACY_NOTE()}</Text>
       </View>
       {onKeep ? (
         <Pressable onPress={onKeep} style={s.keep} accessibilityRole="button" hitSlop={6}>
@@ -115,7 +115,7 @@ export function MapPointSheet({ initial, onPick, onClose }: { initial?: (LatLng 
         <Field value={label} onChangeText={setLabel} maxLength={PLACE_LABEL_MAX} placeholder={t('Nome do sítio (opcional) · ex.: Costa do Sol')} accessibilityLabel={t('Nome do sítio, opcional')} returnKeyType="done" onSubmitEditing={use} />
         <View style={s.note}>
           <Icon name="lock" size={14} color={colors.zinc500} />
-          <Text style={s.noteText}>{PRIVACY_NOTE}</Text>
+          <Text style={s.noteText}>{PRIVACY_NOTE()}</Text>
         </View>
         <Pill label={t('Usar este sítio')} onPress={use} disabled={!point} />
       </View>

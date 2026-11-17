@@ -10,14 +10,15 @@
  * - O vídeo em ecrã inteiro: cover quando a imagem tem a forma do ecrã; senão inteira, com o fundo desfocado (`videoFit`).
  */
 
+import { t } from '@/lib/i18n';
 export type ReactionKind = 'hello' | 'cheers' | 'fire' | 'laugh' | 'heart';
 
 export const REACTIONS: readonly { kind: ReactionKind; emoji: string; label: string; a11y: string }[] = [
-  { kind: 'hello', emoji: '👋', label: 'Olá', a11y: 'Dizer olá' },
-  { kind: 'cheers', emoji: '🍻', label: '', a11y: 'Brindar' },
-  { kind: 'fire', emoji: '🔥', label: '', a11y: 'Fogo' },
-  { kind: 'laugh', emoji: '😂', label: '', a11y: 'A rir' },
-  { kind: 'heart', emoji: '❤️', label: '', a11y: 'Gosto' },
+  { kind: 'hello', emoji: '👋', get label() { return t('Olá'); }, get a11y() { return t('Dizer olá'); } },
+  { kind: 'cheers', emoji: '🍻', label: '', get a11y() { return t('Brindar'); } },
+  { kind: 'fire', emoji: '🔥', label: '', get a11y() { return t('Fogo'); } },
+  { kind: 'laugh', emoji: '😂', label: '', get a11y() { return t('A rir'); } },
+  { kind: 'heart', emoji: '❤️', label: '', get a11y() { return t('Gosto'); } },
 ];
 const KINDS: readonly string[] = REACTIONS.map((r) => r.kind);
 export const emojiOf = (k: ReactionKind): string => REACTIONS.find((r) => r.kind === k)?.emoji ?? '❤️';
@@ -172,7 +173,7 @@ export function joinedParts(users: readonly FxHandle[]): TextPart[] {
   if (n === 1) return [at(users[0]), tx(' entrou')];
   if (n === 2) return [at(users[0]), tx(' e '), at(users[1]), tx(' entraram')];
   if (n === 3) return [at(users[0]), tx(', '), at(users[1]), tx(' e '), at(users[2]), tx(' entraram')];
-  return [at(users[0]), tx(', '), at(users[1]), tx(` e mais ${n - 2} entraram`)];
+  return [at(users[0]), tx(', '), at(users[1]), tx((' ' + t('e mais {n} entraram', { n: n - 2 })))];
 }
 export const joinedText = (users: readonly FxHandle[]): string => partsText(joinedParts(users));
 
@@ -189,7 +190,7 @@ export const BIG_HELLO_MS = 2800;
 export function helloOf(e: Extract<FxEvent, { type: 'txillada.reaction' }>, id: string, now: number): Hello | null {
   if (e.kind !== 'hello') return null;
   const big = e.from.host && !e.to;
-  const parts = big ? [at(e.from), tx(' diz olá a todos 👋')] : e.to ? [at(e.from), tx(': Olá '), at(e.to), tx(' 👋')] : [at(e.from), tx(': Olá 👋')];
+  const parts = big ? [at(e.from), tx((' ' + t('diz olá a todos 👋')))] : e.to ? [at(e.from), tx((t(': Olá') + ' ')), at(e.to), tx(' 👋')] : [at(e.from), tx(t(': Olá 👋'))];
   return { id, at: now, parts, text: partsText(parts), avatar: e.from, big };
 }
 /** Junta um olá (no máximo 3 balões à vista; os mais antigos e os passados do tempo saem). */

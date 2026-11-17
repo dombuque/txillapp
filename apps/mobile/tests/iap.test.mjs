@@ -2,14 +2,15 @@
 // simuladas: src/lib/iap/core.ts não depende do React Native nem do expo-iap.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INTENTS_KEY, classifyIapError, createIap, doneMessage, iapMessage, iapPlatformFor, outcomeMessage, restoreBody, verifyBody, verifyFailedMessage } from '../src/lib/iap/core.ts';
-import { PRIVACY_URL, TERMS_URL, activeText, approvedForBlue, blueScreenState, blueSealEntry, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } from '../src/lib/iap/view.ts';
-import { IAP_READY, askStoreCatalog, helpFaqFor, purchaseRulesFor, storePurchasesOn } from '../src/lib/storeRules.ts';
-import { nativeStore as webStore } from '../src/lib/iap/store.web.ts';
+const { INTENTS_KEY, classifyIapError, createIap, doneMessage, iapMessage, iapPlatformFor, outcomeMessage, restoreBody, verifyBody, verifyFailedMessage } = await import('../src/lib/iap/core.ts');
+const { PRIVACY_URL, TERMS_URL, activeText, approvedForBlue, blueScreenState, blueSealEntry, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } = await import('../src/lib/iap/view.ts');
+const { IAP_READY, askStoreCatalog, helpFaqFor, purchaseRulesFor, storePurchasesOn } = await import('../src/lib/storeRules.ts');
+const { nativeStore: webStore } = await import('../src/lib/iap/store.web.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(path.join(ROOT, 'src', ...p), 'utf8').replace(/\r\n/g, '\n');

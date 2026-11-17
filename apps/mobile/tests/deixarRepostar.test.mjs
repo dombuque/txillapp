@@ -3,6 +3,7 @@
 // a mensagem da API quando recusa (403), a linha nas Definições → Conteúdo e a pesquisa das Definições.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -23,7 +24,7 @@ test('canRepost falso esconde a opção; sem o campo (servidor antigo, cache) co
   assert.equal(rp.showRepostButton({ canRepost: false, reposted: true }), true);
   assert.equal(rp.showRepostButton({ canRepost: true }), true);
   assert.equal(rp.showRepostButton({}), true);
-  assert.equal(rp.REPOST_BLOCKED, 'Quem publicou não deixa repostar as suas publicações.');
+  assert.equal(rp.REPOST_BLOCKED(), 'Quem publicou não deixa repostar as suas publicações.');
 });
 
 test('os botões de repostar usam showRepostButton (cartão, visor de fotos, Tchekas)', () => {
@@ -40,7 +41,7 @@ test('a folha de repostar: sem licença não mostra «Repostar» nem «Repostar 
   assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon="repeat" title=\{t\('Repostar'\)\}/);
   assert.match(sheet, /\{allowed \? <MenuRow icon="pencil" title=\{t\('Repostar com comentário'\)\}/);
   assert.match(sheet, /setErr\(\(x as Error\)\.message/);
-  assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\) onChange\(\{ canRepost: false \}\)/);
+  assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\(\)\) onChange\(\{ canRepost: false \}\)/);
   // O aviso antigo das contas privadas vinha da API; a app não o tem escrito.
   assert.doesNotMatch(sheet, /contas privadas não podem ser repostadas/);
 });

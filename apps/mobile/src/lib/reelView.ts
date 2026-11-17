@@ -8,6 +8,7 @@
  * uuid do som original, `cat:<faixa>` ou `local:<uuid>`. `author` é a pessoa (o autor do som original ou a conta do artista);
  * `artist` é o crédito das faixas. Aceita-se também `author` como texto e `cover` (versões antigas da app e testes).
  */
+import { t } from '@/lib/i18n';
 export interface ReelSound {
   id: string;
   title: string;
@@ -83,25 +84,25 @@ export function reelSound(p: ReelSoundSource): SoundView | null {
     const by = authorOf(s.author);
     if (s.kind === 'original') {
       const who = by.username || p.author.username;
-      return { label: `Som original · @${who}`, cover: s.cover ?? null, originalBy: who, href: soundHref(s.id) };
+      return { label: t('Som original · @{who}', { who }), cover: s.cover ?? null, originalBy: who, href: soundHref(s.id) };
     }
     const artist = clean(s.artist) || by.name || (by.username ? `@${by.username}` : '');
-    const title = clean(s.title) || 'Som';
+    const title = clean(s.title) || t('Som');
     // A capa da faixa vem na música da publicação (o `sound` não a traz).
     return { label: artist ? `${title} · ${artist}` : title, cover: s.cover ?? m?.cover ?? null, originalBy: null, href: soundHref(s.id) };
   }
   if (m && m.id) {
     // Um clipe próprio (a pessoa gravou o som) é o som original de quem publicou.
-    if (m.kind === 'clip') return { label: `Som original · @${p.author.username}`, cover: m.cover ?? null, originalBy: p.author.username, href: null };
-    if (m.kind === 'sound') return { label: clean(m.title) || 'Som original', cover: m.cover ?? null, originalBy: null, href: null };
+    if (m.kind === 'clip') return { label: t('Som original · @{username}', { username: p.author.username }), cover: m.cover ?? null, originalBy: p.author.username, href: null };
+    if (m.kind === 'sound') return { label: clean(m.title) || t('Som original'), cover: m.cover ?? null, originalBy: null, href: null };
     const id = musicSoundId(m);
-    const title = clean(m.title) || 'Música';
+    const title = clean(m.title) || t('Música');
     const artist = clean(m.artist);
     return { label: artist ? `${title} · ${artist}` : title, cover: m.cover ?? null, originalBy: null, href: id ? soundHref(id) : null };
   }
   // O som foi tirado (pelo autor ou por direitos de autor): o letreiro diz porquê, sem página.
-  if (p.soundRemoved === 'author') return { label: 'Som retirado pelo autor', cover: null, originalBy: null, href: null };
-  if (p.soundRemoved === 'rights') return { label: 'Som retirado por direitos de autor', cover: null, originalBy: null, href: null };
+  if (p.soundRemoved === 'author') return { label: t('Som retirado pelo autor'), cover: null, originalBy: null, href: null };
+  if (p.soundRemoved === 'rights') return { label: t('Som retirado por direitos de autor'), cover: null, originalBy: null, href: null };
   return null;
 }
 
@@ -172,8 +173,8 @@ export function captionIsLong(body: string | null | undefined, max = 80): boolea
 
 export type ReelTab = 'foryou' | 'following';
 export const REEL_TABS: { id: ReelTab; label: string }[] = [
-  { id: 'foryou', label: 'Para ti' },
-  { id: 'following', label: 'A seguir' },
+  { id: 'foryou', get label() { return t('Para ti'); } },
+  { id: 'following', get label() { return t('A seguir'); } },
 ];
 /** A chave da lista de cada separador (as duas começam por 'reels': o que limpa as tchekas limpa as duas). */
 export const reelsKey = (tab: ReelTab) => (tab === 'following' ? ['reels', 'following'] : ['reels']);

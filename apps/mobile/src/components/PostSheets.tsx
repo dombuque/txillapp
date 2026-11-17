@@ -163,7 +163,7 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
       // A mensagem da API (ex.: «Quem publicou não deixa repostar as suas publicações.»). Numa publicação em cache sem o
       // `canRepost`, a recusa esconde logo a opção.
       setErr((x as Error).message || t('Não consegui repostar agora. Tenta outra vez.'));
-      if (x instanceof ApiError && x.status === 403 && x.message === REPOST_BLOCKED) onChange({ canRepost: false });
+      if (x instanceof ApiError && x.status === 403 && x.message === REPOST_BLOCKED()) onChange({ canRepost: false });
       setBusy(false);
     }
   }
@@ -193,7 +193,7 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
               <MenuRow icon="repeat" title={t('Repostar')} text={t('Partilha no teu perfil, tal como está.')} disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
             ) : null}
             {allowed ? <MenuRow icon="pencil" title={t('Repostar com comentário')} text={t('Acrescenta o que achas ao partilhar.')} onPress={() => setQuote(true)} /> : null}
-            {err ? <Text style={styles.err}>{err}</Text> : !allowed ? <Text style={styles.note}>{REPOST_BLOCKED}</Text> : null}
+            {err ? <Text style={styles.err}>{err}</Text> : !allowed ? <Text style={styles.note}>{REPOST_BLOCKED()}</Text> : null}
           </View>
         )}
       </View>
@@ -283,7 +283,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
   }
   // «Retirar o dueto»: só o autor da tcheka original, só em duetos (o vídeo e o som dele estão gravados no dueto).
   async function confirmTakedown() {
-    if (!(await confirm({ title: takedownTitle, message: takedownText(post.author.username), confirm: t('Retirar'), danger: true }))) return;
+    if (!(await confirm({ title: takedownTitle(), message: takedownText(post.author.username), confirm: t('Retirar'), danger: true }))) return;
     try {
       await api.takeDownDuet(post.id);
       onClose();

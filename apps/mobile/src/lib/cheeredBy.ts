@@ -5,6 +5,7 @@
  * O servidor só manda `cheeredBy` quando o dono deixa quem vê ver quem brindou (a definição «Quem repostou / brindou»);
  * sem ele (o dono não deixa, ou uma publicação guardada em cache antes disto) mostra-se só a contagem.
  */
+import { t } from '@/lib/i18n';
 export interface CheeredByUser {
   username: string;
   displayName: string;
@@ -44,15 +45,15 @@ export function cheeredByView(p: WithCheers): CheeredByView | null {
 
 /** «outra pessoa» / «outras 23 pessoas» (`fmt` escreve o número: 1,2 mil…). */
 export function othersLabel(n: number, fmt: (n: number) => string = String): string {
-  return n === 1 ? 'outra pessoa' : `outras ${fmt(n)} pessoas`;
+  return n === 1 ? t('outra pessoa') : t('outras {fmt} pessoas', { fmt: fmt(n) });
 }
 
 /** Para o leitor de ecrã: «Brindado por @ana e outras 23 pessoas. Ver quem brindou». */
 export function cheeredByA11y(v: CheeredByView, fmt: (n: number) => string = String): string {
-  if (v.kind === 'count') return `${fmt(v.total)} ${v.total === 1 ? 'brinde' : 'brindes'}`;
+  if (v.kind === 'count') return `${fmt(v.total)} ${v.total === 1 ? t('brinde') : t('brindes')}`;
   const names = v.names.map((u) => `@${u.username}`);
   const tail = v.others > 0 ? ` e ${othersLabel(v.others, fmt)}` : '';
-  return `Brindado por ${names.length === 2 && !tail ? `${names[0]} e ${names[1]}` : names.join(', ')}${tail}`;
+  return t('Brindado por {value}{tail}', { value: names.length === 2 && !tail ? `${names[0]} e ${names[1]}` : names.join(', '), tail });
 }
 
 /** Os amigos próximos que brindaram (até 3). Nada se o dono não deixa ver. */

@@ -2,6 +2,7 @@
 // webrtc.ts e webrtc.web.ts, o botão no CallOverlay e os módulos nativos (modules/call-service: Kotlin e Swift).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
