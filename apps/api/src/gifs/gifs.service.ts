@@ -15,7 +15,7 @@ const CACHE_MAX = 500;
 const UPSTREAM_PER_MINUTE = 120;
 const TIMEOUT_MS = 6000;
 const ADULT = 18;
-/** Confirmar um GIF pelo id: quanto tempo se espera pelo GIPHY (vai antes de gravar a nota ou enviar a mensagem). */
+/** Confirmar um GIF pelo id: quanto tempo se espera pelo GIPHY (vai antes de gravar a nota, a mensagem ou o comentário). */
 const CONFIRM_TIMEOUT_MS = 3000;
 /** Quanto tempo fica guardada a classificação que o GIPHY deu a um id (pela confirmação ou numa grelha). */
 const RATING_MS = 30 * 60_000;
@@ -35,7 +35,7 @@ type Off = { enabled: false; items: []; next: null };
  * - Cache em memória de 5 minutos, um teto de pedidos por minuto ao GIPHY e 6 s de tempo-limite. Se o GIPHY falhar,
  *   responde-se uma página vazia (nunca 500).
  * - "GIFs Txillapp": com GIPHY_CHANNEL (ex.: txillapp), a pesquisa `@txillapp` devolve os GIFs desse canal.
- * - Classificação de um GIF gravado (nota ou mensagem): `confirm` guarda a que o GIPHY dá, nunca a que a app manda.
+ * - Classificação de um GIF gravado (nota, mensagem ou comentário): `confirm` guarda a que o GIPHY dá, nunca a que a app manda.
  */
 @Injectable()
 export class GifsService {
@@ -87,7 +87,7 @@ export class GifsService {
   }
 
   /**
-   * O GIF a gravar (numa nota ou numa mensagem) com a classificação que o GIPHY lhe dá, pelo id (GET /v1/gifs/:id), sem
+   * O GIF a gravar (numa nota, numa mensagem ou num comentário) com a classificação que o GIPHY lhe dá, pelo id (GET /v1/gifs/:id), sem
    * olhar para a que a app mandou. Fica 30 minutos em memória por id (também a que vem nas grelhas, que já é do GIPHY).
    * Um GIF que o GIPHY diz que não existe (404): 400. Se o GIPHY falhar, não responder a tempo, estiver desligado (sem
    * chave) ou se o teto de pedidos já foi: para quem publica e é menor (ou não tem data de nascimento), fica 'g' só se o

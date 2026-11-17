@@ -8,8 +8,9 @@ import { z } from 'zod';
  *    com o caminho /media/…/<id>/… e terminados em .gif ou .webp. A query (cid, rid, ct: analítica do GIPHY) sai antes de guardar;
  *  - `id` é o id do GIPHY (letras e números);
  *  - `w` e `h` em píxeis, entre 16 e 2000, com proporção entre 1:5 e 5:1;
- *  - `rating` é a classificação do GIPHY ('y', 'g', 'pg', 'pg-13', 'r'), que a grelha traz em cada GIF. Nas notas, quem
- *    é menor de 18 (ou não tem data de nascimento) não recebe um GIF acima de 'g' nem um sem classificação (gifForMinor).
+ *  - `rating` é a classificação do GIPHY ('y', 'g', 'pg', 'pg-13', 'r'), que a grelha traz em cada GIF. Nas notas, nas mensagens e nos comentários, quem
+ *    é menor de 18 (ou não tem data de nascimento) não recebe um GIF acima de 'g' nem um sem classificação (gifForMinor);
+ *    nas mensagens e nos comentários vem `gif: null` e `gifHidden: true`. Ao gravar, a classificação é a do GIPHY (GifsService.confirm).
  * As imagens são carregadas pelo aparelho diretamente da CDN do GIPHY (não passam pelo nosso servidor).
  */
 

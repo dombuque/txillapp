@@ -5,7 +5,8 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { allowedBy, blockedBetween, canView, notReportedBy } from '../social/visibility';
-import { readGif, type GifInput } from '../gifs/gif';
+import { gifForMinor, readGif, type GifInput } from '../gifs/gif';
+import { GifsService } from '../gifs/gifs.service';
 import { remixAllowed } from '../posts/remix';
 import { shownPost, shownPostTo } from '../posts/hidden';
 
@@ -25,7 +26,9 @@ const SELECT = `
          (SELECT json_build_object('count', count(*), 'postId', (array_agg(rxp.id ORDER BY rxp.id DESC))[1])
             FROM content.post_remixes rxr JOIN content.posts rxp ON rxp.id = rxr.post_id AND ${shownPost('rxp')}
             JOIN identity.users ru ON ru.id = rxp.author_id
-           WHERE rxr.comment_id = c.id AND ${canView('ru')}) AS tcheka_replies
+           WHERE rxr.comment_id = c.id AND ${canView('ru')}) AS tcheka_replies,
+         -- Quem vê é adulto (18 anos feitos, com data de nascimento)? Se não, um GIF acima de 'g' (ou sem classificação) não lhe chega.
+         EXISTS (SELECT 1 FROM identity.users ad WHERE ad.id = $1 AND ad.birth_date IS NOT NULL AND ad.birth_date <= (current_date - interval '18 years')) AS viewer_adult
     FROM content.comments c JOIN identity.users u ON u.id = c.author_id`;
 
 @Injectable()
@@ -34,6 +37,7 @@ export class CommentsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly notifications: NotificationsService,
     private readonly filter: TextFilter,
+    private readonly gifs: GifsService,
   ) {}
 
   /** Comentários de topo, do mais recente para o mais antigo, com paginação por cursor. */
@@ -74,6 +78,8 @@ export class CommentsService {
       threadParent = p.rows[0].parent_id ?? p.rows[0].id;
       parentAuthorId = p.rows[0].author_id;
     }
+    // A classificação do GIF é a que o GIPHY dá (confirmada pelo id; a da app não conta) e fica guardada com ele.
+    if (gif) gif = await this.gifs.confirm(userId, gif);
     const id = uuidv7();
     await this.pool.query(
       'INSERT INTO content.comments (id, post_id, author_id, body, parent_id, gif) VALUES ($1, $2, $3, $4, $5, $6::jsonb)',
@@ -174,26 +180,33 @@ export class CommentsService {
     if (!r.rowCount) throw new NotFoundException('Comentário não encontrado');
   }
 
-  private toDto = (r: Record<string, any>) => ({
-    id: r.id,
-    postId: r.post_id,
-    parentId: r.parent_id,
-    body: r.body,
-    /** GIF do GIPHY no comentário: { id, w, h, url, still?, title? } ou null. */
-    gif: readGif(r.gif),
-    createdAt: r.created_at,
-    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
-    cheers: r.cheers,
-    cheered: r.cheered,
-    replyCount: r.reply_count,
-    editedAt: (r.edited_at as string | null) ?? null,
-    /** Eu sigo o autor? Só se presenteia quem se segue. */
-    authorFollowed: r.author_followed as boolean,
-    /** Posso responder a este comentário com uma tcheka (?resposta=<id> no estúdio). */
-    canRemix: r.remix_ok === true,
-    /** «Respondeu com uma tcheka»: quantas tchekas responderam (que eu vejo) e a mais recente. */
-    tchekaReplies: r.tcheka_replies && Number(r.tcheka_replies.count) > 0 ? { count: Number(r.tcheka_replies.count), postId: r.tcheka_replies.postId as string } : null,
-  });
+  private toDto = (r: Record<string, any>) => {
+    const gif = readGif(r.gif);
+    // A menores (e a quem não tem data de nascimento) um GIF acima de 'g', ou sem classificação, não chega: vai `gif: null`
+    // e `gifHidden: true`, e a app mostra «GIF escondido» no lugar dele (como nas mensagens).
+    const hidden = !!gif && r.viewer_adult !== true && !gifForMinor(gif.rating);
+    return {
+      id: r.id,
+      postId: r.post_id,
+      parentId: r.parent_id,
+      body: r.body,
+      /** GIF do GIPHY no comentário: { id, w, h, url, still?, title?, rating? } ou null. */
+      gif: hidden ? null : gif,
+      ...(hidden ? { gifHidden: true as const } : {}),
+      createdAt: r.created_at,
+      author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
+      cheers: r.cheers,
+      cheered: r.cheered,
+      replyCount: r.reply_count,
+      editedAt: (r.edited_at as string | null) ?? null,
+      /** Eu sigo o autor? Só se presenteia quem se segue. */
+      authorFollowed: r.author_followed as boolean,
+      /** Posso responder a este comentário com uma tcheka (?resposta=<id> no estúdio). */
+      canRemix: r.remix_ok === true,
+      /** «Respondeu com uma tcheka»: quantas tchekas responderam (que eu vejo) e a mais recente. */
+      tchekaReplies: r.tcheka_replies && Number(r.tcheka_replies.count) > 0 ? { count: Number(r.tcheka_replies.count), postId: r.tcheka_replies.postId as string } : null,
+    };
+  };
 
   /** Um comentário para o autocolante do estúdio (?resposta=<id>): o texto, o autor e a publicação, se o posso ver. */
   async forReply(userId: string, id: string) {
