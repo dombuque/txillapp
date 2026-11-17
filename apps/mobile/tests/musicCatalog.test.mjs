@@ -185,7 +185,9 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   const src = read('components/MusicPicker.tsx');
   // A folha escura de baixo (no computador, o painel à direita).
   assert.match(src, /<Sheet onClose=\{onClose\} full plain dark variant="panel">/);
-  assert.match(read('components/Sheet.tsx'), /export const DARK = \{ bg: '#1c1c1e'/);
+  // O fundo da folha escura vem do tema (lib/theme `dark.bg`, o mesmo #1c1c1e).
+  assert.match(read('components/Sheet.tsx'), /export const DARK = \{ bg: DARK_UI\.bg/);
+  assert.match(read('lib/theme.ts'), /export const dark = \{\r?\n\s+bg: '#1c1c1e',/);
   assert.match(src, /placeholder="Procurar música, artista ou estilo"/);
   assert.match(src, /const tabs = pickerTabs\(\);/);
   assert.match(src, /tabOn: \{ backgroundColor: '#ffffff' \}/); // o separador ativo a branco, com o texto escuro
