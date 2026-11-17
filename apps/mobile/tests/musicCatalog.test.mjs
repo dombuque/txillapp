@@ -237,8 +237,10 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(src, /savedIds\.has\(t\.id\) \? musicApi\.removeFavorite\(t\.id\) : musicApi\.addFavorite\(t\)/);
   // Tocar ouve logo (pausa e retoma na mesma linha), sem `await` antes do som; «Usar» é que escolhe.
   assert.match(src, /const act = rowTap\(playing, live, t\.id\);/);
-  assert.match(src, /if \(act === 'pause'\) return pauseTrack\(me\.current\);/);
-  assert.match(src, /if \(act === 'resume'\) return resumeTrack\(me\.current\);/);
+  assert.match(src, /if \(act === 'pause'\) \{\n      setPaused\(true\);\n      return pauseTrack\(me\.current\);/);
+  assert.match(src, /if \(act === 'resume'\) \{\n      setPaused\(false\);\n      return resumeTrack\(me\.current\);/);
+  // As ondas seguem o que a pessoa fez (a carregar já mostra que vai tocar), não o estado do leitor.
+  assert.match(src, /const live = playing !== null && !paused;/);
   assert.doesNotMatch(src, /async function toggle/);
   assert.match(src, /function pick\(t: Track\) \{\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
   assert.match(src, /const meta = rowMeta\(t\);/);

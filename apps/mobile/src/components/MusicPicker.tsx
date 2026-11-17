@@ -32,7 +32,7 @@ import {
 } from '@/lib/musicCatalog';
 import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
-import { pauseTrack, playTrack, resumeTrack, stopTrack, useTrackLive } from '@/lib/musicPlayer';
+import { pauseTrack, playTrack, resumeTrack, stopTrack } from '@/lib/musicPlayer';
 import { Chip } from '@/components/ui/Chip';
 import { colors } from '@/lib/theme';
 
@@ -262,16 +262,25 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
 
-  // O som está mesmo a sair (a faixa escolhida pode estar em pausa ou à espera de um toque no iPhone).
-  const live = useTrackLive(me.current);
+  // Em pausa porque a pessoa voltou a tocar na linha. O indicador segue isto e não o leitor: enquanto o trecho ainda está a
+  // carregar o leitor diz «parado», e a linha parecia em pausa (e o toque seguinte pausava em vez de mostrar que já ia tocar).
+  const [paused, setPaused] = useState(false);
+  const live = playing !== null && !paused;
   /**
    * Tocar numa linha começa logo a ouvir essa faixa; outra vez na mesma pausa (e retoma). Tudo até ao `play()` é síncrono:
    * no iPhone (PWA) o toque é o que deixa o som sair, e um `await` antes perdia-o.
    */
   function toggle(t: Track) {
     const act = rowTap(playing, live, t.id);
-    if (act === 'pause') return pauseTrack(me.current);
-    if (act === 'resume') return resumeTrack(me.current);
+    if (act === 'pause') {
+      setPaused(true);
+      return pauseTrack(me.current);
+    }
+    if (act === 'resume') {
+      setPaused(false);
+      return resumeTrack(me.current);
+    }
+    setPaused(false);
     setErr('');
     setPlaying(t.id);
     void playTrack(me.current, t.url, { loop: false, onStop: () => setPlaying((cur) => (cur === t.id ? null : cur)) }).then((ok) => {
