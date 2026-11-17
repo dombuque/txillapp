@@ -560,7 +560,10 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   }, [comments, shrink]);
   // Fica entre o topo (separadores / voltar) e a folha: centrado nessa faixa.
   const headTop = safeTop + 60;
-  const room = Math.max(96, win.height * (1 - COMMENTS_SHARE) - headTop - 8);
+  // A altura do ecrã sem o teclado: na web (iPhone) a janela medida encolhe com o teclado do comentário e o vídeo
+  // encolhia outra vez (e saltava ao fechar); a altura da página (innerHeight) não muda com o teclado.
+  const screenH = isWeb && typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : win.height;
+  const room = Math.max(96, screenH * (1 - COMMENTS_SHARE) - headTop - 8);
   const scaleTo = height > 0 ? Math.min(1, room / height) : 1;
   const mediaShrink = {
     transform: [

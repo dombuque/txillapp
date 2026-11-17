@@ -122,11 +122,11 @@ test('o visor usa o cartão, a barra por baixo dele e o vídeo inteiro', () => {
   assert.match(v, /const frame = storyFrame\(/);
   assert.match(v, /contentFit=\{mimoFit\(/);
   // A barra vive fora do cartão (irmã dele), presa ao fim do cartão; a escrever só sobe para cima do teclado.
-  assert.match(v, /const restBottom = liveH - \(frame\.barTop \+ frame\.barH\);/);
-  assert.match(v, /<View style=\{\[st\.bar, \{ left: frame\.cardLeft, width: frame\.cardW, minHeight: frame\.barH, bottom: barBottom \}\]\}/);
+  assert.match(v, /const restBottom = stage\.h - \(frame\.barTop \+ frame\.barH\);/);
+  assert.match(v, /<View style=\{\[st\.bar, \{ left: frame\.cardLeft, width: frame\.cardW, minHeight: frame\.barH, bottom: replyBottom \}\]\}/);
   assert.match(v, /<View style=\{\[st\.card, \{ left: frame\.cardLeft, top: frame\.cardTop, width: frame\.cardW, height: frame\.cardH, borderRadius: frame\.radius \}\]\}>/);
-  // O cartão não salta com o teclado: o tamanho só se mede sem ele.
-  assert.match(v, /if \(!typing && !kb && !vvOn && \(w !== screen\.w \|\| h !== screen\.h\)\) setScreen\(\{ w, h \}\);/);
+  // O cartão não salta nem encolhe com o teclado: o tamanho fica o de antes enquanto ele está aberto (lib/keyboardFrame).
+  assert.match(v, /still\.current = heldSize\(still\.current, \{ w: root\.w \|\| width, h: rootH \}, keyboardOpen\);/);
   assert.match(v, /contentFit="contain" nativeControls=\{false\}/);
   assert.match(v, /objectFit: 'contain'/);
   // A legenda fica acima da assinatura.

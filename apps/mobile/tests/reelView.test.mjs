@@ -150,7 +150,9 @@ test('ações do lado: avatar com «+» (seguir), brindar, comentários, reposta
 
 test('comentários: abrem por cima, o vídeo continua a tocar e encolhe para a parte de cima', () => {
   assert.match(reels, /const comments = sheet === 'comments' && !desktop;/);
-  assert.match(reels, /const room = Math\.max\(96, win\.height \* \(1 - COMMENTS_SHARE\) - headTop - 8\);/);
+  // A altura sem o teclado do comentário (na web a janela medida encolhe com ele; lib/keyboardFrame).
+  assert.match(reels, /const screenH = isWeb && typeof window !== 'undefined' && window\.innerHeight > 0 \? window\.innerHeight : win\.height;/);
+  assert.match(reels, /const room = Math\.max\(96, screenH \* \(1 - COMMENTS_SHARE\) - headTop - 8\);/);
   assert.match(reels, /outputRange: \[0, headTop \+ room \/ 2 - height \/ 2\]/, 'fica entre o topo e a folha');
   assert.match(reels, /<CommentsSheet post=\{post\} dim=\{desktop \? undefined : 0\.08\}/);
   // Abrir os comentários não entra nas contas de quando a tcheka toca.

@@ -361,8 +361,8 @@ export default function TxilladaScreen() {
             ) : null}
           </View>
           {fundH ? (
-            <View style={[st.fund, { maxWidth: L.floatW + 40 }]} pointerEvents="none">
-              <GoalBar raised={live.raised} goal={live.goal} purpose={dto.goalPurpose} />
+            <View style={[st.fund, { maxWidth: L.floatW + 40 }]} pointerEvents="box-none">
+              <GoalBar raised={live.raised} goal={live.goal} purpose={dto.goalPurpose} onGive={ui.canGift ? () => setPanel('gift') : undefined} />
               <TopGivers items={live.topGivers} />
             </View>
           ) : null}
@@ -438,11 +438,6 @@ export default function TxilladaScreen() {
                 <>
                   {ui.canCheer ? <ReactionBar onReact={react} /> : null}
                   <View style={{ flex: 1 }} />
-                  {ui.canGift ? (
-                    <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.barBtn, st.giftBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a @${dto.host.username}`}>
-                      <Icon name="present" size={21} color="#fff" strokeWidth={2.1} />
-                    </Pressable>
-                  ) : null}
                 </>
               )}
               {ui.canShare ? (
@@ -482,6 +477,13 @@ export default function TxilladaScreen() {
                 <Text style={st.closed} numberOfLines={1}>Os comentários estão fechados</Text>
               </View>
             )}
+            {/* Oferecer vibes: sempre à vista, ao lado do comentário, com o nome escrito (não um ícone perdido nas reações). */}
+            {ui.canGift && !typing ? (
+              <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.offer, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a @${dto.host.username}`}>
+                <Icon name="gift" size={19} color="#fff" strokeWidth={2.2} />
+                <Text style={st.offerText}>Oferecer</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -514,7 +516,7 @@ export default function TxilladaScreen() {
               goal={live.goal}
               onSend={tx.gift}
               onWallet={() => { setPanel(null); router.push('/wallet' as never); }}
-              onDone={(n) => { setPanel(null); say(`Ofereceste ${txillsLabel(n)} a @${dto.host.username}`); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined); }}
+              onDone={() => { if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined); }}
             />
           </Panel>
         </View>
@@ -584,7 +586,8 @@ const st = StyleSheet.create({
   cheerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 9, borderRadius: 14, backgroundColor: 'rgba(14,14,18,0.5)' },
   cheerText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
   fund: { gap: 6, alignSelf: 'stretch' },
-  giftBtn: { backgroundColor: 'rgba(214,51,79,0.85)', borderColor: 'rgba(255,154,91,0.6)' },
+  offer: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.brand, borderWidth: 1, borderColor: 'rgba(255,154,91,0.7)' },
+  offerText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   weak: { color: '#fff', fontSize: 12.5, fontWeight: '600', alignSelf: 'flex-start', backgroundColor: 'rgba(217,119,6,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   muted: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 6, height: 28, paddingHorizontal: 10, borderRadius: 14, backgroundColor: 'rgba(14,14,18,0.6)' },
   mutedText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },

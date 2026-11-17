@@ -1,4 +1,5 @@
 import { post, raw, type Badged, type Post } from '@/lib/api';
+import { musicPayload, type Track } from './api.music';
 
 /**
  * «Paga-me uma» (API: apps/api/src/gelada, migração 0145). Fase 1, sem dinheiro: pedidos, o livro das geladas e as rodadas.
@@ -83,7 +84,8 @@ export interface DrinkList { soft: boolean; drinks: DrinkChoice[]; suggested: st
 export const geladaApi = {
   /** As bebidas que posso pedir a estas pessoas (sem álcool se alguém tem menos de 18) e quantos pedidos ainda tenho hoje. */
   drinks: (to: string[] = []): Promise<DrinkList> => raw(`/gelada/drinks${to.length ? `?to=${encodeURIComponent(to.join(','))}` : ''}`),
-  ask: (b: { to: string[]; itemId: string; channel: GeladaChannel; caption?: string }): Promise<{ requests: GeladaRequest[]; post: Post | null }> => raw('/gelada/requests', post(b)),
+  /** `music`: um hit no pedido publicado (só com channel 'post'; as músicas dos artistas locais não entram). */
+  ask: (b: { to: string[]; itemId: string; channel: GeladaChannel; caption?: string; music?: Track | null }): Promise<{ requests: GeladaRequest[]; post: Post | null }> => raw('/gelada/requests', post({ ...b, music: b.channel === 'post' && b.music ? musicPayload(b.music) : undefined })),
   request: (id: string): Promise<GeladaRequest> => raw(`/gelada/requests/${id}`),
   answer: (id: string, answer: GeladaAnswer): Promise<{ request: GeladaRequest; debt: GeladaDebt | null; chatWith: string | null }> => raw(`/gelada/requests/${id}/answer`, post({ answer })),
   /** Tirar a minha identificação de um pedido publicado (fecha o pedido para mim). É o mesmo de tirar a identificação de uma foto. */

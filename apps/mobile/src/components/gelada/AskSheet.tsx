@@ -8,12 +8,15 @@ import { geladaApi, geladaKeys, type DrinkChoice, type GeladaChannel } from '@/l
 import { useAuth } from '@/lib/auth';
 import { drinkEmoji, drinkPhrase, pickable, geladaErrorText } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
+import type { Track } from '@/lib/api.music';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { TasteBubble } from '../TasteBubble';
 import { DrinkSheet } from './DrinkSheet';
+import { MusicPicker } from '../MusicPicker';
+import { TrackCard } from '../TrackCard';
 
 const AMBER_INK = '#92400e';
 type Friend = { username: string; displayName: string; mutual: boolean };
@@ -31,6 +34,9 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
   const [chosen, setChosen] = useState<Friend[]>(() => (to ?? []).map((u) => ({ username: u.replace(/^@/, ''), displayName: u.replace(/^@/, ''), mutual: true })));
   const [channel, setChannel] = useState<GeladaChannel>(defaultChannel);
   const [caption, setCaption] = useState('');
+  // Um hit no pedido publicado (como nas publicações); no chat não vai.
+  const [hit, setHit] = useState<Track | null>(null);
+  const [pickHit, setPickHit] = useState(false);
   const [search, setSearch] = useState('');
   const [drinkId, setDrinkId] = useState<string | null>(itemId ?? null);
   const [picking, setPicking] = useState(false);
@@ -71,7 +77,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
     setBusy(true);
     setErr('');
     try {
-      const r = await geladaApi.ask({ to: names, itemId: drink.id, channel, caption: channel === 'post' ? caption.trim() || undefined : undefined });
+      const r = await geladaApi.ask({ to: names, itemId: drink.id, channel, caption: channel === 'post' ? caption.trim() || undefined : undefined, music: channel === 'post' ? hit : null });
       void qc.invalidateQueries({ queryKey: ['gelada-drinks'] });
       if (r.post) {
         onClose();
@@ -128,6 +134,17 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         {channel === 'post' && (
           <TextInput value={caption} onChangeText={setCaption} maxLength={300} placeholder="Legenda (opcional) · ex.: É sexta, malta!" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="Legenda" multiline />
         )}
+        {channel === 'post' && (hit ? (
+          <View>
+            <TrackCard track={hit} />
+            <Pressable onPress={() => setHit(null)} style={st.hitX} accessibilityRole="button" accessibilityLabel="Tirar o hit"><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setPickHit(true)} style={({ pressed }) => [st.hitBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel="Adicionar um hit ao pedido">
+            <Icon name="music" size={16} color={colors.zinc800} />
+            <Text style={st.hitText}>Adicionar um hit</Text>
+          </Pressable>
+        ))}
 
         {/* A quem. */}
         <View style={{ gap: 8 }}>
@@ -178,9 +195,10 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
           {busy ? <ActivityIndicator color="#fff" /> : <Icon name={channel === 'post' ? 'compose' : 'send'} size={18} color="#fff" />}
           <Text style={st.sendText}>{channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Mandar a ${chosen.length}` : 'Mandar'}</Text>
         </Pressable>
-        <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação 🙌</Text>
+        <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação.</Text>
       </ScrollView>
     </Sheet>
+      {pickHit ? <MusicPicker hint={`${caption} bebidas sexta`} onClose={() => setPickHit(false)} onPick={(t) => { setHit(t); setPickHit(false); }} /> : null}
       {picking && (
         <DrinkSheet
           title="Que bebida pedes?"
@@ -198,6 +216,9 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
 }
 
 const st = StyleSheet.create({
+  hitBtn: { alignSelf: 'flex-start', height: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
+  hitText: { fontSize: 14, fontWeight: '600', color: colors.zinc800 },
+  hitX: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 22, borderWidth: 1, borderColor: '#fde68a', padding: 14 },
   bubbleSkel: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.zinc100 },
   previewTo: { fontSize: 13, fontWeight: '600', color: AMBER_INK },

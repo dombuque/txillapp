@@ -110,15 +110,21 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
 /**
  * A Angariação por cima do vídeo: o motivo, a barra e «X de Y Txills» (a todos na sala, em tempo real). `compact`: sem o motivo.
  */
-export function GoalBar({ raised, goal, purpose }: { raised: number; goal: number | null; purpose?: string }) {
+export function GoalBar({ raised, goal, purpose, onGive }: { raised: number; goal: number | null; purpose?: string; onGive?: () => void }) {
   const p = goalProgress(raised, goal);
   if (!p) return null;
   return (
     <View style={gb.wrap} accessibilityRole="progressbar" accessibilityLabel={`Angariação${purpose ? `: ${purpose}` : ''}. ${p.label}`} accessibilityValue={{ min: 0, max: 100, now: Math.round(p.pct * 100) }}>
       <View style={gb.line}>
-        <Icon name="present" size={13} color={colors.brandWarm} strokeWidth={2.3} />
+        <Icon name="gift" size={13} color={colors.brandWarm} strokeWidth={2.3} />
         <Text style={gb.purpose} numberOfLines={1}>{purpose || 'Angariação'}</Text>
         <Text style={gb.label}>{p.label}</Text>
+        {onGive ? (
+          <Pressable onPress={onGive} hitSlop={8} style={({ pressed }) => [gb.give, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel="Ajudar a chegar à meta: oferecer vibes">
+            <Icon name="gift" size={12} color="#fff" strokeWidth={2.4} />
+            <Text style={gb.giveText}>Ajudar</Text>
+          </Pressable>
+        ) : null}
       </View>
       <View style={gb.track}>
         <View style={[gb.fill, { width: `${Math.max(p.pct > 0 ? 3 : 0, p.pct * 100)}%` }, p.done && gb.fillDone]} />
@@ -152,58 +158,92 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
   onSend: (amount: number) => Promise<{ balance: number | null; error?: string; insufficient?: boolean }>;
   onWallet: () => void; onDone: (amount: number) => void;
 }) {
-  const [pick, setPick] = useState<number | null>(GIFT_PRESETS[1]);
+  // Fácil: um toque num valor e já está (sem «escolher» e depois «oferecer»). A folha fica aberta para oferecer de novo,
+  // com o que já se ofereceu agora e o saldo; «Outro valor» é o único caminho com botão.
   const [custom, setCustom] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<number | 'custom' | null>(null);
   const [err, setErr] = useState<{ text: string; insufficient: boolean } | null>(null);
+  const [given, setGiven] = useState<{ last: number; total: number } | null>(null);
   useEffect(() => {
     let dead = false;
     void txilladaApi.balance().then((b) => { if (!dead) setBalance(b); });
     return () => { dead = true; };
   }, []);
-  const amount = custom ? parseAmount(custom) : pick;
-  const bad = giftError(amount, balance);
+  const customAmount = custom ? parseAmount(custom) : null;
 
-  async function send() {
-    if (busy || amount == null) return;
+  async function give(amount: number | null, from: number | 'custom') {
+    if (busy != null || amount == null) return;
+    const bad = giftError(amount, balance);
     if (bad) { setErr({ text: bad, insufficient: balance != null && amount > balance }); return; }
-    setBusy(true);
+    setBusy(from);
     setErr(null);
     const r = await onSend(amount);
-    setBusy(false);
+    setBusy(null);
     if (r.error) { setErr({ text: r.error, insufficient: !!r.insufficient }); return; }
     if (r.balance != null) setBalance(r.balance);
+    else setBalance((b) => (b == null ? b : Math.max(0, b - amount)));
+    setGiven((g) => ({ last: amount, total: (g?.total ?? 0) + amount }));
+    if (from === 'custom') setCustom('');
     onDone(amount);
   }
 
   return (
     <View style={gs.wrap}>
-      <Text style={gs.lead}>{goal != null ? `Ajuda @${host} a chegar à meta.` : `Oferece vibes a @${host}.`} As vibes saem da tua carteira.</Text>
-      <View style={gs.presets} accessibilityRole="radiogroup" accessibilityLabel="Quantas vibes">
+      <Text style={gs.lead}>{goal != null ? `Ajuda @${host} a chegar à meta.` : `Oferece vibes a @${host}.`} Toca num valor e já está.</Text>
+      <View style={gs.presets} accessibilityRole="toolbar" accessibilityLabel="Oferecer vibes">
         {GIFT_PRESETS.map((v) => {
-          const on = !custom && pick === v;
+          const sending = busy === v;
           return (
-            <Pressable key={v} onPress={() => { setPick(v); setCustom(''); setErr(null); }} style={({ pressed }) => [gs.preset, on && gs.presetOn, pressed && { transform: [{ scale: 0.96 }] }]} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={txillsLabel(v)}>
-              <Text style={[gs.presetNum, on && { color: '#fff' }]}>{v}</Text>
-              <Text style={[gs.presetUnit, on && { color: 'rgba(255,255,255,0.85)' }]}>{VIB}</Text>
+            <Pressable
+              key={v}
+              onPress={() => void give(v, v)}
+              disabled={busy != null}
+              style={({ pressed }) => [gs.preset, pressed && gs.presetOn, pressed && { transform: [{ scale: 0.95 }] }, busy != null && !sending && { opacity: 0.55 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Oferecer ${txillsLabel(v)} a @${host}`}
+            >
+              {({ pressed }) => sending ? <ActivityIndicator color={colors.brand} /> : (
+                <>
+                  <Icon name="gift" size={18} color={pressed ? '#fff' : colors.brand} strokeWidth={2.1} />
+                  <Text style={[gs.presetNum, pressed && { color: '#fff' }]}>{v}</Text>
+                  <Text style={[gs.presetUnit, pressed && { color: 'rgba(255,255,255,0.85)' }]}>{VIB}</Text>
+                </>
+              )}
             </Pressable>
           );
         })}
       </View>
-      <View style={[gs.custom, !!custom && gs.customOn]}>
-        <TextInput
-          value={custom}
-          onChangeText={(t) => { setCustom(t.replace(/[^\d]/g, '').slice(0, 4)); setErr(null); }}
-          keyboardType="number-pad"
-          inputMode="numeric"
-          placeholder="Outro valor"
-          placeholderTextColor={colors.zinc500}
-          style={gs.customInput}
-          maxLength={4}
-          accessibilityLabel={`Outro valor em vibes, até ${GIFT_MAX}`}
-        />
-        <Text style={gs.customUnit}>{VIB}</Text>
+      {given ? (
+        <View style={gs.done} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <Icon name="check" size={16} color={colors.green700} strokeWidth={2.6} />
+          <Text style={gs.doneText} numberOfLines={2}>
+            {given.total === given.last ? `Ofereceste ${txillsLabel(given.last)} a @${host}.` : `Ofereceste ${txillsLabel(given.last)} (${txillsLabel(given.total)} agora) a @${host}.`} Toca de novo para dar mais.
+          </Text>
+        </View>
+      ) : null}
+      <View style={gs.customRow}>
+        <View style={[gs.custom, !!custom && gs.customOn]}>
+          <TextInput
+            value={custom}
+            onChangeText={(t) => { setCustom(t.replace(/[^\d]/g, '').slice(0, 4)); setErr(null); }}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            placeholder="Outro valor"
+            placeholderTextColor={colors.zinc500}
+            style={gs.customInput}
+            maxLength={4}
+            returnKeyType="send"
+            onSubmitEditing={() => void give(customAmount, 'custom')}
+            accessibilityLabel={`Outro valor em vibes, até ${GIFT_MAX}`}
+          />
+          <Text style={gs.customUnit}>{VIB}</Text>
+        </View>
+        {custom ? (
+          <Pressable onPress={() => void give(customAmount, 'custom')} disabled={busy != null || customAmount == null} style={({ pressed }) => [gs.customSend, (busy != null || customAmount == null) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.96 }] }]} accessibilityRole="button" accessibilityLabel={customAmount != null ? `Oferecer ${txillsLabel(customAmount)}` : 'Oferecer'}>
+            {busy === 'custom' ? <ActivityIndicator color="#fff" /> : <Text style={gs.customSendText}>Oferecer</Text>}
+          </Pressable>
+        ) : null}
       </View>
       <Text style={gs.balance}>{balance == null ? ' ' : `Tens ${txillsLabel(balance)} na carteira.`}</Text>
       {err ? (
@@ -217,14 +257,6 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
           ) : null}
         </View>
       ) : null}
-      <Pressable onPress={() => void send()} disabled={busy || amount == null} style={({ pressed }) => [gs.send, (busy || amount == null) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-        {busy ? <ActivityIndicator color="#fff" /> : (
-          <>
-            <Icon name="present" size={19} color="#fff" strokeWidth={2.2} />
-            <Text style={gs.sendText}>{amount != null ? `Oferecer ${txillsLabel(amount)}` : 'Oferecer'}</Text>
-          </>
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -266,6 +298,8 @@ const gb = StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brandWarm },
   fillDone: { backgroundColor: '#34d399' },
+  give: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24, paddingHorizontal: 9, borderRadius: 12, backgroundColor: colors.brand },
+  giveText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 });
 
 const tg = StyleSheet.create({
@@ -280,11 +314,16 @@ const gs = StyleSheet.create({
   wrap: { gap: 10, paddingHorizontal: 4, paddingBottom: 6 },
   lead: { fontSize: 14.5, lineHeight: 20, color: colors.zinc600, textAlign: 'center' },
   presets: { flexDirection: 'row', gap: 8 },
-  preset: { flex: 1, minWidth: 0, height: 62, borderRadius: 16, borderWidth: 1.5, borderColor: colors.zinc200, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  preset: { flex: 1, minWidth: 0, height: 78, gap: 1, borderRadius: 16, borderWidth: 1.5, borderColor: colors.zinc200, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   presetOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   presetNum: { fontSize: 20, fontWeight: '900', color: colors.zinc900, fontVariant: ['tabular-nums'] },
   presetUnit: { fontSize: 11.5, fontWeight: '700', color: colors.zinc500 },
-  custom: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: colors.zinc200, paddingRight: 16 },
+  customRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  customSend: { height: 48, paddingHorizontal: 20, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  customSendText: { color: '#fff', fontSize: 15.5, fontWeight: '800' },
+  done: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: '#ecfdf5' },
+  doneText: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 19, color: colors.green700, fontWeight: '700' },
+  custom: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: colors.zinc200, paddingRight: 16 },
   customOn: { borderColor: colors.brand },
   customInput: { flex: 1, minWidth: 0, height: 46, paddingHorizontal: 18, fontSize: 16, fontWeight: '700', color: colors.zinc900, outlineStyle: 'none' as never },
   customUnit: { fontSize: 14, fontWeight: '700', color: colors.zinc500 },
