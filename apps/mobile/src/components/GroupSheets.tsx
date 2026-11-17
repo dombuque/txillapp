@@ -151,7 +151,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
             {picked.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
                 {picked.map((p) => (
-                  <Pressable key={p.username} onPress={() => toggle(p)} accessibilityLabel={`Tirar ${p.displayName}`} style={{ width: 60, alignItems: 'center', gap: 4 }}>
+                  <Pressable key={p.username} onPress={() => toggle(p)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Tirar ${p.displayName}`} style={{ width: 60, minHeight: 44, alignItems: 'center', gap: 4 }}>
                     <View>
                       <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} />
                       <View style={styles.remove}><Icon name="x" size={12} strokeWidth={3} color="#fff" /></View>
@@ -273,7 +273,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
     return (
       <Sheet title="Sair do TxillGroup?" onClose={() => setConfirm(false)}>
         <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.confirmText}>Deixas de receber as mensagens de “{group.name}”. Só voltas se alguém te adicionar.</Text>
+          <Text style={styles.confirmText}>Deixas de receber as mensagens de «{group.name}». Só voltas se alguém te adicionar.</Text>
           {err ? <Text style={styles.err}>{err}</Text> : null}
           <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, user!.username), onLeft)} style={[styles.leave, busy && { opacity: 0.5 }]}><Text style={styles.goText}>Sair do TxillGroup</Text></Pressable>
           <Pressable onPress={() => setConfirm(false)} style={styles.stay}><Text style={styles.backText}>Ficar</Text></Pressable>
@@ -355,7 +355,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
       {kick && (
         <ConfirmSheet
           title={`Tirar ${kick.displayName} do TxillGroup?`}
-          lines={[`${kick.displayName} deixa de receber as mensagens de “${group.name}”. ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
+          lines={[`${kick.displayName} deixa de receber as mensagens de «${group.name}». ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
           confirmLabel="Tirar do TxillGroup"
           danger
           onConfirm={async () => {

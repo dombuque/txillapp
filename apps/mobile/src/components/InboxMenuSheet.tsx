@@ -1,17 +1,20 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { NameWithBadge, type Badged } from '@/components/NameWithBadge';
 import { Sheet } from '@/components/Sheet';
 import type { InboxMenuItem } from '@/lib/inboxMenu';
 import { colors } from '@/lib/theme';
 
 /**
  * A folha de segurar uma linha da lista de Mensagens (conversa a dois ou TxillGroup), como no WhatsApp e no Instagram:
- * a foto e o nome em cima e as ações por baixo (lib/inboxMenu, inboxMenuItems), com "Cancelar" no fim.
- * Escolher uma ação fecha a folha e corre-a (`onPick`); "Cancelar" só fecha.
+ * a foto e o nome (com o selo, `who`) em cima e as ações por baixo (lib/inboxMenu, inboxMenuItems), com «Cancelar» no fim.
+ * Escolher uma ação fecha a folha e corre-a (`onPick`); «Cancelar» só fecha.
  */
-export function InboxMenuSheet({ name, sub, photo, items, onPick, onClose }: {
+export function InboxMenuSheet({ name, who, sub, photo, items, onPick, onClose }: {
   name: string;
+  /** Conversa a dois: o selo de verificado da outra pessoa. */
+  who?: Badged | null;
   sub?: string;
   photo: ReactNode;
   items: InboxMenuItem[];
@@ -24,7 +27,7 @@ export function InboxMenuSheet({ name, sub, photo, items, onPick, onClose }: {
         <View style={st.head}>
           {photo}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.name} numberOfLines={1} accessibilityRole="header">{name}</Text>
+            <NameWithBadge name={name} who={who} style={st.name} />
             {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
           </View>
         </View>

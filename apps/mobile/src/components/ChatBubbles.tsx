@@ -74,7 +74,7 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma 🍻', rodada: 'Rodada 🙌', mixar: 'Mixar ✨' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma', rodada: 'Rodada', mixar: 'Mixar' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -822,7 +822,7 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar de novo"><Text style={st.failLink}>Tentar de novo</Text></Pressable>
+          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar outra vez"><Text style={st.failLink}>Tentar outra vez</Text></Pressable>
           {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Apagar a mensagem que não foi enviada"><Text style={[st.failLink, { color: colors.zinc600 }]}>Apagar</Text></Pressable> : null}
         </View>
       ) : m.state === 'sending' ? (
@@ -903,7 +903,7 @@ const st = StyleSheet.create({
   avatar: { position: 'absolute', left: -(AVATAR + AVATAR_GAP), bottom: 0 },
   meta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
   time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },
-  // "Tentar de novo" e "Apagar" de uma que falhou: texto pequeno, mas com 32 pt de altura e o hitSlop (passa os 44).
+  // «Tentar outra vez» e «Apagar» de uma que falhou: texto pequeno, mas com 32 pt de altura e o hitSlop (passa os 44).
   failBtn: { minHeight: 32, justifyContent: 'center' },
   failLink: { fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' },
   ticks: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: -2.5, paddingRight: 2.5, color: colors.zinc500 },

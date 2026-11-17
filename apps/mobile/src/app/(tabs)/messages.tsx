@@ -74,7 +74,7 @@ export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boole
   if (m.kind === 'system') return systemText(m);
   if (m.kind === 'location') return `${you}Localização`;
   // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
-  if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma 🍻'}`;
+  if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma'}`;
   if (m.kind === 'rodada') return `${you}${m.body || 'Abriu uma rodada'}`;
   // Mixar: «Convidou-te para um Mixar» / «Convidaste para um Mixar» (sempre para quem vê, lib/mixar).
   if (m.kind === 'mixar') return mixarPreview(m);
@@ -215,7 +215,7 @@ export default function Messages() {
   }
   /** TxillGroup: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
   function leaveGroup(g: TxillGroupSummary, me: string) {
-    Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de “${g.name}”. Só voltas se alguém te adicionar.`, [
+    Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de «${g.name}». Só voltas se alguém te adicionar.`, [
       { text: 'Ficar', style: 'cancel' },
       { text: 'Sair', style: 'destructive', onPress: () => {
         patchGroup(g.id, () => null);
@@ -592,6 +592,7 @@ export default function Messages() {
       {held ? (
         <InboxMenuSheet
           name={held.name}
+          who={held.who}
           sub={held.g ? `${held.g.members} ${held.g.members === 1 ? 'pessoa' : 'pessoas'}` : held.username ? `@${held.username}` : undefined}
           photo={held.g
             ? <GroupCover url={held.g.avatarUrl} kind={groupCardData(held.g).kind} size={48} radius={24} />

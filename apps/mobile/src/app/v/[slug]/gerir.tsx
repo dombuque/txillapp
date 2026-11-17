@@ -277,11 +277,11 @@ function Managers({ v }: { v: Venue }) {
             {m.role !== 'owner' && (v.canEdit || self) ? (
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {v.canEdit && m.status === 'active' ? (
-                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), 'Papel alterado.')} disabled={busy} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? 'Passar a editor' : 'Passar a administrador'}>
+                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), 'Papel alterado.')} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? 'Passar a editor' : 'Passar a administrador'}>
                     <Icon name={m.role === 'admin' ? 'user' : 'shield'} size={18} color={colors.zinc800} />
                   </Pressable>
                 ) : null}
-                <Pressable onPress={() => remove(m.username, self)} disabled={busy} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? 'Sair da página' : 'Tirar da página'}>
+                <Pressable onPress={() => remove(m.username, self)} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? 'Sair da página' : 'Tirar da página'}>
                   <Icon name={self ? 'logout' : 'x'} size={18} color={colors.red600} />
                 </Pressable>
               </View>

@@ -87,7 +87,7 @@ export function GroupComposer({
   async function dispatch(msg: GroupSendBody) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com "Tentar de novo" (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
     const shown = pendingKey ? pendingFrom(msg, replyTo) : null;
     if (pendingKey && shown) {
       onClearReply?.();

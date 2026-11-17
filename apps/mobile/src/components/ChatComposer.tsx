@@ -101,7 +101,7 @@ export function ChatComposer({
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com "Tentar de novo" (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
     const shown = pendingFrom(msg, replyTo);
     if (shown) {
       onClearReply?.();

@@ -363,7 +363,7 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
       {deleting && (
         <ConfirmSheet
           title="Apagar a despesa?"
-          lines={[`“${deleting.description}” (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
+          lines={[`«${deleting.description}» (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
           confirmLabel="Apagar"
           danger
           onConfirm={() => remove(deleting)}

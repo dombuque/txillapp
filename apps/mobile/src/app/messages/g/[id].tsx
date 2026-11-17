@@ -215,7 +215,7 @@ export default function GroupThreadScreen() {
           fetchNext={() => q.fetchNextPage()}
           fetchingNext={q.isFetchingNextPage}
           seenId={null}
-          emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup 👋"
+          emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup."
           meHandle={user?.username}
           onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
           onDelete={(m) => setMenuFor({ m, start: 'delete' })}

@@ -367,7 +367,7 @@ function Controls({ c, camera }: { c: CallState; camera: boolean }) {
           <Ctrl label={c.camOn ? 'Desligar a câmara' : 'Ligar a câmara'} off={!c.camOn} onPress={() => void toggleCamera()}>{(col) => c.camOn ? <Icon name="video" size={24} color={col} /> : <CallIcon name="video-off" size={24} color={col} />}</Ctrl>
         ) : null}
         {camera && c.camOn && c.canFlip ? (
-          <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="flip-camera" size={24} color={col} />}</Ctrl>
+          <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="cam-flip" size={24} color={col} />}</Ctrl>
         ) : null}
         <SpeakerButton c={c} />
         <Pressable onPress={hangUp} style={({ pressed }) => [st.ctrl, { backgroundColor: RED }, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Desligar">
