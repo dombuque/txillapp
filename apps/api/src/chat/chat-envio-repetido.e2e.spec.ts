@@ -9,6 +9,7 @@ import { createApp } from '../main';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
+const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
 
 interface U { token: string; id: string; username: string }
 
@@ -83,6 +84,19 @@ describe('mensagens repetidas com o mesmo clientId (integração)', () => {
     // Uma nova é recusada (403: a app mostra «Não enviada»).
     await sendTo(rc, rb, { body: 'nova', clientId: randomUUID() }).expect(403);
     await api().delete(`/api/v1/blocks/${rc.username}`).set(auth(rb)).expect(200);
+  });
+
+  it('foto repetida (a app guardou o mediaId do ficheiro já subido): devolve a mesma mensagem, não «Ficheiro inválido»', async () => {
+    const { ra, rb } = u;
+    const up = await api().post('/api/v1/media/uploads').set(auth(ra)).send({ mime: 'image/png', size: PNG.length, purpose: 'chat' }).expect(201);
+    await api().put(up.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
+    const mediaId = up.body.assetId as string;
+    const clientId = randomUUID();
+    const first = (await sendTo(ra, rb, { kind: 'image', mediaId, body: 'praia', clientId }).expect(201)).body;
+    expect((await sendTo(ra, rb, { kind: 'image', mediaId, body: 'praia', clientId }).expect(201)).body.id).toBe(first.id);
+    expect(Number((await pool.query('SELECT count(*) FROM social.messages WHERE media_id = $1', [mediaId])).rows[0].count)).toBe(1);
+    // O mesmo ficheiro com outro clientId continua a não servir (já foi usado).
+    await sendTo(ra, rb, { kind: 'image', mediaId, clientId: randomUUID() }).expect(400);
   });
 
   it('o clientId é de quem envia: o mesmo uuid de outra pessoa não choca', async () => {
