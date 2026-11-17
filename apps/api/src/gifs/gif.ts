@@ -12,6 +12,11 @@ import { z } from 'zod';
  *    é menor de 18 (ou não tem data de nascimento) não recebe um GIF acima de 'g' nem um sem classificação (gifForMinor);
  *    nas mensagens e nos comentários vem `gif: null` e `gifHidden: true`. Ao gravar, a classificação é a do GIPHY (GifsService.confirm).
  * As imagens são carregadas pelo aparelho diretamente da CDN do GIPHY (não passam pelo nosso servidor).
+ *
+ * Há também uma fonte própria, `source: 'txillapp'`: o logótipo animado do Txillapp (scripts/marca/anim-logo.mjs), servido
+ * pelo nosso site em https://txillapp.com/marca/. Lista fechada de ids (TXILLAPP_GIFS) e, para cada um, só os urls desses
+ * ficheiros; as medidas são as do ficheiro e a classificação é sempre 'g' (para todas as idades). O GIPHY não é chamado.
+ * Qualquer outro id ou url com esta fonte: 400. Sem `source` (os GIFs de sempre), é do GIPHY.
  */
 
 /** Os anfitriões de média do GIPHY que aceitamos. */
@@ -37,6 +42,40 @@ export function giphyMediaUrl(raw: unknown, id?: string): string | null {
   return `https://${u.hostname}${u.pathname}`;
 }
 
+/* ───────────── a fonte própria: o GIF «Txillapp» ───────────── */
+
+/** De onde vêm os GIFs do Txillapp (o nosso site; os ficheiros estão em apps/mobile/public/marca e apps/web/public/marca). */
+export const TXILLAPP_GIF_ORIGIN = 'https://txillapp.com';
+/** As medidas dos ficheiros (scripts/marca/anim-logo.mjs, 480 px de largura). */
+export const TXILLAPP_GIF_SIZE = { w: 480, h: 211 } as const;
+/**
+ * Os GIFs do Txillapp, por id: o ficheiro animado (sem extensão: há .webp e .gif) e a imagem parada.
+ *  - logo: letras pretas, fundo transparente (fundos claros); a app mostra a versão branca num fundo escuro;
+ *  - logo-branco: letras brancas, fundo transparente (fundos escuros, fotos e vídeos);
+ *  - logo-fundo: letras pretas sobre fundo branco.
+ */
+export const TXILLAPP_GIFS: Readonly<Record<string, { file: string; still: string }>> = {
+  logo: { file: 'txillapp-animado', still: 'txillapp-final.png' },
+  'logo-branco': { file: 'txillapp-animado-branco', still: 'txillapp-final-branco.png' },
+  'logo-fundo': { file: 'txillapp-animado-fundo', still: 'txillapp-final-fundo.png' },
+};
+export const TXILLAPP_GIF_TITLE = 'Txillapp';
+export type GifSource = 'txillapp';
+const isTxillappId = (id: unknown): id is string => typeof id === 'string' && Object.prototype.hasOwnProperty.call(TXILLAPP_GIFS, id);
+
+/** O url de um GIF do Txillapp se for exatamente um dos ficheiros deste id (.webp ou .gif); senão null. */
+export function txillappMediaUrl(raw: unknown, id: string): string | null {
+  if (!isTxillappId(id) || typeof raw !== 'string') return null;
+  const base = `${TXILLAPP_GIF_ORIGIN}/marca/${TXILLAPP_GIFS[id].file}`;
+  return raw === `${base}.webp` || raw === `${base}.gif` ? raw : null;
+}
+/** A imagem parada de um GIF do Txillapp se for exatamente a deste id; senão null. */
+export function txillappStillUrl(raw: unknown, id: string): string | null {
+  if (!isTxillappId(id)) return null;
+  const still = `${TXILLAPP_GIF_ORIGIN}/marca/${TXILLAPP_GIFS[id].still}`;
+  return raw === still ? still : null;
+}
+
 /** As classificações do GIPHY, da mais leve para a mais forte. */
 export const GIF_RATINGS = ['y', 'g', 'pg', 'pg-13', 'r'] as const;
 export type GifRatingValue = (typeof GIF_RATINGS)[number];
@@ -54,7 +93,9 @@ export const sizeOk = (w: number, h: number) => Number.isInteger(w) && Number.is
 /** O GIF que a app manda numa mensagem ou num comentário (validado aqui; o url sai limpo). */
 export const gifSchema = z
   .object({
-    id: z.string().regex(GIPHY_ID, 'GIF inválido'),
+    id: z.string().max(40),
+    /** 'txillapp': o GIF do Txillapp (lista fechada); sem isto, do GIPHY. */
+    source: z.enum(['txillapp'], { message: 'GIF inválido' }).optional(),
     w: z.number().int(),
     h: z.number().int(),
     url: z.string().max(600),
@@ -63,7 +104,24 @@ export const gifSchema = z
     /** A classificação do GIPHY (a grelha manda-a); desconhecida fica de fora. */
     rating: z.string().max(10).optional(),
   })
-  .transform((g, ctx) => {
+  .transform((g, ctx): StoredGif => {
+    if (g.source === 'txillapp') {
+      // O GIF do Txillapp: só os ids e os ficheiros da lista; medidas, título e classificação são os nossos.
+      if (!isTxillappId(g.id)) {
+        ctx.addIssue({ code: 'custom', path: ['id'], message: 'GIF inválido' });
+        return z.NEVER;
+      }
+      const url = txillappMediaUrl(g.url, g.id);
+      const still = g.still === undefined ? undefined : txillappStillUrl(g.still, g.id);
+      if (!url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'Esse GIF não é do Txillapp' });
+      if (still === null) ctx.addIssue({ code: 'custom', path: ['still'], message: 'Esse GIF não é do Txillapp' });
+      if (!url || still === null) return z.NEVER;
+      return { id: g.id, ...TXILLAPP_GIF_SIZE, url, ...(still ? { still } : {}), title: TXILLAPP_GIF_TITLE, rating: 'g', source: 'txillapp' };
+    }
+    if (!GIPHY_ID.test(g.id)) {
+      ctx.addIssue({ code: 'custom', path: ['id'], message: 'GIF inválido' });
+      return z.NEVER;
+    }
     const url = giphyMediaUrl(g.url, g.id);
     const still = g.still === undefined ? undefined : giphyMediaUrl(g.still, g.id);
     if (!url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'O GIF tem de vir do GIPHY' });
@@ -77,12 +135,21 @@ export const gifSchema = z
 export type GifInput = z.infer<typeof gifSchema>;
 
 /** O que fica guardado (coluna jsonb `gif`) e o que a app recebe de volta. */
-export interface StoredGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: GifRatingValue }
+export interface StoredGif { id: string; w: number; h: number; url: string; still?: string; title?: string; rating?: GifRatingValue; /** 'txillapp': o GIF do Txillapp; sem isto, do GIPHY. */ source?: GifSource }
 
 /** Lê o jsonb guardado (defensivo: se alguma coisa não bater certo, não se mostra). */
 export function readGif(v: unknown): StoredGif | null {
   if (!v || typeof v !== 'object') return null;
   const g = v as Record<string, unknown>;
+  if (g.source === 'txillapp') {
+    // O do Txillapp: só da lista e dos nossos ficheiros (medidas e classificação fixas).
+    if (!isTxillappId(g.id)) return null;
+    const url = txillappMediaUrl(g.url, g.id);
+    if (!url) return null;
+    const still = txillappStillUrl(g.still, g.id);
+    return { id: g.id, ...TXILLAPP_GIF_SIZE, url, ...(still ? { still } : {}), title: TXILLAPP_GIF_TITLE, rating: 'g', source: 'txillapp' };
+  }
+  if (g.source !== undefined) return null;
   if (typeof g.id !== 'string' || !GIPHY_ID.test(g.id) || typeof g.w !== 'number' || typeof g.h !== 'number' || !sizeOk(g.w, g.h)) return null;
   const url = giphyMediaUrl(g.url, g.id);
   if (!url) return null;

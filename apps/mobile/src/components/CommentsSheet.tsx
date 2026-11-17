@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState, useEffect } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { CheersPour } from './CheersPour';
@@ -24,8 +24,8 @@ import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
-import { GifHiddenCard, GifView, useGifsConfig } from './GifPanel';
-import { gifPayload, validGif } from '@/lib/gifs';
+import { GifHiddenCard, GifView, TxillappReaction, useGifsConfig } from './GifPanel';
+import { TXILLAPP_GIF, gifPayload, validGif } from '@/lib/gifs';
 import { InlineBadge, NameWithBadge } from './NameWithBadge';
 import { useRouter } from 'expo-router';
 import { replyHref, tchekaRepliesLabel } from '@/lib/remix';
@@ -400,10 +400,13 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
             </Text>
           )}
           {stickers && <View style={{ maxHeight: gifs.enabled ? 340 : 300 }}><StickerPanel key={stickers} start={stickers} onPick={(id) => { setStickers(null); void submit(`[sticker:${id}]`); }} onGif={(g) => { setStickers(null); void submit(undefined, gifPayload(g)); }} /></View>}
-          <View style={styles.quick}>
+          {/* Num ecrã estreito a fila desliza (com a reação «Txillapp» não cabe sempre toda); num largo espalha-se. */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={styles.quick}>
             {QUICK.map((e) => (
-              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
+              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 22, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
+            {/* A reação «Txillapp»: publica logo o GIF da marca (com o texto que estiver escrito, como os outros GIFs). */}
+            <TxillappReaction width={44} disabled={busy} label="Comentar com o GIF Txillapp" onPress={() => { setStickers(null); void submit(undefined, gifPayload(TXILLAPP_GIF)); }} />
             <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers === 'stickers' }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers === 'stickers' && { backgroundColor: colors.rose50 }]}>
               <Icon name="sticker" size={24} color={stickers === 'stickers' ? colors.brand : colors.zinc700} />
             </Pressable>
@@ -413,7 +416,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
                 <Text style={[styles.gifBtnText, stickers === 'gif' && { color: colors.brand }]}>GIF</Text>
               </Pressable>
             )}
-          </View>
+          </ScrollView>
           <MentionSuggest mention={mention} style={{ marginTop: 8 }} />
           <View style={styles.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
@@ -473,7 +476,7 @@ const styles = StyleSheet.create({
   replying: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 8 },
   replyingText: { fontSize: 14, color: colors.zinc600 },
   typing: { paddingHorizontal: 16, paddingTop: 8, fontSize: 13, color: colors.zinc500, fontStyle: 'italic' },
-  quick: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
+  quick: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 2, paddingHorizontal: 12, paddingTop: 8 },
   compose: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 8 },
   field: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.zinc300, borderRadius: 999, paddingLeft: 16, paddingRight: 8 },
   input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' } as object,

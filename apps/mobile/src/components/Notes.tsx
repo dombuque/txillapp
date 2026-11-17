@@ -8,7 +8,7 @@ import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { useKeyboardOpen } from '@/components/ChatScreen';
-import { GifPanel, useGifsConfig } from '@/components/GifPanel';
+import { GifPanel, TxillappReaction, useGifsConfig } from '@/components/GifPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
@@ -26,7 +26,7 @@ import { useAuth } from '@/lib/auth';
 import { pinnedTop, webKeyboardOpen } from '@/lib/chatKeyboard';
 import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
-import { gifPayload, type ChatGif } from '@/lib/gifs';
+import { TXILLAPP_GIF, gifFit, gifPayload, gifShown, type ChatGif } from '@/lib/gifs';
 import { primeKeyboard, releaseKeyboard } from '@/lib/keyboardPrime';
 import { useTrackLive } from '@/lib/musicPlayer';
 import {
@@ -61,10 +61,12 @@ function CheersBadge({ cheers }: { cheers: number }) {
  */
 function NoteFace({ name, username, gif, size, online = false, onlineStyle, cheers = 0 }: { name: string; username?: string; gif?: ChatGif | null; size: number; online?: boolean; onlineStyle?: object; cheers?: number }) {
   const reduce = useReducedMotion();
+  // O GIF do Txillapp (largo, fundo transparente) fica inteiro dentro do quadrado, com margem (os «ll» nunca se cortam).
+  const shown = gif ? gifShown(gif) : null;
   return (
     <View>
-      {gif ? (
-        <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), backgroundColor: colors.zinc100 }} contentFit="cover" recyclingKey={gif.id} accessibilityLabel={gif.title ? `GIF: ${gif.title}` : 'GIF'} />
+      {gif && shown ? (
+        <Image source={{ uri: reduce && shown.still ? shown.still : shown.url }} autoplay={!reduce} style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), backgroundColor: colors.zinc100, ...(gif.source === 'txillapp' ? { padding: Math.round(size * 0.08) } : {}) }} contentFit={gifFit(gif)} recyclingKey={shown.url} accessibilityLabel={gif.title ? `GIF: ${gif.title}` : 'GIF'} />
       ) : (
         <Avatar name={name} username={username} size={size} />
       )}
@@ -268,13 +270,14 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
   }
 
   /** Responder (o texto escrito ou uma reação rápida): vai como mensagem para a conversa a dois. */
-  async function send(body: string) {
+  /** `gif`: a reação «Txillapp» (o GIF da marca vai a seguir à linha «Em resposta à tua nota»). */
+  async function send(body: string, gif?: ChatGif) {
     const said = body.trim();
-    if (!said || busy) return;
+    if ((!said && !gif) || busy) return;
     setBusy(true);
     setErr('');
     try {
-      await notesApi.reply(note.username, said);
+      await notesApi.reply(note.username, said, gif);
       onClose();
       if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
       else showToast(noteSentText(note.username), { label: 'Ver', onPress: () => router.push(`/messages/${note.username}` as never) });
@@ -358,6 +361,7 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
                     <Text style={styles.quickEmoji}>{e}</Text>
                   </Pressable>
                 ))}
+                <TxillappReaction width={42} height={40} disabled={busy} label="Responder com o GIF Txillapp" onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
               </View>
             )}
           </View>
@@ -585,7 +589,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               <OptionPill a11y="Música" chosen={!!music} label={music?.title} onPress={() => setPanel('music')} onClear={() => setMusic(null)} icon={<Icon name="music" size={20} strokeWidth={2} color={colors.brand} />} />
               <OptionPill a11y="Local" chosen={!!place} label={place?.name} onPress={() => setPanel('place')} onClear={() => setPlace(null)} icon={<Icon name="map-pin" size={20} strokeWidth={2} color={colors.sky} />} />
               {gifs.enabled || gif ? (
-                <OptionPill a11y="GIF" chosen={!!gif} label="GIF" onPress={() => setPanel('gif')} onClear={() => setGif(null)} icon={gif ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.optGif} contentFit="cover" /> : <View style={styles.gifBadge}><Text style={styles.gifBadgeText}>GIF</Text></View>} />
+                <OptionPill a11y="GIF" chosen={!!gif} label="GIF" onPress={() => setPanel('gif')} onClear={() => setGif(null)} icon={gif ? <Image source={{ uri: gifShown(gif).still ?? gifShown(gif).url }} style={styles.optGif} contentFit={gifFit(gif)} /> : <View style={styles.gifBadge}><Text style={styles.gifBadgeText}>GIF</Text></View>} />
               ) : null}
             </View>
           ) : (
@@ -714,7 +718,7 @@ const styles = StyleSheet.create({
   replyInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
   replySend: { marginLeft: 6 },
   quickRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 4 },
-  quickBtn: { width: 38, height: 40, alignItems: 'center', justifyContent: 'center' },
+  quickBtn: { width: 34, height: 40, alignItems: 'center', justifyContent: 'center' },
   quickEmoji: { fontSize: 25, lineHeight: 32 },
   cheerOut: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
 
