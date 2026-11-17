@@ -11,13 +11,16 @@ import { t } from '@/lib/i18n';
 // «Artistas de Moçambique» no seletor de música é um separador do MusicPicker: as faixas chegam pelo catálogo curado
 // (fonte `local`, GET /music/local) e só aparecem com `allowLocal` (mimos e tchekas, como diz a licença).
 
-const RELATIONS = [['owner', t('Sou o autor ou titular')], ['label', t('Sou a editora')], ['representative', t('Represento o titular')], ['other', t('Outra')]] as const;
+/** Quem pede: as chaves (para o tipo) ficam fixas; os nomes leem-se na hora, no idioma ativo. */
+const RELATION_KEYS = ['owner', 'label', 'representative', 'other'] as const;
+type Relation = (typeof RELATION_KEYS)[number];
+const RELATIONS = (): [Relation, string][] => [['owner', t('Sou o autor ou titular')], ['label', t('Sou a editora')], ['representative', t('Represento o titular')], ['other', t('Outra')]];
 
 /** Denunciar uma faixa por violação de direitos de autor. A faixa fica escondida enquanto a equipa analisa. */
 export function RightsReportSheet({ track, onClose }: { track: Track; onClose: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [relation, setRelation] = useState<(typeof RELATIONS)[number][0]>('owner');
+  const [relation, setRelation] = useState<Relation>('owner');
   const [details, setDetails] = useState('');
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,7 +57,7 @@ export function RightsReportSheet({ track, onClose }: { track: Track; onClose: (
             <TextInput value={email} onChangeText={setEmail} maxLength={160} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} style={ast.input} accessibilityLabel={t('Email')} />
             <Text style={[ast.label, { marginTop: 12 }]}>{t('Quem és')}</Text>
             <View style={ast.chips}>
-              {RELATIONS.map(([k, l]) => (
+              {RELATIONS().map(([k, l]) => (
                 <Pressable key={k} onPress={() => setRelation(k)} style={[ast.chip, relation === k && ast.chipOn]} accessibilityRole="radio" accessibilityState={{ selected: relation === k }}>
                   <Text style={[ast.chipTxt, relation === k && { color: '#fff' }]}>{l}</Text>
                 </Pressable>
