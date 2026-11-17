@@ -5,7 +5,7 @@ import { useIsFocused } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Animated, Keyboard, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -31,7 +31,8 @@ import { ReportSheet } from './ReportSheet';
 import { Sheet } from './Sheet';
 import { finePointer, type Rect } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
-import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
+import { CloseFriendsSheet, REACTIONS, ReactionArt, useKeyboardHeight } from './StoryParts';
+import { KB_GAP, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { CurvedCaption } from './zas/CurvedCaption';
 import { squircle } from './zas/squircle';
 import { useVisibleViewport } from './zas/useVisibleViewport';
@@ -856,6 +857,38 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   const [err, setErr] = useState('');
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
+  // A responder com o teclado aberto (lib/keyboardFrame), como no Instagram: a pilha fica do mesmo tamanho, atrás e um pouco
+  // mais escura, e só as reações e o campo sobem para cima do teclado, colados a ele. No iPhone (web) a janela medida
+  // encolhia com o teclado e o cartão ficava pequeno; agora o tamanho fica o de antes enquanto se escreve.
+  const [replying, setReplying] = useState(false);
+  const [replyTail, setReplyTail] = useState(false);
+  useEffect(() => {
+    if (replying) { setReplyTail(true); return; }
+    const t = setTimeout(() => setReplyTail(false), 450);
+    return () => clearTimeout(t);
+  }, [replying]);
+  const replyingRef = useRef(false);
+  replyingRef.current = replying;
+  const replyInput = useRef<React.ComponentRef<typeof TextInput> | null>(null);
+  const kb = useKeyboardHeight();
+  const vv = useVisibleViewport();
+  const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
+  const vvBox = isWeb ? webKeyboardBox(vv, window.innerHeight, window.innerWidth) : null;
+  const kbOpen = replying || replyTail || kb > 0 || !!vvBox;
+  const still = useRef<Size>({ w: 0, h: 0 });
+  // Na web conta a altura da página (innerHeight), que não muda com o teclado do iPhone; a medida da janela segue a zona visível.
+  still.current = heldSize(still.current, { w: width, h: isWeb && window.innerHeight > 0 ? window.innerHeight : height }, kbOpen);
+  const view = still.current;
+  const kbArea = keyboardCover({ web: isWeb, vv: vvBox, rootH: isWeb ? window.innerHeight : height, screenH: view.h, kb: isWeb ? 0 : kb });
+  // Na web, com o teclado aberto, a página não rola por baixo do visor.
+  useEffect(() => {
+    if (!vvBox || typeof window === 'undefined') return;
+    const fix = () => { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); };
+    fix();
+    window.addEventListener('scroll', fix);
+    return () => window.removeEventListener('scroll', fix);
+  }, [!!vvBox]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeKeyboard = () => { replyInput.current?.blur(); Keyboard.dismiss(); };
   /** O Zás de outra pessoa que se está a denunciar (e se a denúncia já foi). */
   const [reporting, setReporting] = useState<string | null>(null);
   const reportedZas = useRef(false);
@@ -946,9 +979,9 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   // Por baixo: quem fez e o tempo (42), as reações numa fila (56) e a resposta (56), ou, nos meus, uma fila de botões.
   // Por cima: a barra (56) e o que os de trás espreitam (deckHeadroom ≈ 7 % da altura + 32).
   const below = own ? 130 : 196;
-  const avail = height - Math.max(12, insets.top) - Math.max(16, insets.bottom) - 56 - below - 12;
+  const avail = view.h - Math.max(12, insets.top) - Math.max(16, insets.bottom) - 56 - below - 12;
   const cardH0 = Math.max(240, Math.min(600, (avail - 32) / 1.07));
-  const cardW = Math.round(Math.min(cardH0 * 0.75, width - 56));
+  const cardW = Math.round(Math.min(cardH0 * 0.75, view.w - 56));
   const cardH = Math.round(cardW / 0.75);
   const headroom = deckHeadroom(cardH);
   const photoW = zasPhotoWidth(cardW, PixelRatio.get());
@@ -1055,6 +1088,8 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => {
+        // A escrever a resposta: o Zás não se mexe (um toque fora só fecha o teclado).
+        if (replyingRef.current) return false;
         const sideways = Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2;
         const vertical = (g.dy > 12 || (ownRef.current && g.dy < -12)) && Math.abs(g.dy) > Math.abs(g.dx) * 1.5;
         axis.current = sideways ? 'x' : vertical ? 'y' : null;
@@ -1102,7 +1137,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
 
   return (
     <Modal visible={secured && focused} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View {...(mouse ? {} : pan.panHandlers)} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
+      <Animated.View {...(mouse ? {} : pan.panHandlers)} style={[{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }, !isWeb && kbOpen && view.h > 0 ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', height: view.h } : null, { top: kbArea.shift }]} accessibilityViewIsModal>
         <View style={st.vTop}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
           {/* «1 de N»: discreta, ao meio, por cima da pilha. */}
@@ -1162,7 +1197,9 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
           ) : null}
         </View>
 
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(16, insets.bottom) }}>
+        {/* A escrever: o Zás fica atrás, um pouco mais escuro; um toque nele só fecha o teclado. */}
+        {replying && <Pressable style={[StyleSheet.absoluteFill, { zIndex: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={closeKeyboard} accessibilityRole="button" accessibilityLabel="Fechar o teclado" />}
+        <View style={[{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(16, insets.bottom) }, !own && kbArea.cover > 0 ? { zIndex: 41, transform: [{ translateY: -Math.max(0, kbArea.cover + KB_GAP - Math.max(16, insets.bottom)) }] } : null]}>
           {own ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
               {!!cur?.reactions?.length && (
@@ -1193,8 +1230,11 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
               <ReactBar onReact={reactRef} />
               <View style={st.replyBar}>
                 <TextInput
+                  ref={replyInput}
                   value={reply}
                   onChangeText={setReply}
+                  onFocus={() => setReplying(true)}
+                  onBlur={() => setReplying(false)}
                   maxLength={500}
                   placeholder={`Responder a ${first}…`}
                   placeholderTextColor="rgba(255,255,255,0.6)"
