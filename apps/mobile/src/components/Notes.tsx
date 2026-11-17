@@ -199,7 +199,7 @@ function NotesArrow({ dir, onPress }: { dir: 1 | -1; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
-      style={(s) => [styles.arrow, dir < 0 ? { left: -8 } : { right: -8 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc50 }, s.pressed && { transform: [{ scale: 0.94 }] }]}
+      style={(s) => [styles.arrow, dir < 0 ? { left: -12 } : { right: -12 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc50 }, s.pressed && { transform: [{ scale: 0.94 }] }]}
       accessibilityRole="button"
       accessibilityLabel={dir < 0 ? t('Notas anteriores') : t('Ver mais notas')}
     >
