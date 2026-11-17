@@ -340,7 +340,7 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
           {balances.filter((b) => b.net !== 0).map((b) => (
             <View key={b.username} style={st.bal}>
               <NameWithBadge name={b.username === me ? 'Tu' : b.displayName} who={b.username === me ? null : b} style={[st.balName, { flex: undefined }]} containerStyle={{ flex: 1 }} />
-              <Text style={[st.balNet, { color: b.net > 0 ? colors.green700 : colors.red600 }]}>{b.net > 0 ? t('recebe {mzn}', { mzn: mzn(b.net) }) : t('deve {mzn}', { mzn: mzn(-b.net) })}</Text>
+              <Text style={[st.balNet, { color: b.net > 0 ? colors.green700 : colors.danger }]}>{b.net > 0 ? t('recebe {mzn}', { mzn: mzn(b.net) }) : t('deve {mzn}', { mzn: mzn(-b.net) })}</Text>
             </View>
           ))}
         </View>

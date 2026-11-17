@@ -223,7 +223,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       {input('website', 'Site (https://…)', { autoCapitalize: 'none', keyboardType: 'url', maxLength: 200 })}
       <Text style={st.label}>{t('Sobre')}</Text>
       {input('about', t('Conta o que é o local, o ambiente, o que a malta vem cá fazer'), { multiline: true, maxLength: 1000 })}
-      <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: saved ? colors.green700 : colors.red600 }}>{msg}</Text>
+      <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: saved ? colors.green700 : colors.danger }}>{msg}</Text>
       <Pressable onPress={() => void save()} disabled={busy || f.name.trim().length < 2} style={[st.cta, (busy || f.name.trim().length < 2) && { opacity: 0.5 }]} accessibilityRole="button">
         <Text style={st.ctaText}>{busy ? t('A guardar…') : t('Guardar')}</Text>
       </Pressable>
@@ -288,7 +288,7 @@ function Managers({ v }: { v: Venue }) {
                   </Pressable>
                 ) : null}
                 <Pressable onPress={() => remove(m.username, self)} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? t('Sair da página') : t('Tirar da página')}>
-                  <Icon name={self ? 'logout' : 'x'} size={18} color={colors.red600} />
+                  <Icon name={self ? 'logout' : 'x'} size={18} color={colors.danger} />
                 </Pressable>
               </View>
             ) : null}

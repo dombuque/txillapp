@@ -23,6 +23,8 @@ export const colors = {
   red600: '#dc2626',
   /** O vermelho das ações perigosas (Apagar, Bloquear, Denunciar, Sair): o mesmo da caixa de confirmação. */
   danger: '#b91c1c',
+  /** O vermelho vivo por cima de fundos escuros (desligar a chamada, o ponto «a gravar», erros no Zás): o `danger` lá não se lê. */
+  dangerBright: '#ef4444',
   /** O fundo claro do botão perigoso (texto em `danger`). */
   dangerSoft: '#fef2f2',
   rose50: '#fff1f2',

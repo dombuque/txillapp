@@ -66,7 +66,7 @@ export function FindContacts({ onClose }: { onClose: () => void }) {
                 <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc500 }}>{t('Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.')}</Text>
               </View>
             )}
-            {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text> : null}
+            {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityRole="alert">{err}</Text> : null}
           </View>
         ) : found.length === 0 ? (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
@@ -98,7 +98,7 @@ const st = StyleSheet.create({
   small: { fontSize: 14, color: colors.zinc500 },
   primary: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.brand },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  box: { borderRadius: 16, backgroundColor: '#fafafa', padding: 16 },
+  box: { borderRadius: 16, backgroundColor: colors.zinc50, padding: 16 },
   import: { marginTop: 12, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.zinc200 },
   again: { marginTop: 16, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },

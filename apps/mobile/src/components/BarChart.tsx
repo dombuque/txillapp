@@ -44,7 +44,7 @@ export function BarChart({ title, data }: { title: string; data: Point[] }) {
         {w > 0 && (
           <Svg width={w} height={(w * H) / W} viewBox={`0 0 ${W} ${H}`}>
             <Line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#d4d4d8" strokeWidth={1} />
-            <Line x1={PAD.left} x2={W - PAD.right} y1={PAD.top} y2={PAD.top} stroke="#f4f4f5" strokeWidth={1} />
+            <Line x1={PAD.left} x2={W - PAD.right} y1={PAD.top} y2={PAD.top} stroke={colors.zinc100} strokeWidth={1} />
             <SvgText x={PAD.left} y={PAD.top - 4} fontSize={9} fill="#71717a">{String(max)}</SvgText>
             {data.map((d, i) => {
               const h = d.value === 0 ? 0 : Math.max(2, (d.value / max) * innerH);

@@ -240,7 +240,7 @@ const st = StyleSheet.create({
   who: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   user: { fontSize: 14, color: colors.zinc600 },
-  err: { textAlign: 'center', color: colors.red600, paddingVertical: 40 },
+  err: { textAlign: 'center', color: colors.danger, paddingVertical: 40 },
   retry: { alignSelf: 'center', marginTop: 20, minHeight: 44, paddingHorizontal: 20, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   retryText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   back: { alignSelf: 'center', marginTop: 12, minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },

@@ -95,7 +95,7 @@ const st = StyleSheet.create({
   x: { width: 36, height: 36, marginRight: -4, marginTop: -4, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   track: { marginTop: 12, height: 8, overflow: 'hidden', borderRadius: 4, backgroundColor: colors.zinc100 },
   fill: { height: '100%', borderRadius: 4, backgroundColor: colors.brand },
-  step: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', paddingHorizontal: 14 },
+  step: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, paddingHorizontal: 14 },
   stepIco: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, boxShadow: '0 1px 2px rgba(0,0,0,0.08)' },
   stepText: { flex: 1, fontSize: 16, fontWeight: '600', color: colors.zinc900 },
 });

@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   reasonText: { fontSize: 14, color: colors.zinc600 },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   note: { marginTop: 12, borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, minHeight: 64, textAlignVertical: 'top', color: colors.zinc900 },
-  err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.danger },
   cta: { marginTop: 16, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
   ctaText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   thanks: { marginTop: 12, fontSize: 18, fontWeight: '600', color: colors.zinc900 },

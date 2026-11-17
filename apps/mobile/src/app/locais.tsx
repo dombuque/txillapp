@@ -115,7 +115,7 @@ export default function Locais() {
               </View>
             ) : null}
             <TextInput value={about} onChangeText={setAbout} maxLength={1000} multiline numberOfLines={3} placeholder={t('Uma frase sobre o local (podes completar depois)')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Sobre o local')} style={[st.input, { height: 96, textAlignVertical: 'top' }]} />
-            <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text>
+            <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }}>{err}</Text>
             <Pressable onPress={() => void create()} disabled={off} style={[st.cta, off && { opacity: 0.5 }]} accessibilityRole="button">
               <Text style={st.ctaText}>{busy ? t('A criar…') : t('Criar a página')}</Text>
             </Pressable>

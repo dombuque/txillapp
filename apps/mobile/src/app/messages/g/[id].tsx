@@ -357,5 +357,5 @@ const st = StyleSheet.create({
   empty: { textAlign: 'center', color: colors.zinc500, paddingVertical: 24 },
   toPublic: { height: 40, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.zinc100, justifyContent: 'center' },
   toPublicText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
-  err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.danger },
 });

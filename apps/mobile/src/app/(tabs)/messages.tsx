@@ -273,7 +273,7 @@ export default function Messages() {
     else if (a === 'hide') hiding.hide({ username: u }, r.name);
     else if (a === 'ttl') setTtlFor({ username: u, ttl: direct.data?.find((c) => c.username === u)?.ttl ?? null });
   }
-  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600, mixar: colors.brand, hide: colors.zinc600, unhide: colors.zinc600 };
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.danger, info: colors.zinc600, leave: colors.danger, ttl: colors.zinc600, clear: colors.danger, mixar: colors.brand, hide: colors.zinc600, unhide: colors.zinc600 };
   const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
     acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */

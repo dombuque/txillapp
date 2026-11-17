@@ -80,7 +80,7 @@ export function StickerPanel({ onPick, onGif, start = 'stickers' }: { onPick: (i
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginHorizontal: 12, marginTop: 8, overflow: 'hidden', borderRadius: 16, backgroundColor: '#fafafa' },
+  wrap: { marginHorizontal: 12, marginTop: 8, overflow: 'hidden', borderRadius: 16, backgroundColor: colors.zinc50 },
   cats: { gap: 4, paddingHorizontal: 8, paddingTop: 8 },
   modes: { flexDirection: 'row', gap: 4, marginHorizontal: 8, marginTop: 8, padding: 3, borderRadius: 22, backgroundColor: colors.zinc100 },
   mode: { flex: 1, height: 44, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

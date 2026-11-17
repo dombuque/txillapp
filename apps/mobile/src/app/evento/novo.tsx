@@ -219,7 +219,7 @@ const st = StyleSheet.create({
   dayOn: { backgroundColor: colors.zinc900 },
   dayTop: { fontSize: 12, fontWeight: '600', color: colors.zinc500 },
   dayNum: { fontSize: 20, fontWeight: '800', color: colors.zinc900 },
-  err: { fontSize: 14, color: colors.red600 },
+  err: { fontSize: 14, color: colors.danger },
   primary: { height: 50, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: colors.white, fontSize: 16, fontWeight: '700' },
 });

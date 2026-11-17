@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   /** Na linha com o selo (o selo fica a seguir ao nome, os dois centrados). */
   labelName: { marginTop: 0, width: undefined },
   hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500, maxWidth: 320 },
-  err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.danger },
   count: { marginTop: 6, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
   cheerRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   cheerRowText: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },

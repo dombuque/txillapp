@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   opt: { flex: 1, borderWidth: 2, borderRadius: 16, padding: 10, alignItems: 'flex-start' },
   optTitle: { marginTop: 2, fontSize: 14, fontWeight: '700', color: colors.zinc900 },
   optText: { marginTop: 2, fontSize: 11, lineHeight: 14, color: colors.zinc600 },
-  err: { minHeight: 20, marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },
+  err: { minHeight: 20, marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.danger },
   note: { minHeight: 20, marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
   primary: { marginTop: 8, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },

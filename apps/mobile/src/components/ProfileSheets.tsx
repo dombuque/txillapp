@@ -204,7 +204,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
               <Switch value={gBook} onValueChange={setGBook} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Mostrar o livro das geladas a quem vê a geleira')} />
             </View>
           )}
-          <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="button">
+          <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: colors.zinc50 }]} accessibilityRole="button">
             <View style={st.gicon}><Icon name="snowflake" size={22} color="#fff" /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{t('Escolher os meus gostos')}</Text>
@@ -213,7 +213,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
             <Icon name="chevron-right" size={20} color={colors.zinc500} />
           </Pressable>
         </View>
-        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text>
+        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityRole="alert">{err}</Text>
         <Pressable onPress={() => void save()} disabled={busy || photoBusy} style={({ pressed }) => [st.save, (busy || photoBusy) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.saveText}>{t('Guardar')}</Text>}
         </Pressable>

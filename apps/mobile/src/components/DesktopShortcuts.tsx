@@ -85,7 +85,7 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.zinc100 },
   label: { flex: 1, fontSize: 15, color: colors.zinc800 },
   keys: { flexDirection: 'row', gap: 6 },
-  key: { minWidth: 28, height: 28, paddingHorizontal: 8, borderRadius: 7, borderWidth: 1, borderColor: colors.zinc300, borderBottomWidth: 2, backgroundColor: '#fafafa', alignItems: 'center', justifyContent: 'center' },
+  key: { minWidth: 28, height: 28, paddingHorizontal: 8, borderRadius: 7, borderWidth: 1, borderColor: colors.zinc300, borderBottomWidth: 2, backgroundColor: colors.zinc50, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontSize: 13, fontWeight: '700', color: colors.zinc800 },
   note: { marginTop: 12, fontSize: 13, color: colors.zinc500 },
 });

@@ -15,7 +15,7 @@ import { qrShareNote, qrShareText } from '@/lib/profileQrCard';
 import { forgetProfileQr, renderProfileQr, shareProfileQr, type QrImage } from '@/lib/profileQrImage';
 import { t } from '@/lib/i18n';
 
-const INK = '#18181b';
+const INK = colors.zinc900;
 
 /** Símbolo do QR (três cantos e pontos), no mesmo traço dos outros ícones: para o botão do perfil. */
 export function QrGlyph({ size = 20, color = colors.zinc900 }: { size?: number; color?: string }) {

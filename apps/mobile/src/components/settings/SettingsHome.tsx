@@ -46,7 +46,7 @@ function ProfileCard() {
           <Text style={st.meHandle} numberOfLines={1}>@{user.username}</Text>
           <Text style={st.meEdit}>{t('Editar perfil')}</Text>
         </View>
-        <Icon name="chevron-right" size={18} color="#a1a1aa" />
+        <Icon name="chevron-right" size={18} color={colors.zinc400} />
       </Pressable>
       {edit && profile.data ? <EditProfileSheet profile={profile.data} onClose={() => setEdit(false)} /> : null}
     </>
@@ -177,7 +177,7 @@ function GroupRow({ icon, title, subtitle, warn, active, onPress }: { icon: Icon
         <Text style={[st.groupTitle, active && { fontWeight: '800' }]}>{title}</Text>
         <Text style={[st.groupSub, warn && { color: colors.brand, fontWeight: '600' }]} numberOfLines={2}>{subtitle}</Text>
       </View>
-      <Icon name="chevron-right" size={18} color="#a1a1aa" />
+      <Icon name="chevron-right" size={18} color={colors.zinc400} />
     </Pressable>
   );
 }

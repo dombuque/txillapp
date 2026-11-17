@@ -2005,7 +2005,7 @@ const st = StyleSheet.create({
   okBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(214,51,79,0.45)' } as object,
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
   recNote: { color: '#fff', fontSize: 12, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.dangerBright },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   fxName: { color: '#fff', fontSize: 22, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 18, paddingVertical: 8, overflow: 'hidden' },
@@ -2039,7 +2039,7 @@ const st = StyleSheet.create({
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   shutterRing: { position: 'absolute', left: 0, top: 0, width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff' },
   shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#fff' },
-  shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
+  shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.dangerBright },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 10 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
   // Cinco modos (com a TXILLADA) cabem num telemóvel de 390 px sem rolar.

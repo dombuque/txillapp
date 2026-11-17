@@ -128,7 +128,7 @@ export default function SoundScreen() {
       {why ? <Text style={st.why}>{why}</Text> : null}
       {s.kind === 'original' && s.mine ? (
         <Pressable onPress={() => void retire()} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
-          <Text style={{ color: colors.red600, fontSize: 13, fontWeight: '700' }}>{t('Retirar o som')}</Text>
+          <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '700' }}>{t('Retirar o som')}</Text>
         </Pressable>
       ) : null}
       {s.kind === 'original' && !s.mine ? (

@@ -142,7 +142,7 @@ export function TrackCredits({ track, onClose }: { track: Track; onClose: () => 
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 12, overflow: 'hidden' },
+  card: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, padding: 12, overflow: 'hidden' },
   disc: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   discOn: { backgroundColor: colors.brand },
   text: { flex: 1, minWidth: 0 },

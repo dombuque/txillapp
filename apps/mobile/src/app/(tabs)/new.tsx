@@ -760,7 +760,7 @@ export default function Compose() {
             <Tile icon="camera" title={t('Tirar foto')} sub={t('Câmara')} tone={[colors.brand, '#ff8a5b']} onPress={() => void add('camera', 'photo')} />
             <Tile icon="image" title={t('Galeria')} sub={t('Fotos e vídeos, até 10')} tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
             <Tile icon="video" title={t('Vídeo')} sub={t('Até 60 s')} tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
-            <Tile icon="pencil" title={t('Só texto')} sub={t('Uma ideia, um desabafo')} tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
+            <Tile icon="pencil" title={t('Só texto')} sub={t('Uma ideia, um desabafo')} tone={[colors.zinc900, colors.zinc600]} onPress={() => setStep('write')} />
           </View>
           {drafts.length > 0 ? (
             <Pressable onPress={() => router.push('/drafts' as never)} style={styles.draftsLink} accessibilityRole="button">
@@ -963,7 +963,7 @@ export default function Compose() {
                       <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(new Date(d.savedAt).toISOString())}{n > 0 && d.body.trim() ? (' ' + t('· {n} fotos', { n })) : ''}</Text>
                     </View>
                   </Pressable>
-                  <Pressable onPress={() => void dropDraft(d.key)} style={styles.draftTrash} accessibilityRole="button" accessibilityLabel={t('Apagar rascunho')}><Icon name="trash" size={20} color={colors.red600} /></Pressable>
+                  <Pressable onPress={() => void dropDraft(d.key)} style={styles.draftTrash} accessibilityRole="button" accessibilityLabel={t('Apagar rascunho')}><Icon name="trash" size={20} color={colors.danger} /></Pressable>
                 </View>
               );
             })}
@@ -1023,10 +1023,10 @@ const styles = StyleSheet.create({
   chips: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
   chip: { flex: 1, paddingHorizontal: 8 },
   count: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
-  err: { marginTop: 12, paddingHorizontal: 24, textAlign: 'center', color: colors.red600 },
-  errLine: { marginTop: 16, minHeight: 24, paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.red600 },
+  err: { marginTop: 12, paddingHorizontal: 24, textAlign: 'center', color: colors.danger },
+  errLine: { marginTop: 16, minHeight: 24, paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.danger },
   progress: { paddingHorizontal: 24, textAlign: 'center', fontSize: 16, color: colors.zinc600 },
-  draftRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, backgroundColor: '#fafafa', padding: 8, borderWidth: 1, borderColor: colors.zinc100 },
+  draftRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.zinc50, padding: 8, borderWidth: 1, borderColor: colors.zinc100 },
   draftOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 4 },
   draftThumb: { width: 56, height: 56, borderRadius: 12 },
   draftTrash: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },

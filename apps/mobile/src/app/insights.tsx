@@ -25,7 +25,7 @@ function Card({ children, style }: { children: ReactNode; style?: object }) {
 function Delta({ v }: { v: number }) {
   if (!v) return <Text style={st.deltaGrey}>{t('igual ao período anterior')}</Text>;
   return (
-    <Text style={[st.delta, { color: v > 0 ? colors.green700 : colors.red600 }]}>
+    <Text style={[st.delta, { color: v > 0 ? colors.green700 : colors.danger }]}>
       {v > 0 ? '+' : ''}{v}% <Text style={{ fontWeight: '400', color: colors.zinc500 }}>{t('face ao período anterior')}</Text>
     </Text>
   );

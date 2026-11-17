@@ -141,7 +141,7 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
         </Pressable>
       )}
       {state === 'recording' && (
-        <Pressable onPress={stop} style={({ pressed }) => [s.bigBtn, { backgroundColor: colors.red600 }, pressed && s.pressed]} accessibilityRole="button">
+        <Pressable onPress={stop} style={({ pressed }) => [s.bigBtn, { backgroundColor: colors.dangerBright }, pressed && s.pressed]} accessibilityRole="button">
           <View style={s.dot2} />
           <Text style={s.bigTxt}>{t('A gravar {secs}s · Parar', { secs })}</Text>
         </Pressable>

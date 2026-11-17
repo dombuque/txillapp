@@ -316,7 +316,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
   ) : null;
 
   return (
-    <Pressable onPress={() => go(target)} disabled={!target} style={(s) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, (s as { hovered?: boolean }).hovered && target && { backgroundColor: '#fafafa' }, s.pressed && target && { backgroundColor: colors.zinc100 }]}>
+    <Pressable onPress={() => go(target)} disabled={!target} style={(s) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, (s as { hovered?: boolean }).hovered && target && { backgroundColor: colors.zinc50 }, s.pressed && target && { backgroundColor: colors.zinc100 }]}>
       {zasRecap ? (
         // O resumo dos Zás: o raio do Zás num círculo da cor da marca, em vez da cara.
         <View style={styles.zasIcon} accessibilityLabel="Zás"><Icon name="bolt" size={24} solid color="#fff" /></View>

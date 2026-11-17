@@ -130,7 +130,7 @@ export function WeekShare({ mixarId, api, dark = false }: { mixarId: string; api
     <View style={{ gap: 10, width: '100%' }}>
       {btn('zas', 'bolt', t('Partilhar no Zás'), true)}
       {btn('story', 'plus', t('Partilhar nos mimos'), false)}
-      {msg ? <Text style={[ws.msg, { color: msg.ok ? (dark ? '#6ee7b7' : colors.green700) : dark ? '#fca5a5' : colors.red600 }]} accessibilityLiveRegion="polite">{msg.text}</Text> : null}
+      {msg ? <Text style={[ws.msg, { color: msg.ok ? (dark ? '#6ee7b7' : colors.green700) : dark ? '#fca5a5' : colors.danger }]} accessibilityLiveRegion="polite">{msg.text}</Text> : null}
       <Text style={[ws.note, dark && { color: 'rgba(255,255,255,0.6)' }]}>{t('A imagem leva a série, os acertos, os vídeos vistos e os temas da semana. Nunca os temas privados.')}</Text>
     </View>
   );

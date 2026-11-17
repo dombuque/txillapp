@@ -143,7 +143,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       onPress={onRowPress}
       onLongPress={openMenu}
       delayLongPress={380}
-      style={[styles.row, highlighted && { backgroundColor: colors.rose50 }, desktop && over && !highlighted && { backgroundColor: '#fafafa' }]}
+      style={[styles.row, highlighted && { backgroundColor: colors.rose50 }, desktop && over && !highlighted && { backgroundColor: colors.zinc50 }]}
       accessibilityHint={desktop ? t('Botão direito para mais opções') : t('Segura para mais opções')}
       {...(desktop ? {
         onMouseEnter: () => setOver(true),
@@ -207,7 +207,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         </Pressable>
       ) : null}
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? t('Tirar o brinde') : t('Brindar comentário')}>
-        <Animated.View style={popStyle}><Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} /></Animated.View>
+        <Animated.View style={popStyle}><Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : colors.zinc400} /></Animated.View>
       </Pressable>
       <CheersPour n={burst} size={120} />
       {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },
   save: { height: 36, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   saveText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  err: { fontSize: 14, color: colors.red600 },
+  err: { fontSize: 14, color: colors.danger },
   ask: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, backgroundColor: '#fffbeb', padding: 8, paddingLeft: 10 },
   askIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center' },
   askTitle: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },

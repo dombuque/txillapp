@@ -62,7 +62,7 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, on
         {onTopics || onPrivate ? <ControlLinks onTopics={onTopics} onPrivate={onPrivate} /> : null}
         {onLeave ? (
           <Pressable onPress={onLeave} style={({ pressed }) => [ds.leave, pressed && { opacity: 0.6 }]} accessibilityRole="button">
-            <Icon name="logout" size={16} color={colors.red600} />
+            <Icon name="logout" size={16} color={colors.danger} />
             <Text style={ds.leaveText}>{mixar.group ? t('Sair do Mixar do grupo') : t('Sair do Mixar')}</Text>
           </Pressable>
         ) : null}
@@ -91,14 +91,14 @@ function ControlLinks({ onTopics, onPrivate }: { onTopics?: () => void; onPrivat
         <Pressable onPress={onTopics} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Icon name="sliders" size={18} color={colors.zinc800} />
           <Text style={ds.linkText}>{t('Afinar os temas do Mixar')}</Text>
-          <Icon name="chevron-right" size={16} color="#a1a1aa" />
+          <Icon name="chevron-right" size={16} color={colors.zinc400} />
         </Pressable>
       ) : null}
       {onPrivate ? (
         <Pressable onPress={onPrivate} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Icon name="lock" size={18} color={colors.zinc800} />
           <Text style={ds.linkText}>{t('Temas privados')}</Text>
-          <Icon name="chevron-right" size={16} color="#a1a1aa" />
+          <Icon name="chevron-right" size={16} color={colors.zinc400} />
         </Pressable>
       ) : null}
     </View>
@@ -138,7 +138,7 @@ const ds = StyleSheet.create({
   link: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
   linkText: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   leave: { marginTop: 18, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  leaveText: { fontSize: 15, fontWeight: '700', color: colors.red600 },
+  leaveText: { fontSize: 15, fontWeight: '700', color: colors.danger },
   person: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 10, paddingVertical: 4 },
   personText: { fontSize: 13, fontWeight: '700', color: colors.zinc800 },
 });

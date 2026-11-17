@@ -339,7 +339,7 @@ const s = StyleSheet.create({
   writeText: { fontSize: 16, lineHeight: 21, color: colors.zinc900 },
   writeDots: { marginTop: 6, height: 8, justifyContent: 'center' },
   composer: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 8 },
-  err: { textAlign: 'center', color: '#dc2626', fontSize: 14, paddingBottom: 6 },
+  err: { textAlign: 'center', color: colors.danger, fontSize: 14, paddingBottom: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderRadius: 24, backgroundColor: colors.zinc100, padding: 4 },
   input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 128, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 20, color: colors.zinc900, outlineStyle: 'none' } as object,
 

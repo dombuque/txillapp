@@ -458,7 +458,7 @@ const st = StyleSheet.create({
   dot: { position: 'absolute', top: 7, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 1.5, borderColor: colors.zinc100 },
   onceChip: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, marginBottom: 4, marginLeft: 4, borderRadius: 16, paddingHorizontal: 10, backgroundColor: 'rgba(214,51,79,0.12)' },
   onceText: { fontSize: 13, fontWeight: '700', color: colors.brand },
-  err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
+  err: { textAlign: 'center', fontSize: 14, color: colors.danger, paddingBottom: 6 },
   // A foto, o vídeo ou a voz a subir (pode demorar com rede fraca): sem isto nada dizia que estava a enviar.
   busy: { textAlign: 'center', fontSize: 13, color: colors.zinc500, paddingBottom: 6 },
   help: { marginHorizontal: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, backgroundColor: colors.zinc900, paddingHorizontal: 14, paddingVertical: 10 },
@@ -470,7 +470,7 @@ const st = StyleSheet.create({
   replyX: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   recX: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   recMid: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red600 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.dangerBright },
   recTime: { fontSize: 17, fontWeight: '700', color: colors.zinc900, fontVariant: ['tabular-nums'] },
   recHint: { fontSize: 14, color: colors.zinc500 },
 });

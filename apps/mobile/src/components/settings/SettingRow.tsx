@@ -52,19 +52,19 @@ export function SettingRow({ icon, title, description, value, to, onPress, toggl
   const { ref, lit } = useAnchor(anchor);
   const press = toggle ? (toggle.disabled ? undefined : () => toggle.onChange(!toggle.on)) : to ? () => router.push(to as never) : onPress;
   const iconEl = typeof icon === 'string' && !isValidElement(icon)
-    ? <Icon name={icon as IconName} size={20} color={danger ? colors.red600 : colors.zinc800} />
+    ? <Icon name={icon as IconName} size={20} color={danger ? colors.danger : colors.zinc800} />
     : icon;
   const right = toggle
     ? <SwitchMark on={toggle.on} disabled={toggle.disabled} />
     : press
-      ? (danger ? null : <Icon name="chevron-right" size={18} color="#a1a1aa" />)
+      ? (danger ? null : <Icon name="chevron-right" size={18} color={colors.zinc400} />)
       : locked ? <Icon name="lock" size={16} color={colors.zinc300} /> : null;
   const body = (
     <>
       <IconDot danger={danger}>{iconEl}</IconDot>
       <View style={st.texts}>
-        <Text style={[st.title, danger && { color: colors.red600 }]}>{title}</Text>
-        {description ? <Text style={[st.desc, tone === 'error' && { color: colors.red600 }]}>{description}</Text> : null}
+        <Text style={[st.title, danger && { color: colors.danger }]}>{title}</Text>
+        {description ? <Text style={[st.desc, tone === 'error' && { color: colors.danger }]}>{description}</Text> : null}
       </View>
       {value ? <Text style={st.value} numberOfLines={2}>{value}</Text> : null}
       {right}
