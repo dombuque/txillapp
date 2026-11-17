@@ -16,13 +16,17 @@ test('usePrivacy: se o servidor recusar, volta atrás e avisa', () => {
   const src = read('components', 'settings', 'usePrivacy.ts');
   const c = src.slice(src.indexOf('} catch'));
   assert.match(c, /qc\.setQueryData\(\['privacy'\], prev\)/);
-  assert.match(c, /Alert\.alert\('Não deu'/);
+  // O aviso de baixo (a folha de escolha já fechou quando o servidor responde).
+  assert.match(c, /showToast\(e instanceof ApiError && e\.message \? e\.message/);
 });
 
 test('respostas aos mimos: o erro não fica por apanhar', () => {
   const src = read('app', 'settings', 'privacidade.tsx');
   assert.doesNotMatch(src, /onPick=\{async \(v\) => qc\.setQueryData\(\['story-settings'\]/);
-  assert.match(src, /async function saveStoryReplies[\s\S]*?catch \(e\)[\s\S]*?Alert\.alert/);
+  assert.match(src, /async function saveStoryReplies[\s\S]*?catch \(e\)[\s\S]*?showToast\(/);
+  // Desligar «Guardar os meus Zás» apaga logo: pergunta antes, na caixa da app.
+  assert.match(src, /await confirm\(\{ title: KEEP_OFF_PROMPT\.title, message: KEEP_OFF_PROMPT\.message, confirm: KEEP_OFF_PROMPT\.confirm, danger: true \}\)/);
+  assert.doesNotMatch(src, /Alert\.alert/);
 });
 
 test('PersonRow (Mostrar, Desbloquear): um toque só e o erro é dito', () => {

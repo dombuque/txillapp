@@ -163,7 +163,7 @@ function GroupRow({ icon, title, subtitle, warn, active, onPress }: { icon: Icon
   return (
     <Pressable
       onPress={onPress}
-      style={(s) => [st.group, active && st.groupActive, (s.pressed || (s as { hovered?: boolean }).hovered) && !active && { backgroundColor: '#fafafa' }]}
+      style={(s) => [st.group, active && st.groupActive, (s.pressed || (s as { hovered?: boolean }).hovered) && !active && { backgroundColor: colors.zinc50 }]}
       accessibilityRole="link"
       accessibilityLabel={`${title}. ${subtitle}`}
       accessibilityState={{ selected: !!active }}
@@ -182,7 +182,7 @@ function GroupRow({ icon, title, subtitle, warn, active, onPress }: { icon: Icon
 }
 
 const st = StyleSheet.create({
-  me: { minHeight: 92, marginHorizontal: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 24, backgroundColor: '#fff', padding: 16, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
+  me: { minHeight: 92, marginHorizontal: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 24, backgroundColor: colors.white, padding: 16, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
   meName: { fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   meHandle: { fontSize: 14, color: colors.zinc600 },
   meEdit: { marginTop: 2, fontSize: 14, fontWeight: '600', color: colors.brand },

@@ -4,8 +4,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
-import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { ApiError, api, type Badged, type Gender } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { GENDERS } from './options';
@@ -34,7 +34,7 @@ export function PersonRow({ username, displayName, who, action, onAction }: { us
         <NameWithBadge name={displayName} who={who} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
         <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{username}</Text>
       </View>
-      <Pressable onPress={() => void run()} disabled={busy} style={[s.outline, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`${action} @${username}`} accessibilityState={{ disabled: busy, busy }}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{action}</Text></Pressable>
+      <Button label={action} kind="secondary" size="sm" onPress={() => void run()} disabled={busy} loading={busy} accessibilityLabel={`${action} @${username}`} />
     </View>
   );
 }
@@ -101,11 +101,9 @@ export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => Promise<v
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
         <Text style={{ textAlign: 'center', fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
         <Text style={{ textAlign: 'center', color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
-        {err ? <Text style={{ textAlign: 'center', color: colors.red600, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
-        <Pressable onPress={() => void confirm()} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Sim, sair</Text>}
-        </Pressable>
-        <Pressable onPress={onClose} disabled={busy} style={[s.ghost, busy && { opacity: 0.5 }]} accessibilityRole="button"><Text style={s.ghostText}>Fico por aqui</Text></Pressable>
+        {err ? <Text style={{ textAlign: 'center', color: colors.danger, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
+        <Button label="Sim, sair" onPress={() => void confirm()} disabled={busy} loading={busy} />
+        <Button label="Fico por aqui" kind="secondary" onPress={onClose} disabled={busy} style={{ marginTop: 12 }} />
       </View>
     </Sheet>
   );
@@ -134,9 +132,9 @@ export function HiddenSheet({ onClose }: { onClose: () => void }) {
         <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Estas pessoas deixam de ver os teus mimos, sem serem avisadas.</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput value={name} onChangeText={setName} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => void add()} style={[s.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
-          <Pressable onPress={() => void add()} disabled={!name.trim()} style={[st.add, !name.trim() && { opacity: 0.6 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Esconder</Text></Pressable>
+          <Button label="Esconder" size="md" onPress={() => void add()} disabled={!name.trim()} style={{ alignSelf: 'center' }} />
         </View>
-        <Text style={{ minHeight: 20, paddingTop: 4, fontSize: 14, color: colors.red600 }}>{err}</Text>
+        <Text style={{ minHeight: 20, paddingTop: 4, fontSize: 14, color: colors.danger }}>{err}</Text>
         {q.data?.hidden.length === 0 && <Text style={s.none}>Ninguém escondido</Text>}
         {q.data?.hidden.map((h) => <PersonRow key={h.username} username={h.username} displayName={h.displayName} who={h} action="Mostrar" onAction={async () => qc.setQueryData(['story-settings'], await api.unhideStoryFrom(h.username))} />)}
       </ScrollView>
@@ -187,7 +185,7 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
       <Sheet title="Senha alterada" onClose={onClose}>
         <View style={{ paddingHorizontal: 20 }}>
           <Text style={{ textAlign: 'center', color: colors.zinc700, paddingVertical: 12, fontSize: 16 }}>As sessões nos outros dispositivos foram terminadas.</Text>
-          <Pressable onPress={onClose} style={s.primary} accessibilityRole="button"><Text style={s.primaryText}>Feito</Text></Pressable>
+          <Button label="Feito" onPress={onClose} />
         </View>
       </Sheet>
     );
@@ -199,10 +197,8 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
         <TextInput value={cur} onChangeText={(t) => { setCur(t); setErr(''); }} placeholder="Senha atual" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="current-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} style={s.input} accessibilityLabel="Senha atual" />
         <TextInput ref={nextRef} value={next} onChangeText={(t) => { setNext(t); setErr(''); }} placeholder="Nova senha (mínimo 10 caracteres)" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} style={s.input} accessibilityLabel="Nova senha" />
         <TextInput ref={againRef} value={again} onChangeText={(t) => { setAgain(t); setErr(''); }} placeholder="Repete a nova senha" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} style={s.input} accessibilityLabel="Repete a nova senha" />
-        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityLiveRegion="polite">{err}</Text>
-        <Pressable onPress={() => void submit()} disabled={busy || !cur || !next} style={[s.primary, (busy || !cur || !next) && { opacity: 0.5 }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Alterar senha</Text>}
-        </Pressable>
+        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
+        <Button label="Alterar senha" onPress={() => void submit()} disabled={busy || !cur || !next} loading={busy} />
       </View>
     </Sheet>
   );
@@ -229,23 +225,20 @@ export function DeleteSheet({ username, onClose, onDeleted }: { username: string
   return (
     <Sheet title="Eliminar conta" onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
-        <View style={{ borderRadius: 16, backgroundColor: '#fef2f2', padding: 16 }}>
+        <View style={{ borderRadius: 16, backgroundColor: colors.dangerSoft, padding: 16 }}>
           <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>Isto não se desfaz.</Text>
           {['O teu nome, @, bio, foto e email são apagados.', 'Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.', 'Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups, os pedidos para entrar em grupos e tudo o que é do mapa.', 'Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.', 'Os teus comentários (também em posts de outras pessoas) e as mensagens que enviaste nos TxillGroups são apagados.', 'Os movimentos de vibes ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
         </View>
         <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={s.input} accessibilityLabel="Confirmar o teu @" />
         <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={s.input} accessibilityLabel="Senha" />
-        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityLiveRegion="polite">{err}</Text>
-        <Pressable onPress={() => void submit()} disabled={busy || !can} style={[s.danger, (busy || !can) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityState={{ disabled: busy || !can }}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Eliminar a minha conta</Text>}
-        </Pressable>
-        <Pressable onPress={onClose} style={s.ghost} accessibilityRole="button"><Text style={s.ghostText}>Cancelar</Text></Pressable>
+        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
+        <Button label="Eliminar a minha conta" kind="dangerSolid" onPress={() => void submit()} disabled={busy || !can} loading={busy} />
+        <Button label="Cancelar" kind="secondary" onPress={onClose} />
       </ScrollView>
     </Sheet>
   );
 }
 
 const st = StyleSheet.create({
-  gender: { flex: 1, minHeight: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, backgroundColor: '#fff' },
-  add: { minHeight: 48, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
+  gender: { flex: 1, minHeight: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, backgroundColor: colors.white },
 });

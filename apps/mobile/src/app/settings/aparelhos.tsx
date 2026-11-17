@@ -1,21 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
 import { IconDot, SettingsSection, settingsStyles as s } from '@/components/settings/SettingRow';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { api } from '@/lib/api';
 import { detalheAparelho, eTelemovel, ordenarAparelhos, type Aparelho } from '@/lib/aparelhos';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 
-/** Pergunta antes de terminar (no browser, o Alert do React Native não tem botões: usa-se o confirm). */
-function confirmar(title: string, text: string, ok: string, go: () => void) {
-  if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${text}`)) go();
-    return;
-  }
-  Alert.alert(title, text, [{ text: 'Cancelar', style: 'cancel' }, { text: ok, style: 'destructive', onPress: go }]);
+/** Pergunta antes de terminar, na caixa da app (igual no telemóvel e no site). */
+async function confirmar(title: string, text: string, ok: string, go: () => void) {
+  if (await confirm({ title, message: text, confirm: ok, danger: true })) go();
 }
 
 /** Uma linha da lista, com o mesmo desenho das linhas das Definições (components/settings/SettingRow). */
@@ -28,9 +27,7 @@ function DeviceRow({ d, busy, onEnd }: { d: Aparelho; busy?: boolean; onEnd?: ()
         <Text style={st.desc}>{detalheAparelho(d)}</Text>
       </View>
       {onEnd ? (
-        <Pressable onPress={onEnd} disabled={busy} style={[s.outline, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Terminar sessão em ${d.device}`}>
-          <Text style={st.outlineText}>Terminar</Text>
-        </Pressable>
+        <Button label="Terminar" kind="secondary" size="sm" loading={busy} onPress={onEnd} accessibilityLabel={`Terminar sessão em ${d.device}`} />
       ) : null}
     </View>
   );
@@ -64,13 +61,8 @@ export default function Aparelhos() {
   return (
     <SettingsPage title="Os teus aparelhos">
       <Text style={st.lead}>Onde a tua conta tem sessão iniciada, com a data em que entraste e a última atividade. Não reconheces algum? Termina a sessão nele e muda a senha.</Text>
-      {q.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
-      {q.isError && (
-        <View style={st.errorBox}>
-          <Text style={st.errorText}>Não foi possível carregar os aparelhos.</Text>
-          <Pressable onPress={() => void q.refetch()} style={s.outline} accessibilityRole="button"><Text style={st.outlineText}>Tentar outra vez</Text></Pressable>
-        </View>
-      )}
+      {q.isLoading && <PageLoader style={{ paddingTop: 24 }} />}
+      {q.isError && <ErrorState what="os teus aparelhos" onRetry={() => void q.refetch()} />}
       {q.isSuccess && list.length === 0 && <Text style={s.none}>Sem sessões iniciadas.</Text>}
       <SettingsSection title="Este aparelho">
         {here.map((d) => <DeviceRow key={d.id} d={d} />)}
@@ -81,21 +73,20 @@ export default function Aparelhos() {
             key={d.id}
             d={d}
             busy={one.isPending && one.variables === d.id}
-            onEnd={() => confirmar('Terminar sessão?', `${d.device} deixa de ter acesso à tua conta dentro de poucos minutos.`, 'Terminar', () => one.mutate(d.id))}
+            onEnd={() => void confirmar('Terminar sessão?', `${d.device} deixa de ter acesso à tua conta dentro de poucos minutos.`, 'Terminar', () => one.mutate(d.id))}
           />
         ))}
       </SettingsSection>
       {err ? <Text style={st.err} accessibilityLiveRegion="polite">{err}</Text> : null}
       {rest.length > 1 && (
         <View style={{ paddingHorizontal: 16 }}>
-          <Pressable
-            onPress={() => confirmar('Terminar todas as outras?', 'Ficas só com a sessão deste aparelho.', 'Terminar todas', () => others.mutate())}
-            disabled={others.isPending}
-            style={[s.ghost, { marginTop: 16 }, others.isPending && { opacity: 0.5 }]}
-            accessibilityRole="button"
-          >
-            {others.isPending ? <ActivityIndicator color={colors.zinc800} /> : <Text style={s.ghostText}>Terminar sessão em todos os outros</Text>}
-          </Pressable>
+          <Button
+            label="Terminar sessão em todos os outros"
+            kind="secondary"
+            loading={others.isPending}
+            onPress={() => void confirmar('Terminar todas as outras?', 'Ficas só com a sessão deste aparelho.', 'Terminar todas', () => others.mutate())}
+            style={{ marginTop: 16 }}
+          />
         </View>
       )}
       {q.isSuccess ? <Text style={st.note}>Nas sessões não guardamos o endereço IP: só o tipo de aparelho e de browser, a versão da app e as datas.</Text> : null}
@@ -110,9 +101,6 @@ const st = StyleSheet.create({
   texts: { flex: 1, minWidth: 0 },
   title: { fontSize: 16, fontWeight: '500', color: colors.zinc900 },
   desc: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.zinc600 },
-  outlineText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
-  errorBox: { marginTop: 16, marginHorizontal: 16, gap: 10, alignItems: 'flex-start', borderRadius: 14, backgroundColor: '#fef2f2', padding: 14 },
-  errorText: { fontSize: 14, color: '#7f1d1d' },
-  err: { marginTop: 10, paddingHorizontal: 24, fontSize: 14, color: colors.red600 },
+  err: { marginTop: 10, paddingHorizontal: 24, fontSize: 14, color: colors.danger },
   note: { marginTop: 20, paddingHorizontal: 24, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
 });

@@ -2,16 +2,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { ActivityIndicator } from '@/components/PontoLoader';
-import { SettingsSection, settingsStyles as s } from '@/components/settings/SettingRow';
+import { PageLoader } from '@/components/PontoLoader';
+import { SettingsSection } from '@/components/settings/SettingRow';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { ApiError } from '@/lib/api';
 import { soundsApi, type MySound } from '@/lib/api.sounds';
 import { sized } from '@/lib/config';
 import { mySoundStatus, RETIRE_SOUND_TEXT, RETIRE_SOUND_TITLE, soundHref, usesLine } from '@/lib/sounds';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
+import { showToast } from '@/lib/toast';
 
 /**
  * Definições › Conteúdo › «Os meus sons»: os sons originais das minhas tchekas (docs/sons.md), quantas tchekas os usam, o
@@ -23,30 +27,22 @@ export default function MySounds() {
   const q = useQuery({ queryKey: ['sounds', 'mine'], queryFn: soundsApi.mine });
   const [busy, setBusy] = useState<string | null>(null);
 
-  function retire(x: MySound) {
-    Alert.alert(RETIRE_SOUND_TITLE, RETIRE_SOUND_TEXT, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Retirar',
-        style: 'destructive',
-        onPress: () => {
-          setBusy(x.id);
-          soundsApi
-            .retire(x.id)
-            .then(() => qc.invalidateQueries({ queryKey: ['sounds'] }))
-            .catch((e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.'))
-            .finally(() => setBusy(null));
-        },
-      },
-    ]);
+  async function retire(x: MySound) {
+    if (!(await confirm({ title: RETIRE_SOUND_TITLE, message: RETIRE_SOUND_TEXT, confirm: 'Retirar', danger: true }))) return;
+    setBusy(x.id);
+    soundsApi
+      .retire(x.id)
+      .then(() => qc.invalidateQueries({ queryKey: ['sounds'] }))
+      .catch((e) => showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui retirar o som. Tenta outra vez daqui a pouco.'))
+      .finally(() => setBusy(null));
   }
 
   const items = q.data ?? [];
   return (
     <SettingsPage title="Os meus sons">
       <SettingsSection note="O som de cada tcheka que publicaste com o som do próprio vídeo. Retirar um som tira-o de todo o lado: as tchekas que o usam ficam sem som. A tcheka de onde saiu fica como está.">
-        {q.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-        {q.isError ? <Text style={st.empty}>Não consegui abrir os teus sons. Tenta outra vez daqui a pouco.</Text> : null}
+        {q.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
+        {q.isError ? <ErrorState what="os teus sons" onRetry={() => void q.refetch()} style={{ marginTop: 24, marginBottom: 24 }} /> : null}
         {q.isSuccess && !items.length ? <Text style={st.empty}>Ainda não tens sons. Publica uma tcheka com o som do vídeo.</Text> : null}
         {items.map((x) => {
           const st8 = mySoundStatus(x);
@@ -61,9 +57,7 @@ export default function MySounds() {
                 <Text style={st.desc}>{st8.text}</Text>
               </View>
               {st8.canRetire ? (
-                <Pressable onPress={() => retire(x)} disabled={busy === x.id} style={[s.outline, busy === x.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Retirar o som">
-                  <Text style={st.retire}>Retirar o som</Text>
-                </Pressable>
+                <Button label="Retirar o som" kind="danger" size="sm" loading={busy === x.id} onPress={() => void retire(x)} />
               ) : null}
             </View>
           );
@@ -78,6 +72,5 @@ const st = StyleSheet.create({
   cover: { width: 48, height: 48, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   desc: { fontSize: 13, color: colors.zinc600, marginTop: 2 },
-  retire: { fontSize: 14, fontWeight: '700', color: colors.red600 },
   empty: { fontSize: 14, color: colors.zinc600, padding: 16 },
 });
