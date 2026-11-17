@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { TERMS_CHANGES } from '@/lib/legalText';
 import { colors } from '@/lib/theme';
@@ -45,9 +46,7 @@ export function TermsUpdate() {
       </ScrollView>
       <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.zinc200 }}>
         {accept.isError ? <Text style={st.err}>Não consegui guardar. Tenta outra vez.</Text> : null}
-        <Pressable onPress={() => accept.mutate()} disabled={accept.isPending} style={({ pressed }) => [st.btn, (pressed || accept.isPending) && { opacity: 0.8 }]} accessibilityRole="button">
-          <Text style={st.btnText}>{accept.isPending ? 'A guardar…' : 'Aceitar e continuar'}</Text>
-        </Pressable>
+        <Button label="Aceitar e continuar" onPress={() => accept.mutate()} loading={accept.isPending} block style={st.btn} />
       </View>
     </Sheet>
   );
@@ -59,7 +58,6 @@ const st = StyleSheet.create({
   check: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   itemText: { flex: 1, fontSize: 15, color: colors.zinc900, lineHeight: 21 },
   link: { fontSize: 15, fontWeight: '600', color: colors.brand },
-  err: { fontSize: 14, color: colors.red600 },
-  btn: { height: 50, borderRadius: 25, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  err: { fontSize: 14, color: colors.danger },
+  btn: { marginTop: 4 },
 });

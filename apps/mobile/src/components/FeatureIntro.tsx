@@ -1,9 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Sheet } from './Sheet';
+import { Button } from './ui/Button';
 
 interface Point { icon: IconName; title: string; text: string }
 interface Intro { icon: IconName; title: string; points: Point[]; note?: string }
@@ -75,7 +76,7 @@ export function FeatureIntro({ id }: { id: string }) {
     <Sheet onClose={done} plain>
       <View style={st.wrap}>
         <View style={st.hero}>
-          <LinearGradient colors={['#d6334f', '#ff9a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[colors.brand, colors.brandWarm]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
           <View style={{ position: 'relative' }}><Icon name={intro.icon} size={56} color="#fff" strokeWidth={1.8} /></View>
         </View>
         <Text style={st.title}>{intro.title}</Text>
@@ -91,9 +92,7 @@ export function FeatureIntro({ id }: { id: string }) {
           ))}
         </View>
         {intro.note ? <Text style={st.note}>{intro.note}</Text> : null}
-        <Pressable onPress={done} style={({ pressed }) => [st.btn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-          <Text style={st.btnText}>Continuar</Text>
-        </Pressable>
+        <Button label="Continuar" onPress={done} block style={st.btn} />
       </View>
     </Sheet>
   );
@@ -106,6 +105,5 @@ const st = StyleSheet.create({
   pTitle: { fontSize: 16, fontWeight: '700', color: colors.zinc900, lineHeight: 21 },
   pText: { fontSize: 15, lineHeight: 20, color: colors.zinc600, marginTop: 1 },
   note: { marginTop: 22, textAlign: 'center', fontSize: 13, lineHeight: 18, color: colors.zinc500 },
-  btn: { marginTop: 22, height: 52, borderRadius: 26, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  btn: { marginTop: 22 },
 });

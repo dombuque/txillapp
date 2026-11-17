@@ -5,6 +5,7 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
+import { Button } from '@/components/ui/Button';
 import { colors } from '@/lib/theme';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
@@ -44,8 +45,8 @@ export function Landing() {
       <View style={st.header}>
         <Wordmark height={32} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Pressable onPress={() => go('/login?entrar=1')} style={st.navBtn} accessibilityRole="link"><Text style={st.navText}>Entrar</Text></Pressable>
-          {width >= 640 ? <Pressable onPress={() => go('/register')} style={[st.navBtn, { backgroundColor: colors.brand }]} accessibilityRole="link"><Text style={[st.navText, { color: '#fff', fontWeight: '700' }]}>Criar conta</Text></Pressable> : null}
+          <Button label="Entrar" kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
+          {width >= 640 ? <Button label="Criar conta" size="md" onPress={() => go('/register')} /> : null}
         </View>
       </View>
 
@@ -54,8 +55,8 @@ export function Landing() {
           <Text style={[st.h1, width >= 640 && { fontSize: 60, lineHeight: 63 }]} accessibilityRole="header">Posta. Mostra. <Text style={{ color: colors.brand }}>Txilla.</Text></Text>
           <Text style={st.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
           <View style={st.cta}>
-            <Pressable onPress={() => go('/register')} style={({ pressed }) => [st.primary, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="link"><Text style={st.primaryText}>Criar conta grátis</Text></Pressable>
-            <Pressable onPress={() => go('/login?entrar=1')} style={({ pressed }) => [st.secondary, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="link"><Text style={st.secondaryText}>Já tenho conta</Text></Pressable>
+            <Button label="Criar conta grátis" onPress={() => go('/register')} style={st.primary} />
+            <Button label="Já tenho conta" kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
           </View>
           <Text style={st.note}>Para maiores de 15 anos. Funciona no navegador e podes instalar no telemóvel.</Text>
         </View>
@@ -102,7 +103,7 @@ export function Landing() {
       <View style={st.last}>
         <Text style={[st.h2, { textAlign: 'center', marginTop: 0 }]} accessibilityRole="header">Bora entrar na festa?</Text>
         <Text style={st.lastSub}>É grátis e demora menos de um minuto.</Text>
-        <Pressable onPress={() => go('/register')} style={({ pressed }) => [st.primary, { marginTop: 24, paddingHorizontal: 40 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="link"><Text style={st.primaryText}>Criar a minha conta</Text></Pressable>
+        <Button label="Criar a minha conta" onPress={() => go('/register')} style={[st.primary, { marginTop: 24, paddingHorizontal: 40 }]} />
       </View>
 
       <View style={[st.footer, { paddingBottom: 32 + insets.bottom }]}>
@@ -137,15 +138,15 @@ function DesktopLanding({ go, year }: { go: (path: string) => void; year: number
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.white }} contentContainerStyle={{ minHeight: '100%' }}>
       <View style={dk.bg} pointerEvents="none">
-        <LinearGradient colors={['#fff1f2', '#ffffff']} start={{ x: 0.85, y: 0 }} end={{ x: 0.35, y: 1 }} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={[colors.rose50, colors.white]} start={{ x: 0.85, y: 0 }} end={{ x: 0.35, y: 1 }} style={StyleSheet.absoluteFill} />
       </View>
       <View style={dk.wrap}>
         <View style={dk.header}>
           <Pressable onPress={() => go('/')} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial"><Wordmark height={34} /></Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Pressable onPress={() => go('/help')} style={(s) => [dk.navBtn, (s as Hover).hovered && dk.navHover]} accessibilityRole="link"><Text style={dk.navText}>Ajuda</Text></Pressable>
-            <Pressable onPress={() => go('/login?entrar=1')} style={(s) => [dk.navBtn, (s as Hover).hovered && dk.navHover]} accessibilityRole="link"><Text style={dk.navText}>Entrar</Text></Pressable>
-            <Pressable onPress={() => go('/register')} style={(s) => [dk.navBtn, { backgroundColor: colors.brand }, (s as Hover).hovered && { opacity: 0.9 }]} accessibilityRole="link"><Text style={[dk.navText, { color: '#fff', fontWeight: '700' }]}>Criar conta</Text></Pressable>
+            <Button label="Ajuda" kind="ghost" size="md" onPress={() => go('/help')} />
+            <Button label="Entrar" kind="ghost" size="md" onPress={() => go('/login?entrar=1')} />
+            <Button label="Criar conta" size="md" onPress={() => go('/register')} />
           </View>
         </View>
 
@@ -155,8 +156,8 @@ function DesktopLanding({ go, year }: { go: (path: string) => void; year: number
             <Text style={[dk.h1, big && { fontSize: 68, lineHeight: 72 }]} accessibilityRole="header">Posta. Mostra.{'\n'}<Text style={{ color: colors.brand }}>Txilla.</Text></Text>
             <Text style={dk.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
             <View style={dk.cta}>
-              <Pressable onPress={() => go('/register')} style={(s) => [st.primary, (s as Hover).hovered && { opacity: 0.92 }, s.pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="link"><Text style={st.primaryText}>Criar conta grátis</Text></Pressable>
-              <Pressable onPress={() => go('/login?entrar=1')} style={(s) => [st.secondary, (s as Hover).hovered && { borderColor: colors.zinc300, backgroundColor: '#fafafa' }, s.pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="link"><Text style={st.secondaryText}>Já tenho conta</Text></Pressable>
+              <Button label="Criar conta grátis" onPress={() => go('/register')} style={st.primary} />
+              <Button label="Já tenho conta" kind="secondary" onPress={() => go('/login?entrar=1')} style={st.secondary} />
             </View>
             <View style={dk.stores}>
               <Pressable onPress={() => void Linking.openURL(BETA_URL)} style={(s) => [dk.store, (s as Hover).hovered && dk.storeHover]} accessibilityRole="link" accessibilityLabel="Descarregar a app para Android (beta)">
@@ -244,7 +245,7 @@ function Montage() {
         <View style={[dk.bubble, { alignSelf: 'flex-start', backgroundColor: colors.zinc100 }]}><Text style={{ fontSize: 13, color: colors.zinc900 }}>Bora txillar hoje?</Text></View>
         <View style={[dk.bubble, { alignSelf: 'flex-end', backgroundColor: colors.brand }]}><Text style={{ fontSize: 13, color: '#fff', fontWeight: '600' }}>Já estou a caminho!</Text></View>
       </View>
-      {/* Um presente (Txills), em baixo. */}
+      {/* Um presente (vibes), em baixo. */}
       <View style={[dk.float, { right: 30, bottom: 60, flexDirection: 'row', alignItems: 'center', gap: 10, transform: [{ rotate: '-3deg' }] }]}>
         <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' }}><Icon name="gift" size={20} color={colors.brand} /></View>
         <View>
@@ -260,9 +261,6 @@ const dk = StyleSheet.create({
   bg: { position: 'absolute', left: 0, right: 0, top: 0, height: 760 },
   wrap: { width: '100%', maxWidth: 1200, alignSelf: 'center', paddingHorizontal: 40 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20 },
-  navBtn: { borderRadius: 999, paddingHorizontal: 20, paddingVertical: 10 },
-  navHover: { backgroundColor: colors.zinc100 },
-  navText: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   hero: { flexDirection: 'row', alignItems: 'center', paddingTop: 40, paddingBottom: 56 },
   pill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.zinc200, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 20 },
   pillDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
@@ -281,8 +279,8 @@ const dk = StyleSheet.create({
   float: { position: 'absolute', borderRadius: 20, backgroundColor: '#fff', padding: 12, boxShadow: '0 18px 40px rgba(0,0,0,0.14)' },
   bubble: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, maxWidth: 170 },
   features: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingBottom: 56 },
-  card: { width: '31%', flexGrow: 1, borderRadius: 22, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 22 },
-  footer: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingVertical: 24, backgroundColor: '#fff' },
+  card: { width: '31%', flexGrow: 1, borderRadius: 22, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, padding: 22 },
+  footer: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingVertical: 24, backgroundColor: colors.white },
   footRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' },
   footLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 8 },
   footLink: { fontSize: 14, color: colors.zinc600, fontWeight: '600' },
@@ -293,21 +291,18 @@ const st = StyleSheet.create({
   footLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 18, rowGap: 8, paddingHorizontal: 20 },
   footLink: { fontSize: 14, color: colors.zinc600, fontWeight: '600' },
   header: { width: '100%', maxWidth: 1152, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
-  navBtn: { borderRadius: 999, paddingHorizontal: 20, paddingVertical: 10 },
-  navText: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   hero: { width: '100%', maxWidth: 1152, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 32, paddingBottom: 64, gap: 40 },
   h1: { fontSize: 48, lineHeight: 50, fontWeight: '800', letterSpacing: -1, color: colors.zinc900 },
   lead: { marginTop: 20, maxWidth: 512, fontSize: 20, lineHeight: 32, color: colors.zinc600 },
   cta: { marginTop: 32, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  primary: { borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 32, paddingVertical: 16, alignItems: 'center', boxShadow: '0 10px 15px rgba(254,205,211,0.8)' },
-  primaryText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  secondary: { borderRadius: 999, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 32, paddingVertical: 14, alignItems: 'center' },
-  secondaryText: { fontSize: 18, fontWeight: '700', color: colors.zinc900 },
+  /** Os CTAs (Button lg) mais largos e com a sombra rosa da apresentação. */
+  primary: { paddingHorizontal: 32, boxShadow: '0 10px 15px rgba(254,205,211,0.8)' },
+  secondary: { paddingHorizontal: 32 },
   note: { marginTop: 16, fontSize: 14, color: colors.zinc500 },
   mockWrap: { width: '100%', maxWidth: 300, alignSelf: 'center' },
   phone: { borderRadius: 40, borderWidth: 10, borderColor: colors.zinc900, backgroundColor: colors.zinc100, padding: 12, boxShadow: '0 25px 50px rgba(0,0,0,0.25)' },
   phoneTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4, paddingBottom: 12 },
-  features: { backgroundColor: '#fafafa', paddingVertical: 64, alignItems: 'center' },
+  features: { backgroundColor: colors.zinc50, paddingVertical: 64, alignItems: 'center' },
   h2: { fontSize: 30, lineHeight: 36, fontWeight: '800', color: colors.zinc900 },
   grid: { marginTop: 32, flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   card: { borderRadius: 24, backgroundColor: '#fff', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },

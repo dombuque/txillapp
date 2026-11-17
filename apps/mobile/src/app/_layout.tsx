@@ -3,7 +3,7 @@ import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BrandLoader } from '@/components/PontoLoader';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { ActivateSheet } from '@/components/ActivateSheet';
 import { AlertHost } from '@/components/AlertHost';
 import { ToastHost } from '@/components/ToastHost';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { AppUpdate } from '@/components/AppUpdate';
 import { CallOverlay } from '@/components/calls/CallOverlay';
 import { TxilladaMini } from '@/components/txillada/TxilladaMini';
@@ -78,12 +80,8 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
   useEffect(() => reportRenderError(error), [error]);
   return (
     <View style={styles.center}>
-      <Text style={styles.title}>Ups, algo correu mal</Text>
-      <Text style={styles.sub}>Já tomámos nota. Tenta outra vez.</Text>
-      <Pressable onPress={() => void retry()} style={styles.btn} accessibilityRole="button"><Text style={styles.btnText}>Tentar outra vez</Text></Pressable>
-      {Platform.OS === 'web' ? (
-        <Pressable onPress={() => window.location.reload()} style={{ marginTop: 12 }} accessibilityRole="button"><Text style={{ color: colors.zinc600, fontSize: 15, textDecorationLine: 'underline' }}>Recarregar a página</Text></Pressable>
-      ) : null}
+      <ErrorState title="Ups, algo correu mal" text="Já tomámos nota. Tenta outra vez." onRetry={() => void retry()} style={styles.state} />
+      {Platform.OS === 'web' ? <Button label="Recarregar a página" kind="ghost" size="md" onPress={() => window.location.reload()} /> : null}
       {__DEV__ ? <Text style={[styles.sub, { marginTop: 16, fontSize: 12 }]}>{error.message}</Text> : null}
     </View>
   );
@@ -166,9 +164,7 @@ function Gate() {
   if (offline && !isPublicSegment(segments[0])) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Sem ligação</Text>
-        <Text style={styles.sub}>Não consegui ligar ao Txillapp. Verifica a internet e tenta outra vez.</Text>
-        <Pressable onPress={retry} style={styles.btn} accessibilityRole="button"><Text style={styles.btnText}>Tentar outra vez</Text></Pressable>
+        <ErrorState title="Sem ligação" text="Não consegui ligar ao Txillapp. Verifica a ligação e tenta outra vez." onRetry={retry} style={styles.state} />
       </View>
     );
   }
@@ -266,8 +262,7 @@ const styles = StyleSheet.create({
   /** No computador (com sessão) a app ocupa a janela toda: barra lateral à esquerda e o conteúdo com a largura de cada ecrã. */
   desk: { flex: 1, width: '100%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, padding: 32, gap: 10 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.zinc900 },
+  /** O ErrorState (ícone, título, texto e «Tentar outra vez») já ao centro do ecrã: sem a margem de cima das listas. */
+  state: { marginTop: 0 },
   sub: { fontSize: 15, color: colors.zinc500, textAlign: 'center' },
-  btn: { marginTop: 10, backgroundColor: colors.brand, paddingHorizontal: 22, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
