@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
   tchekaReply: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#fdecef' },
   tchekaReplyText: { fontSize: 12, fontWeight: '700', color: colors.brand },
   link: { fontSize: 12, fontWeight: '600', color: colors.zinc500 },
-  menu: { paddingHorizontal: 8, paddingBottom: 8 },
+  menu: { paddingHorizontal: 20, paddingBottom: 8 },
   menuRow: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, borderRadius: 16 },
   menuText: { fontSize: 17, fontWeight: '500', color: colors.zinc900 },
   thread: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },

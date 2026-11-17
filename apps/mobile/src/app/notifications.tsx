@@ -307,7 +307,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          {zasRecap ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
+          {zasRecap ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (

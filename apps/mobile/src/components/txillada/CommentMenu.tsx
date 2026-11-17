@@ -83,7 +83,7 @@ export function CommentMenu({ c, items, onPick, onClose }: {
 }
 
 const st = StyleSheet.create({
-  wrap: { paddingHorizontal: 16 },
+  wrap: { paddingHorizontal: 20 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingHorizontal: 4, paddingBottom: 12, marginBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: D.line },
   ring: { borderRadius: 999, padding: 1.5, borderWidth: 2, borderColor: colors.brand },
   name: { flexShrink: 1, color: D.text, fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
