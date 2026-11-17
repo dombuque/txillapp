@@ -6,7 +6,7 @@
 /** Os passos na app (e no site, com a sessão iniciada). */
 export const DELETION_STEPS: string[] = [
   'Abre o Txillapp e vai ao teu perfil.',
-  'Toca no menu (☰), «Definições e privacidade», e depois em «Conta».',
+  'Toca no botão do menu, depois em «Definições e privacidade» e em «Conta».',
   'No fundo, em «Zona perigosa», toca em «Eliminar conta».',
   'Escreve o teu @ (e a senha, se a conta tiver) e toca em «Eliminar a minha conta».',
 ];
