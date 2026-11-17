@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { abs } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
 import { feedVideoLive, limitBuffer } from '@/lib/videoMemory';
+import type { Fit } from '@/lib/viewerFit';
 import { Icon } from './Icon';
 import { t } from '@/lib/i18n';
 
@@ -20,23 +21,27 @@ let soundOn = false;
  * Vídeo de um post no feed: arranca sozinho, sem som, quando o post está à vista e pára quando sai (ou quando se passa
  * para outra foto do carrossel). Um toque liga/desliga o som; dois toques brindam. Em modo `passive` (tcheka no feed)
  * só mostra o vídeo a correr: o toque é tratado por fora (abre a Tcheka ou o visor). Em modo `viewer` (visor em ecrã
- * inteiro) o vídeo fica inteiro (contain), um toque pausa/retoma e o som tem o seu botão no canto de baixo à esquerda.
+ * inteiro) o vídeo ocupa o ecrã (`fit`: `cover` num vídeo em pé, `contain` no resto, lib/viewerFit), um toque
+ * pausa/retoma e o som tem o seu botão no canto de baixo à esquerda (acima da legenda, `soundBottom`).
  */
-export function CarouselVideo({ url, poster, durationMs, width, height, active, inView = true, mute = false, passive = false, viewer = false, onDouble }: {
+export function CarouselVideo({ url, poster, durationMs, width, height, active, inView = true, mute = false, passive = false, viewer = false, fit = 'contain', soundBottom, onSize, onDouble }: {
   url: string; poster?: string; durationMs?: number | null; width: number; height: number; active: boolean;
   /** O post está à vista (dito pela lista no telemóvel; no browser vê-se sozinho). */ inView?: boolean;
   /** Fica sempre sem som (o post já tem música). */ mute?: boolean;
   passive?: boolean;
-  /** No visor em ecrã inteiro: vídeo inteiro, toque pausa/retoma, botão de som à parte. */ viewer?: boolean;
+  /** No visor em ecrã inteiro: toque pausa/retoma, botão de som à parte. */ viewer?: boolean;
+  /** No visor: como o vídeo enche o ecrã (lib/viewerFit). */ fit?: Fit;
+  /** No visor: a que altura do fundo fica o botão do som (por cima da legenda que flutua). */ soundBottom?: number;
+  /** No visor: o tamanho do vídeo quando carrega (para escolher o `fit` quando a publicação não o traz). */ onSize?: (w: number, h: number) => void;
   onDouble?: () => void;
 }) {
   const src = abs(url) ?? '';
   const cover = abs(poster);
-  const p = { src, cover, durationMs, width, height, active, inView, mute, passive, viewer, onDouble };
+  const p = { src, cover, durationMs, width, height, active, inView, mute, passive, viewer, fit, soundBottom, onSize, onDouble };
   return Platform.OS === 'web' ? <WebVideo {...p} /> : <NativeVideo {...p} />;
 }
 
-interface Props { src: string; cover?: string; durationMs?: number | null; width: number; height: number; active: boolean; inView: boolean; mute: boolean; passive: boolean; viewer: boolean; onDouble?: () => void }
+interface Props { src: string; cover?: string; durationMs?: number | null; width: number; height: number; active: boolean; inView: boolean; mute: boolean; passive: boolean; viewer: boolean; fit: Fit; soundBottom?: number; onSize?: (w: number, h: number) => void; onDouble?: () => void }
 
 /** Dois toques seguidos (< 280 ms) contam como duplo. */
 function useDouble(onDouble?: () => void) {
@@ -74,15 +79,15 @@ function Overlay({ playing, muted, durationMs, showSound }: { playing: boolean; 
 }
 
 /** O botão do som no canto do vídeo (tem a sua própria área de toque, para não abrir a Tcheka). */
-function SoundButton({ muted, onPress, viewer = false }: { muted: boolean; onPress: () => void; /** No visor: à esquerda (à direita está a fila de ações). */ viewer?: boolean }) {
+function SoundButton({ muted, onPress, viewer = false, bottom }: { muted: boolean; onPress: () => void; /** No visor: à esquerda (à direita está a fila de ações). */ viewer?: boolean; /** No visor: acima da legenda. */ bottom?: number }) {
   return (
-    <Pressable onPress={onPress} hitSlop={10} style={viewer ? st.soundBtnViewer : st.soundBtn} accessibilityRole="button" accessibilityLabel={muted ? t('Ligar o som') : t('Tirar o som')}>
+    <Pressable onPress={onPress} hitSlop={10} style={viewer ? [st.soundBtnViewer, bottom != null && { bottom }] : st.soundBtn} accessibilityRole="button" accessibilityLabel={muted ? t('Ligar o som') : t('Tirar o som')}>
       <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
     </Pressable>
   );
 }
 
-function WebVideo({ src, cover, durationMs, width, height, active, mute, passive, viewer, onDouble }: Props) {
+function WebVideo({ src, cover, durationMs, width, height, active, mute, passive, viewer, fit, soundBottom, onSize, onDouble }: Props) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -135,13 +140,17 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
     ref,
     src, poster: cover, playsInline: true, loop: true, muted: true, preload: 'metadata',
     onPlay: () => setPlaying(true), onPause: () => setPlaying(false),
+    onLoadedMetadata: (e: { currentTarget: HTMLVideoElement }) => {
+      const v = e.currentTarget;
+      if (v.videoWidth && v.videoHeight) onSize?.(v.videoWidth, v.videoHeight);
+    },
     onTimeUpdate: (e: { currentTarget: HTMLVideoElement }) => {
       if (!framedRef.current && e.currentTarget.currentTime > 0) { framedRef.current = true; setFramed(true); }
     },
-    style: { width: '100%', height: '100%', objectFit: viewer ? 'contain' : 'cover', display: 'block', pointerEvents: 'none' },
+    style: { width: '100%', height: '100%', objectFit: viewer ? fit : 'cover', display: 'block', pointerEvents: 'none' },
   });
   const coverImg = cover && !framed
-    ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit={viewer ? 'contain' : 'cover'} pointerEvents="none" {...listImageProps(Platform.OS, 0)} />
+    ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit={viewer ? fit : 'cover'} pointerEvents="none" {...listImageProps(Platform.OS, 0)} />
     : null;
   if (viewer) {
     // Visor em ecrã inteiro: um toque pausa/retoma; o som liga/desliga no botão (e fica lembrado, como no feed).
@@ -166,7 +175,7 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
           {coverImg}
           <Overlay playing={playing} muted={muted} showSound={false} />
         </Pressable>
-        {!mute ? <SoundButton muted={muted} onPress={toggle} viewer /> : null}
+        {!mute ? <SoundButton muted={muted} onPress={toggle} viewer bottom={soundBottom} /> : null}
       </View>
     );
   }
@@ -207,9 +216,9 @@ function NativeVideo(props: Props) {
 }
 
 /** Fora de vista: só a capa (sem leitor, sem descodificador, sem memória de vídeo). */
-function NativeVideoIdle({ cover, durationMs, width, height, passive, viewer, onDouble }: Props) {
+function NativeVideoIdle({ cover, durationMs, width, height, passive, viewer, fit, onDouble }: Props) {
   const isDouble = useDouble(onDouble);
-  const body = cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit={viewer ? 'contain' : 'cover'} pointerEvents="none" {...listImageProps(Platform.OS, 0)} /> : null;
+  const body = cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit={viewer ? fit : 'cover'} pointerEvents="none" {...listImageProps(Platform.OS, 0)} /> : null;
   if (viewer) {
     return (
       <View style={{ width, height }} pointerEvents="none">
@@ -234,7 +243,7 @@ function NativeVideoIdle({ cover, durationMs, width, height, passive, viewer, on
   );
 }
 
-function NativeVideoLive({ src, cover, durationMs, width, height, active, inView, mute, passive, viewer, onDouble }: Props) {
+function NativeVideoLive({ src, cover, durationMs, width, height, active, inView, mute, passive, viewer, fit: viewerFit, soundBottom, onSize, onDouble }: Props) {
   const player = useVideoPlayer(src, (p) => { limitBuffer(p, viewer ? 'full' : 'feed'); p.loop = true; p.muted = true; });
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
@@ -244,6 +253,17 @@ function NativeVideoLive({ src, cover, durationMs, width, height, active, inView
     const s = player.addListener('playingChange', ({ isPlaying }) => { setPlaying(isPlaying); if (isPlaying) setStarted(true); });
     return () => s.remove();
   }, [player]);
+  // No visor: o tamanho do vídeo quando carrega (para o `fit` quando a publicação não traz width/height).
+  const sizeRef = useRef(onSize);
+  sizeRef.current = onSize;
+  useEffect(() => {
+    if (!viewer) return;
+    const s = player.addListener('sourceLoad', ({ availableVideoTracks }) => {
+      const z = availableVideoTracks?.[0]?.size;
+      if (z?.width && z?.height) sizeRef.current?.(z.width, z.height);
+    });
+    return () => s.remove();
+  }, [player, viewer]);
   // À vista e na foto certa do carrossel: toca (sem som, a menos que o som esteja ligado); senão pára.
   useEffect(() => {
     try {
@@ -267,7 +287,7 @@ function NativeVideoLive({ src, cover, durationMs, width, height, active, inView
     } catch { /* leitor libertado */ }
   }
 
-  const fit = viewer ? 'contain' : 'cover';
+  const fit = viewer ? viewerFit : 'cover';
   const body = (
     <>
       <VideoView player={player} style={StyleSheet.absoluteFill} contentFit={fit} nativeControls={false} pointerEvents="none" />
@@ -297,7 +317,7 @@ function NativeVideoLive({ src, cover, durationMs, width, height, active, inView
           {body}
           <Overlay playing={playing} muted={muted} showSound={false} />
         </Pressable>
-        {!mute ? <SoundButton muted={muted} onPress={toggle} viewer /> : null}
+        {!mute ? <SoundButton muted={muted} onPress={toggle} viewer bottom={soundBottom} /> : null}
       </View>
     );
   }
