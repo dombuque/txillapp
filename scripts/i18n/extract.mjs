@@ -147,20 +147,27 @@ export function extractAll(config = loadConfig()) {
         const rel = path.relative(ROOT, file).split(path.sep).join('/');
         const r = extractFile(file, part);
         for (const p of r.problems) problems.push({ file: rel, ...p });
-        for (const p of r.phrases) {
-          const prev = keys.get(p.key);
-          if (prev && prev.other !== undefined && p.other !== undefined && prev.other !== p.other) conflicts.push({ key: p.key, a: prev.other, b: p.other, file: rel, line: p.line });
-          keys.set(p.key, { other: p.other ?? prev?.other, plural: p.plural || !!prev?.plural });
-          const g = all.get(p.key) ?? { other: undefined, plural: false, parts: new Set() };
-          if (g.other !== undefined && p.other !== undefined && g.other !== p.other && !conflicts.some((c) => c.key === p.key)) conflicts.push({ key: p.key, a: g.other, b: p.other, file: rel, line: p.line });
-          g.other = g.other ?? p.other;
-          g.plural = g.plural || p.plural;
-          g.parts.add(name);
-          all.set(p.key, g);
-        }
+        for (const p of r.phrases) add(p, rel);
       }
     }
+    // Um extrator a mais para a parte (a API: mensagens dos erros, pushes e validações, que não passam por t()).
+    if (part.extra) {
+      const r = require(path.join(ROOT, part.extra)).extract(ROOT, part);
+      for (const p of r.problems) problems.push(p);
+      for (const p of r.phrases) add(p, p.file);
+    }
     parts[name] = { keys, problems, strict: !!part.strict, out: part.out };
+    function add(p, rel) {
+      const prev = keys.get(p.key);
+      if (prev && prev.other !== undefined && p.other !== undefined && prev.other !== p.other) conflicts.push({ key: p.key, a: prev.other, b: p.other, file: rel, line: p.line });
+      keys.set(p.key, { other: p.other ?? prev?.other, plural: p.plural || !!prev?.plural });
+      const g = all.get(p.key) ?? { other: undefined, plural: false, parts: new Set() };
+      if (g.other !== undefined && p.other !== undefined && g.other !== p.other && !conflicts.some((c) => c.key === p.key)) conflicts.push({ key: p.key, a: g.other, b: p.other, file: rel, line: p.line });
+      g.other = g.other ?? p.other;
+      g.plural = g.plural || p.plural;
+      g.parts.add(name);
+      all.set(p.key, g);
+    }
   }
   return { parts, all, conflicts };
 }
