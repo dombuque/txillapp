@@ -139,7 +139,8 @@ test('entradas nos ecrãs: cabeçalho e menu do grupo, linha do grupo nas Mensag
   const hook = read('components/mixar/useGroupMixar.ts');
   assert.match(hook, /const show = !!here \|\| groupCanMixar\(members\);/);
   assert.match(hook, /mixarApi\.proposeGroup\(groupId\)/);
-  assert.match(read('app/(tabs)/messages.tsx'), /r\.g && mixarGroupNew\.has\(r\.g\.id\)/);
+  assert.match(read('app/(tabs)/messages.tsx'), /<GroupCard \{\.\.\.groupCardData\(r\.g\)\} mixarNew=\{mixarGroupNew\.has\(r\.g\.id\)\}/);
+  assert.match(read('components/groups/GroupCard.tsx'), /p\.mixarNew \? <View style=\{s\.mixar\}>/);
   const list = read('app/mixar/index.tsx');
   assert.match(list, /Os vossos Mixar de grupo/);
   const screen = read('app/mixar/[id].tsx');

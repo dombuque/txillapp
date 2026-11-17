@@ -500,7 +500,7 @@ export default function Messages() {
           return (
           <SwipeRow left={[]} right={[]} onHold={hold} active={!!openPath && r.to === openPath} onDeskMenu={hold ? (at) => setDeskMenu({ key: r.key, at }) : undefined}>
           {r.g ? (
-            <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
+            <GroupCard {...groupCardData(r.g)} mixarNew={mixarGroupNew.has(r.g.id)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
           ) : (
           <Pressable
             onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }}
@@ -531,8 +531,8 @@ export default function Messages() {
               </View>
               <View style={styles.line}>
                 <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
-                {(!r.g && r.username && mixarNew.has(r.username)) || (r.g && mixarGroupNew.has(r.g.id)) ? (
-                  <View style={styles.mixarNew} accessibilityLabel={r.g ? 'Mixar do grupo com novidades' : 'Mixar com novidades'}><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
+                {!r.g && r.username && mixarNew.has(r.username) ? (
+                  <View style={styles.mixarNew} accessibilityLabel="Mixar com novidades"><Icon name="mixar" size={17} color={colors.zinc500} /><MixarDot size={6} /></View>
                 ) : null}
                 {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>
