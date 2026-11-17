@@ -15,12 +15,14 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
-import { pendingFrom, sendPending, type SentReply } from '@/lib/chatPending';
+import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { PastedImageSheet } from './PastedImageSheet';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
-import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { CHAT_PICK_MAX, chatPicks, failedLabel, offlinePicksLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { newHeldVoice, useHeldVoice } from '@/lib/heldVoice';
+import { HeldVoiceRow } from './HeldVoiceRow';
 
 /**
  * A barra de escrever dos TxillGroups, com o mesmo desenho da das conversas a dois (components/ChatComposer): uma pílula,
@@ -84,14 +86,22 @@ export function GroupComposer({
     editLast: onEditLast,
   });
 
+  // Mensagens de voz: sobem e vão já; sem rede ficam guardadas aqui e vão sozinhas, com o mesmo clientId (não duplicam).
+  const voice = useHeldVoice(async (v) => {
+    if (!v.mediaId) v.mediaId = await uploadChatMedia(v.uri, v.mime);
+    await send({ kind: 'voice', mediaId: v.mediaId, durationMs: v.durationMs, replyTo: v.replyTo, clientId: v.clientId });
+    onSent();
+  }, setErr);
+
   async function dispatch(msg: GroupSendBody) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); sem rede fica à espera (reloginho) e vai sozinha,
+    // pela ordem, quando a rede voltar (lib/chatOutbox, pelo `g:<id>` de pendingKey). Só uma recusa fica «Não enviada».
     const shown = pendingKey ? pendingFrom(msg, replyTo) : null;
     if (pendingKey && shown) {
       onClearReply?.();
-      await sendPending(pendingKey, shown, () => send(payload) as Promise<SentReply>, { onSent });
+      await sendPending(pendingKey, shown, { onSent });
       return;
     }
     try {
@@ -134,6 +144,7 @@ export function GroupComposer({
     setErr('');
     const caption = text.trim() || undefined;
     let failed = 0;
+    let noNet = false;
     try {
       for (let i = 0; i < picks.length; i++) {
         setProgress({ done: i, total: picks.length });
@@ -145,15 +156,16 @@ export function GroupComposer({
             setText('');
             grow.reset();
           }
-        } catch {
+        } catch (e) {
           failed++;
+          if (e instanceof TypeError) noNet = true;
         }
       }
     } finally {
       setProgress(null);
       setBusy(false);
     }
-    if (failed) setErr(failedLabel(failed, picks.length));
+    if (failed) setErr(noNet ? offlinePicksLabel(failed, picks.length) : failedLabel(failed, picks.length));
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda. */
   /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
@@ -215,13 +227,13 @@ export function GroupComposer({
       await recorder.stop();
       const uri = recorder.uri;
       if (!send || !uri || secs < 1) return;
-      setBusy(true);
-      const mediaId = await uploadChatMedia(uri, Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4');
-      await dispatch({ kind: 'voice', mediaId, durationMs: secs * 1000 });
+      setErr('');
+      // Sem rede não se perde: fica guardada por cima da barra e vai sozinha quando a rede voltar (lib/heldVoice).
+      const v = newHeldVoice({ uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, ...(replyTo ? { replyTo: replyTo.id } : null) });
+      onClearReply?.();
+      await voice.submit(v);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
-    } finally {
-      setBusy(false);
     }
   }
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -275,6 +287,7 @@ export function GroupComposer({
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={styles.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
+        <HeldVoiceRow held={voice.held} trying={voice.trying} onDrop={voice.drop} />
         {replyTo && (
           <View style={styles.reply}>
             <View style={styles.replyBar} />

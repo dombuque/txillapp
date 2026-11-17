@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { clearStudioDrafts } from '@/lib/studio/studioStore';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
+import { forgetOutboxUser, setOutboxUser, startChatOutbox } from './chatOutbox';
 import { leaveMapOnSignOut } from './api.nearby';
 import { hangUp } from './calls/session';
 import { unregisterNativePush } from './nativePush';
@@ -38,6 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const userId = user?.id ?? null;
+  const userIdRef = useRef<string | null>(null);
+  userIdRef.current = userId;
+
+  // As mensagens que ficaram à espera de rede (lib/chatOutbox) são desta conta: carregam e enviam-se sozinhas.
+  useEffect(() => {
+    startChatOutbox();
+    setOutboxUser(userId);
+  }, [userId]);
 
   useEffect(() => {
     setSessionExpiredHandler(() => {
@@ -102,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await leaveMapOnSignOut();
     await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
     await api.logout();
+    // As mensagens à espera desta conta não ficam no aparelho nem se enviam depois.
+    if (userIdRef.current) forgetOutboxUser(userIdRef.current);
     qc.clear(); // a próxima pessoa não vê dados da anterior
     await clearStudioDrafts(); // e também não vê os rascunhos das tchekas (ficam no browser, sem conta)
     // Com mais contas no aparelho, sair desta passa para a seguinte.

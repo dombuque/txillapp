@@ -25,7 +25,9 @@ import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
-import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { CHAT_PICK_MAX, chatPicks, failedLabel, offlinePicksLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { newHeldVoice, useHeldVoice } from '@/lib/heldVoice';
+import { HeldVoiceRow } from './HeldVoiceRow';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -102,14 +104,22 @@ export function ChatComposer({
     if (replyTo?.id) input.current?.focus();
   }, [replyTo?.id]);
 
+  // Mensagens de voz: sobem e vão já; sem rede ficam guardadas aqui e vão sozinhas, com o mesmo clientId (não duplicam).
+  const voice = useHeldVoice(async (v) => {
+    if (!v.mediaId) v.mediaId = await uploadChatMedia(v.uri, v.mime);
+    await api.chatSend(username, { kind: 'voice', mediaId: v.mediaId, durationMs: v.durationMs, once: v.once, replyTo: v.replyTo, clientId: v.clientId });
+    onSent();
+  }, setErr);
+
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); sem rede fica à espera (reloginho) e vai sozinha,
+    // pela ordem, quando a rede voltar (lib/chatOutbox). Só uma recusa do servidor fica «Não enviada» (nada se perde).
     const shown = pendingFrom(msg, replyTo);
     if (shown) {
       onClearReply?.();
-      await sendPending(`u:${username}`, shown, () => api.chatSend(username, payload), { onSent });
+      await sendPending(`u:${username}`, shown, { onSent });
       return;
     }
     try {
@@ -152,6 +162,7 @@ export function ChatComposer({
     setErr('');
     const caption = text.trim() || undefined;
     let failed = 0;
+    let noNet = false;
     try {
       for (let i = 0; i < picks.length; i++) {
         setProgress({ done: i, total: picks.length });
@@ -163,8 +174,9 @@ export function ChatComposer({
             setText('');
             grow.reset();
           }
-        } catch {
+        } catch (e) {
           failed++;
+          if (e instanceof TypeError) noNet = true;
         }
       }
     } finally {
@@ -172,7 +184,7 @@ export function ChatComposer({
       setBusy(false);
       setOnce(false);
     }
-    if (failed) setErr(failedLabel(failed, picks.length));
+    if (failed) setErr(noNet ? offlinePicksLabel(failed, picks.length) : failedLabel(failed, picks.length));
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda e "Ver uma vez". */
   /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
@@ -239,13 +251,13 @@ export function ChatComposer({
       await recorder.stop();
       const uri = recorder.uri;
       if (!send || !uri || secs < 1) return;
-      setBusy(true);
-      const mediaId = await uploadChatMedia(uri, Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4');
-      await dispatch({ kind: 'voice', mediaId, durationMs: secs * 1000, once });
+      setErr('');
+      // Sem rede não se perde: fica guardada por cima da barra e vai sozinha quando a rede voltar (lib/heldVoice).
+      const v = newHeldVoice({ uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, once, ...(replyTo ? { replyTo: replyTo.id } : null) });
+      onClearReply?.();
+      await voice.submit(v);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
-    } finally {
-      setBusy(false);
     }
   }
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -286,6 +298,7 @@ export function ChatComposer({
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">{progress ? sendingLabel(progress.done, progress.total) : 'A enviar…'}</Text> : null}
+        <HeldVoiceRow held={voice.held} trying={voice.trying} onDrop={voice.drop} />
         {replyTo && (
           <View style={st.reply}>
             <View style={st.replyBar} />

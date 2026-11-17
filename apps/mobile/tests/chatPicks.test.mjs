@@ -52,3 +52,26 @@ test('conversas e grupos: a galeria deixa escolher vários e envia um a um', () 
     assert.match(s, /launchCameraAsync\(\{ mediaTypes: \['images', 'videos'\], quality: 0\.8, videoMaxDuration: 30 \}\)/, f);
   }
 });
+
+test('sem rede: as fotos dizem que não foram e que se escolhem outra vez da galeria', () => {
+  assert.equal(c.offlinePicksLabel(0, 3), '');
+  assert.equal(c.offlinePicksLabel(1, 1), 'Sem rede. Não foi enviada: escolhe outra vez da galeria quando a rede voltar.');
+  assert.equal(c.offlinePicksLabel(3, 3), 'Sem rede. Nenhuma foi enviada: escolhe outra vez da galeria quando a rede voltar.');
+  assert.equal(c.offlinePicksLabel(2, 5), 'Sem rede. Não foram enviadas 2 de 5: escolhe outra vez da galeria quando a rede voltar.');
+});
+
+test('as mensagens de voz sem rede ficam guardadas na barra e vão sozinhas (lib/heldVoice), nas conversas e nos grupos', () => {
+  const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
+  for (const f of ['src/components/ChatComposer.tsx', 'src/components/GroupComposer.tsx']) {
+    const s = read(f);
+    assert.match(s, /useHeldVoice\(/, f);
+    assert.match(s, /await voice\.submit\(v\)/, f);
+    assert.match(s, /clientId: v\.clientId/, f);
+    assert.match(s, /<HeldVoiceRow held=\{voice\.held\}/, f);
+    assert.match(s, /offlinePicksLabel\(/, f);
+  }
+  const held = read('src/lib/heldVoice.ts');
+  assert.match(held, /shouldRetry\(e\)/, 'só uma recusa (4xx) a deita fora');
+  assert.match(held, /addEventListener\('online'/);
+  for (const t of [held, read('src/components/HeldVoiceRow.tsx')]) assert.doesNotMatch(t, /[—–]/, 'sem travessões');
+});

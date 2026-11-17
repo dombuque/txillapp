@@ -58,10 +58,11 @@ for (const [name, src, what] of PARTS) {
 test('a bolha: o Pressable de fora segura, dá o contexto ao conteúdo e cobre cada tipo de mensagem', () => {
   const b = body(BUBBLES, 'Bubble');
   // No computador (rato, lib/deskChat) não há carregar e segurar: o menu abre com o botão direito e com o "⋯".
-  assert.match(b, /const hold: BubbleHold = real && !desk \? \{ onLongPress: openMenu, delayLongPress: HOLD_MS \} : \{\}/);
+  // Uma à espera de rede (lib/chatPending) ainda não está no servidor: segurar só deixa apagar (cancela o envio).
+  assert.match(b, /const hold: BubbleHold = real && !desk \? \{ onLongPress: openMenu, delayLongPress: HOLD_MS \} : waiting && onDelete && !desk \? \{ onLongPress: cancelWaiting, delayLongPress: HOLD_MS \} : \{\}/);
   assert.match(b, /<BubbleHoldCtx\.Provider value=\{hold\}>\{content\}<\/BubbleHoldCtx\.Provider>/);
   // A web também abre o menu ao segurar em qualquer ponto da mensagem (e com o botão direito do rato).
-  assert.match(b, /onMenu=\{real \? openMenu : undefined\}/);
+  assert.match(b, /onMenu=\{real \? openMenu : waiting && onDelete \? cancelWaiting : undefined\}/);
   // Cada tipo tem o seu ramo (e nenhum fica de fora do Pressable da bolha, que envolve `content`).
   for (const k of ["m.kind === 'gift'", "m.kind === 'sticker'", "m.kind === 'gif'", "m.kind === 'post'", "m.kind === 'location'", "=== 'poll'", "m.kind === 'call'", "m.kind === 'voice'", "m.kind === 'image' || m.kind === 'video'", "m.kind === 'story_reaction'", "m.kind === 'zas_reply'", 'm.viewOnce', 'if (gone)']) {
     assert.ok(b.includes(k), `falta o ramo ${k}`);
