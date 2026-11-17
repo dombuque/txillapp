@@ -105,6 +105,11 @@ export function energyBlocks(samples: ArrayLike<number>, rate: number, blockS = 
 }
 
 export type StartMode = 'forte' | 'subida' | 'calmo' | 'inicio';
+/** A etiqueta do trecho sugerido no idioma da pessoa (a interna fica em português, para as contas e os testes). */
+export function startLabel(l: StartSuggestion['label']): string {
+  return l === 'Refrão' ? t('Refrão') : l === 'Parte mais forte' ? t('Parte mais forte') : l === 'Antes do refrão' ? t('Antes do refrão') : l === 'Parte calma' ? t('Parte calma') : t('Início');
+}
+
 export interface StartSuggestion {
   /** Onde começa o trecho (segundos dentro da faixa). */
   start: number;

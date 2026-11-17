@@ -92,7 +92,7 @@ test('o calendário do mês: de segunda a domingo, com os dias fora do prazo apa
   assert.deepEqual(s.shiftMonth({ year: 2026, month: 10 }, 1, TUE_10), { year: 2026, month: 11 });
   assert.equal(s.shiftMonth({ year: 2026, month: 11 }, 1, TUE_10), null);
   assert.equal(s.shiftMonth({ year: 2026, month: 10 }, -1, TUE_10), null);
-  assert.deepEqual(s.WEEK_INITIALS, ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']);
+  assert.deepEqual(s.WEEK_INITIALS(), ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']);
 });
 
 test('a hora escolhida: a próxima hora certa, e mudar de dia mantém a hora', () => {

@@ -14,7 +14,7 @@ import { approvedForBlue, blueSealEntry } from '@/lib/iap/view';
 import { usePurchases } from '@/lib/purchases';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** A entrada para o selo azul (a verificação paga, pela loja): só nas lojas, com as compras pela loja ligadas. */
 function BlueSealEntry({ title, description }: { title: string; description: string }) {
@@ -176,7 +176,7 @@ export default function Verification() {
               <View style={[st.box, { backgroundColor: colors.dangerSoft }]}>
                 <Text style={{ fontWeight: '700', fontSize: 16, color: colors.zinc900 }}>{t('O último pedido foi recusado')}</Text>
                 {s.request.reason ? <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>{t('Motivo: {reason}', { reason: s.request.reason })}</Text> : null}
-                {s.retryAfter ? <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Podes pedir outra vez a partir de {value}.', { value: new Date(s.retryAfter).toLocaleDateString('pt-PT') })}</Text> : null}
+                {s.retryAfter ? <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Podes pedir outra vez a partir de {value}.', { value: new Date(s.retryAfter).toLocaleDateString(intlLocale()) })}</Text> : null}
               </View>
             )}
 

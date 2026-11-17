@@ -12,9 +12,9 @@ import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { formatVibes, vibesWord } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(intlLocale());
 
 export const venuePaymentsKey = (slug: string) => ['venue-payments', slug] as const;
 

@@ -92,7 +92,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
             );
           }
           const icon: IconName = r.name === 'index' ? 'home' : r.name === 'reels' ? 'film' : 'messages';
-          const label = r.name === 'index' ? 'Início' : r.name === 'reels' ? 'Tcheka' : t('Mensagens');
+          const label = r.name === 'index' ? t('Início') : r.name === 'reels' ? 'Tcheka' : t('Mensagens');
           return (
             <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel={label}>
               <View>

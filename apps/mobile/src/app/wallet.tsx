@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { vibesWord } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 const labels: Record<string, string> = { get welcome_bonus() { return t('Boas-vindas, malta!'); }, get transfer() { return t('Vibes oferecidas'); }, get gift() { return t('Presente'); }, get invite() { return t('Convite'); }, topup: 'Vibes recarregadas' };
 const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo', txillada_ticket: 'lock', txillada_gift: 'gift', txillada_refund: 'undo' };
@@ -109,7 +109,7 @@ export default function Wallet() {
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.balance}>
               <Text style={{ color: '#fff', fontWeight: '300', fontSize: 16 }}>{t('Tens')}</Text>
               <Text style={{ color: '#fff', fontSize: 48, fontWeight: '800', letterSpacing: -1 }}>
-                {data.balance.toLocaleString('pt-PT')} <Text style={{ fontSize: 24, fontWeight: '700' }}>{vibesWord(data.balance)}</Text>
+                {data.balance.toLocaleString(intlLocale())} <Text style={{ fontSize: 24, fontWeight: '700' }}>{vibesWord(data.balance)}</Text>
               </Text>
             </LinearGradient>
 

@@ -1,7 +1,7 @@
 // Bombar (destaques pagos dos locais): regras e textos que não dependem do React (onde entra cada destaque no feed,
 // a posição que vai para o servidor, preços, estados e o relatório). Sem dependências: tests/boostView.test.mjs.
 
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 export type BoostPackageId = '1d' | '3d' | '7d';
 /** 'draft': pago pela loja, à espera da confirmação da compra (o verify). */
 export type BoostState = 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending' | 'draft';
@@ -56,7 +56,7 @@ export function feedNear(saved: string | null, cities: CityLike[], device: { lat
 
 /** "1500 vibes" (e "1 vibe"; as mesmas palavras de lib/vibes, que este ficheiro não importa: os testes leem-no sozinho). */
 export function txills(n: number): string {
-  return `${Math.round(n).toLocaleString('pt-PT')} ${Math.round(n) === 1 ? t('vibe') : 'vibes'}`;
+  return `${Math.round(n).toLocaleString(intlLocale())} ${Math.round(n) === 1 ? t('vibe') : 'vibes'}`;
 }
 
 /** O preço do pacote num raio (o servidor manda a tabela; sem ela, nada). */

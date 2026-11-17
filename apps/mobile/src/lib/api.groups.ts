@@ -8,7 +8,7 @@ import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
 import type { GroupVisibility, JoinMode, JoinState, MapPlace } from '@/lib/groupAccess';
 import { formatVibes } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 export type GroupKind = 'viagem' | 'festa' | 'fim_de_semana' | 'outro';
 export type Rsvp = 'going' | 'maybe' | 'not_going';
@@ -195,7 +195,7 @@ export const groupKeys = {
 /** Meticais (até 2 casas): "1 250,50 MT". */
 export const mzn = (v: number) => {
   const r = Math.round(v * 100) / 100;
-  return `${r.toLocaleString('pt-PT', { minimumFractionDigits: Number.isInteger(r) ? 0 : 2, maximumFractionDigits: 2 })} MT`;
+  return `${r.toLocaleString(intlLocale(), { minimumFractionDigits: Number.isInteger(r) ? 0 : 2, maximumFractionDigits: 2 })} MT`;
 };
 /** O valor escrito em meticais ("1250,5" → 1250.5); null se não for válido. */
 export function parseMzn(text: string): number | null {
@@ -214,20 +214,28 @@ export function dayOf(iso: string): Date {
 }
 export function dateRange(start: string | null | undefined, end?: string | null): string | null {
   if (!start) return null;
-  const f = (s: string) => dayOf(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }).replace('.', '');
+  const f = (s: string) => dayOf(s).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short' }).replace('.', '');
   return end && end.slice(0, 10) !== start.slice(0, 10) ? `${f(start)} · ${f(end)}` : f(start);
 }
-/** "Daqui a 5 dias", "Amanhã", "Hoje", "Já passou". */
-export function countdown(start: string | null | undefined, end?: string | null): string | null {
+/** Onde está o plano: daqui a `days` dias, amanhã, hoje, a decorrer ou já passou. */
+export type PlanWhen = { kind: 'days'; days: number } | { kind: 'tomorrow' | 'today' | 'ongoing' | 'past' };
+export function planWhen(start: string | null | undefined, end?: string | null): PlanWhen | null {
   if (!start) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const s = dayOf(start).getTime();
   const e = end ? dayOf(end).getTime() : s;
   const days = Math.round((s - today.getTime()) / 86_400_000);
-  if (days > 1) return t('Daqui a {days} dias', { days });
-  if (days === 1) return 'Amanhã';
-  if (today.getTime() <= e) return days === 0 ? t('É hoje') : 'A decorrer';
-  return 'Já passou';
+  if (days > 1) return { kind: 'days', days };
+  if (days === 1) return { kind: 'tomorrow' };
+  if (today.getTime() <= e) return { kind: days === 0 ? 'today' : 'ongoing' };
+  return { kind: 'past' };
+}
+
+/** "Daqui a 5 dias", "Amanhã", "É hoje", "A decorrer", "Já passou". */
+export function countdown(start: string | null | undefined, end?: string | null): string | null {
+  const w = planWhen(start, end);
+  if (!w) return null;
+  return w.kind === 'days' ? t('Daqui a {days} dias', { days: w.days }) : w.kind === 'tomorrow' ? t('Amanhã') : w.kind === 'today' ? t('É hoje') : w.kind === 'ongoing' ? t('A decorrer') : t('Já passou');
 }
 export const toIsoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

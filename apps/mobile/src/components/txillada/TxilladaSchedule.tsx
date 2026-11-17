@@ -121,7 +121,7 @@ export function SchedulePicker({ value, onChange, now }: { value: number | null;
   const chips = (
     <>
       {pills.map((p) => (
-        <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.label === 'Hoje' || p.label === 'Amanhã' ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
+        <Chip key={p.key} label={p.label} dark selected={!cal && selKey === p.key} onPress={() => { setCal(false); pickDay(p.day); }} accessibilityLabel={p.near ? p.label : fmtWhen(p.day, now, true).split(',')[0]} />
       ))}
       {selDay != null && !inPills ? <Chip label={dayLabel(selDay, now)} dark selected={!cal} onPress={() => setCal(false)} /> : null}
       <Chip label={t('Outro dia')} icon="calendar" dark selected={cal} onPress={() => setCal((v) => !v)} accessibilityLabel={t('Escolher outro dia no calendário')} />
@@ -167,7 +167,7 @@ function MonthCalendar({ year, month, now, selected, onPrev, onNext, onPick }: {
         <IconButton icon="chevron-right" label={t('Mês seguinte')} variant="dark" size={40} iconSize={20} onPress={onNext ?? (() => undefined)} disabled={!onNext} />
       </View>
       <View style={st.week}>
-        {WEEK_INITIALS.map((w, i) => <Text key={i} style={st.weekDay}>{w}</Text>)}
+        {WEEK_INITIALS().map((w, i) => <Text key={i} style={st.weekDay}>{w}</Text>)}
       </View>
       {weeks.map((wk, i) => (
         <View key={i} style={st.week}>

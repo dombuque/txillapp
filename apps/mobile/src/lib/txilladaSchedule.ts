@@ -6,7 +6,8 @@
  * Os testes em tests/txilladaAgendar.test.mjs importam este ficheiro diretamente.
  */
 import { formatVibes } from '@/lib/vibes';
-import { abbr, currentLanguage, formatDate, monthNames, SOURCE_LANG, t, weekdayNames } from '@/lib/i18n';
+import { abbr, currentLanguage, formatDate, intlLocale, monthNames, SOURCE_LANG, t, weekdayNames, weekInitials } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /** Pelo menos 15 min à frente, no máximo 30 dias; a grelha de 15 em 15 min; «Começar» a partir de 60 min antes. */
 export const LEAD_MIN = 15;
@@ -26,7 +27,7 @@ export const WEEKDAYS_SHORT = () => weekdayNames('short').map(abbr);
 export const MONTHS = () => monthNames('long');
 export const MONTHS_SHORT = () => monthNames('short').map(abbr);
 /** A semana do calendário começa à segunda (como em Moçambique e em Portugal). */
-export const WEEK_INITIALS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
+export const WEEK_INITIALS = () => weekInitials();
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ms = (at: number | string | Date): number => (typeof at === 'number' ? at : new Date(at).getTime());
@@ -82,13 +83,14 @@ export const dayHasSlots = (day: number, now: number): boolean => daySlots(day, 
 /** «Hoje», «Amanhã» ou «sáb. 21». */
 export function dayLabel(day: number, now: number): string {
   const diff = dayDiff(now, day);
-  if (diff === 0) return 'Hoje';
-  if (diff === 1) return 'Amanhã';
+  if (diff === 0) return t('Hoje');
+  if (diff === 1) return t('Amanhã');
   const d = new Date(day);
   return `${WEEKDAYS_SHORT()[d.getDay()].replace('.', '')} ${d.getDate()}`;
 }
 
-export interface DayPill { key: string; day: number; label: string }
+/** `near`: hoje ou amanhã (o rótulo já diz o dia; o leitor de ecrã lê só o rótulo). */
+export interface DayPill { key: string; day: number; label: string; near: boolean }
 
 /** As pastilhas dos dias: Hoje (se ainda houver horas), Amanhã e os 5 dias seguintes. */
 export function offeredDays(now: number): DayPill[] {
@@ -96,7 +98,7 @@ export function offeredDays(now: number): DayPill[] {
   const out: DayPill[] = [];
   for (let i = 0; i < PILL_DAYS; i++) {
     const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i).getTime();
-    if (dayHasSlots(day, now)) out.push({ key: dayKey(day), day, label: dayLabel(day, now) });
+    if (dayHasSlots(day, now)) out.push({ key: dayKey(day), day, label: dayLabel(day, now), near: i < 2 });
   }
   return out;
 }
@@ -203,7 +205,7 @@ export const showCountdown = (at: number | string, now: number): boolean => ms(a
 /** «Sem lembretes», «1 lembrete», «12 lembretes» (a lista das minhas). */
 export function remindersShort(n: number | null | undefined): string {
   const v = Math.max(0, Math.round(n ?? 0));
-  return v === 0 ? t('Sem lembretes') : v === 1 ? '1 lembrete' : `${v.toLocaleString('pt-PT')} lembretes`;
+  return v === 0 ? t('Sem lembretes') : t('{n} lembrete', { count: v, n: v.toLocaleString(intlLocale()), other: '{n} lembretes' });
 }
 /** A pastilha do perfil e da fila «Em breve»: «Hoje, 20:00», «Amanhã, 20:00» ou «Sáb., 20:00». */
 export function fmtShort(at: number | string, now: number): string {
@@ -256,7 +258,7 @@ export function remindersText(n: number | null | undefined): string {
   const v = Math.max(0, Math.round(n ?? 0));
   if (v === 0) return t('Ainda ninguém pediu para ser lembrado');
   if (v === 1) return t('1 pessoa pediu para ser lembrada');
-  return t('{v} pessoas pediram para ser lembradas', { v: v.toLocaleString('pt-PT') });
+  return t('{v} pessoas pediram para ser lembradas', { v: v.toLocaleString(intlLocale()) });
 }
 
 // ─── O agendamento ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -360,7 +362,7 @@ export const isNotScheduled = (e: { status?: number; code?: string; extra?: Reco
 /** Os erros da API em palavras (o servidor também manda a mensagem; o `code` vale mais). */
 export function scheduleErrorText(e: { status?: number; code?: string; message?: string; extra?: Record<string, unknown> } | null | undefined): string {
   const code = errorCode(e);
-  const m = e?.message && e.message !== 'Erro inesperado' ? e.message : '';
+  const m = e?.message && e.message !== UNEXPECTED_TEXT() ? e.message : '';
   if (code === 'too_many') return t('Já tens {maxScheduled} Txilladas agendadas. Cancela uma para agendares outra.', { maxScheduled: MAX_SCHEDULED });
   if (code === 'too_close') return t('Já tens uma Txillada agendada perto dessa hora. Escolhe uma hora com pelo menos 30 min de diferença.');
   if (code === 'too_early') return t('Ainda falta mais de uma hora para a hora marcada.');

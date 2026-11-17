@@ -17,6 +17,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { AccessBadge, JoinButton, usePublicGroup } from '@/components/groups/GroupJoin';
 import { GroupCover } from '@/components/groups/GroupParts';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
+import { mapLabels } from '@/components/nearby/mapLabels';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
 import { ApiError, api, type Badged } from '@/lib/api';
 import { boostsApi } from '@/lib/api.boosts';
@@ -30,9 +31,8 @@ import { kvGet, kvSet } from '@/lib/kv';
 import { EMPTY_EXTRA_LABEL, emptyExtras, emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type EmptyExtra, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
 import { RADIUS, RADIUS_MARKS, RADIUS_STEPS } from '@/lib/radius';
 import { cardShadow, colors } from '@/lib/theme';
-import { timeAgo } from '@/lib/time';
 import { RangeSlider } from '@/components/RangeSlider';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Cidades para quem não quer dar a localização (coordenadas do centro, já arredondadas). */
 const CITIES: { name: string; lat: number; lng: number }[] = [
@@ -130,8 +130,11 @@ interface Item {
 function agoText(ago: string | number): string {
   if (typeof ago === 'number') return ago < 1 ? t('agora mesmo') : ago < 60 ? t('há {ago} min', { ago: Math.round(ago) }) : t('há {n} h', { n: Math.round(ago / 60) });
   if (/^\d{4}-\d\d-\d\d/.test(ago)) {
-    const txt = timeAgo(ago);
-    return txt === 'Agora' ? t('agora mesmo') : txt.replace(/^Há (\d+)(min|h|d)$/, (_m, n: string, u: string) => t('há {n} {u}', { n, u }));
+    const s = (Date.now() - new Date(ago).getTime()) / 1000;
+    if (s < 60) return t('agora mesmo');
+    if (s < 3600) return t('há {ago} min', { ago: Math.floor(s / 60) });
+    if (s < 86400) return t('há {n} h', { n: Math.floor(s / 3600) });
+    return t('há {n} d', { n: Math.floor(s / 86400) });
   }
   if (/^agora/i.test(ago)) return t('agora mesmo');
   return /^há /i.test(ago) ? ago : t('há {ago}', { ago });
@@ -707,7 +710,8 @@ function CityGrid({ onPick, current }: { onPick: (c: (typeof CITIES)[number]) =>
 const KIND_ICON: Record<MapMarkerKind, IconName> = { venue: 'map-pin', event: 'calendar', post: 'image', group: 'users', person: 'user' };
 /** O ícone de cada tipo de local: o mesmo do pino no mapa (mapRuntime VENUE_ICON). */
 const VENUE_ICON: Record<string, IconName> = { bar: 'martini', restaurante: 'utensils', cafe: 'coffee', discoteca: 'music', hotel: 'key', evento: 'calendar' };
-const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+/** Os meses em maiúsculas da folha de calendário (os mesmos do pino no mapa: nearby/mapLabels), no idioma da pessoa. */
+const MONTHS = () => mapLabels().months;
 const EXTRA_ICON: Record<EmptyExtra, IconName> = { place: 'map-pin', invite: 'user-plus', venue: 'store', all: 'compass' };
 const GROUP_PURPLE = '#7c3aed';
 
@@ -734,13 +738,13 @@ function Thumb({ item }: { item: Item }) {
       return (
         <View style={st.thumb}>
           <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          {ok ? <View style={st.dateChip}><Text style={st.dateChipText}>{`${d!.getDate()} ${MONTHS[d!.getMonth()]}`}</Text></View> : null}
+          {ok ? <View style={st.dateChip}><Text style={st.dateChipText}>{`${d!.getDate()} ${MONTHS()[d!.getMonth()]}`}</Text></View> : null}
         </View>
       );
     }
     return (
       <View style={st.cal}>
-        <View style={st.calTop}><Text style={st.calMonth}>{ok ? MONTHS[d!.getMonth()] : ''}</Text></View>
+        <View style={st.calTop}><Text style={st.calMonth}>{ok ? MONTHS()[d!.getMonth()] : ''}</Text></View>
         <View style={st.calBody}>{ok ? <Text style={st.calDay}>{d!.getDate()}</Text> : <Icon name="calendar" size={20} color={colors.brand} />}</View>
       </View>
     );
@@ -1262,7 +1266,7 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
           <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
             <AccessBadge visibility={p?.visibility ?? group.visibility} />
             <Text style={st.cardText}>
-              {[GROUP_KIND[group.kind] ?? 'TxillGroup', t('{count} membro', { count: members, other: '{count} membros' }), group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
+              {[GROUP_KIND[group.kind] ?? 'TxillGroup', t('{count} membro', { count: members, other: '{count} membros' }), group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
                 .filter(Boolean)
                 .join(' · ')}
             </Text>

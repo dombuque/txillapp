@@ -59,7 +59,7 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
 export function timeLabel(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   const days = daysAgo(d, now);
-  const day = days <= 0 ? 'Hoje' : days === 1 ? t('Ontem') : days < 7 ? WEEKDAYS()[d.getDay()] : dayMonth(d, now);
+  const day = days <= 0 ? t('Hoje') : days === 1 ? t('Ontem') : days < 7 ? WEEKDAYS()[d.getDay()] : dayMonth(d, now);
   return `${day}, ${hhmm(d)}`;
 }
 

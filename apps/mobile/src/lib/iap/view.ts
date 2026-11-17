@@ -1,5 +1,5 @@
 import type { IapCatalog, IapChannel, IapPlatform } from './core';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /**
  * Textos e estados dos ecrãs das compras pela loja (o selo azul e o Bombar), sem React Native, para os testes
@@ -39,7 +39,7 @@ export function subscriptionTerms(platform: IapPlatform): string[] {
 /** «Ativo até 12/12/2026», e se não renova, diz que acaba. */
 export function activeText(active: { expiresAt: string; autoRenew: boolean }): string {
   const d = new Date(active.expiresAt);
-  const when = Number.isNaN(d.getTime()) ? active.expiresAt : d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const when = Number.isNaN(d.getTime()) ? active.expiresAt : d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
   return active.autoRenew ? t('O teu selo azul está ativo e renova a {when}.', { when }) : t('O teu selo azul está ativo até {when}. Não vai renovar.', { when });
 }
 

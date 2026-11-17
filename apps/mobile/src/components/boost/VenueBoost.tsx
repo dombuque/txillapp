@@ -15,7 +15,7 @@ import { boostPackLabel, boostPackageFor, storeName } from '@/lib/iap/view';
 import { IAP_PLATFORM, useIapCatalog, usePurchases } from '@/lib/purchases';
 import { eventWhen } from '@/lib/nearbyView';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 export const boostKey = (slug: string) => ['venue-boosts', slug] as const;
 const optionsKey = (slug: string) => ['venue-boost-options', slug] as const;
@@ -386,7 +386,7 @@ function CampaignCard({ c, onStop }: { c: BoostCampaign; onStop?: (c: BoostCampa
       <View style={st.stats}>
         {reportLines(c.report).map((l) => (
           <View key={l.label} style={st.stat} accessible accessibilityLabel={`${l.label}: ${l.value}`}>
-            <Text style={st.statValue}>{l.value.toLocaleString('pt-PT')}</Text>
+            <Text style={st.statValue}>{l.value.toLocaleString(intlLocale())}</Text>
             <Text style={st.statLabel}>{l.label}</Text>
           </View>
         ))}

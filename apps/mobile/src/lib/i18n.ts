@@ -135,6 +135,14 @@ export function localeOf(lang: Lang = active): string {
   return LANGS.find((l) => l.code === lang)?.locale ?? lang;
 }
 
+/**
+ * O locale para `toLocaleString`/`Intl` nos números e datas dos ecrãs: em português o de sempre («pt-PT», que dá o mesmo
+ * texto que a app sempre mostrou), nos outros idiomas o do idioma («en-GB»…).
+ */
+export function intlLocale(lang: Lang = active): string {
+  return lang === SOURCE_LANG ? 'pt-PT' : localeOf(lang);
+}
+
 /** O idioma ativo («pt», «en»…). */
 export function currentLanguage(): Lang {
   return active;
@@ -240,6 +248,13 @@ export function weekdayNames(width: 'long' | 'short' = 'short', opts: { capital?
   // 7 de janeiro de 2024 foi um domingo.
   const names = active === SOURCE_LANG ? pt : intlNames(7, (i) => new Date(Date.UTC(2024, 0, 7 + i)), { weekday: width }) ?? pt;
   return opts.capital ? names.map(capital) : names;
+}
+
+/** As iniciais dos dias nos calendários, de segunda a domingo: «S T Q Q S S D» em português, o Intl nos outros. */
+export function weekInitials(): string[] {
+  const pt = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  // 8 de janeiro de 2024 foi uma segunda-feira.
+  return active === SOURCE_LANG ? pt : intlNames(7, (i) => new Date(Date.UTC(2024, 0, 8 + i)), { weekday: 'narrow' }) ?? pt;
 }
 
 /** Abreviatura com ponto só em português («seg.», «nov.»); nos outros idiomas fica como o Intl a dá. */

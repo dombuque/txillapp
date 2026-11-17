@@ -4,7 +4,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import type { Track } from '@/lib/api.music';
 import { SFX, type SfxId, type VoiceFxId } from '@/lib/studio/audioDsp';
 import { auditionSfx, createScrubber, type MixSchedule, type StudioGraph } from '@/lib/studio/audioEngine';
-import { defaultMix, type StartSuggestion, type StudioMix, type Template, type VoiceTake } from '@/lib/studio/audioMix';
+import { defaultMix, startLabel, type StartSuggestion, type StudioMix, type Template, type VoiceTake } from '@/lib/studio/audioMix';
 import { fmtS } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { AudioFx } from './AudioFx';
@@ -212,9 +212,9 @@ export function AudioPanel(p: {
             />
             <View style={st.row}>
               {p.suggestion ? (
-                <Pressable onPress={() => commitStart(Math.round(p.suggestion!.start * 1000))} disabled={locked} style={[st.chip, Math.abs(mix.musicStartMs - p.suggestion.start * 1000) < 60 && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Usar o trecho sugerido: {label} aos {mmss}', { label: p.suggestion.label, mmss: mmss(p.suggestion.start) })}>
+                <Pressable onPress={() => commitStart(Math.round(p.suggestion!.start * 1000))} disabled={locked} style={[st.chip, Math.abs(mix.musicStartMs - p.suggestion.start * 1000) < 60 && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Usar o trecho sugerido: {label} aos {mmss}', { label: startLabel(p.suggestion.label), mmss: mmss(p.suggestion.start) })}>
                   <View style={st.star} />
-                  <Text style={st.chipText}>{p.suggestion.label} · {mmss(p.suggestion.start)}</Text>
+                  <Text style={st.chipText}>{startLabel(p.suggestion.label)} · {mmss(p.suggestion.start)}</Text>
                 </Pressable>
               ) : null}
               <Pressable onPress={() => commitStart(0)} disabled={locked} style={[st.chip, mix.musicStartMs === 0 && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Começar no início da música')}><Text style={st.chipText}>{t('Do início')}</Text></Pressable>

@@ -53,7 +53,7 @@ import { livePrice } from '@/lib/txillada';
 import { NextTxilladaCard } from './txillada/ScheduleCards';
 import { vibesWord } from '@/lib/vibes';
 import { setPostHidden } from '@/lib/hidePostAction';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -107,7 +107,7 @@ function Grid({ posts, onOpen, onHold, width, onUnhide }: { posts: Post[]; onOpe
                   <View style={[styles.giftAv, { right: 0, zIndex: 1 }]}><Avatar name={post.gift.recipient.displayName} username={(post.gift.recipient as { hasAvatar?: boolean }).hasAvatar ? post.gift.recipient.username : undefined} size={26} /></View>
                   <View style={[styles.giftAv, { left: 0, zIndex: 2 }]}><Avatar name={post.author.displayName} username={post.author.username} size={26} /></View>
                 </View>
-                <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString('pt-PT')}</Text>
+                <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString(intlLocale())}</Text>
                 <Text style={styles.giftLabel}>{vibesWord(post.gift.amount).toUpperCase()}</Text>
               </LinearGradient>
             ) : shown.gelada ? (
@@ -267,8 +267,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const rowButtons = p.isMe ? 5 : 1 + (p.following ? 1 : 0) + 3;
   const tipRight = rowW ? (rowW - 6 * (rowButtons - 1)) / rowUnits / 2 - 11 : 11;
   const stat = (n: number, label: string, go?: () => void) => (
-    <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString('pt-PT')} ${label}`} accessibilityHint={go ? t('Abre a lista') : undefined}>
-      <Text style={styles.statN}>{n.toLocaleString('pt-PT')}</Text>
+    <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString(intlLocale())} ${label}`} accessibilityHint={go ? t('Abre a lista') : undefined}>
+      <Text style={styles.statN}>{n.toLocaleString(intlLocale())}</Text>
       <Text style={styles.statL}>{label}</Text>
     </Pressable>
   );

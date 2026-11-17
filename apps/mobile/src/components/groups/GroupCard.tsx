@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { GroupCover } from '@/components/groups/GroupParts';
-import { countdown, dateRange, groupKindOf, kindInfo, type GroupKind, type TxillGroupSummary } from '@/lib/api.groups';
+import { countdown, dateRange, groupKindOf, kindInfo, planWhen, type GroupKind, type TxillGroupSummary } from '@/lib/api.groups';
 import { sized } from '@/lib/config';
 import { accessOf, type GroupAccess } from '@/lib/groupAccess';
 import { colors } from '@/lib/theme';
@@ -55,16 +55,16 @@ const RING = 60;
 
 /** "Daqui a 18 dias" → "Faltam 18 dias"; os outros ("Amanhã", "É hoje", "A decorrer") ficam como estão. */
 function soon(start?: string | null, end?: string | null): string | null {
-  const c = countdown(start, end);
-  if (!c || c === 'Já passou') return null;
-  return c.replace(/^Daqui a (\d+) dias$/, 'Faltam $1 dias');
+  const w = planWhen(start, end);
+  if (!w || w.kind === 'past') return null;
+  return w.kind === 'days' ? t('Faltam {days} dias', { days: w.days }) : countdown(start, end);
 }
 
 /** A linha de contexto: «Viagem · Tofo · 28 dez a 2 jan · 6 vão» ou, sem plano, «Viagem · 8 pessoas». */
 function contextOf(p: GroupCardProps): string {
   const parts: string[] = [kindInfo(p.kind).label];
   const plan = p.plan;
-  const passed = !!plan?.startsOn && countdown(plan.startsOn, plan.endsOn) === 'Já passou';
+  const passed = !!plan?.startsOn && planWhen(plan.startsOn, plan.endsOn)?.kind === 'past';
   if (plan?.destination) parts.push(plan.destination);
   const dates = !passed ? dateRange(plan?.startsOn, plan?.endsOn) : null;
   if (dates) parts.push(dates.replace(' · ', ' a '));

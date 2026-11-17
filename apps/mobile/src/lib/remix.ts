@@ -2,7 +2,7 @@
 // («Dueto com @x»), para onde leva cada coisa, a montagem lado a lado e onde fica o autocolante do comentário.
 // Sem dependências (os testes correm em Node: tests/remix.test.mjs). Servidor: apps/api/src/posts/remix.ts (0134).
 
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 export type RemixKind = 'duet' | 'reply';
 export interface RemixPerson { username: string; displayName: string; hasAvatar?: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 /** A ligação do remix numa publicação (`post.remixOf`). */
@@ -68,7 +68,7 @@ export function remixActions(p: { canRemix?: boolean; remixes?: number; media: {
 }
 
 /** «3 duetos e respostas». */
-export const remixCount = (n: number) => (n === 1 ? t('1 dueto ou resposta') : t('{n} duetos e respostas', { n: n.toLocaleString('pt-PT') }));
+export const remixCount = (n: number) => (n === 1 ? t('1 dueto ou resposta') : t('{n} duetos e respostas', { n: n.toLocaleString(intlLocale()) }));
 
 /** No comentário: «Respondeu com uma tcheka» (ou «3 tchekas responderam»). */
 export const tchekaRepliesLabel = (n: number) => (t('Respondeu com uma tcheka', { count: n, other: '{count} tchekas responderam' }));

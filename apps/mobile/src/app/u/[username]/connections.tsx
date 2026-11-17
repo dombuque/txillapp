@@ -15,7 +15,7 @@ import { ApiError, api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 type Kind = 'followers' | 'following';
 
@@ -180,7 +180,7 @@ export default function Connections() {
   };
   const tabBtn = (k: Kind, label: string, n: number) => (
     <Pressable onPress={() => go(k)} style={st.tab} accessibilityRole="tab" accessibilityState={{ selected: cur === k }} aria-selected={cur === k}>
-      <Text style={[st.tabText, cur === k ? { fontWeight: '700', color: colors.zinc900 } : { color: colors.zinc600 }]}>{n.toLocaleString('pt-PT')} {label}</Text>
+      <Text style={[st.tabText, cur === k ? { fontWeight: '700', color: colors.zinc900 } : { color: colors.zinc600 }]}>{n.toLocaleString(intlLocale())} {label}</Text>
       <View style={[st.bar, { opacity: cur === k ? 1 : 0 }]} />
     </Pressable>
   );

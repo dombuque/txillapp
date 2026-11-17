@@ -12,7 +12,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { abs, sized } from '@/lib/config';
 import { GROUP_KINDS, groupsApi, kindInfo, toIsoDay, dayOf, type GroupKind, type VenueHit } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { intlLocale, t, weekInitials } from '@/lib/i18n';
 
 /** A capa do TxillGroup (foto) ou, sem capa, o ícone do tipo sobre o coral claro. */
 export function GroupCover({ url, kind, size = 48, radius }: { url?: string | null; kind?: GroupKind | null; size?: number; radius?: number }) {
@@ -95,7 +95,6 @@ export function ConfirmSheet({ title, lines, hint, confirmLabel = t('Confirmar')
 }
 
 // ----- datas -----
-const WEEK = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 /** Calendário do Plano: toca no primeiro dia e depois no último (ou só num, para um dia). Igual no telemóvel e no site. */
 export function DateRangeSheet({ start, end, onSave, onClose }: { start: string | null; end: string | null; onSave: (start: string | null, end: string | null) => void; onClose: () => void }) {
   const [a, setA] = useState<string | null>(start);
@@ -111,7 +110,7 @@ export function DateRangeSheet({ start, end, onSave, onClose }: { start: string 
     if (!a || b || d < a) { setA(d); setB(null); return; }
     setB(d === a ? null : d);
   }
-  const label = month.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  const label = month.toLocaleDateString(intlLocale(), { month: 'long', year: 'numeric' });
   return (
     <Sheet title={t('Datas')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
@@ -121,13 +120,13 @@ export function DateRangeSheet({ start, end, onSave, onClose }: { start: string 
           <Pressable onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={ps.calNav} accessibilityRole="button" accessibilityLabel={t('Mês seguinte')}><Icon name="chevron-right" size={20} /></Pressable>
         </View>
         <View style={ps.calGrid}>
-          {WEEK.map((w, i) => <Text key={`w${i}`} style={ps.calWeek}>{w}</Text>)}
+          {weekInitials().map((w, i) => <Text key={`w${i}`} style={ps.calWeek}>{w}</Text>)}
           {cells.map((d, i) => {
             if (!d) return <View key={`e${i}`} style={ps.calCell} />;
             const edge = d === a || d === b;
             const inside = !!a && !!b && d > a && d < b;
             return (
-              <Pressable key={d} onPress={() => tap(d)} style={ps.calCell} accessibilityRole="button" accessibilityState={{ selected: edge }} accessibilityLabel={dayOf(d).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}>
+              <Pressable key={d} onPress={() => tap(d)} style={ps.calCell} accessibilityRole="button" accessibilityState={{ selected: edge }} accessibilityLabel={dayOf(d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'long' })}>
                 <View style={[ps.calDay, inside && { backgroundColor: colors.rose50 }, edge && { backgroundColor: colors.brand }]}>
                   <Text style={[ps.calNum, d === today && { color: colors.brand, fontWeight: '800' }, edge && { color: '#fff' }, d < today && !edge && { color: colors.zinc300 }]}>{Number(d.slice(8))}</Text>
                 </View>

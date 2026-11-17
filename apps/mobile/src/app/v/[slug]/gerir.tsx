@@ -28,7 +28,7 @@ import { resyncDraft } from '@/lib/draftSync';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'bombar' | 'painel';
 
@@ -111,6 +111,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [msg, setMsg] = useState('');
+  const [saved, setSaved] = useState(false);
   const placeRef = useRef<PlaceFieldHandle>(null);
   // Chegou o local outra vez (puxar para atualizar, voltar à app, guardar o logótipo…): o que a pessoa já escreveu e
   // ainda não guardou fica; só os campos em que não mexeu passam para a versão nova (antes apagava tudo o que escrevera).
@@ -137,6 +138,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
   async function save(patch?: VenueProfileInput) {
     setBusy(true);
     setMsg('');
+    setSaved(false);
     try {
       const body: VenueProfileInput = patch ?? {
         name: f.name.trim(), kind: f.kind, about: f.about.trim() || null,
@@ -153,7 +155,8 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       }
       qc.setQueryData(['venue', v.slug], nv);
       void qc.invalidateQueries({ queryKey: ['venues-mine'] });
-      setMsg('Guardado.');
+      setMsg(t('Guardado.'));
+      setSaved(true);
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -220,7 +223,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       {input('website', 'Site (https://…)', { autoCapitalize: 'none', keyboardType: 'url', maxLength: 200 })}
       <Text style={st.label}>{t('Sobre')}</Text>
       {input('about', t('Conta o que é o local, o ambiente, o que a malta vem cá fazer'), { multiline: true, maxLength: 1000 })}
-      <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: msg === 'Guardado.' ? colors.green700 : colors.red600 }}>{msg}</Text>
+      <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: saved ? colors.green700 : colors.red600 }}>{msg}</Text>
       <Pressable onPress={() => void save()} disabled={busy || f.name.trim().length < 2} style={[st.cta, (busy || f.name.trim().length < 2) && { opacity: 0.5 }]} accessibilityRole="button">
         <Text style={st.ctaText}>{busy ? t('A guardar…') : t('Guardar')}</Text>
       </Pressable>
@@ -360,7 +363,7 @@ function Insights({ v }: { v: Venue }) {
   const max = Math.max(1, ...d.days.map((x) => x.checkins));
   const stat = (n: number, label: string, sub?: string) => (
     <View key={label} style={st.stat}>
-      <Text style={{ fontSize: 24, fontWeight: '800', color: colors.zinc900 }}>{n.toLocaleString('pt-PT')}</Text>
+      <Text style={{ fontSize: 24, fontWeight: '800', color: colors.zinc900 }}>{n.toLocaleString(intlLocale())}</Text>
       <Text style={{ fontSize: 13, fontWeight: '600', color: colors.zinc700 }}>{label}</Text>
       {sub ? <Text style={{ fontSize: 12, color: colors.zinc500 }}>{sub}</Text> : null}
     </View>

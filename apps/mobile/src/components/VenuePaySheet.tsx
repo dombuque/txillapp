@@ -11,12 +11,12 @@ import { aoLocal, locaisApi, shortTx, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { formatVibes, vibesWord } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 const QUICK = [50, 100, 200, 500];
 const MAX_DIGITS = 7;
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(intlLocale());
 const two = (n: number) => String(n).padStart(2, '0');
 /** Data e hora sem depender do Intl do aparelho (o Hermes nem sempre o tem completo). */
 const quando = (d: Date) => `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}, ${two(d.getHours())}:${two(d.getMinutes())}`;

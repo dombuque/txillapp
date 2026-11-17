@@ -50,7 +50,7 @@ test('a fila de botões do perfil: toque de 44 px (36 + 4 + 4) e papel de botão
 });
 
 test('os números de seguidores dizem ao leitor de ecrã o que são', () => {
-  assert.match(profile, /accessibilityLabel=\{`\$\{n\.toLocaleString\('pt-PT'\)\} \$\{label\}`\}/);
+  assert.match(profile, /accessibilityLabel=\{`\$\{n\.toLocaleString\(intlLocale\(\)\)\} \$\{label\}`\}/);
 });
 
 test('seguidores / a seguir: a carregar, sem rede, 404, voltar sem histórico e "segues" quando é o próprio', () => {

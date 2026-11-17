@@ -50,7 +50,7 @@ import { allowCapture, blockCapture, captureNative, onScreenshot, sendScreenshot
 import { screenshotKey } from '@/lib/screenshotNotice';
 import { FontChips } from './FontChips';
 import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, type TextFontId } from '@/lib/textLayers';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 type Audience = 'friends' | 'close';
 
@@ -81,7 +81,7 @@ const SNOOZE_KEY = 'tx_zas_snooze';
 /** A última letra escolhida para a legenda (fica no aparelho). */
 const FONT_KEY = 'tx_zas_font';
 
-const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const hm = (iso: string) => new Date(iso).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
 /** «Guardar os meus Zás para o resumo semanal» (a mesma cache das Definições → Privacidade). Servidor antigo: sem ela. */
 const useZasSettings = (enabled = true) => useQuery({ queryKey: ['zas-settings'], queryFn: instantsApi.settings, retry: false, staleTime: 60_000, enabled });
 const leftLabel = (iso: string) => {

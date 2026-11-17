@@ -13,14 +13,14 @@ import { geleiraApi, type CatalogItem, type TasteKind } from '@/lib/api.geleira'
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
 import { shareBlockReason } from '@/lib/geleiraPost';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 const SKY50 = '#f0f9ff';
 const SKY500 = '#0ea5e9';
 const SKY700 = '#0369a1';
 const SKY800 = '#075985';
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(intlLocale());
 /** Quantos já tem a malta sem mim (o servidor conta-me se já tenho o item). */
 const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
 

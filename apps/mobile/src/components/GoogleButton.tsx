@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { CHANNEL } from '@/lib/distribution';
 import { googleSignInAllowed } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Dados do passo "escolher o @" depois do Google (não são sensíveis). Passam em memória entre ecrãs. */
 let pending: GoogleNeedsUsername | null = null;
@@ -80,7 +80,7 @@ function WebGoogleButton({ mode, onError }: { mode: 'login' | 'register'; onErro
         el.innerHTML = '';
         g.accounts.id.renderButton(el, {
           type: 'standard', theme: 'outline', size: 'large', shape: 'pill',
-          text: mode === 'login' ? 'continue_with' : 'signup_with', locale: 'pt-PT',
+          text: mode === 'login' ? 'continue_with' : 'signup_with', locale: intlLocale(),
           width: Math.min(el.clientWidth || 320, 400),
         });
       })

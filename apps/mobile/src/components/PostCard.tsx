@@ -49,7 +49,7 @@ import { useTextFontStyle } from '@/lib/useTextFonts';
 import { vibesWord } from '@/lib/vibes';
 import { HIDDEN_BANNER } from '@/lib/hidePost';
 import { setPostHidden } from '@/lib/hidePostAction';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /**
  * A letra de uma publicação só com texto (`textFont`, lib/textLayers): o tamanho acertado à fonte (as de cartaz são
@@ -553,7 +553,7 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
         <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
         {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
       </View>
-      <Text style={[styles.giftAmount, compact && { fontSize: 30, lineHeight: 32 }]}>{g.amount.toLocaleString('pt-PT')}</Text>
+      <Text style={[styles.giftAmount, compact && { fontSize: 30, lineHeight: 32 }]}>{g.amount.toLocaleString(intlLocale())}</Text>
       <Text style={styles.giftUnit}>{vibesWord(g.amount).toUpperCase()}</Text>
       {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
     </Pressable>

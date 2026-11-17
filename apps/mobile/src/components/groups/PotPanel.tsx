@@ -17,7 +17,7 @@ import { colors } from '@/lib/theme';
 import { usePurchases } from '@/lib/purchases';
 import { timeAgo } from '@/lib/time';
 import { ConfirmSheet, ErrText, Field, Pill, Section, VenuePickerSheet } from './GroupParts';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const intOf = (t: string) => {
@@ -63,11 +63,11 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
     <ScrollView style={{ flex: 1, backgroundColor: colors.zinc50 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
       <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
         <Text style={st.heroLabel}>{t('Vibes do TxillGroup')}</Text>
-        <Text style={st.heroValue}>{pot.balance.toLocaleString('pt-PT')}</Text>
+        <Text style={st.heroValue}>{pot.balance.toLocaleString(intlLocale())}</Text>
         {pot.goal ? (
           <View style={{ marginTop: 10 }}>
             <View style={st.track}><View style={[st.fill, { width: `${pct}%` }]} /></View>
-            <Text style={st.heroSub}>{t('{pct}% da meta de {txills}', { pct, txills: txills(pot.goal) })}{pot.balance >= pot.goal ? (' ' + t('· meta batida!')) : (' ' + t('· faltam {n}', { n: (pot.goal - pot.balance).toLocaleString('pt-PT') }))}</Text>
+            <Text style={st.heroSub}>{t('{pct}% da meta de {txills}', { pct, txills: txills(pot.goal) })}{pot.balance >= pot.goal ? (' ' + t('· meta batida!')) : (' ' + t('· faltam {n}', { n: (pot.goal - pot.balance).toLocaleString(intlLocale()) }))}</Text>
           </View>
         ) : (
           <Text style={st.heroSub}>{admin ? t('Sem meta. Põe uma para a malta saber até onde vai.') : t('Sem meta definida.')}</Text>
@@ -116,7 +116,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
                 <Text style={st.rowName} numberOfLines={1}>{p.venue?.name ?? t('Local')}</Text>
                 <Text style={st.muted} numberOfLines={1}>{[p.note, p.by ? `por ${p.by.username === me ? 'ti' : p.by.displayName}` : null, timeAgo(p.at)].filter(Boolean).join(' · ')}</Text>
               </View>
-              <Text style={[st.amount, { color: colors.red600 }]}>-{p.amount.toLocaleString('pt-PT')}</Text>
+              <Text style={[st.amount, { color: colors.red600 }]}>-{p.amount.toLocaleString(intlLocale())}</Text>
             </View>
           ))}
         </Section>
@@ -132,7 +132,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
               <NameWithBadge name={c.username === me ? 'Tu' : c.displayName} who={c.username === me ? null : c} style={[st.rowName, { flex: undefined }]} />
               <Text style={st.muted}>{timeAgo(c.at)}</Text>
             </View>
-            <Text style={st.amount}>+{c.amount.toLocaleString('pt-PT')}</Text>
+            <Text style={st.amount}>+{c.amount.toLocaleString(intlLocale())}</Text>
           </View>
         ))}
         {(pot.refunds ?? []).map((r, i) => (
@@ -142,7 +142,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
               <Text style={st.rowName} numberOfLines={1}>{t('Devolução a quem meteu')}</Text>
               <Text style={st.muted}>{[r.by ? `por ${r.by.username === me ? 'ti' : r.by.displayName}` : null, timeAgo(r.at)].filter(Boolean).join(' · ')}</Text>
             </View>
-            <Text style={[st.amount, { color: colors.zinc600 }]}>-{r.amount.toLocaleString('pt-PT')}</Text>
+            <Text style={[st.amount, { color: colors.zinc600 }]}>-{r.amount.toLocaleString(intlLocale())}</Text>
           </View>
         ))}
       </Section>
@@ -231,7 +231,7 @@ function ContributeSheet({ groupId, onClose, onDone }: { groupId: string; onClos
                 const on = !custom && amount === p;
                 return (
                   <Pressable key={p} onPress={() => { setCustom(''); setAmount(p); }} style={[st.preset, on && { backgroundColor: colors.brand }]} accessibilityRole="radio" accessibilityState={{ selected: on }}>
-                    <Text style={[st.presetText, on && { color: '#fff' }]}>{p.toLocaleString('pt-PT')}</Text>
+                    <Text style={[st.presetText, on && { color: '#fff' }]}>{p.toLocaleString(intlLocale())}</Text>
                   </Pressable>
                 );
               })}

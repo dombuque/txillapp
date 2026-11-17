@@ -14,12 +14,12 @@ import { extraApi, newKey, type PaymentOrder } from '@/lib/api.extra';
 import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 import { vibesWord } from '@/lib/vibes';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra a secção de recarregar (nem a carregar). */
 const NATIVE = Platform.OS !== 'web';
 
-const n = (v: number) => v.toLocaleString('pt-PT');
+const n = (v: number) => v.toLocaleString(intlLocale());
 const money = (minor: number, currency: string) => `${(minor / 100).toFixed(2).replace('.', ',')} ${currency === 'MZN' ? 'MT' : currency}`;
 const STATUS: Record<PaymentOrder['status'], { label: string; bg: string; fg: string }> = {
   pending: { get label() { return t('À espera'); }, bg: '#fef3c7', fg: '#92400e' },

@@ -12,10 +12,10 @@ import { StackPage } from '@/components/StackPage';
 import { extraApi } from '@/lib/api.extra';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
-import { t, weekdayNames } from '@/lib/i18n';
+import { intlLocale, t, weekdayNames } from '@/lib/i18n';
 
 type Period = 7 | 30 | 90;
-const num = (n: number) => n.toLocaleString('pt-PT');
+const num = (n: number) => n.toLocaleString(intlLocale());
 const GENDER: Record<string, string> = { get female() { return t('Mulheres'); }, get male() { return t('Homens'); }, get other() { return t('Outro'); } };
 
 function Card({ children, style }: { children: ReactNode; style?: object }) {

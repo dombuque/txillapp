@@ -42,7 +42,7 @@ import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
 import { MixarCard } from './mixar/MixarCard';
-import { t } from '@/lib/i18n';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
 export type MenuAt = { x: number; y: number };
@@ -80,7 +80,7 @@ export function senderColor(username: string): string {
 const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', get voice() { return t('Mensagem de voz'); }, get sticker() { return t('Sticker'); }, gif: 'GIF', get post() { return t('Publicação'); }, get location() { return t('Localização'); }, get gift() { return t('Presente'); }, get poll() { return t('Sondagem'); }, gelada: 'Paga-me uma', get rodada() { return t('Rodada'); }, mixar: 'Mixar' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? t('Mensagem'));
-export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+export const clock = (iso: string) => new Date(iso).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 export const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString();
 export function dayLabel(iso: string) {
@@ -88,9 +88,9 @@ export function dayLabel(iso: string) {
   const now = new Date();
   const yest = new Date();
   yest.setDate(now.getDate() - 1);
-  if (d.toDateString() === now.toDateString()) return 'Hoje';
+  if (d.toDateString() === now.toDateString()) return t('Hoje');
   if (d.toDateString() === yest.toDateString()) return t('Ontem');
-  return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 }
 /** "Visto há 5 min", "Visto hoje às 14:20", "Visto ontem", "Visto a 3 de out". */
 export function seenLabel(iso: string | null) {
@@ -104,7 +104,7 @@ export function seenLabel(iso: string | null) {
   yest.setDate(now.getDate() - 1);
   if (d.toDateString() === now.toDateString()) return t('Visto hoje às {clock}', { clock: clock(iso) });
   if (d.toDateString() === yest.toDateString()) return t('Visto ontem');
-  return `Visto a ${d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}`;
+  return t('Visto a {date}', { date: d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short' }) });
 }
 
 // ----- mapa -----
