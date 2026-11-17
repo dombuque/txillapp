@@ -19,10 +19,12 @@ import {
   forYouStyle,
   highlightColors,
   highlights,
+  isExplicit,
   licenseLabel,
   onlyAllowed,
   pickerTabs,
   rowMeta,
+  rowTap,
   toggleSaved,
   withoutDisliked,
   type ForYouFilter,
@@ -30,7 +32,8 @@ import {
 } from '@/lib/musicCatalog';
 import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
-import { playTrack, stopTrack } from '@/lib/musicPlayer';
+import { pauseTrack, playTrack, resumeTrack, stopTrack, useTrackLive } from '@/lib/musicPlayer';
+import { Chip } from '@/components/ui/Chip';
 import { colors } from '@/lib/theme';
 
 export { licenseLabel };
@@ -169,9 +172,9 @@ const noCover = (t: Track) => {
 
 /**
  * Escolher a música de um mimo, de uma tcheka ou de uma nota, do catálogo curado do servidor. Folha escura de baixo (no
- * computador, painel à direita) com a pesquisa e quatro separadores: «Para ti» (destaques, as pastilhas de estilo e o que
- * combina com o texto do post e com as guardadas), «Em alta», «Sons originais» e «Guardadas». Tocar numa linha ouve um
- * pedaço; «Usar» escolhe-a; manter premido (ou o «⋯» no computador) abre o resto, como «Não gosto desta». O crédito do
+ * computador, painel à direita) com a pesquisa em pílula e, logo por baixo, quatro separadores: «Para ti» (destaques e
+ * pastilhas de estilo compactos, e o que combina com o texto do post e com as guardadas), «Em alta», «Guardadas» e «Sons
+ * originais». A linha é igual em todos. Tocar numa linha começa logo a ouvir (outra vez pausa); «Usar» escolhe-a; manter premido (ou o «⋯» no computador) abre o resto, como «Não gosto desta». O crédito do
  * autor segue com a faixa. As faixas dos artistas de Moçambique só aparecem com `allowLocal` (mimos, TchekaStudio e
  * publicação com um só vídeo).
  */
@@ -259,18 +262,23 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
 
-  async function toggle(t: Track) {
-    if (playing === t.id) {
-      stopTrack(me.current);
-      return;
-    }
+  // O som está mesmo a sair (a faixa escolhida pode estar em pausa ou à espera de um toque no iPhone).
+  const live = useTrackLive(me.current);
+  /**
+   * Tocar numa linha começa logo a ouvir essa faixa; outra vez na mesma pausa (e retoma). Tudo até ao `play()` é síncrono:
+   * no iPhone (PWA) o toque é o que deixa o som sair, e um `await` antes perdia-o.
+   */
+  function toggle(t: Track) {
+    const act = rowTap(playing, live, t.id);
+    if (act === 'pause') return pauseTrack(me.current);
+    if (act === 'resume') return resumeTrack(me.current);
     setErr('');
     setPlaying(t.id);
-    const ok = await playTrack(me.current, t.url, { loop: false, onStop: () => setPlaying((cur) => (cur === t.id ? null : cur)) });
-    if (!ok) {
-      setPlaying(null);
+    void playTrack(me.current, t.url, { loop: false, onStop: () => setPlaying((cur) => (cur === t.id ? null : cur)) }).then((ok) => {
+      if (ok) return;
+      setPlaying((cur) => (cur === t.id ? null : cur));
       setErr('Não consegui tocar');
-    }
+    });
   }
   function pick(t: Track) {
     stopTrack(me.current);
@@ -283,6 +291,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       key={t.id}
       t={t}
       active={playing === t.id}
+      live={playing === t.id && live}
       saved={savedIds.has(t.id)}
       desktop={desktop}
       onPlay={toggle}
@@ -315,7 +324,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       {mode !== 'bottom' ? <Text style={s.deskTitle} accessibilityRole="header">Música e sons</Text> : null}
       <View style={s.search}>
         <Icon name="search" size={18} color={C.sub} />
-        <TextInput value={term} onChangeText={setTerm} placeholder="Procurar música, artista ou estilo" placeholderTextColor={C.sub} accessibilityLabel="Procurar música, artista ou estilo" autoCorrect={false} keyboardAppearance="dark" selectionColor={colors.brand} style={s.input} />
+        <TextInput value={term} onChangeText={setTerm} placeholder="Pesquisar…" placeholderTextColor={C.sub} accessibilityLabel="Pesquisar música, artista ou estilo" autoCorrect={false} keyboardAppearance="dark" selectionColor={colors.brand} style={s.input} />
         {term ? (
           <Pressable onPress={() => setTerm('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
             <Icon name="x" size={16} color={C.sub} />
@@ -325,9 +334,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
       {!searching ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.tabs} contentContainerStyle={s.tabsIn} accessibilityRole="tablist">
           {tabs.map(({ id, label }) => (
-            <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} style={(st) => [s.tab, tab === id ? s.tabOn : (st as { hovered?: boolean }).hovered && s.tabHover]}>
-              <Text style={[s.tabTxt, tab === id && s.tabTxtOn]}>{label}</Text>
-            </Pressable>
+            <Chip key={id} dark label={label} selected={tab === id} onPress={() => setTab(id)} />
           ))}
         </ScrollView>
       ) : null}
@@ -353,7 +360,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
           <View style={{ marginTop: 6 }}>{list(found, 'Nada com esse nome')}</View>
         ) : tab === 'forYou' ? (
           <>
-            {filter === null && !home.isLoading ? <Highlights items={tops} playing={playing} onPlay={toggle} onUse={pick} /> : null}
+            {filter === null && !home.isLoading ? <Highlights items={tops} playing={playing} live={live} onPlay={toggle} onUse={pick} /> : null}
             {chips.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
                 {chips.map((c) => {
@@ -395,7 +402,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
         )}
         <Text style={s.note}>
           Só músicas que se podem pôr em vídeos partilhados: licença aberta (CC0, domínio público ou CC BY, com o crédito de quem as fez) e artistas de Moçambique que deram autorização ao Txillapp.{' '}
-          {desktop ? 'Clica numa faixa para a ouvires; no «⋯» (ou com o botão direito) há «Não gosto desta».' : 'Toca numa faixa para a ouvires; mantém-na premida para «Não gosto desta».'}
+          {desktop ? 'Clica numa faixa para a ouvires e em «Usar» para a escolheres; no «⋯» (ou com o botão direito) há «Não gosto desta».' : 'Toca numa faixa para a ouvires e em «Usar» para a escolheres; mantém-na premida para «Não gosto desta».'}
         </Text>
       </ScrollView>
 
@@ -403,7 +410,7 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
         <RowMenu
           track={menu.track}
           anchor={menu.anchor}
-          playing={playing === menu.track.id}
+          playing={playing === menu.track.id && live}
           saved={savedIds.has(menu.track.id)}
           onClose={() => setMenu(null)}
           onPlay={toggle}
@@ -416,8 +423,11 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
   );
 }
 
-/** A capa quadrada (ou um fundo com uma nota, sem capa); a tocar, escurece e mostra o indicador de som. */
-function Cover({ t, size, radius, active }: { t: Track; size: number; radius: number; active: boolean }) {
+/**
+ * A capa quadrada (ou um fundo com uma nota, sem capa). A faixa escolhida escurece: com as ondas a mexer enquanto o som sai,
+ * com o «play» quando está em pausa.
+ */
+function Cover({ t, size, radius, active, live = active }: { t: Track; size: number; radius: number; active: boolean; live?: boolean }) {
   return (
     <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: noCover(t) }}>
       {t.cover ? (
@@ -429,7 +439,7 @@ function Cover({ t, size, radius, active }: { t: Track; size: number; radius: nu
       )}
       {active ? (
         <View style={[StyleSheet.absoluteFill, s.center, s.coverDim]}>
-          <SoundBars size={Math.round(size * 0.32)} />
+          {live ? <SoundBars size={Math.round(size * 0.36)} /> : <Icon name="play" size={Math.round(size * 0.36)} solid color="#fff" />}
         </View>
       ) : null}
     </View>
@@ -462,10 +472,12 @@ function SoundBars({ size = 16, color = '#fff' }: { size?: number; color?: strin
 }
 
 /**
- * Uma faixa da lista: capa, título e «Artista · 1,2 mil usos · 2:53», e o marcador de guardar à direita. Tocar ouve (a linha
- * fica realçada, com o indicador de som, e aparece «Usar»); manter premido, o botão direito ou o «⋯» (computador) abrem o resto.
+ * Uma faixa da lista, igual em todos os separadores: capa de 48, título a negrito (com o «E» das explícitas) e, a cinzento,
+ * «Artista · 1,2 mil tchekas · 2:53»; à direita o marcador de guardar. Tocar começa logo a ouvir (a linha fica realçada, com as
+ * ondas na capa, e aparece «Usar» ao lado do marcador); tocar outra vez pausa. Manter premido, o botão direito ou o «⋯»
+ * (computador) abrem o resto.
  */
-function TrackRow({ t, active, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
+function TrackRow({ t, active, live, saved, desktop, onPlay, onUse, onSave, onMenu }: { t: Track; active: boolean; live: boolean; saved: boolean; desktop: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void; onSave: (t: Track) => void; onMenu: (t: Track, anchor: Rect | null) => void }) {
   const [hot, setHot] = useState(false);
   const meta = rowMeta(t);
   return (
@@ -484,12 +496,19 @@ function TrackRow({ t, active, saved, desktop, onPlay, onUse, onSave, onMenu }: 
       style={({ pressed }) => [s.row, active ? s.rowOn : hot ? s.rowHover : null, pressed && !active && s.rowPressed]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={`${t.title}. ${meta}. ${active ? 'A tocar' : 'Ouvir'}`}
+      accessibilityLabel={`${t.title}${isExplicit(t) ? ' (explícita)' : ''}. ${meta}. ${active ? (live ? 'A tocar, toca para pausar' : 'Em pausa, toca para ouvir') : 'Ouvir'}`}
       accessibilityHint={desktop ? undefined : 'Mantém premido para mais opções'}
     >
-      <Cover t={t} size={56} radius={8} active={active} />
+      <Cover t={t} size={48} radius={8} active={active} live={live} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
+        <View style={s.rowTop}>
+          <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
+          {isExplicit(t) ? (
+            <View style={s.explicit} accessible={false}>
+              <Text style={s.explicitTxt}>E</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={s.rowSub} numberOfLines={1}>{meta}</Text>
       </View>
       {active || (desktop && hot) ? (
@@ -513,8 +532,11 @@ function TrackRow({ t, active, saved, desktop, onPlay, onUse, onSave, onMenu }: 
   );
 }
 
-/** Os destaques de «Para ti»: um cartão largo por faixa, com o fundo das cores da capa; desliza entre eles, com pontos por baixo. */
-function Highlights({ items, playing, onPlay, onUse }: { items: Track[]; playing: string | null; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
+/**
+ * Os destaques de «Para ti»: um cartão baixo por faixa (para a lista aparecer logo por baixo), com o fundo das cores da capa;
+ * desliza entre eles, com pontos por baixo.
+ */
+function Highlights({ items, playing, live, onPlay, onUse }: { items: Track[]; playing: string | null; live: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
   const [w, setW] = useState(0);
   const [at, setAt] = useState(0);
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -533,12 +555,12 @@ function Highlights({ items, playing, onPlay, onUse }: { items: Track[]; playing
     setAt(i);
   };
   return (
-    <View style={{ marginTop: 14 }} onLayout={onLayout}>
+    <View style={{ marginTop: 12 }} onLayout={onLayout}>
       {w ? (
         <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} scrollEventThrottle={32} onScroll={onScroll} keyboardShouldPersistTaps="handled">
           {items.map((t) => (
             <View key={t.id} style={{ width: w, paddingHorizontal: 2 }}>
-              <HighlightCard t={t} active={playing === t.id} onPlay={onPlay} onUse={onUse} />
+              <HighlightCard t={t} active={playing === t.id} live={playing === t.id && live} onPlay={onPlay} onUse={onUse} />
             </View>
           ))}
         </ScrollView>
@@ -558,27 +580,22 @@ function Highlights({ items, playing, onPlay, onUse }: { items: Track[]; playing
   );
 }
 
-const HL_H = 112;
+const HL_H = 76;
 
-function HighlightCard({ t, active, onPlay, onUse }: { t: Track; active: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
+function HighlightCard({ t, active, live, onPlay, onUse }: { t: Track; active: boolean; live: boolean; onPlay: (t: Track) => void; onUse: (t: Track) => void }) {
   const kicker = t.source === 'local' ? 'Artistas de Moçambique' : t.featured ? 'Em destaque' : 'Em alta';
   return (
-    <Pressable onPress={() => onPlay(t)} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${kicker}: ${t.title}, ${t.artist || 'Autor desconhecido'}. ${active ? 'A tocar' : 'Ouvir'}`}>
+    <Pressable onPress={() => onPlay(t)} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${kicker}: ${t.title}, ${t.artist || 'Autor desconhecido'}. ${active ? (live ? 'A tocar, toca para pausar' : 'Em pausa, toca para ouvir') : 'Ouvir'}`}>
       <LinearGradient colors={highlightColors(t) as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hl}>
-        <Cover t={t} size={80} radius={12} active={active} />
+        <Cover t={t} size={52} radius={10} active={active} live={live} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.hlKicker} numberOfLines={1}>{kicker}</Text>
-          <Text style={s.hlTitle} numberOfLines={2}>{t.title}</Text>
+          <Text style={s.hlTitle} numberOfLines={1}>{t.title}</Text>
           <Text style={s.hlArtist} numberOfLines={1}>{t.artist || (t.artistUsername ? `@${t.artistUsername}` : 'Autor desconhecido')}</Text>
         </View>
-        <View style={{ alignItems: 'center', gap: 8 }}>
-          <View style={s.hlPlay}>
-            <Icon name={active ? 'pause' : 'play'} size={16} solid color="#fff" />
-          </View>
-          <Pressable onPress={() => onUse(t)} style={({ pressed }) => [s.hlUse, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Usar ${t.title}`}>
-            <Text style={s.hlUseTxt}>Usar</Text>
-          </Pressable>
-        </View>
+        <Pressable onPress={() => onUse(t)} style={({ pressed }) => [s.hlUse, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Usar ${t.title}`}>
+          <Text style={s.hlUseTxt}>Usar</Text>
+        </Pressable>
       </LinearGradient>
     </Pressable>
   );
@@ -594,7 +611,7 @@ function RowMenu({ track, anchor, playing, saved, onClose, onPlay, onUse, onSave
     <Sheet title={track.title} onClose={onClose} dark variant="menu" anchor={anchor}>
       <View style={s.menu}>
         <MenuItem icon={<Icon name="check" size={20} color={C.text} />} label="Usar esta música" onPress={run(onUse)} />
-        <MenuItem icon={<Icon name={playing ? 'pause' : 'play'} size={18} solid color={C.text} />} label={playing ? 'Parar' : 'Ouvir'} onPress={run(onPlay)} />
+        <MenuItem icon={<Icon name={playing ? 'pause' : 'play'} size={18} solid color={C.text} />} label={playing ? 'Pausar' : 'Ouvir'} onPress={run(onPlay)} />
         {canSave(track) ? <MenuItem icon={<BookmarkIcon on={saved} size={20} color={C.text} />} label={saved ? 'Tirar das guardadas' : 'Guardar'} onPress={run(onSave)} /> : null}
         {track.kind !== 'clip' ? <MenuItem icon={<Icon name="eye-off" size={20} color={C.text} />} label="Não gosto desta" hint="Deixa de te aparecer" onPress={run(onDislike)} /> : null}
       </View>
@@ -617,45 +634,42 @@ function MenuItem({ icon, label, hint, onPress }: { icon: ReactNode; label: stri
 const s = StyleSheet.create({
   body: { flex: 1, minHeight: 0 },
   deskTitle: { paddingLeft: 20, paddingRight: 64, marginTop: 4, marginBottom: 12, fontSize: 18, lineHeight: 28, fontWeight: '700', color: C.text },
-  search: { marginHorizontal: 16, height: 42, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: C.raised, paddingHorizontal: 12 },
+  search: { marginHorizontal: 16, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: C.raised, paddingHorizontal: 16 },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: C.text, padding: 0, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null) },
-  tabs: { marginTop: 12, flexGrow: 0, flexShrink: 0 },
-  tabsIn: { gap: 6, paddingHorizontal: 16 },
-  tab: { height: 34, borderRadius: 999, paddingHorizontal: 12, backgroundColor: C.raised, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: '#ffffff' },
-  tabHover: { backgroundColor: C.line },
-  tabTxt: { fontSize: 14, fontWeight: '600', color: '#ebebf0' },
-  tabTxtOn: { color: C.bg, fontWeight: '700' },
+  tabs: { marginTop: 12, marginBottom: 4, flexGrow: 0, flexShrink: 0 },
+  tabsIn: { gap: 8, paddingHorizontal: 16 },
   scroll: { flex: 1, minHeight: 0 },
   scrollIn: { paddingHorizontal: 16, paddingBottom: 16 },
-  chips: { marginTop: 14, flexGrow: 0 },
+  chips: { marginTop: 10, flexGrow: 0 },
   chip: { height: 30, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   chipOn: { backgroundColor: C.soft, borderColor: C.soft },
   chipHover: { backgroundColor: C.raised },
   chipTxt: { fontSize: 13, fontWeight: '600', color: C.soft },
-  h: { marginTop: 18, marginBottom: 4, fontSize: 13, fontWeight: '700', color: C.sub },
+  h: { marginTop: 12, marginBottom: 2, fontSize: 13, fontWeight: '700', color: C.sub },
   note: { marginTop: 16, fontSize: 12, lineHeight: 16, color: '#636366' },
   err: { marginTop: 10, fontSize: 14, color: '#ff6b81' },
   empty: { paddingVertical: 28, paddingHorizontal: 12, textAlign: 'center', fontSize: 15, lineHeight: 21, color: C.sub },
   center: { alignItems: 'center', justifyContent: 'center' },
   coverDim: { backgroundColor: 'rgba(0,0,0,0.45)' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12 },
+  row: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12 },
   rowOn: { backgroundColor: C.raised },
   rowHover: { backgroundColor: '#242426' },
   rowPressed: { backgroundColor: '#242426' },
-  rowTitle: { fontSize: 15, fontWeight: '600', color: C.text },
-  rowSub: { marginTop: 2, fontSize: 13, color: C.sub },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  rowTitle: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: C.text },
+  explicit: { width: 16, height: 16, borderRadius: 3, backgroundColor: '#636366', alignItems: 'center', justifyContent: 'center' },
+  explicitTxt: { fontSize: 10, lineHeight: 12, fontWeight: '800', color: C.bg },
+  rowSub: { marginTop: 3, fontSize: 13, color: C.sub },
   use: { height: 32, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   useTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
   iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  hl: { height: HL_H, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, overflow: 'hidden' },
-  hlKicker: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: 0.6 },
-  hlTitle: { marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '800', color: '#fff' },
-  hlArtist: { marginTop: 2, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
-  hlPlay: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+  hl: { height: HL_H, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' },
+  hlKicker: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: 0.5 },
+  hlTitle: { marginTop: 1, fontSize: 15, lineHeight: 20, fontWeight: '800', color: '#fff' },
+  hlArtist: { fontSize: 13, color: 'rgba(255,255,255,0.85)' },
   hlUse: { height: 30, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   hlUseTxt: { fontSize: 13, fontWeight: '800', color: C.bg },
-  dots: { marginTop: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  dots: { marginTop: 8, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#48484a' },
   dotOn: { width: 16, backgroundColor: '#fff' },
   undo: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: C.raised, paddingHorizontal: 12, paddingVertical: 10 },

@@ -1,5 +1,5 @@
 /**
- * Lógica do seletor de música (sem React): os separadores («Para ti», «Em alta», «Sons originais», «Guardadas»), o que vai
+ * Lógica do seletor de música (sem React): os separadores («Para ti», «Em alta», «Guardadas», «Sons originais»), o que vai
  * para os destaques e para «Para ti», tirar as faixas de que não gosto, guardar, o texto das contagens e os rótulos das
  * licenças. O catálogo vem curado do servidor (docs/musica.md); aqui só se decide o que aparece e como.
  */
@@ -30,18 +30,18 @@ export const licenseLabel = (l: string) =>
           : `CC ${l.toUpperCase()}`;
 
 /**
- * Os separadores do seletor (as pastilhas de cima):
+ * Os separadores do seletor (as pastilhas logo por baixo da pesquisa), por esta ordem:
  * - `forYou` «Para ti»: os destaques e o que combina com o estilo sugerido pelo texto e com as guardadas;
  * - `trending` «Em alta»: o «Em alta no Txillapp» do servidor;
- * - `sounds` «Sons originais»: os sons do catálogo;
- * - `saved` «Guardadas»: as favoritas.
+ * - `saved` «Guardadas»: as favoritas;
+ * - `sounds` «Sons originais»: os sons do catálogo.
  */
 export type PickerTab = 'forYou' | 'trending' | 'sounds' | 'saved';
 export const PICKER_TABS: readonly { id: PickerTab; label: string }[] = [
   { id: 'forYou', label: 'Para ti' },
   { id: 'trending', label: 'Em alta' },
-  { id: 'sounds', label: 'Sons originais' },
   { id: 'saved', label: 'Guardadas' },
+  { id: 'sounds', label: 'Sons originais' },
 ];
 /** Os quatro separadores, sempre pela mesma ordem (o que muda é o que há dentro de cada um). */
 export const pickerTabs = () => PICKER_TABS;
@@ -166,10 +166,10 @@ export function compactCount(n: number | null | undefined): string {
   return `${fmt(1_000_000, v < 100_000_000 ? 1 : 0)} M`;
 }
 
-/** «1 uso», «12 usos», «1,2 mil usos» (nada para 0 ou sem número). */
+/** Quantas tchekas (e mimos) já a usaram: «1 tcheka», «59 tchekas», «1,2 mil tchekas», «1,2 M tchekas» (nada para 0 ou sem número). */
 export function usesText(n: number | null | undefined): string {
   if (!n || n < 1) return '';
-  return n === 1 ? '1 uso' : `${compactCount(n)} usos`;
+  return Math.floor(n) === 1 ? '1 tcheka' : `${compactCount(n)} tchekas`;
 }
 
 /** "usada 12 vezes esta semana" (nada para 0 ou sem número). */
@@ -185,7 +185,7 @@ export function creditLine(t: TrackLike & { durationMs?: number | null }, mmss: 
   return d ? `${who} · ${d}` : who;
 }
 
-/** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil usos · 2:53» (os usos desde sempre, quando os há). */
+/** A linha cinzenta por baixo do título no seletor: «Artista · 1,2 mil tchekas · 2:53» (os usos desde sempre, quando os há). */
 export function rowMeta(t: TrackLike): string {
   const who = t.artist || (t.artistUsername ? `@${t.artistUsername}` : '') || (t.kind === 'sound' ? 'Som' : 'Autor desconhecido');
   return [who, usesText(t.usesTotal ?? t.uses), t.durationMs ? mmss(t.durationMs) : ''].filter(Boolean).join(' · ');
@@ -201,3 +201,15 @@ export function highlightColors(t: TrackLike): readonly [string, string] {
   const c = t.coverColors;
   return Array.isArray(c) && c.length === 2 && c.every((x) => /^#[0-9a-f]{6}$/i.test(x)) ? [c[0], c[1]] : BRAND_GRADIENT;
 }
+
+/**
+ * Tocar numa linha do seletor: outra faixa começa logo a tocar (e a que estava pára); a mesma faixa pausa se está a tocar e
+ * retoma se está em pausa. Escolher a faixa é à parte, no «Usar» da linha.
+ */
+export function rowTap(current: string | null, live: boolean, id: string): 'play' | 'pause' | 'resume' {
+  if (current !== id) return 'play';
+  return live ? 'pause' : 'resume';
+}
+
+/** O selo «E» ao lado do título: só nas faixas marcadas como explícitas. */
+export const isExplicit = (t: { explicit?: boolean | null }) => t.explicit === true;
