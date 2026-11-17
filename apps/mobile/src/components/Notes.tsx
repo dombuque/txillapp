@@ -42,11 +42,23 @@ const nativeDriver = Platform.OS !== 'web';
 /** O texto do campo da bolha, no editor. */
 const NOTE_PLACEHOLDER = 'O que se passa?';
 
+/** O selo do brinde no canto (da bolha ou, numa nota só com GIF, do quadrado do GIF): o copo e, com mais de um, a contagem. */
+function CheersBadge({ cheers }: { cheers: number }) {
+  if (!(cheers > 0)) return null;
+  return (
+    <View style={styles.cheers} accessibilityLabel={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`}>
+      <Icon name="cheers" size={14} color={colors.amber600} />
+      {cheers > 1 && <Text style={styles.cheersN}>{cheers}</Text>}
+    </View>
+  );
+}
+
 /**
  * A cara da nota: a foto redonda da pessoa ou, se a nota tem GIF, o GIF no lugar dela, num quadrado de cantos bem
  * arredondados e a mexer (com «Reduzir movimento», parado). O ponto verde do online fica no canto, nos dois casos.
+ * `cheers`: numa nota só com GIF (sem bolha), o selo do brinde vai para o canto do quadrado do GIF, como na bolha.
  */
-function NoteFace({ name, username, gif, size, online = false, onlineStyle }: { name: string; username?: string; gif?: ChatGif | null; size: number; online?: boolean; onlineStyle?: object }) {
+function NoteFace({ name, username, gif, size, online = false, onlineStyle, cheers = 0 }: { name: string; username?: string; gif?: ChatGif | null; size: number; online?: boolean; onlineStyle?: object; cheers?: number }) {
   const reduce = useReducedMotion();
   return (
     <View>
@@ -56,6 +68,7 @@ function NoteFace({ name, username, gif, size, online = false, onlineStyle }: { 
         <Avatar name={name} username={username} size={size} />
       )}
       {online && <View style={[styles.online, onlineStyle]} accessibilityLabel="Online" />}
+      {gif ? <CheersBadge cheers={cheers} /> : null}
     </View>
   );
 }
@@ -83,12 +96,7 @@ function Bubble({ text, dim = false, track = '', cheers = 0, color = null, place
         )}
       </View>
       <View style={[styles.tail, { backgroundColor: t.bg }]} />
-      {cheers > 0 && (
-        <View style={styles.cheers} accessibilityLabel={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`}>
-          <Icon name="cheers" size={14} color={colors.amber600} />
-          {cheers > 1 && <Text style={styles.cheersN}>{cheers}</Text>}
-        </View>
-      )}
+      <CheersBadge cheers={cheers} />
     </View>
   );
 }
@@ -118,7 +126,7 @@ export function NotesStrip() {
         <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
           <View style={styles.bubbleSlot}>{!mine || hasBubble(mine) ? <Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} place={mine?.place?.name} /> : null}</View>
           <View>
-            <NoteFace name={user.displayName} username={user.username} gif={mine?.gif} size={64} />
+            <NoteFace name={user.displayName} username={user.username} gif={mine?.gif} size={64} cheers={mine && !hasBubble(mine) ? mine.cheers ?? 0 : 0} />
             {!mine && <View style={styles.plus}><Icon name="plus" size={14} strokeWidth={3} color="#fff" /></View>}
           </View>
           <Text style={styles.label} numberOfLines={1}>A tua nota</Text>
@@ -129,7 +137,7 @@ export function NotesStrip() {
             return (
               <Pressable key={e.key} onPress={() => { primeKeyboard(); setViewing(n); }} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body || n.music?.title || n.place?.name || (n.gif ? 'GIF' : '')}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
                 <View style={styles.bubbleSlot}>{hasBubble(n) ? <Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} color={n.color} place={n.place?.name} /> : null}</View>
-                <NoteFace name={n.displayName} username={n.hasAvatar ? n.username : undefined} gif={n.gif} size={64} online={n.hasAvatar && online.has(n.username.toLowerCase())} />
+                <NoteFace name={n.displayName} username={n.hasAvatar ? n.username : undefined} gif={n.gif} size={64} online={n.hasAvatar && online.has(n.username.toLowerCase())} cheers={!hasBubble(n) && n.cheered ? 1 : 0} />
                 <NameWithBadge name={n.displayName.split(' ')[0]} who={n} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
               </Pressable>
             );

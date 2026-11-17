@@ -172,3 +172,13 @@ test('Fila e balão da conversa mostram a cor, o local e o GIF', () => {
   assert.deepEqual(peer.peerNoteLines(n), { text: 'GIF', track: 'Ilha de Moçambique' });
   assert.match(peer.peerNoteLabel('Ana', n), /em Ilha de Moçambique/);
 });
+
+test('Nota só com GIF e brindada: o selo do brinde vai para o canto do quadrado do GIF, como na bolha', () => {
+  const badge = body('CheersBadge');
+  assert.match(badge, /if \(!\(cheers > 0\)\) return null;/);
+  assert.match(badge, /\{cheers > 1 && <Text style=\{styles\.cheersN\}>\{cheers\}<\/Text>\}/, 'com mais de um, a contagem');
+  assert.match(body('Bubble'), /<CheersBadge cheers=\{cheers\} \/>/, 'a bolha usa o mesmo selo');
+  assert.match(body('NoteFace'), /\{gif \? <CheersBadge cheers=\{cheers\} \/> : null\}/, 'só no quadrado do GIF, nunca na foto redonda');
+  assert.match(src, /gif=\{n\.gif\}[^>]*cheers=\{!hasBubble\(n\) && n\.cheered \? 1 : 0\}/, 'fila: amigo com nota só GIF');
+  assert.match(src, /gif=\{mine\?\.gif\}[^>]*cheers=\{mine && !hasBubble\(mine\) \? mine\.cheers \?\? 0 : 0\}/, 'fila: a minha nota só GIF, com a contagem');
+});
