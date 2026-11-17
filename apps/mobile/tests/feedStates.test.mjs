@@ -26,7 +26,8 @@ test('Início: a lista não se esvazia por um erro com dados carregados, e o fun
 
 test('primeiro carregamento sem rede mostra "a carregar", não o estado vazio', () => {
   assert.match(read('app', '(tabs)', 'index.tsx'), /ListEmptyComponent=\{[\s\S]{0,200}q\.isPending \? \(/);
-  assert.match(read('app', 'notifications.tsx'), /ListEmptyComponent=\{\s*q\.isPending \? \(/);
+  // Também enquanto chega a página seguinte com o filtro ainda vazio (lib/notifList: chainMore).
+  assert.match(read('app', 'notifications.tsx'), /ListEmptyComponent=\{\s*q\.isPending \|\| \(q\.hasNextPage && q\.isFetchingNextPage\) \? \(/);
   assert.match(read('components', 'CommentsSheet.tsx'), /q\.isPending \? <ActivityIndicator/);
   assert.match(read('app', '(tabs)', 'reels.tsx'), /const loading = q\.isPending \|\|/);
 });

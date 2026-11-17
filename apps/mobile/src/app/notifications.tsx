@@ -38,6 +38,8 @@ import {
 import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
 import { MixarBadge } from '@/components/mixar/MixarBits';
 import { isMixarNotice, mixarNoticeTarget, mixarNoticeText } from '@/lib/mixarAvisos';
+import { chainMore, groupAll, type ChainState, type NotifGroup } from '@/lib/notifList';
+import { LoadMore } from '@/components/LoadMore';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -48,37 +50,12 @@ const inFilter = (n: AppNotification, f: Filter) =>
   : f === 'follows' ? ['follow', 'follow_request', 'request_accepted'].includes(n.kind)
   : n.kind === 'gift';
 
-/** Várias notificações iguais seguidas (a mesma publicação, ou o mesmo tipo) juntam-se numa linha: "a, b e 3 outros…". */
-interface Group { id: string; kind: AppNotification['kind']; items: AppNotification[]; actors: AppNotification['actor'][]; first: AppNotification; fresh: boolean }
-const groupKey = (n: AppNotification): string | null => {
-  switch (n.kind) {
-    case 'follow': case 'request_accepted': case 'verified': return n.kind;
-    case 'comment': case 'repost': case 'tag': case 'mention': return n.data.postId ? `${n.kind}:${n.data.postId}` : null;
-    case 'story_reply': return n.data.replyKind === 'reaction' && n.data.storyId ? `react:${n.data.storyId}` : null;
-    case 'group_member_joined': { const g = notifGroup(n).id; return g ? `joined:${g}` : null; }
-    default: return null;
-  }
-};
-function groupAll(items: AppNotification[], fresh: Set<string> | null): Group[] {
-  const out: Group[] = [];
-  for (const n of items) {
-    const k = groupKey(n);
-    const last = out[out.length - 1];
-    const sameDay = last && new Date(last.first.createdAt).getTime() - new Date(n.createdAt).getTime() < 24 * 3600_000;
-    const isFresh = !!fresh?.has(n.id);
-    if (k && last && last.id.startsWith(`${k}|`) && sameDay && last.fresh === isFresh) {
-      last.items.push(n);
-      if (!last.actors.some((a) => a.username === n.actor.username)) last.actors.push(n.actor);
-    } else {
-      out.push({ id: `${k ?? n.kind}|${n.id}`, kind: n.kind, items: [n], actors: [n.actor], first: n, fresh: isFresh });
-    }
-  }
-  return out;
-}
+/** Uma linha da lista: notificações parecidas seguidas juntam-se (lib/notifList). */
+type Group = NotifGroup<AppNotification>;
 
 /** O verbo de cada tipo; `many` quando a linha junta várias pessoas. */
 function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: string } {
-  const quote = !many && n.data.snippet ? `“${n.data.snippet}”` : undefined;
+  const quote = !many && n.data.snippet ? `«${n.data.snippet}»` : undefined;
   const v = (stem: string) => pastVerb(stem, many);
   switch (n.kind) {
     case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e mimos dela.' };
@@ -396,6 +373,19 @@ export default function Notifications() {
 
   const pull = usePullToRefresh(() => Promise.all([q.refetch(), requests.refetch()]));
   const groups = groupAll(items.filter((n) => inFilter(n, filter)), freshIds.current);
+  const pages = q.data?.pages.length ?? 0;
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  // Uma página que não trouxe nenhuma linha nova (juntou-se à última linha, ou ficou fora do filtro) pede logo a seguinte
+  // (lib/notifList: chainMore). Antes, «Ver mais» parecia não fazer nada.
+  const chain = useRef<ChainState>({ pages: 0, rows: 0, chain: 0 });
+  const chainFilter = useRef(filter);
+  useEffect(() => {
+    if (chainFilter.current !== filter) { chainFilter.current = filter; chain.current = { ...chain.current, chain: 0 }; }
+    const r = chainMore(chain.current, { pages, rows: groups.length, hasNext: !!q.hasNextPage, fetching: q.isFetchingNextPage || q.isFetching });
+    chain.current = r.state;
+    if (r.fetch) void q.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages, groups.length, q.hasNextPage, q.isFetchingNextPage, q.isFetching, filter]);
   const fresh = groups.filter((g) => g.fresh);
   const older = groups.filter((g) => !g.fresh);
   type Entry = { kind: 'h'; id: string; label: string } | { kind: 'g'; g: Group } | { kind: 'req'; id: string };
@@ -439,8 +429,10 @@ export default function Notifications() {
             <Icon name="chevron-right" size={18} color={colors.zinc300} />
           </Pressable>
         ) : item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row g={item.g} me={user?.username} />)}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
         ListEmptyComponent={
-          q.isPending ? (
+          q.isPending || (q.hasNextPage && q.isFetchingNextPage) ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : q.isError ? (
             <View style={styles.empty} accessibilityRole="alert">
@@ -451,16 +443,13 @@ export default function Notifications() {
             <View style={styles.empty}>
               <Icon name="bell-off" size={52} color={colors.zinc300} />
               <Text style={[styles.emptyTitle, { marginTop: 16, fontSize: 24 }]}>{filter === 'all' ? 'Tudo calmo por aqui' : 'Nada por aqui'}</Text>
-              <Text style={styles.emptySub}>{filter === 'all' ? 'Quando alguém te seguir, comentar ou presentear, aparece aqui.' : 'Não há notificações deste tipo.'}</Text>
+              <Text style={styles.emptySub}>{filter === 'all' ? 'Quando alguém te seguir, comentar ou oferecer vibes, aparece aqui.' : 'Não há notificações deste tipo.'}</Text>
             </View>
           )
         }
         ListFooterComponent={
-          q.hasNextPage ? (
-            <Pressable onPress={() => void q.fetchNextPage()} disabled={q.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginBottom: 16 }]}>
-              <Text style={styles.ghostText}>{q.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}</Text>
-            </Pressable>
-          ) : <View style={{ height: 24 }} />
+          // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore); o botão fica de reserva.
+          q.hasNextPage && groups.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} label="Ver notificações anteriores" /> : <View style={{ height: 24 }} />
         }
       />
       </PullView>
