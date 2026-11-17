@@ -42,7 +42,7 @@ export function MixarRailButtons({ comments, saved, partner, onComments, onToggl
       <RailButton
         icon={
           <MixarCircle>
-            <Icon name="comment" size={26} color="#fff" />
+            <Icon name="comment" size={28} color="#fff" />
             {badge ? <View style={st.badge} pointerEvents="none"><Text style={st.badgeText} allowFontScaling={false}>{badge}</Text></View> : null}
           </MixarCircle>
         }
@@ -51,7 +51,7 @@ export function MixarRailButtons({ comments, saved, partner, onComments, onToggl
         accessibilityLabel={commentA11y(comments, partner)}
       />
       <RailButton
-        icon={<MixarCircle on={saved}><BookmarkIcon on={saved} size={24} color={saved ? '#f5c518' : '#fff'} /></MixarCircle>}
+        icon={<MixarCircle on={saved}><BookmarkIcon on={saved} size={28} color={saved ? '#f5c518' : '#fff'} /></MixarCircle>}
         label={saved ? 'Guardado' : 'Guardar'}
         onPress={onToggleSave}
         selected={saved}

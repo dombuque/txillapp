@@ -39,7 +39,7 @@ import { Reel } from '../(tabs)/reels';
 
 const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
-type Who = { name: string; username?: string };
+type Who = { name: string; username?: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null };
 type Api = typeof previewMixarApi;
 /** Uma página do feed vinda da API: a seleção do dia ou os Guardados (MixarSavedItem estende MixarItem). */
 type FeedPage = Pick<MixarFeedPage, 'items' | 'nextCursor'> & { day?: string };
@@ -128,7 +128,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
 
   const others = grp ? othersOf(grp, user?.username) : [];
   // No grupo, «partner» é o grupo (os textos de sempre, como «Mandar a…», ficam com o nome do grupo).
-  const partner: Who = grp ? { name: grp.groupName } : mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined } : { name: '' };
+  const partner: Who = grp ? { name: grp.groupName } : mixar ? { name: firstName(mixar.partner.displayName), username: mixar.partner.hasAvatar ? mixar.partner.username : undefined, verified: mixar.partner.verified, verifiedTier: mixar.partner.verifiedTier ?? null } : { name: '' };
   const me: Who = { name: firstName(user?.displayName), username: user?.username };
   const whoOf = (p: { displayName: string; username: string; hasAvatar: boolean }): Who => ({ name: firstName(p.displayName), username: p.hasAvatar ? p.username : undefined });
 
@@ -355,7 +355,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       <>
         {preview ? null : <MixarRailButtons comments={so.comments} saved={so.saved} partner={partner.name} onComments={() => setTalk(p.id)} onToggleSave={() => void soc.toggleSave(p.id)} />}
         <RailButton
-          icon={<View style={railStyles.circle}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name="more" size={24} color="#fff" />}</View>}
+          icon={<View style={railStyles.circle}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name="more" size={28} color="#fff" />}</View>}
           onPress={() => setItemMenu(it)}
           accessibilityLabel={sendState === 'sent' ? `Mais opções deste item no Mixar (enviado a ${partner.name})` : 'Mais opções deste item no Mixar'}
         />
@@ -599,7 +599,7 @@ function PhotoPage({ post, height, active, extra, send, bottomInset, onOpen, onW
       </View>
       <View style={[st.rails, { bottom: bottomInset + 14 }]} pointerEvents="box-none">
         {send}
-        <RailButton icon={<View style={railStyles.circle}><Icon name="expand" size={24} color="#fff" /></View>} label="Abrir" onPress={onOpen} accessibilityLabel="Abrir a publicação" />
+        <RailButton icon={<View style={railStyles.circle}><Icon name="expand" size={28} color="#fff" /></View>} label="Abrir" onPress={onOpen} accessibilityLabel="Abrir a publicação" />
       </View>
     </View>
   );
