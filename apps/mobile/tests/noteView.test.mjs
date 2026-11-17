@@ -64,7 +64,7 @@ test('NoteView: cabeçalho «Nome · há X» com o selo, foto com online e bolha
   const b = body('NoteView');
   assert.match(b, /<NameWithBadge name=\{note\.displayName\} who=\{note\}/);
   assert.match(b, /noteAgo\(note\.createdAt\)/);
-  assert.match(b, /\{online && <View style=\{\[styles\.online, styles\.onlineBig\]\}/);
+  assert.match(b, /online=\{online\} onlineStyle=\{styles\.onlineBig\}/);
   assert.match(b, /layout === 'music' && note\.music \? <NoteTrackLine/, 'com música, a bolha leva a música');
   assert.match(b, /layout === 'text' && !!note\.body \? <Text style=\{\[styles\.viewBubbleText/, 'sem música, o texto vai na bolha');
   assert.match(b, /layout === 'music' && !!note\.body \? <Text style=\{styles\.viewBig\}/, 'com música, o texto grande por baixo');
@@ -123,7 +123,10 @@ test('NoteEditor: ecrã inteiro com ×, bolha onde se escreve, paleta, música, 
   const b = body('NoteEditor');
   assert.match(b, /<Modal visible transparent/);
   assert.match(b, /accessibilityLabel="Fechar"/);
-  assert.match(b, /<TextInput[\s\S]*multiline\s*autoFocus[\s\S]*placeholder="Partilha o que te vai na cabeça…"/);
+  assert.match(b, /<TextInput[\s\S]*multiline\s*autoFocus[\s\S]*placeholder=\{NOTE_PLACEHOLDER\}/);
+  assert.match(src, /const NOTE_PLACEHOLDER = 'O que se passa\?';/);
+  assert.match(b, /accessibilityLabel="Limpar o texto"/, 'o × pequeno da bolha limpa o texto');
+  assert.match(b, /showToast\('Nota partilhada'\)/);
   assert.match(b, /accessibilityLabel="Cor da bolha"/);
   assert.match(b, /\[null, \.\.\.NOTE_COLORS\]/);
   assert.match(b, /<OptionPill a11y="Música"/);
@@ -144,9 +147,26 @@ test('NoteEditor: a nota publicada abre com o que tem e apaga-se só depois de c
   assert.match(b, />Apagar</);
 });
 
+test('GIF: fica no lugar da foto (quadrado arredondado) na fila, na nota aberta e no editor; só com GIF não há bolha', () => {
+  const face = body('NoteFace');
+  assert.match(face, /gif \? \(\s*<Image source=\{\{ uri: reduce && gif\.still \? gif\.still : gif\.url \}\} autoplay=\{!reduce\}/);
+  assert.match(face, /borderRadius: Math\.round\(size \* 0\.26\)/);
+  assert.match(face, /<Avatar name=\{name\} username=\{username\} size=\{size\} \/>/);
+  assert.match(face, /\{online && <View style=\{\[styles\.online, onlineStyle\]\}/, 'o online fica no canto, com ou sem GIF');
+  assert.match(src, /<NoteFace name=\{n\.displayName\}[^>]*gif=\{n\.gif\}/);
+  assert.match(src, /<NoteFace name=\{user\.displayName\}[^>]*gif=\{mine\?\.gif\}/);
+  assert.match(body('NoteView'), /<NoteFace name=\{note\.displayName\}[^>]*gif=\{note\.gif\}/);
+  assert.match(src, /\{hasBubble\(n\) \? <Bubble /);
+  const ed = body('NoteEditor');
+  assert.match(ed, /<NoteFace [^>]*gif=\{gif\} size=\{108\} \/>/);
+  assert.match(ed, /setPanel\('gifMenu'\)/);
+  assert.match(ed, /title="Trocar o GIF" onPress=\{\(\) => setPanel\('gif'\)\}/);
+  assert.match(ed, /title="Tirar o GIF" danger onPress=\{\(\) => \{ setGif\(null\); back\(\); \}\}/);
+});
+
 test('Fila e balão da conversa mostram a cor, o local e o GIF', () => {
-  assert.match(src, /color=\{n\.color\} gif=\{n\.gif\} place=\{n\.place\?\.name\}/);
-  assert.match(src, /color=\{mine\?\.color\} gif=\{mine\?\.gif\} place=\{mine\?\.place\?\.name\}/);
+  assert.match(src, /color=\{n\.color\} place=\{n\.place\?\.name\}/);
+  assert.match(src, /color=\{mine\?\.color\} place=\{mine\?\.place\?\.name\}/);
   const n = { body: '', gif: { id: 'abcd' }, place: { name: 'Ilha de Moçambique' }, createdAt: '2026-11-17T10:00:00Z', expiresAt: '2026-11-18T10:00:00Z' };
   assert.ok(peer.activePeerNote(n, Date.parse('2026-11-17T12:00:00Z')), 'nota só com GIF e local vale');
   assert.deepEqual(peer.peerNoteLines(n), { text: 'GIF', track: 'Ilha de Moçambique' });

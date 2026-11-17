@@ -3,11 +3,12 @@ import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useReducedMotion } from 'react-native-reanimated';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { useKeyboardOpen } from '@/components/ChatScreen';
-import { GifPanel, GifView, useGifsConfig } from '@/components/GifPanel';
+import { GifPanel, useGifsConfig } from '@/components/GifPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
@@ -38,29 +39,46 @@ import { showToast } from '@/lib/toast';
 
 const trackLine = (n?: Note | null) => (n?.music ? `${n.music.title}${n.music.artist ? ` · ${n.music.artist}` : ''}` : '');
 const nativeDriver = Platform.OS !== 'web';
+/** O texto do campo da bolha, no editor. */
+const NOTE_PLACEHOLDER = 'O que se passa?';
+
+/**
+ * A cara da nota: a foto redonda da pessoa ou, se a nota tem GIF, o GIF no lugar dela, num quadrado de cantos bem
+ * arredondados e a mexer (com «Reduzir movimento», parado). O ponto verde do online fica no canto, nos dois casos.
+ */
+function NoteFace({ name, username, gif, size, online = false, onlineStyle }: { name: string; username?: string; gif?: ChatGif | null; size: number; online?: boolean; onlineStyle?: object }) {
+  const reduce = useReducedMotion();
+  return (
+    <View>
+      {gif ? (
+        <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), backgroundColor: colors.zinc100 }} contentFit="cover" recyclingKey={gif.id} accessibilityLabel={gif.title ? `GIF: ${gif.title}` : 'GIF'} />
+      ) : (
+        <Avatar name={name} username={username} size={size} />
+      )}
+      {online && <View style={[styles.online, onlineStyle]} accessibilityLabel="Online" />}
+    </View>
+  );
+}
+
+/** A nota tem alguma coisa para o balão (texto, música ou local)? Só com GIF, não há balão: o GIF já está no lugar da foto. */
+const hasBubble = (n: { body?: string | null; music?: unknown; place?: unknown }) => !!(n.body ?? '').trim() || !!n.music || !!n.place;
 
 /**
  * O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa, na cor que a pessoa
- * escolheu (lib/noteLook). A linha pequena leva a música ou, sem ela, o local; o GIF vai pequeno ao lado do texto.
+ * escolheu (lib/noteLook). A linha pequena leva a música ou, sem ela, o local.
  */
-function Bubble({ text, dim = false, track = '', cheers = 0, color = null, gif = null, place = '' }: { text: string; dim?: boolean; track?: string; cheers?: number; color?: string | null; gif?: ChatGif | null; place?: string }) {
+function Bubble({ text, dim = false, track = '', cheers = 0, color = null, place = '' }: { text: string; dim?: boolean; track?: string; cheers?: number; color?: string | null; place?: string }) {
   const t = noteTone(color);
   const tone = dim ? { color: colors.zinc500 } : { color: t.text };
   const small = track || place;
   return (
     <View style={styles.bubbleWrap}>
       <View style={[styles.bubble, { backgroundColor: t.bg, borderColor: t.border }]}>
-        {gif && !text ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.gifSolo} contentFit="cover" accessibilityLabel="GIF" /> : null}
-        {!!text && (
-          <View style={gif ? styles.gifRow : null}>
-            {gif ? <Image source={{ uri: gif.still ?? gif.url }} style={styles.gifMini} contentFit="cover" accessibilityLabel="GIF" /> : null}
-            <Text style={[styles.bubbleText, tone, gif && { flexShrink: 1, textAlign: 'left' }]} numberOfLines={small ? 2 : 3}>{text}</Text>
-          </View>
-        )}
+        {!!text && <Text style={[styles.bubbleText, tone]} numberOfLines={small ? 2 : 3}>{text}</Text>}
         {!!small && (
-          <View style={[styles.trackRow, (!!text || !!gif) && { marginTop: 2 }]}>
-            <Icon name={track ? 'music' : 'map-pin'} size={11} color={text || gif ? t.sub : dim ? colors.zinc500 : t.text} />
-            <Text style={[text || gif ? styles.trackSmall : styles.bubbleText, { flexShrink: 1, color: text || gif ? t.sub : t.text }]} numberOfLines={text || gif ? 1 : 3}>{small}</Text>
+          <View style={[styles.trackRow, !!text && { marginTop: 2 }]}>
+            <Icon name={track ? 'music' : 'map-pin'} size={11} color={text ? t.sub : dim ? colors.zinc500 : t.text} />
+            <Text style={[text ? styles.trackSmall : styles.bubbleText, { flexShrink: 1, color: text ? t.sub : t.text }]} numberOfLines={text ? 1 : 3}>{small}</Text>
           </View>
         )}
       </View>
@@ -98,9 +116,9 @@ export function NotesStrip() {
     <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel="Notas">
         <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? 'A tua nota' : 'Deixar uma nota'} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-          <View style={styles.bubbleSlot}><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} gif={mine?.gif} place={mine?.place?.name} /></View>
+          <View style={styles.bubbleSlot}>{!mine || hasBubble(mine) ? <Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} place={mine?.place?.name} /> : null}</View>
           <View>
-            <Avatar name={user.displayName} username={user.username} size={64} />
+            <NoteFace name={user.displayName} username={user.username} gif={mine?.gif} size={64} />
             {!mine && <View style={styles.plus}><Icon name="plus" size={14} strokeWidth={3} color="#fff" /></View>}
           </View>
           <Text style={styles.label} numberOfLines={1}>A tua nota</Text>
@@ -110,11 +128,8 @@ export function NotesStrip() {
             const n = e.note;
             return (
               <Pressable key={e.key} onPress={() => { primeKeyboard(); setViewing(n); }} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body || n.music?.title || n.place?.name || (n.gif ? 'GIF' : '')}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-                <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} color={n.color} gif={n.gif} place={n.place?.name} /></View>
-                <View>
-                  <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
-                  {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
-                </View>
+                <View style={styles.bubbleSlot}>{hasBubble(n) ? <Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} color={n.color} place={n.place?.name} /> : null}</View>
+                <NoteFace name={n.displayName} username={n.hasAvatar ? n.username : undefined} gif={n.gif} size={64} online={n.hasAvatar && online.has(n.username.toLowerCase())} />
                 <NameWithBadge name={n.displayName.split(' ')[0]} who={n} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
               </Pressable>
             );
@@ -264,20 +279,19 @@ export function NoteView({ note, onClose, inChat = false, online = false }: { no
           <NameWithBadge name={note.displayName} who={note} style={styles.viewName} containerStyle={{ flexShrink: 1 }} />
           <Text style={styles.viewAgo}>{` · ${noteAgo(note.createdAt)}`}</Text>
         </View>
-        <View style={styles.viewRow}>
-          <View>
-            <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={avatar} />
-            {online && <View style={[styles.online, styles.onlineBig]} accessibilityLabel="Online" />}
-          </View>
-          <View style={styles.viewBubbleWrap}>
-            <View style={[styles.viewDot, { backgroundColor: tone.bg, borderColor: tone.border }]} />
-            <View style={[styles.viewBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
-              {note.gif ? <View style={styles.viewGif}><GifView gif={note.gif} maxW={150} maxH={110} /></View> : null}
-              {layout === 'music' && note.music ? <NoteTrackLine track={note.music} tone={tone} /> : null}
-              {layout === 'text' && !!note.body ? <Text style={[styles.viewBubbleText, { color: tone.text }]} numberOfLines={4}>{note.body}</Text> : null}
-              {note.place ? <PlaceLine name={note.place.name} tone={tone} /> : null}
+        <View style={[styles.viewRow, !hasBubble(note) && { justifyContent: 'center' }]}>
+          {/* Com GIF, o GIF fica no lugar da foto (quadrado arredondado, a mexer). Só com GIF, não há bolha. */}
+          <NoteFace name={note.displayName} username={note.hasAvatar ? note.username : undefined} gif={note.gif} size={note.gif ? avatar + 12 : avatar} online={online} onlineStyle={styles.onlineBig} />
+          {hasBubble(note) ? (
+            <View style={styles.viewBubbleWrap}>
+              <View style={[styles.viewDot, { backgroundColor: tone.bg, borderColor: tone.border }]} />
+              <View style={[styles.viewBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+                {layout === 'music' && note.music ? <NoteTrackLine track={note.music} tone={tone} /> : null}
+                {layout === 'text' && !!note.body ? <Text style={[styles.viewBubbleText, { color: tone.text }]} numberOfLines={4}>{note.body}</Text> : null}
+                {note.place ? <PlaceLine name={note.place.name} tone={tone} /> : null}
+              </View>
             </View>
-          </View>
+          ) : null}
         </View>
         {layout === 'music' && !!note.body ? <Text style={styles.viewBig}>{note.body}</Text> : null}
         {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
@@ -406,7 +420,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
   const [place, setPlace] = useState<NoteDraft['place']>(null);
   const [gif, setGif] = useState<ChatGif | null>(null);
   const [audience, setAudience] = useState<NoteAudience>('mutual');
-  const [panel, setPanel] = useState<null | 'music' | 'place' | 'gif' | 'audience'>(null);
+  const [panel, setPanel] = useState<null | 'music' | 'place' | 'gif' | 'gifMenu' | 'audience'>(null);
   const [palette, setPalette] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -450,9 +464,9 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           <View style={{ width: 44 }} />
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.edCenter} keyboardShouldPersistTaps="handled">
+          {!view || hasBubble(view) ? (
           <View style={styles.edBubbleWrap}>
             <View style={[styles.edBubble, { backgroundColor: tone.bg, borderColor: tone.border }]}>
-              {shown.gif ? <View style={styles.viewGif}><GifView gif={shown.gif} maxW={140} maxH={100} /></View> : null}
               {view ? (
                 !!view.body && <Text style={[styles.edText, { color: tone.text }]}>{view.body}</Text>
               ) : (
@@ -460,7 +474,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
                 // largura. O onContentSizeChange da web não encolhe (a altura do placeholder de duas linhas ficava).
                 <View style={styles.edField}>
                   <Text aria-hidden style={[styles.edText, styles.edMeasure]} onLayout={(e) => setInputH(Math.min(88, Math.max(22, Math.ceil(e.nativeEvent.layout.height))))}>
-                    {`${body || 'Partilha o que te vai na cabeça…'}​`}
+                    {`${body || NOTE_PLACEHOLDER}​`}
                   </Text>
                   <TextInput
                     ref={input}
@@ -470,7 +484,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
                     autoFocus
                     onFocus={releaseKeyboard}
                     maxLength={NOTE_LIMIT}
-                    placeholder="Partilha o que te vai na cabeça…"
+                    placeholder={NOTE_PLACEHOLDER}
                     placeholderTextColor={tone === NOTE_WHITE ? colors.zinc500 : tone.sub}
                     accessibilityLabel="Nota"
                     style={[styles.edText, styles.edInput, { color: tone.text, height: inputH }]}
@@ -481,10 +495,24 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               {shown.place ? <PlaceLine name={shown.place} tone={tone} center /> : null}
             </View>
             <View style={[styles.edTail, { backgroundColor: tone.bg, borderColor: tone.border }]} />
+            {!view && !!body ? (
+              // O × pequeno no canto da bolha: limpa o texto (o resto da nota fica).
+              <Pressable onPress={() => { setBody(''); input.current?.focus(); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar o texto" style={styles.edClear}>
+                <Icon name="x" size={12} strokeWidth={3} color="#fff" />
+              </Pressable>
+            ) : null}
           </View>
+          ) : null}
           {!view && body.length >= NOTE_LIMIT - 15 ? <Text style={[styles.count, body.length >= NOTE_LIMIT && { color: colors.brand }]}>{body.length}/{NOTE_LIMIT}</Text> : null}
           <View style={styles.edAvatar}>
-            <Avatar name={user?.displayName ?? '?'} username={user?.username} size={96} />
+            {/* Com GIF, o GIF fica no lugar da foto; tocar nele dá «Trocar o GIF» e «Tirar o GIF». */}
+            {!view && gif ? (
+              <Pressable onPress={() => setPanel('gifMenu')} accessibilityRole="button" accessibilityLabel="GIF da nota. Trocar ou tirar">
+                <NoteFace name={user?.displayName ?? '?'} username={user?.username} gif={gif} size={108} />
+              </Pressable>
+            ) : (
+              <NoteFace name={user?.displayName ?? '?'} username={user?.username} gif={view?.gif} size={view?.gif ? 108 : 96} />
+            )}
             {!view && (
               <Pressable onPress={() => setPalette((p) => !p)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Cor da bolha" accessibilityState={{ expanded: palette }} style={({ pressed }) => [styles.paletteBtn, palette && { borderColor: colors.brand }, pressed && { transform: [{ scale: 0.92 }] }]}>
                 <PaletteIcon />
@@ -540,7 +568,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
               <Text style={[styles.shareText, { color: colors.danger }]}>Apagar</Text>
             </Pressable>
           ) : (
-            <Pressable disabled={!canShare} onPress={() => void run(() => notesApi.set({ body: body.trim(), music, color, place, gif, audience }))} accessibilityRole="button" accessibilityState={{ disabled: !canShare }} style={({ pressed }) => [styles.shareBtn, !canShare && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+            <Pressable disabled={!canShare} onPress={() => void run(async () => { await notesApi.set({ body: body.trim(), music, color, place, gif, audience }); showToast('Nota partilhada'); })} accessibilityRole="button" accessibilityState={{ disabled: !canShare }} style={({ pressed }) => [styles.shareBtn, !canShare && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
               <Text style={styles.shareText}>Partilhar</Text>
             </Pressable>
           )}
@@ -557,6 +585,14 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
       {panel === 'gif' && (
         <Sheet title="GIF" onClose={back}>
           <GifPanel height={360} onPick={(g) => { setGif(gifPayload(g)); back(); }} />
+        </Sheet>
+      )}
+      {panel === 'gifMenu' && (
+        <Sheet title="GIF da nota" onClose={back} variant="menu" cancel>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+            <ActionRow icon="repeat" title="Trocar o GIF" onPress={() => setPanel('gif')} />
+            <ActionRow icon="trash" title="Tirar o GIF" danger onPress={() => { setGif(null); back(); }} />
+          </View>
         </Sheet>
       )}
       {panel === 'audience' && (
@@ -589,9 +625,6 @@ const styles = StyleSheet.create({
   bubbleWrap: { marginBottom: 6, maxWidth: 84 },
   bubble: { maxWidth: 84, borderRadius: 14, backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as object,
   bubbleText: { fontSize: 11, fontWeight: '500', lineHeight: 12.65, textAlign: 'center', color: colors.zinc800 },
-  gifRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  gifMini: { width: 22, height: 22, borderRadius: 5 },
-  gifSolo: { width: 40, height: 30, borderRadius: 6, alignSelf: 'center' },
   trackRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
   trackSmall: { fontSize: 10, lineHeight: 12, textAlign: 'center', color: colors.zinc500 },
   tail: { position: 'absolute', bottom: -4, left: '50%', marginLeft: -5, width: 10, height: 10, backgroundColor: '#fff', transform: [{ rotate: '45deg' }] },
@@ -619,7 +652,6 @@ const styles = StyleSheet.create({
   viewDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, marginRight: 2, marginTop: -18, boxShadow: SHADOW } as object,
   viewBubble: { flexShrink: 1, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11, minHeight: 46, justifyContent: 'center', boxShadow: SHADOW } as object,
   viewBubbleText: { fontSize: 16, lineHeight: 21, fontWeight: '500' },
-  viewGif: { alignSelf: 'center', marginBottom: 6, borderRadius: 12, overflow: 'hidden' },
   viewBig: { marginTop: 22, textAlign: 'center', fontSize: 19, lineHeight: 25, fontWeight: '800', color: colors.zinc900, paddingHorizontal: 12 },
   trackLine: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   trackBtn: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
@@ -647,6 +679,7 @@ const styles = StyleSheet.create({
   edCenter: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
   edBubbleWrap: { alignItems: 'center', marginBottom: 8 },
   edBubble: { minWidth: 170, maxWidth: 280, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', gap: 2, boxShadow: SHADOW } as object,
+  edClear: { position: 'absolute', right: -6, top: -6, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.zinc900, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   edTail: { position: 'absolute', bottom: -6, left: '50%', marginLeft: -16, width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
   edText: { fontSize: 17, lineHeight: 22, fontWeight: '500', textAlign: 'center' },
   edField: { width: 210 },
