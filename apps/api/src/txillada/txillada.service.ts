@@ -17,6 +17,8 @@ import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { allowedBy, blockedBetween, notReportedBy, sameCountry } from '../social/visibility';
 import type { TxilladaEvent, TxilladaReaction } from '../chat/chat.events';
 import { LIVEKIT_ROOMS, TrackType, livekitEnabled, roomToken, webhookReceiver, type LiveKitRooms, type WebhookEvent } from './livekit';
+import { assertCanHost } from './txillada-host';
+import { TxilladaSchedulesService } from './txillada-schedules.service';
 import type { TxilladaHooks } from './txillada-tokens';
 import { txilladaBanned, txilladaTicket, txilladaVisible } from './txillada-visibility';
 import { TX_WATCH_MS, txWatchKey } from './txillada-watch';
@@ -198,6 +200,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
     private readonly wallet: WalletService,
+    private readonly schedules: TxilladaSchedulesService,
   ) {
     this.receive = webhookReceiver(config);
   }
@@ -340,9 +343,22 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /**
    * Abrir uma Txillada. `price`: a entrada de uma paga (obrigatória com 'paid', ignorada nas outras). `goal`/`purpose`: a
    * Angariação (opcional em qualquer tipo; o motivo passa pelo filtro de palavras, como o título). O tipo fica fixo.
+   * Txillada agendada (0176): com `scheduleId`, usa o título (ou o `title` novo do corpo), o tipo, o preço e a meta do
+   * agendamento (só o anfitrião, só em 'scheduled', a partir de 60 min antes: 409 `too_early`). Sem ele, liga-se sozinha ao
+   * meu agendamento à espera mais próximo que comece daqui a 60 minutos ou menos. Quem pediu lembrete é avisado logo.
    */
-  async create(me: string, title: string, audience: TxAudience, opts: { price?: number | null; goal?: number | null; purpose?: string } = {}) {
+  async create(
+    me: string, title: string, audience: TxAudience,
+    opts: { price?: number | null; goal?: number | null; purpose?: string; scheduleId?: string | null } = {},
+  ) {
     this.assertEnabled();
+    const scheduleId = opts.scheduleId ?? null;
+    if (scheduleId) {
+      const s = await this.schedules.forStart(me, scheduleId);
+      title = title.trim() ? title : s.title;
+      audience = s.audience;
+      opts = { ...opts, price: s.price, goal: s.goal, purpose: s.goalPurpose };
+    }
     const price = audience === 'paid' ? (opts.price ?? null) : null;
     if (audience === 'paid' && (price == null || !Number.isInteger(price) || price < PRICE_MIN || price > PRICE_MAX)) {
       throw new BadRequestException(`Numa Txillada privada, a entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`);
@@ -352,17 +368,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       throw new BadRequestException(`A meta da angariação vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`);
     }
     const purpose = goal == null ? '' : (opts.purpose ?? '').replace(/\s+/g, ' ').trim().slice(0, PURPOSE_MAX);
-    const u = (
-      await this.pool.query(
-        `SELECT status, username, display_name, birth_date IS NOT NULL AS has_birth,
-                COALESCE(birth_date <= (current_date - interval '18 years'), false) AS adult
-           FROM identity.users WHERE id = $1`,
-        [me],
-      )
-    ).rows[0];
-    if (!u || u.status !== 'active') throw new ForbiddenException('A tua conta não pode abrir uma Txillada.');
-    if (!u.has_birth) throw new ForbiddenException('A Txillada é só para maiores de 18 anos e a tua conta não tem a data de nascimento. Escreve para suporte@txillapp.com para a acrescentares.');
-    if (!u.adult) throw new ForbiddenException('A Txillada é só para maiores de 18 anos.');
+    const u = await assertCanHost(this.pool, me);
     this.filter.assertClean(title);
     if (purpose) this.filter.assertClean(purpose);
     const running = (await this.pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [me])).rows[0];
@@ -378,12 +384,21 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       throw e;
     }
     const token = await roomToken(this.config, { room: `tx-${id}`, identity: me, name: u.display_name, username: u.username, host: true });
-    void this.announce(me, id, title).catch((e) => this.log.warn(`não consegui avisar os seguidores da Txillada ${id}: ${(e as Error).message}`));
+    // O agendamento (o pedido ou o mais próximo, 0176) passa a 'started' com esta Txillada.
+    const link = await this.schedules.linkStarted(me, id, scheduleId).catch((e) => {
+      this.log.warn(`não consegui ligar a Txillada ${id} ao agendamento: ${(e as Error).message}`);
+      return null;
+    });
+    void this.announce(me, id, title, link).catch((e) => this.log.warn(`não consegui avisar os seguidores da Txillada ${id}: ${(e as Error).message}`));
     return { txillada: await this.get(me, id), token, url: this.config.LIVEKIT_URL! };
   }
 
-  /** Avisa os seguidores (lista e telemóvel), no máximo uma vez por anfitrião por hora. */
-  private async announce(me: string, id: string, title: string) {
+  /**
+   * Avisa os seguidores (lista e telemóvel), no máximo uma vez por anfitrião por hora. Com um agendamento (0176), primeiro
+   * quem pediu lembrete, sempre (sem esse limite); os seguidores a seguir não recebem outra vez (o limite de 10 min por pessoa).
+   */
+  private async announce(me: string, id: string, title: string, link: { id: string; reminders: string[] } | null = null) {
+    if (link?.reminders.length) await this.notifications.notifyTxilladaLive(me, id, title, { followers: false, also: link.reminders, reminded: link.id });
     const ok = await this.pool.query(
       `UPDATE content.txilladas t SET notified = true
         WHERE t.id = $1 AND NOT EXISTS (

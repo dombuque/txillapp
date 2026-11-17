@@ -20,7 +20,8 @@ com as escolhas que já fez (título, tipo, preço, meta).
 - `content.txillada_schedule_reminders`: `(schedule_id, user_id)` PK (FK com CASCADE), `created_at`. É o «Lembrar-me».
 - `social.notifications.kind` ganha `'txillada_scheduled_soon'` (ao anfitrião: começa daqui a 15 min),
   `'txillada_scheduled_now'` (ao anfitrião: é agora) e `'txillada_scheduled_cancelled'` (a quem pediu lembrete). Usar o
-  padrão da 0173 (lê a lista atual da restrição e junta os novos).
+  padrão da 0173 (lê a lista atual da restrição e junta os novos). Os dois avisos ao anfitrião têm ator = o próprio anfitrião,
+  por isso a migração junta-os também ao `notifications_check` (como o `zas_recap`).
 - Apagar a conta apaga os agendamentos da pessoa e os lembretes dela (CASCADE).
 - A exportação de dados junta:
   - `txilladaSchedules`: os meus, com título, tipo, preço, meta, hora, estado e quantos pediram lembrete, sem nomes;
@@ -101,6 +102,42 @@ Notificações (forma de sempre; `data` leva `scheduleId`, `startsAt` e `title`)
 - `txillada_scheduled_cancelled` leva `data.moved`, e `data.newStartsAt` quando a hora mudou.
 
 Tempo real: não é preciso. A app volta a pedir o agendamento ao abrir o cartão.
+
+### Notas da implementação (API, branch tx-agendar-api)
+
+O que a API faz e o contrato acima não dizia ao pormenor:
+
+- **Hora:** o mínimo de 15 minutos tem 1 minuto de folga (para o pedido chegar). Erros 400: «Agenda a Txillada com pelo menos
+  15 minutos de antecedência.», «Só podes agendar uma Txillada até 30 dias à frente.», «Hora inválida.». `startsAt` em ISO 8601
+  com fuso (`2026-11-21T18:00:00.000Z`).
+- **Começar agora mesmo assim:** o `PATCH` com `startsAt` até 1 minuto à frente (ou já passado) põe a hora em agora (não
+  dá 400), sem o aviso de mudança a quem pediu lembrete (o `txillada_live` chega logo a seguir) e sem os avisos ao
+  anfitrião. Depois, `POST /txilladas { scheduleId }`.
+- **409 `not_scheduled`** «Esta Txillada já não está agendada.»: começar, editar ou pedir lembrete fora de 'scheduled'.
+  Cancelar uma já cancelada dá 204 (não faz nada); cancelar uma 'started'/'expired' dá 409 `not_scheduled`.
+- **409 `too_early`** «Só podes começar a partir de 1 hora antes da hora marcada.», com `startsAt`. **409 `too_many`**
+  «Já tens 5 Txilladas agendadas. Cancela uma para agendar outra.» **409 `too_close`** «Já tens uma Txillada agendada a
+  menos de 30 minutos desta hora.» (também no `PATCH` da hora).
+- **Quem não é o anfitrião:** `PATCH`, `DELETE` e começar dão 403 («Só o anfitrião pode mudar esta Txillada.» / «Só o
+  anfitrião pode começar esta Txillada.») a quem vê o agendamento, e 404 a quem não o vê.
+- **Lembrar-me:** a resposta segue a regra do DTO: `{ reminded, reminders: null }` (o número é só do anfitrião). 400 do
+  anfitrião: «Não precisas de lembrete na tua própria Txillada.» 429 (mais de 60 por minuto, pedir e tirar juntos): «Calma!
+  Muitos pedidos seguidos. Tenta daqui a pouco.» Tirar um lembrete funciona também a quem deixou de ver (um bloqueio).
+- **`GET /txilladas/schedules?username=`:** aceita o @ e maiúsculas; 404 «Utilizador não encontrado» se a conta não existe.
+  `upcoming` inclui também os que já passaram da hora mas ainda estão em 'scheduled' (até 2 h, quando expiram).
+- **`POST /txilladas` com `scheduleId`:** o `title` do corpo só substitui o do agendamento quando não vem vazio; o
+  `audience`, `price`, `goal` e `purpose` do corpo são ignorados.
+- **`txillada_live` a quem pediu lembrete:** `data: { txilladaId, title, scheduleId, reminded: true }` (os seguidores
+  recebem o de sempre, `{ txilladaId, title }`). Push: «@x começou a Txillada que pediste para lembrar: <título>» (sem título:
+  sem os dois pontos), `url: /txillada/<txilladaId>`. Quem tem «Txilladas» desligado não recebe (como os outros).
+- **Avisos ao anfitrião:** categoria «Txilladas» (desligada: nem lista nem telemóvel). Na lista vêm com o ator Txillapp
+  (`actor.username: 'txillapp'`, `staff: true`, como o resumo dos Zás). `txillada_scheduled_now` leva também
+  `data.reminders` (o número). Push: título «Txillada», `url: /txillada/agendada/<scheduleId>`, `data: { kind, scheduleId }`;
+  texto «Está na hora da tua Txillada.» sem lembretes, «… 1 pessoa pediu para ser lembrada.» com um.
+- **`txillada_scheduled_cancelled`:** ator = o anfitrião; `data: { scheduleId, startsAt (a hora antiga), title, moved }` e
+  `newStartsAt` quando mudou. Push (título = o nome do anfitrião), `url: /txillada/agendada/<scheduleId>`. A hora no texto
+  do push vai no fuso de Moçambique: «hoje, 20:00», «amanhã, 20:00», «sábado, 20:00» (até 6 dias) ou «21 de novembro, 20:00».
+- **`nextTxillada.startsAt`** em ISO (`…Z`), como o resto.
 
 ## App
 

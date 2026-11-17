@@ -9,7 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { mentionableBy } from '../notifications/notifications.service';
 import { blockedBetween, canView, sameCountry } from './visibility';
 import { badge, type Badge } from '../common/badge';
-import { liveOf } from '../txillada/txillada-visibility';
+import { liveOf, nextTxilladaOf } from '../txillada/txillada-visibility';
 import { TXILLADA_HOOKS, type TxilladaHooks } from '../txillada/txillada-tokens';
 import { ModuleRef } from '@nestjs/core';
 import { dropDownloadCopies } from '../posts/download-copies';
@@ -86,7 +86,8 @@ export class SocialService {
               EXISTS (SELECT 1 FROM social.blocks b WHERE b.blocker_id = u.id AND b.blocked_id = $1) AS blocked_me,
               (SELECT count(*) FROM content.stories s WHERE s.author_id = u.id AND s.expires_at > now() AND ${canView('u')})::int AS active_stories,
               (SELECT json_build_object('stageName', ap.stage_name, 'styles', ap.styles, 'links', ap.links) FROM content.artist_profiles ap WHERE ap.user_id = u.id AND ap.status = 'approved') AS artist,
-              ${liveOf('u', '$1')} AS live
+              ${liveOf('u', '$1')} AS live,
+              ${nextTxilladaOf('u', '$1')} AS next_txillada
          FROM identity.users u WHERE u.username = $2 AND u.status = 'active'`,
       [viewerId, username],
     );
@@ -126,6 +127,10 @@ export class SocialService {
       activeStories: r.active_stories,
       /** Txillada (0158): a que a pessoa tem a decorrer, se a posso ver (a roda fica vermelha com «AO VIVO»). */
       live: (r.live as { id: string } | null) ?? null,
+      /** Txillada agendada (0176): o próximo agendamento da pessoa que eu posso ver (o cartão por baixo da bio). */
+      nextTxillada: r.next_txillada
+        ? { ...(r.next_txillada as { id: string; title: string; reminded: boolean }), startsAt: new Date((r.next_txillada as { startsAt: string }).startsAt).toISOString() }
+        : null,
       counts: { posts: r.posts, followers: r.followers, following: r.following },
       /** Só no meu perfil (0169): quantas publicações ocultei (o separador «Ocultas»). Nos outros, 0. */
       hiddenPosts: isMe ? ((r.hidden_posts as number | undefined) ?? 0) : 0,

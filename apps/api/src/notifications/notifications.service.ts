@@ -9,6 +9,7 @@ import { allowedBy, blockedBetween, canView } from '../social/visibility';
 import { badge, type Badge } from '../common/badge';
 import { vibes } from '../common/vibes';
 import { txilladaVisible } from '../txillada/txillada-visibility';
+import { whenLabel } from '../txillada/txillada-when';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
 export const MENTION_RE = /(?<![\w.])@([a-zA-Z0-9_.]{3,30})/g;
@@ -85,10 +86,17 @@ export type NotificationKind ='blocked' | 'follow' | 'follow_request' | 'request
   | 'mixar_daily' | 'mixar_pick' | 'mixar_result'
   // Mixar de grupo (0173, src/mixar/mixar-grupo.service.ts): alguém do grupo propôs um Mixar do grupo (ator = quem propôs).
   // data: { mixarId, name (o nome do grupo), groupId }. No grupo, mixar_daily/pick/result levam também group: true.
-  | 'mixar_group';
+  | 'mixar_group'
+  // Txillada agendada (0176, docs/txillada-agendar.md). data: { scheduleId, startsAt, title }.
+  // txillada_scheduled_soon: ao anfitrião, começa daqui a 15 min; txillada_scheduled_now: ao anfitrião, é agora (+ reminders).
+  // Os dois vêm do próprio anfitrião (ator = ele) e a lista mostra-os como Txillapp (ver notifySelf).
+  // txillada_scheduled_cancelled: a quem pediu lembrete, o anfitrião cancelou ou (com moved: true e newStartsAt) mudou a hora.
+  | 'txillada_scheduled_soon' | 'txillada_scheduled_now' | 'txillada_scheduled_cancelled';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
+/** Avisos à própria pessoa (notifySelf): a lista mostra-os como Txillapp. */
+const SELF_KINDS = new Set<NotificationKind>(['txillada_scheduled_soon', 'txillada_scheduled_now']);
 /** Avisos que aparecem mesmo com um bloqueio entre as duas pessoas: dizem respeito ao que é meu e não trazem conteúdo de quem bloqueou. */
 const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
@@ -109,6 +117,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   // O pedido publicado é uma identificação: desliga-se com as menções. «Já paguei» vai com as mensagens (é entre os dois).
   gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
   txillada_live: 'txilladas', txillada_invite: 'txilladas',
+  txillada_scheduled_soon: 'txilladas', txillada_scheduled_now: 'txilladas', txillada_scheduled_cancelled: 'txilladas',
   zas_recap: 'zas',
   mixar_daily: 'mixar', mixar_pick: 'mixar', mixar_result: 'mixar', mixar_group: 'mixar',
 };
@@ -263,6 +272,13 @@ export class NotificationsService {
       // «Convidar por @» (0168): abre a Txillada, onde está o cartão do convite (numa privada, sem pagar).
       // Uma menção num comentário (txillada-voltar, `data.mention`): «vem ver» (de quem comentou; «de @anfitrião» se não foi ele).
       txillada_invite: { body: txInviteBody(a?.username as string | undefined, n.data), url: txUrl },
+      // Txillada agendada (0176): o anfitrião cancelou ou mudou a hora. Abre o cartão do agendamento.
+      txillada_scheduled_cancelled: {
+        body: n.data?.moved
+          ? `@${String(a?.username ?? 'alguém')} mudou a Txillada para ${whenLabel(String(n.data?.newStartsAt ?? ''))}`
+          : `@${String(a?.username ?? 'alguém')} cancelou a Txillada de ${whenLabel(String(n.data?.startsAt ?? ''))}`,
+        url: typeof n.data?.scheduleId === 'string' ? `/txillada/agendada/${encodeURIComponent(n.data.scheduleId)}` : '/notifications',
+      },
       // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
       invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
       // Moderação: o texto no telemóvel não leva o motivo (o ecrã de bloqueio é público); o motivo está na lista.
@@ -326,7 +342,7 @@ export class NotificationsService {
    */
   async notifyTxilladaLive(
     hostId: string, txilladaId: string, title: string,
-    opts: { followers?: boolean; also?: string[]; reopened?: boolean } = {},
+    opts: { followers?: boolean; also?: string[]; reopened?: boolean; reminded?: string } = {},
   ): Promise<number> {
     try {
       const { rows } = await this.pool.query(
@@ -344,7 +360,8 @@ export class NotificationsService {
         [hostId, txilladaId, opts.followers !== false, opts.also ?? []],
       );
       const ids = rows.map((r) => r.id as string);
-      const data = opts.reopened ? { txilladaId, title, reopened: true } : { txilladaId, title };
+      // Txillada agendada (0176): a quem pediu lembrete vai com `scheduleId` e `reminded` («começou a Txillada que pediste para lembrar»).
+      const data = opts.reopened ? { txilladaId, title, reopened: true } : opts.reminded ? { txilladaId, title, scheduleId: opts.reminded, reminded: true } : { txilladaId, title };
       for (let i = 0; i < ids.length; i += 1000) {
         const chunk = ids.slice(i, i + 1000);
         await this.pool.query(
@@ -361,7 +378,9 @@ export class NotificationsService {
               title: (h?.display_name as string | undefined) ?? 'Txillada',
               body: opts.reopened
                 ? (title ? `@${h?.username as string} reabriu a Txillada: ${title}` : `@${h?.username as string} reabriu a Txillada`)
-                : (title ? `@${h?.username as string} abriu uma Txillada: ${title}` : `@${h?.username as string} abriu uma Txillada`),
+                : opts.reminded
+                  ? (title ? `@${h?.username as string} começou a Txillada que pediste para lembrar: ${title}` : `@${h?.username as string} começou a Txillada que pediste para lembrar`)
+                  : (title ? `@${h?.username as string} abriu uma Txillada: ${title}` : `@${h?.username as string} abriu uma Txillada`),
               url: `/txillada/${txilladaId}`,
               tag: `txillada:${txilladaId}`,
               category: 'txilladas',
@@ -374,6 +393,27 @@ export class NotificationsService {
     } catch (e) {
       this.log.warn(`falha a avisar da Txillada ${txilladaId}: ${(e as Error).message}`);
       return 0;
+    }
+  }
+
+  /**
+   * Um aviso à própria pessoa sobre o que é dela (Txillada agendada, 0176: `txillada_scheduled_soon` e `txillada_scheduled_now`
+   * ao anfitrião). Ator = a própria pessoa; a lista mostra-o como Txillapp. Respeita a categoria desligada (nem lista nem
+   * telemóvel). Nunca falha: um erro aqui só fica registado. Devolve se avisou.
+   */
+  async notifySelf(n: { userId: string; kind: NotificationKind; data: Record<string, unknown>; push: { title: string; body: string; url: string; tag: string } }): Promise<boolean> {
+    try {
+      const cat = CATEGORY_OF[n.kind];
+      if (cat && (await this.push.off(n.userId)).includes(cat)) return false;
+      await this.pool.query('INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, $3, $4)', [uuidv7(), n.userId, n.kind, n.data]);
+      if (this.push.enabled) {
+        const scheduleId = typeof n.data.scheduleId === 'string' ? n.data.scheduleId : '';
+        await this.push.send(n.userId, { ...n.push, category: cat, data: { kind: n.kind, scheduleId } }).catch(() => undefined);
+      }
+      return true;
+    } catch (e) {
+      this.log.warn(`falha a criar notificação ${n.kind}: ${(e as Error).message}`);
+      return false;
     }
   }
 
@@ -574,7 +614,7 @@ export class NotificationsService {
         createdAt: r.created_at,
         read: r.read_at !== null,
         // Os avisos da equipa vêm em nome do Txillapp (nunca o nome nem o @ da pessoa da equipa).
-        actor: r.status === 'staff' || r.kind === 'sound_review' || r.kind === 'zas_recap'
+        actor: r.status === 'staff' || r.kind === 'sound_review' || r.kind === 'zas_recap' || SELF_KINDS.has(r.kind as NotificationKind)
           ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true, verified: true, verifiedTier: 'official' as const }
           : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested, ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
