@@ -1,7 +1,7 @@
 import { createCanvas } from '@napi-rs/canvas';
-import { cardLayout, CARD_TIMES, drawEndCard, END_CARD_S, endCardSting } from '../media/end-card';
+import { cardLayout, CARD_TIMES, DOT_HIT, drawEndCard, END_CARD_S, endCardSting, LOGO_DONE, logoPose } from '../media/end-card';
 import { outSize, signedCopyGraph } from '../media/end-card-video';
-import { LOGO_BOX, LOGO_INK_PATHS } from '../media/marca';
+import { LOGO_BOX, LOGO_DOT, LOGO_INK_PATHS } from '../media/marca';
 import { BOX } from '../media/signature';
 import { bakeArgs, bakedMediaId, bakeMix, musicBakedOf } from './music-bake';
 import { downloadVersion } from './post-download.service';
@@ -42,11 +42,41 @@ describe('fim de tcheka: as contas (sem base de dados)', () => {
     expect(musicBakedOf({})).toBe(false);
   });
 
-  it('o logótipo (formas cheias): a assinatura usa a caixa do desenho e o cartão revela as letras da esquerda para a direita', () => {
+  it('o logótipo (formas cheias): a assinatura usa a caixa do desenho e a coreografia da marca (tx, ill, a p p, o ponto)', () => {
     expect(BOX).toEqual({ ...LOGO_BOX });
-    expect(LOGO_INK_PATHS.length).toBeGreaterThan(0);
-    // A animação acaba no mesmo tempo de antes (as oito letras a 0,075 s umas das outras, 0,42 s cada).
-    expect(CARD_TIMES.draw + CARD_TIMES.reveal).toBeCloseTo(0.16 + 7 * 0.075 + 0.42, 9);
+    expect(LOGO_INK_PATHS).toHaveLength(5);
+    // Os «ll» nunca se deformam: crescem só na vertical a partir da base (grow ≤ 1, sem escala lateral) e o excesso do
+    // ease-out-back é uniforme (scale ≥ 1 só com grow = 1).
+    let grew = false, swayed = false, nodded = false;
+    for (let t = 0; t <= END_CARD_S; t += 1 / 120) {
+      const p = logoPose(t);
+      expect(p.ill.grow).toBeGreaterThanOrEqual(0);
+      expect(p.ill.grow).toBeLessThanOrEqual(1);
+      expect(p.ill.scale).toBeGreaterThanOrEqual(1);
+      if (p.ill.scale > 1) { expect(p.ill.grow).toBe(1); grew = true; }
+      if (Math.abs(p.ill.rotate) > 1) swayed = true;
+      if (t > CARD_TIMES.sway && Math.abs(p.tx.rotate) > 0.5) nodded = true;
+      expect(Math.abs(p.ill.rotate)).toBeLessThan(4);
+      expect(Math.abs(p.tx.rotate)).toBeLessThanOrEqual(14);
+    }
+    expect(grew && swayed && nodded).toBe(true);
+    // A ordem: o tx e o ill primeiro, depois o a, o p e o último p um a um, e o ponto a cair por fim.
+    expect(CARD_TIMES.letters[0]).toBeGreaterThan(CARD_TIMES.grow);
+    expect(CARD_TIMES.letters[1]).toBeGreaterThan(CARD_TIMES.letters[0]);
+    expect(CARD_TIMES.letters[2]).toBeGreaterThan(CARD_TIMES.letters[1]);
+    expect(logoPose(CARD_TIMES.dot - 0.01).dot.alpha).toBe(0);
+    expect(logoPose(CARD_TIMES.dot + 0.05).dot.dy).toBeLessThan(-30);
+    expect(Math.abs(logoPose(DOT_HIT).dot.dy)).toBeLessThan(0.01);
+    // O logótipo fica quieto em ~1,9 s e, daí em diante, tudo no sítio do desenho oficial.
+    expect(LOGO_DONE).toBeLessThanOrEqual(1.9);
+    const rest = logoPose(LOGO_DONE + 0.01);
+    expect(rest.ill).toEqual({ grow: 1, scale: 1, rotate: 0 });
+    expect(rest.tx.alpha).toBe(1);
+    for (const k of ['dx', 'dy', 'rotate'] as const) expect(rest.tx[k]).toBeCloseTo(0, 9);
+    for (const l of rest.letters) expect(l).toMatchObject({ alpha: 1, scale: 1 });
+    expect(rest.dot.alpha).toBe(1);
+    expect(rest.dot.dy).toBeCloseTo(0, 9);
+
     const W = 360, H = 640;
     const L = cardLayout(W, H);
     const c = createCanvas(W, H);
@@ -59,14 +89,23 @@ describe('fim de tcheka: as contas (sem base de dados)', () => {
       return max;
     };
     const opts = { label: 'teste', handle: true, seal: null };
-    drawEndCard(g, W, H, CARD_TIMES.draw, opts);
+    // Antes de tudo: escuro.
+    drawEndCard(g, W, H, 0.05, opts);
     expect(band(0, 1)).toBeLessThan(120);
-    drawEndCard(g, W, H, CARD_TIMES.draw + CARD_TIMES.reveal / 2, opts);
-    expect(band(0, 0.3)).toBeGreaterThan(200);
+    // O tx e o ill já lá estão; o «app» ainda não.
+    drawEndCard(g, W, H, CARD_TIMES.letters[0] - 0.02, opts);
+    expect(band(0, 0.25)).toBeGreaterThan(200);
+    expect(band(0.3, 0.5)).toBeGreaterThan(200);
     expect(band(0.75, 1)).toBeLessThan(120);
+    // No fim: tudo aceso, e o ponto do i a coral no sítio.
     drawEndCard(g, W, H, END_CARD_S - 0.05, opts);
     expect(band(0, 0.3)).toBeGreaterThan(200);
     expect(band(0.75, 1)).toBeGreaterThan(200);
+    const s = L.s;
+    const [r, gg, b] = g.getImageData(Math.round(L.x0 + (LOGO_DOT.cx - LOGO_BOX.x) * s), Math.round(L.y0 + (LOGO_DOT.cy - LOGO_BOX.y) * s), 1, 1).data;
+    expect(r).toBeGreaterThan(200);
+    expect(gg).toBeLessThan(140);
+    expect(b).toBeLessThan(150);
   });
 
   it('o cartão: o mesmo desenho em vertical e na horizontal, a animação dentro do tempo e o som do tamanho certo', () => {
@@ -77,6 +116,9 @@ describe('fim de tcheka: as contas (sem base de dados)', () => {
     expect(h.ww).toBeCloseTo(648);
     expect(h.siteY).toBeLessThan(1080);
     expect(CARD_TIMES.site + 0.5).toBeLessThan(END_CARD_S);
+    // O cartão cresceu (o logótipo novo precisa de ~1,9 s) mas fica curto.
+    expect(END_CARD_S).toBeLessThanOrEqual(3);
+    expect(CARD_TIMES.line).toBeGreaterThan(DOT_HIT);
     const wav = endCardSting();
     expect(Buffer.from(wav.subarray(0, 4)).toString('ascii')).toBe('RIFF');
     expect(wav.length).toBe(44 + Math.round(END_CARD_S * 48_000) * 2 * 2);
