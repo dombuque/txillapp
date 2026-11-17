@@ -839,7 +839,7 @@ export default function Compose() {
             {music ? (
               <View>
                 <TrackCard track={music} />
-                <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color={colors.zinc600} /></Pressable>
+                <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
               </View>
             ) : (
               <Pressable onPress={() => setPickMusic(true)} style={styles.musicBtn} accessibilityRole="button">
@@ -858,7 +858,7 @@ export default function Compose() {
                   <Text style={{ color: '#fff', marginTop: 8, fontWeight: '600' }}>Vídeo{video.durationMs ? ` · ${Math.round(video.durationMs / 1000)} s` : ''}</Text>
                 </View>
               )}
-              <Pressable onPress={() => removeAsset(video.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel="Tirar o vídeo"><Icon name="x" size={16} color="#fff" /></Pressable>
+              <Pressable onPress={() => removeAsset(video.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel="Tirar o vídeo"><Icon name="x" size={18} color="#fff" /></Pressable>
             </View>
           ) : null}
 
@@ -892,7 +892,7 @@ export default function Compose() {
                       </>
                     )}
                     {i === 0 && n > 1 ? <View style={styles.cover}><Text style={styles.coverText}>Capa</Text></View> : null}
-                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? `Tirar o vídeo ${i + 1}` : `Tirar a foto ${i + 1}`}><Icon name="x" size={16} color="#fff" /></Pressable>
+                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? `Tirar o vídeo ${i + 1}` : `Tirar a foto ${i + 1}`}><Icon name="x" size={18} color="#fff" /></Pressable>
                   </View>
                 );
               })}

@@ -185,7 +185,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
       <Animated.View style={[styles.root, { backgroundColor: bg }]} accessibilityViewIsModal accessibilityLabel={`Fotos de ${author.displayName}`}>
         <View style={[styles.top, { paddingTop: Math.max(insets.top, 8) }]}>
           <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar" {...(mouse ? ({ dataSet: { tip: 'Fechar (Esc)' } } as object) : null)}>
-            <Icon name="x" size={22} color="#fff" strokeWidth={2.4} />
+            <Icon name="x" size={24} color="#fff" strokeWidth={2.4} />
           </Pressable>
           {n > 1 ? (
             <View style={styles.count}>

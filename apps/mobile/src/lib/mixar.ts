@@ -197,7 +197,7 @@ export function challengeView(c: Pick<MixarChallenge, 'myPick' | 'theirPicked' |
   }
   if (c.theirPick == null || c.match == null) return { phase: 'waiting', line: `À espera de ${partner}…`, match: null };
   return c.match
-    ? { phase: 'result', line: 'Escolheram o mesmo! 🎉', match: true }
+    ? { phase: 'result', line: 'Escolheram o mesmo!', match: true }
     : { phase: 'result', line: `${partner} escolheu esta`, match: false };
 }
 

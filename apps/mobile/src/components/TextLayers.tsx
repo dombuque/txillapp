@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
+import { useStableFrame } from '@/lib/useStableFrame';
 import {
   ALIGN_LABEL, BG_LABEL, TEXT_BASE_PX, TEXT_LAYER_COLORS, TEXT_MAX_CHARS, TEXT_METRICS, clampLayerText, layerColors, newTextPx, nextAlign, nextBg,
   sForFontPx, textLayout, wrapLayerText, type TextAlign, type TextBg, type TextLayer,
@@ -131,9 +132,12 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
   // Ao escrever, a letra fica perto do tamanho que vai ter (entre 18 e 44 px, para caber a escrever).
   const fs = Math.max(18, Math.min(44, px));
   const [h, setH] = useState(0);
+  // O teclado está sempre aberto aqui: o ecrã fica com a altura que tinha sem ele e só a barra de baixo (cores e letras)
+  // sobe para cima do teclado (lib/useStableFrame). O KeyboardAvoidingView encolhia a camada no Android em vez de subir a barra.
+  const { screen, lift } = useStableFrame(true);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={done} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <View style={{ height: screen.h, backgroundColor: 'rgba(0,0,0,0.6)' }}>
         {editing ? <Measure text={initial.text} font={initial.font} onWidth={setTw0} /> : null}
         <Measure text={text} font={l.font} onWidth={setTw} />
         <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -185,7 +189,7 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
           />
         </View>
 
-        <View style={{ paddingBottom: Math.max(insets.bottom, 10), gap: 10 }}>
+        <View style={{ paddingBottom: lift > 0 ? lift + 10 : Math.max(insets.bottom, 10), gap: 10 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 4, paddingHorizontal: 12 }} accessibilityLabel="Cor">
             {TEXT_LAYER_COLORS.map((c) => {
               const on = l.color === c;
@@ -198,7 +202,7 @@ export function TextLayerEditor({ initial, boxW, onDone }: { initial: TextLayer;
           </ScrollView>
           <FontChips value={l.font} onChange={(font) => set({ font })} dark />
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

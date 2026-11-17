@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { showToast } from '@/lib/toast';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -49,7 +51,7 @@ export default function MixarList() {
       void qc.invalidateQueries({ queryKey: mixarKeys.list() });
       if (!group) void qc.invalidateQueries({ queryKey: ['chat-thread', s.partner.username] });
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e));
+      showToast(mixarErrorText(e));
     } finally {
       setBusy(null);
     }
@@ -127,11 +129,7 @@ export default function MixarList() {
 
         {q.isPending ? <ActivityIndicator style={{ marginTop: 32 }} /> : null}
         {q.isError ? (
-          <View style={st.empty} accessibilityRole="alert">
-            <Icon name="alert" size={40} color={colors.zinc300} />
-            <Text style={st.emptyTitle}>Não consegui carregar os teus Mixar</Text>
-            <Pressable onPress={() => void q.refetch()} style={[st.btn, st.primary, { marginTop: 14, paddingHorizontal: 24 }]} accessibilityRole="button"><Text style={st.primaryText}>Tentar outra vez</Text></Pressable>
-          </View>
+          <ErrorState what="os teus Mixar" onRetry={() => void q.refetch()} />
         ) : null}
 
         {groups.received.length ? <Text style={st.section}>Convites</Text> : null}

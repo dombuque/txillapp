@@ -10,7 +10,6 @@ import { timeAgo } from '@/lib/time';
 import { formatVibes } from '@/lib/vibes';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
-import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { GeleiraMini } from './GeleiraPostCard';
@@ -124,8 +123,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
       />
       <View style={styles.col}>
         <View style={styles.head}>
-          <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          {verified ? <VerifiedBadge size={14} tier={verified} /> : null}
+          <NameWithBadge name={name} who={verified ? { verified: true, verifiedTier: verified } : null} size={14} style={styles.name} containerStyle={{ flexShrink: 1 }} />
           <Text style={styles.meta} numberOfLines={1}>
             {original.venue ? 'página' : `@${a.username}`} · {timeAgo(original.createdAt)}
           </Text>
@@ -134,13 +132,11 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
           <View style={styles.gift}>
             <Icon name="gift" size={15} color={colors.brand} />
             <NameWithBadge
-              name={<>Presenteou <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text></>}
+              name={<>Ofereceu {formatVibes(g.amount)} a <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text></>}
               who={g.recipient}
               style={styles.giftText}
               containerStyle={{ flexShrink: 1 }}
-            >
-              <Text style={[styles.giftText, { flexShrink: 0 }]}>com {formatVibes(g.amount)}</Text>
-            </NameWithBadge>
+            />
           </View>
         ) : null}
         <View style={side ? styles.sideRow : undefined}>
@@ -156,7 +152,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
             {quoted ? (
               <View style={styles.quoted}>
                 <Icon name="repeat" size={13} color={colors.zinc500} />
-                <Text style={styles.quotedText} numberOfLines={1}>a citar {quoted.author.displayName}</Text>
+                <NameWithBadge name={`a citar ${quoted.author.displayName}`} who={quoted.author} style={styles.quotedText} containerStyle={{ flexShrink: 1 }} />
               </View>
             ) : null}
           </View>

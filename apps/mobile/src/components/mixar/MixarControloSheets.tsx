@@ -32,7 +32,7 @@ export function MixarItemMenu({ item, onLess, onOff, onClose, send }: {
         {send ? (
           <MenuRow
             icon={send.done ? 'check' : 'send'}
-            title={send.done ? `Enviado a ${send.partner}` : `Mandar a ${send.partner}`}
+            title={send.done ? `Enviado a ${send.partner}` : `Enviar a ${send.partner}`}
             line={send.done ? 'Já está na vossa conversa.' : 'Vai para a vossa conversa, como qualquer publicação partilhada.'}
             onPress={() => { onClose(); if (!send.done) send.onPress(); }}
           />

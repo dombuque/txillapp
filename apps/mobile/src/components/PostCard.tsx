@@ -229,6 +229,8 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const [menuAt, setMenuAt] = useState<Rect | null>(null);
   const [hot, setHot] = useState(false);
   const openMenu = (at: Rect | null) => { setMenuAt(at); setSheet('menu'); };
+  // Telemóvel: segurar no cartão (no texto ou nas fotos) abre o mesmo menu do «⋯». No computador há o botão direito.
+  const hold = desktop ? undefined : () => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); openMenu(null); };
   const [gone, setGone] = useState(false);
   // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
   const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
@@ -260,7 +262,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
 
   const menuBtn = (
     <Pressable onPress={(e) => openMenu(anchorOf(e))} hitSlop={6} style={(st) => [styles.more, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel="Mais opções da publicação" {...tip('Mais opções')}>
-      <Icon name="more" size={26} strokeWidth={3} />
+      <Icon name="more" size={24} />
     </Pressable>
   );
   const giftTo = { username: post.author.username, displayName: post.author.displayName };
@@ -268,6 +270,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   return (
     <Pressable
       onPress={goPost}
+      onLongPress={hold}
       accessible={false}
       style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }, desktop && hot && styles.cardHot]}
       {...(desktop ? {
@@ -327,7 +330,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
             </View>
             {menuBtn}
           </View>
-          <Pressable onPress={() => tapText(goPost)} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
+          <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
             <RichText text={post.body} style={styles.qBody} />
           </Pressable>
         </>
@@ -370,7 +373,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
             {menuBtn}
           </View>
           {post.body ? (
-            <Pressable onPress={() => tapText(goPost)} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
+            <Pressable onPress={() => tapText(goPost)} onLongPress={hold} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
               <RichText text={post.body} style={bodyFont ? [styles.body, bodyFont.size, bodyFace] : styles.body} customFont={!!bodyFont} />
             </Pressable>
           ) : null}
@@ -397,7 +400,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         // O brinde aparece no meio da foto ou do vídeo. Com a música já gravada no vídeo (`musicBaked`), o vídeo toca com o som
         // dele e o selo fica só com o crédito (sem a tocar outra vez por cima).
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={mediaOverlay(post, musicOn, () => setSheet({ people: 'cheers' }))} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={musicPlayback(post).muteVideo} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} onHold={hold} overlay={mediaOverlay(post, musicOn, () => setSheet({ people: 'cheers' }))} />
           <ReplyStickerOverlay remix={post.remixOf} />
           {/* O som que a tcheka usava foi tirado: o vídeo fica sem som e diz porquê. */}
           {soundRemovedText(post.soundRemoved) ? <View style={{ position: 'absolute', left: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5 }} pointerEvents="none"><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>♪ {soundRemovedText(post.soundRemoved)}</Text></View> : null}
@@ -459,7 +462,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   );
 }
 
-/** Barra de ações por baixo da foto em ecrã inteiro: brindar, comentar, repostar, presentear (as outras fecham a foto e abrem a folha). */
+/** Barra de ações por baixo da foto em ecrã inteiro: brindar, comentar, repostar, oferecer vibes (as outras fecham a foto e abrem a folha). */
 /**
  * O visor guarda a publicação de quando abriu. Os brindes (e o resto) atualizam a publicação da lista, por isso a barra do
  * visor lê sempre a versão atual: a própria, ou a original de um repost. Sem isto, brindar parecia não fazer nada e o
@@ -500,7 +503,7 @@ function ViewerBar({ post, full, mine, onOpen, onCheered }: { post: Post; full: 
   }
   const B = ({ icon, n, on, label, onPress }: { icon: Parameters<typeof Icon>[0]['name']; n?: number; on?: boolean; label: string; onPress: () => void }) => (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.vBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={label}>
-      <View style={[styles.vCircle, on && { backgroundColor: 'rgba(255,255,255,0.9)' }]}><Icon name={icon} size={26} color={on ? colors.brand : '#fff'} /></View>
+      <View style={[styles.vCircle, on && { backgroundColor: 'rgba(255,255,255,0.9)' }]}><Icon name={icon} size={28}color={on ? colors.brand : '#fff'} /></View>
       {n ? <Text style={styles.vCount}>{n}</Text> : null}
     </Pressable>
   );
@@ -511,7 +514,7 @@ function ViewerBar({ post, full, mine, onOpen, onCheered }: { post: Post; full: 
         <>
           <B icon="comment" n={post.comments} label="Comentar" onPress={() => onOpen('comments')} />
           {showRepostButton(post) ? <B icon="repeat" n={post.reposts} on={post.reposted} label="Repostar" onPress={() => onOpen('repost')} /> : null}
-          {!mine && post.canGift ? <B icon="present" n={post.gifts} label="Presentear" onPress={() => onOpen('gift')} /> : null}
+          {!mine && post.canGift ? <B icon="gift" n={post.gifts} label="Oferecer vibes" onPress={() => onOpen('gift')} /> : null}
           <B icon="share" label="Partilhar" onPress={() => onOpen('share')} />
         </>
       )}
@@ -545,7 +548,7 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
       <View style={styles.giftLineRow}>
         <Text style={styles.giftLine} onPress={() => go(sender.username)}><Text style={{ fontWeight: '800' }}>{sender.displayName}</Text></Text>
         {sender.verified ? <VerifiedBadge size={15} tier={sender.verifiedTier} /> : null}
-        <Text style={styles.giftLine}>presenteou</Text>
+        <Text style={styles.giftLine}>ofereceu a</Text>
         <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
         {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
       </View>
@@ -556,7 +559,7 @@ function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: N
   );
 }
 
-/** Cartão de presente (X presenteou Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
+/** Cartão de presente (X ofereceu a Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
 function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void; menu?: React.ReactNode; onOpenPost?: (p: Post) => void }) {
   return (
     <>
@@ -618,7 +621,7 @@ function mediaOverlay(post: Post, musicOn: boolean, openCheers: () => void): Rea
   return <>{music}{friends}</>;
 }
 
-function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
+function Carousel({ media, width: guess, reelId, onDouble, onOpen, onHold, inView = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** Segurar numa foto: o menu da publicação. */ onHold?: () => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const winH = useWindowDimensions().height;
@@ -707,6 +710,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
             <Pressable
               style={{ width, height: h }}
               onPress={() => tap(m.kind === 'video' ? (reelId ? () => pushOnce(router, `/r/${reelId}`) : undefined) : () => onOpen?.(index))}
+              onLongPress={onHold}
               accessibilityRole="button"
               accessibilityLabel={m.kind === 'video' ? 'Abrir a tcheka' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
             >
@@ -769,7 +773,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
   );
 }
 
-/** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
+/** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Oferecer, Partilhar). */
 function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /** Computador: o rato está por cima do cartão (as ações ficam realçadas). */ hot?: boolean; post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void; /** Brindou pelo botão: mostra a animação. */ onCheer?: () => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
@@ -784,7 +788,7 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
   const chips = [
     { kind: 'cheers' as const, n: post.cheers, icon: 'cheers' as const, label: post.cheers === 1 ? 'brinde' : 'brindes' },
     { kind: 'reposts' as const, n: post.reposts, icon: 'repeat' as const, label: post.reposts === 1 ? 'repost' : 'reposts' },
-    { kind: 'gifts' as const, n: post.gifts, icon: 'present' as const, label: post.gifts === 1 ? 'presente' : 'presentes' },
+    { kind: 'gifts' as const, n: post.gifts, icon: 'gift' as const, label: post.gifts === 1 ? 'presente' : 'presentes' },
   ].filter((c) => c.n > 0);
   // Só se pode ver quem foi se o dono deixar (e num repost só os brindes).
   const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
@@ -793,9 +797,10 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
   const byNames = cheeredByView(post)?.kind === 'names';
   const shown = byNames ? chips.filter((c) => c.kind !== 'cheers') : chips;
 
-  const Btn = ({ label, icon, onPress, color = colors.zinc800, size = 22, strokeWidth }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; size?: number; strokeWidth?: number }) => (
-    <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
-      <Icon name={icon} size={size} color={color} strokeWidth={strokeWidth} />
+  // Fila de ações: todos os ícones a 24 (o mesmo tamanho em todos os botões da barra).
+  const Btn = ({ label, icon, onPress, color = colors.zinc800, a11y }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; /** O que o leitor de ecrã diz, quando o rótulo curto não chega. */ a11y?: string }) => (
+    <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={a11y ?? label}>
+      <Icon name={icon} size={24} color={color} />
       <Text style={[styles.word, { color }]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
@@ -828,12 +833,12 @@ function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /*
       </View>
       )}
       <View style={[styles.bar, hot && styles.barHot, byNames && !shown.length && post.comments <= 0 && { marginTop: 10 }]}>
-        <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" size={24} color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
+        <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
         {/* Quem publicou não deixa repostar (lib/repost): o botão some, a não ser que haja um repost meu para desfazer. */}
         {showRepostButton(post) && <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />}
-        {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => open('gift')} />}
-        <Btn label="Partilhar" icon="share" size={24} onPress={() => open('share')} />
+        {!mine && post.canGift && <Btn label="Oferecer" a11y="Oferecer vibes" icon="gift" onPress={() => open('gift')} />}
+        <Btn label="Partilhar" icon="share" onPress={() => open('share')} />
       </View>
     </>
   );

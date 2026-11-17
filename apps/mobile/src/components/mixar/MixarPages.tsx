@@ -10,13 +10,15 @@ import { countOf, groupChallengeLine, pickedLabel } from '@/lib/mixarGrupo';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
-import { NameWithBadge } from '../NameWithBadge';
+import { InlineBadge, NameWithBadge } from '../NameWithBadge';
+import type { Badged } from '@/lib/api';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { GroupAvatars, MIXAR_GRADIENT, PairAvatars, TopicChips } from './MixarBits';
 
 const isWeb = Platform.OS === 'web';
-type Who = { name: string; username?: string };
+/** Uma pessoa do Mixar (o nome curto); no Mixar a dois traz o selo de verificado. */
+type Who = { name: string; username?: string } & Badged;
 const snap = isWeb ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object) : null;
 
 /* ---------- Descoberta de interesses ---------- */
@@ -149,7 +151,7 @@ const thumbOf = (p: Post) => {
 
 /**
  * O Mixa Challenge, como primeira página do dia: a pergunta e 3–4 miniaturas. Escolho uma (tocar marca, «Escolher esta»
- * confirma; não se muda); fico «à espera de Ana» até ela escolher; depois o resultado (match 🎉 ou «Ana escolheu esta»).
+ * confirma; não se muda); fico «à espera de Ana» até ela escolher; depois o resultado (match, com a festa, ou «Ana escolheu esta»).
  */
 export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topInset }: {
   c: MixarChallenge;
@@ -206,7 +208,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
                     {badge !== 'mine' ? <View style={[cs.face, badge === 'both' && { marginLeft: -8 }]}><Avatar name={them.name} username={them.username} size={22} /></View> : null}
                   </View>
                 ) : null}
-                {badge === 'both' ? <Text style={cs.party} allowFontScaling={false}>🎉</Text> : null}
+                {badge === 'both' ? <View style={cs.party}><Icon name="party" size={18} color={colors.brand} /></View> : null}
                 {n != null ? <View style={cs.count}><Text style={cs.countText}>{pickedLabel(n)}</Text></View> : null}
                 {sel ? <View style={cs.tick}><Icon name="check" size={16} color="#fff" strokeWidth={3} /></View> : null}
               </Pressable>
@@ -219,7 +221,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={cs.ctaText}>{chosen ? 'Escolher esta' : 'Toca numa para escolher'}</Text>}
           </Pressable>
         ) : v.phase === 'waiting' ? (
-          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>{grp ? 'Avisamos quando todos escolherem.' : `Avisamos quando ${them.name} escolher.`}</Text></View>
+          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>{grp ? 'Avisamos quando todos escolherem.' : <>Avisamos quando {them.name}<InlineBadge who={them} fontSize={14} /> escolher.</>}</Text></View>
         ) : null}
 
         <View style={cs.more}>
@@ -244,7 +246,7 @@ const cs = StyleSheet.create({
   play: { position: 'absolute', left: 6, top: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   badges: { position: 'absolute', right: 6, bottom: 6, flexDirection: 'row' },
   face: { borderRadius: 13, borderWidth: 2, borderColor: '#fff' },
-  party: { position: 'absolute', left: 6, bottom: 4, fontSize: 24 },
+  party: { position: 'absolute', left: 6, bottom: 6, width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   count: { position: 'absolute', left: 6, bottom: 6, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.72)', paddingHorizontal: 8, paddingVertical: 3 },
   countText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   tick: { position: 'absolute', right: 6, top: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },

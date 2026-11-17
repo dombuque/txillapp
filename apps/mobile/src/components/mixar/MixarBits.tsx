@@ -5,15 +5,18 @@ import { Animated, Platform, Pressable, StyleSheet, Text, View, type StyleProp, 
 import type { MixarFrom, MixarReactionId, MixarTopic } from '@/lib/api.mixar';
 import { MIXAR_REACTIONS, reactionA11y, reasonIcon, reasonText, type MixarReaction } from '@/lib/mixar';
 import { colors } from '@/lib/theme';
+import type { Badged } from '@/lib/api';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
+import { NameWithBadge } from '../NameWithBadge';
 
 const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
 /** As cores do Mixar: a marca a passar para o laranja (como o anel das mensagens por ler). */
 export const MIXAR_GRADIENT = [colors.brand, '#ff9a5b'] as const;
 
-type Who = { name: string; username?: string };
+/** Uma pessoa do Mixar (o nome curto); no Mixar a dois traz o selo de verificado. */
+type Who = { name: string; username?: string } & Badged;
 
 /** Os dois avatares sobrepostos (eu atrás, o outro à frente), com um aro branco a separá-los. */
 export function PairAvatars({ me, them, size = 32, ring = '#fff' }: { me: Who; them: Who; size?: number; ring?: string }) {
@@ -134,7 +137,7 @@ export function SeenBy({ partner, text }: { partner: Who; /** Mixar de grupo: «
   return (
     <View style={st.seen} accessibilityRole="text" accessibilityLabel={line}>
       <Icon name="eye" size={13} color="rgba(255,255,255,0.9)" strokeWidth={2.2} />
-      <Text style={st.seenText} numberOfLines={1}>{line}</Text>
+      <NameWithBadge name={line} who={text ? null : partner} style={st.seenText} containerStyle={{ flexShrink: 1 }} />
     </View>
   );
 }

@@ -13,6 +13,10 @@ import { ExploreViewer } from '@/components/ExploreViewer';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
+import { LoadMore } from '@/components/LoadMore';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { TrendingSounds } from '@/components/TrendingSounds';
 import { Bolt } from '@/components/SuperTxillPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -118,6 +122,11 @@ export default function Search() {
   const handle = term.replace(/^[@#]/, '');
   const mq = useQuery({ queryKey: ['search-mentions', handle], queryFn: () => api.search(`@${handle}`), enabled: handle.length >= 2, staleTime: 30_000, placeholderData: keepPreviousData });
   const mentions = mq.data?.posts ?? [];
+  // A grelha do Explorar carrega sozinha ao chegar ao fim (e o LoadMore na web); puxar para cima atualiza o que se vê.
+  const loadExplore = () => { if (explore.hasNextPage && !explore.isFetchingNextPage) void explore.fetchNextPage(); };
+  const pull = usePullToRefresh(() => (term.length >= 2
+    ? Promise.all([q.refetch(), mq.refetch()])
+    : Promise.all([explore.refetch(), trending.refetch(), hot.refetch(), venues.refetch(), topics.refetch()])));
 
   const grid: Post[] = (() => {
     const seen = new Set<string>();
@@ -180,21 +189,34 @@ export default function Search() {
       <View style={styles.bar}>
         <BackButton />
         <View style={styles.field}>
-          <Icon name="search" size={20} color={colors.zinc600} />
+          <Icon name="search" size={18} color={colors.zinc600} />
           <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
-          {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
+          {text ? <Pressable onPress={() => setText('')} hitSlop={8} style={{ paddingHorizontal: 6 }} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc600} /></Pressable> : null}
           {/* Encontrar alguém pelo QR do perfil (com a câmara ou de uma imagem). */}
-          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={20} color={colors.zinc700} /></Pressable>
+          <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR"><Icon name="qr-scan" size={18} color={colors.zinc700} /></Pressable>
           <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
         {focusMode ? (
           <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Cancelar</Text></Pressable>
         ) : (
-          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={26} color={colors.zinc900} /></Pressable>
+          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={24} color={colors.zinc900} /></Pressable>
         )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+      <PullView pull={pull}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={pull.control}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          pull.onScroll(e);
+          // Perto do fim da grelha do Explorar (a 600 px): a página seguinte.
+          const { layoutMeasurement: l, contentOffset: o, contentSize: c } = e.nativeEvent;
+          if (!focusMode && !searching && l.height + o.y >= c.height - 600) loadExplore();
+        }}
+      >
         {focusMode && !searching && (
           <View style={{ paddingTop: 4 }} accessibilityLabel="Pesquisas recentes">
             <View style={{ paddingHorizontal: 20, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -219,7 +241,7 @@ export default function Search() {
         {!focusMode && !searching && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={20} /></Pressable>
+              <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={18} /></Pressable>
               {[{ id: null as string | null, label: 'Para ti' }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: t.label }))].map((t) => (
                 <Pressable key={t.id ?? 'fy'} onPress={() => setTopic(t.id)} accessibilityRole="tab" accessibilityState={{ selected: topic === t.id }} style={[chipBase, { backgroundColor: topic === t.id ? colors.zinc900 : colors.zinc100 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: topic === t.id ? '#fff' : colors.zinc800 }}>{t.label}</Text>
@@ -275,24 +297,12 @@ export default function Search() {
             {grid.length > 9 && block(grid.slice(9), 9)}
             {explore.isError && grid.length === 0 && (
               // Antes, sem rede, o Explorar ficava em branco (nem grelha, nem aviso).
-              <View style={styles.empty} accessibilityRole="alert">
-                <Icon name="image" size={36} color={colors.zinc300} />
-                <Text style={styles.emptyTitle}>Ups, o Explorar não carregou</Text>
-                <Pressable onPress={() => void explore.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
-              </View>
+              <ErrorState what="o Explorar" onRetry={() => void explore.refetch()} />
             )}
             {explore.isSuccess && grid.length === 0 && (
-              <View style={styles.empty}>
-                <Icon name="image" size={36} color={colors.zinc300} />
-                <Text style={styles.emptyTitle}>Ainda não há publicações para explorar</Text>
-                <Text style={styles.emptySub}>Quando a malta publicar, aparece aqui.</Text>
-              </View>
+              <EmptyState icon="image" title="Ainda não há publicações para explorar" text="Quando a malta publicar, aparece aqui." />
             )}
-            {explore.hasNextPage && (
-              <Pressable onPress={() => void explore.fetchNextPage()} disabled={explore.isFetchingNextPage} style={styles.more}>
-                {explore.isFetchingNextPage ? <Text style={styles.moreText}>A carregar…</Text> : <Text style={styles.moreText}>Ver mais</Text>}
-              </Pressable>
-            )}
+            {explore.hasNextPage && grid.length > 0 ? <LoadMore onLoad={loadExplore} loading={explore.isFetchingNextPage} /> : null}
           </>
         )}
 
@@ -316,15 +326,12 @@ export default function Search() {
             </ScrollView>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 40 }} />}
             {q.isError && (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
-                <Text style={[styles.emptyTitle, { color: colors.red600 }]}>Ups, a pesquisa falhou</Text>
-                <Pressable onPress={() => void q.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
-              </View>
+              <ErrorState title="Ups, a pesquisa falhou" onRetry={() => void q.refetch()} />
             )}
 
             {q.isSuccess && tab === 'people' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {people.length === 0 && <View style={styles.empty}><Icon name="search" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Ninguém com esse nome</Text></View>}
+                {people.length === 0 && <EmptyState icon="search" title="Ninguém com esse nome" />}
                 {people.map((p) => (
                   <View key={p.username} style={styles.person}>
                     <Pressable onPress={() => { remember(term); router.push(`/u/${p.username}` as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -353,7 +360,7 @@ export default function Search() {
 
             {q.isSuccess && tab === 'tags' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {tags.length === 0 && <View style={styles.empty}><Icon name="tag" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Nenhuma hashtag assim</Text></View>}
+                {tags.length === 0 && <EmptyState icon="tag" title="Nenhuma hashtag assim" />}
                 {tags.map((t) => (
                   <Pressable key={t.tag} onPress={() => { remember(term); router.push(`/tag/${t.tag}` as never); }} style={({ pressed }) => [styles.person, { borderRadius: 12 }, pressed && { backgroundColor: colors.zinc100 }]}>
                     <View style={styles.hash}><Text style={styles.hashText}>#</Text></View>
@@ -389,6 +396,7 @@ export default function Search() {
           </>
         )}
       </ScrollView>
+      </PullView>
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {opened && <ExploreViewer items={[opened]} startId={opened.id} title="Publicação" onClose={() => setOpened(null)} />}
     </View>
