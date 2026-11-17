@@ -62,6 +62,8 @@ const sendSchema = z.object({
   durationMs: z.number().int().min(0).max(300_000).optional(),
   waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),
   replyTo: z.string().uuid().optional(),
+  // uuid gerado no telemóvel (envio sem rede, migração 0175): repetir o mesmo pedido devolve a mesma mensagem, não cria outra.
+  clientId: z.string().uuid().optional(),
 });
 const activeSchema = z.object({ key: z.string().regex(/^(u:[A-Za-z0-9_.]{1,40}|g:[0-9a-f-]{36})$/).nullable() });
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });

@@ -7,7 +7,7 @@ import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 import { badge, type Badge } from '../common/badge';
-import { ChatService, Outgoing, expiresFor, notExpired, notHiddenFor, systemText, type MessageKind, type SystemInfo, type Ttl } from './chat.service';
+import { ChatService, Outgoing, expiresFor, isClientIdClash, notExpired, notHiddenFor, systemText, type MessageKind, type SystemInfo, type Ttl } from './chat.service';
 import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
 import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
@@ -280,14 +280,25 @@ export class GroupsService {
   async send(me: string, groupId: string, msg: Outgoing) {
     if (msg.kind === 'text' || msg.kind === 'image') this.filter.assertClean(msg.body);
     await this.needMember(groupId, me);
+    // A mesma mensagem repetida pela app (a resposta perdeu-se, 0175): devolve a que já existe.
+    const again = await this.chat.byClientId(me, msg.clientId);
+    if (again) return again;
     const place = await this.chat.validateOutgoing(me, msg);
     const id = uuidv7();
     const spot = this.chat.placeFields(msg);
-    const ins = await this.pool.query(
+    let ins;
+    try {
+      ins = await this.pool.query(
       // Mensagens temporárias ligadas no grupo: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
-      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $13, $14, $15::jsonb, ${expiresFor('groups', '$2')}) RETURNING expires_at`,
-      [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address, msg.kind === 'gif' && msg.gif ? JSON.stringify(msg.gif) : null],
-    );
+      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif, expires_at, client_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $13, $14, $15::jsonb, ${expiresFor('groups', '$2')}, $16) RETURNING expires_at`,
+      [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address, msg.kind === 'gif' && msg.gif ? JSON.stringify(msg.gif) : null, msg.clientId ?? null],
+      );
+    } catch (e) {
+      // Dois pedidos iguais ao mesmo tempo (0175): o segundo devolve a mensagem do primeiro.
+      const again = isClientIdClash(e) ? await this.chat.byClientId(me, msg.clientId) : null;
+      if (again) return again;
+      throw e;
+    }
     await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'gif' ? 'enviou um GIF' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
     // Com as temporárias ligadas, a app sabe logo quando a mensagem enviada desaparece (envio otimista, lib/chatPending).
     const exp = ins.rows[0]?.expires_at as Date | string | null | undefined;
