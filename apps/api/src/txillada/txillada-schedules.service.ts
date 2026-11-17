@@ -11,6 +11,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Scheduler } from '../realtime/scheduler';
 import { TextFilter } from '../safety/text-filter.service';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
+import { ModerationService, type ReportReason } from '../moderation/moderation.service';
+import { notReportedBy } from '../social/visibility';
 import { livekitEnabled } from './livekit';
 import { assertCanHost } from './txillada-host';
 import { txilladaVisible } from './txillada-visibility';
@@ -21,7 +23,7 @@ import { txilladaVisible } from './txillada-visibility';
  * agendamento, os lembretes, os avisos ao anfitrião (15 min antes e na hora), expirar e limpar.
  */
 export type ScheduleAudience = 'everyone' | 'friends' | 'close' | 'paid';
-export type ScheduleStatus = 'scheduled' | 'started' | 'cancelled' | 'expired';
+export type ScheduleStatus = 'scheduled' | 'started' | 'cancelled' | 'expired' | 'removed';
 
 /** A hora: pelo menos 15 minutos à frente (com 1 minuto de folga para o pedido chegar) e no máximo 30 dias. */
 export const SCHEDULE_MIN_AHEAD_MS = 15 * 60_000;
@@ -58,9 +60,11 @@ const COLS = (v = '$1') => `s.id, s.host_id, s.title, s.audience, s.price, s.goa
   h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar, h.verified AS h_verified, h.verified_tier AS h_verified_tier,
   COALESCE((SELECT tx.status = 'live' FROM content.txilladas tx WHERE tx.id = s.txillada_id), false) AS tx_live,
   EXISTS (SELECT 1 FROM content.txillada_schedule_reminders r WHERE r.schedule_id = s.id AND r.user_id = ${v}) AS reminded,
-  (SELECT count(*)::int FROM content.txillada_schedule_reminders r JOIN identity.users ru ON ru.id = r.user_id AND ru.status = 'active'
-    WHERE r.schedule_id = s.id) AS reminders`;
+  COALESCE(s.reminders_count, (SELECT count(*)::int FROM content.txillada_schedule_reminders r JOIN identity.users ru ON ru.id = r.user_id AND ru.status = 'active'
+    WHERE r.schedule_id = s.id)) AS reminders`;
 const FROM = `FROM content.txillada_schedules s JOIN identity.users h ON h.id = s.host_id`;
+/** Quem pode ver o agendamento e não o denunciou (o que se denuncia deixa de aparecer a quem denunciou). */
+const SEES = (v = '$1') => `(${txilladaVisible('s', 'h', v)} AND ${notReportedBy('txillada_schedule', 's.id', v)})`;
 
 export type ScheduledTxillada = ReturnType<TxilladaSchedulesService['dto']>;
 
@@ -75,6 +79,7 @@ export class TxilladaSchedulesService implements OnModuleInit {
     private readonly scheduler: Scheduler,
     private readonly filter: TextFilter,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
 
   /** De minuto a minuto: os avisos ao anfitrião e expirar; de hora a hora: apagar os cancelados e expirados antigos. */
@@ -162,7 +167,7 @@ export class TxilladaSchedulesService implements OnModuleInit {
   }
 
   private async row(me: string, id: string) {
-    const { rows } = await this.pool.query(`SELECT ${COLS('$1')}, ${txilladaVisible('s', 'h', '$1')} AS visible ${FROM} WHERE s.id = $2`, [me, id]);
+    const { rows } = await this.pool.query(`SELECT ${COLS('$1')}, ${SEES('$1')} AS visible ${FROM} WHERE s.id = $2`, [me, id]);
     return rows[0] as Record<string, any> | undefined;
   }
 
@@ -224,7 +229,7 @@ export class TxilladaSchedulesService implements OnModuleInit {
       hostId = u.id as string;
     }
     const { rows } = await this.pool.query(
-      `SELECT ${COLS('$1')} ${FROM} WHERE s.host_id = $2 AND s.status = 'scheduled' AND ${txilladaVisible('s', 'h', '$1')} ORDER BY s.starts_at, s.id`,
+      `SELECT ${COLS('$1')} ${FROM} WHERE s.host_id = $2 AND s.status = 'scheduled' AND ${SEES('$1')} ORDER BY s.starts_at, s.id`,
       [me, hostId],
     );
     return { items: rows.map((r) => this.dto(r, me)) };
@@ -236,7 +241,7 @@ export class TxilladaSchedulesService implements OnModuleInit {
       `SELECT ${COLS('$1')} ${FROM}
         WHERE s.status = 'scheduled' AND s.host_id <> $1 AND s.starts_at <= now() + make_interval(secs => $2)
           AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.host_id)
-          AND ${txilladaVisible('s', 'h', '$1')}
+          AND ${SEES('$1')}
         ORDER BY s.starts_at, s.id LIMIT $3`,
       [me, UPCOMING_MS / 1000, UPCOMING_MAX],
     );
@@ -250,7 +255,11 @@ export class TxilladaSchedulesService implements OnModuleInit {
    * mudança (o `txillada_live` chega logo a seguir) e sem os avisos ao anfitrião.
    */
   async update(me: string, id: string, b: { title?: string; startsAt?: string }) {
+    // As mesmas regras de quem agenda (como o POST): com a Txillada desligada ou sem poder abrir (conta suspensa, menor), não
+    // se edita. Cancelar fica sempre (ver cancel).
+    this.assertEnabled();
     const r = await this.hostRow(me, id);
+    await assertCanHost(this.pool, me);
     if (r.status !== 'scheduled') throw new ConflictException({ message: NOT_SCHEDULED, code: 'not_scheduled' });
     const title = b.title === undefined ? undefined : b.title.replace(/\s+/g, ' ').trim().slice(0, 80);
     if (title) this.filter.assertClean(title);
@@ -285,7 +294,10 @@ export class TxilladaSchedulesService implements OnModuleInit {
     return this.get(me, id);
   }
 
-  /** Cancelar (o anfitrião): passa a 'cancelled' e quem pediu lembrete é avisado. Cancelar outra vez não faz nada. */
+  /**
+   * Cancelar (o anfitrião): passa a 'cancelled' e quem pediu lembrete é avisado. Cancelar outra vez não faz nada. Deixa sempre,
+   * mesmo com a Txillada desligada ou a conta sem poder abrir: cancelar só faz bem a quem estava à espera.
+   */
   async cancel(me: string, id: string) {
     const r = await this.hostRow(me, id);
     if (r.status === 'cancelled') return;
@@ -299,8 +311,11 @@ export class TxilladaSchedulesService implements OnModuleInit {
       .catch((e) => this.log.warn(`não consegui avisar do cancelamento da Txillada agendada ${id}: ${(e as Error).message}`));
   }
 
-  /** O aviso `txillada_scheduled_cancelled` a quem pediu lembrete e ainda a pode ver (cancelada, ou a hora mudou). */
-  private async tellReminders(id: string, hostId: string, d: { moved: boolean; startsAt: string; newStartsAt?: string }) {
+  /**
+   * O aviso `txillada_scheduled_cancelled` a quem pediu lembrete e ainda a pode ver (cancelada, a hora mudou, ou `removed`:
+   * retirada pela moderação).
+   */
+  private async tellReminders(id: string, hostId: string, d: { moved: boolean; startsAt: string; newStartsAt?: string; removed?: boolean }) {
     const { rows } = await this.pool.query(
       `SELECT r.user_id, s.title FROM content.txillada_schedule_reminders r
          JOIN content.txillada_schedules s ON s.id = r.schedule_id
@@ -314,10 +329,52 @@ export class TxilladaSchedulesService implements OnModuleInit {
         userId: x.user_id as string,
         actorId: hostId,
         kind: 'txillada_scheduled_cancelled',
-        data: { scheduleId: id, startsAt: d.startsAt, title: x.title as string, moved: d.moved, ...(d.newStartsAt ? { newStartsAt: d.newStartsAt } : {}) },
+        data: {
+          scheduleId: id, startsAt: d.startsAt, title: x.title as string, moved: d.moved,
+          ...(d.newStartsAt ? { newStartsAt: d.newStartsAt } : {}), ...(d.removed ? { removed: true } : {}),
+        },
       });
     }
     return rows.length;
+  }
+
+  /**
+   * Os lembretes já não servem (começou, ou foi retirada): apagam-se e o número (contas ativas, como a app e o aviso «é agora»)
+   * fica em `reminders_count`, para o anfitrião continuar a ver quantos pediram e para a exportação.
+   */
+  async settleReminders(id: string) {
+    await this.pool.query(
+      `WITH d AS (DELETE FROM content.txillada_schedule_reminders WHERE schedule_id = $1 RETURNING user_id)
+       UPDATE content.txillada_schedules s
+          SET reminders_count = COALESCE(s.reminders_count, 0) + (SELECT count(*)::int FROM d JOIN identity.users ru ON ru.id = d.user_id AND ru.status = 'active')
+        WHERE s.id = $1`,
+      [id],
+    );
+  }
+
+  /* ───────────── denunciar e retirar ───────────── */
+
+  /**
+   * Denunciar (quem a pode ver, não o anfitrião): a mesma fila da moderação ('txillada_schedule'), os mesmos motivos. Quem
+   * denuncia deixa de a ver (o cartão, o perfil, «Em breve» e a lista do perfil) e o lembrete que tinha sai.
+   */
+  async report(me: string, id: string, reason: ReportReason, note?: string) {
+    const r = await this.visibleRow(me, id);
+    if (r.host_id === me) throw new BadRequestException('Não podes denunciar o teu próprio conteúdo');
+    if (r.status !== 'scheduled') throw new ConflictException({ message: NOT_SCHEDULED, code: 'not_scheduled' });
+    await this.moderation.report(me, 'txillada_schedule', id, reason, note);
+    await this.pool.query('DELETE FROM content.txillada_schedule_reminders WHERE schedule_id = $1 AND user_id = $2', [id, me]);
+  }
+
+  /**
+   * Gancho da moderação (TXILLADA_HOOKS, depois do COMMIT): o agendamento já está 'removed'. Quem pediu lembrete recebe
+   * `txillada_scheduled_cancelled` com `removed: true` («A Txillada de @x foi retirada») e os lembretes apagam-se.
+   */
+  async afterRemoved(id: string) {
+    const r = (await this.pool.query(`SELECT host_id, starts_at FROM content.txillada_schedules WHERE id = $1 AND status = 'removed'`, [id])).rows[0];
+    if (!r) return;
+    await this.tellReminders(id, r.host_id as string, { moved: false, startsAt: iso(r.starts_at), removed: true });
+    await this.settleReminders(id);
   }
 
   /* ───────────── lembrar-me ───────────── */
@@ -329,18 +386,27 @@ export class TxilladaSchedulesService implements OnModuleInit {
   }
 
   async remind(me: string, id: string) {
+    this.assertEnabled();
     await this.remindRate(me);
     const r = await this.visibleRow(me, id);
     if (r.host_id === me) throw new BadRequestException('Não precisas de lembrete na tua própria Txillada.');
     if (r.status !== 'scheduled') throw new ConflictException({ message: NOT_SCHEDULED, code: 'not_scheduled' });
-    await this.pool.query(
-      `INSERT INTO content.txillada_schedule_reminders (schedule_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+    // Só enquanto está à espera (começar, cancelar ou retirar pelo meio não deixa um lembrete perdido).
+    const ins = await this.pool.query(
+      `INSERT INTO content.txillada_schedule_reminders (schedule_id, user_id)
+       SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM content.txillada_schedules WHERE id = $1 AND status = 'scheduled')
+       ON CONFLICT DO NOTHING RETURNING 1`,
       [id, me],
     );
+    if (!ins.rowCount) {
+      const now = (await this.pool.query(`SELECT status FROM content.txillada_schedules WHERE id = $1`, [id])).rows[0];
+      if (now?.status !== 'scheduled') throw new ConflictException({ message: NOT_SCHEDULED, code: 'not_scheduled' });
+    }
     return { reminded: true, reminders: null };
   }
 
   async unremind(me: string, id: string) {
+    this.assertEnabled();
     await this.remindRate(me);
     const del = await this.pool.query(`DELETE FROM content.txillada_schedule_reminders WHERE schedule_id = $1 AND user_id = $2`, [id, me]);
     // Quem já não a vê (um bloqueio entretanto) também pode tirar o lembrete que tinha.
@@ -376,7 +442,8 @@ export class TxilladaSchedulesService implements OnModuleInit {
   /**
    * Depois de abrir a Txillada `txId`: o agendamento passa a 'started' com ela. Com `scheduleId`, esse; sem ele, o meu
    * agendamento à espera mais próximo de agora que comece daqui a 60 minutos ou menos (a ligação automática). Devolve o id
-   * do agendamento ligado e quem pediu lembrete (para o aviso), ou null.
+   * do agendamento ligado e quem pediu lembrete (para o aviso), ou null. Depois de mandar o `txillada_live`, o TxilladaService
+   * chama settleReminders: os lembretes apagam-se e o número fica em `reminders_count`.
    */
   async linkStarted(me: string, txId: string, scheduleId: string | null): Promise<{ id: string; reminders: string[] } | null> {
     const { rows } = await this.pool.query(
@@ -461,13 +528,13 @@ export class TxilladaSchedulesService implements OnModuleInit {
   }
 
   /**
-   * Os 'cancelled' e 'expired' com mais de 30 dias apagam-se (os lembretes vão com eles pela FK); os 'started' ficam enquanto a
-   * Txillada existir (sem ela, `txillada_id` fica a NULL e saem também ao fim de 30 dias).
+   * Os 'cancelled', 'expired' e 'removed' com mais de 30 dias apagam-se (os lembretes vão com eles pela FK); os 'started' ficam
+   * enquanto a Txillada existir (sem ela, `txillada_id` fica a NULL e saem também ao fim de 30 dias).
    */
   async purge(days = SCHEDULE_KEEP_DAYS) {
     const r = await this.pool.query(
       `DELETE FROM content.txillada_schedules
-        WHERE (status IN ('cancelled', 'expired') OR (status = 'started' AND txillada_id IS NULL))
+        WHERE (status IN ('cancelled', 'expired', 'removed') OR (status = 'started' AND txillada_id IS NULL))
           AND updated_at < now() - make_interval(days => $1)`,
       [days],
     );

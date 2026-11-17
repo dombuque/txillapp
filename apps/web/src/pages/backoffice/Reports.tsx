@@ -7,7 +7,7 @@ import { modApi, type ModAction, type ModQueueItem, type ModReason, type ModRepo
 import { AuthorCard, DecideDialog, Field, MediaThumb, NsfwBadge, REASON, REASONS, REASON_PRESETS, RESOLUTION, SEVERE, Segmented, SeverityPill, TYPE, TYPE_ICON, TextHits, inputCls, selectCls, useDebounced, useToast } from './ui/mod-kit';
 
 type Status = 'open' | 'actioned' | 'dismissed';
-const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment', 'message', 'user', 'venue', 'media'];
+const TYPES: ModReportType[] = ['post', 'comment', 'story', 'story_comment', 'instant', 'txillada', 'txillada_schedule', 'txillada_comment', 'mixar_comment', 'message', 'user', 'venue', 'media'];
 const SORTS: { value: ModSort; label: string }[] = [
   { value: 'severity', label: 'Mais graves primeiro' },
   { value: 'oldest', label: 'Mais antigas primeiro' },
@@ -23,6 +23,12 @@ const ACTIONS: Record<ModAction, { label: string; verb: string; kbd: string; cls
   suspend: { label: 'Suspender a conta', verb: 'Suspender', kbd: 'S', cls: `${btn} bg-red-700 text-white hover:bg-red-800` },
 };
 const canRemove = (t: ModReportType) => t !== 'user' && t !== 'venue';
+/** Numa Txillada agendada, «Remover» chama-se «Retirar» (fica 'removed' e quem pediu lembrete é avisado). */
+const onlySchedules = (items: { type: ModReportType }[]) => items.length > 0 && items.every((i) => i.type === 'txillada_schedule');
+const actionLabel = (a: ModAction, items: { type: ModReportType }[]) => (a === 'remove' && onlySchedules(items) ? 'Retirar a Txillada' : ACTIONS[a].label);
+const actionVerb = (a: ModAction, items: { type: ModReportType }[]) => (a === 'remove' && onlySchedules(items) ? 'Retirar' : ACTIONS[a].verb);
+const SCHEDULE_STATUS: Record<string, string> = { scheduled: 'À espera', started: 'Já começou', cancelled: 'Cancelada pelo anfitrião', expired: 'Não chegou a começar', removed: 'Retirada pela equipa' };
+const SCHEDULE_AUDIENCE: Record<string, string> = { everyone: 'Pública', friends: 'Para amigos', close: 'Só amigos próximos', paid: 'Privada (paga)' };
 const sensitive = (it: ModQueueItem) => it.reasons.some((r) => r === 'nudity' || r === 'minor' || r === 'violence') || (it.nsfw ?? 0) >= 0.5;
 
 function MessageBody({ m }: { m: { kind: string; body: string; placeName: string | null; placeAddress: string | null; gifUrl: string | null } }) {
@@ -63,6 +69,15 @@ function Preview({ item }: { item: ModQueueItem }) {
         <p className="whitespace-pre-wrap break-words rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed text-zinc-800">
           {item.preview || <span className="text-zinc-400">{item.media.length ? '(só imagem)' : '(sem texto)'}</span>}
         </p>
+      )}
+      {item.type === 'txillada_schedule' && item.schedule && (
+        <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-xl bg-zinc-50 px-4 py-3 text-sm">
+          <dt className="text-zinc-500">Título</dt><dd className="break-words font-semibold text-zinc-800">{item.schedule.title || '(sem título)'}</dd>
+          {item.schedule.goalPurpose && <><dt className="text-zinc-500">Motivo da meta</dt><dd className="break-words text-zinc-800">{item.schedule.goalPurpose}</dd></>}
+          <dt className="text-zinc-500">Marcada para</dt><dd className="text-zinc-800">{when(item.schedule.startsAt)}</dd>
+          <dt className="text-zinc-500">Tipo</dt><dd className="text-zinc-800">{SCHEDULE_AUDIENCE[item.schedule.audience] ?? item.schedule.audience}</dd>
+          <dt className="text-zinc-500">Estado</dt><dd className="text-zinc-800">{SCHEDULE_STATUS[item.schedule.status] ?? item.schedule.status}</dd>
+        </dl>
       )}
       {(item.textHits.length > 0 || item.nsfw != null) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -135,7 +150,7 @@ function Detail({ item, status, onAct, onBack }: { item: ModQueueItem; status: S
           <div className="mt-5 flex flex-wrap gap-2">
             {(Object.keys(ACTIONS) as ModAction[]).filter(allowed).map((a) => (
               <button key={a} type="button" onClick={() => onAct(a, [item])} className={ACTIONS[a].cls}>
-                {ACTIONS[a].label} <span className="ml-2 hidden opacity-80 sm:inline"><Kbd>{ACTIONS[a].kbd}</Kbd></span>
+                {actionLabel(a, [item])} <span className="ml-2 hidden opacity-80 sm:inline"><Kbd>{ACTIONS[a].kbd}</Kbd></span>
               </button>
             ))}
           </div>
@@ -197,7 +212,7 @@ function Row({ it, active, checked, onOpen, onCheck, selectable }: { it: ModQueu
           <span className="mt-1 line-clamp-2 block break-words text-sm text-zinc-800">{it.preview || (it.media.length ? '(foto)' : '(sem texto)')}</span>
           <span className="mt-1 flex items-center gap-2">
             <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
-            <span className="truncate text-xs text-zinc-500">{it.reasons.map((r) => REASON[r] ?? r).join(', ')}{it.owner ? ` · @${it.owner.username}` : ''}</span>
+            <span className="truncate text-xs text-zinc-500">{it.reasons.map((r) => REASON[r] ?? r).join(', ')}{it.owner ? ` · @${it.owner.username}` : ''}{it.schedule ? ` · ${when(it.schedule.startsAt)}` : ''}</span>
             {it.resolution && <span className="ml-auto shrink-0 text-[11px] font-semibold text-zinc-500">{RESOLUTION[it.resolution] ?? it.resolution}</span>}
           </span>
         </span>
@@ -307,7 +322,7 @@ export default function BackofficeReports() {
           <button type="button" onClick={() => setChecked(new Set())} className="text-zinc-300 underline">limpar</button>
           <span className="ml-auto flex flex-wrap gap-1.5">
             {(['dismiss', 'warn', 'remove', 'suspend'] as ModAction[]).filter(bulkAllowed).map((a) => (
-              <button key={a} type="button" onClick={() => setPending({ action: a, items: chosen })} className="h-8 rounded-lg bg-white/10 px-3 font-semibold hover:bg-white/20">{ACTIONS[a].verb}</button>
+              <button key={a} type="button" onClick={() => setPending({ action: a, items: chosen })} className="h-8 rounded-lg bg-white/10 px-3 font-semibold hover:bg-white/20">{actionVerb(a, chosen)}</button>
             ))}
           </span>
         </div>
@@ -355,14 +370,15 @@ export default function BackofficeReports() {
 
       {pending && (
         <DecideDialog
-          title={`${ACTIONS[pending.action].verb}${pending.items.length > 1 ? ` (${pending.items.length} queixas)` : ''}`}
+          title={`${actionVerb(pending.action, pending.items)}${pending.items.length > 1 ? ` (${pending.items.length} queixas)` : ''}`}
           help={
             pending.action === 'dismiss' ? (pending.items.some((i) => i.appeal) ? 'Fecha as denúncias sem ação. As fotos com pedido de revisão ficam aprovadas (prontas a publicar) e o dono é avisado.' : 'Fecha as denúncias sem ação. O autor não é avisado.')
+            : pending.action === 'remove' && onlySchedules(pending.items) ? 'A Txillada agendada fica retirada: deixa de aparecer, já não se começa nem se edita, e quem pediu para ser lembrado recebe o aviso «A Txillada de @x foi retirada». Não se repõe.'
             : pending.action === 'remove' ? 'O conteúdo deixa de se ver. Publicações, comentários e mimos podem ser repostos em «Conteúdo»; mensagens e fotos automáticas não.'
             : pending.action === 'warn' ? 'O autor recebe um aviso da equipa do Txillapp com o motivo. O conteúdo fica.'
             : <>{pending.items.length > 1 ? 'A conta de cada autor' : `A conta de @${pending.items[0].owner?.username}`} fica suspensa e perde as sessões.</>
           }
-          confirm={ACTIONS[pending.action].verb}
+          confirm={actionVerb(pending.action, pending.items)}
           danger={pending.action === 'suspend' || pending.action === 'remove'}
           reasonRequired={pending.action !== 'dismiss'}
           presets={pending.action === 'dismiss' ? ['Não viola as regras', 'Denúncia repetida', 'Já tratado'] : REASON_PRESETS}

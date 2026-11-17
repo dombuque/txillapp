@@ -99,6 +99,9 @@ export const txilladaApi = {
   cheer: (txilladaId: string): Promise<{ cheers: number }> => raw(`/txilladas/${id(txilladaId)}/cheer`, post({})),
   ban: (txilladaId: string, username: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/ban/${id(username)}`, post({})),
   report: (txilladaId: string, reason: string): Promise<void> => raw(`/txilladas/${id(txilladaId)}/report`, post({ reason })),
+  /** Denunciar uma Txillada agendada (0176): deixa de aparecer a quem denunciou (o cartão, o perfil e «Em breve»). */
+  reportSchedule: (scheduleId: string, reason: string, note?: string): Promise<void> =>
+    raw(`/txilladas/schedules/${id(scheduleId)}/report`, post(note ? { reason, note } : { reason })),
   /** Denunciar um comentário (a fila da moderação); deixa de me aparecer. */
   reportComment: (txilladaId: string, commentId: string, reason: string, note?: string): Promise<void> =>
     raw(`/txilladas/${id(txilladaId)}/comments/${id(commentId)}/report`, post(note ? { reason, note } : { reason })),

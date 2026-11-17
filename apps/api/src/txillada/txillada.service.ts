@@ -399,6 +399,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   private async announce(me: string, id: string, title: string, link: { id: string; reminders: string[] } | null = null) {
     if (link?.reminders.length) await this.notifications.notifyTxilladaLive(me, id, title, { followers: false, also: link.reminders, reminded: link.id });
+    // Depois do aviso, os lembretes já não servem: apagam-se e fica só o número (reminders_count).
+    if (link) await this.schedules.settleReminders(link.id).catch((e) => this.log.warn(`não consegui arrumar os lembretes do agendamento ${link.id}: ${(e as Error).message}`));
     const ok = await this.pool.query(
       `UPDATE content.txilladas t SET notified = true
         WHERE t.id = $1 AND NOT EXISTS (
@@ -561,6 +563,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async afterCut(id: string) {
     const r = (await this.pool.query(`SELECT id, room, host_id, status FROM content.txilladas WHERE id = $1 AND status = 'cut'`, [id])).rows[0];
     if (r) await this.afterEnd(r);
+  }
+
+  /** Gancho da moderação (TXILLADA_HOOKS): uma Txillada agendada já está 'removed'. Avisa quem pediu lembrete. */
+  async afterScheduleRemoved(scheduleId: string) {
+    await this.schedules.afterRemoved(scheduleId);
   }
 
   /* ───────────── tempo real ───────────── */

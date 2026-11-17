@@ -18,13 +18,16 @@ import { HELD_PUBLICATIONS } from '../media/held-token';
 import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment', 'txillada_schedule'] as const;
 /**
  * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
  * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158; 'txillada_comment' um
- * comentário num live, 0162; 'mixar_comment' um comentário na conversa de um item do Mixar, 0171).
+ * comentário num live, 0162; 'mixar_comment' um comentário na conversa de um item do Mixar, 0171). 'txillada_schedule' (uma
+ * Txillada agendada, 0176) denuncia-se só por POST /txilladas/schedules/:id/report (o serviço dela tira também o lembrete).
  */
 export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment'] as const;
+/** A pré-visualização de uma Txillada agendada na fila (`ts` = content.txillada_schedules): o título e o motivo da meta. */
+export const SCHEDULE_PREVIEW = `COALESCE(NULLIF(max(ts.title), ''), '(sem título)') || COALESCE(' · Meta: ' || NULLIF(max(ts.goal_purpose), ''), '')`;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -144,6 +147,11 @@ export class ModerationService implements OnModuleInit {
                 WHERE c.id = $2 AND c.removed_at IS NULL AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
                   AND NOT ${blockedBetween('a.id', '$1')}`;
         break;
+      case 'txillada_schedule':
+        // Uma Txillada agendada à espera que quem denuncia pode ver (0176; o mesmo público da Txillada).
+        sql = `SELECT s.host_id AS owner FROM content.txillada_schedules s JOIN identity.users h ON h.id = s.host_id
+                WHERE s.id = $2 AND s.status = 'scheduled' AND ${txilladaVisible('s', 'h', '$1')}`;
+        break;
       case 'mixar_comment':
         // Um comentário que ainda se vê, na conversa de um Mixar de que sou um dos dois (0171) ou participante (grupo, 0173).
         sql = `SELECT c.user_id AS owner FROM social.mixar_comments c JOIN social.mixars x ON x.id = c.mixar_id
@@ -208,7 +216,7 @@ export class ModerationService implements OnModuleInit {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), max(mxc.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), max(mxc.body), CASE WHEN r.target_type = 'txillada_schedule' THEN ${SCHEDULE_PREVIEW} END, CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -221,6 +229,7 @@ export class ModerationService implements OnModuleInit {
          LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
          LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
          LEFT JOIN social.mixar_comments mxc ON r.target_type = 'mixar_comment' AND mxc.id = r.target_id
+         LEFT JOIN content.txillada_schedules ts ON r.target_type = 'txillada_schedule' AND ts.id = r.target_id
         WHERE r.status = $1
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
@@ -279,6 +288,7 @@ export class ModerationService implements OnModuleInit {
       if (outcome) void afterAppealDecision(this.moduleRef, this.notifications, id, owner, admin, outcome, this.log);
       if (action === 'remove' && type === 'txillada') void afterTxilladaCut(this.moduleRef, id, this.log);
       if (action === 'remove' && type === 'txillada_comment') void afterTxilladaCommentRemoved(this.moduleRef, id, this.log);
+      if (action === 'remove' && type === 'txillada_schedule') void afterTxilladaScheduleRemoved(this.moduleRef, id, this.log);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -373,6 +383,15 @@ export async function afterTxilladaCommentRemoved(moduleRef: ModuleRef, commentI
   }
 }
 
+/** Depois do COMMIT de uma Txillada agendada retirada pela fila de queixas: quem pediu lembrete é avisado (data.removed). */
+export async function afterTxilladaScheduleRemoved(moduleRef: ModuleRef, scheduleId: string, log: Logger) {
+  try {
+    await moduleRef.get<TxilladaHooks>(TXILLADA_HOOKS, { strict: false }).afterScheduleRemoved(scheduleId);
+  } catch (e) {
+    log.warn(`não consegui avisar da Txillada agendada retirada ${scheduleId}: ${(e as Error).message}`);
+  }
+}
+
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
   if (type === 'message') {
     const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
@@ -414,6 +433,21 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
       `UPDATE content.txilladas SET status = 'cut', ended_at = now(), viewers = 0, video_on = false, cut_reason = $2, cut_by = $3 WHERE id = $1 AND status = 'live'`,
       [id, reason, actor],
     );
+    return;
+  }
+  // Txillada agendada (0176): fica 'removed' (com quem decidiu e o motivo), já não se começa, edita nem lembra, e o cartão diz
+  // que foi retirada. Depois do COMMIT, afterTxilladaScheduleRemoved avisa quem pediu lembrete. Se já não estava à espera
+  // (cancelada ou expirada entretanto), os lembretes que restam apagam-se já, sem aviso (quem os pediu já foi avisado ou não
+  // tem nada à espera).
+  if (type === 'txillada_schedule') {
+    const reason = note?.trim() ? note.trim().slice(0, 300) : 'Decisão na fila de queixas';
+    const was = (await client.query(`SELECT status FROM content.txillada_schedules WHERE id = $1 FOR UPDATE`, [id])).rows[0]?.status as string | undefined;
+    if (!was || was === 'removed') return;
+    await client.query(
+      `UPDATE content.txillada_schedules SET status = 'removed', removed_by = $2, removed_reason = $3, updated_at = now() WHERE id = $1`,
+      [id, actor, reason],
+    );
+    if (was !== 'scheduled') await client.query('DELETE FROM content.txillada_schedule_reminders WHERE schedule_id = $1', [id]);
     return;
   }
   if (type === 'post' || type === 'comment' || type === 'story') {

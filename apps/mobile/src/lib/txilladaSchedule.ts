@@ -255,7 +255,8 @@ export function remindersText(n: number | null | undefined): string {
 
 // ─── O agendamento ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type ScheduleStatus = 'scheduled' | 'started' | 'cancelled' | 'expired';
+/** 'removed': retirada pela moderação (denunciada e decidida na fila de queixas). */
+export type ScheduleStatus = 'scheduled' | 'started' | 'cancelled' | 'expired' | 'removed';
 type Tier = 'verified' | 'official' | 'paid' | null;
 type Audience = 'everyone' | 'followers' | 'close' | 'friends' | 'paid';
 
@@ -277,7 +278,7 @@ export interface ScheduledTxillada {
   live: boolean;
   isHost: boolean;
   reminded: boolean;
-  /** Quantos pediram lembrete: só para o anfitrião (null para os outros). */
+  /** Quantos pediram lembrete: só para o anfitrião (null para os outros). Depois de começar, o número de quando começou. */
   reminders: number | null;
   createdAt: string;
 }
@@ -287,15 +288,20 @@ export interface NextTxillada { id: string; startsAt: string; title: string; rem
 /** O que se escolhe ao agendar (o mesmo do preparar, mais a hora). */
 export interface ScheduleInput { title?: string; audience: Audience; price?: number; goal?: number; goalPurpose?: string; startsAt: string }
 
-export type ScheduleView = 'scheduled' | 'live' | 'ended' | 'cancelled' | 'expired';
+export type ScheduleView = 'scheduled' | 'live' | 'ended' | 'cancelled' | 'expired' | 'removed';
 
-/** O estado do cartão: à espera, a decorrer, já acabou, cancelada ou não chegou a começar. */
+/** O estado do cartão: à espera, a decorrer, já acabou, cancelada, não chegou a começar ou retirada pela moderação. */
 export function scheduleView(s: Pick<ScheduledTxillada, 'status' | 'live' | 'txilladaId'>): ScheduleView {
   if (s.status === 'started') return s.live && s.txilladaId ? 'live' : 'ended';
   if (s.status === 'cancelled') return 'cancelled';
   if (s.status === 'expired') return 'expired';
+  if (s.status === 'removed') return 'removed';
   return 'scheduled';
 }
+/** O cartão de uma Txillada retirada pela moderação. */
+export const REMOVED_TEXT = 'Esta Txillada foi retirada por não cumprir as regras';
+/** O cartão quando a ligação já não abre nada (404: apagada, a conta foi eliminada, ou não a podes ver). */
+export const GONE_TITLE = 'Esta Txillada já não existe';
 /** O texto do estado (fora de 'scheduled'). */
 export function viewText(v: ScheduleView, isHost = false): string | null {
   switch (v) {
@@ -303,6 +309,7 @@ export function viewText(v: ScheduleView, isHost = false): string | null {
     case 'ended': return 'Já acabou';
     case 'cancelled': return isHost ? 'Cancelaste esta Txillada' : 'O anfitrião cancelou esta Txillada';
     case 'expired': return 'Não chegou a começar';
+    case 'removed': return REMOVED_TEXT;
     default: return null;
   }
 }
@@ -341,7 +348,7 @@ export function scheduleShareMessage(s: Pick<ScheduledTxillada, 'host' | 'title'
 export function errorCode(e: { code?: string; extra?: Record<string, unknown> } | null | undefined): string | undefined {
   return e?.code ?? (typeof e?.extra?.code === 'string' ? (e.extra.code as string) : undefined);
 }
-/** 409 `not_scheduled`: o agendamento já não está à espera (começou, foi cancelado ou expirou): recarrega-se o cartão. */
+/** 409 `not_scheduled`: o agendamento já não está à espera (começou, foi cancelado, expirou ou foi retirado): recarrega-se o cartão. */
 export const isNotScheduled = (e: { status?: number; code?: string; extra?: Record<string, unknown> } | null | undefined): boolean => e?.status === 409 && errorCode(e) === 'not_scheduled';
 
 /** Os erros da API em palavras (o servidor também manda a mensagem; o `code` vale mais). */
@@ -379,7 +386,7 @@ export const isScheduleNotice = (kind: string): kind is ScheduleNoticeKind => (S
 /** Os avisos que são para o próprio anfitrião (a linha não leva o nome dele à frente, como os avisos do sistema). */
 export const isHostNotice = (kind: string): boolean => kind === 'txillada_scheduled_soon' || kind === 'txillada_scheduled_now';
 
-type NoticeData = { scheduleId?: unknown; startsAt?: unknown; title?: unknown; moved?: unknown; newStartsAt?: unknown; reminders?: unknown } | null | undefined;
+type NoticeData = { scheduleId?: unknown; startsAt?: unknown; title?: unknown; moved?: unknown; newStartsAt?: unknown; reminders?: unknown; removed?: unknown } | null | undefined;
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
@@ -387,10 +394,11 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  * - soon (ao anfitrião): «A tua Txillada começa daqui a 15 min»;
  * - now (ao anfitrião): «Está na hora da tua Txillada»;
  * - cancelled (a quem pediu lembrete, com o @ à frente): «cancelou a Txillada de sábado, 20:00», ou, com `moved`, «mudou a
- *   Txillada para domingo, 19:00».
+ *   Txillada para domingo, 19:00»; com `removed` (a moderação retirou-a; a linha não leva o nome à frente, ver
+ *   isRemovedNotice): «A Txillada de @x foi retirada» (`actor` = o @ do anfitrião).
  * Por baixo vai o título (e, ao anfitrião, «Toca para começar»).
  */
-export function scheduleNoticeText(kind: string, data: NoticeData, now: number): { text: string; sub?: string } {
+export function scheduleNoticeText(kind: string, data: NoticeData, now: number, actor?: string): { text: string; sub?: string } {
   const title = str(data?.title);
   const at = str(data?.startsAt);
   const when = at && !Number.isNaN(new Date(at).getTime()) ? fmtWhen(at, now, true) : '';
@@ -402,6 +410,10 @@ export function scheduleNoticeText(kind: string, data: NoticeData, now: number):
       return { text: 'Está na hora da tua Txillada', sub: `${title ? `${title}. ` : ''}${n}Toca para começar` };
     }
     case 'txillada_scheduled_cancelled': {
+      if (data?.removed === true) {
+        const who = str(actor);
+        return { text: who ? `A Txillada de @${who} foi retirada` : 'Uma Txillada agendada foi retirada', sub: title || undefined };
+      }
       if (data?.moved === true) {
         const to = str(data?.newStartsAt);
         const whenTo = to && !Number.isNaN(new Date(to).getTime()) ? fmtWhen(to, now, true) : '';
@@ -412,6 +424,8 @@ export function scheduleNoticeText(kind: string, data: NoticeData, now: number):
     default: return { text: 'tem novidades para ti' };
   }
 }
+/** O aviso de uma Txillada retirada pela moderação: a linha não leva o nome à frente (o texto já diz de quem era). */
+export const isRemovedNotice = (kind: string, data: NoticeData): boolean => kind === 'txillada_scheduled_cancelled' && data?.removed === true;
 /** Para onde leva: o cartão do agendamento (o anfitrião tem lá o «Começar»). */
 export function scheduleNoticeTarget(data: NoticeData): string | null {
   const id = str(data?.scheduleId);

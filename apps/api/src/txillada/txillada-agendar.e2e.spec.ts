@@ -6,6 +6,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { PushService, type PushPayload } from '../push/push.service';
+import { staffLogin } from '../staff/staff-test';
 import type { LiveKitRooms } from './livekit';
 import { TxilladaSchedulesService } from './txillada-schedules.service';
 import { whenLabel } from './txillada-when';
@@ -87,7 +88,7 @@ describe('Txillada agendada (integração)', () => {
       pushes.push({ userId, p });
       return 1;
     });
-    for (const name of ['host', 'ana', 'rui', 'eva', 'kid', 'blk', 'priv', 'h2', 'h3', 'fan', 'gone', 'spam']) u[name] = await signup(name);
+    for (const name of ['host', 'ana', 'rui', 'eva', 'kid', 'blk', 'priv', 'h2', 'h3', 'fan', 'gone', 'spam', 'h4', 'den', 'off', 'sus']) u[name] = await signup(name);
     const { host, ana, rui, eva, blk, h2, h3, fan } = u;
     // A Ana e o anfitrião seguem-se (amigos); a Eva só segue o anfitrião; o Rui não segue ninguém.
     await follow(ana, host);
@@ -425,6 +426,135 @@ describe('Txillada agendada (integração)', () => {
     await clear(host);
   });
 
+  it('começar apaga os lembretes e guarda quantos eram (contas ativas) em reminders_count; a exportação conta igual', async () => {
+    const { h4, ana, rui, off } = u;
+    const s = (await schedule(h4, { title: 'Contas', startsAt: ahead(40 * MIN) }).expect(201)).body.id as string;
+    for (const x of [ana, rui, off]) await remind(x, s).expect(200);
+    // Uma conta suspensa não conta (nem na app, nem no aviso «é agora», nem na exportação).
+    await pool.query(`UPDATE identity.users SET status = 'suspended' WHERE id = $1`, [off.id]);
+    expect((await get(h4, s).expect(200)).body.reminders).toBe(2);
+    const exported = async () => ((await api().get('/api/v1/me/export').set(auth(h4)).expect(200)).body.txilladaSchedules as any[]).find((x) => x.id === s);
+    expect((await exported()).reminders).toBe(2);
+    const tx = (await open(h4, { scheduleId: s }).expect(201)).body.txillada;
+    await until(async () => (await lives(rui, tx.id)).length > 0 && (await srow(s)).reminders_count != null);
+    expect(await lives(ana, tx.id)).toEqual([{ txilladaId: tx.id, title: 'Contas', scheduleId: s, reminded: true }]);
+    // Os lembretes já não servem: saem; o número fica.
+    expect((await pool.query('SELECT count(*)::int AS n FROM content.txillada_schedule_reminders WHERE schedule_id = $1', [s])).rows[0].n).toBe(0);
+    expect(await srow(s)).toMatchObject({ status: 'started', reminders_count: 2 });
+    expect((await get(h4, s).expect(200)).body).toMatchObject({ status: 'started', reminders: 2 });
+    expect((await get(ana, s).expect(200)).body).toMatchObject({ reminded: false, reminders: null });
+    expect((await exported()).reminders).toBe(2);
+    // Os lembretes que pedi também saem da minha exportação.
+    expect(((await api().get('/api/v1/me/export').set(auth(rui)).expect(200)).body.txilladaReminders as any[]).map((x) => x.scheduleId)).not.toContain(s);
+    await pool.query(`UPDATE identity.users SET status = 'active' WHERE id = $1`, [off.id]);
+    await endAll(h4);
+    await clear(h4);
+  });
+
+  it('denunciar: quem vê denuncia e deixa de a ver; a fila mostra-a; «Retirar» avisa quem pediu lembrete e fecha tudo', async () => {
+    const { h4: host, den, rui, ana, blk } = u;
+    // O h4 (o host já gastou os 30 agendamentos por hora). O blk não o bloqueou: o 404 é de um id que não existe.
+    await follow(den, host);
+    const at = ahead(3 * HOUR);
+    const s = (await schedule(host, { title: 'Título feio', goal: 100, goalPurpose: 'Livros', startsAt: at }).expect(201)).body.id as string;
+    const other = (await schedule(host, { title: 'Outra', startsAt: ahead(6 * HOUR) }).expect(201)).body.id as string;
+    await remind(den, s).expect(200);
+    await remind(rui, s).expect(200);
+    const report = (x: U, id: string, body: Record<string, unknown>) => api().post(`/api/v1/txilladas/schedules/${id}/report`).set(auth(x)).send(body);
+    // O anfitrião não se denuncia; um motivo fora da lista: 400; quem não a vê: 404.
+    expect((await report(host, s, { reason: 'spam' }).expect(400)).body.message).toBe('Não podes denunciar o teu próprio conteúdo');
+    await report(den, s, { reason: 'qualquer' }).expect(400);
+    await report(blk, '00000000-0000-7000-8000-000000000000', { reason: 'spam' }).expect(404);
+    await report(den, s, { reason: 'hate', note: 'O título ofende' }).expect(204);
+    // Deixa de lhe aparecer: o cartão, a lista do perfil, «Em breve» e o nextTxillada; o lembrete sai.
+    await get(den, s).expect(404);
+    await remind(den, s).expect(404);
+    const listed = (await api().get(`/api/v1/txilladas/schedules?username=${host.username}`).set(auth(den)).expect(200)).body.items.map((x: any) => x.id);
+    expect(listed).toEqual([other]);
+    const up = (await api().get('/api/v1/txilladas/schedules/upcoming').set(auth(den)).expect(200)).body.items.map((x: any) => x.id);
+    expect(up).toContain(other);
+    expect(up).not.toContain(s);
+    expect((await api().get(`/api/v1/users/${host.username}`).set(auth(den)).expect(200)).body.nextTxillada).toMatchObject({ id: other });
+    expect((await pool.query('SELECT 1 FROM content.txillada_schedule_reminders WHERE schedule_id = $1 AND user_id = $2', [s, den.id])).rowCount).toBe(0);
+    // Os outros continuam a vê-la (até a moderação decidir).
+    expect((await get(rui, s).expect(200)).body.reminded).toBe(true);
+    expect((await api().get(`/api/v1/users/${host.username}`).set(auth(ana)).expect(200)).body.nextTxillada).toMatchObject({ id: s });
+    // Uma cancelada já não se denuncia.
+    await cancel(host, other).expect(204);
+    expect((await report(rui, other, { reason: 'spam' }).expect(409)).body).toMatchObject({ code: 'not_scheduled' });
+
+    // A fila: o título, o motivo da meta, o anfitrião e a hora.
+    const mod = await staffLogin(app, 'agmod', ['moderacao']);
+    const staff = { Authorization: `Bearer ${mod.token}` };
+    const queue = async (status = 'open') =>
+      ((await api().get('/api/v1/admin/mod/queue').query({ type: 'txillada_schedule', status }).set(staff).expect(200)).body.items as any[]).find((x) => x.id === s);
+    expect(await queue()).toMatchObject({
+      type: 'txillada_schedule', reports: 1, reasons: ['hate'], preview: 'Título feio · Meta: Livros', removed: null,
+      owner: { username: host.username },
+      schedule: { title: 'Título feio', goalPurpose: 'Livros', startsAt: new Date(at).toISOString(), status: 'scheduled' },
+    });
+    // Retirar: fica 'removed' (quem e porquê); quem pediu lembrete recebe o aviso com removed: true.
+    pushes.length = 0;
+    const done = (await api().post('/api/v1/admin/mod/queue/decide').set(staff)
+      .send({ items: [{ type: 'txillada_schedule', id: s }], action: 'remove', note: 'Título ofensivo' })).body;
+    expect(done).toMatchObject({ done: [{ type: 'txillada_schedule', id: s }], failed: [] });
+    expect(await srow(s)).toMatchObject({ status: 'removed', removed_by: mod.userId, removed_reason: 'Título ofensivo' });
+    await until(async () => (await notes(rui, 'txillada_scheduled_cancelled')).some((x) => x.data.scheduleId === s));
+    expect((await notes(rui, 'txillada_scheduled_cancelled')).find((x) => x.data.scheduleId === s)).toEqual({
+      actor_id: host.id, data: { scheduleId: s, startsAt: new Date(at).toISOString(), title: 'Título feio', moved: false, removed: true },
+    });
+    await until(async () => pushes.some((p) => p.userId === rui.id));
+    expect(pushes.find((p) => p.userId === rui.id)?.p).toMatchObject({ body: `A Txillada de @${host.username} foi retirada`, url: `/txillada/agendada/${s}` });
+    // Quem denunciou já não tinha lembrete: não recebe nada.
+    expect((await notes(den, 'txillada_scheduled_cancelled')).filter((x) => x.data.scheduleId === s)).toEqual([]);
+    // O anfitrião é avisado pela moderação.
+    await until(async () => (await notes(host, 'content_removed')).some((x) => x.data.type === 'txillada_schedule'));
+    expect((await notes(host, 'content_removed')).some((x) => x.data.type === 'txillada_schedule')).toBe(true);
+    // Os lembretes saem; o cartão diz o estado; não se começa, edita, lembra nem cancela.
+    await until(async () => (await pool.query('SELECT 1 FROM content.txillada_schedule_reminders WHERE schedule_id = $1', [s])).rowCount === 0);
+    expect((await pool.query('SELECT 1 FROM content.txillada_schedule_reminders WHERE schedule_id = $1', [s])).rowCount).toBe(0);
+    expect((await get(rui, s).expect(200)).body).toMatchObject({ status: 'removed', reminded: false, txilladaId: null, live: false });
+    expect((await remind(rui, s).expect(409)).body).toMatchObject({ code: 'not_scheduled' });
+    expect((await patch(host, s, { title: 'Outro' }).expect(409)).body).toMatchObject({ code: 'not_scheduled' });
+    expect((await open(host, { scheduleId: s }).expect(409)).body).toMatchObject({ code: 'not_scheduled' });
+    expect((await cancel(host, s).expect(409)).body).toMatchObject({ code: 'not_scheduled' });
+    expect((await api().get(`/api/v1/users/${host.username}`).set(auth(ana)).expect(200)).body.nextTxillada).toBeNull();
+    expect(await queue('actioned')).toMatchObject({ removed: 'moderation', resolution: 'remove', schedule: { status: 'removed' } });
+    // A exportação do anfitrião diz que foi retirada e porquê.
+    expect(((await api().get('/api/v1/me/export').set(auth(host)).expect(200)).body.txilladaSchedules as any[]).find((x) => x.id === s))
+      .toMatchObject({ status: 'removed', removedReason: 'Título ofensivo' });
+    // Limpeza: sai ao fim de 30 dias, como as canceladas.
+    await pool.query(`UPDATE content.txillada_schedules SET updated_at = now() - interval '31 days' WHERE id = $1`, [s]);
+    await svc.purge();
+    expect(await srow(s)).toBeUndefined();
+    await clear(host);
+  });
+
+  it('editar com a conta suspensa: 403; cancelar deixa sempre; com a Txillada desligada, lembrar e editar dão 503', async () => {
+    const { sus, rui } = u;
+    const s = (await schedule(sus, { startsAt: ahead(3 * HOUR) }).expect(201)).body.id as string;
+    const s2 = (await schedule(sus, { startsAt: ahead(6 * HOUR) }).expect(201)).body.id as string;
+    await remind(rui, s).expect(200);
+    await pool.query(`UPDATE identity.users SET status = 'suspended' WHERE id = $1`, [sus.id]);
+    expect((await patch(sus, s, { title: 'Novo' }).expect(403)).body.message).toBe('A tua conta não pode abrir uma Txillada.');
+    expect((await srow(s)).title).toBe('Conversa');
+    await cancel(sus, s).expect(204);
+    await pool.query(`UPDATE identity.users SET status = 'active' WHERE id = $1`, [sus.id]);
+    // A Txillada desligada (sem o servidor das salas).
+    const cfg = (svc as any).config;
+    (svc as any).config = { ...cfg, LIVEKIT_URL: undefined };
+    try {
+      await remind(rui, s2).expect(503);
+      await unremind(rui, s2).expect(503);
+      await patch(sus, s2, { title: 'Novo' }).expect(503);
+      await cancel(sus, s2).expect(204);
+    } finally {
+      (svc as any).config = cfg;
+    }
+    expect((await srow(s2)).status).toBe('cancelled');
+    await clear(sus);
+  });
+
   it('exportação e apagar a conta: os agendamentos e os lembretes saem', async () => {
     const { gone, ana, host } = u;
     const mineId = (await schedule(gone, { title: 'Minha', audience: 'paid', price: 7, startsAt: ahead(3 * HOUR) }).expect(201)).body.id as string;
@@ -438,6 +568,10 @@ describe('Txillada agendada (integração)', () => {
     await api().post('/api/v1/auth/delete-account').set(auth(gone)).send({ confirmUsername: gone.username, password: PASSWORD }).expect(204);
     expect(await srow(mineId)).toBeUndefined();
     expect((await pool.query('SELECT count(*)::int AS n FROM content.txillada_schedule_reminders WHERE user_id = $1 OR schedule_id = $2', [gone.id, mineId])).rows[0].n).toBe(0);
+    // Uma conta eliminada não gera avisos: quem pediu lembrete não recebe nada; o cartão (a ligação) dá 404 («já não existe»).
+    await new Promise((r) => setTimeout(r, 150));
+    expect((await notes(ana, 'txillada_scheduled_cancelled')).filter((x) => x.data.scheduleId === mineId)).toEqual([]);
+    await get(ana, mineId).expect(404);
     expect((await get(host, theirs).expect(200)).body.reminders).toBe(0);
     await clear(host);
   });

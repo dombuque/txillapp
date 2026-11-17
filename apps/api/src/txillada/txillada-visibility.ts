@@ -42,7 +42,7 @@ export const liveOf = (u = 'u', v = '$1') =>
 
 /**
  * `nextTxillada` de uma pessoa (`u` = identity.users) para o espectador `v` (Txillada agendada, 0176): o próximo agendamento
- * dela em 'scheduled' que o espectador pode ver (o mesmo público da Txillada), em JSON `{ id, startsAt, title, reminded }`.
+ * dela em 'scheduled' que o espectador pode ver (o mesmo público da Txillada) e não denunciou, em JSON `{ id, startsAt, title, reminded }`.
  * Barato: usa o índice parcial (host_id, starts_at) dos 'scheduled'.
  */
 export const nextTxilladaOf = (u = 'u', v = '$1') =>
@@ -50,4 +50,5 @@ export const nextTxilladaOf = (u = 'u', v = '$1') =>
             'reminded', EXISTS (SELECT 1 FROM content.txillada_schedule_reminders nr WHERE nr.schedule_id = ns.id AND nr.user_id = ${v}))
       FROM content.txillada_schedules ns
      WHERE ns.host_id = ${u}.id AND ns.status = 'scheduled' AND ${txilladaVisible('ns', u, v)}
+       AND ${notReportedBy('txillada_schedule', 'ns.id', v)}
      ORDER BY ns.starts_at LIMIT 1)`;

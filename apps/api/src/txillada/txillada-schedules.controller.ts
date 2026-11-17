@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { REPORT_REASONS } from '../moderation/moderation.service';
 import { TxilladaSchedulesService } from './txillada-schedules.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -22,6 +23,8 @@ const createSchema = z.object({
 const updateSchema = z
   .object({ title: z.string().trim().max(80).optional(), startsAt: startsAt.optional() })
   .refine((b) => b.title !== undefined || b.startsAt !== undefined, { message: 'Nada para mudar.' });
+/** Denunciar (como a Txillada): os mesmos motivos, com uma nota opcional. */
+const reportSchema = z.object({ reason: z.enum(REPORT_REASONS), note: z.string().trim().max(500).optional() });
 const listSchema = z.object({ username: z.string().trim().min(1).max(41).optional() });
 
 /**
@@ -82,5 +85,13 @@ export class TxilladaSchedulesController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   unremind(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.schedules.unremind(req.userId!, id);
+  }
+
+  /** Denunciar (quem a vê, não o anfitrião): a fila da moderação ('txillada_schedule'); deixa de aparecer a quem denunciou. */
+  @Post(':id/report')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
+  async report(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reportSchema)) b: z.infer<typeof reportSchema>) {
+    await this.schedules.report(req.userId!, id, b.reason, b.note);
   }
 }

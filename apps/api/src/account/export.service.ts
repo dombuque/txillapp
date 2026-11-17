@@ -271,11 +271,13 @@ export class ExportService {
            FROM content.txillada_guests g JOIN content.txilladas t ON t.id = g.txillada_id JOIN identity.users h ON h.id = t.host_id
           WHERE g.user_id = $1 ORDER BY g.created_at`,
       ).catch(() => []),
-      // Txillada agendada (0176): os meus agendamentos (quantos pediram lembrete, sem nomes) e os lembretes que pedi.
+      // Txillada agendada (0176): os meus agendamentos (quantos pediram lembrete, sem nomes: as contas ativas, como a app e o
+      // aviso «é agora», ou o número guardado quando começou, que é quando os lembretes se apagam) e os lembretes que pedi.
       txilladaSchedules: await q(
         `SELECT s.id, s.title, s.audience, s.price, s.goal, s.goal_purpose AS "goalPurpose", s.starts_at AS "startsAt", s.status,
-                s.txillada_id AS "txilladaId", s.created_at AS "createdAt",
-                (SELECT count(*)::int FROM content.txillada_schedule_reminders r WHERE r.schedule_id = s.id) AS reminders
+                s.txillada_id AS "txilladaId", s.created_at AS "createdAt", s.removed_reason AS "removedReason",
+                COALESCE(s.reminders_count, (SELECT count(*)::int FROM content.txillada_schedule_reminders r JOIN identity.users ru ON ru.id = r.user_id AND ru.status = 'active'
+                                              WHERE r.schedule_id = s.id)) AS reminders
            FROM content.txillada_schedules s WHERE s.host_id = $1 ORDER BY s.starts_at`,
       ).catch(() => []),
       txilladaReminders: await q(

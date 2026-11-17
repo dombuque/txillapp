@@ -8,7 +8,7 @@ import { tchekaPost } from '../posts/feed';
 import { SearchIndexer } from '../search/search-index';
 import { StaffService } from '../staff/staff.service';
 import { REMOVABLE_TYPES, type RemovableType, removeContent, restoreContent } from './content-removal';
-import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, afterTxilladaCommentRemoved, afterTxilladaCut, removeReported, settleRejectedMedia } from './moderation.service';
+import { EVIDENCE_COLUMNS, REPORT_REASONS, REPORT_TYPES, type ReportReason, type ReportType, messageProof, afterAppealDecision, afterTxilladaCommentRemoved, afterTxilladaCut, afterTxilladaScheduleRemoved, removeReported, settleRejectedMedia, SCHEDULE_PREVIEW } from './moderation.service';
 import { ModuleRef } from '@nestjs/core';
 import { TEXT_FILTER_PATTERN, TEXT_RULES, textHits } from './text-filter';
 
@@ -145,6 +145,7 @@ export class ModerationDeskService {
               bool_or(r.reporter_id IS NULL) AS automatic, ${SEVERITY_SQL}::int AS severity,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), NULLIF(max(ins.caption), ''), max(tx.title), max(tc.body), max(mxc.body),
+                       CASE WHEN r.target_type = 'txillada_schedule' THEN ${SCHEDULE_PREVIEW} END,
                        CASE WHEN r.target_type = 'media' THEN max(r.note) END,
                        CASE WHEN r.target_type = 'venue' THEN max(v.name) || coalesce(' · ' || max(v.about), '') END,
                        CASE WHEN r.target_type = 'user' THEN max(tu.display_name) END, '') AS preview,
@@ -154,6 +155,8 @@ export class ModerationDeskService {
               (SELECT ima.nsfw_score FROM content.media_assets ima WHERE ima.id = max(ins.media_id::text)::uuid) AS instant_nsfw,
               max(tx.status) AS txillada_status, bool_or(tc.id IS NOT NULL) AS tx_comment_exists, max(tc.removed_at) AS tx_comment_removed_at,
               bool_or(mxc.id IS NOT NULL) AS mx_comment_exists, max(mxc.deleted_at) AS mx_comment_deleted_at,
+              max(ts.status) AS schedule_status, max(ts.title) AS schedule_title, max(ts.goal_purpose) AS schedule_purpose,
+              max(ts.starts_at) AS schedule_starts_at, max(ts.audience) AS schedule_audience,
               (SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = r.target_type AND mr.target_id = r.target_id AND mr.restored_at IS NULL) AS mod_removed_at,
               (SELECT ma.nsfw_score FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_nsfw,
               (SELECT ma.appealed_at IS NOT NULL AND ma.status = 'rejected' FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_appeal,
@@ -171,6 +174,7 @@ export class ModerationDeskService {
          LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
          LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
          LEFT JOIN social.mixar_comments mxc ON r.target_type = 'mixar_comment' AND mxc.id = r.target_id
+         LEFT JOIN content.txillada_schedules ts ON r.target_type = 'txillada_schedule' AND ts.id = r.target_id
         WHERE r.status = $1 AND ($2::text[] IS NULL OR r.target_type = ANY($2::text[]))
           AND ($4::text IS NULL OR tu.username ILIKE $4 ESCAPE '\\' OR tu.display_name ILIKE $4 ESCAPE '\\')
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption,
@@ -214,6 +218,8 @@ export class ModerationDeskService {
       : type === 'txillada_comment' ? (!r.tx_comment_exists ? 'gone' : r.tx_comment_removed_at ? (r.resolution === 'remove' ? 'moderation' : 'author') : null)
       // Comentário do Mixar (0171): apagado pela moderação ou pelo autor (a linha fica até à decisão).
       : type === 'mixar_comment' ? (!r.mx_comment_exists ? 'gone' : r.mx_comment_deleted_at ? (r.resolution === 'remove' ? 'moderation' : 'author') : null)
+      // Txillada agendada (0176): retirada pela moderação, cancelada pelo anfitrião ou que não chegou a começar.
+      : type === 'txillada_schedule' ? (!r.schedule_status ? 'gone' : r.schedule_status === 'removed' ? 'moderation' : r.schedule_status === 'cancelled' ? 'author' : r.schedule_status === 'expired' ? 'expired' : null)
       : null;
     return {
       type,
@@ -244,6 +250,16 @@ export class ModerationDeskService {
       hiddenByAuthor: type === 'post' && !!r.post_hidden,
       reported: proof.reported,
       current: proof.current,
+      /** Txillada agendada (0176): o título, o motivo da meta, a hora e o estado (o anfitrião é o `owner`). */
+      schedule: type === 'txillada_schedule' && r.schedule_status
+        ? {
+          title: (r.schedule_title as string | null) ?? '',
+          goalPurpose: (r.schedule_purpose as string | null) ?? '',
+          startsAt: new Date(r.schedule_starts_at as string).toISOString(),
+          audience: r.schedule_audience as string,
+          status: r.schedule_status as string,
+        }
+        : null,
     };
   }
 
@@ -339,6 +355,7 @@ export class ModerationDeskService {
             if (appeal) void afterAppealDecision(this.moduleRef, this.notifications, it.id, owner, actor, appeal, this.log);
             if (action === 'remove' && it.type === 'txillada') void afterTxilladaCut(this.moduleRef, it.id, this.log);
             if (action === 'remove' && it.type === 'txillada_comment') void afterTxilladaCommentRemoved(this.moduleRef, it.id, this.log);
+            if (action === 'remove' && it.type === 'txillada_schedule') void afterTxilladaScheduleRemoved(this.moduleRef, it.id, this.log);
             const kind: NotificationKind | null = action === 'remove' ? 'content_removed' : action === 'warn' ? 'moderation_warning' : null;
             if (kind && notify && owner && !appeal) void this.notifications.notify({ userId: owner, actorId: actor, kind, data: { type: it.type, reason, ...(postId ? { postId } : {}), ...(tcheka ? { tcheka: true } : {}) } });
           });

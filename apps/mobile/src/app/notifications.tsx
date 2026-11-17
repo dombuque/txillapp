@@ -35,7 +35,7 @@ import {
   inviteNoticeSub as txilladaInviteSub, inviteNoticeText as txilladaInviteText, noticeSub as txilladaNoticeSub, noticeTarget as txilladaNoticeTarget,
   noticeText as txilladaNoticeText,
 } from '@/lib/txillada';
-import { isHostNotice, scheduleNoticeTarget, scheduleNoticeText } from '@/lib/txilladaSchedule';
+import { isHostNotice, isRemovedNotice, scheduleNoticeTarget, scheduleNoticeText } from '@/lib/txilladaSchedule';
 import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
 import { MixarBadge } from '@/components/mixar/MixarBits';
 import { isMixarNotice, mixarNoticeTarget, mixarNoticeText } from '@/lib/mixarAvisos';
@@ -123,7 +123,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     // pediu lembrete, «@x cancelou a Txillada de sábado, 20:00» ou «@x mudou a Txillada para domingo, 19:00».
     case 'txillada_scheduled_soon':
     case 'txillada_scheduled_now':
-    case 'txillada_scheduled_cancelled': return scheduleNoticeText(n.kind, n.data, Date.now());
+    case 'txillada_scheduled_cancelled': return scheduleNoticeText(n.kind, n.data, Date.now(), n.actor.username);
     // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar); mencionado
     // sem estar a ver (txillada-voltar): «@ana mencionou-te na Txillada de @zeca: vem ver».
     case 'txillada_invite': return { text: txilladaInviteText(n.data, n.actor.username), sub: txilladaInviteSub(n.txillada, n.data as { mention?: unknown }) };
@@ -286,6 +286,8 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const zasRecap = n.kind === 'zas_recap';
   // Os avisos da Txillada agendada ao próprio anfitrião (15 min antes e na hora): sem o nome à frente, com o ícone da Txillada.
   const hostNotice = isHostNotice(n.kind);
+  // Retirada pela moderação: «A Txillada de @x foi retirada», sem o nome à frente (a cara do anfitrião fica à esquerda).
+  const removedNotice = isRemovedNotice(n.kind, n.data);
   // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
   const txKind = n.kind === 'txillada_live' || n.kind === 'txillada_invite';
   const txLive = txKind && (!n.txillada || n.txillada.status === 'live');
@@ -294,7 +296,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
     </View>
   ) : n.kind === 'txillada_scheduled_cancelled' ? (
-    <View style={[styles.txIcon, { backgroundColor: colors.zinc100 }]} accessibilityLabel={n.data.moved ? 'A Txillada mudou de hora' : 'A Txillada foi cancelada'}>
+    <View style={[styles.txIcon, { backgroundColor: colors.zinc100 }]} accessibilityLabel={removedNotice ? 'A Txillada foi retirada' : n.data.moved ? 'A Txillada mudou de hora' : 'A Txillada foi cancelada'}>
       <Icon name="calendar" size={22} color={colors.zinc600} strokeWidth={2} />
     </View>
   ) : isMixarNotice(n.kind) ? (
@@ -326,7 +328,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          {zasRecap || hostNotice ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
+          {zasRecap || hostNotice || removedNotice ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
