@@ -331,8 +331,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} liveId={p.live?.id ?? null} livePrice={livePrice(p)} />
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
             {stat(p.counts.posts, t('publicações'))}
-            {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}
-            {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=following` as never) : undefined)}
+            {stat(p.counts.followers, t('seguidores'), p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}
+            {stat(p.counts.following, t('a seguir'), p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=following` as never) : undefined)}
           </View>
         </View>
         <View style={{ marginTop: 12 }}>

@@ -29,5 +29,9 @@ test('várias pessoas: pretérito no plural (sem "-oram")', () => {
 test('a lista de notificações já não cola "u"/"ram" a um verbo acabado em "o"', () => {
   const src = readFileSync(path.join(ROOT, 'src', 'app', 'notifications.tsx'), 'utf8');
   assert.doesNotMatch(src, /o\$\{s\}/, 'ainda há `…o${s}` (dava "comentoram")');
-  for (const stem of ['coment', 'aceit', 'repost', 'identific', 'mencion']) assert.match(src, new RegExp(`v\\('${stem}'\\)`));
+  // Com os idiomas, cada verbo vai inteiro para o t() (o tradutor não junta radicais): uma frase para um, outra para vários.
+  for (const [one, many] of [['comentou a tua publicação', 'comentaram a tua publicação'], ['aceitou o teu pedido para seguir', 'aceitaram o teu pedido para seguir'], ['repostou a tua publicação', 'repostaram a tua publicação'], ['identificou-te numa foto', 'identificaram-te numa foto'], ['mencionou-te', 'mencionaram-te']]) {
+    assert.ok(src.includes(`t('${one}')`) && src.includes(`t('${many}')`), one);
+  }
+  assert.doesNotMatch(src, /pastVerb\(/);
 });

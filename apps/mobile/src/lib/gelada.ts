@@ -21,7 +21,7 @@ export function drinkEmoji(d: DrinkLike): string {
 /** «uma 2M» / «um refresco» / «uma bebida». */
 export function drinkPhrase(d: DrinkLike): string {
   if (d.masked) return t('uma bebida');
-  return d.alcoholic ? `uma ${d.name}` : t('um refresco');
+  return d.alcoholic ? t('uma {name}', { name: d.name }) : t('um refresco');
 }
 
 /** O nome a mostrar por baixo do desenho (o refresco diz qual é; a escondida não diz nada). */
@@ -75,9 +75,9 @@ export function bookSummary(owe: number, owed: number, mine = true): string {
 /** Uma linha do livro: «Deves uma 2M a @ana» / «@rui deve-te um refresco». */
 export function debtLine(d: { iOwe: boolean; owedToMe: boolean; debtor: PersonLike; creditor: PersonLike; drink: DrinkLike }): string {
   const what = drinkPhrase(d.drink);
-  if (d.iOwe) return `Deves ${what} a ${handleOf(d.creditor)}`;
-  if (d.owedToMe) return `${handleOf(d.debtor)} deve-te ${what}`;
-  return `${handleOf(d.debtor)} deve ${what} a ${handleOf(d.creditor)}`;
+  if (d.iOwe) return t('Deves {what} a {creditor}', { what, creditor: handleOf(d.creditor) });
+  if (d.owedToMe) return t('{debtor} deve-te {what}', { debtor: handleOf(d.debtor), what });
+  return t('{debtor} deve {what} a {creditor}', { debtor: handleOf(d.debtor), what, creditor: handleOf(d.creditor) });
 }
 
 /** O estado de uma dívida: por pagar, à espera de confirmação, paga ou perdoada. */

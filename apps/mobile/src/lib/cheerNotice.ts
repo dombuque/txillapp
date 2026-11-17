@@ -10,8 +10,10 @@ export interface CheerInfo { count?: number; actors?: CheerActor[] }
 
 /** "brindou a tua publicação" / "brindaram o teu comentário" / "brindou a tua tcheka" / "brindou o teu comentário no mimo". */
 export function cheerVerb(data: CheerData, many: boolean): string {
-  const what = data.target === 'story_comment' ? t('o teu comentário no mimo') : data.target === 'comment' ? t('o teu comentário') : data.tcheka ? t('a tua tcheka') : t('a tua publicação');
-  return `${many ? 'brindaram' : 'brindou'} ${what}`;
+  if (data.target === 'story_comment') return many ? t('brindaram o teu comentário no mimo') : t('brindou o teu comentário no mimo');
+  if (data.target === 'comment') return many ? t('brindaram o teu comentário') : t('brindou o teu comentário');
+  if (data.tcheka) return many ? t('brindaram a tua tcheka') : t('brindou a tua tcheka');
+  return many ? t('brindaram a tua publicação') : t('brindou a tua publicação');
 }
 
 const MEDIA_ID = /^[0-9a-f-]{36}$/i;

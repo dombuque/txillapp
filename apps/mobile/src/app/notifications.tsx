@@ -27,7 +27,6 @@ import { zasPhotoUrl } from '@/components/zas/zasDeck';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
-import { pastVerb } from '@/lib/notifVerb';
 import { remixNoticeTarget, remixVerb, takedownVerb } from '@/lib/remix';
 import { soundReviewTarget, soundReviewVerb, type SoundReviewData } from '@/lib/sounds';
 import { formatVibes } from '@/lib/vibes';
@@ -47,6 +46,7 @@ import { EmptyState } from '@/components/Empty';
 import { Button } from '@/components/ui/Button';
 import { showToast } from '@/lib/toast';
 import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: () => [Filter, string][] = () => [['all', t('Todas')], ['following', t('Quem sigo')], ['comments', t('Comentários')], ['follows', t('Seguidores')], ['gifts', t('Presentes')]];
@@ -63,22 +63,21 @@ type Group = NotifGroup<AppNotification>;
 /** O verbo de cada tipo; `many` quando a linha junta várias pessoas. */
 function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: string } {
   const quote = !many && n.data.snippet ? `«${n.data.snippet}»` : undefined;
-  const v = (stem: string) => pastVerb(stem, many);
   switch (n.kind) {
-    case 'blocked': return { text: 'bloqueou-te', sub: t('Já não podes seguir esta conta nem ver as publicações e mimos dela.') };
+    case 'blocked': return { text: t('bloqueou-te'), sub: t('Já não podes seguir esta conta nem ver as publicações e mimos dela.') };
     case 'follow': return { text: many ? t('começaram a seguir-te') : t('começou a seguir-te') };
     case 'follow_request': return { text: t('pediu para te seguir') };
-    case 'request_accepted': return { text: t('{v} o teu pedido para seguir', { v: v('aceit') }) };
+    case 'request_accepted': return { text: many ? t('aceitaram o teu pedido para seguir') : t('aceitou o teu pedido para seguir') };
     case 'gift': return { text: <>{t('presenteou-te com')} <Text style={{ fontWeight: '700' }}>{formatVibes(n.data.amount ?? 0)}</Text></>, sub: n.data.note || undefined };
-    case 'comment': return { text: t('{v} a tua publicação', { v: v('coment') }), sub: quote };
+    case 'comment': return { text: many ? t('comentaram a tua publicação') : t('comentou a tua publicação'), sub: quote };
     case 'reply': return { text: t('respondeu ao teu comentário'), sub: quote };
     case 'story_reply':
       if (n.data.replyKind === 'comment') return { text: t('comentou o teu mimo'), sub: quote };
       if (n.data.replyKind === 'reaction') return { text: many ? t('reagiram ao teu mimo') : <>{t('reagiu ao teu mimo')} <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
       return { text: t('respondeu ao teu mimo'), sub: quote };
-    case 'repost': return { text: t('{v} a tua publicação', { v: v('repost') }) };
-    case 'tag': return { text: t('{v}-te numa foto', { v: v('identific') }) };
-    case 'mention': return { text: t('{v}-te', { v: v('mencion') }), sub: quote };
+    case 'repost': return { text: many ? t('repostaram a tua publicação') : t('repostou a tua publicação') };
+    case 'tag': return { text: many ? t('identificaram-te numa foto') : t('identificou-te numa foto') };
+    case 'mention': return { text: many ? t('mencionaram-te') : t('mencionou-te'), sub: quote };
     case 'verified': return { text: many ? t('agora têm o selo de conta verificada') : t('agora tem o selo de conta verificada') };
     case 'venue_invite': return { text: <>{t('convidou-te para gerir')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('um local')}</Text> {t('como')} {n.data.role === 'admin' ? t('administrador') : t('editor')}</> };
     // Para os gestores: alguém pagou ao local com Txills.
@@ -212,8 +211,9 @@ function Names({ actors, total = actors.length }: { actors: AppNotification['act
   const b = (a: AppNotification['actor']) => <Text key={a.username} style={{ fontWeight: '700' }}>{a.username}<InlineBadge who={a} fontSize={styles.line.fontSize} /></Text>;
   const rest = Math.max(total, actors.length) - 2;
   if (actors.length === 1) return b(actors[0]);
-  if (rest <= 0) return <>{b(actors[0])} e {b(actors[1])}</>;
-  return <>{b(actors[0])}, {b(actors[1])} e {t('outra pessoa', { count: rest, other: '{count} outros' })}</>;
+  const tags = { p1: () => b(actors[0]), p2: () => b(actors[1]) };
+  if (rest <= 0) return <T text={t('<p1/> e <p2/>')} tags={tags} />;
+  return <T text={t('<p1/>, <p2/> e outra pessoa', { count: rest, other: '<p1/>, <p2/> e {count} outros' })} tags={tags} />;
 }
 
 function Row({ g, me }: { g: Group; me?: string }) {
@@ -482,7 +482,7 @@ export default function Notifications() {
 /** «Aprovar ou recusar · @ana e mais 2». */
 export function requestsLine(names: string[]): string {
   if (!names.length) return t('Aprovar ou recusar pedidos');
-  const who = names.length === 1 ? `@${names[0]}` : `@${names[0]} e mais ${names.length - 1}`;
+  const who = names.length === 1 ? `@${names[0]}` : t('@{name} e mais {n}', { name: names[0], n: names.length - 1 });
   return t('Aprovar ou recusar · {who}', { who });
 }
 

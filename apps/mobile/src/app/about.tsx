@@ -14,7 +14,7 @@ const SUPPORT = 'suporte@txillapp.com';
 const longDate = (iso: string) => {
   const d = new Date(iso);
   if (currentLanguage() !== SOURCE_LANG) return formatDate(d, { day: 'numeric', month: 'long', year: 'numeric' });
-  return `${d.getDate()} de ${monthNames()[d.getMonth()]} de ${d.getFullYear()}`;
+  return t('{date} de {monthName} de {fullYear}', { date: d.getDate(), monthName: monthNames()[d.getMonth()], fullYear: d.getFullYear() });
 };
 
 /** Sobre: a tua conta, a política de privacidade, os termos e a versão. */

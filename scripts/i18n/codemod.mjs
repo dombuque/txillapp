@@ -36,7 +36,8 @@ const REPORT = opt('--report') ?? 'C:/dombuque/tmp-apk/codemod-relatorio.md';
 const LOG_JSON = REPORT.replace(/\.md$/, '.json');
 
 // tchekaRules.ts é cópia à letra de um ficheiro do servidor (tests/studioAudio.test.mjs compara as duas).
-const EXCLUDE_FILES = [/\/src\/lib\/legalText\.ts$/, /\/src\/lib\/i18n\.ts$/, /\/src\/lib\/tchekaRules\.ts$/, /\/src\/icons\//, /\.d\.ts$/];
+// mapRuntime.ts corre também dentro da WebView do mapa (como texto) e não pode importar nada: os textos chegam nas opções.
+const EXCLUDE_FILES = [/\/src\/components\/nearby\/mapRuntime\.ts$/, /\/src\/lib\/legalText\.ts$/, /\/src\/lib\/i18n\.ts$/, /\/src\/lib\/tchekaRules\.ts$/, /\/src\/icons\//, /\.d\.ts$/];
 const GLOSSARY = (() => {
   const p = path.join(ROOT, 'scripts/i18n/glossary.json');
   const base = ['Txillapp', 'Txillada', 'Txilladas', 'mimo', 'mimos', 'tchekas', 'tcheka', 'Zás', 'vibes', 'vib', 'Mixar', 'geleira', 'gelada', 'geladas', 'TxillGroup', 'TxillGroups', 'SuperTxill', 'Paga-me uma', 'malta'];
