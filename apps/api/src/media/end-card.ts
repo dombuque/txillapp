@@ -2,12 +2,13 @@ import { createCanvas, GlobalFonts, Path2D, type SKRSContext2D } from '@napi-rs/
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { encodeWav, synthSfx } from '../compose/audio';
-import { BOX, DOT, PATHS, SEAL_BLUE, SEAL_CHECK, SEAL_CORAL, SEAL_PATH, sealPaint, type SealTier } from './signature';
+import { LOGO_BOX, LOGO_DOT, LOGO_FILL_RULE, LOGO_INK_PATHS } from './marca';
+import { SEAL_BLUE, SEAL_CHECK, SEAL_CORAL, SEAL_PATH, sealPaint, type SealTier } from './signature';
 
 /**
  * O cartão do fim de uma tcheka guardada (como o do TikTok): uns segundos depois do vídeo, num fundo escuro com um toque do
- * degradê da marca (#d6334f → #ff9a5b), o logótipo do Txillapp a desenhar-se letra a letra (a mesma geometria de
- * media/signature.ts e da app, lib/wordmark.ts), o ponto do i a coral a saltar, e por baixo o @ de quem publicou (com o
+ * degradê da marca (#d6334f → #ff9a5b), o logótipo do Txillapp a aparecer da esquerda para a direita (o desenho de
+ * media/marca.ts, o mesmo da assinatura e da app), o ponto do i a coral a saltar, e por baixo o @ de quem publicou (com o
  * selo, se a conta for verificada). Desenhado no canvas do Node (@napi-rs/canvas), frame a frame, para o ffmpeg.
  * Só vai nas cópias que se guardam ou partilham: o vídeo da publicação fica sem ele.
  */
@@ -24,8 +25,8 @@ export const AUDIO_FADE_S = 0.6;
 export const CARD_TIMES = {
   /** O fundo acende-se do preto. */
   bgIn: 0.32,
-  /** As letras desenham-se uma a uma. */
-  draw: 0.16, letterGap: 0.075, letterDur: 0.42,
+  /** As letras aparecem da esquerda para a direita (uma cortina de borda suave), de `draw` durante `reveal`. */
+  draw: 0.16, reveal: 0.945,
   /** O ponto do i salta (e o «ding» toca). */
   dot: 0.98,
   /** A linha da marca abre-se do meio. */
@@ -36,8 +37,6 @@ export const CARD_TIMES = {
   site: 1.4,
 } as const;
 
-/** As letras de «txillapp» (os índices de PATHS; o t e o x são um caminho cada, com dois traços): t, x, i, l, l, a, p, p. */
-const LETTERS = [[0], [1], [2], [3], [4], [5, 6], [7, 8], [9, 10]];
 const CORAL_DOT = '#ff5c6c';
 const BRAND = ['#d6334f', '#ff9a5b'] as const;
 const BG = '#0b090d';
@@ -48,54 +47,10 @@ const easeInOutCubic = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2
 const easeOutBack = (p: number, k = 2.2) => 1 + (k + 1) * (p - 1) ** 3 + k * (p - 1) ** 2;
 const at = (t: number, start: number, dur: number) => clamp01((t - start) / dur);
 
-/**
- * O comprimento de um caminho SVG simples (os do logótipo: M, L, H, V, Q e arcos circulares, absolutos ou relativos), para
- * o desenhar com um traço tracejado que avança.
- */
-export function pathLength(d: string): number {
-  const tok = d.match(/[MmLlHhVvQqAa]|-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
-  let i = 0, x = 0, y = 0, sx = 0, sy = 0, cmd = '', len = 0;
-  const num = () => Number(tok[i++]);
-  const isNum = () => i < tok.length && !/[A-Za-z]/.test(tok[i]);
-  while (i < tok.length) {
-    if (!isNum()) cmd = tok[i++];
-    const rel = cmd === cmd.toLowerCase();
-    const ox = rel ? x : 0, oy = rel ? y : 0;
-    switch (cmd.toUpperCase()) {
-      case 'M': x = ox + num(); y = oy + num(); sx = x; sy = y; cmd = rel ? 'l' : 'L'; break;
-      case 'L': { const nx = ox + num(), ny = oy + num(); len += Math.hypot(nx - x, ny - y); x = nx; y = ny; break; }
-      case 'H': { const nx = (rel ? x : 0) + num(); len += Math.abs(nx - x); x = nx; break; }
-      case 'V': { const ny = (rel ? y : 0) + num(); len += Math.abs(ny - y); y = ny; break; }
-      case 'Q': {
-        const cx = ox + num(), cy = oy + num(), nx = ox + num(), ny = oy + num();
-        let px = x, py = y;
-        for (let k = 1; k <= 24; k++) {
-          const u = k / 24, a = (1 - u) ** 2, b = 2 * (1 - u) * u, c = u * u;
-          const qx = a * x + b * cx + c * nx, qy = a * y + b * cy + c * ny;
-          len += Math.hypot(qx - px, qy - py);
-          px = qx; py = qy;
-        }
-        x = nx; y = ny;
-        break;
-      }
-      case 'A': {
-        const r = num(); num(); num(); const large = num(); num();
-        const nx = ox + num(), ny = oy + num();
-        const chord = Math.hypot(nx - x, ny - y);
-        const theta = 2 * Math.asin(Math.min(1, chord / (2 * r)));
-        len += r * (large ? 2 * Math.PI - theta : theta);
-        x = nx; y = ny;
-        break;
-      }
-      default: i++;
-    }
-  }
-  void sx; void sy;
-  return len;
-}
-
-const LENGTHS = PATHS.map(pathLength);
-const PATH2D = PATHS.map((p) => new Path2D(p));
+/** As formas das letras (cada uma enche-se à parte, com LOGO_FILL_RULE: sobrepõem-se). */
+const INK_2D = LOGO_INK_PATHS.map((d) => new Path2D(d));
+/** A largura da borda suave da cortina que revela as letras (em unidades do logótipo). */
+const FEATHER = LOGO_BOX.w * 0.14;
 const SEAL_2D = new Path2D(SEAL_PATH);
 const CHECK_2D = new Path2D(SEAL_CHECK);
 
@@ -122,8 +77,8 @@ export interface EndCardOpts {
 export function cardLayout(W: number, H: number) {
   const base = Math.min(W, H);
   const ww = base * 0.6;
-  const s = ww / BOX.w;
-  const wh = BOX.h * s;
+  const s = ww / LOGO_BOX.w;
+  const wh = LOGO_BOX.h * s;
   const cy = H * (H > W ? 0.44 : 0.4);
   const x0 = (W - ww) / 2;
   const y0 = cy - wh / 2;
@@ -168,35 +123,31 @@ export function drawEndCard(g: SKRSContext2D, W: number, H: number, t: number, o
   g.fillStyle = vg;
   g.fillRect(0, 0, W, H);
 
-  // O logótipo: entra a crescer um pouco (de 0,94 a 1) enquanto as letras se desenham.
+  // O logótipo: entra a crescer um pouco (de 0,94 a 1) enquanto as letras aparecem.
   const grow = 0.94 + 0.06 * easeOutCubic(at(t, T.draw, 1.1));
   const mx = W / 2, my = L.y0 + L.wh / 2;
   g.save();
   g.translate(mx, my);
   g.scale(grow, grow);
   g.translate(-mx, -my);
-  g.translate(L.x0 - BOX.x * L.s, L.y0 - BOX.y * L.s);
+  g.translate(L.x0 - LOGO_BOX.x * L.s, L.y0 - LOGO_BOX.y * L.s);
   g.scale(L.s, L.s);
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  g.lineWidth = 7;
-  g.strokeStyle = '#ffffff';
-  g.shadowColor = 'rgba(255,255,255,0.28)';
-  g.shadowBlur = 5 * L.s;
-  LETTERS.forEach((paths, li) => {
-    const p = easeInOutCubic(at(t, T.draw + li * T.letterGap, T.letterDur));
-    if (p <= 0.004) return;
-    for (const k of paths) {
-      const len = LENGTHS[k];
-      if (p >= 1) g.setLineDash([]);
-      else {
-        g.setLineDash([len * p, len + 8]);
-        g.lineDashOffset = 0;
-      }
-      g.stroke(PATH2D[k]);
+  // A cortina: um degradê de branco a transparente que corre da esquerda para a direita (a borda suave passa toda).
+  const rp = easeInOutCubic(at(t, T.draw, T.reveal));
+  if (rp > 0) {
+    if (rp >= 1) g.fillStyle = '#ffffff';
+    else {
+      const head = LOGO_BOX.x + (LOGO_BOX.w + FEATHER) * rp;
+      const cg = g.createLinearGradient(head - FEATHER, 0, head, 0);
+      cg.addColorStop(0, 'rgba(255,255,255,1)');
+      cg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = cg;
     }
-  });
-  g.setLineDash([]);
+    // O brilho é em píxeis do ecrã (o shadowBlur não segue a escala): o mesmo de antes, 5 unidades do logótipo antigo.
+    g.shadowColor = 'rgba(255,255,255,0.28)';
+    g.shadowBlur = L.ww / 30.8;
+    for (const p of INK_2D) g.fill(p, LOGO_FILL_RULE);
+  }
   g.shadowBlur = 0;
   g.shadowColor = 'rgba(0,0,0,0)';
   // O ponto do i, a coral: salta (passa um pouco do tamanho e volta) e solta um anel que se apaga.
@@ -205,15 +156,15 @@ export function drawEndCard(g: SKRSContext2D, W: number, H: number, t: number, o
     const ring = at(t, T.dot, 0.62);
     if (ring < 1) {
       g.beginPath();
-      g.arc(DOT.cx, DOT.cy, DOT.r * (1 + 2.6 * easeOutCubic(ring)), 0, Math.PI * 2);
+      g.arc(LOGO_DOT.cx, LOGO_DOT.cy, LOGO_DOT.r * (1 + 2.6 * easeOutCubic(ring)), 0, Math.PI * 2);
       g.strokeStyle = `rgba(255,92,108,${(0.75 * (1 - ring)).toFixed(3)})`;
-      g.lineWidth = 1.6 * (1 - ring * 0.6);
+      g.lineWidth = 2 * (1 - ring * 0.6);
       g.stroke();
     }
     g.shadowColor = 'rgba(255,92,108,0.7)';
-    g.shadowBlur = 6 * L.s;
+    g.shadowBlur = L.ww / 25.7;
     g.beginPath();
-    g.arc(DOT.cx, DOT.cy, Math.max(0.01, DOT.r * easeOutBack(dp)), 0, Math.PI * 2);
+    g.arc(LOGO_DOT.cx, LOGO_DOT.cy, Math.max(0.01, LOGO_DOT.r * easeOutBack(dp)), 0, Math.PI * 2);
     g.fillStyle = CORAL_DOT;
     g.fill();
     g.shadowBlur = 0;
@@ -326,7 +277,7 @@ export function endCardPng(W: number, H: number, t: number, o: EndCardOpts): Buf
 }
 
 /**
- * O som do cartão (WAV estéreo, 48 kHz, `seconds`): um sopro suave enquanto o logótipo se desenha e um «ding» quando o ponto
+ * O som do cartão (WAV estéreo, 48 kHz, `seconds`): um sopro suave enquanto o logótipo aparece e um «ding» quando o ponto
  * do i salta. Os mesmos efeitos sonoros do estúdio (compose/audio.ts), mais baixos.
  */
 export function endCardSting(seconds = END_CARD_S, rate = 48_000): Uint8Array {

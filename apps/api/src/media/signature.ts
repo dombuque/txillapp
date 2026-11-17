@@ -7,6 +7,7 @@ import ffmpegPath from 'ffmpeg-static';
 import ffprobe from 'ffprobe-static';
 import sharp from 'sharp';
 import { streamRotation } from '../compose/ffmpeg';
+import { logoSvgPaths } from './marca';
 
 const run = promisify(execFile);
 const FFMPEG = (ffmpegPath as unknown as string | null) ?? 'ffmpeg';
@@ -14,14 +15,9 @@ const FFMPEG = (ffmpegPath as unknown as string | null) ?? 'ffmpeg';
 /**
  * A assinatura do Txillapp gravada nos ficheiros que as pessoas guardam (fotos e vídeos dos mimos): o logótipo em branco
  * com o ponto do i a coral, sombra suave, e por baixo o @ de quem publicou. A mesma geometria da app (lib/wordmark.ts).
+ * O desenho do logótipo (formas cheias) está em ./marca (gerado); aqui fica a caixa dele (BOX, escrita pelo mesmo gerador).
  */
-const circle = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
-export const BOX = { x: -4, y: -3, w: 154, h: 54 };
-export const PATHS = [
-  'M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 20 34', 'M42 14V34', 'M51 3V34', 'M61 3V34',
-  circle(77, 24, 9.5), 'M86.5 14V34', circle(106, 24, 9.5), 'M96.5 14V46', circle(135, 24, 9.5), 'M125.5 14V46',
-];
-export const DOT = { cx: 42, cy: 3.5, r: 4.2 };
+export const BOX = { x: 197.964, y: 266.11, w: 199.348, h: 71.815 };
 
 /**
  * O selo de verificado (o desenho do VerifiedBadge da app, numa caixa de 24×24): a roseta coral em degradê (verificado
@@ -54,7 +50,7 @@ export function signLayout(W: number, H: number, withUser: boolean, seal?: SealT
     ? { tier: seal, size, k: size / 24, x: right - size, y: userBaseline - userSize * SEAL_LIFT - size / 2 }
     : null;
   const textRight = badge ? right - size - userSize * SEAL_GAP : right;
-  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, textRight, seal: badge, blur: Math.max(2, s * 5) };
+  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, textRight, seal: badge, blur: Math.max(2, ww / 30.8), shadowY: ww / 77 };
 }
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -72,9 +68,9 @@ export function signatureSvg(W: number, H: number, username?: string | null, ext
   const head = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
   if (!withSign) return `${head}\n${extra}\n</svg>`;
   const L = signLayout(W, H, !!username, seal);
-  const d = PATHS.map((p) => `<path d="${p}"/>`).join('');
-  const mark = (stroke: string, fill: string, extra = '') =>
-    `<g ${extra} transform="translate(${L.x - BOX.x * L.s} ${L.y - BOX.y * L.s}) scale(${L.s})" fill="none" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${d}<circle cx="${DOT.cx}" cy="${DOT.cy}" r="${DOT.r}" fill="${fill}" stroke="none"/></g>`;
+  // O logótipo em formas cheias (sem traço), da caixa BOX para L.x, L.y com a escala L.s.
+  const mark = (ink: string, dot: string) =>
+    `<g transform="translate(${L.x - BOX.x * L.s} ${L.y - BOX.y * L.s}) scale(${L.s})">${logoSvgPaths(ink, dot)}</g>`;
   // O @: uma sombra desfocada por baixo e o texto nítido por cima.
   const text = (fill: string, extra: string) => `<text ${extra} x="${L.textRight}" y="${L.userBaseline}" text-anchor="end" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="${L.userSize}" fill="${fill}">@${esc(username ?? '')}</text>`;
   const user = username ? `${text('#000000', 'filter="url(#sh)" opacity="0.5" transform="translate(0 1)"')}${text('#ffffff', 'fill-opacity="0.92"')}` : '';
@@ -91,7 +87,7 @@ export function signatureSvg(W: number, H: number, username?: string | null, ext
   return `${head}
 <defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(L.blur / 2).toFixed(2)}"/></filter>${grad}</defs>
 ${extra}
-<g filter="url(#sh)" transform="translate(0 ${(L.s * 2).toFixed(2)})" opacity="0.45">${mark('#000000', '#000000')}</g>
+<g filter="url(#sh)" transform="translate(0 ${L.shadowY.toFixed(2)})" opacity="0.45">${mark('#000000', '#000000')}</g>
 ${mark('#ffffff', '#ff5c6c')}
 ${user}${badge}
 </svg>`;

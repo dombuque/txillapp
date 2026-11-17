@@ -1,6 +1,8 @@
-import { cardLayout, CARD_TIMES, END_CARD_S, endCardSting, pathLength } from '../media/end-card';
+import { createCanvas } from '@napi-rs/canvas';
+import { cardLayout, CARD_TIMES, drawEndCard, END_CARD_S, endCardSting } from '../media/end-card';
 import { outSize, signedCopyGraph } from '../media/end-card-video';
-import { PATHS } from '../media/signature';
+import { LOGO_BOX, LOGO_INK_PATHS } from '../media/marca';
+import { BOX } from '../media/signature';
 import { bakeArgs, bakedMediaId, bakeMix, musicBakedOf } from './music-bake';
 import { downloadVersion } from './post-download.service';
 
@@ -40,14 +42,31 @@ describe('fim de tcheka: as contas (sem base de dados)', () => {
     expect(musicBakedOf({})).toBe(false);
   });
 
-  it('o logótipo: os comprimentos dos traços (para se desenharem) batem com a geometria', () => {
-    expect(PATHS).toHaveLength(11);
-    // O i e os l são traços direitos; o a e os p têm um círculo de raio 9,5.
-    expect(pathLength('M42 14V34')).toBeCloseTo(20, 5);
-    expect(pathLength(PATHS[5])).toBeCloseTo(2 * Math.PI * 9.5, 3);
-    // O t: a haste com a curva e o traço de cima (dois bocados no mesmo caminho).
-    expect(pathLength(PATHS[0])).toBeGreaterThan(22 + 14 + 9.9);
-    for (const p of PATHS) expect(pathLength(p)).toBeGreaterThan(5);
+  it('o logótipo (formas cheias): a assinatura usa a caixa do desenho e o cartão revela as letras da esquerda para a direita', () => {
+    expect(BOX).toEqual({ ...LOGO_BOX });
+    expect(LOGO_INK_PATHS.length).toBeGreaterThan(0);
+    // A animação acaba no mesmo tempo de antes (as oito letras a 0,075 s umas das outras, 0,42 s cada).
+    expect(CARD_TIMES.draw + CARD_TIMES.reveal).toBeCloseTo(0.16 + 7 * 0.075 + 0.42, 9);
+    const W = 360, H = 640;
+    const L = cardLayout(W, H);
+    const c = createCanvas(W, H);
+    const g = c.getContext('2d');
+    // O mais claro de uma faixa vertical do logótipo (de a a b, em fração da largura).
+    const band = (a: number, b: number) => {
+      const d = g.getImageData(Math.round(L.x0 + L.ww * a), Math.round(L.y0), Math.round(L.ww * (b - a)), Math.round(L.wh)).data;
+      let max = 0;
+      for (let i = 0; i < d.length; i += 4) max = Math.max(max, Math.min(d[i], d[i + 1], d[i + 2]));
+      return max;
+    };
+    const opts = { label: 'teste', handle: true, seal: null };
+    drawEndCard(g, W, H, CARD_TIMES.draw, opts);
+    expect(band(0, 1)).toBeLessThan(120);
+    drawEndCard(g, W, H, CARD_TIMES.draw + CARD_TIMES.reveal / 2, opts);
+    expect(band(0, 0.3)).toBeGreaterThan(200);
+    expect(band(0.75, 1)).toBeLessThan(120);
+    drawEndCard(g, W, H, END_CARD_S - 0.05, opts);
+    expect(band(0, 0.3)).toBeGreaterThan(200);
+    expect(band(0.75, 1)).toBeGreaterThan(200);
   });
 
   it('o cartão: o mesmo desenho em vertical e na horizontal, a animação dentro do tempo e o som do tamanho certo', () => {

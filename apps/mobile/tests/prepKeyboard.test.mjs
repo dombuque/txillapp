@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import './aliasHooks.mjs';
 
 const l = await import(new URL('../src/lib/prepKeyboard.ts', import.meta.url).href);
 const f = await import(new URL('../src/lib/storyFrame.ts', import.meta.url).href);

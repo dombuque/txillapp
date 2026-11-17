@@ -5,6 +5,8 @@
  * profileQrImage.ts e .web.ts): um SVG sem letras (o fundo, o QR e o logótipo) e a linha do @username.
  */
 
+import { LOGO_BOX, logoSvgPaths } from '@/lib/marca';
+
 /** A linha do @username (a mesma forma do CardText de inviteCard.ts: quem pinta encolhe a letra se passar de `maxWidth`). */
 export interface QrCardText {
   text: string;
@@ -38,15 +40,11 @@ const BRAND = '#d6334f';
  */
 export const QR_CARD = { width: 1080, margin: 110, qrBox: 860, userGap: 43, userSize: 72, userLine: 101, markGap: 22, markH: 80 } as const;
 
-/** O logótipo (a mesma geometria de lib/wordmark.ts e do componente Wordmark): caixa de -4,-3 a 150,51. */
-const circlePath = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
-const WORDMARK = ['M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 20 34', 'M42 14V34', 'M51 3V34', 'M61 3V34', circlePath(77, 24, 9.5), 'M86.5 14V34', circlePath(106, 24, 9.5), 'M96.5 14V46', circlePath(135, 24, 9.5), 'M125.5 14V46'];
-
+/** O logótipo oficial (lib/marca.ts, o mesmo do componente Wordmark) com `height` de altura, centrado em `cx`, a começar em `top`. */
 function wordmarkSvg(cx: number, top: number, height: number) {
-  const s = height / 54;
-  const w = 154 * s;
-  const x = cx - w / 2;
-  return `<g transform="translate(${(x + 4 * s).toFixed(2)} ${(top + 3 * s).toFixed(2)}) scale(${s.toFixed(4)})" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="${BRAND}" stroke="none"/></g>`;
+  const s = height / LOGO_BOX.h;
+  const x = cx - (LOGO_BOX.w * s) / 2;
+  return `<g transform="translate(${(x - LOGO_BOX.x * s).toFixed(2)} ${(top - LOGO_BOX.y * s).toFixed(2)}) scale(${s.toFixed(5)})">${logoSvgPaths(INK, BRAND)}</g>`;
 }
 
 /** Os módulos escuros do QR num só caminho, em tiras por linha (como o QrCode da folha), em unidades de módulo. */

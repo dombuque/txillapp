@@ -121,7 +121,9 @@ describe('guardar um mimo: a assinatura não vai duas vezes (integração)', () 
     const extra = '<rect x="1" y="2" width="3" height="4"/>';
     const full = signatureSvg(1080, 1920, 'dombuque', extra);
     expect(full).toContain('@dombuque');
-    expect(full).toContain('stroke="#ffffff"');
+    // O logótipo em formas cheias: as letras brancas e o ponto do i a coral.
+    expect(full).toContain('<path fill="#ffffff"');
+    expect(full).toContain('<path fill="#ff5c6c"');
     const bare = signatureSvg(1080, 1920, 'dombuque', extra, false);
     expect(bare).toContain(extra);
     expect(bare).toContain('width="1080" height="1920"');
