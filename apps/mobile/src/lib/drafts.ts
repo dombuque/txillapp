@@ -82,3 +82,10 @@ export async function clearDraft(key: string): Promise<void> {
   const { [key]: _gone, ...rest } = await backend.read();
   await backend.write(rest);
 }
+
+/** Põe de volta um rascunho apagado («Desfazer»), com a mesma hora de antes (fica no mesmo lugar da lista). */
+export async function restoreDraft(d: DraftItem): Promise<void> {
+  const { key, ...draft } = d;
+  const all = await backend.read();
+  await backend.write({ ...all, [key]: draft });
+}

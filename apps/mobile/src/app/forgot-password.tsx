@@ -1,8 +1,7 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/Icon';
 import { useHumanCheck } from '@/components/HumanCheck';
 import { Wordmark } from '@/components/Wordmark';
@@ -64,11 +63,7 @@ export default function ForgotPassword() {
           <View style={{ marginTop: 28, gap: 12 }}>
             <Field icon="mail" value={email} onChangeText={(t) => { setEmail(t); setError(''); }} placeholder="E-mail" autoFocus autoCapitalize="none" keyboardType="email-address" autoComplete="email" returnKeyType="go" onSubmitEditing={() => void submit()} accessibilityLabel="E-mail" />
             <Text style={st.alertText} accessibilityRole="alert">{error}</Text>
-            <Pressable onPress={() => void submit()} disabled={busy} style={({ pressed }) => [st.ctaWrap, busy && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-              <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={st.cta}>
-                {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={st.ctaText}>Enviar link</Text>}
-              </LinearGradient>
-            </Pressable>
+            <Button label="Enviar link" onPress={() => void submit()} loading={busy} block style={st.cta} />
           </View>
         </>
       )}
@@ -83,9 +78,8 @@ const st = StyleSheet.create({
   sub: { marginTop: 8, fontSize: 18, fontWeight: '300', lineHeight: 28, color: colors.zinc600 },
   sentTitle: { flexShrink: 1, fontSize: 30, fontWeight: '800', lineHeight: 36, color: colors.zinc900 },
   sentText: { marginTop: 12, fontSize: 18, lineHeight: 28, color: colors.zinc600 },
-  alertText: { minHeight: 24, fontSize: 15, color: colors.red600, textAlign: 'center' },
-  ctaWrap: { borderRadius: 999, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
-  cta: { borderRadius: 999, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#fff', fontSize: 18, lineHeight: 28, fontWeight: '600' },
+  alertText: { minHeight: 24, fontSize: 15, color: colors.danger, textAlign: 'center' },
+  /** Button lg com a sombra coral da marca (como em entrar). */
+  cta: { boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   footerText: { fontSize: 18, lineHeight: 28, color: colors.zinc800, textAlign: 'center' },
 });

@@ -3,6 +3,7 @@ import { useId } from 'react';
 import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 import { TX, type TxDef } from '@/icons/tx';
 import { colors } from '@/lib/theme';
+import { iconFor } from '@/lib/iconAlias';
 
 export type IconName = keyof typeof TX | 'cheers';
 
@@ -12,7 +13,9 @@ export function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, color 
   // O Mixar leva sempre as cores do Txillapp (o gradiente do selo do Mixar), menos em branco (por cima de cor) ou com `mono`.
   if (name === 'mixar' && !mono && !isLight(color)) return <MixarIcon size={size} strokeWidth={strokeWidth} />;
   // "Voltar": o chevron que as apps usam no iPhone e no site; no Android a seta do sistema (igual ao BackButton).
-  const d = TX[name === 'back' && Platform.OS !== 'android' ? 'chevron-left' : name] as TxDef;
+  // Nomes antigos (present, flip-camera, send) mostram o desenho novo: ver lib/iconAlias.
+  const shown = iconFor(name);
+  const d = TX[shown === 'back' && Platform.OS !== 'android' ? 'chevron-left' : shown] as TxDef;
   const filled = solid && !!d.s;
   const paths = filled ? d.s! : d.p;
   return (

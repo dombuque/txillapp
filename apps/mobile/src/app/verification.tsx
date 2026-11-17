@@ -3,7 +3,8 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
@@ -11,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { api, uploadMedia, type DocType } from '@/lib/api';
 import { approvedForBlue, blueSealEntry } from '@/lib/iap/view';
 import { usePurchases } from '@/lib/purchases';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 
 /** A entrada para o selo azul (a verificação paga, pela loja): só nas lojas, com as compras pela loja ligadas. */
@@ -69,8 +71,8 @@ function PhotoSlot({ label, hint, pic, onPick, live }: { label: string; hint: st
           </View>
         )}
       </Pressable>
-      {pic && live ? <Pressable onPress={() => void pick()}><Text style={{ marginTop: 6, fontSize: 14, fontWeight: '600', color: colors.brand }}>Tirar outra vez</Text></Pressable> : null}
-      {err ? <Text style={{ marginTop: 4, fontSize: 13, color: colors.red600 }}>{err}</Text> : null}
+      {pic && live ? <Button label="Tirar outra vez" kind="ghost" size="sm" icon="camera" onPress={() => void pick()} style={{ marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 4 }} /> : null}
+      {err ? <Text style={{ marginTop: 4, fontSize: 13, color: colors.danger }} accessibilityRole="alert">{err}</Text> : null}
     </View>
   );
 }
@@ -112,6 +114,7 @@ export default function Verification() {
     setBusy(false);
   }
   async function withdraw() {
+    if (!(await confirm({ title: 'Retirar o pedido?', message: 'O pedido deixa de estar em análise.', confirm: 'Retirar', danger: true }))) return;
     setBusy(true);
     try {
       await api.verificationWithdraw();
@@ -127,7 +130,7 @@ export default function Verification() {
   return (
     <StackPage title="Verificação">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }}>
-        {q.isLoading && <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} />}
+        {q.isLoading && <PageLoader />}
         {s?.verified && (
           <View style={st.done}>
             <VerifiedBadge size={56} tier={s.tier} />
@@ -142,7 +145,7 @@ export default function Verification() {
             <View style={st.list}>
               {s.items.map((i, n) => (
                 <View key={i.key} style={[st.item, n > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }]}>
-                  <View style={[st.dot, { backgroundColor: i.ok ? '#10b981' : colors.zinc200 }]}><Icon name={i.ok ? 'check' : 'clock'} size={14} color={i.ok ? '#fff' : colors.zinc500} strokeWidth={3} /></View>
+                  <View style={[st.dot, { backgroundColor: i.ok ? colors.green600 : colors.zinc200 }]}><Icon name={i.ok ? 'check' : 'clock'} size={14} color={i.ok ? '#fff' : colors.zinc500} strokeWidth={3} /></View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{i.label}</Text>
                     {!i.ok && <Text style={{ fontSize: 14, color: colors.zinc500 }}>{i.hint}</Text>}
@@ -155,7 +158,7 @@ export default function Verification() {
               <View style={[st.box, { backgroundColor: '#fffbeb' }]}>
                 <Text style={{ fontWeight: '700', fontSize: 16, color: colors.zinc900 }}>Pedido em análise</Text>
                 <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>Vamos rever o teu pedido e avisamos-te quando houver decisão.</Text>
-                <Pressable onPress={() => void withdraw()} disabled={busy} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Retirar pedido</Text></Pressable>
+                <Button label="Retirar pedido" kind="danger" size="md" onPress={() => void withdraw()} loading={busy} style={{ marginTop: 12, alignSelf: 'flex-start' }} />
               </View>
             )}
             {blueOk && (
@@ -169,7 +172,7 @@ export default function Verification() {
               </View>
             )}
             {s.request?.status === 'rejected' && (
-              <View style={[st.box, { backgroundColor: '#fef2f2' }]}>
+              <View style={[st.box, { backgroundColor: colors.dangerSoft }]}>
                 <Text style={{ fontWeight: '700', fontSize: 16, color: colors.zinc900 }}>O último pedido foi recusado</Text>
                 {s.request.reason ? <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>Motivo: {s.request.reason}</Text> : null}
                 {s.retryAfter ? <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>Podes pedir outra vez a partir de {new Date(s.retryAfter).toLocaleDateString('pt-PT')}.</Text> : null}
@@ -208,10 +211,8 @@ export default function Verification() {
                 {twoSides && <PhotoSlot label="Documento: verso" hint="Toca para escolher ou tirar a foto do verso." pic={docBack} onPick={setDocBack} />}
                 <PhotoSlot live label="Leitura da cara" hint="Abre a câmara: olha de frente, com boa luz, sem óculos escuros nem boné." pic={face} onPick={setFace} />
                 <PhotoSlot live label="Selfie ao lado do documento" hint="Abre a câmara: segura o documento ao lado da cara, com os dados e a foto visíveis." pic={selfie} onPick={setSelfie} />
-                {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text> : null}
-                <Pressable onPress={() => void submit()} disabled={!ready} style={[st.primary, !ready && { opacity: 0.5 }]} accessibilityRole="button">
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>Enviar pedido</Text>}
-                </Pressable>
+                {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityRole="alert">{err}</Text> : null}
+                <Button label="Enviar pedido" onPress={() => void submit()} loading={busy} disabled={!ready} />
                 <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Só a moderação vê as fotos, e são apagadas quando decidirmos.</Text>
               </View>
             )}
@@ -230,12 +231,8 @@ const st = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
   dot: { marginTop: 2, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   box: { marginTop: 20, borderRadius: 16, padding: 16 },
-  ghost: { marginTop: 12, alignSelf: 'flex-start', borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 18, paddingVertical: 10 },
-  ghostText: { fontSize: 14, fontWeight: '600', color: colors.zinc800 },
   kind: { flex: 1, height: 48, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' },
   label: { marginBottom: 6, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },
-  slot: { height: 144, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.zinc300, backgroundColor: '#fafafa', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  primary: { height: 54, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  slot: { height: 144, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.zinc300, backgroundColor: colors.zinc50, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 });

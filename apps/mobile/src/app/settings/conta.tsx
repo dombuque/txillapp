@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Platform, Share } from 'react-native';
+import { Platform, Share } from 'react-native';
 import { EditProfileSheet } from '@/components/ProfileSheets';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { RegionRow } from '@/components/settings/device';
@@ -14,6 +14,7 @@ import { api, openActivate } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { blueSealEntry } from '@/lib/iap/view';
 import { usePurchases } from '@/lib/purchases';
+import { showToast } from '@/lib/toast';
 
 /** Conta: o perfil, o email e o @, como te identificas, a verificação, os teus dados e, no fundo, eliminar a conta. */
 export default function AccountSettings() {
@@ -47,7 +48,7 @@ export default function AccountSettings() {
         await Share.share({ message: json, title: `txillapp-dados-${me}.json` });
       }
     } catch (x) {
-      Alert.alert('Os meus dados', (x as Error).message);
+      showToast((x as Error)?.message || 'Não consegui preparar os teus dados. Tenta outra vez.');
     } finally {
       setExporting(false);
     }

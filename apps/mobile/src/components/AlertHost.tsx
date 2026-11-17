@@ -2,9 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { closeAlert, useAlertRequest } from '@/lib/alertHost';
 import { useOverlay } from '@/lib/overlays';
-import { colors } from '@/lib/theme';
+import { colors, typo } from '@/lib/theme';
+import { Button } from './ui/Button';
 
-/** Caixa de confirmação (apagar, sair, bloquear…): título, texto e botões; o cancelar fecha sem fazer nada. */
+/**
+ * Caixa de confirmação (apagar, sair, bloquear…): título, texto e botões; o cancelar fecha sem fazer nada.
+ * É a mesma no APK e no site (lib/alertHost liga o `Alert.alert` a ela; lib/confirm usa-a para perguntas de sim/não).
+ */
 export function AlertHost() {
   const r = useAlertRequest();
   useOverlay(!!r);
@@ -19,9 +23,14 @@ export function AlertHost() {
           {r.message ? <Text style={st.msg}>{r.message}</Text> : null}
           <View style={[st.btns, row && { flexDirection: 'row' }]}>
             {r.buttons.map((b, i) => (
-              <Pressable key={i} onPress={() => closeAlert(b)} style={({ pressed }) => [st.btn, row && { flex: 1 }, b.style === 'destructive' && { backgroundColor: '#b91c1c' }, b.style !== 'destructive' && b.style !== 'cancel' && { backgroundColor: colors.brand }, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-                <Text style={[st.btnText, b.style === 'cancel' && { color: colors.zinc800 }]}>{b.text ?? 'OK'}</Text>
-              </Pressable>
+              <Button
+                key={i}
+                label={b.text ?? 'OK'}
+                onPress={() => closeAlert(b)}
+                kind={b.style === 'destructive' ? 'dangerSolid' : b.style === 'cancel' ? 'secondary' : 'primary'}
+                size="lg"
+                style={row ? { flex: 1, paddingHorizontal: 12 } : undefined}
+              />
             ))}
           </View>
         </Pressable>
@@ -33,9 +42,7 @@ export function AlertHost() {
 const st = StyleSheet.create({
   back: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 340, borderRadius: 24, backgroundColor: '#fff', padding: 22, boxShadow: '0 12px 40px rgba(0,0,0,0.3)' },
-  title: { fontSize: 19, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
+  title: { ...typo.sheetTitle, color: colors.zinc900, textAlign: 'center' },
   msg: { marginTop: 8, fontSize: 15, lineHeight: 21, color: colors.zinc600, textAlign: 'center' },
   btns: { marginTop: 20, gap: 8 },
-  btn: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.zinc100, paddingHorizontal: 12 },
-  btnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

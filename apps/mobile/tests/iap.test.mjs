@@ -400,13 +400,13 @@ test('o ecrã do selo azul mostra o preço e o período da loja, as condições 
   assert.match(s, /subscriptionTerms\(platform\)/);
   assert.match(s, /Linking\.openURL\(TERMS_URL\)/);
   assert.match(s, /Linking\.openURL\(PRIVACY_URL\)/);
-  for (const b of ['>Subscrever<', "'Restaurar compras'", '>Gerir subscrição<', '>Pedir a verificação<']) assert.ok(s.includes(b), b);
+  for (const b of ['label="Subscrever"', "'Restaurar compras'", 'label="Gerir subscrição"', 'label="Pedir a verificação"']) assert.ok(s.includes(b), b);
   assert.match(s, /router\.push\('\/verification' as never\)/);
   assert.match(s, /activeText\(c\.verification\.active\)/);
   assert.match(s, /void iap\.recover\(\)/);
   assert.match(s, /<VerifiedBadge size=\{56\} tier="paid" \/>/);
   // As condições ficam no ecrã antes de se subscrever (não atrás de uma ligação).
-  assert.ok(s.indexOf('>Subscrever<') < s.indexOf('subscriptionTerms(platform)'));
+  assert.ok(s.indexOf('label="Subscrever"') < s.indexOf('subscriptionTerms(platform)'));
   // A entrada: Definições → Conta e o ecrã da verificação, só com as compras pela loja ligadas.
   const conta = read('app', 'settings', 'conta.tsx');
   assert.match(conta, /const blue = purchases\.storeVerification && ver\.data \? blueSealEntry\(ver\.data\) : null;/);

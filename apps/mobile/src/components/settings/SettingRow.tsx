@@ -7,7 +7,7 @@ import { useAnchor } from './SettingsPage';
 
 /** O ícone redondo à esquerda das linhas. */
 export function IconDot({ children, danger }: { children: ReactNode; danger?: boolean }) {
-  return <View style={[st.icon, danger && { backgroundColor: '#fef2f2' }]}>{children}</View>;
+  return <View style={[st.icon, danger && { backgroundColor: colors.dangerSoft }]}>{children}</View>;
 }
 
 /** O desenho do interruptor (a linha toda é o toque, com `accessibilityRole="switch"`). */
@@ -126,19 +126,13 @@ export function SettingsSection({ title, note, children }: { title?: string; not
 
 export const settingsStyles = StyleSheet.create({
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 13, minHeight: 48, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },
-  primary: { minHeight: 54, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600', textAlign: 'center' },
-  danger: { minHeight: 54, borderRadius: 999, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  ghost: { marginTop: 12, minHeight: 50, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  ghostText: { fontSize: 16, fontWeight: '600', color: colors.zinc800, textAlign: 'center' },
-  outline: { minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, paddingHorizontal: 16, paddingVertical: 8 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   none: { paddingVertical: 24, textAlign: 'center', color: colors.zinc600, fontSize: 16 },
 });
 
 const st = StyleSheet.create({
   row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white },
-  pressed: { backgroundColor: '#fafafa' },
+  pressed: { backgroundColor: colors.zinc50 },
   lit: { backgroundColor: colors.rose50 },
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   texts: { flex: 1, minWidth: 0 },
@@ -146,8 +140,8 @@ const st = StyleSheet.create({
   desc: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.zinc600 },
   value: { maxWidth: '40%', fontSize: 14, color: colors.zinc600, textAlign: 'right' },
   track: { width: 50, height: 30, borderRadius: 15, padding: 2, backgroundColor: colors.zinc300, justifyContent: 'center' },
-  thumb: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' },
+  thumb: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.white, boxShadow: '0 1px 3px rgba(0,0,0,0.25)' },
   sectionTitle: { paddingHorizontal: 20, paddingBottom: 8, fontSize: 13, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', color: colors.zinc600 },
-  card: { marginHorizontal: 16, overflow: 'hidden', borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
+  card: { marginHorizontal: 16, overflow: 'hidden', borderRadius: 20, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
   note: { marginTop: 8, paddingHorizontal: 24, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
 });

@@ -15,7 +15,11 @@ const style = (src, name) => (src.match(new RegExp(`\\n  ${name}: (\\{[^\\n]*\\}
 test('usa os mesmos botões da barra das conversas a dois', () => {
   const g = read('src/components/GroupComposer.tsx');
   const c = read('src/components/ChatComposer.tsx');
-  for (const f of ['Tool', 'SendButton', 'Pop', 'RecDot']) assert.match(c, new RegExp(`export function ${f}\\(`), `ChatComposer exporta ${f}`);
+  for (const f of ['Tool', 'Pop', 'RecDot']) assert.match(c, new RegExp(`export function ${f}\\(`), `ChatComposer exporta ${f}`);
+  // O «Enviar» é o partilhado (components/ui/SendButton); a ChatComposer importa-o e volta a exportá-lo.
+  assert.match(read('src/components/ui/SendButton.tsx'), /export function SendButton\(/);
+  assert.match(c, /import \{ SendButton \} from '\.\/ui\/SendButton';/);
+  assert.match(c, /export \{ SendButton \};/);
   assert.match(g, /import \{ Pop, RecDot, SendButton, Tool \} from '\.\/ChatComposer';/);
   assert.match(g, /<SendButton label="Enviar"/);
   assert.match(g, /<SendButton label="Enviar a mensagem de voz"/);

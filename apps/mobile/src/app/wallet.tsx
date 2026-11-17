@@ -2,10 +2,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ListSkeleton, PageLoader } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
-import { Empty } from '@/components/Empty';
+import { EmptyState } from '@/components/Empty';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { SearchField } from '@/components/ui/SearchField';
 import { GeleiraShelf } from '@/components/GeleiraShelf';
 import { Icon, type IconName } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -20,7 +23,7 @@ import { timeAgo } from '@/lib/time';
 import { vibesWord } from '@/lib/vibes';
 
 const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Vibes oferecidas', gift: 'Presente', invite: 'Convite', topup: 'Vibes recarregadas' };
-const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo', txillada_ticket: 'lock', txillada_gift: 'present', txillada_refund: 'undo' };
+const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo', txillada_ticket: 'lock', txillada_gift: 'gift', txillada_refund: 'undo' };
 
 type Mov = WalletView['history'][number] & WalletTxExtra;
 
@@ -60,15 +63,14 @@ function PickPerson({ me, onPick, onClose }: { me: string; onPick: (p: { usernam
   });
   const people = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
-    <Sheet title="A quem queres oferecer?" onClose={onClose}>
-      <View style={st.search}>
-        <Icon name="search" size={18} color={colors.zinc600} />
-        <TextInput value={text} onChangeText={setText} placeholder="Procurar em quem sigo" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={st.searchInput} accessibilityLabel="Procurar" />
-        {text ? <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Limpar pesquisa"><Icon name="x" size={16} color={colors.zinc600} /></Pressable> : null}
-      </View>
+    <Sheet title="A quem queres oferecer vibes?" onClose={onClose}>
+      <SearchField value={text} onChangeText={setText} placeholder="Procurar em quem sigo" style={st.search} />
       <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
-        {q.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
-        {q.isSuccess && people.length === 0 && <Text style={{ textAlign: 'center', color: colors.zinc600, padding: 24 }}>{term ? 'Ninguém com esse nome' : 'Segue alguém primeiro: só se oferece a quem segues.'}</Text>}
+        {q.isLoading && <PageLoader style={{ paddingTop: 24 }} />}
+        {q.isError && <ErrorState what="quem segues" onRetry={() => void q.refetch()} style={{ marginTop: 16, marginBottom: 16 }} />}
+        {q.isSuccess && people.length === 0 && (
+          <EmptyState icon={term ? 'search' : 'user-plus'} title={term ? 'Ninguém com esse nome' : 'Ainda não segues ninguém'} text={term ? undefined : 'Só se oferecem vibes a quem segues.'} style={{ marginTop: 16, marginBottom: 16 }} />
+        )}
         {people.map((x) => (
           <Pressable key={x.username} onPress={() => onPick(x)} style={st.pick} accessibilityRole="button">
             <Avatar name={x.displayName} username={x.username} size={44} />
@@ -94,13 +96,13 @@ export default function Wallet() {
   return (
     <StackPage title="Carteira">
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        {isError && (
-          <View>
-            <Empty icon="wallet" title="Ups, não consegui abrir a carteira" />
-            <Pressable onPress={() => void refetch()} style={{ alignSelf: 'center', marginTop: 20 }}><Text style={{ textDecorationLine: 'underline', fontSize: 16 }}>Tentar outra vez</Text></Pressable>
-          </View>
+        {isError && <ErrorState what="a carteira" onRetry={() => void refetch()} />}
+        {isLoading && (
+          <>
+            <View style={{ height: 160, borderRadius: 28, backgroundColor: colors.zinc100 }} />
+            <ListSkeleton rows={4} avatar={36} style={{ marginTop: 24, paddingHorizontal: 0 }} />
+          </>
         )}
-        {isLoading && <View style={{ height: 160, borderRadius: 28, backgroundColor: colors.zinc100 }} />}
         {data && (
           <>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.balance}>
@@ -110,14 +112,8 @@ export default function Wallet() {
               </Text>
             </LinearGradient>
 
-            <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-              <Icon name="gift" size={20} color="#fff" />
-              <Text style={st.ctaText}>Presentear alguém</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push('/invites' as never)} style={st.ghost} accessibilityRole="button">
-              <Icon name="user-plus" size={19} color={colors.zinc800} />
-              <Text style={{ fontWeight: '600', fontSize: 16, color: colors.zinc800 }}>Ver os meus convites</Text>
-            </Pressable>
+            <Button label="Oferecer vibes" icon="gift" onPress={() => setPicking(true)} style={st.cta} />
+            <Button label="Ver os meus convites" icon="user-plus" kind="secondary" onPress={() => router.push('/invites' as never)} style={{ marginTop: 12 }} />
 
             {user ? <GeleiraShelf username={user.username} isMe flush /> : null}
 
@@ -134,7 +130,7 @@ export default function Wallet() {
                       <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>{timeAgo(h.createdAt)}</Text>
                       {h.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{h.note}</Text> : null}
                     </View>
-                    <Text style={{ marginLeft: 12, fontSize: 18, fontWeight: '800', color: h.amount > 0 ? '#15803d' : colors.zinc700 }}>{h.amount > 0 ? '+' : ''}{h.amount}</Text>
+                    <Text style={{ marginLeft: 12, fontSize: 18, fontWeight: '800', color: h.amount > 0 ? colors.green700 : colors.zinc700 }}>{h.amount > 0 ? '+' : ''}{h.amount}</Text>
                   </Pressable>
                 );
               })}
@@ -150,13 +146,10 @@ export default function Wallet() {
 
 const st = StyleSheet.create({
   balance: { borderRadius: 28, padding: 24, boxShadow: '0 10px 30px rgba(214,51,79,0.35)' },
-  cta: { marginTop: 20, height: 58, borderRadius: 999, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
-  ctaText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  ghost: { marginTop: 12, height: 48, borderRadius: 999, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  cta: { marginTop: 20, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   card: { marginTop: 32, borderRadius: 28, backgroundColor: colors.white, padding: 20 },
   mov: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 16 },
   movIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  search: { marginHorizontal: 20, marginBottom: 8, height: 42, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
-  searchInput: { flex: 1, fontSize: 15, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' as never },
+  search: { marginHorizontal: 20, marginBottom: 8 },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
 });

@@ -1,11 +1,12 @@
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
-import { AppState, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { canSelfUpdate } from '@/lib/distribution';
 import { kvGet, kvSet } from '@/lib/kv';
-import { colors } from '@/lib/theme';
+import { colors, typo } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+import { Button } from './ui/Button';
 
 /** Onde está a versão mais recente do APK (posta no servidor junto com o APK, em /opt/txillapp/downloads/beta). */
 const LATEST_URL = 'https://txillapp.com/app/beta/latest.json';
@@ -82,12 +83,10 @@ export function AppUpdate() {
         <Text style={st.title}>Nova versão do Txillapp</Text>
         <Text style={st.sub}>A versão {latest.version} já está disponível. Tens a {mine}.</Text>
         {latest.notes ? <Text style={st.notes}>{latest.notes}</Text> : null}
-        <Pressable onPress={update} style={({ pressed }) => [st.primary, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-          <Text style={st.primaryText}>Atualizar</Text>
-        </Pressable>
+        <Button label="Atualizar" onPress={update} block style={st.primary} />
         <Text style={st.help}>O Android pede para confirmar a instalação: toca em Instalar.</Text>
         {!forced ? (
-          <Pressable onPress={later} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Agora não</Text></Pressable>
+          <Button label="Agora não" kind="ghost" onPress={later} block style={st.ghost} />
         ) : null}
       </View>
     </Sheet>
@@ -97,12 +96,10 @@ export function AppUpdate() {
 const st = StyleSheet.create({
   wrap: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 8, alignItems: 'center' },
   icon: { width: 64, height: 64, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  title: { marginTop: 16, fontSize: 21, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
+  title: { marginTop: 16, ...typo.sheetTitle, color: colors.zinc900, textAlign: 'center' },
   sub: { marginTop: 6, fontSize: 15, lineHeight: 21, color: colors.zinc600, textAlign: 'center' },
   notes: { marginTop: 12, fontSize: 15, lineHeight: 21, color: colors.zinc800, textAlign: 'center' },
-  primary: { marginTop: 22, alignSelf: 'stretch', height: 50, borderRadius: 25, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  primary: { marginTop: 22 },
   help: { marginTop: 10, fontSize: 13, color: colors.zinc500, textAlign: 'center' },
-  ghost: { marginTop: 6, height: 44, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 15, fontWeight: '700', color: colors.zinc700 },
+  ghost: { marginTop: 6 },
 });

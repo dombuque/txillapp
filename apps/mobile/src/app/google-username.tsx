@@ -1,10 +1,11 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { BackButton } from '@/components/BackButton';
 import { googleSignup } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -52,13 +53,10 @@ export default function GoogleUsername() {
     }
   }
 
-  const blocked = busy || !ready || !usernameOk;
   return (
     <Screen>
       <View style={st.topRow}>
-        <Pressable onPress={() => { googleSignup.set(null); router.replace('/login' as never); }} style={st.back} accessibilityRole="button" accessibilityLabel="Voltar">
-          <Icon name="back" size={30} strokeWidth={2} color={colors.brand} />
-        </Pressable>
+        <BackButton onPress={() => { googleSignup.set(null); router.replace('/login' as never); }} style={st.back} />
       </View>
 
       <View style={{ marginTop: 40 }}>
@@ -80,13 +78,13 @@ export default function GoogleUsername() {
             accessibilityLabel="utilizador"
           />
           <View style={st.avail}>
-            {check.state === 'ok' && <Text style={[st.hint, { color: '#16a34a', fontWeight: '600' }]}>@{username.trim().replace(/^@/, '')} está livre</Text>}
+            {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>@{username.trim().replace(/^@/, '')} está livre</Text>}
             {check.state === 'bad' && (
               <View>
-                <Text style={[st.hint, { color: colors.red600, fontWeight: '600' }]}>{check.message}</Text>
+                <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
                 {check.suggestions && check.suggestions.length > 0 && (
                   <View style={st.sugs}>
-                    {check.suggestions.slice(0, 4).map((u) => <Pressable key={u} onPress={() => setUsername(u)} style={st.sug}><Text style={st.sugText}>@{u}</Text></Pressable>)}
+                    {check.suggestions.slice(0, 4).map((u) => <Chip key={u} label={`@${u}`} onPress={() => setUsername(u)} style={st.sug} />)}
                   </View>
                 )}
               </View>
@@ -117,7 +115,7 @@ export default function GoogleUsername() {
           status={birth.length === 10 ? (birthProblem ? 'bad' : 'ok') : undefined}
           accessibilityLabel="Data de nascimento"
         />
-        {birthProblem && birth.length === 10 ? <Text style={[st.hint, { color: colors.red600, fontWeight: '600', marginTop: 8, paddingHorizontal: 4 }]}>{birthProblem}</Text> : null}
+        {birthProblem && birth.length === 10 ? <Text style={[st.hint, { color: colors.danger, fontWeight: '600', marginTop: 8, paddingHorizontal: 4 }]}>{birthProblem}</Text> : null}
 
         <Pressable onPress={() => { setError(''); setTerms(!terms); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: terms }}>
           <View style={[st.box, terms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{terms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
@@ -130,11 +128,7 @@ export default function GoogleUsername() {
 
       <View style={st.alert} accessibilityRole="alert"><Text style={st.alertText}>{error}</Text></View>
       <View style={{ marginTop: 'auto', paddingBottom: 24 }}>
-        <Pressable onPress={() => void submit()} disabled={blocked} style={({ pressed }) => [st.ctaWrap, blocked && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-          <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={st.cta}>
-            {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={st.ctaText}>Continuar</Text>}
-          </LinearGradient>
-        </Pressable>
+        <Button label="Continuar" onPress={() => void submit()} loading={busy} disabled={!ready || !usernameOk} block style={st.cta} />
       </View>
     </Screen>
   );
@@ -142,15 +136,15 @@ export default function GoogleUsername() {
 
 const st = StyleSheet.create({
   topRow: { paddingTop: 8 },
-  back: { marginLeft: -4, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  back: { marginLeft: -12 },
   title: { fontSize: 36, fontWeight: '300', lineHeight: 40, color: colors.zinc900 },
   sub: { marginTop: 12, fontSize: 20, fontWeight: '300', lineHeight: 28, color: colors.zinc600 },
   label: { marginTop: 32, marginBottom: 12, fontSize: 18, lineHeight: 28, fontWeight: '600', color: colors.zinc900 },
   avail: { marginTop: 12, minHeight: 36, paddingHorizontal: 4 },
   hint: { fontSize: 14, color: colors.zinc600 },
   sugs: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  sug: { borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6 },
-  sugText: { fontSize: 14, fontWeight: '600', color: colors.brand },
+  /** Chip branco por cima do fundo creme. */
+  sug: { backgroundColor: '#fff' },
   opt: { flex: 1, minHeight: 72, borderWidth: 2, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   optText: { fontSize: 15, fontWeight: '700', color: colors.zinc800 },
   link: { fontSize: 15, fontWeight: '600', color: colors.brand, textDecorationLine: 'underline' },
@@ -158,8 +152,7 @@ const st = StyleSheet.create({
   box: { marginTop: 2, width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   termsText: { flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc700 },
   alert: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  alertText: { fontSize: 15, color: colors.red600, textAlign: 'center' },
-  ctaWrap: { borderRadius: 999, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
-  cta: { borderRadius: 999, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#fff', fontSize: 18, lineHeight: 28, fontWeight: '600' },
+  alertText: { fontSize: 15, color: colors.danger, textAlign: 'center' },
+  /** Button lg com a sombra coral da marca (como em entrar). */
+  cta: { boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
 });

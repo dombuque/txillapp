@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useEffect, useState } from 'react';
-import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { CHANNEL } from '@/lib/distribution';
@@ -14,6 +14,7 @@ import { useOverlay } from '@/lib/overlays';
 import { onboardingSteps, prePromptButtons, type OnboardingStep } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
+import { Button } from './ui/Button';
 
 const DONE_KEY = 'tx_perms_v1';
 
@@ -98,10 +99,8 @@ export function PermissionsOnboarding() {
           <Text style={st.title}>{s.title}</Text>
           <Text style={st.text}>{s.text}</Text>
         </View>
-        <Pressable onPress={() => void allow()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button">
-          <Text style={st.primaryText}>{BUTTONS.primary}</Text>
-        </Pressable>
-        {BUTTONS.later ? <Pressable onPress={next} style={st.later} accessibilityRole="button"><Text style={st.laterText}>{BUTTONS.later}</Text></Pressable> : null}
+        <Button label={BUTTONS.primary} onPress={() => void allow()} loading={busy} block />
+        {BUTTONS.later ? <Button label={BUTTONS.later} kind="ghost" onPress={next} block style={st.later} /> : null}
       </View>
     </Modal>
   );
@@ -117,8 +116,5 @@ const st = StyleSheet.create({
   icon: { width: 104, height: 104, borderRadius: 32, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   title: { marginTop: 28, fontSize: 26, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   text: { marginTop: 12, fontSize: 17, lineHeight: 25, color: colors.zinc600, textAlign: 'center', maxWidth: 340 },
-  primary: { height: 54, borderRadius: 27, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  later: { height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  laterText: { fontSize: 15, fontWeight: '700', color: colors.zinc600 },
+  later: { marginTop: 4 },
 });
