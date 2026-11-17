@@ -16,7 +16,9 @@ import { CloseFriendsSheet } from '@/components/StoryParts';
 import { TxCamera, liveCameraSupported, type Shot } from '@/components/TxCamera';
 import { api, uploadMedia } from '@/lib/api';
 import { enqueueTask } from '@/lib/publishQueue';
-import { shrinkPhoto } from '@/lib/cropToRatio';
+import { cropRegion, shrinkPhoto } from '@/lib/cropToRatio';
+import { MimoPhoto } from '@/components/MimoPhoto';
+import { clampView, coverZoom, fillView, isWhole, mimoCrop, mimoFrame, WHOLE, type MimoView, type Size } from '@/lib/mimoCrop';
 import { mimoFromParams } from '@/lib/signedMedia';
 import { musicApi, musicPayload, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
@@ -57,7 +59,9 @@ export default function NewStory() {
         const p = await ImagePicker.requestCameraPermissionsAsync();
         if (!p.granted) return setErr('Preciso de acesso à câmara.');
       }
-      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30, allowsEditing: !isWeb, aspect: [9, 16] };
+      // Sem o recorte do sistema (allowsEditing obrigava a cortar a 9:16, com zoom): a foto e o vídeo entram inteiros e o
+      // zoom e o enquadramento fazem-se no editor, com o que se vê na moldura a ser o que se publica.
+      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30 };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       const a = r.canceled ? null : r.assets[0];
       if (a) setAsset({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg') });
@@ -108,7 +112,9 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [listOpen, setListOpen] = useState(false);
-  const [fill, setFill] = useState(false); // a foto inteira (com fundo desfocado) ou a preencher o ecrã
+  // A foto na moldura 9:16 (lib/mimoCrop.ts): inteira por omissão (com o fundo desfocado), com zoom e posição à escolha.
+  const [view, setView] = useState<MimoView>(WHOLE);
+  const [img, setImg] = useState<Size | null>(null);
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -126,6 +132,22 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   const counts = countLayers(stickers);
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const close = audience === 'close_friends';
+  // A moldura do mimo: 9:16 ao centro do ecrã (a forma do cartão do visor). A foto e os stickers vivem dentro dela, por isso o
+  // que se vê aqui é o que aparece no visor.
+  const frame = mimoFrame(box.w, box.h);
+  const fsize = { w: frame.w, h: frame.h };
+  const whole = isWhole(view);
+  // Outra foto (tirar outra, galeria): volta a inteira.
+  useEffect(() => { setView(WHOLE); setImg(null); }, [asset.uri]);
+  // O ecrã mudou de tamanho (rodar, janela do computador): a posição acompanha a moldura e fica dentro dos limites.
+  const lastW = useRef(frame.w);
+  useEffect(() => {
+    const k = lastW.current > 0 ? frame.w / lastW.current : 1;
+    lastW.current = frame.w;
+    if (img && k !== 1) setView((v) => clampView({ z: v.z, tx: v.tx * k, ty: v.ty * k }, img, fsize));
+  }, [frame.w, frame.h]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canFill = !!img && fsize.w > 0 && coverZoom(img, fsize) > 1.01;
+  const radius = frame.w < box.w - 1 || frame.h < box.h - 1 ? Math.min(20, Math.round(frame.w * 0.05)) : 0;
 
   function addSticker(id: string) {
     setPickSticker(false);
@@ -167,13 +189,17 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     if (busy) return;
     setBusy(true);
     const a = asset, text = caption.trim(), who = audience, track = music, placed = stickers;
+    // O que se vê é o que se publica: com zoom ou arrastada, vai só a parte da foto dentro da moldura (até 1080×1920);
+    // inteira, vai a original (o visor mostra-a inteira com o fundo desfocado, como aqui).
+    const crop = !a.video && img ? mimoCrop(view, img, fsize) : null;
     try {
       enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video, signed: a.signed }, async (_p, stage) => {
-        // Fotos do recorte do sistema vêm à resolução original: reduz-se antes de enviar (os stickers usam posições relativas).
-        const src = a.video ? a.uri : await shrinkPhoto(a.uri);
+        // A galeria dá a foto à resolução original: reduz-se antes de enviar (os stickers usam posições relativas).
+        const src = a.video ? a.uri : crop ? await cropRegion(a.uri, crop, crop.outW, crop.outH) : await shrinkPhoto(a.uri);
         const mime = src === a.uri ? a.mime : 'image/jpeg';
-        // Foto ou vídeo já assinado pela câmara da app (signed): o servidor não a volta a assinar ao guardar o mimo.
-        const id = await uploadMedia(src, mime, 'public', () => stage('prepare'), a.signed);
+        // Foto ou vídeo já assinado pela câmara da app (signed): o servidor não a volta a assinar ao guardar o mimo. Uma foto
+        // recortada perdeu o canto da assinatura: o servidor assina-a de novo.
+        const id = await uploadMedia(src, mime, 'public', () => stage('prepare'), crop && src !== a.uri ? false : a.signed);
         stage('post');
         await musicApi.createStory(id, text, who, track, placed);
         await qc.invalidateQueries({ queryKey: ['stories'] });
@@ -221,33 +247,44 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }} behavior="padding" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
       <FeatureIntro id="mimo" />
-      {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher.
+      {/* À volta da moldura (ecrãs mais altos ou mais largos do que 9:16): a foto desfocada e escurecida.
           overflow hidden: o fundo desfocado está ampliado (1,3) e passava 15% para fora do ecrã; no iPhone a página toda
           encolhia para caber (o editor a 87%, com uma faixa cinzenta à direita e em baixo). */}
-      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-        {asset.video ? (
-          <VideoPreview uri={asset.uri} />
-        ) : (
-          <>
-            {!fill && <Image source={{ uri: asset.uri }} style={[StyleSheet.absoluteFill, { opacity: 0.6, transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={40} />}
-            <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do mimo" />
-          </>
-        )}
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+        {!asset.video && <Image source={{ uri: asset.uri }} style={[StyleSheet.absoluteFill, { opacity: 0.35, transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={40} />}
       </View>
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 150, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' })} />
+      {/* A moldura 9:16 (a forma do cartão do visor): o vídeo inteiro, ou a foto sobre ela própria desfocada (sem barras
+          pretas), com zoom e posição à escolha; por cima, os stickers. */}
+      {frame.w > 0 && (
+        <View style={{ position: 'absolute', left: frame.x, top: frame.y, width: frame.w, height: frame.h, overflow: 'hidden', borderRadius: radius, backgroundColor: '#000' }}>
+          {asset.video ? (
+            <VideoPreview uri={asset.uri} />
+          ) : (
+            <>
+              <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+                <Image source={{ uri: asset.uri }} style={[StyleSheet.absoluteFill, { opacity: 0.6, transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={40} />
+              </View>
+              <MimoPhoto uri={asset.uri} width={frame.w} height={frame.h} view={view} onView={setView} img={img} onImg={setImg} />
+            </>
+          )}
+          {/* As sombras de cima e de baixo (os botões e a legenda leem-se sobre qualquer foto), por baixo dos stickers. */}
+          <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 150, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
+          <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' })} />
+          {/* Os stickers pousados sobre a cena: arrastar, pinçar, rodar; largar no caixote apaga. */}
+          <StickerCanvas stickers={stickers} onChange={setStickers} width={frame.w} height={frame.h} selected={sel} onSelect={setSel} onEdit={editText} hidden={textEdit?.index ?? null} />
+        </View>
+      )}
 
-      {/* Os stickers pousados sobre a cena: arrastar, pinçar, rodar; largar no caixote apaga. */}
-      <StickerCanvas stickers={stickers} onChange={setStickers} width={box.w} height={box.h} selected={sel} onSelect={setSel} onEdit={editText} hidden={textEdit?.index ?? null} />
-
-      {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. */}
-      <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
+      {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. box-none: entre os
+          botões, os dedos chegam à foto (zoom e arrastar). */}
+      <View pointerEvents="box-none" style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
         <Pressable onPress={confirmClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {sel !== null && stickers[sel] ? <StickerToolbar item={stickers[sel]} onChange={updateSel} onDelete={deleteSel} onDone={() => setSel(null)} /> : <View />}
         <View style={{ gap: 10 }}>
           {tool('camera', 'Tirar outra', () => confirmRetake(onCamera ?? onRetake))}
           {onCamera ? tool('images', 'Galeria', () => confirmRetake(onRetake)) : null}
-          {!asset.video ? tool('expand', fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã', () => setFill((f) => !f), fill) : null}
+          {/* «Preencher o ecrã»: a foto a cobrir a moldura, ao centro; depois de mexer, «Mostrar a foto inteira» volta a inteira. */}
+          {!asset.video && (canFill || !whole) ? tool('expand', whole ? 'Preencher o ecrã' : 'Mostrar a foto inteira', () => { if (img) setView(whole ? fillView(img, fsize) : WHOLE); }, !whole) : null}
           {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
           {tool('sticker', 'Stickers', () => setPickSticker(true), counts.stickers > 0)}
           <Pressable onPress={addText} style={[st.tool, counts.texts > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel="Texto" accessibilityHint="Escrever por cima do mimo" accessibilityState={{ selected: counts.texts > 0 }}>
@@ -257,7 +294,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       </View>
 
       {/* A legenda e a música pousam sobre a foto; em baixo, para quem vai e o enviar. */}
-      <View style={[st.bottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+      <View pointerEvents="box-none" style={[st.bottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         {music ? (
           <View style={st.musicChip}>
             <Icon name="music" size={16} color="#fff" />
@@ -305,7 +342,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
       {pickMusic && <MusicPicker hint={caption} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
       {pickSticker && <StickerPicker onClose={() => setPickSticker(false)} onPick={addSticker} />}
-      {textEdit && <TextLayerEditor initial={textEdit.layer} boxW={box.w} onDone={textDone} />}
+      {textEdit && <TextLayerEditor initial={textEdit.layer} boxW={frame.w} onDone={textDone} />}
     </KeyboardAvoidingView>
   );
 }

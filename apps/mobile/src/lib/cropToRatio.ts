@@ -117,3 +117,27 @@ export async function shrinkPhoto(uri: string, maxShort = 1440, maxLong = 2560):
     free(img);
   }
 }
+
+/**
+ * JPEG da parte `r` da foto (frações 0..1 da largura e da altura, já com a orientação EXIF) em `outW`×`outH`: o recorte do
+ * mimo depois de a pessoa mexer no zoom (lib/mimoCrop.ts). Se algo falhar, devolve-se a foto original.
+ */
+export async function cropRegion(uri: string, r: { x: number; y: number; w: number; h: number }, outW: number, outH: number, maxW = 1080, maxH = 1920): Promise<string> {
+  let img: SkImage | null = null;
+  try {
+    img = await open(uri);
+    if (!img) return uri;
+    const w = img.width(), h = img.height();
+    if (!w || !h || !(r.w > 0) || !(r.h > 0)) return uri;
+    const cw = r.w * w, ch = r.h * h;
+    // O tamanho a partir dos px que a Skia leu (a pré-visualização pode ter lido a foto noutro tamanho); a forma é a de
+    // `outW`×`outH`, até maxW×maxH e sem aumentar.
+    const k = Math.min(1, maxW / cw, maxH / ch);
+    const W = Math.max(1, Math.round(cw * k));
+    return render(img, r.x * w, r.y * h, cw, ch, W, Math.max(1, Math.round(W * (outH / outW))), 'mimo') ?? uri;
+  } catch {
+    return uri;
+  } finally {
+    free(img);
+  }
+}

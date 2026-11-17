@@ -34,9 +34,11 @@ test('fundos ampliados a ecrã inteiro (absoluteFill + scale > 1) ficam dentro d
   assert.deepEqual(bad, []);
 });
 
-test('o editor do mimo recorta a cena e o próprio ecrã', () => {
+test('o editor do mimo recorta a cena, a moldura 9:16 e o próprio ecrã', () => {
   const s = readFileSync(path.join(ROOT, 'src', 'app', 'stories', 'new.tsx'), 'utf8');
-  assert.match(s, /<View style=\{\[StyleSheet\.absoluteFill, \{ overflow: 'hidden' \}\]\}>\s*\{asset\.video \?/);
+  // O fundo à volta da moldura e a moldura (com a foto, o vídeo e os stickers) recortam o que sai.
+  assert.match(s, /<View style=\{\[StyleSheet\.absoluteFill, \{ overflow: 'hidden' \}\]\} pointerEvents="none">\s*\{!asset\.video && <Image/);
+  assert.match(s, /width: frame\.w, height: frame\.h, overflow: 'hidden', borderRadius: radius/);
   assert.match(s, /<KeyboardAvoidingView style=\{\{ flex: 1, backgroundColor: '#000', overflow: 'hidden' \}\}/);
 });
 
