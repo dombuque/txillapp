@@ -59,11 +59,12 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
-  txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada ou te convida para transmitir'],
+  // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174).
+  txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, e os convites para transmitir ou para vir ver quando te mencionam'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
-  // O Mixar, o feed a dois (API: src/mixar, 0150 e 0170). Ligado por omissão; a seleção do dia no máximo uma vez por dia.
-  mixar: ['Mixar', 'Convites e convites aceites, a seleção de cada dia (só entre as 8h e as 21h e se ainda não abriste o Mixar) e o Mixa Challenge: quando o outro já escolheu e o resultado'],
+  // O Mixar, o feed a dois e o do grupo (API: src/mixar, 0150, 0170 e 0173). Ligado por omissão; a seleção do dia no máximo uma vez por dia.
+  mixar: ['Mixar', 'Convites e convites aceites, propostas de Mixar do grupo, a seleção de cada dia (só entre as 8h e as 21h e se ainda não abriste o Mixar) e o Mixa Challenge: quando já escolheram e falta a tua escolha, e o resultado'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
@@ -80,9 +81,9 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
   remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
-  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir'],
+  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir', 'reabrir', 'angariação', 'menção na txillada', 'vem ver'],
   zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
-  mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar'],
+  mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar', 'mixar do grupo', 'mixar de grupo', 'propôs um mixar'],
 };
 
 /** Notificações: a âncora de cada categoria. */

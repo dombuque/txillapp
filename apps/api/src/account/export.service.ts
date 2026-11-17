@@ -233,10 +233,11 @@ export class ExportService {
         `SELECT mixar_id AS "mixarId", kind, ref, created_at AS "createdAt" FROM social.mixar_notices WHERE user_id = $1 ORDER BY created_at`,
       ).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
-      // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
+      // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim). Desde a 0174, também quantas vezes
+      // reabri a Angariação de cada uma e quando foi a última.
       txilladas: await q(
         `SELECT id, title, audience, price, goal, goal_purpose AS "goalPurpose", raised, tickets, status, started_at AS "startedAt", ended_at AS "endedAt",
-                peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason"
+                peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason", reopens, reopened_at AS "reopenedAt"
            FROM content.txilladas WHERE host_id = $1 ORDER BY started_at`,
       ).catch(() => []),
       // Txillada paga e Angariação (0167): as entradas que paguei e as ofertas que fiz nas Txilladas dos outros, e as entradas e
