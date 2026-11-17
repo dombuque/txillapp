@@ -92,7 +92,10 @@ export const iconSize = {
 /** Opacidade de um botão desligado. */
 export const disabledOpacity = 0.45;
 
-export type ButtonKind = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerSolid';
+export type ButtonKind = 'primary' | 'gradient' | 'secondary' | 'ghost' | 'danger' | 'dangerSolid';
+
+/** O degradê coral do botão `gradient` (entrar, criar conta, a apresentação): da marca ao coral claro, da esquerda para a direita. */
+export const brandGradient = [colors.brand, colors.brandLight] as const;
 export type ButtonSize = keyof typeof buttonHeight;
 
 /**
@@ -102,19 +105,28 @@ export type ButtonSize = keyof typeof buttonHeight;
 export function buttonLook(kind: ButtonKind = 'primary', size: ButtonSize = 'lg', onDark = false) {
   const height = buttonHeight[size];
   const fg =
-    kind === 'primary' || kind === 'dangerSolid' ? '#ffffff'
+    kind === 'primary' || kind === 'gradient' || kind === 'dangerSolid' ? '#ffffff'
     : kind === 'danger' ? (onDark ? '#fca5a5' : colors.danger)
     : onDark ? dark.text : colors.zinc900;
   const bg =
-    kind === 'primary' ? colors.brand
+    kind === 'primary' || kind === 'gradient' ? colors.brand
     : kind === 'dangerSolid' ? colors.danger
     : kind === 'danger' ? (onDark ? 'rgba(185,28,28,0.22)' : colors.dangerSoft)
     : kind === 'secondary' ? (onDark ? dark.raised : colors.zinc100)
     : 'transparent';
+  // Passar o rato (web e computador): os cheios clareiam um pouco; os outros ganham um fundo um tom acima.
+  const hoverBg =
+    kind === 'secondary' ? (onDark ? '#3a3a3c' : colors.zinc200)
+    : kind === 'ghost' ? (onDark ? dark.raised : colors.zinc100)
+    : kind === 'danger' ? (onDark ? 'rgba(185,28,28,0.32)' : '#fee2e2')
+    : null;
   return {
     height,
     bg,
     fg,
+    /** Fundo ao passar o rato (null: os cheios só clareiam, com `hoverOpacity`). */
+    hoverBg,
+    hoverOpacity: hoverBg ? 1 : 0.92,
     radius: radius.pill,
     fontSize: size === 'sm' ? 14 : 16,
     fontWeight: '700' as const,

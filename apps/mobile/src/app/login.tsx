@@ -213,7 +213,7 @@ export default function Login() {
         <View style={styles.alert} accessibilityRole="alert">
           <Text style={styles.alertText}>{error}</Text>
         </View>
-        <Button label={t('Entrar')} onPress={() => void submit()} loading={busy} block style={styles.cta} />
+        <Button label={t('Entrar')} kind="gradient" onPress={() => void submit()} loading={busy} block style={styles.cta} />
         <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">{t('Esqueceste a senha?')}</Text>
       </View>
       <GoogleButton mode="login" onError={setError} />
