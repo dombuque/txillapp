@@ -22,6 +22,8 @@ const createSchema = z.object({
   price: z.number().int().min(PRICE_MIN, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`).max(PRICE_MAX, `A entrada vai de ${PRICE_MIN} a ${PRICE_MAX} vibes.`).nullable().optional(),
   goal: z.number().int().min(GOAL_MIN, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`).max(GOAL_MAX, `A meta vai de ${GOAL_MIN} a ${GOAL_MAX} vibes.`).nullable().optional(),
   purpose: z.string().trim().max(PURPOSE_MAX).optional().default(''),
+  /** Txillada agendada (0176): começar a partir do agendamento (o título, o tipo, o preço e a meta vêm dele). */
+  scheduleId: z.string().uuid().nullable().optional(),
 });
 /** Uma oferta: o valor e a chave de idempotência da app (repetir o pedido não cobra outra vez). */
 const giftSchema = z.object({
@@ -63,7 +65,7 @@ export class TxilladaController {
   @Post()
   @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.tx.create(req.userId!, b.title, b.audience, { price: b.price ?? null, goal: b.goal ?? null, purpose: b.purpose });
+    return this.tx.create(req.userId!, b.title, b.audience, { price: b.price ?? null, goal: b.goal ?? null, purpose: b.purpose, scheduleId: b.scheduleId ?? null });
   }
 
   @Get(':id')

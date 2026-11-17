@@ -39,3 +39,15 @@ export const liveOf = (u = 'u', v = '$1') =>
   `(SELECT json_strip_nulls(json_build_object('id', ltx.id, 'price', CASE WHEN ltx.audience = 'paid' AND NOT ${txilladaTicket('ltx', v)} THEN ltx.price END)) FROM content.txilladas ltx
      WHERE ltx.host_id = ${u}.id AND ltx.status = 'live' AND ${txilladaVisible('ltx', u, v)} AND NOT ${txilladaBanned('ltx', v)}
        AND ${notReportedBy('txillada', 'ltx.id', v)} LIMIT 1)`;
+
+/**
+ * `nextTxillada` de uma pessoa (`u` = identity.users) para o espectador `v` (Txillada agendada, 0176): o próximo agendamento
+ * dela em 'scheduled' que o espectador pode ver (o mesmo público da Txillada), em JSON `{ id, startsAt, title, reminded }`.
+ * Barato: usa o índice parcial (host_id, starts_at) dos 'scheduled'.
+ */
+export const nextTxilladaOf = (u = 'u', v = '$1') =>
+  `(SELECT json_build_object('id', ns.id, 'startsAt', ns.starts_at, 'title', ns.title,
+            'reminded', EXISTS (SELECT 1 FROM content.txillada_schedule_reminders nr WHERE nr.schedule_id = ns.id AND nr.user_id = ${v}))
+      FROM content.txillada_schedules ns
+     WHERE ns.host_id = ${u}.id AND ns.status = 'scheduled' AND ${txilladaVisible('ns', u, v)}
+     ORDER BY ns.starts_at LIMIT 1)`;
