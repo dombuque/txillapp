@@ -60,7 +60,10 @@ test('a linha do Mixar nas Mensagens só aparece com novidades, com a bolinha, p
   // A dica de antes («Junta os teus gostos…») já não aparece.
   assert.doesNotMatch(entry, /st\.hint/);
   const inbox = read('app/(tabs)/messages.tsx');
-  assert.match(inbox, /\{!term && view !== 'requests' \? <MixarEntry \/> : null\}\s*<View style=\{styles\.tabs\} accessibilityRole="tablist">/);
+  assert.match(inbox, /const mixarLine = !term && view !== 'requests' \? <MixarEntry \/> : null;\s*const tabsBar = \(\s*<View style=\{styles\.tabs\} accessibilityRole="tablist">/);
+  // No telemóvel e no computador (a parte fixa da lista) a linha vem logo antes dos separadores.
+  assert.match(inbox, /\{mixarLine\}\{tabsBar\}\{below\}<\/View>;/);
+  assert.match(inbox, /\{notes\}\{mixarLine\}\{tabsBar\}<\/View> : null;/);
 });
 
 test('abrir o Mixar diz ao servidor (POST /open) no ecrã do Mixar e na conversa com um convite recebido', () => {
