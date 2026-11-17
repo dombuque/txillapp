@@ -3,7 +3,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { limitBuffer } from '@/lib/videoMemory';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -21,6 +21,7 @@ import { SearchField } from './ui/SearchField';
 import { NameWithBadge } from './NameWithBadge';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
+import { useDesktop } from '@/lib/desktop';
 import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
 import { MAX_STICKERS, newPlaced, type MimoLayer } from '@/lib/stickers';
 import { MAX_TEXT_LAYERS, countLayers, isTextLayer, newTextLayer, type TextLayer } from '@/lib/textLayers';
@@ -63,8 +64,19 @@ export function ShareSheet({ post, onClose }: { post: Post; onClose: () => void 
   );
 }
 
+/** A fila de destinos: no telemóvel desliza; no computador parte em linhas, ao centro. */
+function ActionsRow({ desktop, children }: { desktop: boolean; children: ReactNode }) {
+  return desktop ? (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', rowGap: 12, columnGap: 4 }}>{children}</View>
+  ) : (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps='handled'>{children}</ScrollView>
+  );
+}
+
 function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const sheetScroll = useSheetScroll();
+  // No computador os destinos partem em linhas (com o rato não se desliza a fila e o último ficava cortado).
+  const desktop = useDesktop();
   const [term, setTerm] = useState('');
   const [picked, setPicked] = useState<Target[]>([]);
   const [message, setMessage] = useState('');
@@ -252,7 +264,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
         </View>
       ) : (
         <View style={st.bottom}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
+          <ActionsRow desktop={desktop}>
             {action('square-plus', 'Adicionar ao mimo', () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
             {action('heart', 'Amigos próximos', () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
             {action('messages', 'WhatsApp', () => open(`https://wa.me/?text=${enc(url)}`), EMERALD_DARK, '#fff')}
@@ -262,7 +274,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
             {canDownload(post) ? action('download', Platform.OS === 'web' ? 'Descarregar' : 'Guardar vídeo', () => void download()) : null}
             {action('link', 'Copiar link', () => void copy())}
             {action('share', 'Partilhar…', () => void system())}
-          </ScrollView>
+          </ActionsRow>
         </View>
       )}
 

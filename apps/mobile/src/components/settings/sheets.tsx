@@ -98,10 +98,10 @@ export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => Promise<v
   }
   return (
     <Sheet title="Terminar sessão" onClose={busy ? () => undefined : onClose}>
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
-        <Text style={{ textAlign: 'center', fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
-        <Text style={{ textAlign: 'center', color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
-        {err ? <Text style={{ textAlign: 'center', color: colors.danger, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
+      <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+        <Text style={{ fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
+        <Text style={{ color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
+        {err ? <Text style={{ color: colors.danger, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
         <Button label="Sim, sair" onPress={() => void confirm()} disabled={busy} loading={busy} />
         <Button label="Fico por aqui" kind="secondary" onPress={onClose} disabled={busy} style={{ marginTop: 12 }} />
       </View>
@@ -184,7 +184,7 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
     return (
       <Sheet title="Senha alterada" onClose={onClose}>
         <View style={{ paddingHorizontal: 20 }}>
-          <Text style={{ textAlign: 'center', color: colors.zinc700, paddingVertical: 12, fontSize: 16 }}>As sessões nos outros dispositivos foram terminadas.</Text>
+          <Text style={{ color: colors.zinc700, paddingVertical: 12, fontSize: 16 }}>As sessões nos outros dispositivos foram terminadas.</Text>
           <Button label="Feito" onPress={onClose} />
         </View>
       </Sheet>
@@ -197,7 +197,7 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
         <TextInput value={cur} onChangeText={(t) => { setCur(t); setErr(''); }} placeholder="Senha atual" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="current-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} style={s.input} accessibilityLabel="Senha atual" />
         <TextInput ref={nextRef} value={next} onChangeText={(t) => { setNext(t); setErr(''); }} placeholder="Nova senha (mínimo 10 caracteres)" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} style={s.input} accessibilityLabel="Nova senha" />
         <TextInput ref={againRef} value={again} onChangeText={(t) => { setAgain(t); setErr(''); }} placeholder="Repete a nova senha" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} style={s.input} accessibilityLabel="Repete a nova senha" />
-        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
+        <Text style={{ minHeight: 20, fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
         <Button label="Alterar senha" onPress={() => void submit()} disabled={busy || !cur || !next} loading={busy} />
       </View>
     </Sheet>
@@ -231,7 +231,7 @@ export function DeleteSheet({ username, onClose, onDeleted }: { username: string
         </View>
         <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={s.input} accessibilityLabel="Confirmar o teu @" />
         <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={s.input} accessibilityLabel="Senha" />
-        <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
+        <Text style={{ minHeight: 20, fontSize: 14, color: colors.danger }} accessibilityLiveRegion="polite">{err}</Text>
         <Button label="Eliminar a minha conta" kind="dangerSolid" onPress={() => void submit()} disabled={busy || !can} loading={busy} />
         <Button label="Cancelar" kind="secondary" onPress={onClose} />
       </ScrollView>

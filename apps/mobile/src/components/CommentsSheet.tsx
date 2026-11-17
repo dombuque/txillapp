@@ -346,7 +346,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
 
   return (
     <Sheet title="Comentários" onClose={onClose} full plain variant="panel" dim={dim}>
-      <View style={styles.head}><Text style={styles.headTitle}>Comentários</Text></View>
+      <View style={styles.head}><Text style={styles.headTitle} accessibilityRole="header">Comentários</Text></View>
       <FlatList
         ref={list}
         onScrollToIndexFailed={() => undefined}
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   gifBtn: { minWidth: 44, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: colors.zinc700, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   gifBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, color: colors.zinc700 },
   head: { borderBottomWidth: 1, borderBottomColor: colors.zinc200, paddingBottom: 12 },
-  headTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.zinc900 },
+  headTitle: { paddingHorizontal: 16, fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingHorizontal: 16 },
   who: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   user: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },

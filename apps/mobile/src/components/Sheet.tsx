@@ -109,9 +109,11 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
 
   const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [dim, 0], extrapolate: 'clamp' });
 
-  const head = title && !plain ? (
-    <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead]}>
-      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1} accessibilityRole="header">{title}</Text>
+  // No computador, uma janela ou painel tem sempre o × para fechar, mesmo sem título (ex.: o menu de um comentário da Txillada).
+  const deskX = mode === 'dialog' || mode === 'panel';
+  const head = (title || deskX) && !plain ? (
+    <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead, !title && { justifyContent: 'flex-end' }]}>
+      {title ? <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1} accessibilityRole="header">{title}</Text> : null}
       {mode === 'dialog' || mode === 'panel' ? (
         <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
           <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />

@@ -323,7 +323,7 @@ const DONE = '#86efac';
 // A folha de oferecer vive no Panel escuro (Sheet `dark`): as cores vêm de `dark` do tema.
 const gs = StyleSheet.create({
   wrap: { gap: 10, paddingHorizontal: 4, paddingBottom: 6 },
-  lead: { fontSize: 14.5, lineHeight: 20, color: D.sub, textAlign: 'center' },
+  lead: { fontSize: 14.5, lineHeight: 20, color: D.sub },
   presets: { flexDirection: 'row', gap: 8 },
   preset: { flex: 1, minWidth: 0, height: 78, gap: 1, borderRadius: 16, borderWidth: 1.5, borderColor: D.line, backgroundColor: D.raised, alignItems: 'center', justifyContent: 'center' },
   presetOn: { backgroundColor: colors.brand, borderColor: colors.brand },
@@ -336,9 +336,9 @@ const gs = StyleSheet.create({
   customOn: { borderColor: colors.brand },
   customInput: { flex: 1, minWidth: 0, height: 46, paddingHorizontal: 18, fontSize: 16, fontWeight: '700', color: D.text, outlineStyle: 'none' as never },
   customUnit: { fontSize: 14, fontWeight: '700', color: D.sub },
-  balance: { fontSize: 13.5, color: D.sub, textAlign: 'center' },
-  err: { padding: 12, borderRadius: 14, backgroundColor: 'rgba(185,28,28,0.22)', gap: 8, alignItems: 'center' },
-  errText: { color: '#fca5a5', fontSize: 14, lineHeight: 19, textAlign: 'center', fontWeight: '600' },
+  balance: { fontSize: 13.5, color: D.sub },
+  err: { padding: 12, borderRadius: 14, backgroundColor: 'rgba(185,28,28,0.22)', gap: 8, alignItems: 'flex-start' },
+  errText: { color: '#fca5a5', fontSize: 14, lineHeight: 19, fontWeight: '600' },
   walletBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1.5, borderColor: colors.brand },
   walletText: { color: colors.brand, fontSize: 14, fontWeight: '800' },
   send: { height: 52, borderRadius: 26, backgroundColor: colors.brand, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
