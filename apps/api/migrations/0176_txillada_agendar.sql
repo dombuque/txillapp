@@ -46,7 +46,8 @@ CREATE INDEX IF NOT EXISTS txillada_schedule_reminders_user_idx ON content.txill
 
 -- Os avisos novos na lista (categoria «Txilladas»): 'txillada_scheduled_soon' (ao anfitrião: começa daqui a 15 min),
 -- 'txillada_scheduled_now' (ao anfitrião: é agora) e 'txillada_scheduled_cancelled' (a quem pediu lembrete: cancelada, ou a
--- hora mudou com `data.moved`). data: { scheduleId, startsAt, title } (e moved/newStartsAt, reminders).
+-- hora mudou com `data.moved`, ou retirada pela moderação com `data.removed`). data: { scheduleId, startsAt, title } (e moved/newStartsAt,
+-- removed, reminders).
 DO $$
 DECLARE def text; kinds text[];
 BEGIN

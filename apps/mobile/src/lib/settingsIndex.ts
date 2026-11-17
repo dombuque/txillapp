@@ -61,7 +61,7 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
   // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174) e os avisos da Txillada
   // agendada (0176): o txillada_live a quem pediu lembrete, txillada_scheduled_cancelled e, ao anfitrião, _soon e _now.
-  txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, os convites para transmitir ou para vir ver quando te mencionam, e as Txilladas agendadas: quando começa uma que pediste para lembrar (ou a cancelam ou mudam de hora) e os avisos das tuas, 15 min antes e na hora'],
+  txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, os convites para transmitir ou para vir ver quando te mencionam, e as Txilladas agendadas: quando começa uma que pediste para lembrar (ou a cancelam, mudam de hora ou a moderação a retira) e os avisos das tuas, 15 min antes e na hora'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
   // O Mixar, o feed a dois e o do grupo (API: src/mixar, 0150, 0170 e 0173). Ligado por omissão; a seleção do dia no máximo uma vez por dia.

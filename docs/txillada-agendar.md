@@ -12,9 +12,12 @@ com as escolhas que já fez (título, tipo, preço, meta).
   - `audience text NOT NULL` ('everyone' | 'friends' | 'close' | 'paid'), `price int` (5 a 5000, só e sempre com 'paid'),
     `goal int` (10 a 1 000 000, null sem Angariação), `goal_purpose text NOT NULL DEFAULT ''` (0 a 80);
   - `starts_at timestamptz NOT NULL`;
-  - `status text NOT NULL DEFAULT 'scheduled'` ('scheduled' | 'started' | 'cancelled' | 'expired');
+  - `status text NOT NULL DEFAULT 'scheduled'` ('scheduled' | 'started' | 'cancelled' | 'expired' | 'removed');
   - `txillada_id uuid` (FK content.txilladas, `ON DELETE SET NULL`): a Txillada que nasceu dela;
   - `host_reminded_at timestamptz` (aviso dos 15 minutos ao anfitrião), `host_now_at timestamptz` (aviso «é agora»);
+  - `reminders_count int`: quantos pediram lembrete (contas ativas), guardado quando os lembretes se apagam (ao começar ou ao
+    ser retirada); null antes disso;
+  - `removed_by uuid` (identity.users da equipa, `ON DELETE SET NULL`) e `removed_reason text`: retirada pela moderação;
   - `created_at`, `updated_at`.
   - Índices: `(host_id, starts_at) WHERE status = 'scheduled'`; `(starts_at) WHERE status = 'scheduled'`.
 - `content.txillada_schedule_reminders`: `(schedule_id, user_id)` PK (FK com CASCADE), `created_at`. É o «Lembrar-me».
@@ -22,9 +25,11 @@ com as escolhas que já fez (título, tipo, preço, meta).
   `'txillada_scheduled_now'` (ao anfitrião: é agora) e `'txillada_scheduled_cancelled'` (a quem pediu lembrete). Usar o
   padrão da 0173 (lê a lista atual da restrição e junta os novos). Os dois avisos ao anfitrião têm ator = o próprio anfitrião,
   por isso a migração junta-os também ao `notifications_check` (como o `zas_recap`).
+- `social.reports.target_type` ganha `'txillada_schedule'` (o mesmo padrão da 0158 e da 0162: lê a lista atual e junta).
 - Apagar a conta apaga os agendamentos da pessoa e os lembretes dela (CASCADE).
 - A exportação de dados junta:
-  - `txilladaSchedules`: os meus, com título, tipo, preço, meta, hora, estado e quantos pediram lembrete, sem nomes;
+  - `txilladaSchedules`: os meus, com título, tipo, preço, meta, hora, estado (e `removedReason` numa retirada) e quantos
+    pediram lembrete, sem nomes: as contas ativas, como a app e o aviso «é agora», ou `reminders_count` depois de começar;
   - `txilladaReminders`: os lembretes que pedi, com o @ do anfitrião e a hora.
 
 ## Regras
@@ -37,7 +42,8 @@ com as escolhas que já fez (título, tipo, preço, meta).
 - **Quem vê:** quem poderia ver a Txillada com esse `audience`. Usar a mesma função de visibilidade da Txillada
   (txillada-visibility.ts): bloqueios, conta privada, amigos, amigos próximos. Uma paga mostra o cartão com o preço, e a
   entrada só se paga quando estiver a decorrer. Fora disto: 404.
-- **Lembrar-me:** quem vê pode pedir e tirar o lembrete. O anfitrião não pode (400). No máximo 60 pedidos por minuto.
+- **Lembrar-me:** quem vê pode pedir e tirar o lembrete. O anfitrião não pode (400). No máximo 60 pedidos por minuto. Com a
+  Txillada desligada (sem o servidor das salas), pedir e tirar dão 503, como agendar.
 - **Começar:**
   - `POST /txilladas` aceita `scheduleId`. Com ele, usa título, tipo, preço e meta do agendamento; o corpo pode trazer um
     `title` novo.
@@ -46,6 +52,9 @@ com as escolhas que já fez (título, tipo, preço, meta).
   - Ao começar, o estado passa a 'started' com o `txillada_id`. Todos os que pediram lembrete recebem logo a notificação
     `txillada_live` e o push, mesmo com o limite de 1 por hora para os seguidores. Os seguidores recebem a de sempre, com
     o limite de sempre e sem repetir a quem já recebeu pelo lembrete.
+  - Depois de mandar o `txillada_live` a quem pediu lembrete, as linhas de `txillada_schedule_reminders` desse agendamento
+    apagam-se (já não servem) e o número (contas ativas) fica em `reminders_count`: o anfitrião continua a ver «N pessoas
+    pediram para ser lembradas» num agendamento começado, e a exportação também. Quem pediu deixa de ter `reminded: true`.
   - Começar uma Txillada normal (sem `scheduleId`) até 60 minutos antes de um agendamento meu liga-a a esse agendamento
     automaticamente, o mais próximo, para quem pediu lembrete não ficar à espera.
 - **Avisos ao anfitrião:**
@@ -55,15 +64,33 @@ com as escolhas que já fez (título, tipo, preço, meta).
     lembradas.»
   - Cada uma só uma vez.
 - **Expirar:** 2 horas depois de `starts_at` sem começar, o estado passa a 'expired', sem avisos.
-- **Cancelar:** o anfitrião cancela e o estado passa a 'cancelled'. Quem pediu lembrete recebe
+- **Cancelar:** o anfitrião cancela e o estado passa a 'cancelled'. Deixa sempre, mesmo com a conta suspensa ou a Txillada
+  desligada (cancelar só faz bem a quem estava à espera). Quem pediu lembrete recebe
   `txillada_scheduled_cancelled`, com push: «@x cancelou a Txillada de sábado, 20:00».
 - **Editar:**
   - O anfitrião pode mudar `title` e `starts_at`, com as mesmas regras; o tipo, o preço e a meta não mudam.
+  - As regras de quem agenda valem também para editar: com a Txillada desligada, 503; sem poder abrir (conta suspensa, menor),
+    403 com a razão (a mesma do `POST`).
   - Mudar a hora mais de 15 minutos manda a quem pediu lembrete uma notificação `txillada_scheduled_cancelled` com
     `data.moved: true`: «@x mudou a Txillada para domingo, 19:00».
   - Ao mudar a hora, os avisos ao anfitrião voltam a estar por mandar.
-- **Limpeza:** os 'cancelled' e 'expired' com mais de 30 dias apagam-se, e os lembretes vão com eles. Os 'started' ficam
-  enquanto a Txillada existir.
+- **Denunciar:** quem a vê (não o anfitrião) denuncia com `POST /txilladas/schedules/:id/report`, como a Txillada: os mesmos
+  motivos, uma nota opcional, no máximo 20 por hora. Só em 'scheduled' (409 `not_scheduled` fora disso). Vai para a fila da
+  moderação com o tipo `'txillada_schedule'` (o dono é o anfitrião). Quem denunciou deixa logo de a ver: o `GET /:id` dá-lhe 404,
+  sai da lista do perfil, de «Em breve» e do `nextTxillada`, e o lembrete que tinha apaga-se. Os outros continuam a vê-la até à
+  decisão.
+- **Retirar (backoffice):** na fila de queixas, «Remover» chama-se «Retirar». A fila mostra o título, o motivo da meta, o
+  anfitrião (o autor), a hora, o tipo e o estado. Retirar põe o estado em 'removed', com `removed_by` (quem decidiu) e
+  `removed_reason` (o motivo). Depois do COMMIT, quem pediu lembrete e ainda a vê recebe `txillada_scheduled_cancelled` com
+  `data.removed: true` («A Txillada de @x foi retirada»), e os lembretes apagam-se (com o número em `reminders_count`). Se já
+  não estava à espera (cancelada, expirada ou começada), fica 'removed' na mesma e os lembretes que restem saem sem aviso. Com
+  «Avisar o autor», o anfitrião recebe o `content_removed` de sempre, com `data.type: 'txillada_schedule'` («Removemos a tua
+  Txillada agendada»). Uma 'removed' não se começa, edita, lembra nem cancela (409 `not_scheduled`) e o `GET` mostra o estado.
+- **Apagar a conta do anfitrião:** os agendamentos e os lembretes saem com a conta e **ninguém é avisado** (uma conta eliminada
+  não gera avisos; os avisos que ela já tinha mandado também saem, com as notificações dela). A ligação de um agendamento dela
+  passa a dar 404 e o cartão mostra «Esta Txillada já não existe».
+- **Limpeza:** os 'cancelled', 'expired' e 'removed' com mais de 30 dias apagam-se, e os lembretes vão com eles. Os 'started'
+  ficam enquanto a Txillada existir.
 
 ## API (prefixo /api/v1, com sessão)
 
@@ -72,11 +99,12 @@ com as escolhas que já fez (título, tipo, preço, meta).
 | `POST /txilladas/schedules` `{ title?, audience, price?, goal?, goalPurpose?, startsAt }` | quem pode abrir | 201 `ScheduledTxillada` · 400 (hora, preço, meta), 403 (regras de quem abre), 409 `too_many` / `too_close` |
 | `GET /txilladas/schedules?username=<u>` | todos | `{ items: ScheduledTxillada[] }`: os 'scheduled' desse anfitrião que eu posso ver, por hora; sem `username`, os meus |
 | `GET /txilladas/schedules/upcoming` | todos | `{ items: ScheduledTxillada[] }`: os 'scheduled' das próximas 48 h de quem eu sigo e posso ver, por hora (máx. 20) |
-| `GET /txilladas/schedules/:id` | quem pode ver | `ScheduledTxillada` (também em 'started', 'cancelled' ou 'expired', para a ligação partilhada dizer o que aconteceu) |
-| `PATCH /txilladas/schedules/:id` `{ title?, startsAt? }` | anfitrião | `ScheduledTxillada` · 409 se não está em 'scheduled' |
-| `DELETE /txilladas/schedules/:id` | anfitrião | 204 (cancela) |
-| `POST /txilladas/schedules/:id/remind` | quem vê (não o anfitrião) | `{ reminded: true, reminders }` |
-| `DELETE /txilladas/schedules/:id/remind` | quem vê | `{ reminded: false, reminders }` |
+| `GET /txilladas/schedules/:id` | quem pode ver e não a denunciou | `ScheduledTxillada` (também em 'started', 'cancelled', 'expired' ou 'removed', para a ligação partilhada dizer o que aconteceu) |
+| `PATCH /txilladas/schedules/:id` `{ title?, startsAt? }` | anfitrião | `ScheduledTxillada` · 403 (regras de quem abre), 409 se não está em 'scheduled', 503 (desligada) |
+| `DELETE /txilladas/schedules/:id` | anfitrião | 204 (cancela; sempre, mesmo com a conta suspensa) |
+| `POST /txilladas/schedules/:id/remind` | quem vê (não o anfitrião) | `{ reminded: true, reminders }` · 503 (desligada) |
+| `DELETE /txilladas/schedules/:id/remind` | quem vê | `{ reminded: false, reminders }` · 503 (desligada) |
+| `POST /txilladas/schedules/:id/report` `{ reason, note? }` | quem vê (não o anfitrião) | 204 · 400 (motivo, o anfitrião), 404, 409 `not_scheduled`, 429 (20 por hora) |
 | `POST /txilladas` `{ …, scheduleId? }` | anfitrião | como antes; ver «Começar» |
 
 `ScheduledTxillada`:
@@ -92,14 +120,16 @@ com as escolhas que já fez (título, tipo, preço, meta).
 - `kind`: 'public' | 'friends' | 'paid', como no TxilladaDto.
 - `txilladaId`: só quando está em 'started'.
 - `live`: true se a Txillada que nasceu dela ainda está a decorrer.
-- `reminders`: o número de lembretes, só para o anfitrião. Para os outros vai a null.
+- `reminders`: o número de lembretes (contas ativas), só para o anfitrião; depois de começar (ou de ser retirada), o
+  `reminders_count`. Para os outros vai a null.
 
 Perfil (`GET /users/:username` e o que já devolve `live`): ganha
 `nextTxillada: { id, startsAt, title, reminded } | null`, o próximo agendamento que eu posso ver.
 
 Notificações (forma de sempre; `data` leva `scheduleId`, `startsAt` e `title`):
 - `txillada_scheduled_soon` e `txillada_scheduled_now` vêm do próprio anfitrião, como os avisos do sistema;
-- `txillada_scheduled_cancelled` leva `data.moved`, e `data.newStartsAt` quando a hora mudou.
+- `txillada_scheduled_cancelled` leva `data.moved`, e `data.newStartsAt` quando a hora mudou; `data.removed: true` quando a
+  moderação a retirou (push «A Txillada de @x foi retirada»).
 
 Tempo real: não é preciso. A app volta a pedir o agendamento ao abrir o cartão.
 
@@ -156,7 +186,10 @@ O que a API faz e o contrato acima não dizia ao pormenor:
     - «Começar», ativo a partir de 60 min antes; antes disso «Começar agora» com confirmação;
     - «Editar» (título, dia e hora) e «Cancelar a Txillada», com confirm() e a vermelho.
   - Em 'started' e a decorrer, mostra «Está a decorrer» e «Entrar»; já acabada, «Já acabou». Em 'cancelled' mostra «O
-    anfitrião cancelou esta Txillada»; em 'expired', «Não chegou a começar».
+    anfitrião cancelou esta Txillada»; em 'expired', «Não chegou a começar»; em 'removed', «Esta Txillada foi retirada por não
+    cumprir as regras». Um 404 (apagada, conta eliminada, ou não a podes ver) mostra «Esta Txillada já não existe».
+  - Quem não é o anfitrião tem «Denunciar» no fim do cartão (só em 'scheduled'), que abre o ReportSheet de sempre (tipo
+    `'txillada_schedule'`). Depois de denunciar, a app sai do cartão e volta a pedir as listas (já sem ela).
 - **Perfil:**
   - Com `nextTxillada`, aparece um cartão por baixo da bio: ícone da Txillada, «Txillada agendada», o título, «Sáb, 20:00» e
     o botão «Lembrar-me».
@@ -168,6 +201,7 @@ O que a API faz e o contrato acima não dizia ao pormenor:
 - **Notificações:**
   - Os três tipos novos têm texto e destino: o cartão do agendamento, ou o «Começar» para o anfitrião.
   - O `txillada_live` vindo de um lembrete diz «@x começou a Txillada que pediste para lembrar».
+  - O `txillada_scheduled_cancelled` com `data.removed` diz «A Txillada de @x foi retirada», sem o nome à frente.
 - **Textos:** português, por «tu», sem emojis nem travessões, aspas «». Hora no formato de Moçambique: «sáb., 20:00» ou
   «sábado, 20:00», com o fuso do telemóvel.
 - **Selo:** em todo o lado onde aparece o anfitrião.
