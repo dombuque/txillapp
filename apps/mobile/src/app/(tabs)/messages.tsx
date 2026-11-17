@@ -482,6 +482,11 @@ export default function Messages() {
         refreshControl={pull.control}
         data={rows}
         keyExtractor={(r) => r.key}
+        // Na web (sobretudo no PWA do iPhone) a FlatList nem sempre recebe o scroll: ficava nas primeiras 10 linhas e o que
+        // o «Ver mais» trazia nunca aparecia. Na web desenham-se logo todas as que já vieram (como no feed).
+        initialNumToRender={Platform.OS === 'web' ? 200 : 12}
+        windowSize={Platform.OS === 'web' ? 201 : 11}
+        disableVirtualization={Platform.OS === 'web'}
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
