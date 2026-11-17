@@ -277,10 +277,10 @@ test('fixar e denunciar um comentário: as rotas do contrato, o menu e a pílula
   assert.match(screen, /type="txillada_comment" id=\{reporting\.id\} txilladaId=\{dto\.id\}/);
   assert.match(screen, /onReported=\{\(\) => tx\.hideComment\(reporting\)\}/);
   const pill = read('src/components/txillada/PinnedComment.tsx');
-  assert.match(pill, /📌 FIXADO/);
-  assert.match(pill, /<InlineBadge who=\{c\.author\}/);
+  assert.match(pill, /<PinIcon [^>]*\/>\s*<Text style=\{st\.tagText\}>Fixado<\/Text>/);
+  assert.match(pill, /<NameWithBadge name=\{c\.author\.username\} who=\{c\.author\}/);
   const menu = read('src/components/txillada/CommentMenu.tsx');
-  assert.match(menu, /<InlineBadge who=\{c\.author\}/);
+  assert.match(menu, /<NameWithBadge name=\{c\.author\.username\} who=\{c\.author\}/);
 });
 
 test('limites: 1 comentário de 2 em 2 s; no máximo 5 brindes por segundo', () => {
@@ -523,7 +523,7 @@ test('as ligações das Txilladas não entram nos motores de busca (página, rob
 
 // ── brindar os comentários (0161) ───────────────────────────────────────────────────────────────────────────────────
 
-test('brindes aos comentários: o evento da sala, a contagem no balão e a pastilha «🍻 N»', () => {
+test('brindes aos comentários: o evento da sala, a contagem no balão e a pastilha (ícone do brinde e N)', () => {
   assert.deepEqual(
     t.parseTxilladaEvent({ type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1', cheers: 3.7 }, 't1'),
     { type: 'txillada.comment_cheer', txilladaId: 't1', commentId: 'c1', cheers: 3 },
@@ -547,9 +547,9 @@ test('brindes aos comentários: o evento da sala, a contagem no balão e a pasti
   assert.equal(t.commentCheersLabel(0), '');
   assert.equal(t.commentCheersLabel(undefined), '');
   assert.equal(t.commentCheersLabel(Number.NaN), '');
-  assert.equal(t.commentCheersLabel(3), '🍻 3');
-  assert.equal(t.commentCheersLabel(999), '🍻 999');
-  assert.equal(t.commentCheersLabel(1250), '🍻 1,3 mil');
+  assert.equal(t.commentCheersLabel(3), '3');
+  assert.equal(t.commentCheersLabel(999), '999');
+  assert.equal(t.commentCheersLabel(1250), '1,3 mil');
 });
 
 test('brindes aos comentários: a rota do contrato, o ecrã e os balões', async () => {

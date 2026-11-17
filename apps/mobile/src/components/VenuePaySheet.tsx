@@ -187,7 +187,7 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
   );
 }
 
-const receiptNote = (n: string) => (n ? <Text style={st.note} numberOfLines={3}>“{n}”</Text> : null);
+const receiptNote = (n: string) => (n ? <Text style={st.note} numberOfLines={3}>«{n}»</Text> : null);
 
 /** O recibo, feito para mostrar a quem atende: valor grande, o local, a hora, o número do recibo e um relógio a andar (prova que não é uma foto). */
 function ReceiptView({ venue, r, onClose }: { venue: Venue; r: Receipt; onClose: () => void }) {

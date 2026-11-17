@@ -10,9 +10,11 @@ import { Avatar } from '@/components/Avatar';
 import { FollowButton } from '@/components/FollowButton';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { SendButton } from '@/components/ui/SendButton';
 import { api } from '@/lib/api';
 import { aiApi } from '@/lib/api.ai';
 import { liveState } from '@/lib/superTxillLive';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 
@@ -64,7 +66,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
               <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.live === 'writing' ? 'está a escrever…' : tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
             </View>
             {tab === 'conversa' && chat.messages.length > 0 && (
-              <Pressable onPress={() => Alert.alert('Apagar a conversa?', 'As mensagens com o SuperTxill saem da tua conta e não voltam.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Apagar', style: 'destructive', onPress: chat.clear }])} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
+              <Pressable onPress={() => void confirm({ title: 'Apagar a conversa?', message: 'As mensagens com o SuperTxill saem da tua conta e não voltam.', confirm: 'Apagar', danger: true }).then((ok) => { if (ok) chat.clear(); })} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
             )}
           </View>
 
@@ -306,9 +308,7 @@ function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
               }
             }}
           />
-          <Pressable onPress={() => void send(text)} disabled={!text.trim() || chat.pending} accessibilityRole="button" accessibilityLabel="Enviar" style={[s.sendBtn, (!text.trim() || chat.pending) && { opacity: 0.4 }]}>
-            <Icon name="send" size={18} color="#fff" />
-          </Pressable>
+          <SendButton onPress={() => void send(text)} disabled={!text.trim() || chat.pending} />
         </View>
         <Text style={s.fine}>O SuperTxill corre no servidor do Txillapp e só vê o que tu já podes ver na app. Pode errar.</Text>
       </View>
@@ -341,7 +341,7 @@ const s = StyleSheet.create({
   err: { textAlign: 'center', color: '#dc2626', fontSize: 14, paddingBottom: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderRadius: 24, backgroundColor: colors.zinc100, padding: 4 },
   input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 128, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 20, color: colors.zinc900, outlineStyle: 'none' } as object,
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
   fine: { marginTop: 6, textAlign: 'center', fontSize: 11, color: colors.zinc500 },
 
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.zinc100 },
@@ -357,5 +357,5 @@ const s = StyleSheet.create({
   who: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   reason: { fontSize: 14, color: colors.zinc500 },
-  box: { marginTop: 24, borderRadius: 16, backgroundColor: '#fafafa', padding: 14, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
+  box: { marginTop: 24, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
 });

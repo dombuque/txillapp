@@ -24,7 +24,7 @@ const GREEN = '#15803d';
  * «Já pagaste?»: confirmar o pagamento, com uma foto e/ou o local onde foi a gelada (opcional). O local mostra primeiro os
  * que estão perto (como no «À tua volta») e procura-se pelo nome. Não é um check-in oficial (esse é só com o QR do local):
  * é a etiqueta «no Bar X», que só as duas pessoas veem. Se a pessoa estiver mesmo lá (GPS a até 150 m), leva o selo
- * «✓ estiveram lá».
+ * «estiveram lá» (com o visto).
  */
 export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClose: () => void; onClaim: (c: PaidChoice) => void }) {
   const [place, setPlace] = useState<PaidPlace | null>(null);
@@ -52,7 +52,12 @@ export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClos
             <Icon name="map-pin" size={20} color={colors.brand} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={st.placeName} numberOfLines={1}>{venueTag(place)}</Text>
-              {place.near ? <Text style={st.there}>✓ Estás aqui: vai com o selo «estiveram lá»</Text> : <Text style={st.sub}>Só tu e {who} veem o local.</Text>}
+              {place.near ? (
+                <View style={st.thereRow}>
+                  <Icon name="check" size={13} strokeWidth={2.6} color={GREEN} />
+                  <Text style={st.there}>Estás aqui: vai com o selo «estiveram lá»</Text>
+                </View>
+              ) : <Text style={st.sub}>Só tu e {who} veem o local.</Text>}
             </View>
             <Pressable onPress={() => setPicking(true)} hitSlop={8} style={st.link} accessibilityRole="button" accessibilityLabel="Mudar o local">
               <Text style={st.linkText}>Mudar</Text>
@@ -182,7 +187,8 @@ const st = StyleSheet.create({
   placeName: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   optional: { fontSize: 13, fontWeight: '400', color: colors.zinc500 },
   sub: { marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
-  there: { marginTop: 2, fontSize: 12, fontWeight: '700', color: GREEN },
+  thereRow: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  there: { flexShrink: 1, fontSize: 12, fontWeight: '700', color: GREEN },
   link: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '700', color: colors.brand },
   btn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14 },

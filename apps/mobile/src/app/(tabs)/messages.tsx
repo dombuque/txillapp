@@ -8,6 +8,8 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { closeOpenSwipe, rowHold, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { InboxMenuSheet } from '@/components/InboxMenuSheet';
 import { GroupCover } from '@/components/groups/GroupParts';
@@ -28,6 +30,7 @@ import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Inst
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type Badged, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { groupSenderPrefix, listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 import { systemText } from '@/lib/screenshotNotice';
@@ -74,7 +77,7 @@ export function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boole
   if (m.kind === 'system') return systemText(m);
   if (m.kind === 'location') return `${you}Localização`;
   // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
-  if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma 🍻'}`;
+  if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma'}`;
   if (m.kind === 'rodada') return `${you}${m.body || 'Abriu uma rodada'}`;
   // Mixar: «Convidou-te para um Mixar» / «Convidaste para um Mixar» (sempre para quem vê, lib/mixar).
   if (m.kind === 'mixar') return mixarPreview(m);
@@ -198,15 +201,11 @@ export default function Messages() {
     void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
   }
   /** Conversa a dois: apagar a conversa (pergunta antes). */
-  function deleteChat(u: string, name: string) {
-    Alert.alert('Apagar a conversa?', `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: () => {
-        patchDirect(u, () => null);
-        qc.removeQueries({ queryKey: ['chat-thread', u] });
-        void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
-      } },
-    ]);
+  async function deleteChat(u: string, name: string) {
+    if (!(await confirm({ title: 'Apagar a conversa?', message: `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, confirm: 'Apagar', danger: true }))) return;
+    patchDirect(u, () => null);
+    qc.removeQueries({ queryKey: ['chat-thread', u] });
+    void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
   }
   /** TxillGroup: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
   function groupRead(g: TxillGroupSummary) {
@@ -214,15 +213,11 @@ export default function Messages() {
     void gruposApi.thread(g.id).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-groups'] }));
   }
   /** TxillGroup: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
-  function leaveGroup(g: TxillGroupSummary, me: string) {
-    Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de “${g.name}”. Só voltas se alguém te adicionar.`, [
-      { text: 'Ficar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => {
-        patchGroup(g.id, () => null);
-        qc.removeQueries({ queryKey: ['chat-group', g.id] });
-        void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
-      } },
-    ]);
+  async function leaveGroup(g: TxillGroupSummary, me: string) {
+    if (!(await confirm({ title: 'Sair do TxillGroup?', message: `Deixas de receber as mensagens de «${g.name}». Só voltas se alguém te adicionar.`, confirm: 'Sair', cancel: 'Ficar', danger: true }))) return;
+    patchGroup(g.id, () => null);
+    qc.removeQueries({ queryKey: ['chat-group', g.id] });
+    void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
   }
   /** Conversa a dois: limpar só para mim (pergunta antes; a conversa fica na lista, vazia). O mesmo que na conversa aberta. */
   function clearChat(u: string) {
@@ -550,27 +545,17 @@ export default function Messages() {
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : failed ? (
             // Não carregou (sem rede): não é "Ainda sem cochichos" (lib/chatErrors).
-            <View style={styles.empty}>
-              <Icon name="alert" size={44} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>Não consegui carregar as mensagens</Text>
-              <Text style={styles.emptySub}>Verifica a internet e tenta outra vez.</Text>
-              <Pressable onPress={() => { void direct.refetch(); void groups.refetch(); }} disabled={retrying} style={[styles.newBtn, retrying && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={styles.newBtnText}>{retrying ? 'A tentar…' : 'Tentar outra vez'}</Text>
-              </Pressable>
-            </View>
+            <ErrorState what="as mensagens" retryLabel={retrying ? 'A tentar…' : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
           ) : (
-            <View style={styles.empty}>
-              <Icon name={view === 'groups' && !term ? 'users' : 'messages'} size={44} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}</Text>
-              <Text style={styles.emptySub}>
-                {term ? 'Tenta outro nome ou começa uma conversa nova.'
-                  : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
-                  : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
-                  : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
-              </Text>
-              {!term && view === 'chats' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
-              {!term && view === 'groups' && <Pressable onPress={newGroup} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Novo TxillGroup</Text></Pressable>}
-            </View>
+            <EmptyState
+              icon={view === 'groups' && !term ? 'users' : 'messages'}
+              title={term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}
+              text={term ? 'Tenta outro nome ou começa uma conversa nova.'
+                : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
+                : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
+                : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
+              action={!term && view === 'chats' ? { label: 'Nova conversa', onPress: () => router.push('/messages/new' as never) } : !term && view === 'groups' ? { label: 'Novo TxillGroup', onPress: newGroup } : undefined}
+            />
           )
         }
         ListFooterComponent={
@@ -597,6 +582,7 @@ export default function Messages() {
       {held ? (
         <InboxMenuSheet
           name={held.name}
+          who={held.who}
           sub={held.g ? `${held.g.members} ${held.g.members === 1 ? 'pessoa' : 'pessoas'}` : held.username ? `@${held.username}` : undefined}
           photo={held.g
             ? <GroupCover url={held.g.avatarUrl} kind={groupCardData(held.g).kind} size={48} radius={24} />
@@ -661,8 +647,7 @@ const styles = StyleSheet.create({
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
   // 44 de altura (a da caixa) para o toque chegar aos 44 pt.
   sBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
-  newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  newBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
   tabBtn: { height: 40, justifyContent: 'center' },
@@ -692,9 +677,7 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, marginRight: 5, backgroundColor: colors.brand },
   mixarNew: { marginLeft: 6, marginRight: 2 },
 
-  empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
-  emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
-  emptySub: { marginTop: 4, maxWidth: 320, fontSize: 16, color: colors.zinc600, textAlign: 'center' },
+
   others: { paddingHorizontal: 4, paddingBottom: 4, paddingTop: 16, fontSize: 12, fontWeight: '700', letterSpacing: 1, color: colors.zinc500 },
   chat: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 6 },
   chatText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },

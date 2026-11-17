@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { SendButton } from '@/components/ui/SendButton';
 import {
   acceptCall, audioOutputs, currentAudioOutput, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall,
   onAudioOutputsChange, setAudioOutput, speakerLabel, speakerLit, speakerMode, toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev,
@@ -97,7 +98,7 @@ function Backdrop({ peer, stream, mirror }: { peer: CallPeer | null; stream?: un
   }
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-      <LinearGradient colors={['#3b111b', '#18181b']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#3b111b', colors.zinc900]} style={StyleSheet.absoluteFill} />
       {/* Desfocada mas reconhecível (antes, 60 px no iPhone e no site deixavam só uma mancha cinzenta). */}
       {peer?.hasAvatar ? <Image source={{ uri: avatarUrl(peer) }} style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.15 }] }]} contentFit="cover" blurRadius={Platform.OS === 'android' ? 14 : 22} /> : null}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.38)' }]} />
@@ -258,7 +259,7 @@ function Incoming({ c }: { c: CallState }) {
           {writing ? (
             <View style={st.writeRow}>
               <TextInput autoFocus value={text} onChangeText={setText} placeholder="Escreve a tua mensagem…" placeholderTextColor={colors.zinc500} style={st.writeInput} maxLength={300} onSubmitEditing={() => text.trim() && declineCall(text)} returnKeyType="send" accessibilityLabel="Mensagem" />
-              <Pressable onPress={() => text.trim() && declineCall(text)} disabled={!text.trim()} style={[st.sendBtn, !text.trim() && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Enviar e recusar"><Icon name="send" size={20} color="#fff" /></Pressable>
+              <SendButton label="Enviar e recusar" onPress={() => { if (text.trim()) declineCall(text); }} disabled={!text.trim()} />
             </View>
           ) : (
             <>
@@ -367,7 +368,7 @@ function Controls({ c, camera }: { c: CallState; camera: boolean }) {
           <Ctrl label={c.camOn ? 'Desligar a câmara' : 'Ligar a câmara'} off={!c.camOn} onPress={() => void toggleCamera()}>{(col) => c.camOn ? <Icon name="video" size={24} color={col} /> : <CallIcon name="video-off" size={24} color={col} />}</Ctrl>
         ) : null}
         {camera && c.camOn && c.canFlip ? (
-          <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="flip-camera" size={24} color={col} />}</Ctrl>
+          <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="cam-flip" size={24} color={col} />}</Ctrl>
         ) : null}
         <SpeakerButton c={c} />
         <Pressable onPress={hangUp} style={({ pressed }) => [st.ctrl, { backgroundColor: RED }, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Desligar">
@@ -568,7 +569,7 @@ const st = StyleSheet.create({
   replyText: { fontSize: 16, color: colors.zinc900 },
   writeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 8 },
   writeInput: { flex: 1, height: 46, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
   sinkBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'flex-end', padding: 16 },
   sinkSheet: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 20, padding: 12, gap: 2 },
   bar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-evenly', paddingHorizontal: 24 },

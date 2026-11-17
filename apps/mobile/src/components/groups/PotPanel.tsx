@@ -59,7 +59,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
   const ranking = [...pot.totalByMember].filter((m) => m.amount > 0).sort((a, b) => b.amount - a.amount);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#fafafa' }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.zinc50 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
       <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
         <Text style={st.heroLabel}>Vibes do TxillGroup</Text>
         <Text style={st.heroValue}>{pot.balance.toLocaleString('pt-PT')}</Text>

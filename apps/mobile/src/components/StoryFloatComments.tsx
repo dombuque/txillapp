@@ -6,6 +6,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withS
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { CheersPour } from '@/components/CheersPour';
+import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { MentionText } from '@/components/txillada/MentionText';
 import { api, type Badged, type StoryComment } from '@/lib/api';
@@ -183,6 +184,7 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         </Svg>
         {pillText ? (
           <Animated.View style={[st.pill, glassWeb, pillStyle]} pointerEvents="none">
+            <Icon name="cheers" size={12} color="#fff" strokeWidth={2.2} />
             <Text style={st.pillText}>{pillText}</Text>
           </Animated.View>
         ) : null}
@@ -205,8 +207,8 @@ const st = StyleSheet.create({
   giftGlass: { backgroundColor: GIFT_GLASS, borderWidth: 1, borderColor: 'rgba(255,154,91,0.75)' },
   giftText: { color: '#fff', fontWeight: '700' },
   text: { color: 'rgba(255,255,255,0.94)', fontSize: 13.5, lineHeight: 18, fontWeight: '500' },
-  // «🍻 N» encostada ao fim do balão, em baixo (o mesmo vidro).
-  pill: { alignSelf: 'flex-end', flexShrink: 0, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
+  // O brinde e N, encostados ao fim do balão, em baixo (o mesmo vidro).
+  pill: { alignSelf: 'flex-end', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
   pillText: { color: '#fff', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   // Os copos saem do meio do balão (sem a roda da foto).
   burst: { position: 'absolute', left: 38, right: 0, top: -24, bottom: -24 },

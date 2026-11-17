@@ -60,9 +60,9 @@ test('textos: gostos, leitor de ecrã e o motivo para não partilhar', () => {
   assert.match(g.visibilityNote('me', false), /só para ti/);
 });
 
-test('ownerCheersText: "🥂 12 brindes à tua geleira"; sem brindes, nada', () => {
-  assert.equal(c.ownerCheersText(12), '🥂 12 brindes à tua geleira');
-  assert.equal(c.ownerCheersText(1), '🥂 1 brinde à tua geleira');
+test('ownerCheersText: «12 brindes à tua geleira» (sem emoji: o ícone do brinde vai ao lado); sem brindes, nada', () => {
+  assert.equal(c.ownerCheersText(12), '12 brindes à tua geleira');
+  assert.equal(c.ownerCheersText(1), '1 brinde à tua geleira');
   assert.equal(c.ownerCheersText(0), '');
   assert.equal(c.ownerCheersText(-2), '');
 });

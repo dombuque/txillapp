@@ -10,7 +10,9 @@ import { Avatar } from '../Avatar';
 import { CheersPour } from '../CheersPour';
 import { DrinkArt } from '../DrinkArt';
 import { Icon } from '../Icon';
+import { InlineBadge } from '../NameWithBadge';
 import { Sheet } from '../Sheet';
+import { Button } from '../ui/Button';
 import { DrinkSheet } from './DrinkSheet';
 import { AMBER_INK } from './GeladaCard';
 
@@ -80,7 +82,10 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
         <View style={st.badge}><Icon name="cheers" size={20} color={AMBER_INK} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={st.kicker}>{open ? 'RODADA ABERTA' : 'RODADA FECHADA'}</Text>
-          <Text style={st.title} numberOfLines={2}>{round.payer ? `Esta paga ${round.payer.username ? `@${round.payer.username}` : 'Conta eliminada'} 🙌` : open ? 'Quem paga esta?' : 'Rodada sem quem pagasse'}</Text>
+          <Text style={st.title} numberOfLines={2}>
+            {round.payer ? `Esta paga ${round.payer.username ? `@${round.payer.username}` : 'Conta eliminada'}` : open ? 'Quem paga esta?' : 'Rodada sem quem pagasse'}
+            {round.payer?.username ? <InlineBadge who={round.payer} fontSize={16} /> : null}
+          </Text>
         </View>
         {round.payer ? face(round.payer, 36) : null}
       </LinearGradient>
@@ -128,7 +133,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
             ) : null}
           </View>
         ) : (
-          <Text style={[st.meta, { marginTop: 8 }]}>Saúde! 🙌</Text>
+          <Text style={[st.meta, { marginTop: 8 }]}>Saúde!</Text>
         )}
       </View>
       <CheersPour n={burst} size={180} />
@@ -159,9 +164,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
                 <Switch value={bill} onValueChange={setBill} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel="Pôr no livro das geladas" />
               </View>
             ) : null}
-            <Pressable disabled={busy} onPress={() => void closeNow()} style={({ pressed }) => [st.btn, st.primary, pressed && st.pressed]} accessibilityRole="button">
-              <Text style={st.primaryText}>{busy ? 'A fechar…' : 'Fechar e brindar'}</Text>
-            </Pressable>
+            <Button label="Fechar e brindar" block loading={busy} onPress={() => void closeNow()} />
           </View>
         </Sheet>
       )}

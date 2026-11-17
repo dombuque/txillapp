@@ -105,7 +105,7 @@ export function ChatComposer({
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com "Tentar de novo" (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
     const shown = pendingFrom(msg, replyTo);
     if (shown) {
       onClearReply?.();
@@ -434,7 +434,7 @@ const st = StyleSheet.create({
   busy: { textAlign: 'center', fontSize: 13, color: colors.zinc500, paddingBottom: 6 },
   help: { marginHorizontal: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, backgroundColor: colors.zinc900, paddingHorizontal: 14, paddingVertical: 10 },
   helpText: { flex: 1, color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
+  reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
   replyBar: { alignSelf: 'stretch', width: 3, borderRadius: 2, backgroundColor: colors.brand },
   replyWho: { fontSize: 13, lineHeight: 17, fontWeight: '700', color: colors.brand },
   replyText: { fontSize: 13, lineHeight: 18, color: colors.zinc600 },

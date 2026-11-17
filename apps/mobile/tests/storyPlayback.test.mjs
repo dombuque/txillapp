@@ -22,5 +22,6 @@ test('o visor pára quando a app sai do ecrã e tem Tentar outra vez sem rede', 
   assert.match(src, /AppState\.addEventListener\('change', \(s\) => setBackground\(s !== 'active'\)\)/);
   assert.match(src, /const paused = storyPaused\(\{ held, typing, panelOpen: panel !== null, away, background \}\);/);
   assert.match(src, /const offline = q\.isError && !isGone\(q\.error\);/);
-  assert.match(src, /Tentar outra vez/);
+  // O erro comum (ErrorState, escuro): o botão é «Tentar outra vez».
+  assert.match(src, /<ErrorState what="o mimo" onRetry=\{\(\) => void q\.refetch\(\)\} dark/);
 });

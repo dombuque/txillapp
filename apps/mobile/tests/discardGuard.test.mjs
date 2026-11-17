@@ -35,7 +35,8 @@ test('o editor do mimo pergunta antes de fechar (× e voltar do Android) e antes
   assert.match(src, /<Pressable onPress=\{confirmClose\}[^>]*accessibilityLabel="Cancelar"/);
   assert.match(src, /BackHandler\.addEventListener\('hardwareBackPress'/);
   assert.match(src, /tool\('camera', 'Tirar outra', \(\) => confirmRetake\(/);
-  assert.match(src, /style: 'destructive', onPress: onClose/);
+  // A pergunta é a caixa da app (lib/confirm), igual no telemóvel e no site; só «Descartar» fecha.
+  assert.match(src, /confirm\(\{ title: t\.title, message: t\.message, confirm: t\.discard, cancel: t\.keep, danger: true \}\)\.then\(\(ok\) => \{ if \(ok\) onClose\(\); \}\)/);
 });
 
 test('a câmara pergunta antes de deitar fora um vídeo gravado com o voltar', () => {

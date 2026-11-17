@@ -536,7 +536,7 @@ const st = StyleSheet.create({
   nativePane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
   pane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row', opacity: 0 },
   desk: { position: 'relative', borderRadius: 16 },
-  deskHover: { backgroundColor: '#fafafa' },
+  deskHover: { backgroundColor: colors.zinc50 },
   deskActive: { backgroundColor: colors.zinc100 },
   more: { position: 'absolute', right: 8, top: '50%', marginTop: -16, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, boxShadow: '0 1px 4px rgba(24,24,27,0.16)' } as object,
   moreHidden: { opacity: 0 },

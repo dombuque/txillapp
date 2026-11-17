@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Keyboard, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { api, type Story, type StoryComment } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
-import { colors } from '@/lib/theme';
+import { confirm } from '@/lib/confirm';
+import { colors, dark as D } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { CheersPour } from './CheersPour';
@@ -18,6 +19,9 @@ import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { Sticker } from './StickerPanel';
+import { SearchField } from './ui/SearchField';
+import { SegmentedTabs } from './ui/SegmentedTabs';
+import { SendButton } from './ui/SendButton';
 import { linkShare } from '@/lib/shareLink';
 
 /** Reações a stories: a mesma mascote dos stickers, sem texto (guardam-se como :nome:). */
@@ -46,38 +50,16 @@ export function useKeyboardHeight() {
   return h;
 }
 
-/** Painel inferior dentro do visualizador (menu, atividade, comentários). */
-export function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  // Arrastar o painel para baixo fecha só o painel (o story continua por baixo).
-  const dy = useRef(new Animated.Value(0)).current;
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_e, g) => dy.setValue(Math.max(0, g.dy)),
-        onPanResponderRelease: (_e, g) => {
-          if (g.dy > 80 || g.vy > 0.8) closeRef.current();
-          else Animated.spring(dy, { toValue: 0, useNativeDriver: false }).start();
-        },
-      }),
-    [dy],
-  );
+/**
+ * O painel do visor (mimos e Txillada: menu, atividade, comentários, quem está a ver, oferecer): a folha escura de sempre
+ * (Sheet `dark`, por cima do vídeo), com o título, a pega e, nos menus de ações, «Cancelar» no fim (`cancel`).
+ * Arrastar para baixo fecha só o painel (o mimo ou a Txillada continuam por baixo).
+ */
+export function Panel({ title, onClose, children, cancel = false }: { title: string; onClose: () => void; children: ReactNode; cancel?: boolean }) {
   return (
-    <Pressable style={st.panelBack} onPress={onClose} accessibilityRole="none">
-      <Animated.View style={[st.panel, { transform: [{ translateY: dy }] }]}>
-        <Pressable onPress={() => undefined} accessibilityRole="none">
-          <View {...pan.panHandlers} style={{ paddingBottom: 4 }}>
-            <View style={st.grab} />
-            <Text style={st.panelTitle}>{title}</Text>
-          </View>
-          {children}
-        </Pressable>
-      </Animated.View>
-    </Pressable>
+    <Sheet title={title} onClose={onClose} dark cancel={cancel}>
+      <View style={st.panelBody}>{children}</View>
+    </Sheet>
   );
 }
 
@@ -150,11 +132,7 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered, 
               <Text style={st.flash} numberOfLines={1} accessibilityRole="alert">{msg}</Text>
             </View>
           ) : null}
-          {typed ? (
-            <Pressable onPress={() => void send(text)} disabled={busy} style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Enviar">
-              <Icon name="send" size={17} color="#fff" strokeWidth={2.2} />
-            </Pressable>
-          ) : null}
+          {typed ? <SendButton onPress={() => void send(text)} disabled={busy} /> : null}
         </View>
         {!open && (
           <>
@@ -181,7 +159,6 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
   const [reporting, setReporting] = useState<string | null>(null);
   const key = ['story-comments', story.id];
   const list = useQuery({ queryKey: key, queryFn: () => api.storyComments(story.id) });
-  const kb = useKeyboardHeight();
   // @ nos comentários do mimo: o autor primeiro, depois as pessoas mais próximas.
   const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const mention = useMentionSuggest({ text, setText, inputRef, context: 'story', id: story.id });
@@ -194,31 +171,31 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
     setErr('');
     try { await api.commentStory(story.id, body); setText(''); refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
-  function del(id: string) {
-    Alert.alert('Apagar o comentário?', 'O comentário desaparece e não dá para o recuperar.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: async () => { await api.deleteStoryComment(id).catch(() => undefined); refresh(); } },
-    ]);
+  async function del(id: string) {
+    if (!(await confirm({ title: 'Apagar o comentário?', message: 'O comentário desaparece e não dá para o recuperar.', confirm: 'Apagar', danger: true }))) return;
+    await api.deleteStoryComment(id).catch(() => undefined);
+    refresh();
   }
   return (
     <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
-      <View style={{ paddingBottom: kb ? kb : 0 }}>
+      {/* O teclado: a folha (Sheet) sobe sozinha por cima dele. */}
+      <View>
         <ScrollView style={{ maxHeight: 320, minHeight: 96 }}>
-          {list.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
+          {list.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
           {list.isSuccess && list.data.length === 0 && <Text style={st.none}>Ainda sem comentários. Sê o primeiro</Text>}
-          {list.data?.map((c) => <StoryCommentRow key={c.id} c={c} onReport={() => setReporting(c.id)} onDelete={() => del(c.id)} />)}
+          {list.data?.map((c) => <StoryCommentRow key={c.id} c={c} onReport={() => setReporting(c.id)} onDelete={() => void del(c.id)} />)}
         </ScrollView>
         {canComment ? <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginTop: 8, marginBottom: 0 }} /> : null}
         {canComment ? (
           <View style={st.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={32} />
-            <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder="Adiciona um comentário…" placeholderTextColor={colors.zinc500} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel="Comentário" />
+            <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder="Adiciona um comentário…" placeholderTextColor={D.sub} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel="Comentário" />
             <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>Publicar</Text></Pressable>
           </View>
         ) : (
           <Text style={st.closed}>Este mimo não aceita comentários.</Text>
         )}
-        {err ? <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text> : null}
+        {err ? <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 14, color: '#fca5a5' }}>{err}</Text> : null}
       </View>
       {/* O comentário denunciado sai logo da lista de quem denunciou (o servidor também já não o devolve). */}
       {reporting && <ReportSheet type="story_comment" id={reporting} onReported={refresh} onClose={() => setReporting(null)} />}
@@ -269,13 +246,13 @@ function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport:
       <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
-        <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: colors.zinc900 }} />
+        <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: D.text }} />
         {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
       </View>
-      {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={colors.zinc500} /></Pressable>}
-      {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>}
+      {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={D.sub} /></Pressable>}
+      {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="trash" size={18} color={D.sub} /></Pressable>}
       <Pressable onPress={() => void toggle()} hitSlop={10} style={{ padding: 6 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'} accessibilityState={{ selected: cheer.cheered }}>
-        <Reanimated.View style={popStyle}><Icon name="cheers" size={19} color={cheer.cheered ? colors.brand : '#a1a1aa'} /></Reanimated.View>
+        <Reanimated.View style={popStyle}><Icon name="cheers" size={19} color={cheer.cheered ? colors.brandWarm : D.sub} /></Reanimated.View>
       </Pressable>
       <CheersPour n={burst} size={96} />
     </Pressable>
@@ -287,20 +264,17 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
   const [tab, setTab] = useState<'viewers' | 'replies'>('viewers');
   const viewers = useQuery({ queryKey: ['story-viewers', story.id], queryFn: () => api.storyViewers(story.id) });
   const replies = useQuery({ queryKey: ['story-replies', story.id], queryFn: () => api.storyReplies(story.id) });
-  const tabs = [['viewers', `Visualizações${story.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const;
+  const tabs = [
+    { value: 'viewers' as const, label: `Visualizações${story.viewCount ? ` (${story.viewCount})` : ''}` },
+    { value: 'replies' as const, label: `Respostas${replies.data ? ` (${replies.data.length})` : ''}` },
+  ];
   return (
     <Panel title="Atividade do mimo" onClose={onClose}>
-      <View style={st.tabs}>
-        {tabs.map(([k, label]) => (
-          <Pressable key={k} onPress={() => setTab(k)} style={[st.tab, tab === k && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: tab === k }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: tab === k ? colors.zinc900 : colors.zinc500 }}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} dark style={{ marginBottom: 12 }} />
       <ScrollView style={{ maxHeight: 360 }}>
         {tab === 'replies' && (
           <>
-            {replies.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
+            {replies.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
             {replies.isSuccess && replies.data.length === 0 && <Text style={st.none}>Ainda sem respostas</Text>}
             {replies.data?.map((r) => (
               <View key={r.id} style={st.item}>
@@ -315,17 +289,17 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
         )}
         {tab === 'viewers' && (
           <>
-            {viewers.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
+            {viewers.isLoading && <ActivityIndicator style={{ margin: 24 }} color="#fff" />}
             {viewers.isSuccess && viewers.data.length === 0 && <Text style={st.none}>Ainda ninguém viu</Text>}
             {viewers.data?.map((v) => (
               <View key={v.username} style={[st.item, { alignItems: 'center' }]}>
                 <Avatar name={v.displayName} username={v.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <NameWithBadge name={v.displayName} who={v} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
-                  <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{v.username}</Text>
+                  <NameWithBadge name={v.displayName} who={v} style={{ fontSize: 16, fontWeight: '600', color: D.text }} />
+                  <Text style={{ fontSize: 14, color: D.sub }} numberOfLines={1}>@{v.username}</Text>
                 </View>
-                {v.cheered && <Icon name="cheers" size={18} color={colors.brand} />}
-                <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(v.viewedAt)}</Text>
+                {v.cheered && <Icon name="cheers" size={18} color={colors.brandWarm} />}
+                <Text style={{ fontSize: 14, color: D.sub }}>{timeAgo(v.viewedAt)}</Text>
               </View>
             ))}
           </>
@@ -366,7 +340,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
           </View>
         ))}
         <Text style={[st.sec, { marginTop: 16 }]}>Adicionar dos teus seguidores</Text>
-        <TextInput value={q} onChangeText={setQ} placeholder="Procurar…" placeholderTextColor={colors.zinc500} autoCapitalize="none" style={st.search} accessibilityLabel="Procurar seguidores" />
+        <SearchField value={q} onChangeText={setQ} placeholder="Procurar…" accessibilityLabel="Procurar seguidores" style={{ marginTop: 4 }} />
         {candidates.map((p) => (
           <View key={p.username} style={[st.item, { alignItems: 'center' }]}>
             <Avatar name={p.displayName} username={p.username} size={40} />
@@ -384,36 +358,30 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
 }
 
 const st = StyleSheet.create({
-  panelBack: { ...StyleSheet.absoluteFill, zIndex: 20, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  panel: { maxHeight: '72%', borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: '#fff', paddingHorizontal: 20, paddingBottom: 24, paddingTop: 12 },
-  grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.zinc300, marginBottom: 12 },
-  panelTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.zinc900, marginBottom: 12 },
+  panelBody: { paddingHorizontal: 20 },
   // A barra do visor: vidro escuro sobre o fundo preto, por baixo do mimo.
   reactions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 26, backgroundColor: 'rgba(24,24,27,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', ...({ backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)' } as object) },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   replyPill: { flex: 1, minWidth: 0, height: 44, flexDirection: 'row', alignItems: 'center', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.07)', paddingRight: 4 },
   replyPillOn: { borderColor: 'rgba(255,154,91,0.6)', backgroundColor: 'rgba(24,24,27,0.92)' },
   reply: { flex: 1, minWidth: 0, height: 42, paddingLeft: 18, paddingRight: 8, color: '#fff', fontSize: 15, outlineStyle: 'none' as never },
-  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(214,51,79,0.45)' } as object,
+
   flashIn: { position: 'absolute', left: 16, right: 12, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
   flash: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: '#fff' },
   barBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   barBtnOn: { backgroundColor: 'rgba(255,154,91,0.16)' },
   count: { position: 'absolute', top: 3, right: 1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, borderWidth: 1.5, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  none: { paddingVertical: 24, textAlign: 'center', color: colors.zinc500, fontSize: 16 },
+  // Dentro do painel escuro (folhas por cima do mimo): as letras e os campos em tons claros.
+  none: { paddingVertical: 24, textAlign: 'center', color: D.sub, fontSize: 16 },
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
-  who: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
-  whoAgo: { flexShrink: 0, fontSize: 14, color: colors.zinc500 },
-  cheers: { marginTop: 4, fontSize: 13, fontWeight: '600', color: colors.zinc500 },
-  compose: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingTop: 12 },
-  commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' as never },
-  closed: { marginTop: 8, borderRadius: 12, backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: colors.zinc600 },
-  tabs: { flexDirection: 'row', borderRadius: 999, backgroundColor: colors.zinc100, padding: 4, marginBottom: 12 },
-  tab: { flex: 1, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' },
-  bubble: { marginTop: 2, alignSelf: 'flex-start', borderRadius: 16, borderTopLeftRadius: 6, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 8, fontSize: 16, color: colors.zinc900, overflow: 'hidden' },
+  who: { fontSize: 14, fontWeight: '700', color: D.text },
+  whoAgo: { flexShrink: 0, fontSize: 14, color: D.sub },
+  cheers: { marginTop: 4, fontSize: 13, fontWeight: '600', color: D.sub },
+  compose: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: D.line, paddingTop: 12 },
+  commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: D.raised, paddingHorizontal: 16, fontSize: 15, color: D.text, outlineStyle: 'none' as never },
+  closed: { marginTop: 8, borderRadius: 12, backgroundColor: D.raised, paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: D.sub },
+  bubble: { marginTop: 2, alignSelf: 'flex-start', borderRadius: 16, borderTopLeftRadius: 6, backgroundColor: D.raised, paddingHorizontal: 14, paddingVertical: 8, fontSize: 16, color: D.text, overflow: 'hidden' },
   sec: { marginBottom: 4, fontSize: 14, fontWeight: '600', color: colors.zinc500 },
   pill: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6 },
-  search: { marginTop: 4, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' as never },
 });

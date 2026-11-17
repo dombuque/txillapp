@@ -327,7 +327,7 @@ export default function Thread() {
         onScrollY={onScrollY}
         emptyArt={person ? <Avatar name={person.displayName} username={avatarOf} size={80} /> : null}
         emptyTitle={person?.displayName}
-        emptyText={`Ainda não há mensagens. Diz olá a ${firstName || 'esta pessoa'} 👋`}
+        emptyText={`Ainda não há mensagens. Diz olá a ${firstName || 'esta pessoa'}.`}
         peerName={person?.displayName}
         peerHandle={username}
         peerAvatar={avatarOf}

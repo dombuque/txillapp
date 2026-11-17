@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
@@ -13,6 +14,9 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { ReportSheet } from '@/components/ReportSheet';
 import { Panel, useKeyboardHeight } from '@/components/StoryParts';
 import { CallIcon } from '@/components/calls/CallIcons';
+import { ActionRow } from '@/components/ui/ActionRow';
+import { Button } from '@/components/ui/Button';
+import { SendButton } from '@/components/ui/SendButton';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { FxLayer, HelloAllButton, HelloStack, JoinedToast, ReactionBar, ViewersList, ViewersStack } from '@/components/txillada/LiveFx';
 import { CommentMenu } from '@/components/txillada/CommentMenu';
@@ -21,9 +25,11 @@ import { PinnedComment } from '@/components/txillada/PinnedComment';
 import { GuestsPanel, InviteCard, TxilladaStage } from '@/components/txillada/TxilladaGuests';
 import { EndedView, GlassButton, HostSummary, LiveBadge, ViewersPill } from '@/components/txillada/TxilladaParts';
 import { GiftSheet, GoalBar, LockedView, TopGivers } from '@/components/txillada/TxilladaMoney';
+import { api } from '@/lib/api';
 import { txilladaApi } from '@/lib/api.txillada';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
+import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { useNoIndex } from '@/lib/noIndex';
 import { stableScreen, type Size } from '@/lib/prepKeyboard';
@@ -90,6 +96,7 @@ export default function TxilladaScreen() {
 
 function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const wide = useDesktop();
@@ -157,17 +164,16 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     return () => { window.removeEventListener('scroll', fix); fix(); };
   }, [webKb, vv?.top, vv?.height]);
 
-  /** Sair de vez (Sair, o X, Concluir): a sala desliga e o ecrã fecha. */
+  /** Sair de vez (Sair, o X, Feito): a sala desliga e o ecrã fecha. */
   const leave = () => {
     closeTxillada();
     if (router.canGoBack()) router.back();
     else router.replace('/' as never);
   };
-  function confirmEnd() {
-    Alert.alert('Terminar a Txillada?', 'Quem está a ver sai, e a Txillada não fica gravada.', [
-      { text: 'Continuar', style: 'cancel' },
-      { text: 'Terminar', style: 'destructive', onPress: () => void tx.end().then((e) => { if (e) say(e); }) },
-    ]);
+  async function confirmEnd() {
+    if (!(await confirm({ title: 'Terminar a Txillada?', message: 'Quem está a ver sai, e a Txillada não fica gravada.', confirm: 'Terminar', cancel: 'Continuar', danger: true }))) return;
+    const e = await tx.end();
+    if (e) say(e);
   }
 
   async function send() {
@@ -219,25 +225,36 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
         void tx.removeComment(c).then((e) => say(e ?? 'Comentário apagado'));
         return;
       case 'ban':
-        confirmBan(c.author.username);
+        void confirmBan(c.author.username);
         return;
       case 'report':
         setReporting(c);
         return;
     }
   }
-  function confirmBan(username: string) {
-    Alert.alert(`Expulsar @${username}?`, 'Sai já da Txillada e não pode voltar a entrar nesta.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Expulsar',
-        style: 'destructive',
-        onPress: () => void txilladaApi.ban(id, username).then(
-          () => { say(`@${username} foi expulso`); fxs.refreshViewers(); },
-          (e: { status?: number; message?: string }) => say(errorText(e?.status, e?.message)),
-        ),
-      },
-    ]);
+  async function confirmBan(username: string) {
+    if (!(await confirm({ title: `Expulsar @${username}?`, message: 'Sai já da Txillada e não pode voltar a entrar nesta.', confirm: 'Expulsar', danger: true }))) return;
+    try {
+      await txilladaApi.ban(id, username);
+      say(`@${username} foi expulso`);
+      fxs.refreshViewers();
+    } catch (e) {
+      const err = e as { status?: number; message?: string };
+      say(errorText(err?.status, err?.message));
+    }
+  }
+  /** Quem vê bloqueia o anfitrião (como no perfil, lib/api `block`): deixa de o ver e sai desta Txillada. */
+  async function confirmBlock() {
+    if (!dto) return;
+    const u = dto.host.username;
+    if (!(await confirm({ title: `Bloquear @${u}?`, message: 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo. Sais desta Txillada.', confirm: 'Bloquear', danger: true }))) return;
+    try {
+      await api.block(u);
+      for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
+      leave();
+    } catch (e) {
+      say((e as Error)?.message || 'Não consegui bloquear agora. Tenta outra vez.');
+    }
   }
   /** O anfitrião, na lista «A ver agora»: dizer olá, convidar para transmitir (0165) ou expulsar. */
   function viewerActions(u: FxPerson) {
@@ -249,29 +266,25 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
         ? [{ text: 'Aceitar o pedido para entrar', onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? `@${u.username} entrou no ecrã`)) }]
         : [];
     Alert.alert(`@${u.username}`, act === 'invited' ? `${u.displayName} · convite enviado` : act === 'full' ? `${u.displayName} · já há 3 a transmitir` : u.displayName, [
-      { text: 'Dizer olá 👋', onPress: () => fxs.helloTo(u.username) },
+      { text: 'Dizer olá', onPress: () => fxs.helloTo(u.username) },
       ...guest,
-      { text: `Expulsar @${u.username}`, style: 'destructive', onPress: () => confirmBan(u.username) },
+      { text: `Expulsar @${u.username}`, style: 'destructive', onPress: () => void confirmBan(u.username) },
       { text: 'Cancelar', style: 'cancel' },
     ]);
   }
   /** Quem vê: pedir para entrar, ou desistir do pedido. */
-  function askJoin() {
+  async function askJoin() {
     if (g.waiting) {
-      Alert.alert('Desistir do pedido?', 'O anfitrião deixa de ver o teu pedido para entrar.', [
-        { text: 'Continuar à espera', style: 'cancel' },
-        { text: 'Desistir', style: 'destructive', onPress: () => void tx.leaveStage().then((e) => say(e ?? 'Desististe do pedido')) },
-      ]);
+      if (!(await confirm({ title: 'Desistir do pedido?', message: 'O anfitrião deixa de ver o teu pedido para entrar.', confirm: 'Desistir', cancel: 'Continuar à espera' }))) return;
+      say((await tx.leaveStage()) ?? 'Desististe do pedido');
       return;
     }
     void tx.requestJoin().then((e) => say(e ?? 'Pedido enviado: o anfitrião vai ver que queres entrar'));
   }
   /** O convidado deixa de transmitir (continua a ver). */
-  function confirmLeaveStage() {
-    Alert.alert('Sair do ecrã?', 'A tua câmara e o microfone desligam-se; continuas a ver a Txillada.', [
-      { text: 'Ficar', style: 'cancel' },
-      { text: 'Sair do ecrã', style: 'destructive', onPress: () => void tx.leaveStage().then((e) => say(e ?? 'Saíste do ecrã: continuas a ver a Txillada')) },
-    ]);
+  async function confirmLeaveStage() {
+    if (!(await confirm({ title: 'Sair do ecrã?', message: 'A tua câmara e o microfone desligam-se; continuas a ver a Txillada.', confirm: 'Sair do ecrã', cancel: 'Ficar', danger: true }))) return;
+    say((await tx.leaveStage()) ?? 'Saíste do ecrã: continuas a ver a Txillada');
   }
   /** O convidado desliga a câmara: sai do ecrã logo e fica a ver (sem perguntar, sem sair da Txillada). */
   function guestCamOff() {
@@ -421,13 +434,13 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                 </View>
               </Pressable>
               {host ? (
-                <Pressable onPress={confirmEnd} style={({ pressed }) => [st.end, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Terminar a Txillada">
+                <Pressable onPress={() => void confirmEnd()} style={({ pressed }) => [st.end, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Terminar a Txillada">
                   <Text style={st.endText}>Terminar</Text>
                 </Pressable>
               ) : (
                 <>
                   {g.canRequest || g.waiting ? (
-                    <Pressable onPress={askJoin} style={({ pressed }) => [st.join, g.waiting && st.joinWaiting, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={g.waiting ? 'Pedido enviado: desistir' : 'Pedir para entrar'}>
+                    <Pressable onPress={() => void askJoin()} style={({ pressed }) => [st.join, g.waiting && st.joinWaiting, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={g.waiting ? 'Pedido enviado: desistir' : 'Pedir para entrar'}>
                       <Icon name={g.waiting ? 'clock' : 'user-plus'} size={15} color="#fff" strokeWidth={2.2} />
                       <Text style={st.joinText} numberOfLines={1}>{g.waiting ? 'Pedido enviado' : 'Pedir para entrar'}</Text>
                     </Pressable>
@@ -478,7 +491,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           {tx.conn === 'failed' ? (
             <View style={st.failed}>
               <Text style={st.failedText}>A ligação caiu.</Text>
-              <Pressable onPress={tx.reconnect} style={st.failedBtn} accessibilityRole="button"><Text style={st.failedBtnText}>Tentar outra vez</Text></Pressable>
+              <Button label="Tentar outra vez" kind="secondary" size="md" dark onPress={tx.reconnect} />
             </View>
           ) : null}
 
@@ -548,7 +561,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                       <Icon name="video" size={20} color="#fff" strokeWidth={2.2} />
                     </GlassButton>
                     <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void tx.flip()} />
-                    <Pressable onPress={confirmLeaveStage} style={({ pressed }) => [st.leaveStage, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel="Sair do ecrã (continuar a ver)">
+                    <Pressable onPress={() => void confirmLeaveStage()} style={({ pressed }) => [st.leaveStage, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel="Sair do ecrã (continuar a ver)">
                       <Text style={st.leaveStageText}>Sair do ecrã</Text>
                     </Pressable>
                     <View style={{ flex: 1 }} />
@@ -587,11 +600,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                     style={st.input}
                     accessibilityLabel="Escrever um comentário"
                   />
-                  {text.trim() ? (
-                    <Pressable onPress={() => void send()} disabled={sending} style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, sending && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Enviar">
-                      <Icon name="send" size={17} color="#fff" strokeWidth={2.2} />
-                    </Pressable>
-                  ) : null}
+                  {text.trim() ? <SendButton onPress={() => void send()} disabled={sending} /> : null}
                 </View>
               ) : (
                 <View style={[st.pill, { paddingLeft: 16, gap: 8 }]}>
@@ -613,14 +622,14 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
 
       {panel === 'more' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title={`Txillada de ${dto.host.username}`} onClose={() => setPanel(null)}>
-            <Pressable onPress={() => { setPanel(null); void share(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Partilhar</Text></Pressable>
-            {ui.canGift ? <Pressable onPress={() => setPanel('gift')} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Oferecer vibes</Text></Pressable> : null}
-            {g.canRequest || g.waiting ? <Pressable onPress={() => { setPanel(null); askJoin(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'}</Text></Pressable> : null}
-            {g.onStage ? <Pressable onPress={() => { setPanel(null); confirmLeaveStage(); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Sair do ecrã</Text></Pressable> : null}
-            {ui.canReport ? <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: colors.red600, fontWeight: '600' }]}>Denunciar a Txillada</Text></Pressable> : null}
-            <Pressable onPress={() => { setPanel(null); router.push(`/u/${dto.host.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil (para bloquear)</Text></Pressable>
-            <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
+          <Panel title={`Txillada de @${dto.host.username}`} onClose={() => setPanel(null)} cancel>
+            <ActionRow icon="share" title="Partilhar" onPress={() => { setPanel(null); void share(); }} />
+            {ui.canGift ? <ActionRow icon="gift" title="Oferecer vibes" onPress={() => setPanel('gift')} /> : null}
+            {g.canRequest || g.waiting ? <ActionRow icon={g.waiting ? 'clock' : 'user-plus'} title={g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'} onPress={() => { setPanel(null); void askJoin(); }} /> : null}
+            {g.onStage ? <ActionRow icon="logout" title="Sair do ecrã" danger onPress={() => { setPanel(null); void confirmLeaveStage(); }} /> : null}
+            <ActionRow icon="user" title="Ver o perfil" onPress={() => { setPanel(null); router.push(`/u/${dto.host.username}` as never); }} />
+            {ui.canReport ? <ActionRow icon="flag" title="Denunciar a Txillada" danger onPress={() => setPanel('report')} /> : null}
+            <ActionRow icon="block" title={`Bloquear @${dto.host.username}`} danger onPress={() => { setPanel(null); void confirmBlock(); }} />
           </Panel>
         </View>
       ) : null}
@@ -665,10 +674,6 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
         <CommentMenu
           c={menuC}
           items={menuItems}
-          left={L.colLeft}
-          width={L.colW}
-          bottomInset={insets.bottom}
-          reduce={reduce}
           onPick={(item) => pick(item, menuC)}
           onClose={() => setMenuId(null)}
         />
@@ -717,8 +722,7 @@ const st = StyleSheet.create({
   mutedText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
   failed: { position: 'absolute', left: 24, right: 24, top: '42%', zIndex: 7, alignItems: 'center', gap: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(14,14,18,0.82)' },
   failedText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  failedBtn: { height: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  failedBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
   sound: { position: 'absolute', alignSelf: 'center', top: '46%', zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: 'rgba(14,14,18,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
   soundText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   flash: { position: 'absolute', left: 16, right: 16, zIndex: 9, alignItems: 'center' },
@@ -729,7 +733,7 @@ const st = StyleSheet.create({
   pill: { flex: 1, minWidth: 0, height: 44, flexDirection: 'row', alignItems: 'center', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', backgroundColor: 'rgba(14,14,18,0.35)', paddingRight: 4, ...glass },
   pillOn: { borderColor: 'rgba(255,154,91,0.6)', backgroundColor: 'rgba(24,24,27,0.92)' },
   input: { flex: 1, minWidth: 0, height: 42, paddingLeft: 18, paddingRight: 8, color: '#fff', fontSize: 15, outlineStyle: 'none' as never },
-  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
   closed: { flexShrink: 1, fontSize: 14, color: 'rgba(255,255,255,0.72)' },
   barBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,14,18,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...glass },
   join: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 34, paddingHorizontal: 11, borderRadius: 17, backgroundColor: colors.brand, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', flexShrink: 0 },
@@ -741,6 +745,4 @@ const st = StyleSheet.create({
   leaveStageText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   /** Os painéis (Mais, A ver agora) por cima de tudo, também da barra de baixo. */
   over: { zIndex: 20, elevation: 20 },
-  menuRow: { paddingVertical: 14, alignItems: 'center' },
-  menuText: { fontSize: 18, color: colors.zinc900 },
 });
