@@ -20,7 +20,8 @@ import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
 import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
-import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
+import { useChatDrop, useComposerKeys, useDeskColumn } from '@/lib/deskChat';
+import { COMPOSER_MAX } from '@/lib/deskMessages';
 import { PastedImageSheet } from './PastedImageSheet';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
@@ -256,11 +257,13 @@ export function GroupComposer({
   // O mesmo desenho e as mesmas medidas da barra das conversas a dois (components/ChatComposer): uma pílula só. Com o
   // teclado aberto só a folga normal por baixo; em ecrãs estreitos os ícones encolhem e a galeria passa para os anexos.
   const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: composerPad(bottom, keyboardOpen) };
+  // Computador: a barra larga, ao centro do painel da conversa (lib/deskMessages); no telemóvel null.
+  const column = useDeskColumn(COMPOSER_MAX);
   const fit = composerTools(pillW);
 
   if (recording) {
     return (
-      <View style={[styles.wrap, pad]}>
+      <View style={[styles.wrap, pad, column]}>
         <View style={[styles.pill, { alignItems: 'center' }]}>
           <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={styles.recX} accessibilityRole="button" accessibilityLabel={t('Cancelar a gravação')}>
             <Icon name="trash" size={21} color={colors.zinc700} />
@@ -281,7 +284,7 @@ export function GroupComposer({
   const hasText = !!text.trim();
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, column]}>
       {panel === 'attach' && (
         <View style={styles.attach}>
           {!fit.gallery && (

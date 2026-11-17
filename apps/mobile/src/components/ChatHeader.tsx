@@ -1,9 +1,11 @@
+import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { BackButton } from '@/components/BackButton';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { colors } from '@/lib/theme';
+import { useDesktop } from '@/lib/desktop';
 import { HEADER_ACTION_W } from '@/lib/chatBars';
 import type { Badged } from '@/lib/api';
 import { dayLabel, type Msg } from './ChatBubbles';
@@ -30,11 +32,19 @@ export function ChatHeader({
   onOpen?: () => void; openLabel: string; actions?: ReactNode; below?: ReactNode; overlay?: ReactNode;
 }) {
   const [bottom, setBottom] = useState<number | null>(null);
+  // Computador: a conversa abre ao lado da lista, por isso em vez de ‹ (voltar) há um × que a fecha (o mesmo que Esc) e
+  // o painel volta a «As tuas mensagens». No mesmo sítio e com a mesma largura (a nota da pessoa sai da foto).
+  const desktop = useDesktop();
+  const router = useRouter();
   return (
     <>
     <View style={[st.wrap, raised && st.raised]} onLayout={(e) => setBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
       <View style={st.row}>
-        <BackButton fallback="/messages" style={st.btn} />
+        {desktop ? (
+          <Pressable onPress={() => router.navigate('/messages' as never)} style={(s) => [st.btn, ((s as { hovered?: boolean }).hovered || s.pressed) && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Fechar a conversa (Esc)')}>
+            <Icon name="x" size={22} color={colors.zinc800} />
+          </Pressable>
+        ) : <BackButton fallback="/messages" style={st.btn} />}
         {subtitleAction || avatarAction ? (
           // Dois botões lado a lado em vez de um dentro do outro (no iOS o de dentro ficava invisível ao VoiceOver):
           // o de abrir o perfil fica por trás, a toda a largura, e a foto e o nome deixam passar o toque até ele.
