@@ -18,6 +18,9 @@ import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, BarButton, CommentsPanel, Panel, ReplyBar, shareSharedPost, useKeyboardHeight } from '@/components/StoryParts';
 import { StoryFloatComments } from '@/components/StoryFloatComments';
 import { ActionRow } from '@/components/ui/ActionRow';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { confirm } from '@/lib/confirm';
 import { captionSpot, floatColumn, HEADER_H, mimoFit, storyFrame } from '@/lib/storyFrame';
 import { colors } from '@/lib/theme';
@@ -413,9 +416,10 @@ export default function StoryViewer() {
     const offline = q.isError && !isGone(q.error);
     return (
       <View style={st.center} accessibilityRole={offline ? 'alert' : undefined}>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>{offline ? 'Ups, o mimo não carregou' : 'Este mimo já não está disponível'}</Text>
-        {offline && <Pressable onPress={() => void q.refetch()} style={st.btn} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Tentar outra vez</Text></Pressable>}
-        <Pressable onPress={close} style={st.btn} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Fechar</Text></Pressable>
+        {offline
+          ? <ErrorState what="o mimo" onRetry={() => void q.refetch()} dark style={{ marginTop: 0 }} />
+          : <EmptyState icon="clock" title="Este mimo já não está disponível" text="Os mimos ficam 24 horas." dark style={{ marginTop: 0 }} />}
+        <Button label="Fechar" kind="ghost" size="md" dark onPress={close} />
       </View>
     );
   }
@@ -633,7 +637,7 @@ const st = StyleSheet.create({
   // Por cima do mimo enquanto se escreve (por baixo do cabeçalho, que continua a fechar o visor).
   dim: { zIndex: 4, backgroundColor: 'rgba(0,0,0,0.4)' },
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  btn: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 24, paddingVertical: 12 },
+
   // O cartão do mimo (a forma e o lugar vêm de lib/storyFrame).
   card: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.zinc900 },
   zone: { position: 'absolute', top: HEADER_H, bottom: 0 },
