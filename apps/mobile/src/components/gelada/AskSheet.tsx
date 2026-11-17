@@ -15,6 +15,8 @@ import { NameWithBadge } from '../NameWithBadge';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { TasteBubble } from '../TasteBubble';
+import { Button } from '../ui/Button';
+import { SearchField } from '../ui/SearchField';
 import { DrinkSheet } from './DrinkSheet';
 import { MusicPicker } from '../MusicPicker';
 import { TrackCard } from '../TrackCard';
@@ -164,10 +166,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
           {notMutual.length > 0 && <Text style={st.err}>Em público só pedes a quem te segue de volta. Tira {notMutual.map((n) => `@${n.username}`).join(', ')} ou envia no chat.</Text>}
           {!lockTo && (
             <>
-              <View style={st.search}>
-                <Icon name="search" size={18} color={colors.zinc500} />
-                <TextInput value={search} onChangeText={setSearch} placeholder="Procurar amigos…" placeholderTextColor={colors.zinc500} style={st.searchInput} accessibilityLabel="Procurar amigos" autoCapitalize="none" autoCorrect={false} maxLength={40} />
-              </View>
+              <SearchField value={search} onChangeText={setSearch} placeholder="Procurar amigos…" accessibilityLabel="Procurar amigos" maxLength={40} />
               {friends.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 12 }} />}
               {friends.isSuccess && people.length === 0 && <Text style={st.hint}>{channel === 'post' ? 'Ninguém mútuo com esse nome.' : 'Ninguém com esse nome entre quem segues.'}</Text>}
               {people.slice(0, 30).map((p) => {
@@ -192,10 +191,14 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         </Text>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
         {done ? <Text style={st.done} accessibilityLiveRegion="polite">{done}</Text> : null}
-        <Pressable onPress={() => void send()} disabled={!canSend} style={({ pressed }) => [st.send, !canSend && { opacity: 0.45 }, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityState={{ disabled: !canSend, busy }}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Icon name={channel === 'post' ? 'compose' : 'send'} size={18} color="#fff" />}
-          <Text style={st.sendText}>{channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Enviar a ${chosen.length}` : 'Enviar'}</Text>
-        </Pressable>
+        <Button
+          label={channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Enviar a ${chosen.length}` : 'Enviar'}
+          icon={channel === 'post' ? 'compose' : 'messages'}
+          block
+          loading={busy}
+          disabled={!canSend && !busy}
+          onPress={() => void send()}
+        />
         <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação.</Text>
       </ScrollView>
     </Sheet>
@@ -238,8 +241,7 @@ const st = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { height: 36, maxWidth: 220, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc200, paddingLeft: 6, paddingRight: 10, backgroundColor: '#fff' },
   chipText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' } as never,
+
   person: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 4, paddingVertical: 6 },
   personName: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   personHandle: { fontSize: 13, color: colors.zinc500 },
@@ -247,7 +249,6 @@ const st = StyleSheet.create({
   tickOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   err: { fontSize: 14, lineHeight: 20, color: colors.red600 },
   done: { fontSize: 15, fontWeight: '700', color: colors.green700, textAlign: 'center' },
-  send: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.brand },
-  sendText: { fontSize: 17, fontWeight: '800', color: '#fff' },
+
   fine: { textAlign: 'center', fontSize: 12, color: colors.zinc500 },
 });
