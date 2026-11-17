@@ -7,6 +7,7 @@ import { videoLook } from '@/lib/studio/nativeLook';
 import { fxc } from '../FxUi';
 import { LookLayer } from './NativeStage';
 import { t } from '@/lib/i18n';
+import { filterMood, filterName } from '@/lib/studio/effectLabels';
 
 const TW = 56, TH = 84;
 
@@ -51,7 +52,7 @@ export function NativeFilterStrip({ fx, thumb, photo, onPick }: { fx: ClipFx | u
         const on = f.id === current;
         const p = looks[i];
         return (
-          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 8, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Filtro {name}: {mood}', { name: f.name, mood: f.mood })}>
+          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 8, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Filtro {name}: {mood}', { name: filterName(f), mood: filterMood(f) })}>
             <View style={[{ width: TW, height: TH, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.12)', backgroundColor: f.swatch }]}>
               {small ? (
                 <Canvas style={{ width: TW - 4, height: TH - 4 }}>
@@ -66,7 +67,7 @@ export function NativeFilterStrip({ fx, thumb, photo, onPick }: { fx: ClipFx | u
                 </>
               ) : null}
             </View>
-            <Text numberOfLines={2} style={{ color: on ? fxc.coralHot : 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 16, textAlign: 'center', fontWeight: on ? '800' : '700', width: TW + 12 }}>{f.name}</Text>
+            <Text numberOfLines={2} style={{ color: on ? fxc.coralHot : 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 16, textAlign: 'center', fontWeight: on ? '800' : '700', width: TW + 12 }}>{filterName(f)}</Text>
           </Pressable>
         );
       })}

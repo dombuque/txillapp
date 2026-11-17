@@ -275,6 +275,8 @@ test('stickers: hora de Moçambique, e cada um novo vai a tcheka toda', () => {
   assert.deepEqual(m.timeLabel('hora', at), ['22:41']);
   assert.deepEqual(m.timeLabel('data', at), ['Qui, 12 nov.']);
   assert.deepEqual(m.timeLabel('hora-data', Date.UTC(2026, 0, 3, 23, 5)), ['01:05', 'Dom, 4 jan.'], 'já é o dia seguinte em Maputo');
+  assert.deepEqual(m.timeLabel('hora-data', at, 'en'), ['22:41', 'Thu, 12 Nov'], 'em inglês, com a língua explícita (a do pedido de montagem)');
+  assert.deepEqual(m.timeLabel('data', at, 'xx'), ['Qui, 12 nov.'], 'um idioma sem tabela fica em português');
   const s = m.newSticker({ type: 'emoji', emoji: '🔥' }, 0, 12);
   assert.equal(s.start, 0); assert.equal(s.end, 12);
   assert.equal(s.anim.loop, 'pulsar', 'os emojis pulsam por omissão');
@@ -372,7 +374,7 @@ test('ligação: o estúdio desenha com os efeitos e grava o que se vê', () => 
   const studio = read('components', 'TchekaStudio.tsx');
   assert.match(studio, /drawClip\(g, glFx\(\), v, /, 'os vídeos com o shader dos efeitos');
   assert.match(studio, /drawTransition\(g, e\.last, cur\.c, tr\.type, tl \/ tr\.dur, W, H, scratch\)/, 'transição por junção');
-  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t, \{ W, H, image: ovImage, scratch \}\)/, 'textos e stickers (com os canvas de trabalho das letras de capulana)');
+  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t, \{ W, H, image: ovImage, scratch, lang: currentLanguage\(\) \}\)/, 'textos e stickers (com os canvas de trabalho das letras de capulana e o idioma do sticker da hora)');
   assert.match(studio, /stampTxillapp\(g, W, H, username, seal\);/, 'a assinatura continua por cima');
   assert.match(studio, /fxSeconds\(it\.trim\.end - it\.trim\.start, it\.speed, it\.fx\)/, 'a rampa muda a duração');
   assert.match(studio, /hasAudio: it\.fx\?\.reverse \|\| !soundOn\(it\) \? false : it\.hasAudio/, 'ao contrário (ou com o som do vídeo desligado), o som original não conta');

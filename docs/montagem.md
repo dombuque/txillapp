@@ -70,6 +70,9 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
   pano?: { pattern, palette, seed },  // o pano de capulana da tcheka (o das transições de pano sem pano próprio); por omissão losangos/coral/1
   coverMs?: number,               // a capa (por omissão 500 ms, como o estúdio)
   duet?: { postId: string, layout: 'side' },
+  lang?: 'pt' | 'en',             // a língua do que se escreve no vídeo (os dias e os meses do sticker da hora); os códigos de
+                                  // LANGS (packages/shared); por omissão 'pt'. O estúdio só a manda fora do português e com um
+                                  // sticker da hora; um servidor antigo recusa-a e o compatRequest tira-a
 }
 // EfeitoDeVoz = 'normal' | 'robo' | 'esquilo' | 'grave' | 'eco' | 'radio' | 'estadio'
 ```
@@ -283,7 +286,11 @@ overlays?: Overlay[]   // texto (fonte, estilo, animação, posição, rotação
   vir de um clipe desta tcheka» (quando os clipes têm `id`), «Para inverter, o clipe pode ter até 15 s», «Transição
   desconhecida», «A transição dura de 0,15 a 1,5 s», «Filtro desconhecido», «O ajuste Contraste vai de -1 a 1», «Fonte
   desconhecida», «A camada tem de sair depois de entrar», «No máximo 20 textos e stickers», «O GIF tem de vir do GIPHY», «O
-  sticker de emoji só leva emojis», «Sticker desconhecido».
+  sticker de emoji só leva emojis», «Sticker desconhecido», «Idioma desconhecido» (um `lang` fora de LANGS).
+- O sticker da hora (`time`) escreve-se com `timeLabel(format, at, lang)` de effects.ts, que tem as tabelas dos dias e dos
+  meses de cada idioma lá dentro (sem o i18n da app): o estúdio passa o idioma ativo, o servidor o `lang` do pedido
+  (guardado em `spec.lang`), e as letras saem iguais. Os nomes dos efeitos que só a interface mostra estão em
+  apps/mobile/src/lib/studio/effectLabels.ts (com `t()`), fora dos ficheiros partilhados.
 - Durações e regras como no estúdio: um vídeo com rampa dura `fxSeconds` (o corte ÷ velocidade ÷ média da rampa); um vídeo
   ao contrário fica calado e não conta para o som obrigatório.
 

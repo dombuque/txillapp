@@ -182,7 +182,7 @@ export interface LayerFile { file: string; x: number; y: number; k0: number; k1:
  * Desenha as camadas (texto e stickers) com `drawOverlays`, cada uma na caixa dela: onde está parada, uma imagem só (PNG);
  * onde se mexe (entrada, saída, ciclo, GIF), os frames a 30 fps num vídeo com alfa. `F`: frames do vídeo final.
  */
-export async function renderLayers(overlays: Overlay[], F: number, images: StickerImages, o: { cwd: string; signal?: AbortSignal; onFrame?: () => void }): Promise<LayerFile[]> {
+export async function renderLayers(overlays: Overlay[], F: number, images: StickerImages, o: { cwd: string; signal?: AbortSignal; onFrame?: () => void; /** a língua do sticker da hora (ComposeSpec.lang) */ lang?: string }): Promise<LayerFile[]> {
   ensureStudioFonts();
   const W = FRAME.w, H = FRAME.h;
   const measure = createCanvas(4, 4).getContext('2d');
@@ -193,7 +193,7 @@ export async function renderLayers(overlays: Overlay[], F: number, images: Stick
     const runs = overlayRuns(ov, F);
     if (!runs.length) continue;
     let current: { img: Canvas | Image; w: number; h: number } | null = ov.kind === 'sticker' ? images.still(ov) : null;
-    const env: OverlayEnv = { W, H, image: () => current as unknown as { img: CanvasImageSource; w: number; h: number } | null, scratch: scratch as unknown as OverlayEnv['scratch'] };
+    const env: OverlayEnv = { W, H, image: () => current as unknown as { img: CanvasImageSource; w: number; h: number } | null, scratch: scratch as unknown as OverlayEnv['scratch'], lang: o.lang };
     const isGif = ov.kind === 'sticker' && ov.sticker.type === 'gif';
     if (isGif && images.gifFrame) current = await images.gifFrame(ov as StickerOverlay, runs[0].k0);
     // Um sticker do Txillapp ou um GIF sem imagem não se desenha (como no site enquanto não chega).

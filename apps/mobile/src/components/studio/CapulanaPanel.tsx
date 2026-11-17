@@ -6,6 +6,7 @@ import { CapulanaPicker } from './CapulanaPicker';
 import { CapulanaSticker } from './CapulanaSticker';
 import { mg } from './MagicUi';
 import { t } from '@/lib/i18n';
+import { shapeName, transitionMood, transitionName } from '@/lib/studio/effectLabels';
 
 /**
  * O painel «Capulana» do estúdio: escolhe-se o pano e onde ele entra (na transição para o clipe escolhido, na moldura da
@@ -35,8 +36,8 @@ export function CapulanaPanel({ pano, onPano, transition, onTransition, frame, o
           {CAPULANA_TRANSITIONS.map((t) => {
             const on = t.id === transition;
             return (
-              <Pressable key={t.id} onPress={() => onTransition(on ? null : t.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${t.name}. ${t.mood}`} testID={`transicao-${t.id}`} style={({ pressed }) => [st.chip, on && st.chipOn, pressed && { transform: [{ scale: 0.96 }] }]}>
-                <Text style={st.chipText}>{t.name}</Text>
+              <Pressable key={t.id} onPress={() => onTransition(on ? null : t.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${transitionName(t)}. ${transitionMood(t)}`} testID={`transicao-${t.id}`} style={({ pressed }) => [st.chip, on && st.chipOn, pressed && { transform: [{ scale: 0.96 }] }]}>
+                <Text style={st.chipText}>{transitionName(t)}</Text>
               </Pressable>
             );
           })}
@@ -53,9 +54,9 @@ export function CapulanaPanel({ pano, onPano, transition, onTransition, frame, o
         <Text style={st.label}>{t('Stickers de pano')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row}>
           {CAPULANA_SHAPES.map((s) => (
-            <Pressable key={s.id} onPress={() => onSticker(s.id)} accessibilityRole="button" accessibilityLabel={t('Sticker {name}', { name: s.name })} testID={`sticker-${s.id}`} style={({ pressed }) => [st.sticker, pressed && { transform: [{ scale: 0.94 }] }]}>
+            <Pressable key={s.id} onPress={() => onSticker(s.id)} accessibilityRole="button" accessibilityLabel={t('Sticker {name}', { name: shapeName(s) })} testID={`sticker-${s.id}`} style={({ pressed }) => [st.sticker, pressed && { transform: [{ scale: 0.94 }] }]}>
               <CapulanaSticker shape={s.id} spec={pano} size={72} />
-              <Text style={st.stickerName} numberOfLines={1}>{s.name}</Text>
+              <Text style={st.stickerName} numberOfLines={1}>{shapeName(s)}</Text>
             </Pressable>
           ))}
         </ScrollView>

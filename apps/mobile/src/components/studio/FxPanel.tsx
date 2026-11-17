@@ -9,6 +9,7 @@ import { Icon, type IconName } from '../Icon';
 import { FxFilterStrip, type FrameGrab } from './FxFilterStrip';
 import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from './FxUi';
 import { t } from '@/lib/i18n';
+import { adjustLabel, filterMood, filterName, rampMood, rampName, transitionName } from '@/lib/studio/effectLabels';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 
@@ -83,8 +84,8 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
             <FxFilterStrip fx={fxNow} grab={grab} playing={playing} refreshKey={`${frameKey}|${cur.key}`} onPick={(id) => put(i, (f) => ({ ...f, filter: id === 'normal' ? undefined : { id, amount: f.filter?.id === id ? f.filter.amount : 1 } }))} />
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 6 }}>
-            <Text style={{ flex: 1, color: fxc.muted, fontSize: 14 }} numberOfLines={2}><Text style={{ color: '#fff', fontWeight: '800' }}>{filt.name}</Text> · {filt.mood}</Text>
-            {clips.length > 1 ? <FxAction label={t('A todos')} icon={<Icon name="images" size={14} color="#fff" />} onPress={() => put('all', (f) => ({ ...f, filter: filt.id === 'normal' ? undefined : { id: filt.id, amount } }))} a11y={t('Aplicar o filtro {name} a todos os clipes', { name: filt.name })} /> : null}
+            <Text style={{ flex: 1, color: fxc.muted, fontSize: 14 }} numberOfLines={2}><Text style={{ color: '#fff', fontWeight: '800' }}>{filterName(filt)}</Text> · {filterMood(filt)}</Text>
+            {clips.length > 1 ? <FxAction label={t('A todos')} icon={<Icon name="images" size={14} color="#fff" />} onPress={() => put('all', (f) => ({ ...f, filter: filt.id === 'normal' ? undefined : { id: filt.id, amount } }))} a11y={t('Aplicar o filtro {name} a todos os clipes', { name: filterName(filt) })} /> : null}
           </View>
           {filt.id !== 'normal' ? (
             <FxSlider label={t('Intensidade')} value={Math.round(amount * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => put(i, (f) => ({ ...f, filter: { id: filt.id, amount: v / 100 } }))} />
@@ -98,18 +99,18 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
             {ADJUSTS.map((a) => {
               const v = fxNow?.adjust?.[a.id] ?? 0;
               return (
-                <Pressable key={a.id} onPress={() => setAdj(a.id)} style={{ alignItems: 'center', width: 70, gap: 4 }} accessibilityRole="tab" accessibilityState={{ selected: adj === a.id }} accessibilityLabel={`${a.label}${v ? ` ${pct(v)}` : ''}`}>
+                <Pressable key={a.id} onPress={() => setAdj(a.id)} style={{ alignItems: 'center', width: 70, gap: 4 }} accessibilityRole="tab" accessibilityState={{ selected: adj === a.id }} accessibilityLabel={`${adjustLabel(a)}${v ? ` ${pct(v)}` : ''}`}>
                   <View style={[{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, adj === a.id && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]}>
                     <Icon name={ADJ_ICON[a.id]} size={20} color={adj === a.id ? '#fff' : 'rgba(255,255,255,0.75)'} />
                     {v ? <View style={{ position: 'absolute', right: 1, top: 1, width: 8, height: 8, borderRadius: 4, backgroundColor: fxc.coralHot }} /> : null}
                   </View>
-                  <Text style={{ color: adj === a.id ? '#fff' : fxc.muted, fontSize: 14.5, fontWeight: '700' }} numberOfLines={1}>{a.label}</Text>
+                  <Text style={{ color: adj === a.id ? '#fff' : fxc.muted, fontSize: 14.5, fontWeight: '700' }} numberOfLines={1}>{adjustLabel(a)}</Text>
                 </Pressable>
               );
             })}
           </FxRow>
           {ADJUSTS.filter((a) => a.id === adj).map((a) => (
-            <FxSlider key={a.id} label={a.label} value={Math.round((fxNow?.adjust?.[a.id] ?? 0) * 100)} min={a.min * 100} max={a.max * 100} step={1} format={(v) => (a.min < 0 ? pct(v / 100) : `${v}`)}
+            <FxSlider key={a.id} label={adjustLabel(a)} value={Math.round((fxNow?.adjust?.[a.id] ?? 0) * 100)} min={a.min * 100} max={a.max * 100} step={1} format={(v) => (a.min < 0 ? pct(v / 100) : `${v}`)}
               onChange={(v) => put(i, (f) => ({ ...f, adjust: { ...f.adjust, [a.id]: v / 100 } }))} />
           ))}
           <FxRow wrap>
@@ -132,9 +133,9 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
                 return (
                   <Pressable key={transitionDef.id} onPress={() => { put(i, (f) => ({ ...f, transition: { type: transitionDef.id, dur: (f.transition ?? DEFAULT_TRANSITION).dur } })); if (transitionDef.id !== 'corte') onPreviewJunction(i); }}
                     style={({ pressed }) => [{ width: 66, height: 66, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object), pressed && { transform: [{ scale: 0.95 }] }]}
-                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Transição {value}', { value: transitionDef.id.startsWith('deslizar') ? t('deslizar: {name}', { name: transitionDef.name }) : transitionDef.name })}>
+                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Transição {value}', { value: transitionDef.id.startsWith('deslizar') ? t('deslizar: {name}', { name: transitionName(transitionDef) }) : transitionName(transitionDef) })}>
                     <Text style={{ color: on ? '#fff' : 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: '700' }}>{TR_GLYPH[transitionDef.id]}</Text>
-                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{transitionDef.name}</Text>
+                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{transitionName(transitionDef)}</Text>
                   </Pressable>
                 );
               })}
@@ -159,17 +160,17 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
             <FxRow label={t('Rampa de velocidade')}>
               <FxChip on={!fxNow?.ramp} label={t('Nenhuma')} onPress={() => put(i, (f) => ({ ...f, ramp: undefined }), true)} />
               {RAMPS.map((r) => (
-                <Pressable key={r.id} onPress={() => put(i, (f) => ({ ...f, ramp: r.id as RampId }), true)} style={[{ height: 50, minWidth: 84, borderRadius: 14, paddingHorizontal: 10, justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, fxNow?.ramp === r.id && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: fxNow?.ramp === r.id }} accessibilityLabel={t('Rampa {name}: {mood}', { name: r.name, mood: r.mood })}>
+                <Pressable key={r.id} onPress={() => put(i, (f) => ({ ...f, ramp: r.id as RampId }), true)} style={[{ height: 50, minWidth: 84, borderRadius: 14, paddingHorizontal: 10, justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, fxNow?.ramp === r.id && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: fxNow?.ramp === r.id }} accessibilityLabel={t('Rampa {name}: {mood}', { name: rampName(r), mood: rampMood(r) })}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 16 }}>
                     {Array.from({ length: 14 }, (_, k) => (
                       <View key={k} style={{ width: 3, borderRadius: 2, height: Math.max(3, (rampSpeedAt(r.points, (k + 0.5) / 14) / Math.max(...r.points.map((p) => p[1]))) * 16), backgroundColor: fxNow?.ramp === r.id ? fxc.coralHot : 'rgba(255,255,255,0.55)' }} />
                     ))}
                   </View>
-                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 3 }}>{r.name}</Text>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 3 }}>{rampName(r)}</Text>
                 </Pressable>
               ))}
             </FxRow>
-            {fxNow?.ramp ? <Text style={ui.note}>{RAMPS.find((r) => r.id === fxNow.ramp)?.mood} {t('· fica com {s} s', { s: fmtS(cur.dur) })}</Text> : null}
+            {fxNow?.ramp ? <Text style={ui.note}>{RAMPS.filter((r) => r.id === fxNow.ramp).map(rampMood)} {t('· fica com {s} s', { s: fmtS(cur.dur) })}</Text> : null}
             <ReverseRow cur={cur} state={reverseOf(cur.key)} onToggle={() => put(i, (f) => ({ ...f, reverse: f.reverse ? undefined : true }), true)} />
             <FxRow wrap>
               <FxAction label={freezing ? t('A congelar…') : t('Congelar este frame')} icon={<Icon name="snowflake" size={14} color="#fff" />} onPress={onFreeze} disabled={freezing} tone="coral" a11y={t('Congelar o frame que está na pré-visualização: junta uma foto desse instante')} />

@@ -14,7 +14,7 @@ import { StickerArt } from '../../Stickers';
 import { CapulanaSticker } from '../CapulanaSticker';
 import { CapulanaSwatch } from '../CapulanaSwatch';
 import type { ClockStore } from './clockStore';
-import { t } from '@/lib/i18n';
+import { currentLanguage, t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 const HIDDEN: AnimFrame = { visible: false, alpha: 0, dx: 0, dy: 0, scale: 1, rot: 0, chars: 1, glow: 0, wave: 0 };
@@ -88,7 +88,7 @@ function StickerBody({ o, k }: { o: StickerOverlay; k: number }) {
       </Pill>
     );
     case 'time': {
-      const lines = timeLabel(s.format, s.at);
+      const lines = timeLabel(s.format, s.at, currentLanguage());
       const big = s.format !== 'data';
       return (
         <Pill o={o} k={k} h={big ? (lines[1] ? 250 : 180) : 120}>

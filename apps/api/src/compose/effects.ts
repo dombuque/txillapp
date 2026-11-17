@@ -586,13 +586,23 @@ export function contrastOn(hex: string): '#111111' | '#ffffff' {
   const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
   return L > 0.4 ? '#111111' : '#ffffff';
 }
-const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
-/** O texto do sticker da hora, na hora de Moçambique (UTC+2, sem hora de verão): «22:41», «Qui, 12 nov.». */
-export function timeLabel(format: 'hora' | 'data' | 'hora-data', at: number): string[] {
+/**
+ * Os dias e os meses que se desenham no vídeo (o sticker da hora), em cada idioma da app (LANGS de packages/shared). Ficam
+ * aqui, sem o i18n da app, para o estúdio e a montagem no servidor darem as mesmas letras: a língua vem explícita (`lang`).
+ */
+export const FX_DATE_NAMES: Record<string, { days: readonly string[]; months: readonly string[] }> = {
+  pt: { days: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], months: ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'] },
+  en: { days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
+};
+/**
+ * O texto do sticker da hora, na hora de Moçambique (UTC+2, sem hora de verão): «22:41», «Qui, 12 nov.» (`lang` 'en':
+ * «Thu, 12 Nov»). Um idioma sem tabela fica em português.
+ */
+export function timeLabel(format: 'hora' | 'data' | 'hora-data', at: number, lang = 'pt'): string[] {
   const d = new Date(at + 2 * 3600 * 1000);
+  const names = FX_DATE_NAMES[lang] ?? FX_DATE_NAMES.pt;
   const hora = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  const data = `${DIAS[d.getUTCDay()]}, ${d.getUTCDate()} ${MESES[d.getUTCMonth()]}`;
+  const data = `${names.days[d.getUTCDay()]}, ${d.getUTCDate()} ${names.months[d.getUTCMonth()]}`;
   return format === 'hora' ? [hora] : format === 'data' ? [data] : [hora, data];
 }
 

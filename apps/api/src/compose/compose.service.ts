@@ -127,6 +127,8 @@ export interface ComposeSpec {
   overlays?: Overlay[];
   /** O pano de capulana da tcheka (o das transições de pano sem pano próprio). */
   pano?: CapulanaSpec;
+  /** A língua do que as camadas escrevem no vídeo (o sticker da hora: `timeLabel`); sem ela, português. */
+  lang?: string;
 }
 
 /** O trecho, os fades, o ducking, a voz-off, os efeitos de voz e os efeitos sonoros (tempos em segundos). */
@@ -371,7 +373,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         sfx: (b.soundEffects ?? []).map((s) => ({ id: s.id, at: s.atMs / 1000 })),
         sfxVolume: b.soundEffectsVolume ?? 1,
       },
-      ...(studio ? { studio: true, overlays, pano: sanitizePano(b.pano) ?? DEFAULT_PANO } : {}),
+      ...(studio ? { studio: true, overlays, pano: sanitizePano(b.pano) ?? DEFAULT_PANO, ...(b.lang && b.lang !== 'pt' ? { lang: b.lang } : {}) } : {}),
     };
   }
 
@@ -855,7 +857,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         const l0 = Date.now();
         const st = await this.stickerImages(spec.overlays!, tmp, layersSignal);
         try {
-          return await renderLayers(spec.overlays!, frames, st.images, { cwd: tmp, signal: layersSignal });
+          return await renderLayers(spec.overlays!, frames, st.images, { cwd: tmp, signal: layersSignal, lang: spec.lang });
         } finally {
           await st.close();
           timings.layers = Date.now() - l0;
