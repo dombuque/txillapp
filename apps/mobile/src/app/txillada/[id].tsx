@@ -17,7 +17,7 @@ import { CallIcon } from '@/components/calls/CallIcons';
 import { ActionRow } from '@/components/ui/ActionRow';
 import { Button } from '@/components/ui/Button';
 import { SendButton } from '@/components/ui/SendButton';
-import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
+import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewport';
 import { FxLayer, HelloAllButton, HelloStack, JoinedToast, ReactionBar, ViewersList, ViewersStack } from '@/components/txillada/LiveFx';
 import { CommentMenu } from '@/components/txillada/CommentMenu';
 import { LiveComments } from '@/components/txillada/LiveCommentList';
@@ -148,7 +148,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   // ── O teclado: o palco fica do tamanho de antes; só a barra sobe ─────────────────────────────────────────────────────
   const web = Platform.OS === 'web';
   const vv = useVisibleViewport();
-  const webKb = web && typeof window !== 'undefined' && !!sheetViewport(vv, window.innerHeight, window.innerWidth);
+  const webKb = web && typeof window !== 'undefined' && !!sheetViewport(vv, webWindowH(), window.innerWidth);
   const writing = typing || kb > 0 || webKb;
   const [rootH, setRootH] = useState(0);
   const still = useRef<Size>({ w: 0, h: 0 });

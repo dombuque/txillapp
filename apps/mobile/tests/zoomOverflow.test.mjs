@@ -52,7 +52,7 @@ test('sheetViewport: página encolhida ou ampliada não é teclado aberto', () =
 });
 
 test('a folha e o visor dos mimos passam a largura da janela à deteção do teclado', () => {
-  assert.match(readFileSync(path.join(ROOT, 'src', 'components', 'Sheet.tsx'), 'utf8'), /sheetViewport\(vv, window\.innerHeight, window\.innerWidth\)/);
-  assert.match(readFileSync(path.join(ROOT, 'src', 'app', 'stories', '[username].tsx'), 'utf8'), /webKeyboardBox\(vv, window\.innerHeight, window\.innerWidth\)/);
+  assert.match(readFileSync(path.join(ROOT, 'src', 'components', 'Sheet.tsx'), 'utf8'), /sheetViewport\(vv, webWindowH\(\), window\.innerWidth\)/);
+  assert.match(readFileSync(path.join(ROOT, 'src', 'app', 'stories', '[username].tsx'), 'utf8'), /webKeyboardBox\(vv, webWindowH\(\), window\.innerWidth\)/);
   assert.match(readFileSync(path.join(ROOT, 'src', 'components', 'zas', 'useVisibleViewport.ts'), 'utf8'), /width: v\.width, scale: v\.scale/);
 });

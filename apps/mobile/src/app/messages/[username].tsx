@@ -2,7 +2,8 @@ import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { headerInMenu } from '@/lib/chatBars';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -52,6 +53,8 @@ export default function Thread() {
   const { username = '' } = useLocalSearchParams<{ username: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Ecrã estreito (360 px ou menos): o Mixar e a videochamada passam para o menu «⋯» e o nome ganha espaço (lib/chatBars).
+  const inMenu = headerInMenu(useWindowDimensions().width);
   // Com o teclado aberto a barra de escrever fica colada a ele (sem a margem do sistema por baixo).
   const composerBottom = useComposerBottom(insets.bottom);
   const qc = useQueryClient();
@@ -301,9 +304,9 @@ export default function Thread() {
           <>
             {person && !first?.blocked ? (
               <>
-                {!request ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><View><Icon name="mixar" size={23} color={colors.zinc800} />{mixarNew ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
+                {!request && !inMenu ? <HeaderButton label={`Mixar com ${firstName || person.displayName}`} onPress={() => void mixar.run(person.username, person.displayName)}><View><Icon name="mixar" size={23} color={colors.zinc800} />{mixarNew ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
                 <HeaderButton label={`Ligar a ${person.displayName}`} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
-                <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton>
+                {!inMenu ? <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton> : null}
               </>
             ) : null}
             <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
@@ -382,6 +385,9 @@ export default function Thread() {
         <ChatMenuSheet
           onClose={() => setMore(false)}
           items={[
+            // Ecrã estreito: o que saiu do cabeçalho fica aqui, no topo.
+            ...(inMenu && person && !first?.blocked && !request ? [{ icon: 'mixar' as const, label: 'Mixar', onPress: () => void mixar.run(person.username, person.displayName) }] : []),
+            ...(inMenu && person && !first?.blocked ? [{ icon: 'video' as const, label: 'Videochamada', onPress: () => call(true) }] : []),
             { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
             ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
             // Mixar: abre o que já existe com esta pessoa ou convida (não num pedido nem com bloqueio: as regras do chat).

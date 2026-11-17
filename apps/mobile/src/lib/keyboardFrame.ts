@@ -28,7 +28,8 @@ export function heldSize(prev: Size, now: Size, keyboard: boolean): Size {
 }
 
 /**
- * Na web, o teclado está aberto? A zona visível bem mais baixa do que a janela (mais de 120 px), sem zoom (com a página
+ * Na web, o teclado está aberto? A zona visível bem mais baixa do que a janela (mais de 120 px; `innerH` é a altura de
+ * referência, lib/webViewport `webWindowHeight`, lida por `webWindowH`), sem zoom (com a página
  * ampliada a zona também é mais baixa, mas não é o teclado). Devolve a zona, ou null.
  */
 export function webKeyboardBox(vv: (VisibleBox & { width?: number; scale?: number }) | null, innerH: number, innerW?: number): VisibleBox | null {

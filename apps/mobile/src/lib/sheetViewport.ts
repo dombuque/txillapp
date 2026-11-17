@@ -7,6 +7,8 @@
 export type VisibleBox = { top: number; height: number; width?: number; scale?: number };
 
 /**
+ * `innerHeight`: a altura de referência da janela (lib/webViewport `webWindowHeight`, lida por `webWindowH`), que não
+ * encolhe com o teclado mesmo que o `innerHeight` do iPhone encolha.
  * Com a página encolhida ou ampliada (zoom: `scale` diferente de 1, ou a zona visível mais estreita do que a janela) a altura
  * também difere, mas não é o teclado: nesse caso não se mexe (antes lia-se como teclado e a folha ficava presa em cima).
  */

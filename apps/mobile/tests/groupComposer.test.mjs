@@ -34,7 +34,8 @@ test('a pílula, o campo e a resposta têm as mesmas medidas nas duas barras', (
     assert.ok(style(c, name), `ChatComposer tem ${name}`);
     assert.equal(style(g, name), style(c, name), name);
   }
-  assert.match(g, /paddingBottom: Math\.max\(14, bottom \+ 8\)/);
+  // A mesma margem de baixo nas duas barras: a de sempre sem teclado, só a folga normal com ele (lib/chatKeyboard).
+  assert.match(g, /paddingBottom: composerPad\(bottom, keyboardOpen\)/);
 });
 
 test('abrir os stickers fecha o teclado (como nas conversas a dois)', () => {

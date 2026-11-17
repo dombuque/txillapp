@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
+import { useKeyboardOpen } from '@/components/ChatScreen';
+import { KB_COMPOSER_PAD } from '@/lib/chatKeyboard';
 import { useDeskChat } from '@/lib/deskChat';
 import { editBarKey, type KeyLike } from '@/lib/deskChatKeys';
 
@@ -18,6 +20,8 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
   /** Grava o texto novo; se o servidor recusar, lança o erro (que aparece por cima da caixa). */
   onSave: (text: string) => Promise<void>;
 }) {
+  // Com o teclado aberto, só a folga normal por baixo (como a barra de escrever).
+  const keyboardOpen = useKeyboardOpen();
   const [text, setText] = useState(original);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -55,7 +59,7 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
   }
 
   return (
-    <View style={[st.wrap, { paddingBottom: Math.max(bottom, 10) }]}>
+    <View style={[st.wrap, { paddingBottom: keyboardOpen ? KB_COMPOSER_PAD : Math.max(bottom, 10) }]}>
       <View style={st.bar}>
         <View style={st.barLine} />
         <View style={{ flex: 1, minWidth: 0 }}>

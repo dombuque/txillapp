@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const k = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'chatKeyboard.ts')).href);
+const wv = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'webViewport.ts')).href);
 const read = (f) => readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 
 test('web: teclado aberto só quando a zona visível é bem mais baixa do que a janela', () => {
@@ -37,7 +38,60 @@ test('as duas conversas usam o ChatScreen e a margem sem teclado na barra de esc
   }
   const screen = read('src/components/ChatScreen.tsx');
   assert.match(screen, /<KeyboardAvoidingView style=\{style\} behavior="padding">/);
-  assert.match(screen, /position: 'absolute', left: 0, right: 0, top: vv\.top, height: vv\.height/);
+  assert.match(screen, /position: 'absolute', left: 0, right: 0, top: pinnedTop\(vv\.top, parentTop\), height: vv\.height/);
+});
+
+test('iPhone: a conversa presa à zona visível desconta a página deslocada pelo Safari (sem faixa branca por cima do teclado)', () => {
+  // Página no topo: fica no offsetTop, como antes.
+  assert.equal(k.pinnedTop(0, 0), 0);
+  assert.equal(k.pinnedTop(300, 0), 300);
+  // O Safari deslocou a página 70 px e ignorou o scrollTo(0, 0): o ecrã está 70 px acima, a conversa desce 70 px.
+  assert.equal(k.pinnedTop(0, -70), 70);
+  assert.equal(k.pinnedTop(12.4, -70.2), 83);
+  // A barra de escrever fica colada ao teclado: o fundo da conversa é o fundo da zona visível.
+  const vv = { top: 0, height: 464 };
+  const parentTop = -70;
+  assert.equal(parentTop + k.pinnedTop(vv.top, parentTop) + vv.height, vv.top + vv.height);
+  const screen = read('src/components/ChatScreen.tsx');
+  assert.match(screen, /box\.current\?\.parentElement/);
+  assert.match(screen, /getBoundingClientRect\(\)\.top/);
+  assert.match(screen, /window\.addEventListener\('scroll', fix\)/);
+});
+
+test('teclado aberto: a janela de referência não encolhe com ele, e o zoom não conta como teclado', () => {
+  // Se o innerHeight também encolher com o teclado, conta a altura do documento.
+  assert.equal(wv.webWindowHeight(464, 844), 844);
+  assert.equal(wv.webWindowHeight(844, 844), 844);
+  assert.equal(wv.webWindowHeight(0, 0), 0);
+  assert.equal(k.webKeyboardOpen(464, wv.webWindowHeight(464, 844)), true);
+  assert.equal(k.webKeyboardOpen(400, 800, 2), false, 'página ampliada não é o teclado');
+  assert.equal(k.webKeyboardOpen(400, 800, 1), true);
+  // Uma só leitura da janela, partilhada por conversas, folhas, mimos, Zás e Txillada.
+  const vvHook = read('src/components/zas/useVisibleViewport.ts');
+  assert.match(vvHook, /export function webWindowH\(\): number/);
+  assert.match(vvHook, /webWindowHeight\(window\.innerHeight, typeof document !== 'undefined' \? document\.documentElement\?\.clientHeight \?\? 0 : 0\)/);
+  const screen = read('src/components/ChatScreen.tsx');
+  assert.equal((screen.match(/webKeyboardOpen\([^)]*webWindowH\(\), [a-z]+\.scale\)/g) || []).length, 2, 'as duas contas (barra e conversa) usam a mesma janela');
+  assert.doesNotMatch(screen, /webKeyboardOpen\([^)]*window\.innerHeight\)/);
+  for (const f of ['src/components/Sheet.tsx', 'src/app/txillada/[id].tsx', 'src/components/txillada/TxilladaPrep.tsx', 'src/app/stories/[username].tsx', 'src/components/Instants.tsx']) {
+    const s = read(f);
+    assert.match(s, /(sheetViewport|webKeyboardBox)\(vv, webWindowH\(\), window\.innerWidth\)/, f);
+    assert.doesNotMatch(s, /(sheetViewport|webKeyboardBox)\(vv, window\.innerHeight/, f);
+  }
+});
+
+test('com o teclado aberto a barra de escrever (e a de editar) fica só com a folga normal por baixo', () => {
+  assert.equal(k.composerPad(21.6, true), k.KB_COMPOSER_PAD);
+  assert.equal(k.composerPad(0, true), 8);
+  assert.equal(k.composerPad(0, false), 14, 'sem teclado, a de sempre');
+  assert.equal(k.composerPad(21.6, false), 29.6);
+  for (const f of ['src/components/ChatComposer.tsx', 'src/components/GroupComposer.tsx']) {
+    const s = read(f);
+    assert.match(s, /const keyboardOpen = useKeyboardOpen\(\);/, f);
+    assert.match(s, /paddingBottom: composerPad\(bottom, keyboardOpen\)/, f);
+    assert.doesNotMatch(s, /Math\.max\(14, bottom \+ 8\)/, f);
+  }
+  assert.match(read('src/components/ChatEditBar.tsx'), /paddingBottom: keyboardOpen \? KB_COMPOSER_PAD : Math\.max\(bottom, 10\)/);
 });
 
 test('imagem colada: a legenda só ganha o cursor sozinha no computador (no iPhone o teclado tapava o Enviar)', () => {

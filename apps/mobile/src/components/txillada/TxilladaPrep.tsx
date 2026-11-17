@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { useKeyboardHeight } from '@/components/StoryParts';
-import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
+import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewport';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { EMPTY_PREP, PREP_KEY, decodePrep, encodeKeep, keepRead, keepWrite, keyFor, prepIsEmpty, type PrepForm } from '@/lib/createKeep';
@@ -77,7 +77,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
   const focused = useRef<string | null>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vv = useVisibleViewport();
-  const webKb = Platform.OS === 'web' && typeof window !== 'undefined' && !!sheetViewport(vv, window.innerHeight, window.innerWidth);
+  const webKb = Platform.OS === 'web' && typeof window !== 'undefined' && !!sheetViewport(vv, webWindowH(), window.innerWidth);
   const writing = typing || kb > 0 || webKb;
   // O cartão é medido no próprio ecrã (no computador é a coluna do meio, não a janela) e sem o teclado: no iPhone o
   // react-native-web mede a janela pela zona visível e o cartão encolhia para metade.

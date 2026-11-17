@@ -36,6 +36,7 @@ import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
 import { LOVE_BURST_MS, LOVE_TAP_MS, canLove, isDoubleClick, loveFrames } from '@/lib/chatLove';
 import { formatVibes } from '@/lib/vibes';
+import { BAR_W, showSpeed, speedLabel, voiceBarCount, waveHeights } from '@/lib/voiceWave';
 import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
@@ -137,39 +138,22 @@ function TileMap({ lat, lng, width, height }: { lat: number; lng: number; width:
 }
 
 // ----- voz -----
-const BARS = 42;
 const RATES = [1, 1.5, 2];
 let rate = 1;
-/** Alturas das barras (0..1): a onda medida na gravação ou, em mensagens antigas, uma onda estável feita a partir do id. */
-function waveShape(m: Pick<ChatMessage, 'id' | 'waveform'>): number[] {
-  const out: number[] = [];
-  if (m.waveform && m.waveform.length >= 8) {
-    const w = m.waveform;
-    for (let i = 0; i < BARS; i++) {
-      const a = Math.floor((i * w.length) / BARS);
-      const b = Math.max(a + 1, Math.floor(((i + 1) * w.length) / BARS));
-      let sum = 0;
-      for (let k = a; k < b; k++) sum += Number(w[k]);
-      out.push(0.16 + 0.84 * (sum / (b - a) / 9));
-    }
-    return out;
-  }
-  let seed = [...m.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 17);
-  for (let i = 0; i < BARS; i++) {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    out.push(0.2 + 0.8 * Math.abs(Math.sin(i * 0.55 + (seed % 100) / 40)) * (0.45 + (seed % 55) / 100));
-  }
-  return out;
-}
 
-/** Mensagem de voz: tocar/pausar, onda real, tocar na onda para avançar ou recuar, velocidade 1×/1,5×/2× e tempo. */
+/**
+ * Mensagem de voz: tocar/pausar, onda real, tocar na onda para avançar ou recuar, velocidade 1×/1,5×/2× e tempo. A onda
+ * ocupa o espaço livre e tem as barras que lá cabem (lib/voiceWave); por baixo dela, a duração à esquerda e, enquanto
+ * toca, a velocidade à direita (antes ficavam as duas por cima do fim da onda).
+ */
 function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
   const mine = m.fromMe;
   const player = useAudioPlayer(abs(m.mediaUrl) ?? '');
   const status = useAudioPlayerStatus(player);
   const [speed, setSpeed] = useState(rate);
   const [w, setW] = useState(0);
-  const heights = useMemo(() => waveShape(m), [m.id, m.waveform]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bars = voiceBarCount(w);
+  const heights = useMemo(() => waveHeights(m.id, m.waveform, bars), [m.id, m.waveform, bars]);
   const len = m.durationMs ?? Math.round((status.duration || 0) * 1000);
   const at = Math.round((status.currentTime || 0) * 1000);
   const frac = len ? Math.min(1, at / len) : 0;
@@ -197,29 +181,31 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
       <Pressable {...hold} onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Ouvir mensagem de voz'}>
         <Icon name={playing ? 'pause' : 'play'} size={19} solid color={mine ? colors.brand : '#fff'} />
       </Pressable>
-      <Pressable {...hold} onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel="Posição da mensagem de voz">
-        {heights.map((h, i) => (
-          <View key={i} pointerEvents="none" style={{ flex: 1, minWidth: 2, maxWidth: 4, height: `${Math.round(h * 100)}%`, borderRadius: 999, backgroundColor: (i + 0.5) / BARS <= frac ? played : rest }} />
-        ))}
-      </Pressable>
-      <View style={{ width: 44, alignItems: 'flex-end' }}>
-        <Text style={{ fontSize: 12, lineHeight: 12, fontWeight: '600', fontVariant: ['tabular-nums'], color: mine ? 'rgba(255,255,255,0.9)' : colors.zinc600 }}>{mmss(shown)}</Text>
-        {(playing || at > 0 || speed !== 1) && (
-          <Pressable
-            {...hold}
-            onPress={() => {
-              rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
-              setSpeed(rate);
-              try { player.setPlaybackRate(rate); } catch { /* */ }
-            }}
-            hitSlop={6}
-            style={{ marginTop: 3, borderRadius: 999, backgroundColor: mine ? 'rgba(255,255,255,0.25)' : colors.zinc200, paddingHorizontal: 5, paddingVertical: 1 }}
-            accessibilityRole="button"
-            accessibilityLabel="Velocidade"
-          >
-            <Text style={{ fontSize: 10, fontWeight: '700', color: mine ? '#fff' : colors.zinc700 }}>{String(speed).replace('.', ',')}×</Text>
-          </Pressable>
-        )}
+      <View style={st.voiceMain}>
+        <Pressable {...hold} onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel="Posição da mensagem de voz">
+          {heights.map((h, i) => (
+            <View key={i} pointerEvents="none" style={{ width: BAR_W, height: `${Math.round(h * 100)}%`, borderRadius: 999, backgroundColor: (i + 0.5) / bars <= frac ? played : rest }} />
+          ))}
+        </Pressable>
+        <View style={st.voiceMeta}>
+          <Text style={[st.voiceTime, { color: mine ? 'rgba(255,255,255,0.9)' : colors.zinc600 }]}>{mmss(shown)}</Text>
+          {showSpeed(playing, at) && (
+            <Pressable
+              {...hold}
+              onPress={() => {
+                rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+                setSpeed(rate);
+                try { player.setPlaybackRate(rate); } catch { /* */ }
+              }}
+              hitSlop={8}
+              style={[st.voiceSpeed, { backgroundColor: mine ? 'rgba(255,255,255,0.25)' : colors.zinc200 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Velocidade ${speedLabel(speed)}`}
+            >
+              <Text style={[st.voiceSpeedText, { color: mine ? '#fff' : colors.zinc700 }]}>{speedLabel(speed)}</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -932,7 +918,14 @@ const st = StyleSheet.create({
   shared: { width: 240 },
   voice: { width: 264, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, paddingVertical: 6, paddingLeft: 6, paddingRight: 14 },
   voiceBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  wave: { flex: 1, minWidth: 0, height: 40, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  /** A onda e, por baixo, a duração e a velocidade: ocupa o que sobra ao lado do botão. */
+  voiceMain: { flex: 1, minWidth: 0 },
+  /** As barras cabem sempre (lib/voiceWave `voiceBarCount`); `overflow` só por segurança. */
+  wave: { height: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+  voiceMeta: { height: 16, marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  voiceTime: { fontSize: 12, lineHeight: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  voiceSpeed: { height: 16, minWidth: 28, borderRadius: 8, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  voiceSpeedText: { fontSize: 10, lineHeight: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
   deleted: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100, borderWidth: 1, borderColor: colors.zinc200 },
   deletedText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic', color: colors.zinc500 },
   liveEndedText: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.zinc500 },

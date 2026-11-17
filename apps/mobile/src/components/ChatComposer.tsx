@@ -3,7 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
+import { useKeyboardOpen } from '@/components/ChatScreen';
+import { composerTools } from '@/lib/chatBars';
+import { composerPad } from '@/lib/chatKeyboard';
 import { api, uploadChatMedia } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import type { LocationMessage } from '@/lib/sendLocation';
@@ -248,8 +251,16 @@ export function ChatComposer({
       setBusy(false);
     }
   }
+  const keyboardOpen = useKeyboardOpen();
+  const { width: screenW } = useWindowDimensions();
+  const [pillW, setPillW] = useState(0);
+  // Antes de medir a pílula: a largura do ecrã menos as margens (10 de cada lado).
+  if (!pillW && screenW) setPillW(screenW - 20);
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: Math.max(14, bottom + 8) };
+  // Com o teclado aberto, só a folga normal por baixo da pílula (lib/chatKeyboard `composerPad`).
+  const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: composerPad(bottom, keyboardOpen) };
+  // Ecrã estreito: ícones de 40 e, se ainda for pouco, a galeria passa para o «+» (lib/chatBars `composerTools`).
+  const fit = composerTools(pillW);
 
   if (recording) {
     return (
@@ -297,7 +308,7 @@ export function ChatComposer({
           </View>
         )}
         <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
-        <View ref={pill} collapsable={false} style={[st.pill, once && st.pillOnce]}>
+        <View ref={pill} collapsable={false} onLayout={(e) => setPillW(e.nativeEvent.layout.width)} style={[st.pill, once && st.pillOnce]}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.camera}>
               <Icon name="camera" size={20} color="#fff" />
@@ -333,9 +344,10 @@ export function ChatComposer({
             </Pop>
           ) : (
             <Pop key="tools" style={st.tools}>
-              <Tool icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
-              <Tool icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} />
+              <Tool w={fit.toolW} icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
+              {fit.gallery ? <Tool w={fit.toolW} icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} /> : null}
               <Tool
+                w={fit.toolW}
                 icon="sticker"
                 label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
                 on={panel === 'stickers'}
@@ -347,7 +359,7 @@ export function ChatComposer({
                 }}
               />
               {/* O teclado fica como está: o menu abre por cima da barra e cabe no espaço que sobra. */}
-              <Tool icon={more ? 'x' : 'plus'} label={more ? 'Fechar o menu' : 'Mais: câmara, foto e vídeo, localização, presente e ver uma vez'} on={more} expanded={more} onPress={() => { setPanel(null); setMore(!more); }} />
+              <Tool w={fit.toolW} icon={more ? 'x' : 'plus'} label={more ? 'Fechar o menu' : 'Mais: câmara, foto e vídeo, localização, presente e ver uma vez'} on={more} expanded={more} onPress={() => { setPanel(null); setMore(!more); }} />
             </Pop>
           )}
         </View>
@@ -376,14 +388,17 @@ export function ChatComposer({
   );
 }
 
-/** Um ícone da pílula (44 de largura, 40 de altura; com o hitSlop a área de toque passa os 44). Também na barra dos TxillGroups. */
-export function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean; expanded?: boolean }) {
+/**
+ * Um ícone da pílula (44 de largura, ou 40 em ecrãs estreitos; 40 de altura; com o hitSlop a área de toque chega aos 44).
+ * Também na barra dos TxillGroups.
+ */
+export function Tool({ icon, label, onPress, on, dot, disabled, expanded, w = 44 }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean; expanded?: boolean; w?: number }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      hitSlop={SLOP}
-      style={({ pressed }) => [st.tool, (on || pressed) && { backgroundColor: on ? '#fff' : colors.zinc200 }, disabled && { opacity: 0.5 }]}
+      hitSlop={w < 44 ? { ...SLOP, left: 2 + (44 - w) / 2, right: 2 + (44 - w) / 2 } : SLOP}
+      style={({ pressed }) => [st.tool, w !== 44 && { width: w }, (on || pressed) && { backgroundColor: on ? '#fff' : colors.zinc200 }, disabled && { opacity: 0.5 }]}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: !!on, disabled: !!disabled, ...(expanded === undefined ? null : { expanded }) }}

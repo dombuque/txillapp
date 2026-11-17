@@ -36,7 +36,7 @@ import { SendButton } from './ui/SendButton';
 import { KB_GAP, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { CurvedCaption } from './zas/CurvedCaption';
 import { squircle } from './zas/squircle';
-import { useVisibleViewport } from './zas/useVisibleViewport';
+import { useVisibleViewport, webWindowH } from './zas/useVisibleViewport';
 import { WebZasStudio } from './zas/WebZasStudio';
 import { ZasNativeCamera, type ZasCamStatus } from './zas/ZasNativeCamera';
 import { zasCardSize } from './zas/zasFrame';
@@ -874,7 +874,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
   const kb = useKeyboardHeight();
   const vv = useVisibleViewport();
   const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
-  const vvBox = isWeb ? webKeyboardBox(vv, window.innerHeight, window.innerWidth) : null;
+  const vvBox = isWeb ? webKeyboardBox(vv, webWindowH(), window.innerWidth) : null;
   const kbOpen = replying || replyTail || kb > 0 || !!vvBox;
   const still = useRef<Size>({ w: 0, h: 0 });
   // Na web conta a altura da página (innerHeight), que não muda com o teclado do iPhone; a medida da janela segue a zona visível.
