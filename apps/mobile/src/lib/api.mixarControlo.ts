@@ -41,6 +41,8 @@ export interface MixarWeek {
   /** Vídeos da semana vistos por pelo menos um; e pelos dois. */
   videos: number;
   together: number;
+  /** O outro deixa partilhar o resumo (0179). Falso: sem «Partilhar». Servidores antigos não mandam (= sim). */
+  shareable?: boolean;
 }
 
 export type MixarShareTo = 'zas' | 'story';

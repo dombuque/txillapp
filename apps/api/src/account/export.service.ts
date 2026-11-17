@@ -60,7 +60,8 @@ export class ExportService {
                 reposts_visible AS "repostsVisible", cheers_visible AS "cheersVisible", gifts_visible AS "giftsVisible",
                 show_connections AS "showConnections", suggestable, story_replies AS "storyReplies", remix_allowed AS "remixAllowed",
                 geleira_visibility AS "geleiraVisibility", geleira_cheers_public AS "geleiraCheersPublic", gelada_book_public AS "geladaBookPublic",
-                zas_keep AS "zasKeepForRecap"
+                zas_keep AS "zasKeepForRecap",
+                mixar_presence AS "mixarPresence", mixar_suggestable AS "mixarSuggestable", mixar_week_include AS "mixarWeekInclude"
            FROM identity.users WHERE id = $1`,
       )
     )[0];

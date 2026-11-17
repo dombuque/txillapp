@@ -387,7 +387,7 @@ export class SocialService {
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, calls_relay_only, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, remix_allowed, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, calls_relay_only, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, remix_allowed, mixar_presence, mixar_suggestable, mixar_week_include, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -405,6 +405,12 @@ export class SocialService {
       findByContacts: r.find_by_contacts as boolean,
       /** Deixar fazer duetos e respostas com as minhas tchekas (a escolha guardada; numa conta privada não vale, ver posts/remix.ts). */
       remixAllowed: r.remix_allowed !== false,
+      /** Mixar (0179): mostrar aos outros que estou a ver o mesmo Mixar com eles («ver juntos»). */
+      mixarPresence: r.mixar_presence !== false,
+      /** Mixar (0179): aparecer nas sugestões «Faz um Mixar com…» dos outros. */
+      mixarSuggestable: r.mixar_suggestable !== false,
+      /** Mixar (0179): deixar que o outro partilhe o resumo da semana do nosso Mixar (Zás ou mimos), que me inclui. */
+      mixarWeekInclude: r.mixar_week_include !== false,
       /** null = ainda não escolheu (a app pede-o uma vez). */
       gender: r.gender as Gender | null,
       showGender: r.show_gender as boolean,
@@ -427,7 +433,7 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; callsRelayOnly?: boolean; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean; remixAllowed?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; callsRelayOnly?: boolean; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean; remixAllowed?: boolean; mixarPresence?: boolean; mixarSuggestable?: boolean; mixarWeekInclude?: boolean },
   ) {
     // O género escolhe-se ao criar a conta e não se altera. Só contas antigas, sem género, o definem (uma vez).
     if (p.gender !== undefined) {
@@ -453,9 +459,12 @@ export class SocialService {
           find_by_contacts = COALESCE($15, find_by_contacts),
           calls_allowed = COALESCE($16, calls_allowed),
           calls_relay_only = COALESCE($17, calls_relay_only),
-          remix_allowed = COALESCE($18, remix_allowed)
+          remix_allowed = COALESCE($18, remix_allowed),
+          mixar_presence = COALESCE($19, mixar_presence),
+          mixar_suggestable = COALESCE($20, mixar_suggestable),
+          mixar_week_include = COALESCE($21, mixar_week_include)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null, p.callsRelayOnly ?? null, p.remixAllowed ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null, p.callsRelayOnly ?? null, p.remixAllowed ?? null, p.mixarPresence ?? null, p.mixarSuggestable ?? null, p.mixarWeekInclude ?? null],
     );
     return this.privacy(userId);
   }

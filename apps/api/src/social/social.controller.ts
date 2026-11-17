@@ -56,6 +56,10 @@ const privacySchema = z.object({
   findByContacts: z.boolean().optional(),
   /** «Deixar fazer duetos e respostas com as minhas tchekas» (numa conta privada não vale). */
   remixAllowed: z.boolean().optional(),
+  /** Mixar (0179): «Mostrar que estou a ver contigo», «Aparecer nas sugestões de Mixar» e «Deixar que o resumo da semana me inclua». */
+  mixarPresence: z.boolean().optional(),
+  mixarSuggestable: z.boolean().optional(),
+  mixarWeekInclude: z.boolean().optional(),
 });
 
 /** Sugestões de @menções: o que se escreveu depois do @ e onde se está a escrever (para subir quem lá está). */

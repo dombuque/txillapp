@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Pool } from 'pg';
 import { badge, tierOf } from '../common/badge';
@@ -50,6 +50,8 @@ export interface MixarWeekDto {
   /** Vídeos da semana que pelo menos um dos dois viu, e que os dois viram. */
   videos: number;
   together: number;
+  /** O outro deixa partilhar o resumo (0179, «Deixar que o resumo da semana me inclua»). Falso: sem imagem nem partilha. */
+  shareable: boolean;
 }
 
 /**
@@ -177,7 +179,11 @@ export class MixarControloService {
     const to = mixarDay(now);
     let from = to;
     for (let i = 1; i < WEEK_DAYS; i++) from = prevDay(from);
-    const [hidden, off] = await Promise.all([privateTopicsOfAll(this.pool, [me, m.other_id]), mixarOffTopics(this.pool, id)]);
+    const [hidden, off, theirChoice] = await Promise.all([
+      privateTopicsOfAll(this.pool, [me, m.other_id]),
+      mixarOffTopics(this.pool, id),
+      this.pool.query('SELECT mixar_week_include FROM identity.users WHERE id = $1', [m.other_id]),
+    ]);
 
     // O mais reagido pelos dois: os dois reagiram primeiro, depois quantas reações (sem «nah»), depois o mais recente.
     const topRow = (
@@ -258,13 +264,17 @@ export class MixarControloService {
       topics,
       videos: seen.rows[0].videos as number,
       together: seen.rows[0].together as number,
+      shareable: theirChoice.rows[0]?.mixar_week_include !== false,
     };
   }
 
-  /** O cartão da semana em JPEG (o mesmo que se partilha). Sem temas privados de nenhum dos dois. */
+  /** O cartão da semana em JPEG (o mesmo que se partilha). Sem temas privados de nenhum dos dois. 403 se o outro não deixa. */
   async weekImage(me: string, id: string): Promise<Buffer> {
     const m = await this.mixar.active(me, id);
     const w = await this.week(me, id);
+    // Quem desligou «Deixar que o resumo da semana me inclua» (0179) não aparece nos resumos que os outros partilham.
+    // A app diz o nome do outro (pelo `code`).
+    if (!w.shareable) throw new ForbiddenException({ statusCode: 403, message: 'A outra pessoa não deixa partilhar o resumo da semana do vosso Mixar', code: 'mixar_week_not_shareable' });
     const u = (await this.pool.query('SELECT username, verified, verified_tier FROM identity.users WHERE id = $1', [me])).rows[0];
     const mySeal = tierOf(u.verified, u.verified_tier);
     return renderWeekCard({

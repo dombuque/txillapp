@@ -132,6 +132,9 @@ export const GOAL_MAX = 1_000_000;
 export const PURPOSE_MAX = 80;
 export const GIFT_MAX = 5000;
 export const GIFT_PRESETS = [5, 10, 50, 100] as const;
+/** A partir de quanto oferecer pede confirmação («Oferecer 100 vibes a @x?»); abaixo, um toque e já está. */
+export const GIFT_CONFIRM_FROM = 100;
+export const giftNeedsConfirm = (n: number): boolean => n >= GIFT_CONFIRM_FROM;
 
 /** O público que vai para a API a partir do que se escolheu ao preparar. */
 export function prepAudience(kind: TxilladaKind, closeOnly: boolean): TxilladaAudience {

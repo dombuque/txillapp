@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { txilladaApi } from '@/lib/api.txillada';
 import { colors, dark as D } from '@/lib/theme';
 import { VIB, formatVibes } from '@/lib/vibes';
-import { GIFT_MAX, GIFT_PRESETS, fmtTxills, giftError, goalProgress, parseAmount, txillsLabel, type TxilladaDto, type TxilladaGiver } from '@/lib/txillada';
+import { GIFT_MAX, GIFT_PRESETS, fmtTxills, giftError, giftNeedsConfirm, goalProgress, parseAmount, txillsLabel, type TxilladaDto, type TxilladaGiver } from '@/lib/txillada';
+import { confirm } from '@/lib/confirm';
 import { GlassButton, LiveBadge } from './TxilladaParts';
 import { t } from '@/lib/i18n';
 
@@ -161,7 +162,8 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
   onWallet: () => void; onDone: (amount: number) => void;
 }) {
   // Fácil: um toque num valor e já está (sem «escolher» e depois «oferecer»). A folha fica aberta para oferecer de novo,
-  // com o que já se ofereceu agora e o saldo; «Outro valor» é o único caminho com botão.
+  // com o que já se ofereceu agora e o saldo; «Outro valor» é o único caminho com botão. A partir de 100 vibes (num valor
+  // ou em «Outro valor») pergunta antes: um toque por engano não pode levar tanto.
   const [custom, setCustom] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | 'custom' | null>(null);
@@ -178,6 +180,12 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
     if (busy != null || amount == null) return;
     const bad = giftError(amount, balance);
     if (bad) { setErr({ text: bad, insufficient: balance != null && amount > balance }); return; }
+    if (giftNeedsConfirm(amount)) {
+      setBusy(from);
+      const ok = await confirm({ title: t('Oferecer {txillsLabel} a @{host}?', { txillsLabel: txillsLabel(amount), host }), message: t('Saem já da tua carteira.'), confirm: t('Oferecer'), cancel: t('Agora não') });
+      setBusy(null);
+      if (!ok) return;
+    }
     setBusy(from);
     setErr(null);
     const r = await onSend(amount);

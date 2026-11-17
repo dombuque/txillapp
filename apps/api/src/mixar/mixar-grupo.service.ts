@@ -23,6 +23,12 @@ type PRow = Person & { id: string };
 const DAY_MS = 86_400_000;
 /** No máximo 3 propostas de Mixar por grupo e por pessoa em 24 horas (propor, sair, propor outra vez…). */
 export const GROUP_PROPOSALS_PER_DAY = 3;
+/**
+ * O limite próprio de cada TxillGroup: um Mixar aberto (pendente ou ativo) de cada vez, garantido na base pelo índice único
+ * `mixars_group_open_idx` (0173). Os Mixar de grupo não contam para os 20 Mixar a dois de cada pessoa (MAX_ACTIVE em
+ * mixar.service.ts conta só `user_a`/`user_b`): quem já tem 20 a dois entra e propõe na mesma (0179).
+ */
+export const GROUP_OPEN_MAX = 1;
 const DAILY_BATCH = 200;
 const CANDIDATES = 600;
 const EMPTY_RETRY = "interval '1 hour'";
