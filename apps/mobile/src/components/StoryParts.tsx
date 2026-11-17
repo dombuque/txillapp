@@ -326,7 +326,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Amigos próximos" onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só estas pessoas veem os mimos que marcares para amigos próximos. Elas não sabem que estão na lista.</Text>
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só estas pessoas veem o que marcares para amigos próximos: mimos, notas, Zás, Txilladas e a geleira. Elas não sabem que estão na lista.</Text>
         <Text style={st.sec}>Na tua lista ({friends.data?.length ?? 0})</Text>
         {friends.data?.length === 0 && <Text style={{ paddingVertical: 8, fontSize: 14, color: colors.zinc500 }}>Ainda ninguém. Escolhe abaixo</Text>}
         {friends.data?.map((f) => (

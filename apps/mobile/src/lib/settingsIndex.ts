@@ -116,7 +116,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'cheersVisible', group: 'privacidade', title: 'Quem vê quem brindou', keywords: ['brindes', 'brindar', 'gostos', 'likes'] },
   { id: 'giftsVisible', group: 'privacidade', title: 'Quem vê quem presenteou', keywords: ['presentes', 'quem ofereceu'] },
   { id: 'storyReplies', group: 'privacidade', title: 'Quem pode responder aos mimos', keywords: ['mimos', 'stories', 'histórias', 'respostas', 'reações aos mimos'] },
-  { id: 'closeFriends', group: 'privacidade', title: 'Amigos próximos', keywords: ['melhores amigos', 'close friends', 'lista de amigos', 'mimos'] },
+  { id: 'closeFriends', group: 'privacidade', title: 'Amigos próximos', keywords: ['melhores amigos', 'close friends', 'lista de amigos', 'mimos', 'notas', 'quem vê a minha nota'] },
   { id: 'hiddenStory', group: 'privacidade', title: 'Esconder mimo de…', keywords: ['esconder', 'ocultar', 'mimos', 'stories', 'não mostrar'] },
   { id: 'zasKeep', group: 'privacidade', title: 'Guardar os meus Zás para o resumo semanal', keywords: ['zás', 'zas', 'resumo', 'resumo semanal', 'resumo da semana', 'resumo dos zás', 'guardar zás', 'guardar os zás', '7 dias', 'sete dias', 'arquivo', 'os meus zás', 'recap', 'instants', 'apagar às 24 horas'] },
   { id: 'findByContacts', group: 'privacidade', title: 'Deixar que me encontrem pelos contactos', keywords: ['contactos', 'agenda', 'encontrar-me'] },
