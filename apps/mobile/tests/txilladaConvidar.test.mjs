@@ -80,14 +80,14 @@ test('o aviso «convidou-te para transmitir na Txillada» na lista: o texto, por
 
 test('as ligações: o painel dos convidados tem «Convidar por @» com as sugestões (e o selo), e a lista das notificações conhece o aviso', () => {
   const panel = read('src/components/txillada/TxilladaGuests.tsx');
-  assert.match(panel, /<InviteByAt s=\{s\} paid=\{paid\} onInvite=\{onInvite\} \/>/);
+  assert.match(panel, /<InviteByAt s=\{s\} paid=\{paid\} onInvite=\{onInvite\} offline=\{offline\} \/>/);
   assert.match(panel, /Convidar por @/);
   assert.match(panel, /api\.mentionSuggest\(q\)/);
   assert.match(panel, /verified: p\.verified, verifiedTier: p\.verifiedTier/);
   const screen = read('src/app/txillada/[id].tsx');
   assert.match(screen, /onInvite=\{tx\.inviteByAt\}/);
   const room = read('src/lib/txilladaRoom.ts');
-  assert.match(room, /async function inviteByAt\(username: string\)/);
+  assert.match(room, /function inviteByAt\(username: string\)/);
   assert.match(room, /inviteErrorText\(/);
   const notes = read('src/app/notifications.tsx');
   assert.match(notes, /case 'txillada_invite': return \{ text: txilladaInviteText\(n\.data, n\.actor\.username\), sub: txilladaInviteSub\(n\.txillada, n\.data as \{ mention\?: unknown \}\) \};/);

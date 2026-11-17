@@ -26,7 +26,6 @@ import { GuestsPanel, InviteCard, TxilladaStage } from '@/components/txillada/Tx
 import { EndedView, GlassButton, HostSummary, LiveBadge, ViewersPill } from '@/components/txillada/TxilladaParts';
 import { GiftSheet, GoalBar, LockedView, TopGivers } from '@/components/txillada/TxilladaMoney';
 import { api } from '@/lib/api';
-import { txilladaApi } from '@/lib/api.txillada';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { confirm } from '@/lib/confirm';
@@ -36,7 +35,7 @@ import { stableScreen, type Size } from '@/lib/prepKeyboard';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { sheetViewport } from '@/lib/sheetViewport';
 import { colors } from '@/lib/theme';
-import { COMMENT_MAX, commentMenu, dtoKind, elapsed, errorText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
+import { COMMENT_MAX, commentMenu, dtoKind, elapsed, endedText, liveClock, liveSummary, replyText, shareLink, shareMessage, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { camLabel, floatHeight, liveKeyboard } from '@/lib/txilladaChat';
 import { liveLayout, type FxPerson, type ReactionKind } from '@/lib/txilladaFx';
 import { useTxilladaFx } from '@/lib/txilladaFxRoom';
@@ -67,7 +66,10 @@ import { t } from '@/lib/i18n';
  * (primeiro o anfitrião, quem transmite e quem está a ver); quem não está a ver recebe o convite ao ser mencionado.
  *
  * A Txillada não se grava (nem as reações): quando acaba, já não se pode ver («A Txillada acabou»); o anfitrião vê o resumo
- * (e, numa Angariação terminada antes da meta, «Reabrir a Angariação»).
+ * (e, numa Angariação terminada antes da meta, «Reabrir a Angariação»). Se acabou porque a ligação do anfitrião caiu, ele
+ * pode «Continuar a Txillada» durante 10 minutos, e quem a tinha aberta lê «A ligação do anfitrião caiu» e volta a entrar
+ * sozinho se ele continuar. Com a ligação fraca, as ações do anfitrião que mexem no servidor (tirar, aceitar, convidar,
+ * fixar, apagar, expulsar) esperam que volte, e cada uma vai uma vez de cada vez; uma resposta «já acabou» mostra logo o fim.
  *
  * Convidados (0165): até 3 pessoas transmitem com o anfitrião. Quem vê toca em «Pedir para entrar» (ou aceita o convite do
  * anfitrião, que convida da lista «A ver agora» ou por @ na lista dos convidados, 0168: também quem ainda não entrou, que
@@ -125,6 +127,9 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   /** A câmara a abrir ao aceitar um convite (o botão fica à espera). */
   const [accepting, setAccepting] = useState(false);
   const [reopening, setReopening] = useState(false);
+  /** O erro da última ação na folha dos Convidados (à vista dentro dela: o aviso do ecrã fica por baixo da folha). */
+  const [guestMsg, setGuestMsg] = useState<string | null>(null);
+  useEffect(() => { setGuestMsg(null); }, [panel]);
   /** O comentário com o menu aberto (o id: as contagens vêm sempre do estado da sala) e o que se está a denunciar. */
   const [menuId, setMenuId] = useState<string | null>(null);
   const [reporting, setReporting] = useState<TxilladaComment | null>(null);
@@ -235,14 +240,10 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   }
   async function confirmBan(username: string) {
     if (!(await confirm({ title: t('Expulsar @{username}?', { username }), message: t('Sai já da Txillada e não pode voltar a entrar nesta.'), confirm: t('Expulsar'), danger: true }))) return;
-    try {
-      await txilladaApi.ban(id, username);
-      say(t('@{username} foi expulso', { username }));
-      fxs.refreshViewers();
-    } catch (e) {
-      const err = e as { status?: number; message?: string };
-      say(errorText(err?.status, err?.message));
-    }
+    const e = await tx.banUser(username);
+    if (e) { say(e); return; }
+    say(t('@{username} foi expulso', { username }));
+    fxs.refreshViewers();
   }
   /** Quem vê bloqueia o anfitrião (como no perfil, lib/api `block`): deixa de o ver e sai desta Txillada. */
   async function confirmBlock() {
@@ -303,15 +304,18 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     setAccepting(false);
     if (e) say(e);
   }
+  /** Aceitar, recusar, tirar (a folha dos Convidados): o erro fica à vista dentro da folha e no aviso do ecrã. */
   function hostGuest(what: 'accept' | 'decline' | 'remove', username: string) {
-    void tx.hostGuest(what, username).then((e) => { if (e) say(e); });
+    setGuestMsg(null);
+    void tx.hostGuest(what, username).then((e) => { if (e) { setGuestMsg(e); say(e); } });
   }
-  async function reopen() {
+  /** Reabrir a Angariação ou, depois de a ligação cair, continuar a Txillada (a mesma, outra vez ao vivo). */
+  async function reopen(resume = false) {
     if (reopening) return;
     setReopening(true);
     const e = await tx.reopen();
     setReopening(false);
-    if (e) Alert.alert(t('Não deu para reabrir'), e);
+    if (e) Alert.alert(resume ? t('Não deu para continuar') : t('Não deu para reabrir'), e);
   }
   const onFocus = () => {
     if (blurT.current) clearTimeout(blurT.current);
@@ -334,13 +338,24 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   }
   if (kind === 'ended') {
     const cut = (live.status ?? dto?.status) === 'cut';
+    // Acabou sozinha porque a ligação do anfitrião caiu (o aviso em tempo real ou a resposta da API).
+    const lost = !cut && (live.endReason ?? dto?.endReason ?? null) === 'lost';
     if (host) {
       const sum = liveSummary(dto, live, now);
+      // A ligação caiu: pode continuar-se a mesma Txillada durante 10 min (qualquer tipo, sem gastar as reaberturas).
+      const resumeUntil = lost ? (dto?.resumeUntil ?? null) : null;
+      const canResume = lost && !!dto?.canReopen && !!resumeUntil && Date.parse(resumeUntil) > Date.now();
       // Uma Angariação terminada antes da meta (0174): pode reabrir-se durante 24 h.
-      const canReopen = !!dto?.canReopen && !cut && dto.goal != null;
+      const canReopen = !!dto?.canReopen && !cut && dto.goal != null && !resumeUntil;
       return (
         <View style={[st.screen, webFull, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-          <HostSummary {...sum} cut={cut} onDone={leave} reopen={canReopen ? { goal: dto!.goal!, raised: Math.max(live.raised, dto!.raised ?? 0), until: dto!.reopenUntil ?? null, busy: reopening, onPress: () => void reopen() } : null} />
+          <HostSummary
+            {...sum}
+            cut={cut}
+            onDone={leave}
+            reopen={canReopen ? { goal: dto!.goal!, raised: Math.max(live.raised, dto!.raised ?? 0), until: dto!.reopenUntil ?? null, busy: reopening, onPress: () => void reopen() } : null}
+            lost={lost ? { until: resumeUntil, busy: reopening, onPress: canResume ? () => void reopen(true) : null } : null}
+          />
         </View>
       );
     }
@@ -348,7 +363,9 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     if (cut && dtoKind(dto) === 'paid' && dto?.hasTicket && !dto.locked) {
       return <View style={[st.screen, webFull]}><EndedView sub={t('A equipa do Txillapp terminou esta Txillada. A tua entrada voltou para a tua carteira.')} onBack={leave} /></View>;
     }
-    return <View style={[st.screen, webFull]}><EndedView onBack={leave} /></View>;
+    // A ligação do anfitrião caiu: enquanto ele pode continuar, quem vê volta a entrar sozinho.
+    const why = lost ? endedText('lost', tx.resumeWait) : null;
+    return <View style={[st.screen, webFull]}><EndedView {...(why ?? {})} onBack={leave} /></View>;
   }
   if (!dto) return null;
   // Privada sem a entrada (0167): o cartão com o cadeado e o preço; pagar liga à sala.
@@ -528,7 +545,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           ) : null}
           <JoinedToast users={fxs.joined?.users ?? null} bottom={laneBottom} left={L.side} onHello={host ? (u) => (u ? fxs.helloTo(u.username) : react('hello')) : undefined} />
 
-          {flash ? <View style={[st.flash, { bottom: laneBottom }]} pointerEvents="none"><Text style={st.flashText} accessibilityRole="alert">{flash}</Text></View> : null}
+          {flash && panel === null ? <View style={[st.flash, { bottom: laneBottom }]} pointerEvents="none"><Text style={st.flashText} accessibilityRole="alert">{flash}</Text></View> : null}
 
           {/* Em baixo: as reações (quem vê) ou as ferramentas do anfitrião; e comentar. */}
           <View style={[st.bar, { left: L.side, right: L.side, bottom: barBottom }]} pointerEvents="box-none">
@@ -665,6 +682,9 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
               onDecline={(u) => hostGuest('decline', u)}
               onRemove={(u) => hostGuest('remove', u)}
               onOpenViewers={() => { fxs.refreshViewers(); setPanel('viewers'); }}
+              busy={tx.busy}
+              offline={!tx.canAct}
+              msg={guestMsg}
             />
           </Panel>
         </View>
@@ -684,6 +704,8 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           <ReportSheet type="txillada_comment" id={reporting.id} txilladaId={dto.id} onClose={() => setReporting(null)} onReported={() => tx.hideComment(reporting)} />
         </View>
       ) : null}
+      {/* Com uma folha aberta (Convidados, A ver agora…), o aviso vai por cima dela, em cima (não fica tapado). */}
+      {flash && panel !== null ? <View style={[st.flash, st.flashOver, { top: insets.top + 12 }]} pointerEvents="none"><Text style={st.flashText} accessibilityRole="alert">{flash}</Text></View> : null}
     </View>
   );
 }
@@ -727,6 +749,7 @@ const st = StyleSheet.create({
   sound: { position: 'absolute', alignSelf: 'center', top: '62%', zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: 'rgba(14,14,18,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
   soundText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   flash: { position: 'absolute', left: 16, right: 16, zIndex: 9, alignItems: 'center' },
+  flashOver: { zIndex: 40, elevation: 40 },
   flashText: { color: '#fff', fontSize: 14, fontWeight: '600', backgroundColor: 'rgba(14,14,18,0.82)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, overflow: 'hidden', textAlign: 'center' },
   bar: { position: 'absolute', zIndex: 6, elevation: 6, gap: 8 },
   mentions: { marginHorizontal: 0, marginBottom: 0 },

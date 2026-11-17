@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 import { Button } from '@/components/ui/Button';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
-import { fmtTxills, txillsLabel, viewersLabel } from '@/lib/txillada';
+import { fmtTxills, resumeText, txillsLabel, viewersLabel } from '@/lib/txillada';
 import { formatVibes } from '@/lib/vibes';
 import { t } from '@/lib/i18n';
 
@@ -96,8 +96,10 @@ export function EndedView({ title = t('A Txillada acabou'), sub = t('As Txillada
 /**
  * `reopen` (0174): terminou uma Angariação antes da meta: «Reabrir a Angariação» (até `reopen.until`, 24 h), a mesma
  * Txillada outra vez ao vivo, com a meta e o que já se juntou.
+ * `lost`: acabou sozinha porque a ligação do anfitrião caiu; com `lost.onPress` (até `lost.until`, 10 min),
+ * «Continuar a Txillada»: a mesma, outra vez ao vivo.
  */
-export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone, reopen }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void; reopen?: { goal: number; raised: number; until: string | null; busy: boolean; onPress: () => void } | null }) {
+export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone, reopen, lost }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void; reopen?: { goal: number; raised: number; until: string | null; busy: boolean; onPress: () => void } | null; lost?: { until: string | null; busy: boolean; onPress: (() => void) | null } | null }) {
   const items: { label: string; value: string }[] = [
     { label: t('Duração'), value: duration },
     { label: t('Pico de espectadores'), value: String(peak) },
@@ -110,7 +112,8 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
   return (
     <View style={st.center}>
       <Text style={st.endTitle} accessibilityRole="header">{t('A Txillada acabou e não fica gravada')}</Text>
-      {cut ? <Text style={st.endSub}>{t('A equipa do Txillapp terminou esta Txillada por não cumprir as regras da comunidade.')}</Text> : <Text style={st.endSub}>{t('Obrigado por teres aberto a Txillada. Aqui fica como correu.')}</Text>}
+      {cut ? <Text style={st.endSub}>{t('A equipa do Txillapp terminou esta Txillada por não cumprir as regras da comunidade.')}</Text> : lost ? <Text style={st.endSub} accessibilityRole="alert">{resumeText(lost.onPress ? lost.until : null)}</Text> : <Text style={st.endSub}>{t('Obrigado por teres aberto a Txillada. Aqui fica como correu.')}</Text>}
+      {lost?.onPress && !cut ? <Button label={t('Continuar a Txillada')} onPress={lost.onPress} loading={lost.busy} style={st.cta} testID="txillada-resume" /> : null}
       <View style={st.grid}>
         {items.map((i) => (
           <View key={i.label} style={st.cell}>
@@ -119,13 +122,13 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
           </View>
         ))}
       </View>
-      {reopen && !cut ? (
+      {reopen && !cut && !lost?.onPress ? (
         <View style={st.reopen}>
           <Text style={st.endSub}>{reopenText(reopen.raised, reopen.goal, reopen.until)}</Text>
           <Button label={t('Reabrir a Angariação')} onPress={reopen.onPress} loading={reopen.busy} style={st.cta} testID="txillada-reopen" />
         </View>
       ) : null}
-      <Button label={t('Feito')} kind={reopen && !cut ? 'secondary' : 'primary'} dark onPress={onDone} style={st.cta} />
+      <Button label={t('Feito')} kind={(reopen || lost?.onPress) && !cut ? 'secondary' : 'primary'} dark onPress={onDone} style={st.cta} />
     </View>
   );
 }

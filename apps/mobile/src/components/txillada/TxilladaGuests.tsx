@@ -114,10 +114,11 @@ function Row({ p, children }: { p: GuestPending | { user: Pick<TxilladaPerson, '
   );
 }
 
-function Small({ label, kind = 'ghost', onPress, disabled }: { label: string; kind?: 'ghost' | 'brand' | 'danger'; onPress: () => void; disabled?: boolean }) {
+/** Um botão pequeno da folha. `busy`: à espera da resposta (fica ocupado, não se carrega outra vez). */
+function Small({ label, kind = 'ghost', onPress, disabled, busy }: { label: string; kind?: 'ghost' | 'brand' | 'danger'; onPress: () => void; disabled?: boolean; busy?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} hitSlop={4} style={({ pressed }) => [st.small, kind === 'brand' ? st.smallBrand : st.smallGhost, pressed && st.pressed, disabled && { opacity: 0.45 }]} accessibilityRole="button" accessibilityLabel={label}>
-      <Text style={[st.smallText, kind === 'brand' && { color: '#fff' }, kind === 'danger' && { color: DANGER_ON_DARK }]}>{label}</Text>
+    <Pressable onPress={onPress} disabled={disabled || busy} hitSlop={4} style={({ pressed }) => [st.small, kind === 'brand' ? st.smallBrand : st.smallGhost, pressed && st.pressed, (disabled || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}>
+      {busy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[st.smallText, kind === 'brand' && { color: '#fff' }, kind === 'danger' && { color: DANGER_ON_DARK }]}>{label}</Text>}
     </Pressable>
   );
 }
@@ -131,7 +132,7 @@ const DANGER_ON_DARK = '#fca5a5';
  * quem ainda não entrou: a pessoa recebe um aviso que abre a Txillada (numa privada, entra sem pagar). Os erros vêm em
  * palavras claras (lib/txilladaGuests `inviteErrorText`): já convidado, já a transmitir, sem lugar, não encontrado.
  */
-export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boolean; onInvite: (username: string) => Promise<string | null> }) {
+export function InviteByAt({ s, paid, onInvite, offline = false }: { s: GuestsState; paid?: boolean; onInvite: (username: string) => Promise<string | null>; offline?: boolean }) {
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -178,7 +179,7 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
           maxLength={30}
           accessibilityLabel={t('Convidar por @: o nome de utilizador')}
         />
-        <Small label={busy && busy === handle ? t('A convidar…') : t('Convidar')} kind="brand" disabled={!handle || !!busy || full} onPress={() => { if (handle) void send(handle); }} />
+        <Small label={busy && busy === handle ? t('A convidar…') : t('Convidar')} kind="brand" disabled={!handle || !!busy || full || offline} onPress={() => { if (handle) void send(handle); }} />
       </View>
       <Text style={[st.hint, { marginTop: 6 }]}>
         {full ? t('Já há {guestsMax} a transmitir contigo: tira alguém para convidares outra pessoa.', { guestsMax: GUESTS_MAX }) : t('Também quem ainda não entrou: recebe um aviso para entrar{value}.', { value: paid ? (' ' + t('sem pagar')) : '' })}
@@ -191,7 +192,7 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
         return (
           <Row key={p.username} p={{ user }}>
             {row.can
-              ? <Small label={busy === p.username ? t('A convidar…') : row.label} kind="brand" disabled={!!busy} onPress={() => void send(p.username)} />
+              ? <Small label={busy === p.username ? t('A convidar…') : row.label} kind="brand" disabled={!!busy || offline} onPress={() => void send(p.username)} />
               : <Text style={st.rowState}>{row.label}</Text>}
           </Row>
         );
@@ -204,30 +205,39 @@ export function InviteByAt({ s, paid, onInvite }: { s: GuestsState; paid?: boole
  * O anfitrião: «Convidar por @» (0168), quem transmite (tirar), os pedidos para entrar (aceitar até 3, recusar) e os
  * convites à espera (retirar). Também se convida em «A ver agora».
  */
-export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, onOpenViewers }: {
+export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, onOpenViewers, busy = [], offline = false, msg = null }: {
   s: GuestsState; paid?: boolean; onAccept: (u: string) => void; onDecline: (u: string) => void; onRemove: (u: string) => void;
   onInvite: (u: string) => Promise<string | null>; onOpenViewers: () => void;
+  /** As ações à espera da resposta (chaves `remove:ana`, `accept:ana`…): o botão fica ocupado até ela chegar. */
+  busy?: readonly string[];
+  /** A ligação está fraca (a voltar a ligar): os botões ficam desligados até voltar. */
+  offline?: boolean;
+  /** O aviso da última ação (um erro), à vista dentro da folha. */
+  msg?: string | null;
 }) {
   const full = s.guests.length >= GUESTS_MAX;
+  const on = (what: string, u: string) => busy.includes(`${what}:${u.toLowerCase()}`);
   return (
     <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
-      <InviteByAt s={s} paid={paid} onInvite={onInvite} />
+      {offline ? <Text style={[st.atMsg, st.atErr, { marginTop: 6 }]} accessibilityRole="alert">{t('A ligação está fraca… a voltar a ligar. Espera para tirar, aceitar ou convidar.')}</Text> : null}
+      {msg && !offline ? <Text style={[st.atMsg, st.atErr, { marginTop: 6 }]} accessibilityRole="alert">{msg}</Text> : null}
+      <InviteByAt s={s} paid={paid} onInvite={onInvite} offline={offline} />
       <Text style={st.section}>{t('A transmitir contigo · {n}/{guestsMax}', { n: s.guests.length, guestsMax: GUESTS_MAX })}</Text>
       {s.guests.length ? s.guests.map((g) => (
-        <Row key={g.user.id} p={g}><Small label={t('Tirar')} kind="danger" onPress={() => onRemove(g.user.username)} /></Row>
+        <Row key={g.user.id} p={g}><Small label={t('Tirar')} kind="danger" disabled={offline} busy={on('remove', g.user.username)} onPress={() => onRemove(g.user.username)} /></Row>
       )) : <Text style={st.empty}>{t('Ninguém está a transmitir contigo.')}</Text>}
       <Text style={st.section}>{t('Pedidos para entrar')}{s.requests.length ? ` · ${s.requests.length}` : ''}</Text>
       {s.requests.length ? s.requests.map((g) => (
         <Row key={g.user.id} p={g}>
-          <Small label={t('Recusar')} onPress={() => onDecline(g.user.username)} />
-          <Small label={t('Aceitar')} kind="brand" disabled={full} onPress={() => onAccept(g.user.username)} />
+          <Small label={t('Recusar')} disabled={offline || on('accept', g.user.username)} busy={on('decline', g.user.username)} onPress={() => onDecline(g.user.username)} />
+          <Small label={t('Aceitar')} kind="brand" disabled={full || offline || on('decline', g.user.username)} busy={on('accept', g.user.username)} onPress={() => onAccept(g.user.username)} />
         </Row>
       )) : <Text style={st.empty}>{t('Ainda ninguém pediu para entrar.')}</Text>}
       {full && s.requests.length ? <Text style={st.hint}>{t('Já há {guestsMax} a transmitir: tira alguém para aceitares outro pedido.', { guestsMax: GUESTS_MAX })}</Text> : null}
       {s.invites.length ? (
         <>
           <Text style={st.section}>{t('Convites à espera')}</Text>
-          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label={t('Retirar')} kind="danger" onPress={() => onRemove(g.user.username)} /></Row>)}
+          {s.invites.map((g) => <Row key={g.user.id} p={g}><Small label={t('Retirar')} kind="danger" disabled={offline} busy={on('remove', g.user.username)} onPress={() => onRemove(g.user.username)} /></Row>)}
         </>
       ) : null}
       <Pressable onPress={onOpenViewers} style={({ pressed }) => [st.viewersLink, pressed && { opacity: 0.7 }]} accessibilityRole="button">

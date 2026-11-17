@@ -71,7 +71,17 @@ export interface TxilladaDto {
   /** Só o anfitrião: terminou uma Angariação antes da meta e ainda a pode reabrir (até `reopenUntil`). */
   canReopen?: boolean;
   reopenUntil?: string | null;
+  /**
+   * Porque acabou: 'lost' quando acabou sozinha porque a ligação do anfitrião caiu e ele não voltou a tempo (null nos outros
+   * casos; servidores antigos não mandam). Com 'lost', `resumeUntil` diz até quando o anfitrião ainda pode continuar a mesma
+   * Txillada (null quando já passou). Só para o anfitrião, `canReopen` também vale nesse caso («Continuar a Txillada»).
+   */
+  endReason?: TxilladaEndReason | null;
+  resumeUntil?: string | null;
 }
+
+/** 'lost': a ligação do anfitrião caiu e a Txillada acabou sozinha (ele pode continuá-la por pouco tempo). */
+export type TxilladaEndReason = 'lost';
 
 /** Um de «quem mais ofereceu» (com o selo, como em todo o lado). */
 export interface TxilladaGiver { username: string; displayName: string; avatarUrl: string | null; verified?: boolean; verifiedTier?: TxilladaTier; total: number }
@@ -88,7 +98,9 @@ export type TxilladaEvent =
   | { type: 'txillada.comment'; txilladaId: string; comment: TxilladaComment }
   | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string } }
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
-  | { type: 'txillada.ended'; txilladaId: string; status: TxilladaStatus }
+  | { type: 'txillada.ended'; txilladaId: string; status: TxilladaStatus; reason?: TxilladaEndReason }
+  /** O anfitrião continuou a Txillada que acabou por a ligação dele cair: a sala é nova, volta-se a entrar (join). */
+  | { type: 'txillada.resumed'; txilladaId: string }
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
   /** A contagem nova de brindes de um comentário (não diz quem brindou). */
   | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }
@@ -264,8 +276,12 @@ export function parseTxilladaEvent(e: unknown, id?: string): TxilladaEvent | nul
     }
     case 'txillada.viewers':
       return num(x.viewers) ? { type: x.type, txilladaId, viewers: Math.max(0, x.viewers) } : null;
-    case 'txillada.ended':
-      return { type: x.type, txilladaId, status: typeof x.status === 'string' && STATUSES.includes(x.status) && x.status !== 'live' ? (x.status as TxilladaStatus) : 'ended' };
+    case 'txillada.ended': {
+      const status = typeof x.status === 'string' && STATUSES.includes(x.status) && x.status !== 'live' ? (x.status as TxilladaStatus) : 'ended';
+      return x.reason === 'lost' && status === 'ended' ? { type: x.type, txilladaId, status, reason: 'lost' } : { type: x.type, txilladaId, status };
+    }
+    case 'txillada.resumed':
+      return { type: x.type, txilladaId };
     case 'txillada.comment_removed':
       return str(x.commentId) ? { type: x.type, txilladaId, commentId: x.commentId } : null;
     case 'txillada.comment_cheer':
@@ -327,10 +343,12 @@ export interface LiveState {
   topGivers: TxilladaGiver[];
   /** Sobe a cada oferta (a animação). */
   giftBurst: number;
+  /** Porque acabou ('lost': a ligação do anfitrião caiu); null a decorrer ou sem se saber. */
+  endReason: TxilladaEndReason | null;
 }
 
 export function initialLive(dto?: TxilladaDto | null): LiveState {
-  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null, pinned: null, raised: 0, goal: null, topGivers: [], giftBurst: 0 };
+  const s: LiveState = { status: null, viewers: 0, peak: 0, cheers: 0, commentCount: 0, comments: [], removed: [], cheerBurst: 0, lastCheerFrom: null, pinned: null, raised: 0, goal: null, topGivers: [], giftBurst: 0, endReason: null };
   return dto ? withDto(s, dto) : s;
 }
 
@@ -348,10 +366,13 @@ function withPinned(s: LiveState, c: TxilladaComment | null | undefined): LiveSt
  * ter chegado antes da resposta). Um fim nunca volta a 'live'.
  */
 export function withDto(s: LiveState, dto: TxilladaDto): LiveState {
-  const status = s.status && s.status !== 'live' ? s.status : dto.status;
+  // Acabada cá (um 409, a sala fechada) e a API diz que foi cortada pela moderação: fica 'cut' (o resumo diz porquê).
+  const status = s.status && s.status !== 'live' ? (s.status === 'ended' && dto.status === 'cut' ? 'cut' : s.status) : dto.status;
   return withPinned({
     ...s,
     status,
+    // O motivo do fim só vem de uma resposta já acabada (uma resposta antiga, ainda a decorrer, não o apaga).
+    endReason: dto.status !== 'live' && dto.endReason !== undefined ? (dto.endReason === 'lost' ? 'lost' : null) : s.endReason,
     viewers: Math.max(0, dto.viewers),
     peak: Math.max(s.peak, dto.peakViewers, dto.viewers),
     cheers: Math.max(s.cheers, dto.cheers),
@@ -383,7 +404,10 @@ export function applyEvent(s: LiveState, ev: TxilladaEvent, me?: string | null):
     case 'txillada.viewers':
       return { ...s, viewers: ev.viewers, peak: Math.max(s.peak, ev.viewers) };
     case 'txillada.ended':
-      return { ...s, status: ev.status };
+      return { ...s, status: ev.status, endReason: ev.reason ?? s.endReason };
+    // Continuada: quem a tem aberta volta a entrar (lib/txilladaRoom); o estado recomeça com a resposta nova da API.
+    case 'txillada.resumed':
+      return s;
     case 'txillada.comment_removed':
       return {
         ...s,
@@ -589,6 +613,55 @@ export function errorText(status: number | undefined, message?: string | null): 
     case 503: return m || t('A Txillada ainda não está disponível.');
     default: return m || t('Não consegui ligar à Txillada. Verifica a internet e tenta outra vez.');
   }
+}
+
+/**
+ * A ação falhou porque a Txillada já acabou (409 ou 410 com `code: 'ended'`; servidores antigos: a frase «A Txillada já
+ * acabou.»). O ecrã passa logo ao fim, em vez de ficar «AO VIVO».
+ */
+export function isEndedError(e: { status?: number; code?: string; message?: string } | null | undefined): boolean {
+  if (!e || (e.status !== 409 && e.status !== 410)) return false;
+  return e.code === 'ended' || /já acabou/i.test(e.message ?? '');
+}
+
+/** Continuar depois de a ligação do anfitrião cair: até 10 minutos depois do fim (o servidor diz a hora certa). */
+export const RESUME_WINDOW_MS = 10 * 60_000;
+/** De quanto em quanto tempo quem vê pergunta se o anfitrião já continuou (além do aviso em tempo real). */
+export const RESUME_POLL_MS = 10_000;
+
+/**
+ * Até quando se espera que o anfitrião continue (ms), ou 0. Com a resposta da API já acabada, vale o `resumeUntil` dela;
+ * ainda sem ela (só o aviso em tempo real), conta-se a janela a partir de quando se soube do fim (`endedAt`).
+ */
+export function resumeDeadline(dto: Pick<TxilladaDto, 'status' | 'resumeUntil' | 'endReason'> | null | undefined, reason: TxilladaEndReason | null, endedAt: number | null): number {
+  if (dto && dto.status !== 'live' && dto.endReason !== undefined) {
+    if (dto.endReason !== 'lost') return 0;
+    const u = dto.resumeUntil ? Date.parse(dto.resumeUntil) : NaN;
+    return Number.isFinite(u) ? u : 0;
+  }
+  return reason === 'lost' && endedAt != null ? endedAt + RESUME_WINDOW_MS : 0;
+}
+
+/** «HH:MM» da hora local (para «Podes continuar até às 18:13»). */
+export function clockHm(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** O que o anfitrião lê no resumo quando a ligação dele caiu: até quando pode continuar. */
+export function resumeText(until: string | null | undefined, now = Date.now()): string {
+  const u = until ? Date.parse(until) : NaN;
+  if (!Number.isFinite(u) || u <= now) return t('A tua ligação caiu e a Txillada parou.');
+  return t('A tua ligação caiu e a Txillada parou. Podes continuar até às {hm}.', { hm: clockHm(u) });
+}
+
+/** O fim para quem vê, quando a ligação do anfitrião caiu: o título e a frase por baixo (à espera de que ele continue, ou já não). */
+export function endedText(reason: TxilladaEndReason | null, waiting: boolean): { title: string; sub: string } | null {
+  if (reason !== 'lost') return null;
+  return {
+    title: t('A ligação do anfitrião caiu'),
+    sub: waiting ? t('Se ele continuar, voltas a entrar sozinho.') : t('A Txillada acabou. As Txilladas não ficam gravadas: só se veem ao vivo.'),
+  };
 }
 
 /** A roda «AO VIVO» da fila dos mimos e do perfil: o id da Txillada a decorrer, ou null. */

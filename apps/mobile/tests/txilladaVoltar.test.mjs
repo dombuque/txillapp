@@ -238,7 +238,7 @@ test('reabrir a Angariação: a rota, a sala volta ao vivo do zero (a conversa f
   const room = read('lib/txilladaRoom.ts');
   assert.match(room, /case 'reopen': return \{ \.\.\.initialLive\(a\.dto\), comments: s\.comments, removed: s\.removed \};/);
   const s = read('app/txillada/[id].tsx');
-  assert.match(s, /const canReopen = !!dto\?\.canReopen && !cut && dto\.goal != null;/);
+  assert.match(s, /const canReopen = !!dto\?\.canReopen && !cut && dto\.goal != null && !resumeUntil;/);
   assert.match(read('components/txillada/TxilladaParts.tsx'), /label=\{t\('Reabrir a Angariação'\)\}/);
   // O estado: reaberta, volta a 'live' (um fim normal não volta).
   const ended = { ...t.initialLive(), status: 'ended' };
