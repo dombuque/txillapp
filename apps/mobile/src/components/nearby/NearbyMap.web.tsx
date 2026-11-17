@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { LEAFLET_CSS } from './leafletCss';
 import { createNearbyMap, type MapHandle } from './mapRuntime';
+import { mapLabels } from './mapLabels';
 import type { NearbyMapProps } from './types';
 import { t } from '@/lib/i18n';
 
@@ -24,7 +25,7 @@ export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId
       document.head.appendChild(s);
     }
     const el = host.current as unknown as HTMLElement;
-    const h = createNearbyMap(L, el, (id) => press.current(id), { zoomControl });
+    const h = createNearbyMap(L, el, (id) => press.current(id), { zoomControl, labels: mapLabels() });
     handle.current = h;
     h.update(state.current);
     const ro = new ResizeObserver(() => h.resize());

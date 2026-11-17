@@ -91,7 +91,7 @@ test('linhas: selo de verificado no nome, distância numa pastilha, anel na pess
   assert.match(row, /st\.kmPill/);
   const thumb = fnBody(perto, 'Thumb');
   assert.match(thumb, /colors=\{\[colors\.brand, colors\.brandWarm\]\}/);
-  assert.match(thumb, /st\.calTop[\s\S]*MONTHS\[d!\.getMonth\(\)\]/);
+  assert.match(thumb, /st\.calTop[\s\S]*MONTHS\(\)\[d!\.getMonth\(\)\]/);
   assert.match(thumb, /VENUE_ICON\[item\.category \?\? ''\] \?\? 'map-pin'/);
   // O tipo do local vai também para o mapa (o pino com o mesmo ícone).
   assert.match(perto, /category: i\.category \?\? null, boosted: !!i\.boost/);

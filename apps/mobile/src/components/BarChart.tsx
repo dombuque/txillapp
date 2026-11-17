@@ -2,18 +2,18 @@ import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { colors } from '@/lib/theme';
-import { t } from '@/lib/i18n';
+import { abbr, monthNames, t } from '@/lib/i18n';
 
 interface Point { day: string; value: number }
 
 const W = 320;
 const H = 128;
 const PAD = { top: 14, right: 4, bottom: 18, left: 4 };
-const MONTHS = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
 /** "2026-11-05" -> "5 nov." */
 const fmtDay = (d: string) => {
   const [, m, day] = d.split('-').map(Number);
-  return `${day} ${MONTHS[m - 1] ?? ''}`;
+  const mon = monthNames('short')[m - 1];
+  return mon ? `${day} ${abbr(mon)}` : `${day} `;
 };
 
 /**
