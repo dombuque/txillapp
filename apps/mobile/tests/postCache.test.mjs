@@ -47,7 +47,7 @@ test('a página da publicação usa o que já está carregado e tem "Tentar outr
   const src = readFileSync(path.join(ROOT, 'src', 'app', 'p', '[id].tsx'), 'utf8');
   assert.match(src, /placeholderData: \(\) => findCachedPost\(/);
   assert.match(src, /'feed', 'profile-posts'/);
-  assert.match(src, /Tentar outra vez/);
+  assert.match(src, /<ErrorState what="a publicação" onRetry=\{\(\) => void q\.refetch\(\)\} \/>/);
   assert.match(src, /q\.isLoading && <ActivityIndicator/);
   const reel = readFileSync(path.join(ROOT, 'src', 'app', 'r', '[id].tsx'), 'utf8');
   assert.match(reel, /q\.isError && !isGone\(q\.error\)/);

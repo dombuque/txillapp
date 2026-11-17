@@ -8,7 +8,8 @@ import { PostCard } from '@/components/PostCard';
 import { LoadMore } from '@/components/LoadMore';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { useAuth } from '@/lib/auth';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
@@ -56,7 +57,7 @@ export default function TagScreen() {
             </View>
           </View>
         }
-        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? <Empty icon="search" title="Esta hashtag não existe" /> : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
+        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (q.error instanceof ApiError && q.error.status === 404 ? <Empty icon="search" title="Esta hashtag não existe" /> : <ErrorState what="esta hashtag" onRetry={() => void q.refetch()} />) : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
         ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}

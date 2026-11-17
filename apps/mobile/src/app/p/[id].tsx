@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { api, type Post } from '@/lib/api';
@@ -43,20 +45,11 @@ export default function PostPage() {
       <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}>
         {q.isLoading && <ActivityIndicator color={colors.brand} style={{ marginTop: 48 }} />}
         {gone && (
-          <View style={styles.gone}>
-            <Icon name="search" size={44} color={colors.zinc300} />
-            <Text style={styles.goneTitle}>Esta publicação não está disponível</Text>
-            <Text style={styles.goneText}>Pode ter sido apagada ou ocultada, ou a conta passou a privada.</Text>
-          </View>
+          <EmptyState icon="search" title="Esta publicação não está disponível" text="Pode ter sido apagada ou ocultada, ou a conta passou a privada." />
         )}
         {q.isError && !gone && (
           // Sem rede (ou o servidor falhou): não quer dizer que a publicação tenha desaparecido.
-          <View style={styles.gone} accessibilityRole="alert">
-            <Icon name="alert" size={44} color={colors.zinc300} />
-            <Text style={styles.goneTitle}>Ups, não consegui abrir a publicação</Text>
-            <Text style={styles.goneText}>Verifica a ligação e tenta outra vez.</Text>
-            <Pressable onPress={() => void q.refetch()} style={styles.retry} accessibilityRole="button"><Text style={styles.retryText}>Tentar outra vez</Text></Pressable>
-          </View>
+          <ErrorState what="a publicação" onRetry={() => void q.refetch()} />
         )}
         {q.data && <PostCard post={q.data} me={user?.id} detail openComments={comments === '1' || !!c} highlightComment={c || undefined} />}
       </ScrollView>

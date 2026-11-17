@@ -11,6 +11,9 @@ import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
 import { LoadMore } from '@/components/LoadMore';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
+import { Button } from '@/components/ui/Button';
 import { SponsoredCard } from '@/components/boost/SponsoredCard';
 import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
@@ -224,21 +227,9 @@ function Feed() {
               <Skeleton />
             </>
           ) : q.isError ? (
-            <View style={styles.msg} accessibilityRole="alert">
-              <Text style={styles.msgTitle}>Ups, a vibe falhou</Text>
-              <Pressable onPress={() => void q.refetch()} style={styles.ghost} accessibilityRole="button">
-                <Text style={styles.ghostText}>Tentar outra vez</Text>
-              </Pressable>
-            </View>
+            <ErrorState what="o teu feed" onRetry={() => void q.refetch()} />
           ) : (
-            <View style={styles.msg}>
-              <Icon name="cheers" size={52} color={colors.zinc300} />
-              <Text style={[styles.msgTitle, { marginTop: 16, fontSize: 24 }]}>Ainda ninguém brindou por aqui</Text>
-              <Text style={styles.msgSub}>Sê tu a começar a festa!</Text>
-              <Pressable onPress={() => router.push('/new' as never)} style={styles.cta} accessibilityRole="button">
-                <Text style={styles.ctaText}>Faz a primeira publicação</Text>
-              </Pressable>
-            </View>
+            <EmptyState icon="cheers" title="Ainda ninguém brindou por aqui" text="Sê tu a começar a festa!" action={{ label: 'Faz a primeira publicação', onPress: () => router.push('/new' as never) }} />
           )
         }
         ListFooterComponent={
@@ -248,9 +239,7 @@ function Feed() {
             {q.isFetchNextPageError && !q.isFetchingNextPage ? (
               // Falhou ao pedir mais (sem rede): o que já estava fica, e dá para tentar outra vez aqui em baixo.
               <View style={{ alignItems: 'center', marginBottom: 24 }} accessibilityRole="alert">
-                <Pressable onPress={() => void q.fetchNextPage()} style={styles.ghost} accessibilityRole="button">
-                  <Text style={styles.ghostText}>Tentar outra vez</Text>
-                </Pressable>
+                <Button label="Tentar outra vez" kind="secondary" size="md" onPress={() => void q.fetchNextPage()} />
               </View>
             ) : q.hasNextPage ? <LoadMore onLoad={onEnd} loading={q.isFetchingNextPage} /> : <View style={{ height: 8 }} />}
           </>

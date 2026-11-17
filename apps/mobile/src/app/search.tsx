@@ -14,6 +14,8 @@ import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
 import { LoadMore } from '@/components/LoadMore';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { TrendingSounds } from '@/components/TrendingSounds';
 import { Bolt } from '@/components/SuperTxillPanel';
@@ -295,18 +297,10 @@ export default function Search() {
             {grid.length > 9 && block(grid.slice(9), 9)}
             {explore.isError && grid.length === 0 && (
               // Antes, sem rede, o Explorar ficava em branco (nem grelha, nem aviso).
-              <View style={styles.empty} accessibilityRole="alert">
-                <Icon name="image" size={36} color={colors.zinc300} />
-                <Text style={styles.emptyTitle}>Ups, o Explorar não carregou</Text>
-                <Pressable onPress={() => void explore.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
-              </View>
+              <ErrorState what="o Explorar" onRetry={() => void explore.refetch()} />
             )}
             {explore.isSuccess && grid.length === 0 && (
-              <View style={styles.empty}>
-                <Icon name="image" size={36} color={colors.zinc300} />
-                <Text style={styles.emptyTitle}>Ainda não há publicações para explorar</Text>
-                <Text style={styles.emptySub}>Quando a malta publicar, aparece aqui.</Text>
-              </View>
+              <EmptyState icon="image" title="Ainda não há publicações para explorar" text="Quando a malta publicar, aparece aqui." />
             )}
             {explore.hasNextPage && grid.length > 0 ? <LoadMore onLoad={loadExplore} loading={explore.isFetchingNextPage} /> : null}
           </>
@@ -332,15 +326,12 @@ export default function Search() {
             </ScrollView>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 40 }} />}
             {q.isError && (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
-                <Text style={[styles.emptyTitle, { color: colors.red600 }]}>Ups, a pesquisa falhou</Text>
-                <Pressable onPress={() => void q.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
-              </View>
+              <ErrorState title="Ups, a pesquisa falhou" onRetry={() => void q.refetch()} />
             )}
 
             {q.isSuccess && tab === 'people' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {people.length === 0 && <View style={styles.empty}><Icon name="search" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Ninguém com esse nome</Text></View>}
+                {people.length === 0 && <EmptyState icon="search" title="Ninguém com esse nome" />}
                 {people.map((p) => (
                   <View key={p.username} style={styles.person}>
                     <Pressable onPress={() => { remember(term); router.push(`/u/${p.username}` as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -369,7 +360,7 @@ export default function Search() {
 
             {q.isSuccess && tab === 'tags' && (
               <View style={{ paddingHorizontal: 16 }}>
-                {tags.length === 0 && <View style={styles.empty}><Icon name="tag" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Nenhuma hashtag assim</Text></View>}
+                {tags.length === 0 && <EmptyState icon="tag" title="Nenhuma hashtag assim" />}
                 {tags.map((t) => (
                   <Pressable key={t.tag} onPress={() => { remember(term); router.push(`/tag/${t.tag}` as never); }} style={({ pressed }) => [styles.person, { borderRadius: 12 }, pressed && { backgroundColor: colors.zinc100 }]}>
                     <View style={styles.hash}><Text style={styles.hashText}>#</Text></View>

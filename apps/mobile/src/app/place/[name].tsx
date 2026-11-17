@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { LoadMore } from '@/components/LoadMore';
@@ -80,7 +81,7 @@ export default function PlaceScreen() {
         refreshControl={pull.control}
         ListEmptyComponent={
           q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (
-            <Empty icon="map-pin" title="Não consegui ver este sítio agora" />
+            <ErrorState what="este sítio" onRetry={() => void q.refetch()} />
           ) : (
             <Empty icon="map-pin" title={mode === 'at' ? 'Ainda ninguém publicou aqui' : 'Nada por perto, por agora'} />
           )

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -72,7 +73,7 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
           if (contentOffset.y + layoutMeasurement.height > contentSize.height - 400 && q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
         }}
       >
-        {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <Text style={st.err}>Ups, não consegui carregar</Text> : null}
+        {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <ErrorState what="a lista" onRetry={() => void q.refetch()} /> : null}
         {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : username === me ? 'Ainda não segues ninguém' : 'Ainda não segue ninguém'} /> : null}
         {people.map((x) => (
           <View key={x.username} style={st.row}>

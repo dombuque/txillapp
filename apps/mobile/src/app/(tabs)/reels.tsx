@@ -16,6 +16,8 @@ import { CommentsSheet } from '@/components/CommentsSheet';
 import { FollowButton } from '@/components/FollowButton';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
 import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
@@ -894,25 +896,16 @@ export default function Reels() {
             onEndReachedThreshold={1}
             ListEmptyComponent={
               loading ? <View style={[st.center, { height }]}><ActivityIndicator color="#fff" /></View> : q.isError ? (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]} accessibilityRole="alert">
-                  <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Ups, as tchekas não carregaram</Text>
-                  <Text style={st.emptySub}>Verifica a ligação e tenta outra vez.</Text>
-                  <Pressable onPress={() => void q.refetch()} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
+                <View style={[st.center, { height }]} accessibilityRole="alert">
+                  <ErrorState dark what="as tchekas" onRetry={() => void q.refetch()} style={{ marginTop: 0 }} />
                 </View>
               ) : tab === 'following' ? (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]}>
-                  <Icon name="users" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Nada de quem segues</Text>
-                  <Text style={st.emptySub}>Quando a malta que segues publicar tchekas, aparecem aqui.</Text>
-                  <Pressable onPress={() => pickTab('foryou')} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Ver «Para ti»</Text></Pressable>
+                <View style={[st.center, { height }]}>
+                  <EmptyState dark icon="users" title="Nada de quem segues" text="Quando a malta que segues publicar tchekas, aparecem aqui." action={{ label: 'Ver «Para ti»', onPress: () => pickTab('foryou') }} style={{ marginTop: 0 }} />
                 </View>
               ) : (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]}>
-                  <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Ainda sem tchekas</Text>
-                  <Text style={st.emptySub}>Sê tu a começar: grava um vídeo até 60 segundos.</Text>
-                  <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Publicar um vídeo</Text></Pressable>
+                <View style={[st.center, { height }]}>
+                  <EmptyState dark icon="film" title="Ainda sem tchekas" text="Sê tu a começar: grava um vídeo até 60 segundos." action={{ label: 'Publicar um vídeo', onPress: () => router.push('/new' as never) }} style={{ marginTop: 0 }} />
                 </View>
               )
             }

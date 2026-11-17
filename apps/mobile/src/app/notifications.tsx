@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { RequestsSheet } from '@/components/ProfileSheets';
@@ -40,6 +40,11 @@ import { MixarBadge } from '@/components/mixar/MixarBits';
 import { isMixarNotice, mixarNoticeTarget, mixarNoticeText } from '@/lib/mixarAvisos';
 import { chainMore, groupAll, type ChainState, type NotifGroup } from '@/lib/notifList';
 import { LoadMore } from '@/components/LoadMore';
+import { Chip } from '@/components/ui/Chip';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
+import { Button } from '@/components/ui/Button';
+import { showToast } from '@/lib/toast';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -258,7 +263,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
         setAnswer(accept ? 'accepted' : 'declined');
         void qc.invalidateQueries({ queryKey: ['requests'] });
       } else {
-        Alert.alert('Não consegui responder ao pedido', (e as Error).message || 'Verifica a internet e tenta outra vez.');
+        showToast((e as Error).message || 'Não consegui responder ao pedido. Verifica a ligação e tenta outra vez.');
         setAnswer(null);
       }
     } finally {
@@ -287,7 +292,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
   ) : followBack || back ? (
     <View style={{ width: 128 }}><FollowButton username={n.actor.username} following={false} requested={false} isPrivate={!!(back?.isPrivate ?? n.actor.isPrivate)} /></View>
   ) : n.kind === 'follow' && !many ? (
-    <Pressable onPress={() => router.push(`/messages/${n.actor.username}` as never)} style={styles.msg} accessibilityRole="button"><Text style={styles.msgText}>Mensagem</Text></Pressable>
+    <Button label="Mensagem" kind="secondary" size="sm" onPress={() => router.push(`/messages/${n.actor.username}` as never)} />
   ) : null;
 
   return (
@@ -310,14 +315,14 @@ function Row({ g, me }: { g: Group; me?: string }) {
         ) : null}
         {n.kind === 'venue_invite' && !answer && (
           <View style={styles.btns}>
-            <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
-            <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
+            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} />
+            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
           </View>
         )}
         {n.kind === 'group_join_request' && !answer && notifGroup(n).id && (
           <View style={styles.btns}>
-            <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept} accessibilityRole="button" accessibilityLabel={`Aceitar ${n.actor.username} em ${notifGroup(n).name}`}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
-            <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline} accessibilityRole="button" accessibilityLabel={`Recusar ${n.actor.username}`}><Text style={styles.declineText}>Recusar</Text></Pressable>
+            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} accessibilityLabel={`Aceitar ${n.actor.username} em ${notifGroup(n).name}`} />
+            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} accessibilityLabel={`Recusar ${n.actor.username}`} />
           </View>
         )}
         {geladaId && gelada.data?.canAnswer ? (
@@ -329,8 +334,8 @@ function Row({ g, me }: { g: Group; me?: string }) {
         ) : null}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
-            <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
-            <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
+            <Button label="Aceitar" size="sm" disabled={busy} onPress={() => void respond(true)} />
+            <Button label="Recusar" kind="secondary" size="sm" disabled={busy} onPress={() => void respond(false)} />
           </View>
         )}
         {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? 'Agora geres esta página' : n.kind === 'group_join_request' ? 'Já está no grupo' : 'Pedido aceite') : (n.kind === 'venue_invite' ? 'Convite recusado' : 'Pedido recusado')}</Text> : null}
@@ -410,11 +415,7 @@ export default function Notifications() {
         ListHeaderComponent={
           <View style={styles.filters}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-              {FILTERS.map(([f, label]) => (
-                <Pressable key={f} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]} accessibilityRole="tab" accessibilityState={{ selected: filter === f }}>
-                  <Text style={[styles.chipText, filter === f && { color: colors.brand }]}>{label}</Text>
-                </Pressable>
-              ))}
+              {FILTERS.map(([f, label]) => <Chip key={f} label={label} selected={filter === f} onPress={() => setFilter(f)} />)}
             </ScrollView>
           </View>
         }
@@ -435,16 +436,9 @@ export default function Notifications() {
           q.isPending || (q.hasNextPage && q.isFetchingNextPage) ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : q.isError ? (
-            <View style={styles.empty} accessibilityRole="alert">
-              <Text style={styles.errTitle}>Ups, não consegui carregar</Text>
-              <Pressable onPress={() => void q.refetch()} style={styles.ghost}><Text style={styles.ghostText}>Tentar outra vez</Text></Pressable>
-            </View>
+            <ErrorState what="as notificações" onRetry={() => void q.refetch()} />
           ) : (
-            <View style={styles.empty}>
-              <Icon name="bell-off" size={52} color={colors.zinc300} />
-              <Text style={[styles.emptyTitle, { marginTop: 16, fontSize: 24 }]}>{filter === 'all' ? 'Tudo calmo por aqui' : 'Nada por aqui'}</Text>
-              <Text style={styles.emptySub}>{filter === 'all' ? 'Quando alguém te seguir, comentar ou oferecer vibes, aparece aqui.' : 'Não há notificações deste tipo.'}</Text>
-            </View>
+            <EmptyState icon="bell-off" title={filter === 'all' ? 'Tudo calmo por aqui' : 'Nada por aqui'} text={filter === 'all' ? 'Quando alguém te seguir, comentar ou oferecer vibes, aparece aqui.' : 'Não há notificações deste tipo.'} />
           )
         }
         ListFooterComponent={
