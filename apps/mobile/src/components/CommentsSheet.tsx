@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState, useEffect } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { CheersPour } from './CheersPour';
@@ -16,6 +16,11 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { ActionRow } from './ui/ActionRow';
+import { Button } from './ui/Button';
+import { ErrorState } from './ui/ErrorState';
+import { EmptyState } from './Empty';
+import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
@@ -106,23 +111,15 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       setSaving(false);
     }
   }
-  function confirmDelete() {
-    Alert.alert('Apagar o comentário?', 'O comentário desaparece e não dá para o recuperar.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Apagar',
-        style: 'destructive',
-        onPress: async () => {
-          setGone(true);
-          try {
-            await api.deleteComment(c.id);
-            onRemoved(c);
-          } catch {
-            setGone(false);
-          }
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    if (!(await confirm({ title: 'Apagar o comentário?', message: 'O comentário desaparece e não dá para o recuperar.', confirm: 'Apagar', danger: true }))) return;
+    setGone(true);
+    try {
+      await api.deleteComment(c.id);
+      onRemoved(c);
+    } catch {
+      setGone(false);
+    }
   }
   // Segurar no comentário abre o menu (responder, editar, apagar, denunciar), como no Instagram.
   // Fica antes do `return` do comentário apagado: um hook depois dele mudava a ordem dos hooks e o ecrã rebentava ao apagar.
@@ -170,10 +167,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
             <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
             {editErr ? <Text style={styles.err}>{editErr}</Text> : null}
             <View style={styles.editBtns}>
-              <Pressable onPress={() => { setEditing(false); setEditErr(''); }} style={styles.cancel}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
-              <Pressable onPress={() => void saveEdit()} disabled={saving || !draft.trim()} style={[styles.save, (saving || !draft.trim()) && { opacity: 0.5 }]}>
-                <Text style={styles.saveText}>{saving ? 'A guardar…' : 'Guardar'}</Text>
-              </Pressable>
+              <Button label="Cancelar" kind="ghost" size="sm" onPress={() => { setEditing(false); setEditErr(''); }} />
+              <Button label="Guardar" size="sm" onPress={() => void saveEdit()} loading={saving} disabled={!draft.trim()} />
             </View>
           </View>
         ) : (
@@ -187,7 +182,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
               <Text style={styles.askTitle} numberOfLines={1}>{ask.title}</Text>
               <Text style={styles.askHint}>{ask.hint}</Text>
             </View>
-            <Pressable onPress={() => onGift(c, ask.amount, ask.note)} style={styles.askBtn} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a ${c.author.displayName}`}><Text style={styles.askBtnText}>Oferecer</Text></Pressable>
+            <Button label="Oferecer" size="sm" onPress={() => onGift(c, ask.amount, ask.note)} accessibilityLabel={`Oferecer vibes a ${c.author.displayName}`} />
             <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityRole="button" accessibilityLabel="Dispensar sugestão"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
@@ -216,12 +211,12 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       <CheersPour n={burst} size={120} />
       {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
-        <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null}>
+        <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={[styles.menu, desktop && menuAt ? { paddingHorizontal: 6 } : null]}>
-            <Pressable onPress={() => { setMenu(false); onReply(c); }} style={styles.menuRow} accessibilityRole="button"><Icon name="reply" size={22} /><Text style={styles.menuText}>Responder</Text></Pressable>
-            {mine && !editing && <Pressable onPress={() => { setMenu(false); startEdit(); }} style={styles.menuRow} accessibilityRole="button"><Icon name="pencil" size={22} /><Text style={styles.menuText}>Editar</Text></Pressable>}
-            {canDelete && <Pressable onPress={() => { setMenu(false); setTimeout(confirmDelete, 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="trash" size={22} color={colors.red600} /><Text style={[styles.menuText, { color: colors.red600 }]}>Apagar</Text></Pressable>}
-            {!mine && <Pressable onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="flag" size={22} /><Text style={styles.menuText}>Denunciar</Text></Pressable>}
+            <ActionRow icon="reply" title="Responder" onPress={() => { setMenu(false); onReply(c); }} />
+            {mine && !editing && <ActionRow icon="pencil" title="Editar" onPress={() => { setMenu(false); startEdit(); }} />}
+            {canDelete && <ActionRow icon="trash" title="Apagar" danger onPress={() => { setMenu(false); setTimeout(() => void confirmDelete(), 250); }} />}
+            {!mine && <ActionRow icon="flag" title="Denunciar" danger onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} />}
           </View>
         </Sheet>
       )}
@@ -378,16 +373,9 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
         )}
         ListEmptyComponent={
           q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
-            <View style={{ paddingVertical: 40, alignItems: 'center' }} accessibilityRole="alert">
-              <Text style={[styles.empty, { color: colors.red600, paddingVertical: 0 }]}>Ups, não consegui carregar</Text>
-              <Pressable onPress={() => void q.refetch()} style={styles.retry} accessibilityRole="button"><Text style={styles.retryText}>Tentar outra vez</Text></Pressable>
-            </View>
+            <ErrorState what="os comentários" onRetry={() => void q.refetch()} />
           ) : (
-            <View style={{ paddingVertical: 56, alignItems: 'center' }}>
-              <Icon name="comment-off" size={36} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>Ainda ninguém disse nada</Text>
-              <Text style={styles.empty}>Sê o primeiro a puxar conversa</Text>
-            </View>
+            <EmptyState icon="comment-off" title="Ainda ninguém disse nada" text="Sê o primeiro a puxar conversa." />
           )
         }
         onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}

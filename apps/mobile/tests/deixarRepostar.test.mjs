@@ -37,8 +37,8 @@ test('os botões de repostar usam showRepostButton (cartão, visor de fotos, Tch
 test('a folha de repostar: sem licença não mostra «Repostar» nem «Repostar com comentário»; o 403 mostra a mensagem da API', () => {
   const sheet = read('components', 'PostSheets.tsx');
   assert.match(sheet, /const allowed = canRepost\(post\);/);
-  assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon=\{<Icon name="repeat" size=\{22\} \/>\} title="Repostar"/);
-  assert.match(sheet, /\{allowed \? <MenuRow icon=\{<Icon name="pencil" size=\{22\} \/>\} title="Repostar com comentário"/);
+  assert.match(sheet, /\) : allowed \? \(\n\s+<MenuRow icon="repeat" title="Repostar"/);
+  assert.match(sheet, /\{allowed \? <MenuRow icon="pencil" title="Repostar com comentário"/);
   assert.match(sheet, /setErr\(\(x as Error\)\.message/);
   assert.match(sheet, /x\.status === 403 && x\.message === REPOST_BLOCKED\) onChange\(\{ canRepost: false \}\)/);
   // O aviso antigo das contas privadas vinha da API; a app não o tem escrito.

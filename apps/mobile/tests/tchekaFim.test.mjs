@@ -71,7 +71,7 @@ test('guardar: só publicações com vídeo; um repost simples guarda o original
 
 test('o menu ⋯ e a folha de partilha têm «Guardar o vídeo» (no site «Descarregar») pelo endpoint novo', () => {
   const menu = read('components', 'PostSheets.tsx');
-  assert.match(menu, /canDownload\(post\) \? <MenuRow icon=\{<Icon name="download"/);
+  assert.match(menu, /canDownload\(post\) \? <MenuRow icon="download"/);
   assert.match(menu, /await saveTcheka\(post\)/);
   const share = read('components', 'ShareSheet.tsx');
   assert.match(share, /canDownload\(post\) \? action\('download'/);

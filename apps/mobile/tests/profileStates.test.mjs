@@ -16,7 +16,8 @@ const conn = read('app', 'u', '[username]', 'connections.tsx');
 
 test('perfil: 404 → "não existe"; sem rede → "Tentar outra vez"; voltar com recurso ao Início', () => {
   assert.match(profile, /if \(q\.isError && !p\)/);
-  assert.match(profile, /onPress=\{\(\) => void q\.refetch\(\)\}/);
+  // O erro partilhado (components/ui/ErrorState) com «Tentar outra vez».
+  assert.match(profile, /<ErrorState what="este perfil" onRetry=\{\(\) => void q\.refetch\(\)\} \/>/);
   // Voltar sem histórico vai para o Início: o goBack partilhado (lib/nav, do ramo ux-navegacao).
   assert.match(profile, /import \{ goBack \} from '@\/lib\/nav'/);
   assert.match(profile, /onPress=\{\(\) => goBack\(router\)\}/);
@@ -33,9 +34,11 @@ test('bloquear e desbloquear: um toque só, com erro dito em vez de engolido', (
   for (const fn of ['async function block()', 'async function unblock()']) {
     const body = profile.slice(profile.indexOf(fn), profile.indexOf(fn) + 600);
     assert.match(body, /if \(acting\) return;/, fn);
-    assert.match(body, /Alert\.alert\('Não deu'/, fn);
+    // Erro passageiro: o aviso do fundo (lib/toast).
+    assert.match(body, /showToast\(\(e as Error\)\.message \|\| /, fn);
   }
-  assert.match(profile, /disabled=\{acting\} style=\{\[styles\.blockBtn/);
+  assert.match(profile, /<Button label="Bloquear" kind="dangerSolid" onPress=\{\(\) => void block\(\)\} loading=\{acting\}/);
+  assert.match(profile, /<Button label="Desbloquear" kind="secondary" size="md" onPress=\{\(\) => void unblock\(\)\} loading=\{acting\}/);
 });
 
 test('a fila de botões do perfil: toque de 44 px (36 + 4 + 4) e papel de botão', () => {

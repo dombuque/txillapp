@@ -156,7 +156,8 @@ test('Sheet: no telemóvel é sempre a folha de baixo; no computador janela, men
   assert.match(read('components/ListReset.web.tsx'), /<VirtualizedListContextResetter>\{children\}<\/VirtualizedListContextResetter>/);
   // Os comentários abrem no painel à direita; os «⋯» como menu pendente.
   assert.match(read('components/CommentsSheet.tsx'), /<Sheet title="Comentários" onClose=\{onClose\} full plain variant="panel" dim=\{dim\}>/);
-  assert.match(read('components/PostSheets.tsx'), /<Sheet title="Publicação" onClose=\{onClose\} variant="menu" anchor=\{anchor\}>/);
+  // «Cancelar» no fim do menu no telemóvel (o Sheet só o mostra na folha de baixo).
+  assert.match(read('components/PostSheets.tsx'), /<Sheet title="Publicação" onClose=\{onClose\} variant="menu" anchor=\{anchor\} cancel>/);
   assert.match(read('components/ProfileView.tsx'), /variant="menu" anchor=\{desktop \? menuAt : null\}/);
 });
 
