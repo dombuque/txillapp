@@ -1586,5 +1586,8 @@
   "Voz-off escolhida": "Selected voiceover",
   "Voz-off inválida": "Invalid voiceover",
   "Zás a que respondeste": "Zás you replied to",
-  "Zona perigosa": "Danger zone"
+  "Zona perigosa": "Danger zone",
+  "Não deu. Tenta outra vez daqui a pouco.": "I couldn't. Try again in a bit.",
+  "Obrigado. A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.": "Thanks. The team will look into it. Meanwhile, this sound can't be used in new tchekas.",
+  "Som retirado. Deixou de tocar em todo o lado.": "Sound removed. It no longer plays anywhere."
 }
