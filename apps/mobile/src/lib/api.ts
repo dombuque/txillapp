@@ -115,7 +115,7 @@ export interface Comment {
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 /** O que se denuncia: `user` e `venue` vão pelo id (uuid), nunca pelo @ ou pelo slug. `story` é um mimo, `story_comment` um comentário num mimo e `instant` um Zás. */
-export type ReportType = 'post' | 'comment' | 'story' | 'story_comment' | 'instant' | 'user' | 'message' | 'venue';
+export type ReportType = 'post' | 'comment' | 'story' | 'story_comment' | 'instant' | 'user' | 'message' | 'venue' | 'mixar_comment';
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer' | 'invite_joined'
   // Avisos da equipa do Txillapp (0121): conteúdo removido ou reposto, e aviso da moderação (data.type, data.reason).
   | 'content_removed' | 'content_restored' | 'moderation_warning'
@@ -134,14 +134,20 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // «Convidar por @» (0168): o anfitrião convidou-me para transmitir na Txillada dele (data.txilladaId, data.title).
   | 'txillada_invite'
   // O resumo semanal dos Zás está pronto (data.recapId, data.label «8 a 15 nov», data.count; o ator é o Txillapp, staff).
-  | 'zas_recap';
+  | 'zas_recap'
+  // Mixar (0170): a seleção de hoje está pronta (ator = o outro), o outro já escolheu no Mixa Challenge e falta eu (ator = quem
+  // escolheu) e o resultado para quem escolheu primeiro (ator = quem escolheu depois). data.mixarId, data.name, data.match.
+  | 'mixar_daily' | 'mixar_pick' | 'mixar_result'
+  // Mixar de grupo (0173): alguém do grupo propôs um Mixar do grupo (ator = quem propôs; data.mixarId, data.name = o grupo,
+  // data.groupId). No grupo, os três de cima levam data.group = true.
+  | 'mixar_group';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed'; /** Txillada (o live). */ txilladaId?: string; title?: string; /** Resumo semanal dos Zás. */ recapId?: string; label?: string; count?: number; /** Mixar (0170). */ mixarId?: string; name?: string; challengeId?: string; match?: boolean };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
@@ -153,8 +159,16 @@ export interface AppNotification {
   txillada?: { status: 'live' | 'ended' | 'cut' | null };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved' | 'hidden';
-export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
-export interface MentionSuggestion extends Badged { username: string; displayName: string; hasAvatar: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
+export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat' | 'txillada';
+/**
+ * Uma sugestão do @. Na Txillada (context 'txillada'): `inTxillada` (o anfitrião, quem transmite e quem está a ver) e
+ * `invitable` (não está a ver mas pode entrar: ao mencioná-lo recebe o convite para vir ver).
+ */
+export interface MentionSuggestion extends Badged {
+  username: string; displayName: string; hasAvatar: boolean;
+  reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' | 'anfitriao' | 'a-transmitir' | 'a-ver' | 'comentou';
+  inTxillada?: boolean; invitable?: boolean;
+}
 export interface Person extends Badged { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean }
 export interface InvitesInfo {
   code: string;

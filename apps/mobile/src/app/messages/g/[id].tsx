@@ -39,6 +39,8 @@ import { useDesktopSizes } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
+import { MixarDot } from '@/components/mixar/MixarBits';
+import { useGroupMixar } from '@/components/mixar/useGroupMixar';
 
 type Tab = 'chat' | 'plan' | 'album' | 'pot';
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
@@ -120,6 +122,8 @@ export default function GroupThreadScreen() {
   const ttl = first?.group.ttl ?? null;
   const me = user?.username ?? '';
   const admin = group?.myRole === 'admin';
+  // Mixar do grupo (0173): o ícone no cabeçalho (com a bolinha azul) e a opção no menu, só em grupos de 3 a 5 pessoas.
+  const gmixar = useGroupMixar(id, group?.members.length);
   const people = (group?.members ?? []).map((m) => ({ username: m.username, displayName: m.displayName, hasAvatar: m.hasAvatar, verified: m.verified, verifiedTier: m.verifiedTier }));
 
   useEffect(() => {
@@ -255,7 +259,12 @@ export default function GroupThreadScreen() {
           }
           title={group?.name ?? listed?.name ?? ''}
           subtitle={group ? <HeaderStatus text={sub} /> : null}
-          actions={group ? <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton> : null}
+          actions={group ? (
+            <>
+              {gmixar.show ? <HeaderButton label={gmixar.dot ? 'Mixar do grupo, com novidades' : 'Mixar do grupo'} onPress={gmixar.run}><View><Icon name="mixar" size={23} color={colors.zinc800} />{gmixar.dot ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
+              <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
+            </>
+          ) : null}
           below={
             <View style={st.tabs} accessibilityRole="tablist">
               {tabs.map((t) => {
@@ -307,6 +316,7 @@ export default function GroupThreadScreen() {
             onClose={() => setMore(false)}
             items={[
               { icon: 'users', label: 'Detalhes do grupo', onPress: () => setMembers(true) },
+              ...(gmixar.show ? [{ icon: 'mixar' as const, label: 'Mixar do grupo', onPress: gmixar.run }] : []),
               { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
               // Todos veem como está; só quem administra muda (a folha diz porquê).
               { icon: 'clock', label: TTL_TITLE, onPress: () => setTtlOpen(true) },

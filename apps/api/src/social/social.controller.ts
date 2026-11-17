@@ -58,7 +58,7 @@ const privacySchema = z.object({
 /** Sugestões de @menções: o que se escreveu depois do @ e onde se está a escrever (para subir quem lá está). */
 const mentionSuggestSchema = z.object({
   q: z.string().max(60).default(''),
-  context: z.enum(['post', 'group', 'story', 'zas', 'chat']).optional(),
+  context: z.enum(['post', 'group', 'story', 'zas', 'chat', 'txillada']).optional(),
   id: z.string().uuid().optional(),
 });
 

@@ -14,6 +14,7 @@ import {
   GUESTS_MAX, inviteHandle, inviteInput, inviteRow, inviteSentText, labelOffset, stageLayout, type GuestPending, type GuestsState,
 } from '@/lib/txilladaGuests';
 import type { StageTile } from '@/lib/txilladaRoom';
+import { CAM_OFF } from '@/lib/txilladaChat';
 
 /**
  * A Txillada com convidados (0165, docs/txillada-contrato.md): o ecrã com até 4 pessoas, o cartão do convite e a lista dos
@@ -31,6 +32,18 @@ const glass = Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px) saturate(16
 export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: readonly StageTile[]; w: number; h: number; headerBottom: number; wide: boolean }) {
   if (tiles.length <= 1) {
     const t = tiles[0];
+    // A câmara desligada (sem sair): a foto e «Câmara desligada»; o som continua.
+    if (t && !t.cam) {
+      return (
+        <View style={[StyleSheet.absoluteFill, st.camOff]} pointerEvents="none" testID="txillada-cam-off">
+          <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={96} />
+          <View style={st.camOffTag}>
+            <CallIcon name="video-off" size={15} color="#fff" />
+            <Text style={st.camOffText}>{CAM_OFF}</Text>
+          </View>
+        </View>
+      );
+    }
     return <TxilladaVideo track={t?.track ?? null} mirror={!!t?.mirror} fit={t?.local ? 'cover' : 'auto'} style={StyleSheet.absoluteFill} />;
   }
   const rects = stageLayout(tiles.length, w, h);
@@ -42,10 +55,11 @@ export function TxilladaStage({ tiles, w, h, headerBottom, wide }: { tiles: read
         const small = r.w < 240;
         return (
           <View key={t.person.id} style={[st.tile, { left: r.x, top: r.y, width: r.w, height: r.h }]} testID="txillada-tile">
-            <TxilladaVideo track={t.track} mirror={t.mirror} fit={wide ? 'auto' : 'cover'} box={{ w: r.w, h: r.h }} style={StyleSheet.absoluteFill} />
-            {!t.track ? (
-              <View style={[StyleSheet.absoluteFill, st.center]}>
+            {t.cam ? <TxilladaVideo track={t.track} mirror={t.mirror} fit={wide ? 'auto' : 'cover'} box={{ w: r.w, h: r.h }} style={StyleSheet.absoluteFill} /> : null}
+            {!t.track || !t.cam ? (
+              <View style={[StyleSheet.absoluteFill, st.center, !t.cam && st.camOff]}>
                 <Avatar name={t.person.displayName} username={t.person.avatarUrl ? t.person.username : undefined} size={small ? 52 : 72} />
+                {!t.cam ? <Text style={[st.camOffText, { marginTop: 8 }]}>{CAM_OFF}</Text> : null}
               </View>
             ) : null}
             {t.speaking ? <View style={[StyleSheet.absoluteFill, st.speaking]} /> : null}
@@ -224,6 +238,9 @@ export function GuestsPanel({ s, paid, onAccept, onDecline, onRemove, onInvite, 
 const st = StyleSheet.create({
   tile: { position: 'absolute', overflow: 'hidden', backgroundColor: '#101014' },
   center: { alignItems: 'center', justifyContent: 'center' },
+  camOff: { alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#17171b' },
+  camOffTag: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 32, paddingHorizontal: 13, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)' },
+  camOffText: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '700' },
   speaking: { borderWidth: 3, borderColor: colors.brand },
   label: { position: 'absolute', left: 8, flexDirection: 'row', alignItems: 'center', gap: 5, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: 'rgba(14,14,18,0.55)' },
   labelText: { color: '#fff', fontSize: 13, fontWeight: '700' },

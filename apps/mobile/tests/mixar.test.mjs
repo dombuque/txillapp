@@ -295,8 +295,10 @@ test('as entradas nos ecrãs: cartão no chat, menu da conversa, menu «+», ace
   const attach = read('components', 'ChatAttachSheet.tsx');
   assert.match(attach, /item\('mixar', 'Mixar', onMixar/);
   const inbox = read('app', '(tabs)', 'messages.tsx');
-  // A linha «Mixar» saiu das Mensagens (o Mixar abre-se pelo cabeçalho da conversa, pelo cartão e pelos menus).
-  assert.doesNotMatch(inbox, /<MixarEntry/);
+  // A linha «Mixar» por cima dos separadores volta, mas só com novidades (algum Mixar com a bolinha azul): ver
+  // tests/mixar-avisos.test.mjs. Sem novidades o MixarEntry não desenha nada (nem a dica de antes).
+  assert.match(inbox, /<MixarEntry \/>[\s\S]*accessibilityRole="tablist"/);
+  assert.match(read('components', 'mixar', 'MixarEntry.tsx'), /const fresh = mixarsWithDot\(q\.data\?\.items, seen\);\s*if \(!fresh\.length\) return null;/);
   assert.match(inbox, /m\.kind === 'mixar'\) return mixarPreview\(m\)/);
   const screen = read('app', 'mixar', '[id].tsx');
   // Reutiliza o leitor e o cartão das tchekas (não reinventa o leitor).

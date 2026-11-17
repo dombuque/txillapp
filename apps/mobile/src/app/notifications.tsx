@@ -36,6 +36,8 @@ import {
   noticeText as txilladaNoticeText,
 } from '@/lib/txillada';
 import { RECAP_NOTICE, recapNoticeSub, recapNoticeTarget } from '@/components/zas/zasRecapLogic';
+import { MixarBadge } from '@/components/mixar/MixarBits';
+import { isMixarNotice, mixarNoticeTarget, mixarNoticeText } from '@/lib/mixarAvisos';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -133,10 +135,17 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
     case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
-    // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar).
-    case 'txillada_invite': return { text: txilladaInviteText(n.data), sub: txilladaInviteSub(n.txillada) };
+    // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar); mencionado
+    // sem estar a ver (txillada-voltar): «@ana mencionou-te na Txillada de @zeca: vem ver».
+    case 'txillada_invite': return { text: txilladaInviteText(n.data, n.actor.username), sub: txilladaInviteSub(n.txillada, n.data as { mention?: unknown }) };
     // O resumo semanal dos Zás (do Txillapp; a linha não leva o nome do ator à frente): «8 a 15 nov · 12 Zás».
     case 'zas_recap': return { text: RECAP_NOTICE, sub: recapNoticeSub(n.data) };
+    // Mixar (0170): «ana e tu: a vossa seleção de hoje está pronta», «zeca já escolheu no Mixa Challenge, falta tu» e o
+    // resultado («também escolheu: acertaram no mesmo»), com o nome do Mixar por baixo.
+    case 'mixar_daily':
+    case 'mixar_pick':
+    case 'mixar_result':
+    case 'mixar_group': return mixarNoticeText(n.kind, n.data);
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -180,6 +189,11 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'txillada_invite': return txilladaNoticeTarget(n.data);
     // O ecrã do resumo (se já não existe, diz «Este resumo já não existe»).
     case 'zas_recap': return recapNoticeTarget(n.data);
+    // Abre o Mixar (o feed do dia, com o desafio).
+    case 'mixar_daily':
+    case 'mixar_pick':
+    case 'mixar_result':
+    case 'mixar_group': return mixarNoticeTarget(n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':
@@ -284,6 +298,9 @@ function Row({ g, me }: { g: Group; me?: string }) {
     <View style={[styles.txIcon, !txLive && { backgroundColor: colors.zinc100 }]} accessibilityLabel={txLive ? 'Txillada ao vivo' : 'A Txillada já acabou'}>
       <Icon name="txillada" size={24} color={txLive ? '#fff' : colors.zinc500} strokeWidth={2} />
     </View>
+  ) : isMixarNotice(n.kind) ? (
+    // Mixar: o selo do Mixar à direita (a cara do outro já está à esquerda).
+    <View accessibilityLabel="Mixar"><MixarBadge size={44} /></View>
   ) : thumb ? (
     <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel={zasRecap ? 'Abrir o resumo' : 'Abrir a publicação'}>
       {/* O resumo (1080×1920, endereço assinado do chat) pede-se pequeno, com &w=. */}

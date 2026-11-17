@@ -26,6 +26,8 @@ export interface Candidate {
   /** Qualidade 0–1 (reações por alcance, frescura, já visto): calculada por quem chama. */
   quality: number;
   video: boolean;
+  /** Multiplica a pontuação (o controlo do Mixar, mixar-controlo.ts: «menos» num tema ou num autor). Sem ele, 1. */
+  boost?: number;
 }
 
 export interface Picked {
@@ -81,7 +83,7 @@ export function normalize(w: Weights): Weights {
 }
 
 /** O mesmo, mas pela soma dos valores absolutos (o perfil do Mixar, em que o «nah» conta tanto como as outras reações). */
-function normalizeAbs(w: Weights): Weights {
+export function normalizeAbs(w: Weights): Weights {
   const tot = Object.values(w).reduce((s, v) => s + Math.abs(v), 0);
   const out: Weights = {};
   if (!tot) return out;
@@ -145,7 +147,7 @@ interface Scored extends Picked {
 }
 
 /** A afinidade e o tema mais forte de uma publicação para um perfil. */
-function affinity(w: Weights, topics: string[]) {
+export function affinity(w: Weights, topics: string[]) {
   let sum = 0;
   let best: string | null = null;
   let bestW = 0;
@@ -208,7 +210,7 @@ export function scoreCandidates(input: PickInput): Scored[] {
     }
     const q = Math.max(0, Math.min(1, c.quality));
     const noise = (hash(`${seed}:${c.id}`) % 1000) / 1000;
-    const score = (base + 0.6 * M + 0.02) * (0.6 + 0.4 * q) * (c.video ? 1.25 : 1) * (1 + 0.08 * noise);
+    const score = (base + 0.6 * M + 0.02) * (0.6 + 0.4 * q) * (c.video ? 1.25 : 1) * (1 + 0.08 * noise) * Math.max(0, c.boost ?? 1);
     out.push({ postId: c.id, from, topic, score: Math.round(score * 1e6) / 1e6, authorId: c.authorId, video: c.video });
   }
   return out.sort((x, y) => y.score - x.score || x.postId.localeCompare(y.postId));

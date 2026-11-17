@@ -63,6 +63,25 @@ export function mixarEventKeys(e: StreamChatEvent): QueryKey[] {
   }
 }
 
+/**
+ * Mixar, social e guardados (docs/mixar-contrato.md, «Social e guardados»): { type: 'mixar.live', id, what, postId? }.
+ * Também vai para quem se inscreve em realtime.ts (onMixarLive: a presença e o ecrã aberto). Aqui só as queries:
+ * - 'comment': a conversa desse item e os contadores do carril;
+ * - 'saved': os contadores do carril e a lista dos Guardados;
+ * - 'more': o feed de hoje («Mais 5») e quantas vezes ainda dá;
+ * - 'presence': nada (o ecrã ouve-a diretamente).
+ */
+export function mixarLiveKeys(e: StreamChatEvent & { postId?: string | null }): QueryKey[] {
+  if (!e.id) return [];
+  const one = ['mixar', e.id];
+  switch (e.what) {
+    case 'comment': return e.postId ? [[...one, 'comments', e.postId], [...one, 'social']] : [[...one, 'social']];
+    case 'saved': return [[...one, 'social'], [...one, 'saved']];
+    case 'more': return [[...one, 'feed'], [...one, 'more']];
+    default: return [];
+  }
+}
+
 /** O que fazer com um evento de chat (não 'call' nem 'group': esses têm o seu caminho em realtime.ts). */
 export function planChatEvent(e: StreamChatEvent): EventPlan {
   if (e.type === 'ping') return { notify: false, keys: [] };
@@ -73,6 +92,7 @@ export function planChatEvent(e: StreamChatEvent): EventPlan {
   if (e.type === 'zas') return { notify: false, keys: ZAS_KEYS };
   // Mixar: só os dados desse Mixar (sem som, aviso nem "a escrever…"), venha do outro ou seja o meu eco.
   if (e.type === 'mixar') return { notify: false, keys: mixarEventKeys(e) };
+  if (e.type === 'mixar.live') return { notify: false, keys: mixarLiveKeys(e) };
   if (e.self) {
     // O meu próprio "a escrever" nunca devia chegar; se chegar, ignora-se.
     if (e.type === 'typing') return { notify: false, keys: [] };

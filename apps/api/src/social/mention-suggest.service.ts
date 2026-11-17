@@ -2,11 +2,16 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { mentionableBy } from '../notifications/notifications.service';
-import { canView, inMyNetwork } from './visibility';
+import { blockedBetween, canView, inMyNetwork } from './visibility';
 import { badge, type VerifiedTier } from '../common/badge';
+import { RealtimeBus } from '../realtime/realtime-bus';
+import { txilladaBanned, txilladaTicket, txilladaVisible } from '../txillada/txillada-visibility';
+import { TX_WATCH_MS, txWatchKey, watchIds } from '../txillada/txillada-watch';
 
-export type MentionContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
-export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo';
+export type MentionContext = 'post' | 'group' | 'story' | 'zas' | 'chat' | 'txillada';
+export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo'
+  // Contexto 'txillada' (txillada-voltar): o anfitrião, quem está a transmitir, quem está a ver, quem comentou lá.
+  | 'anfitriao' | 'a-transmitir' | 'a-ver' | 'comentou';
 
 export interface MentionSuggestion {
   username: string;
@@ -15,6 +20,10 @@ export interface MentionSuggestion {
   verified?: boolean;
   verifiedTier?: VerifiedTier | null;
   reason?: MentionReason;
+  /** Só no contexto 'txillada': já lá está (o anfitrião, a transmitir, ou a ver quando isso se pode mostrar). */
+  inTxillada?: boolean;
+  /** Só no contexto 'txillada': não está lá e podia entrar se a convidassem (a menção num comentário vira convite). */
+  invitable?: boolean;
 }
 
 const LIMIT = 8;
@@ -24,7 +33,11 @@ const LIMIT = 8;
  * somou: o contexto ganha a tudo, depois a conversa, os amigos próximos e por fim o seguir.
  * Seguir só num sentido (eu sigo) não tem razão: é o caso normal e não diz nada.
  */
-const REASONS: Record<number, MentionReason> = { 1: 'neste-post', 2: 'no-grupo', 3: 'conversa', 4: 'amigo-proximo', 5: 'segues-te', 6: 'segue-te' };
+const REASONS: Record<number, MentionReason> = {
+  // A Txillada (ranks negativos: ganham a tudo, e o anfitrião ganha a quem transmite, que ganha a quem vê e a quem comentou).
+  [-4]: 'anfitriao', [-3]: 'a-transmitir', [-2]: 'a-ver', [-1]: 'comentou',
+  1: 'neste-post', 2: 'no-grupo', 3: 'conversa', 4: 'amigo-proximo', 5: 'segues-te', 6: 'segue-te',
+};
 
 /** "João", "joão", "JOAO" → "joao" (o mesmo que content.f_unaccent + lower no PostgreSQL, para os casos comuns). */
 export const foldTerm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -54,13 +67,16 @@ const NAME_WORDS = `(' ' || regexp_replace(lower(content.f_unaccent(u.display_na
  *   - grupo: SÓ membros (os outros nem entram), 40 a cada um e +4 por cada mensagem recente no grupo (das últimas 500),
  *     até +120: os mais ativos lá vêm primeiro e a proximidade desempata;
  *   - mimo (story) ou Zás: o autor +60; conversa: a outra pessoa +60.
+ *   - Txillada (só se a posso ver e lá entrar): o anfitrião +100, quem transmite +90, quem está a ver +50 (numa paga só
+ *     para o anfitrião: para os outros é segredo), quem lá comentou (últimos 300) +40; cada pessoa leva `inTxillada` e
+ *     `invitable` (a menção num comentário vira convite).
  *
  * Ordem de grandeza: por pedido lê no máximo 50 conversas × 200 mensagens, 1000 seguidos e 1000 seguidores, e o que
  * eu fiz nos últimos 90 dias (com os índices da migração 0112). Hoje as tabelas são pequenas; isto aguenta milhares.
  */
 @Injectable()
 export class MentionSuggestService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly pool: Pool, private readonly bus: RealtimeBus) {}
 
   async suggest(me: string, rawQ: string, context?: MentionContext, id?: string): Promise<{ items: MentionSuggestion[] }> {
     const folded = foldTerm(rawQ.replace(/^@/, '').trim()).slice(0, 30);
@@ -70,6 +86,7 @@ export class MentionSuggestService {
     let postId: string | null = null;
     let groupId: string | null = null;
     let boost: { uid: string; s: number; r: number | null } | null = null;
+    let tx: { id: string; hostId: string; guests: string[]; watchers: string[] } | null = null;
     if (context && id) {
       if (context === 'post') {
         const r = await this.pool.query(
@@ -94,6 +111,25 @@ export class MentionSuggestService {
           [me, id],
         );
         if (r.rows[0]) boost = { uid: r.rows[0].uid, s: 60, r: 3 };
+      } else if (context === 'txillada') {
+        // Só se a posso ver e lá entrar (como o GET /txilladas/:id/comments); senão é como sem contexto.
+        const r = await this.pool.query(
+          `SELECT t.host_id, t.audience,
+                  ARRAY(SELECT g.user_id FROM content.txillada_guests g WHERE g.txillada_id = t.id AND g.status = 'accepted') AS guests
+             FROM content.txilladas t JOIN identity.users h ON h.id = t.host_id
+            WHERE t.id = $2 AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')} AND ${txilladaTicket('t', '$1')}`,
+          [me, id],
+        );
+        const t = r.rows[0];
+        if (t) {
+          const hostId = t.host_id as string;
+          const guests = (t.guests as string[]).filter((g) => g !== hostId);
+          // Numa privada (paga), quem está a ver é segredo para todos menos o anfitrião: nem sobe nem se diz.
+          const reveal = t.audience !== 'paid' || hostId === me;
+          const watchers = reveal ? watchIds(await this.bus.recent(txWatchKey(id), TX_WATCH_MS)).filter((w) => w !== hostId && !guests.includes(w)) : [];
+          tx = { id, hostId, guests, watchers };
+          boost = { uid: hostId, s: 100, r: -4 };
+        }
       }
     }
 
@@ -147,7 +183,18 @@ export class MentionSuggestService {
            FROM social.group_members gm
            LEFT JOIN (SELECT sender_id, count(*) AS n FROM (SELECT sender_id FROM social.messages WHERE group_id = $4::uuid ORDER BY id DESC LIMIT 500) x GROUP BY sender_id) a
              ON a.sender_id = gm.user_id
-          WHERE gm.group_id = $4::uuid),
+          WHERE gm.group_id = $4::uuid
+         UNION ALL
+         -- A Txillada: quem transmite +90, quem está a ver +50 (só quando se pode mostrar), quem lá comentou +40 (dos últimos
+         -- 300 comentários; o anfitrião e quem transmite já sobem).
+         SELECT g, 90, -3 FROM unnest($9::uuid[]) g
+         UNION ALL
+         SELECT w, 50, -2 FROM unnest($10::uuid[]) w
+         UNION ALL
+         SELECT c.author_id, 40, -1
+           FROM (SELECT author_id FROM content.txillada_comments WHERE txillada_id = $8::uuid AND removed_at IS NULL ORDER BY id DESC LIMIT 300) c
+          WHERE c.author_id <> $5::uuid AND c.author_id <> ALL($9::uuid[])
+          GROUP BY c.author_id),
        pts AS (
          SELECT uid, s::float8 AS s, r::int AS r FROM ctx
          UNION ALL
@@ -176,9 +223,10 @@ export class MentionSuggestService {
           AND ($2 = '' OR lower(u.username::text) LIKE $2 || '%' ESCAPE '\\' OR ${NAME_WORDS} LIKE '% ' || $2 || '%' ESCAPE '\\')
         ORDER BY sc.s DESC, u.username ASC
         LIMIT ${LIMIT}`,
-      [me, term, postId, groupId, boost?.uid ?? null, boost?.s ?? null, boost?.r ?? null],
+      [me, term, postId, groupId, boost?.uid ?? null, boost?.s ?? null, boost?.r ?? null, tx?.id ?? null, tx?.guests ?? [], tx?.watchers ?? []],
     );
 
+    const ids: string[] = rows.map((r) => r.id);
     const items: MentionSuggestion[] = rows.map((r) => ({
       username: r.username,
       displayName: r.display_name,
@@ -191,7 +239,7 @@ export class MentionSuggestService {
     // regras do /search/suggest), sem repetir ninguém. Num grupo não: lá só se mencionam membros.
     if (folded && !groupId && items.length < LIMIT) {
       const more = await this.pool.query(
-        `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+        `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following,
                 greatest(similarity(lower(u.username::text), $3), similarity(lower(content.f_unaccent(u.display_name)), $3)) AS sim
            FROM identity.users u
@@ -201,10 +249,38 @@ export class MentionSuggestService {
           ORDER BY (lower(u.username::text) = $3) DESC, (lower(u.username::text) LIKE $2 || '%' ESCAPE '\\' OR ${NAME_WORDS} LIKE '% ' || $2 || '%' ESCAPE '\\') DESC,
                    following DESC, sim DESC, (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id) DESC, u.username ASC
           LIMIT $4`,
-        [me, term, folded, LIMIT - items.length, rows.map((r) => r.id)],
+        [me, term, folded, LIMIT - items.length, ids],
       );
-      for (const r of more.rows) items.push({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, ...badge(r.verified, r.verified_tier) });
+      for (const r of more.rows) {
+        ids.push(r.id);
+        items.push({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, ...badge(r.verified, r.verified_tier) });
+      }
     }
+    if (tx && items.length) await this.txFlags(tx, ids, items);
     return { items };
+  }
+
+  /**
+   * Contexto 'txillada': `inTxillada` (o anfitrião, quem transmite e quem está a ver, este só quando se pode mostrar) e
+   * `invitable` (não está lá e podia entrar se a convidassem: conta ativa, vê a Txillada, não foi expulso, sem bloqueio com o
+   * anfitrião). Os bloqueios comigo já os tira o mentionableBy.
+   */
+  private async txFlags(tx: { id: string; hostId: string; guests: string[]; watchers: string[] }, ids: string[], items: MentionSuggestion[]) {
+    const inside = new Set([tx.hostId, ...tx.guests, ...tx.watchers]);
+    const out = ids.filter((u) => !inside.has(u));
+    const can = new Set<string>();
+    if (out.length) {
+      const { rows } = await this.pool.query(
+        `SELECT u.id FROM identity.users u, content.txilladas t JOIN identity.users h ON h.id = t.host_id
+          WHERE t.id = $1 AND u.id = ANY($2::uuid[]) AND u.status = 'active'
+            AND ${txilladaVisible('t', 'h', 'u.id')} AND NOT ${txilladaBanned('t', 'u.id')} AND NOT ${blockedBetween('u.id', 'h.id')}`,
+        [tx.id, out],
+      );
+      for (const r of rows) can.add(r.id as string);
+    }
+    items.forEach((it, i) => {
+      it.inTxillada = inside.has(ids[i]);
+      it.invitable = !it.inTxillada && can.has(ids[i]);
+    });
   }
 }

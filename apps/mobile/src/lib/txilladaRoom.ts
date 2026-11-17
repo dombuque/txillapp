@@ -25,6 +25,7 @@ import type { GiftResult } from '@/lib/api.txillada';
 import {
   guestNotice, guestsInit, guestsReduce, inviteErrorText, parseGuestEvent, stageIds, stageLayout, stagePeople, tileQuality, type GuestState,
 } from '@/lib/txilladaGuests';
+import { invitedNotice, mentionNotice, oldestId, parseMentionEvent } from '@/lib/txilladaChat';
 import { adaptiveVideo, askBroadcast, attachAudio, audioNeedsTap, captureResolution, ensurePortrait, flipTrack, liveAudio, loadLiveKit, mediaError } from '@/lib/txilladaLive';
 
 export type LiveTracks = { video: LocalVideoTrack; audio: LocalAudioTrack };
@@ -148,9 +149,11 @@ export function useNow(on: boolean): number {
 
 type Act =
   | { t: 'dto'; dto: TxilladaDto } | { t: 'comments'; items: TxilladaComment[] } | { t: 'event'; ev: TxilladaEvent; me: string | null } | { t: 'cheers'; n: number }
-  | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean } | { t: 'gift'; r: GiftResult };
+  | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean } | { t: 'gift'; r: GiftResult } | { t: 'reopen'; dto: TxilladaDto };
 function reduce(s: LiveState, a: Act): LiveState {
   switch (a.t) {
+    // Reaberta (a Angariação, 0174): outra vez ao vivo, do zero, mas a conversa de antes fica para ler para trás.
+    case 'reopen': return { ...initialLive(a.dto), comments: s.comments, removed: s.removed };
     case 'gift': return withMyGift(s, a.r);
     case 'commentCheer': return withCommentCheer(s, a.id, a.cheers, a.cheered);
     case 'dto': return withDto(s, a.dto);
@@ -165,9 +168,13 @@ export type Conn = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'faile
 type LK = typeof import('livekit-client');
 
 /** Um quadrado do ecrã (0165): a pessoa, a faixa de vídeo, o microfone ligado e se está a falar (o contorno coral). */
-export interface StageTile { person: TxilladaPerson; track: VideoTrack | null; local: boolean; mirror: boolean; mic: boolean; speaking: boolean }
+export interface StageTile {
+  person: TxilladaPerson; track: VideoTrack | null; local: boolean; mirror: boolean; mic: boolean; speaking: boolean;
+  /** A câmara ligada (false: desligou-a sem sair; mostra-se a foto e «Câmara desligada», o som continua). */
+  cam: boolean;
+}
 /** O que se recebe de cada pessoa na sala (pelo identity, o id da conta). */
-type RemoteSeat = { video: VideoTrack | null; pub: RemoteTrackPublication | null; mic: boolean };
+type RemoteSeat = { video: VideoTrack | null; pub: RemoteTrackPublication | null; mic: boolean; cam: boolean };
 
 /** Quem está na sala e o que publica: a câmara (se a recebo) e o microfone (ligado ou calado). */
 function snapshot(room: Room, lk: LK): Record<string, RemoteSeat> {
@@ -175,7 +182,7 @@ function snapshot(room: Room, lk: LK): Record<string, RemoteSeat> {
   room.remoteParticipants.forEach((p) => {
     const vp = p.getTrackPublication(lk.Track.Source.Camera) as RemoteTrackPublication | undefined;
     const ap = p.getTrackPublication(lk.Track.Source.Microphone);
-    out[p.identity] = { video: vp?.isSubscribed ? ((vp.videoTrack as VideoTrack | undefined) ?? null) : null, pub: vp ?? null, mic: !!ap && !ap.isMuted };
+    out[p.identity] = { video: vp?.isSubscribed ? ((vp.videoTrack as VideoTrack | undefined) ?? null) : null, pub: vp ?? null, mic: !!ap && !ap.isMuted, cam: !!vp && !vp.isMuted };
   });
   return out;
 }
@@ -232,6 +239,11 @@ export function useTxillada(id: string) {
   const [video, setVideo] = useState<VideoTrack | null>(null);
   const [front, setFront] = useState(true);
   const [mic, setMic] = useState(true);
+  /** A minha câmara ligada (o anfitrião pode desligá-la sem terminar: o som continua). */
+  const [cam, setCam] = useState(true);
+  /** Há comentários mais antigos do que os que tenho (para ler para trás); a carregar agora. */
+  const [olderMore, setOlderMore] = useState(false);
+  const [olderBusy, setOlderBusy] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   /** Sobe a cada brinde meu (os copos aparecem logo). */
   const [myBurst, setMyBurst] = useState(0);
@@ -264,6 +276,12 @@ export function useTxillada(id: string) {
 
   // Os eventos do canal da app, só os desta Txillada.
   useEffect(() => onTxilladaEvent((raw) => {
+    // Mencionaram-me num comentário (estou a ver: só o aviso, sem convite).
+    const mev = parseMentionEvent(raw, id);
+    if (mev) {
+      if (mev.from.username !== me) setNotice((o) => ({ n: (o?.n ?? 0) + 1, text: mentionNotice(mev.from.username) }));
+      return;
+    }
     const gev = parseGuestEvent(raw, id);
     if (gev) {
       gdispatch({ t: 'event', ev: gev, me });
@@ -285,7 +303,13 @@ export function useTxillada(id: string) {
     if (!isLive) return;
     let dead = false;
     const pull = () => {
-      void txilladaApi.comments(id, afterRef.current).then((r) => { if (!dead && r?.items?.length) dispatch({ t: 'comments', items: r.items }); }, () => undefined);
+      const first = !afterRef.current;
+      void txilladaApi.comments(id, afterRef.current).then((r) => {
+        if (dead) return;
+        // O primeiro pedido (os 50 mais recentes) diz se há mais antigos para ler para trás.
+        if (first) setOlderMore(r?.more === true);
+        if (r?.items?.length) dispatch({ t: 'comments', items: r.items });
+      }, () => undefined);
     };
     pull();
     const t = setInterval(pull, POLL_MS);
@@ -353,6 +377,7 @@ export function useTxillada(id: string) {
           setFront(handed?.front ?? true);
           setVideo(tracks.video);
           setMic(!tracks.audio.isMuted);
+          setCam(!tracks.video.isMuted);
           await room.localParticipant.publishTrack(tracks.video, { source: lk.Track.Source.Camera, simulcast: true, videoEncoding: VIDEO_ENCODING, videoSimulcastLayers: [lk.VideoPresets.h360] });
           await room.localParticipant.publishTrack(tracks.audio, { source: lk.Track.Source.Microphone });
         }
@@ -562,6 +587,7 @@ export function useTxillada(id: string) {
       mirror: local && front,
       mic: local ? mic : (r ? r.mic : true),
       speaking: speaking.includes(p.id),
+      cam: local ? (host ? cam : true) : (r ? r.cam || !r.pub : true),
     };
   });
 
@@ -570,6 +596,57 @@ export function useTxillada(id: string) {
     if (!a) return;
     if (mic) await a.mute(); else await a.unmute();
     setMic(!mic);
+  }
+  /**
+   * O anfitrião desliga (ou volta a ligar) a câmara sem terminar: quem vê passa a ver a foto e «Câmara desligada»; o som
+   * continua e a ligação à sala não cai (a faixa fica publicada, só calada).
+   */
+  async function toggleCam(): Promise<string | null> {
+    const v = tracksRef.current?.video;
+    if (!v) return null;
+    try {
+      if (cam) await v.mute(); else await v.unmute();
+      setCam(!cam);
+      return null;
+    } catch {
+      return cam ? 'Não consegui desligar a câmara.' : 'Não consegui ligar a câmara. Tenta outra vez.';
+    }
+  }
+  /** Ler para trás: os 50 comentários antes do mais antigo que tenho (se a API tiver mais). */
+  async function loadOlder(): Promise<void> {
+    if (olderBusy || !olderMore) return;
+    const before = oldestId(live.comments);
+    if (!before) { setOlderMore(false); return; }
+    setOlderBusy(true);
+    try {
+      const r = await txilladaApi.comments(id, null, before);
+      if (r?.items?.length) dispatch({ t: 'comments', items: r.items });
+      setOlderMore(r?.more === true && !!r?.items?.length);
+    } catch {
+      /* tenta-se outra vez ao voltar ao topo */
+    } finally {
+      setOlderBusy(false);
+    }
+  }
+  /**
+   * Reabrir a Angariação (o anfitrião, 0174): a mesma Txillada, com a meta e o que já se juntou, outra vez ao vivo numa sala
+   * nova. Devolve a mensagem de erro, ou null.
+   */
+  async function reopen(): Promise<string | null> {
+    try {
+      const d = await txilladaApi.reopen(id);
+      if (d?.id) {
+        dispatch({ t: 'reopen', dto: d });
+        gdispatch({ t: 'dto', dto: d, now: Date.now() });
+        qc.setQueryData(txilladaKey(id), d);
+      } else {
+        void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      }
+      return null;
+    } catch (e) {
+      void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
+    }
   }
   async function flip() {
     const v = tracksRef.current?.video;
@@ -591,8 +668,14 @@ export function useTxillada(id: string) {
     if (!gate.ok) return 'Calma! Espera um bocadinho antes de comentar outra vez.';
     lastComment.current = Date.now();
     try {
-      const c = await txilladaApi.comment(id, text);
-      if (c?.id) dispatch({ t: 'event', ev: { type: 'txillada.comment', txilladaId: id, comment: c }, me });
+      const r = await txilladaApi.comment(id, text);
+      if (r?.id) {
+        const { invited, ...c } = r;
+        dispatch({ t: 'event', ev: { type: 'txillada.comment', txilladaId: id, comment: c }, me });
+        // Quem mencionei e não estava a ver recebeu o convite para vir ver.
+        const note = invitedNotice(invited);
+        if (note) setNotice((o) => ({ n: (o?.n ?? 0) + 1, text: note }));
+      }
       return null;
     } catch (e) {
       return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
@@ -715,5 +798,7 @@ export function useTxillada(id: string) {
     toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, pay, gift, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
     // Convidados (0165).
     guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest, inviteByAt,
+    // A câmara do anfitrião, ler para trás e reabrir a Angariação (txillada-voltar).
+    cam, toggleCam, olderMore, olderBusy, loadOlder, reopen,
   };
 }

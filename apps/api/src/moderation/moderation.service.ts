@@ -18,13 +18,13 @@ import { HELD_PUBLICATIONS } from '../media/held-token';
 import type { HeldPublicationsService } from '../media/held-publications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment'] as const;
 /**
  * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
  * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125; 'txillada' é um live, 0158; 'txillada_comment' um
- * comentário num live, 0162).
+ * comentário num live, 0162; 'mixar_comment' um comentário na conversa de um item do Mixar, 0171).
  */
-export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment'] as const;
+export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant', 'txillada', 'txillada_comment', 'mixar_comment'] as const;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -144,6 +144,12 @@ export class ModerationService implements OnModuleInit {
                 WHERE c.id = $2 AND c.removed_at IS NULL AND ${txilladaVisible('t', 'h', '$1')} AND NOT ${txilladaBanned('t', '$1')}
                   AND NOT ${blockedBetween('a.id', '$1')}`;
         break;
+      case 'mixar_comment':
+        // Um comentário que ainda se vê, na conversa de um Mixar de que sou um dos dois (0171) ou participante (grupo, 0173).
+        sql = `SELECT c.user_id AS owner FROM social.mixar_comments c JOIN social.mixars x ON x.id = c.mixar_id
+                WHERE c.id = $2 AND c.deleted_at IS NULL AND ((x.user_a = $1 OR x.user_b = $1)
+                   OR EXISTS (SELECT 1 FROM social.mixar_members mm WHERE mm.mixar_id = x.id AND mm.user_id = $1 AND mm.state = 'in'))`;
+        break;
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
       case 'user':
@@ -202,7 +208,7 @@ export class ModerationService implements OnModuleInit {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), max(tx.title), max(tc.body), max(mxc.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -214,6 +220,7 @@ export class ModerationService implements OnModuleInit {
          LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
          LEFT JOIN content.txilladas tx ON r.target_type = 'txillada' AND tx.id = r.target_id
          LEFT JOIN content.txillada_comments tc ON r.target_type = 'txillada_comment' AND tc.id = r.target_id
+         LEFT JOIN social.mixar_comments mxc ON r.target_type = 'mixar_comment' AND mxc.id = r.target_id
         WHERE r.status = $1
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
@@ -393,6 +400,11 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
     const c = (await client.query('UPDATE content.txillada_comments SET removed_at = now() WHERE id = $1 AND removed_at IS NULL RETURNING txillada_id', [id])).rows[0];
     if (c) await client.query('UPDATE content.txilladas SET comments = GREATEST(comments - 1, 0) WHERE id = $1', [c.txillada_id]);
     await client.query('UPDATE content.txilladas SET pinned_comment_id = NULL WHERE pinned_comment_id = $1', [id]);
+    return;
+  }
+  // Comentário do Mixar (0171): deixa de se ver para os dois (como quando o autor o apaga; não se repõe).
+  if (type === 'mixar_comment') {
+    await client.query('UPDATE social.mixar_comments SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL', [id]);
     return;
   }
   // Txillada a decorrer: é cortada (fica 'cut', com o motivo). Depois do COMMIT, afterTxilladaCut fecha a sala e avisa quem via.

@@ -13,6 +13,8 @@ import { AlertHost } from '@/components/AlertHost';
 import { ToastHost } from '@/components/ToastHost';
 import { AppUpdate } from '@/components/AppUpdate';
 import { CallOverlay } from '@/components/calls/CallOverlay';
+import { TxilladaMini } from '@/components/txillada/TxilladaMini';
+import { TxilladaSessionHost } from '@/lib/txilladaSession';
 import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
 import { PushReminderHost } from '@/components/PushReminder';
 import { DesktopShell } from '@/components/DesktopShell';
@@ -199,6 +201,7 @@ function Gate() {
       {/* Mixar: a lista dos meus Mixar e o feed a dois (como as tchekas). */}
       <Stack.Screen name="mixar/index" />
       <Stack.Screen name="mixar/[id]" />
+      <Stack.Screen name="mixar/guardados/[id]" />
       <Stack.Screen name="reels/filtros" />
       <Stack.Screen name="wallet" />
       <Stack.Screen name="invites" />
@@ -229,6 +232,9 @@ function Gate() {
       {shell ? <DesktopShell>{stack}</DesktopShell> : site ? <SiteFrame segment={segments[0]}>{stack}</SiteFrame> : stack}
       {/* Chamadas de voz e vídeo: o ecrã da chamada aparece por cima de qualquer ecrã (só com sessão). */}
       {user ? <CallOverlay /> : null}
+      {/* A Txillada aberta continua ligada fora do ecrã dela (lib/txilladaSession): o leitor pequeno ou a pílula «Estás ao vivo». */}
+      {user ? <TxilladaSessionHost key={user.id} /> : null}
+      {user ? <TxilladaMini /> : null}
     </View>
   );
 }

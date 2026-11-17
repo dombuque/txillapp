@@ -43,6 +43,7 @@ import { useMixarList } from '@/components/mixar/MixarEntry';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { mixarShowDot } from '@/lib/mixar';
 import { markMixarSeen, useMixarSeen } from '@/lib/mixarSeen';
+import { markMixarOpened } from '@/lib/mixarOpen';
 import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
 
@@ -77,10 +78,13 @@ export default function Thread() {
   const mixarSeen = useMixarSeen();
   const mixarHere = mixarList.data?.items?.find((s) => s.partner.username === username);
   const mixarNew = mixarShowDot(mixarHere, mixarHere ? mixarSeen[mixarHere.id] : null);
-  // Um convite que recebi aparece como cartão nesta conversa: abrir a conversa já é tê-lo visto.
+  // Um convite que recebi aparece como cartão nesta conversa: abrir a conversa já é tê-lo visto (em todos os aparelhos: POST /open).
   const mixarInviteSeen = mixarHere?.status === 'pending' && !mixarHere.invitedByMe ? mixarHere.id + '|' + mixarHere.updatedAt : '';
   useEffect(() => {
-    if (mixarInviteSeen && mixarHere) markMixarSeen(mixarHere.id, mixarHere.updatedAt);
+    if (mixarInviteSeen && mixarHere) {
+      markMixarSeen(mixarHere.id, mixarHere.updatedAt);
+      markMixarOpened(qc, mixarHere.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mixarInviteSeen]);
   const hiding = useChatHiding();

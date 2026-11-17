@@ -2,8 +2,8 @@ import { boBlob, boRaw } from '../../../lib/api';
 
 /** Cliente da área «Conteúdo e moderação» do backoffice (fila de queixas, conteúdo, catálogo da Geleira e auditoria). */
 
-/** 'story_comment' (comentário num mimo) e 'instant' (Zás) desde a 0125; 'txillada' (um live) desde a 0158; 'txillada_comment' (um comentário num live) desde a 0162. */
-export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue' | 'story_comment' | 'instant' | 'txillada' | 'txillada_comment';
+/** 'story_comment' (comentário num mimo) e 'instant' (Zás) desde a 0125; 'txillada' (um live) desde a 0158; 'txillada_comment' (um comentário num live) desde a 0162; 'mixar_comment' (um comentário do Mixar) desde a 0171. */
+export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue' | 'story_comment' | 'instant' | 'txillada' | 'txillada_comment' | 'mixar_comment';
 export type ModReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ModAction = 'dismiss' | 'remove' | 'warn' | 'suspend';
 export type ModSort = 'severity' | 'oldest' | 'newest' | 'reports';

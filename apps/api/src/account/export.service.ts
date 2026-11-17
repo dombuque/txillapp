@@ -199,11 +199,45 @@ export class ExportService {
         `SELECT ch.mixar_id AS "mixarId", ch.day::text AS day, ch.kind, k.post_id AS "postId", k.created_at AS "createdAt"
            FROM social.mixar_picks k JOIN social.mixar_challenges ch ON ch.id = k.challenge_id WHERE k.user_id = $1 ORDER BY k.created_at`,
       ).catch(() => []),
+      // Avisos e descoberta do Mixar (0170): quando abri cada Mixar e quem dispensei das sugestões («Agora não», até quando).
+      mixarOpens: await q(`SELECT mixar_id AS "mixarId", opened_at AS "openedAt" FROM social.mixar_opens WHERE user_id = $1 ORDER BY opened_at`).catch(() => []),
+      mixarSuggestionsDismissed: await q(
+        `SELECT o.username, sd.until FROM social.mixar_suggestion_dismissals sd JOIN identity.users o ON o.id = sd.person_id WHERE sd.user_id = $1 ORDER BY sd.until`,
+      ).catch(() => []),
+      // Mixar, social e guardados (0171): os comentários que escrevi na conversa dos itens (os que não apaguei) e o que guardei
+      // à mão nos Guardados do Mixar. Os comentários do outro são dados dele: não entram.
+      mixarComments: await q(
+        `SELECT mixar_id AS "mixarId", post_id AS "postId", body, created_at AS "createdAt" FROM social.mixar_comments WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at`,
+      ).catch(() => []),
+      mixarSaves: await q(
+        `SELECT mixar_id AS "mixarId", post_id AS "postId", created_at AS "createdAt", removed_at AS "removedAt" FROM social.mixar_saves WHERE saved_by = $1 ORDER BY created_at`,
+      ).catch(() => []),
+      // Mixar, controlo (0172): os temas que afinei em cada Mixar («menos» ou tirados), os autores de que pedi menos e os
+      // meus temas privados (valem para todos os meus Mixar).
+      mixarTopicPrefs: await q(`SELECT mixar_id AS "mixarId", topic, mode, created_at AS "createdAt" FROM social.mixar_topic_prefs WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      mixarAuthorLess: await q(
+        `SELECT l.mixar_id AS "mixarId", a.username AS author, l.created_at AS "createdAt" FROM social.mixar_author_less l JOIN identity.users a ON a.id = l.author_id WHERE l.user_id = $1 ORDER BY l.created_at`,
+      ).catch(() => []),
+      mixarPrivateTopics: await q(`SELECT topic, created_at AS "createdAt" FROM social.mixar_private_topics WHERE user_id = $1 ORDER BY topic`).catch(() => []),
+      // Mixar de grupo (0173): os Mixar dos meus grupos em que entrei, recusei ou de que saí (o grupo, o meu estado, quem propôs e
+      // as datas). As reações, os vistos, as escolhas, os comentários e os guardados que fiz lá dentro já vão nas listas de cima.
+      mixarGroups: await q(
+        `SELECT x.id, g.name AS "group", mm.state, (x.invited_by = $1) AS "proposedByMe", x.status, x.created_at AS "createdAt", x.accepted_at AS "startedAt",
+                mm.joined_at AS "joinedAt", mm.updated_at AS "updatedAt", x.ended_at AS "endedAt"
+           FROM social.mixar_members mm JOIN social.mixars x ON x.id = mm.mixar_id LEFT JOIN social.groups g ON g.id = x.group_id
+          WHERE mm.user_id = $1 ORDER BY x.created_at`,
+      ).catch(() => []),
+      // Avisos do Mixar já enviados (0170, também os do Mixar de grupo): que aviso recebi, de que Mixar e quando ('daily' a
+      // seleção do dia, 'pick' falta eu escolher no desafio, 'result' o resultado). Guardam-se 30 dias (MixarService.purge).
+      mixarNotices: await q(
+        `SELECT mixar_id AS "mixarId", kind, ref, created_at AS "createdAt" FROM social.mixar_notices WHERE user_id = $1 ORDER BY created_at`,
+      ).catch(() => []),
       // Txillada (0158): as que fiz (o registo: título, público, horas e números; o vídeo nunca se gravou) e os comentários que
-      // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim).
+      // escrevi nas Txilladas (os que ainda existem: apagam-se 7 dias depois do fim). Desde a 0174, também quantas vezes
+      // reabri a Angariação de cada uma e quando foi a última.
       txilladas: await q(
         `SELECT id, title, audience, price, goal, goal_purpose AS "goalPurpose", raised, tickets, status, started_at AS "startedAt", ended_at AS "endedAt",
-                peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason"
+                peak_viewers AS "peakViewers", cheers, comments, cut_reason AS "cutReason", reopens, reopened_at AS "reopenedAt"
            FROM content.txilladas WHERE host_id = $1 ORDER BY started_at`,
       ).catch(() => []),
       // Txillada paga e Angariação (0167): as entradas que paguei e as ofertas que fiz nas Txilladas dos outros, e as entradas e

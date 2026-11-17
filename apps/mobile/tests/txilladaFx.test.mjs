@@ -158,7 +158,8 @@ test('o ecrã da Txillada: fixo à janela no site (100dvh), vídeo de ponta a po
   assert.match(s, /height: '100dvh'/);
   assert.match(s, /position: 'fixed'/);
   // Com uma pessoa, o vídeo de ponta a ponta (com convidados, 0165, o ecrã reparte-se: components/txillada/TxilladaGuests).
-  assert.match(s, /<TxilladaStage tiles=\{tx\.tiles\} w=\{width\} h=\{height\}/);
+  // O palco com o tamanho medido sem o teclado (W, H): o vídeo não encolhe nem sobe ao escrever.
+  assert.match(s, /<TxilladaStage tiles=\{tx\.tiles\} w=\{W\} h=\{H\}/);
   assert.match(read('src/components/txillada/TxilladaGuests.tsx'), /<TxilladaVideo track=\{t\?\.track \?\? null\} mirror=\{!!t\?\.mirror\} fit=\{t\?\.local \? 'cover' : 'auto'\} style=\{StyleSheet\.absoluteFill\} \/>/);
   assert.doesNotMatch(s, /storyFrame/);
   assert.match(s, /<ReactionBar onReact=\{react\} \/>/);

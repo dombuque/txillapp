@@ -27,6 +27,33 @@ export function PairAvatars({ me, them, size = 32, ring = '#fff' }: { me: Who; t
   );
 }
 
+/**
+ * Os avatares de um Mixar de grupo (0173): até 3 caras sobrepostas, com «+N» quando há mais. Sem ninguém, o selo do Mixar.
+ */
+export function GroupAvatars({ people, size = 32, ring = '#fff', max = 3 }: { people: readonly { displayName: string; username?: string; hasAvatar?: boolean }[]; size?: number; ring?: string; max?: number }) {
+  const shown = people.slice(0, max);
+  const extra = people.length - shown.length;
+  const overlap = Math.round(size * 0.42);
+  const box = size + 4;
+  if (!shown.length) return <MixarBadge size={box} />;
+  return (
+    <View style={{ flexDirection: 'row', height: box }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {shown.map((p, i) => (
+        <View key={`${p.username ?? p.displayName}:${i}`} style={[st.ringed, { width: box, height: box, borderRadius: box / 2, backgroundColor: ring }, i > 0 && { marginLeft: -overlap }]}>
+          <Avatar name={p.displayName} username={p.hasAvatar === false ? undefined : p.username} size={size} />
+        </View>
+      ))}
+      {extra > 0 ? (
+        <View style={[st.ringed, { width: box, height: box, borderRadius: box / 2, backgroundColor: ring, marginLeft: -overlap }]}>
+          <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.zinc800, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: Math.round(size * 0.36) }}>+{extra}</Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** O desenho de uma reação: o ícone dos brindes da app para o «brinde», o emoji para as outras. */
 export function ReactionGlyph({ r, size = 22, color = '#fff' }: { r: MixarReaction; size?: number; color?: string }) {
   if (r.id === 'brinde') return <Icon name="cheers" size={size + 2} color={color} strokeWidth={2} />;
@@ -37,25 +64,31 @@ export function ReactionGlyph({ r, size = 22, color = '#fff' }: { r: MixarReacti
  * A barra das reações exclusivas do Mixar (por cima do vídeo): a minha fica destacada (fundo cheio, maior) e a do outro
  * leva o avatar dele num cantinho. Tocar na minha tira-a; noutra, troca.
  */
-export function ReactionBar({ mine, theirs, partner, onPick, dark = true, style }: {
+export function ReactionBar({ mine, theirs, partner, onPick, dark = true, style, others }: {
   mine: MixarReactionId | null;
   theirs: MixarReactionId | null;
   partner: Who;
+  /** Mixar de grupo (0173): as reações dos outros participantes (cada botão leva a cara do primeiro que reagiu assim). */
+  others?: { reaction: MixarReactionId; who: Who }[];
   onPick: (id: MixarReactionId) => void;
   /** Por cima do vídeo (fundo escuro). */
   dark?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View style={[st.bar, dark ? st.barDark : st.barLight, style]} accessibilityRole="toolbar" accessibilityLabel="Reações do Mixar (só vocês os dois veem)">
-      {MIXAR_REACTIONS.map((r) => (
-        <ReactionButton key={r.id} r={r} mine={mine === r.id} theirs={theirs === r.id} partner={partner} onPress={() => onPick(r.id)} dark={dark} />
-      ))}
+    <View style={[st.bar, dark ? st.barDark : st.barLight, style]} accessibilityRole="toolbar" accessibilityLabel={others ? 'Reações do Mixar (só quem está no Mixar do grupo vê)' : 'Reações do Mixar (só vocês os dois veem)'}>
+      {MIXAR_REACTIONS.map((r) => {
+        if (!others) return <ReactionButton key={r.id} r={r} mine={mine === r.id} theirs={theirs === r.id} partner={partner} onPress={() => onPick(r.id)} dark={dark} />;
+        const who = others.filter((o) => o.reaction === r.id).map((o) => o.who);
+        const names = who.map((w) => w.name);
+        const label = names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+        return <ReactionButton key={r.id} r={r} mine={mine === r.id} theirs={who.length > 0} partner={who[0] ?? partner} names={label || undefined} onPress={() => onPick(r.id)} dark={dark} />;
+      })}
     </View>
   );
 }
 
-function ReactionButton({ r, mine, theirs, partner, onPress, dark }: { r: MixarReaction; mine: boolean; theirs: boolean; partner: Who; onPress: () => void; dark: boolean }) {
+function ReactionButton({ r, mine, theirs, partner, names, onPress, dark }: { r: MixarReaction; mine: boolean; theirs: boolean; partner: Who; /** No grupo: os nomes de quem reagiu assim (para o leitor de ecrã). */ names?: string; onPress: () => void; dark: boolean }) {
   const pop = useRef(new Animated.Value(1)).current;
   function press() {
     if (!isWeb) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -70,7 +103,7 @@ function ReactionButton({ r, mine, theirs, partner, onPress, dark }: { r: MixarR
       style={(s) => [st.react, mine && st.reactMine, (s as { hovered?: boolean }).hovered && !mine && { backgroundColor: dark ? 'rgba(255,255,255,0.18)' : colors.zinc100 }]}
       accessibilityRole="button"
       accessibilityState={{ selected: mine }}
-      accessibilityLabel={reactionA11y(r, mine, theirs, partner.name)}
+      accessibilityLabel={reactionA11y(r, mine, theirs, names ?? partner.name)}
     >
       <Animated.View style={{ transform: [{ scale: pop }], opacity: mine || theirs ? 1 : 0.92 }}>
         <ReactionGlyph r={r} size={mine ? 22 : 20} color={mine ? '#fff' : dark ? '#fff' : colors.zinc800} />
@@ -85,22 +118,23 @@ function ReactionButton({ r, mine, theirs, partner, onPress, dark }: { r: MixarR
 }
 
 /** A razão do item («Porque gostas de Música»), num chip por cima do vídeo. */
-export function ReasonChip({ from, topic, partner }: { from: MixarFrom; topic: MixarTopic | null; partner: string }) {
-  const text = reasonText(from, topic, partner);
+export function ReasonChip({ from, topic, partner, text: override, icon }: { from: MixarFrom; topic: MixarTopic | null; partner: string; /** Mixar de grupo: o texto e o ícone já feitos (lib/mixarGrupo). */ text?: string; icon?: 'user' | 'heart' | 'users' }) {
+  const text = override ?? reasonText(from, topic, partner);
   return (
     <View style={st.reason} accessibilityRole="text" accessibilityLabel={text}>
-      <Icon name={reasonIcon(from)} size={13} color="#fff" strokeWidth={2.4} />
+      <Icon name={icon ?? reasonIcon(from)} size={13} color="#fff" strokeWidth={2.4} />
       <Text style={st.reasonText} numberOfLines={1}>{text}</Text>
     </View>
   );
 }
 
 /** «Visto por Ana»: o outro já viu este item. */
-export function SeenBy({ partner }: { partner: Who }) {
+export function SeenBy({ partner, text }: { partner: Who; /** Mixar de grupo: «Visto por Ana e Zeca», «Visto por todos». */ text?: string }) {
+  const line = text ?? `Visto por ${partner.name}`;
   return (
-    <View style={st.seen} accessibilityRole="text" accessibilityLabel={`Visto por ${partner.name}`}>
+    <View style={st.seen} accessibilityRole="text" accessibilityLabel={line}>
       <Icon name="eye" size={13} color="rgba(255,255,255,0.9)" strokeWidth={2.2} />
-      <Text style={st.seenText} numberOfLines={1}>Visto por {partner.name}</Text>
+      <Text style={st.seenText} numberOfLines={1}>{line}</Text>
     </View>
   );
 }

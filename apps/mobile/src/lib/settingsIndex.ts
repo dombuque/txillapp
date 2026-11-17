@@ -42,7 +42,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** Os tipos de aviso (as categorias que o servidor manda em /notifications/settings): título e explicação curta. */
 export const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), capturas dos teus Zás e o Mixar (convites, convites aceites e resultado do desafio). Desligado, os pedidos para entrar continuam na lista, sem aviso'],
+  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador, capturas de ecrã), e capturas dos teus Zás. Desligado, os pedidos para entrar continuam na lista, sem aviso'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -59,13 +59,16 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   // «Sexta da gelada» (API: src/gelada/gelada-friday.service.ts, 0145). Ligado por omissão.
   gelada: ['Sexta da gelada', 'À sexta por volta das 17h: quem ainda te deve uma e um lembrete para pedires à malta. No máximo um por sexta'],
   // Txillada, o live (API: src/txillada, 0158). Ligado por omissão; no máximo um aviso por pessoa por hora.
-  txilladas: ['Txilladas', 'Quando alguém que segues abre uma Txillada ou te convida para transmitir'],
+  // Também o convite de uma menção num comentário e o «reabriu a Txillada» (txillada-voltar, 0174).
+  txilladas: ['Txilladas', 'Quando alguém que segues abre ou reabre uma Txillada, quando reabrem uma em que ofereceste ou pagaste a entrada, e os convites para transmitir ou para vir ver quando te mencionam'],
   // O resumo semanal dos Zás (API: src/instants, 0164). Ligado por omissão; no máximo um por semana.
   zas: ['Resumo dos Zás', 'Ao domingo à noite, quando o teu resumo da semana fica pronto'],
+  // O Mixar, o feed a dois e o do grupo (API: src/mixar, 0150, 0170 e 0173). Ligado por omissão; a seleção do dia no máximo uma vez por dia.
+  mixar: ['Mixar', 'Convites e convites aceites, propostas de Mixar do grupo, a seleção de cada dia (só entre as 8h e as 21h e se ainda não abriste o Mixar) e o Mixa Challenge: quando já escolheram e falta a tua escolha, e o resultado'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
-  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos', 'mixar', 'desafio'],
+  messages: ['avisos de mensagens', 'chat', 'txillgroups', 'grupos'],
   follows: ['novos seguidores', 'pedidos para seguir'],
   comments: ['respostas', 'comentar'],
   mentions: ['@', 'identificar', 'marcar'],
@@ -78,8 +81,9 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
   remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
   gelada: ['sexta', 'gelada', 'cerveja', 'refresco', 'cobrar', 'livro', 'paga-me uma', 'sexta-feira'],
-  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir'],
+  txilladas: ['txillada', 'live', 'lives', 'ao vivo', 'direto', 'em direto', 'transmissão', 'transmitir', 'reabrir', 'angariação', 'menção na txillada', 'vem ver'],
   zas: ['zás', 'resumo dos zás', 'resumo semanal', 'resumo da semana', 'recap', 'domingo', 'aviso do resumo'],
+  mixar: ['mixar', 'feed a dois', 'blend', 'seleção do dia', 'mixa challenge', 'desafio', 'convite do mixar', 'mixar do grupo', 'mixar de grupo', 'propôs um mixar'],
 };
 
 /** Notificações: a âncora de cada categoria. */
@@ -116,6 +120,8 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'zasKeep', group: 'privacidade', title: 'Guardar os meus Zás para o resumo semanal', keywords: ['zás', 'zas', 'resumo', 'resumo semanal', 'resumo da semana', 'resumo dos zás', 'guardar zás', 'guardar os zás', '7 dias', 'sete dias', 'arquivo', 'os meus zás', 'recap', 'instants', 'apagar às 24 horas'] },
   { id: 'findByContacts', group: 'privacidade', title: 'Deixar que me encontrem pelos contactos', keywords: ['contactos', 'agenda', 'encontrar-me'] },
   { id: 'analytics', group: 'privacidade', title: 'Ajudar a melhorar o Txillapp', keywords: ['estatísticas de uso', 'analytics', 'dados de uso', 'telemetria', 'rastreio', 'melhorar'] },
+  // Mixar (0172): os temas que nunca aparecem nos meus Mixar (ecrã próprio; a linha está em Privacidade e em Mensagens e chamadas).
+  { id: 'mixarPrivateTopics', group: 'privacidade', title: 'Temas privados no Mixar', to: '/settings/mixar-temas', keywords: ['temas privados', 'mixar', 'esconder temas', 'gostos privados', 'compatibilidade', 'afinidade', 'temas em comum', 'resumo da semana do mixar', 'faz um mixar com', 'sugestões do mixar'] },
   // Notificações
   { id: 'deviceNotif', group: 'notificacoes', title: 'Notificações no telemóvel', keywords: ['push', 'alertas', 'avisos', 'ligar notificações', 'desligadas', 'notificação de teste', 'neste aparelho'] },
   { id: 'installApp', group: 'notificacoes', title: 'Instalar a app', keywords: ['ecrã principal', 'pwa', 'adicionar ao ecrã', 'instalar'] },
@@ -141,8 +147,9 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'clearChat', group: 'mensagens', title: 'Limpar conversa', keywords: ['limpar', 'esvaziar', 'apagar mensagens', 'limpar chat', 'apagar histórico', 'clear chat'] },
   // Só explica (não há opção na API): os avisos de captura nas conversas e o bloqueio no Zás dos outros.
   { id: 'screenshots', group: 'mensagens', title: 'Capturas de ecrã', keywords: ['captura', 'capturas', 'captura de ecrã', 'print', 'printscreen', 'screenshot', 'aviso de captura', 'zás'] },
-  // Mixar (0150): sem opções na API; a linha explica e leva aos teus Mixar (sair, convites).
-  { id: 'mixar', group: 'mensagens', title: 'Os meus Mixar', to: '/mixar', keywords: ['mixar', 'feed a dois', 'blend', 'mixa challenge', 'desafio', 'sair do mixar', 'convite mixar', 'afinidade'] },
+  // Mixar (0150): a linha explica e leva aos teus Mixar (sair, convites). Os avisos são a categoria «mixar» (0170) e os temas
+  // privados têm a entrada mixarPrivateTopics (0172).
+  { id: 'mixar', group: 'mensagens', title: 'Os meus Mixar', to: '/mixar', keywords: ['mixar', 'feed a dois', 'blend', 'mixa challenge', 'desafio', 'sair do mixar', 'convite mixar', 'afinidade', 'guardados do mixar', 'resumo da semana do mixar', 'mais 5', 'ver juntos'] },
   { id: 'calls', group: 'mensagens', title: 'Quem me pode ligar', keywords: ['chamadas', 'ligar', 'videochamada', 'chamada de voz'] },
   { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
   { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },
