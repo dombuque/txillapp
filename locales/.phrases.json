@@ -1908,6 +1908,7 @@
   "Entrar no Txillapp": {"parts":["app","web"]},
   "Entrar no grupo": {"parts":["app"]},
   "Entrar por {vibes}": {"parts":["app"]},
+  "Entrar_juntar": {"src":"Entrar","parts":["app"]},
   "Entraram": {"parts":["app","web"]},
   "Entraram {n}, ainda nenhum te deu vibes": {"parts":["app"]},
   "Entraram {n}, {count} já te deu vibes": {"other":"Entraram {n}, {count} já te deram vibes","plural":true,"parts":["app"]},

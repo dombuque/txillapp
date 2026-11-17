@@ -85,7 +85,12 @@ Pedido do dono: «Usa alguma biblioteca de tradução e não tradução manual, 
 t('Guardar')
 t('Olá, {nome}.', { nome })
 t('{count} seguidor', { count: n, other: '{count} seguidores' })   // plural: `other` com a forma do plural, literal
+t('Entrar', { context: 'juntar' })   // a mesma frase com outra tradução: chave «Entrar_juntar», traduz-se «Entrar»
 ```
+
+- `context` (literal) serve quando a mesma frase portuguesa pede traduções diferentes conforme o ecrã: «Entrar» é
+  «Log in» no login e «Join» no Mixar e na Txillada. Em português mostra-se a frase; nos outros idiomas, a chave
+  `frase_contexto` (corrige-se em `overrides`, como as outras).
 
 - A frase e o `other` são sempre textos literais. O teste `apps/mobile/tests/i18n.test.mjs` falha com `t(variavel)`,
   `` t(`…${x}`) `` ou `t('a' + b)`, e com frases sem tradução nos catálogos.

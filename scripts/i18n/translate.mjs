@@ -59,12 +59,13 @@ export const pluralCategories = (locale) => new Intl.PluralRules(locale).resolve
 
 /**
  * As chaves que um idioma precisa: { chave → texto em português a traduzir }. Nos plurais, «_one» traduz o singular e as
- * outras formas traduzem o `other` (ou o singular, se não houver).
+ * outras formas traduzem o `other` (ou o singular, se não houver). Com contexto (`t('Entrar', { context: 'juntar' })`), a
+ * chave é «Entrar_juntar» e traduz-se «Entrar».
  */
 export function neededKeys(all, locale) {
   const out = new Map();
   for (const [key, v] of all) {
-    if (!v.plural) out.set(key, key);
+    if (!v.plural) out.set(key, v.src ?? key);
     else for (const cat of pluralCategories(locale)) out.set(`${key}_${cat}`, cat === 'one' ? key : (v.other ?? key));
   }
   return out;
@@ -317,7 +318,7 @@ export async function run({ check = false, only = null, log = console.log } = {}
   for (const c of ex.conflicts) log(`aviso: plural diferente para «${c.key}» (${c.file}:${c.line})`);
 
   const phrases = {};
-  for (const [k, v] of ex.all) phrases[k] = { ...(v.other !== undefined ? { other: v.other } : {}), ...(v.plural ? { plural: true } : {}), parts: [...v.parts].sort() };
+  for (const [k, v] of ex.all) phrases[k] = { ...(v.src !== undefined ? { src: v.src } : {}), ...(v.other !== undefined ? { other: v.other } : {}), ...(v.plural ? { plural: true } : {}), parts: [...v.parts].sort() };
 
   const hashes = readJson(path.join(LOCALES, '.hash.json'), {});
   const missingAll = {};
