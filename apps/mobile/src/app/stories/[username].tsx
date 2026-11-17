@@ -74,7 +74,7 @@ function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused
         onLoadedMetadata: (e: { currentTarget: HTMLVideoElement }) => { if (Number.isFinite(e.currentTarget.duration)) onDuration(e.currentTarget.duration * 1000); },
         style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000', pointerEvents: 'none' },
       })}
-      <Pressable onPress={() => setMuted((m) => !m)} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
+      <Pressable onPress={() => setMuted((m) => !m)} hitSlop={4} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
         <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
       </Pressable>
     </>
@@ -367,6 +367,26 @@ export default function StoryViewer() {
       { text: 'Apagar', style: 'destructive', onPress: async () => { await api.deleteStory(cur.id).catch(() => undefined); await q.refetch(); void qc.invalidateQueries({ queryKey: ['stories'] }); if (stories.length <= 1) close(); } },
     ]);
   }
+  /** Bloquear quem publicou o mimo (como no perfil, lib/api `block`): os mimos dela saem e o visor fecha. */
+  function confirmBlock() {
+    if (!cur) return;
+    const u = cur.author.username;
+    setPanel(null);
+    Alert.alert(`Bloquear @${u}?`, 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Bloquear',
+        style: 'destructive',
+        onPress: () => void api.block(u).then(
+          () => {
+            for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
+            close();
+          },
+          (e: { message?: string }) => Alert.alert('Não deu', e?.message || 'Não consegui bloquear agora. Tenta outra vez.'),
+        ),
+      },
+    ]);
+  }
   async function toggleComments() {
     if (!cur) return;
     await api.setStoryComments(cur.id, !cur.commentsOff).catch(() => undefined);
@@ -532,8 +552,8 @@ export default function StoryViewer() {
                   {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
                 </View>
               </Pressable>
-              {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
-              {!mine && <Pressable onPress={() => setPanel('more')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              {mine && <Pressable onPress={() => setPanel('menu')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              {!mine && <Pressable onPress={() => setPanel('more')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
               <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             </View>
             {!typing && cur.music && <View style={st.music} pointerEvents="box-none"><StoryMusic key={cur.id} track={cur.music} paused={paused} onLive={setTune} /></View>}
@@ -593,10 +613,11 @@ export default function StoryViewer() {
           </Panel>
         )}
         {panel === 'more' && (
-          <Panel title={`Mimo de ${cur.author.username}`} onClose={() => setPanel(null)}>
+          <Panel title={`Mimo de @${cur.author.username}`} onClose={() => setPanel(null)}>
             {cur.sharedFrom && <Pressable onPress={() => { setPanel(null); void shareSharedPost(cur); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>{cur.mediaKind === 'video' ? 'Partilhar a tcheka' : 'Partilhar a publicação'}</Text></Pressable>}
             <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Denunciar mimo</Text></Pressable>
-            <Pressable onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil (para bloquear)</Text></Pressable>
+            <Pressable onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil</Text></Pressable>
+            <Pressable onPress={confirmBlock} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Bloquear @{cur.author.username}</Text></Pressable>
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
           </Panel>
         )}
