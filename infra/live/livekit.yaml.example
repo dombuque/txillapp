@@ -20,7 +20,7 @@ webhook:
     - https://txillapp.com/api/v1/txilladas/livekit-webhook
 room:
   auto_create: true
-  empty_timeout: 60
-  departure_timeout: 20
+  empty_timeout: 300      # a API também cria cada sala com 300 s (livekit.ts): a sala não fecha enquanto o anfitrião volta a ligar
+  departure_timeout: 300  # depois de o último sair (mais do que os 3 min de margem do anfitrião)
 limit:
   num_tracks: 0

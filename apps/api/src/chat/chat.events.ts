@@ -71,7 +71,10 @@ export type TxilladaEvent =
   | { type: 'txillada.comment'; txilladaId: string; comment: unknown }
   | { type: 'txillada.cheer'; txilladaId: string; cheers: number; from: { username: string; verified: boolean; verifiedTier: string | null } }
   | { type: 'txillada.viewers'; txilladaId: string; viewers: number }
-  | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut' }
+  /** `reason: 'lost'`: acabou sozinha porque a ligação do anfitrião caiu (ele pode continuar até 10 min depois). */
+  | { type: 'txillada.ended'; txilladaId: string; status: 'ended' | 'cut'; reason?: 'lost' }
+  /** O anfitrião continuou a Txillada acabada por 'lost': a sala é nova, quem a tinha aberta volta a entrar (join). */
+  | { type: 'txillada.resumed'; txilladaId: string }
   | { type: 'txillada.comment_removed'; txilladaId: string; commentId: string }
   /** Brindaram (ou tiraram o brinde a) um comentário: a contagem nova (0161). Não diz quem foi. */
   | { type: 'txillada.comment_cheer'; txilladaId: string; commentId: string; cheers: number }

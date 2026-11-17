@@ -1613,5 +1613,20 @@
   "Que a outra pessoa tem o Mixar aberto agora. Aparece por baixo do cabeçalho, com «No mesmo vídeo que tu» ou «Noutro vídeo» (toca para ires lá), e «está aqui» no vídeo em que ela está. As reações dela aparecem na hora. Ela vê o mesmo de ti, também com «Mostrar quando estou online» desligado. Desaparece pouco depois de um dos dois sair.": "That the other person has the Mixar open right now. It appears below the header, with “In the same video as you” or “In another video” (tap to go there), and “is here” on the video they're on. Their reactions appear in real time. They see the same about you, even with “Show when I am online” turned off. It disappears shortly after one of you leaves.",
   "Não deu. Tenta outra vez daqui a pouco.": "I couldn't. Try again in a bit.",
   "Obrigado. A equipa vai analisar. Enquanto isso, o som não pode ser usado em tchekas novas.": "Thanks. The team will look into it. Meanwhile, this sound can't be used in new tchekas.",
-  "Som retirado. Deixou de tocar em todo o lado.": "Sound removed. It no longer plays anywhere."
+  "Som retirado. Deixou de tocar em todo o lado.": "Sound removed. It no longer plays anywhere.",
+  "A ligação do anfitrião caiu": "The host's connection dropped",
+  "A ligação está fraca. Espera que volte a ligar e tenta outra vez.": "The connection is weak. Wait until it reconnects and try again.",
+  "A ligação está fraca… a voltar a ligar. Espera para tirar, aceitar ou convidar.": "The connection is weak… reconnecting. Wait before removing, accepting or inviting.",
+  "A tua ligação caiu e a Txillada parou.": "Your connection dropped and the Txillada stopped.",
+  "A tua ligação caiu e a Txillada parou. Podes continuar até às {hm}.": "Your connection dropped and the Txillada stopped. You can continue until {hm}.",
+  "A Txillada acabou. As Txilladas não ficam gravadas: só se veem ao vivo.": "The Txillada has ended. Txilladas are not recorded: they can only be watched live.",
+  "A Txillada não acaba logo: tens 3 minutos para voltar, e a app volta a ligar sozinha. Enquanto diz «a voltar a ligar», tirar, aceitar, convidar e fixar esperam pela ligação. Desligar só a câmara não acaba a Txillada (o som continua). Se não voltares a tempo, a Txillada para e, no resumo, tens «Continuar a Txillada» durante 10 minutos: é a mesma, com os comentários e a Angariação, e quem estava a ver lê «A ligação do anfitrião caiu» e volta a entrar sozinho. Funciona em qualquer Txillada e não gasta as reaberturas da Angariação.": "The Txillada doesn't end right away: you have 3 minutes to come back, and the app reconnects by itself. While it says «reconnecting», removing, accepting, inviting and pinning wait for the connection. Turning off only the camera doesn't end the Txillada (the sound keeps going). If you don't come back in time, the Txillada stops and, in the summary, you have «Continue the Txillada» for 10 minutes: it's the same one, with the comments and the Fundraiser, and whoever was watching sees «The host's connection dropped» and rejoins automatically. It works in any Txillada and doesn't use up the Fundraiser reopenings.",
+  "Ainda estou a tratar disso. Espera um bocadinho.": "Still working on it. Wait a moment.",
+  "Continuar a Txillada": "Continue the Txillada",
+  "E se a minha ligação cair a meio da Txillada?": "What if my connection drops during a Txillada?",
+  "Esta Txillada já chegou às 4 horas: para continuar, abre uma Txillada nova.": "This Txillada has already reached 4 hours: to keep going, start a new Txillada.",
+  "Já não se pode continuar esta Txillada.": "This Txillada can no longer be continued.",
+  "Já passaram mais de 10 minutos desde que a ligação caiu: já não se pode continuar. Abre uma Txillada nova.": "More than 10 minutes have passed since the connection dropped: it can no longer be continued. Start a new Txillada.",
+  "Não deu para continuar": "Couldn't continue",
+  "Se ele continuar, voltas a entrar sozinho.": "If they continue, you'll rejoin automatically."
 }

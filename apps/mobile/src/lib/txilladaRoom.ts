@@ -18,7 +18,7 @@ import { txilladaApi, txilladaKey, type TxilladaAccess } from '@/lib/api.txillad
 import { useAuth } from '@/lib/auth';
 import { onTxilladaEvent } from '@/lib/realtime';
 import {
-  applyEvent, cheerGate, commentGate, errorText, giftKey, initialLive, isInsufficient, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, viewKind, withCommentCheer,
+  applyEvent, cheerGate, commentGate, errorText, giftKey, initialLive, isEndedError, isInsufficient, lastCommentId, liveUi, parseTxilladaEvent, POLL_MS, RESUME_POLL_MS, resumeDeadline, viewKind, withCommentCheer,
   withComments, withDto, withMyGift, type LiveState, type TxilladaComment, type TxilladaDto, type TxilladaEvent, type TxilladaPerson,
 } from '@/lib/txillada';
 import type { GiftResult } from '@/lib/api.txillada';
@@ -153,7 +153,8 @@ type Act =
   | { t: 'commentCheer'; id: string; cheers: number; cheered: boolean } | { t: 'gift'; r: GiftResult } | { t: 'reopen'; dto: TxilladaDto };
 function reduce(s: LiveState, a: Act): LiveState {
   switch (a.t) {
-    // Reaberta (a Angariação, 0174): outra vez ao vivo, do zero, mas a conversa de antes fica para ler para trás.
+    // Reaberta (a Angariação, 0174) ou continuada depois de a ligação do anfitrião cair: outra vez ao vivo, do zero, mas a
+    // conversa de antes fica para ler para trás.
     case 'reopen': return { ...initialLive(a.dto), comments: s.comments, removed: s.removed };
     case 'gift': return withMyGift(s, a.r);
     case 'commentCheer': return withCommentCheer(s, a.id, a.cheers, a.cheered);
@@ -165,6 +166,11 @@ function reduce(s: LiveState, a: Act): LiveState {
 }
 
 export type Conn = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
+
+/** As ações do anfitrião que mexem no servidor esperam pela ligação: com ela fraca, nada se manda (nem se repete). */
+export const WEAK_LINK_TEXT = () => t('A ligação está fraca. Espera que volte a ligar e tenta outra vez.');
+/** A mesma ação (tirar a mesma pessoa, fixar…) ainda à espera da resposta: não se manda outra vez. */
+export const BUSY_TEXT = () => t('Ainda estou a tratar disso. Espera um bocadinho.');
 
 type LK = typeof import('livekit-client');
 
@@ -271,9 +277,20 @@ export function useTxillada(id: string) {
   const [notice, setNotice] = useState<{ n: number; text: string } | null>(null);
   /** Quantas vezes já se voltou a entrar na sala para poder publicar (a permissão não chegou): no máximo uma. */
   const rejoined = useRef(0);
+  /** A ligação à sala agora (as ações do anfitrião só vão com ela ligada) e o estado do live (para voltar a entrar). */
+  const connRef = useRef<Conn>('idle');
+  const statusRef = useRef<LiveState['status']>(null);
+  /** As ações à espera da resposta (por chave, ex. «remove:ana»): uma de cada vez; o ecrã mostra o botão ocupado. */
+  const inflight = useRef(new Set<string>());
+  const [busy, setBusy] = useState<string[]>([]);
+  /** Quando se soube que acabou por a ligação do anfitrião cair (antes de a API o confirmar, para esperar que ele continue). */
+  const endedAt = useRef<number | null>(null);
+  const resumeRef = useRef<() => Promise<void>>(async () => undefined);
+  /** Muda quando a espera pelo anfitrião acaba (o ecrã deixa de dizer «voltas a entrar sozinho»). */
+  const [, setBeat] = useState(0);
 
   useEffect(() => { if (q.data) { dispatch({ t: 'dto', dto: q.data }); gdispatch({ t: 'dto', dto: q.data, now: Date.now() }); } }, [q.data]);
-  useEffect(() => { afterRef.current = lastCommentId(live); hostRef.current = host; mineRef.current = gs.mine; });
+  useEffect(() => { afterRef.current = lastCommentId(live); hostRef.current = host; mineRef.current = gs.mine; connRef.current = conn; statusRef.current = live.status; });
 
   // Os eventos do canal da app, só os desta Txillada.
   useEffect(() => onTxilladaEvent((raw) => {
@@ -293,7 +310,12 @@ export function useTxillada(id: string) {
     const ev = parseTxilladaEvent(raw, id);
     if (!ev) return;
     dispatch({ t: 'event', ev, me });
-    if (ev.type === 'txillada.ended') void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+    if (ev.type === 'txillada.ended') {
+      if (ev.reason === 'lost' && endedAt.current == null) endedAt.current = Date.now();
+      void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+    }
+    // O anfitrião continuou (a ligação dele tinha caído): volta-se a entrar, numa sala nova.
+    if (ev.type === 'txillada.resumed') void resumeRef.current();
     // O fixado novo também fica na resposta guardada (um pedido antigo não o traz de volta).
     if (ev.type === 'txillada.pinned') qc.setQueryData<TxilladaDto>(txilladaKey(id), (d) => (d ? { ...d, pinned: ev.comment } : d));
   }), [id, me, qc]);
@@ -505,6 +527,77 @@ export function useTxillada(id: string) {
 
   const errText = (e: unknown) => (e instanceof ApiError ? errorText(e.status, e.message) : (e as Error)?.message || errorText(undefined));
 
+  /**
+   * Uma ação respondeu que a Txillada já acabou (409/410 `ended`): o ecrã passa logo ao fim (e pede a resposta nova da API,
+   * com o motivo e se o anfitrião pode continuar), em vez de ficar «AO VIVO».
+   */
+  function markEnded() {
+    if (statusRef.current !== 'live' && statusRef.current !== null) return;
+    statusRef.current = 'ended';
+    dispatch({ t: 'event', ev: { type: 'txillada.ended', txilladaId: id, status: 'ended' }, me });
+    void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+  }
+  /** A mensagem de erro de uma ação (e, se a Txillada já acabou, o fim no ecrã). */
+  function fail(e: unknown): string {
+    if (e instanceof ApiError && isEndedError(e)) markEnded();
+    return errText(e);
+  }
+  /**
+   * As ações do anfitrião que mexem no servidor (tirar, aceitar, convidar, fixar, apagar, expulsar): só com a ligação à
+   * sala de pé, e uma de cada vez por chave (o mesmo pedido não sai duas vezes enquanto o primeiro espera).
+   */
+  async function guarded(key: string, run: () => Promise<string | null>): Promise<string | null> {
+    if (hostRef.current && connRef.current !== 'connected') return WEAK_LINK_TEXT();
+    if (inflight.current.has(key)) return BUSY_TEXT();
+    inflight.current.add(key);
+    setBusy([...inflight.current]);
+    try {
+      return await run();
+    } finally {
+      inflight.current.delete(key);
+      setBusy([...inflight.current]);
+    }
+  }
+
+  /**
+   * O anfitrião continuou a Txillada (a ligação dele tinha caído): com a resposta nova (pedida agora, depois do fim) a dizer
+   * que está outra vez ao vivo, o ecrã recomeça e volta a entrar na sala (nova).
+   */
+  const resuming = useRef(false);
+  resumeRef.current = async () => {
+    if (resuming.current || statusRef.current !== 'ended') return;
+    resuming.current = true;
+    try {
+      const d = await txilladaApi.get(id);
+      if (!d?.id) return;
+      if (d.status === 'live' && statusRef.current === 'ended') {
+        endedAt.current = null;
+        statusRef.current = 'live';
+        dispatch({ t: 'reopen', dto: d });
+        gdispatch({ t: 'dto', dto: d, now: Date.now() });
+        setError(null);
+      }
+      qc.setQueryData(txilladaKey(id), d);
+    } catch {
+      /* tenta-se na volta seguinte */
+    } finally {
+      resuming.current = false;
+    }
+  };
+  // Quem vê, depois de a ligação do anfitrião cair: enquanto ele ainda pode continuar, pergunta-se de 10 em 10 s (além
+  // do aviso em tempo real). Passada a hora, para (e o ecrã deixa de dizer que volta a entrar sozinho).
+  const resumeBy = kind === 'ended' && !host ? resumeDeadline(dto, live.endReason, endedAt.current) : 0;
+  useEffect(() => {
+    if (!resumeBy) return;
+    const left = resumeBy - Date.now();
+    if (left <= 0) return;
+    const poll = setInterval(() => void resumeRef.current(), RESUME_POLL_MS);
+    const stop = setTimeout(() => { clearInterval(poll); setBeat((n) => n + 1); }, left + 500);
+    return () => { clearInterval(poll); clearTimeout(stop); };
+  }, [resumeBy]);
+  /** À espera de que o anfitrião continue (quem vê): «Se ele continuar, voltas a entrar sozinho.» */
+  const resumeWait = resumeBy > Date.now();
+
   /** Quem vê: pedir para entrar. Devolve a mensagem de erro, ou null. */
   async function requestJoin(): Promise<string | null> {
     rejoined.current = 0;
@@ -516,7 +609,7 @@ export function useTxillada(id: string) {
       return null;
     } catch (e) {
       gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
-      return errText(e);
+      return fail(e);
     }
   }
   /** Desistir do pedido, recusar o convite, ou deixar de transmitir (volta a só ver). */
@@ -527,7 +620,7 @@ export function useTxillada(id: string) {
       await (before === 'invited' ? txilladaApi.guestDecline(id) : txilladaApi.guestLeave(id));
       return null;
     } catch (e) {
-      return errText(e);
+      return fail(e);
     }
   }
   /** Aceitar o convite: primeiro a câmara e o microfone (a permissão), depois o sim à API; o resto faz o efeito de cima. */
@@ -546,35 +639,43 @@ export function useTxillada(id: string) {
       // Só se as faixas ainda não passaram para o efeito (se passaram, é ele que as fecha).
       if (guestTracksRef.current === tracks) { guestTracksRef.current = null; stopTracks(tracks); }
       if (e instanceof ApiError && [404, 409].includes(e.status)) gdispatch({ t: 'mine', mine: 'none', now: Date.now() });
-      return errText(e);
+      return fail(e);
     }
   }
-  /** O anfitrião: aceitar, recusar, convidar e tirar. As listas novas vêm na resposta. */
-  async function hostGuest(what: 'accept' | 'decline' | 'invite' | 'remove', username: string): Promise<string | null> {
-    try {
-      const fn = { accept: txilladaApi.guestAcceptRequest, decline: txilladaApi.guestDeclineRequest, invite: txilladaApi.guestInvite, remove: txilladaApi.guestRemove }[what];
-      const r = await fn(id, username);
-      if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
-      return null;
-    } catch (e) {
-      void qc.invalidateQueries({ queryKey: txilladaKey(id) });
-      return errText(e);
-    }
+  /**
+   * O anfitrião: aceitar, recusar, convidar e tirar. As listas novas vêm na resposta. Um pedido de cada vez por pessoa e
+   * ação (a chave `remove:ana` fica ocupada até à resposta), e só com a ligação de pé.
+   */
+  function hostGuest(what: 'accept' | 'decline' | 'invite' | 'remove', username: string): Promise<string | null> {
+    return guarded(`${what}:${username.toLowerCase()}`, async () => {
+      try {
+        const fn = { accept: txilladaApi.guestAcceptRequest, decline: txilladaApi.guestDeclineRequest, invite: txilladaApi.guestInvite, remove: txilladaApi.guestRemove }[what];
+        const r = await fn(id, username);
+        if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
+        return null;
+      } catch (e) {
+        void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+        return fail(e);
+      }
+    });
   }
 
   /**
    * «Convidar por @» (0168): o anfitrião convida alguém que pode ainda não estar a ver (recebe um aviso que abre a Txillada).
    * As listas mudam logo; devolve a mensagem de erro em palavras claras, ou null.
    */
-  async function inviteByAt(username: string): Promise<string | null> {
-    try {
-      const r = await txilladaApi.guestInvite(id, username);
-      if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
-      return null;
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: txilladaKey(id) });
-      return inviteErrorText(e instanceof ApiError ? { status: e.status, code: e.code, message: e.message, extra: e.extra } : null, username);
-    }
+  function inviteByAt(username: string): Promise<string | null> {
+    return guarded(`invite:${username.toLowerCase()}`, async () => {
+      try {
+        const r = await txilladaApi.guestInvite(id, username);
+        if (r) gdispatch({ t: 'lists', guests: r.guests, requests: r.requests, invites: r.invites });
+        return null;
+      } catch (e) {
+        if (e instanceof ApiError && isEndedError(e)) return fail(e);
+        if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: txilladaKey(id) });
+        return inviteErrorText(e instanceof ApiError ? { status: e.status, code: e.code, message: e.message, extra: e.extra } : null, username);
+      }
+    });
   }
 
   // Os quadrados: o anfitrião e os convidados, cada um com a sua faixa (a minha câmara, se transmito, sem passar pela rede).
@@ -679,7 +780,7 @@ export function useTxillada(id: string) {
       }
       return null;
     } catch (e) {
-      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
+      return e instanceof ApiError ? fail(e) : errorText(undefined);
     }
   }
   /** Brindar: os copos aparecem logo; no máximo 5 por segundo (mais depressa não conta). */
@@ -711,43 +812,51 @@ export function useTxillada(id: string) {
     return true;
   }
   /** O anfitrião fixa um comentário (ou tira o fixado, com null). A pílula muda logo; devolve a mensagem de erro, ou null. */
-  async function pin(c: TxilladaComment | null): Promise<string | null> {
-    const before = live.pinned;
-    const set = (x: TxilladaComment | null) => {
-      dispatch({ t: 'event', ev: { type: 'txillada.pinned', txilladaId: id, comment: x }, me });
-      qc.setQueryData<TxilladaDto>(txilladaKey(id), (d) => (d ? { ...d, pinned: x } : d));
-    };
-    set(c);
-    try {
-      const r = await txilladaApi.pin(id, c?.id ?? null);
-      if (r && 'pinned' in r) set(r.pinned ?? null);
-      return null;
-    } catch (e) {
-      set(before);
-      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
-    }
+  function pin(c: TxilladaComment | null): Promise<string | null> {
+    return guarded('pin', async () => {
+      const before = live.pinned;
+      const set = (x: TxilladaComment | null) => {
+        dispatch({ t: 'event', ev: { type: 'txillada.pinned', txilladaId: id, comment: x }, me });
+        qc.setQueryData<TxilladaDto>(txilladaKey(id), (d) => (d ? { ...d, pinned: x } : d));
+      };
+      set(c);
+      try {
+        const r = await txilladaApi.pin(id, c?.id ?? null);
+        if (r && 'pinned' in r) set(r.pinned ?? null);
+        return null;
+      } catch (e) {
+        set(before);
+        return e instanceof ApiError ? fail(e) : errorText(undefined);
+      }
+    });
   }
   /** Denunciei um comentário: deixa já de me aparecer (nos balões e no fixado); o servidor também o esconde. */
   function hideComment(c: TxilladaComment) {
     dispatch({ t: 'event', ev: { type: 'txillada.comment_removed', txilladaId: id, commentId: c.id }, me });
   }
-  async function removeComment(c: TxilladaComment): Promise<string | null> {
-    try {
-      await txilladaApi.removeComment(id, c.id);
-      dispatch({ t: 'event', ev: { type: 'txillada.comment_removed', txilladaId: id, commentId: c.id }, me });
-      return null;
-    } catch (e) {
-      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
-    }
+  function removeComment(c: TxilladaComment): Promise<string | null> {
+    return guarded(`remove-comment:${c.id}`, async () => {
+      try {
+        await txilladaApi.removeComment(id, c.id);
+        dispatch({ t: 'event', ev: { type: 'txillada.comment_removed', txilladaId: id, commentId: c.id }, me });
+        return null;
+      } catch (e) {
+        return e instanceof ApiError ? fail(e) : errorText(undefined);
+      }
+    });
   }
-  async function ban(c: TxilladaComment): Promise<string | null> {
-    try {
-      await txilladaApi.ban(id, c.author.username);
-      return null;
-    } catch (e) {
-      return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
-    }
+  /** O anfitrião expulsa alguém (do menu de um comentário ou de «A ver agora»). */
+  function banUser(username: string): Promise<string | null> {
+    return guarded(`ban:${username.toLowerCase()}`, async () => {
+      try {
+        await txilladaApi.ban(id, username);
+        return null;
+      } catch (e) {
+        return e instanceof ApiError ? fail(e) : errorText(undefined);
+      }
+    });
   }
+  const ban = (c: TxilladaComment) => banUser(c.author.username);
   /**
    * Pagar a entrada de uma Txillada privada (0167): uma vez só (pagar outra vez não cobra). Correu bem: o ecrã passa a ligar
    * à sala. Devolve null, ou a mensagem e se foi por falta de saldo (a app aponta para a carteira).
@@ -777,7 +886,7 @@ export function useTxillada(id: string) {
       } catch (e) {
         // Sem resposta (a rede caiu a meio): mais uma vez com a mesma chave.
         if (!(e instanceof ApiError) && attempt < 1) continue;
-        return { balance: null, error: e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined), insufficient: e instanceof ApiError && isInsufficient(e) };
+        return { balance: null, error: e instanceof ApiError ? fail(e) : errorText(undefined), insufficient: e instanceof ApiError && isInsufficient(e) };
       }
     }
   }
@@ -789,6 +898,8 @@ export function useTxillada(id: string) {
       dispatch({ t: 'event', ev: { type: 'txillada.ended', txilladaId: id, status: d?.status && d.status !== 'live' ? d.status : 'ended' }, me });
       return null;
     } catch (e) {
+      // Já tinha acabado (a ligação caiu e o servidor acabou-a): é o fim que se queria.
+      if (e instanceof ApiError && isEndedError(e)) { markEnded(); return null; }
       return e instanceof ApiError ? errorText(e.status, e.message) : errorText(undefined);
     }
   }
@@ -796,10 +907,13 @@ export function useTxillada(id: string) {
   const loadError = q.error ? (q.error instanceof ApiError ? errorText(q.error.status, q.error.message) : errorText(undefined)) : null;
   return {
     dto, live, kind, ui, host, me, conn, error: error ?? (kind === 'error' ? loadError : null), video, front, mic, audioBlocked, myBurst,
-    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, end, pay, gift, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
+    toggleMic, flip, startAudio, sendComment, cheer, cheerComment, pin, hideComment, removeComment, ban, banUser, end, pay, gift, retry: () => void q.refetch(), reconnect: () => { setError(null); setAttempt((n) => n + 1); },
     // Convidados (0165).
     guests: gs, tiles, notice, requestJoin, leaveStage, acceptInvite, hostGuest, inviteByAt,
     // A câmara do anfitrião, ler para trás e reabrir a Angariação (txillada-voltar).
     cam, toggleCam, olderMore, olderBusy, loadOlder, reopen,
+    // As ações à espera (as chaves, ex. «remove:ana»), se as do anfitrião podem ir agora (a ligação de pé) e, para quem vê
+    // depois de a ligação do anfitrião cair, se ainda se espera que ele continue.
+    busy, canAct: !host || conn === 'connected', resumeWait,
   };
 }

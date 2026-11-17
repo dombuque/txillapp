@@ -11,14 +11,24 @@ export const LIVEKIT_ROOMS = Symbol('LIVEKIT_ROOMS');
 export interface LiveKitRooms {
   removeParticipant(room: string, identity: string): Promise<void>;
   deleteRoom(room: string): Promise<void>;
-  /** Quem está na sala e quantas faixas de vídeo cada um publica. */
-  participants(room: string): Promise<{ identity: string; videoTracks: number }[]>;
+  /** Quem está na sala, quantas faixas de vídeo cada um publica e quantas faixas ao todo (`tracks`: com o som; sem ele, conta `videoTracks`). */
+  participants(room: string): Promise<{ identity: string; videoTracks: number; tracks?: number }[]>;
+  /**
+   * Cria a sala com tempos largos (ROOM_EMPTY_TIMEOUT_S, ROOM_DEPARTURE_TIMEOUT_S): não fecha enquanto o anfitrião volta a
+   * ligar. Opcional (os falsos dos testes podem não o ter); sem ela, a sala cria-se ao entrar, com os tempos do livekit.yaml.
+   */
+  createRoom?(room: string): Promise<void>;
   /**
    * Os convidados (0165): passa a poder publicar (câmara e microfone) ou deixa de poder, sem voltar a entrar na sala
    * (RoomService.updateParticipant). Ao tirar a permissão, o LiveKit para as faixas que a pessoa publicava.
    */
   setCanPublish(room: string, identity: string, canPublish: boolean): Promise<void>;
 }
+
+/** Uma sala vazia (ninguém entrou ainda) fecha ao fim disto. */
+export const ROOM_EMPTY_TIMEOUT_S = 300;
+/** Depois de o último sair, a sala fecha ao fim disto (mais do que a margem de 3 min do anfitrião, HOST_GONE_MS). */
+export const ROOM_DEPARTURE_TIMEOUT_S = 300;
 
 export const livekitEnabled = (c: Pick<AppConfig, 'LIVEKIT_URL' | 'LIVEKIT_API_KEY' | 'LIVEKIT_API_SECRET'>) => !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET);
 
@@ -30,7 +40,8 @@ export function livekitRoomsFromConfig(c: AppConfig): LiveKitRooms | null {
     removeParticipant: (room, identity) => svc.removeParticipant(room, identity),
     deleteRoom: (room) => svc.deleteRoom(room),
     participants: async (room) =>
-      (await svc.listParticipants(room)).map((p) => ({ identity: p.identity, videoTracks: p.tracks.filter((t) => t.type === TrackType.VIDEO).length })),
+      (await svc.listParticipants(room)).map((p) => ({ identity: p.identity, videoTracks: p.tracks.filter((t) => t.type === TrackType.VIDEO).length, tracks: p.tracks.length })),
+    createRoom: async (room) => void (await svc.createRoom({ name: room, emptyTimeout: ROOM_EMPTY_TIMEOUT_S, departureTimeout: ROOM_DEPARTURE_TIMEOUT_S })),
     // A permissão vai inteira (a do LiveKit troca-se toda): recebe sempre, nunca manda dados nem muda os seus metadados.
     setCanPublish: async (room, identity, canPublish) =>
       void (await svc.updateParticipant(room, identity, { permission: { canPublish, canSubscribe: true, canPublishData: false, canUpdateMetadata: false } })),

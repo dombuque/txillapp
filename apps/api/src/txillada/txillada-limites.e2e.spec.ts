@@ -146,7 +146,9 @@ describe('Txillada: limites, corridas e privacidade (integração)', () => {
     const dto = (await api().get(`/api/v1/txilladas/${id}`).set(auth(lana)).expect(200)).body;
     expect(Object.keys(dto).sort()).toEqual(['audience', 'canComment', 'cheers', 'comments', 'endedAt', 'guestState', 'guests', 'guestsMax', 'host', 'id', 'isHost', 'peakViewers', 'pinned', 'startedAt', 'status', 'title', 'viewers',
       // 0167: o tipo, o preço, a entrada e a Angariação.
-      'kind', 'closeOnly', 'price', 'hasTicket', 'locked', 'viewersHidden', 'goal', 'goalPurpose', 'raised', 'topGivers'].sort());
+      'kind', 'closeOnly', 'price', 'hasTicket', 'locked', 'viewersHidden', 'goal', 'goalPurpose', 'raised', 'topGivers',
+      // 0180: porque acabou e até quando o anfitrião pode continuar.
+      'endReason', 'resumeUntil'].sort());
     expect(Object.keys(dto.host).sort()).toEqual(expect.arrayContaining(['avatarUrl', 'displayName', 'id', 'username']));
     await wait(2_100); // 1 comentário a cada 2 s por pessoa
     const c = (await api().post(`/api/v1/txilladas/${id}/comments`).set(auth(lana)).send({ body: 'Que fixe' }).expect(201)).body;

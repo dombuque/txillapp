@@ -55,8 +55,17 @@ export type TxStatus = 'live' | 'ended' | 'cut';
 
 /** Uma Txillada dura no máximo isto (limite de segurança; a tarefa acaba as mais antigas). */
 export const MAX_LIVE_MS = 4 * 3_600_000;
-/** Sem vídeo do anfitrião há tanto tempo, acaba. */
-export const NO_VIDEO_MS = 60_000;
+/**
+ * O anfitrião saiu ou caiu da sala (participant_left, connection_aborted, a sala fechou) ou ficou sem nenhuma faixa: tem
+ * este tempo para voltar antes de a Txillada acabar sozinha ('lost'). Desligar só a câmara (fica o som) não conta.
+ */
+export const HOST_GONE_MS = 180_000;
+/** Sem notícias do anfitrião pelo webhook há este tempo, pergunta-se ao LiveKit se ele ainda lá está (o webhook pode falhar). */
+export const HOST_CHECK_MS = 60_000;
+/** Acabada por a ligação do anfitrião cair ('lost'): ele pode continuar a mesma Txillada até 10 min depois. */
+export const RESUME_WINDOW_MS = 10 * 60_000;
+/** Porque acabou: só 'lost' (a ligação do anfitrião caiu e ele não voltou a tempo); null nos outros casos. */
+export type TxEndReason = 'lost';
 /** Comentários e brindes de uma Txillada acabada apagam-se ao fim destes dias (menos com denúncia por decidir). */
 export const TX_KEEP_DAYS = 7;
 // Quem está a ver (`tx:to:<id>`, MAX_LIVE_MS + 1 h): a chave e a janela vêm de txillada-watch.ts (as sugestões de @ também as usam).
@@ -117,6 +126,17 @@ const reopenUntil = (r: Record<string, any>, now = Date.now()): Date | null => {
   const until = new Date(new Date(r.ended_at as string).getTime() + REOPEN_WINDOW_MS);
   return until.getTime() > now ? until : null;
 };
+/** Continuar depois de a ligação cair: acabada sozinha por 'lost', há menos de 10 min. Devolve até quando (ou null). */
+const resumeUntil = (r: Record<string, any>, now = Date.now()): Date | null => {
+  if (r.status !== 'ended' || r.end_reason !== 'lost' || !r.ended_at) return null;
+  const until = new Date(new Date(r.ended_at as string).getTime() + RESUME_WINDOW_MS);
+  return until.getTime() > now ? until : null;
+};
+/** O anfitrião está na sala com pelo menos uma faixa (câmara ou só o microfone)? */
+const hostOn = (ps: { identity: string; videoTracks: number; tracks?: number }[], hostId: string) =>
+  ps.some((p) => p.identity === hostId && (p.tracks ?? p.videoTracks) > 0);
+/** O erro do LiveKit quando a sala já não existe. */
+const roomGone = (e: unknown) => /not.?found|does not exist/i.test((e as Error)?.message ?? '');
 const GUESTS_FULL = `Já há ${GUESTS_MAX} convidados a transmitir. Tira um para entrar outro.`;
 /** O meu lugar numa Txillada (0165): só a ver, pedi para entrar, fui convidado, ou estou a transmitir. */
 export type GuestState = 'none' | 'requested' | 'invited' | 'guest';
@@ -149,7 +169,7 @@ type GuestDto = { user: ReturnType<typeof person>; since: string };
 const HOST_COLS = `h.id AS h_id, h.username AS h_username, h.display_name AS h_display_name, (h.avatar_media_id IS NOT NULL) AS h_has_avatar,
                    h.verified AS h_verified, h.verified_tier AS h_verified_tier`;
 const TX_COLS = `t.id, t.host_id, t.title, t.audience, t.status, t.room, t.started_at, t.ended_at, t.viewers, t.peak_viewers, t.cheers, t.comments, t.pinned_comment_id,
-                 t.price, t.goal, t.goal_purpose, t.raised, t.tickets, t.reopens,
+                 t.price, t.goal, t.goal_purpose, t.raised, t.tickets, t.reopens, t.end_reason, t.resumes,
                  EXISTS (SELECT 1 FROM content.txilladas ox WHERE ox.host_id = t.host_id AND ox.status = 'live' AND ox.id <> t.id) AS host_other_live`;
 /** As colunas de um comentário com o autor (`c` = txillada_comments, `a` = identity.users) para o commentDto. */
 const COMMENT_COLS = `c.id, c.body, c.created_at, a.id AS a_id, a.username AS a_username, a.display_name AS a_display_name,
@@ -251,6 +271,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       status: r.status as TxStatus,
       startedAt: r.started_at as string,
       endedAt: (r.ended_at as string | null) ?? null,
+      /** Porque acabou: 'lost' se acabou sozinha por a ligação do anfitrião cair; null nos outros casos (e a decorrer). */
+      endReason: (r.status === 'ended' && r.end_reason === 'lost' ? 'lost' : null) as TxEndReason | null,
+      /** Com 'lost': até quando o anfitrião ainda pode continuar a mesma Txillada (10 min); null quando já passou. */
+      resumeUntil: resumeUntil(r)?.toISOString() ?? null,
       viewers: locked ? 0 : (r.viewers as number),
       peakViewers: locked ? 0 : (r.peak_viewers as number),
       cheers: locked ? 0 : (r.cheers as number),
@@ -274,8 +298,9 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       // Os pedidos e os convites à espera: só o anfitrião os vê.
       ...(isHost ? { requests: this.pendingList(r.requests), invites: this.pendingList(r.invites) } : {}),
       // Reabrir (0174), só o anfitrião: pode reabrir agora (sem outra a decorrer) e até quando (null: já não se pode).
+      // Depois de a ligação cair ('lost'), «continuar» vale primeiro, durante 10 min (qualquer tipo, sem gastar reaberturas).
       ...(isHost ? (() => {
-        const until = reopenUntil(r);
+        const until = resumeUntil(r) ?? reopenUntil(r);
         return { canReopen: !!until && !r.host_other_live, reopenUntil: until ? until.toISOString() : null };
       })() : {}),
     };
@@ -376,13 +401,14 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const id = uuidv7();
     try {
       await this.pool.query(
-        `INSERT INTO content.txilladas (id, host_id, title, audience, room, video_at, price, goal, goal_purpose) VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8)`,
+        `INSERT INTO content.txilladas (id, host_id, title, audience, room, video_at, host_gone_at, price, goal, goal_purpose) VALUES ($1, $2, $3, $4, $5, now(), now(), $6, $7, $8)`,
         [id, me, title, audience, `tx-${id}`, price, goal, purpose],
       );
     } catch (e) {
       if ((e as { code?: string }).code === '23505') throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.' });
       throw e;
     }
+    await this.makeRoom(`tx-${id}`);
     const token = await roomToken(this.config, { room: `tx-${id}`, identity: me, name: u.display_name, username: u.username, host: true });
     // O agendamento (o pedido ou o mais próximo, 0176) passa a 'started' com esta Txillada.
     const link = await this.schedules.linkStarted(me, id, scheduleId).catch((e) => {
@@ -413,7 +439,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async join(me: string, id: string) {
     this.assertEnabled();
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new GoneException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new GoneException({ message: 'A Txillada já acabou.', code: 'ended' });
     const isHost = r.host_id === me;
     const u = (
       await this.pool.query(
@@ -466,6 +492,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     }
     if (r.status === 'live') throw new ConflictException({ message: 'A Txillada ainda está a decorrer.', code: 'still_live' });
     if (r.status === 'cut') throw new ConflictException({ message: 'Esta Txillada foi cortada pela moderação: não se pode reabrir.', code: 'cut' });
+    // A ligação do anfitrião caiu ('lost'): continua-se a mesma Txillada até 10 min depois, qualquer tipo, sem gastar reaberturas.
+    if (resumeUntil(r)) return this.resume(me, id, r);
+    if (r.end_reason === 'lost' && r.goal == null) {
+      throw new GoneException({ message: 'Já passaram mais de 10 minutos desde que a ligação caiu: já não se pode continuar. Abre uma Txillada nova.', code: 'too_late' });
+    }
     if (r.goal == null) throw new ConflictException({ message: 'Só se pode reabrir uma Txillada com angariação.', code: 'no_goal' });
     if (Number(r.raised) >= Number(r.goal)) throw new ConflictException({ message: 'A meta da angariação já foi atingida. Para continuar, abre uma Txillada nova.', code: 'goal_reached' });
     if (Number(r.reopens) >= REOPENS_MAX) {
@@ -488,8 +519,8 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     try {
       // Tudo de novo na condição (uma corrida com outro pedido, ou com o fim das 24 h, não reabre duas vezes).
       upd = await this.pool.query(
-        `UPDATE content.txilladas SET status = 'live', room = $2, started_at = now(), ended_at = NULL, viewers = 0, video_on = false, video_at = now(),
-                pinned_comment_id = NULL, reopens = reopens + 1, reopened_at = now()
+        `UPDATE content.txilladas SET status = 'live', room = $2, started_at = now(), ended_at = NULL, end_reason = NULL, viewers = 0, video_on = false, video_at = now(),
+                host_gone_at = now(), pinned_comment_id = NULL, reopens = reopens + 1, reopened_at = now()
           WHERE id = $1 AND host_id = $3 AND status = 'ended' AND goal IS NOT NULL AND raised < goal AND reopens < $4
             AND ended_at > now() - make_interval(secs => $5)`,
         [id, room, me, REOPENS_MAX, REOPEN_WINDOW_MS / 1000],
@@ -500,13 +531,62 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     }
     if (!upd.rowCount) throw new ConflictException({ message: 'Já não se pode reabrir esta Txillada.', code: 'not_reopenable' });
     // Os convidados já saíram ao acabar (afterEnd); por segurança, nenhum fica a transmitir nem à espera.
+    await this.dropAllGuests(id);
+    await this.makeRoom(room);
+    void this.announceReopen(me, id, r.title as string, !recentHere).catch((e) => this.log.warn(`não consegui avisar da Txillada reaberta ${id}: ${(e as Error).message}`));
+    return this.get(me, id);
+  }
+
+  /**
+   * Continuar (depois de a ligação do anfitrião cair, 'lost', até 10 min depois): a mesma Txillada volta a 'live' numa sala
+   * nova do LiveKit (os tokens antigos não voltam a entrar), com o relógio das 4 h a contar do início (não recomeça), o
+   * fixado e tudo o resto como estava, sem convidados (saíram ao acabar). Não gasta as reaberturas da Angariação nem avisa
+   * os seguidores: quem tinha a Txillada aberta recebe `txillada.resumed` e volta a entrar.
+   */
+  private async resume(me: string, id: string, r: Record<string, any>) {
+    if (new Date(r.started_at as string).getTime() + MAX_LIVE_MS <= Date.now()) {
+      throw new GoneException({ message: 'Esta Txillada já chegou às 4 horas: para continuar, abre uma Txillada nova.', code: 'too_late' });
+    }
+    const other = (await this.pool.query(`SELECT id FROM content.txilladas WHERE host_id = $1 AND status = 'live'`, [me])).rows[0];
+    if (other) throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.', code: 'other_live', id: other.id });
+    await assertCanHost(this.pool, me);
+    const room = `tx-${id}-c${Number(r.resumes ?? 0) + 1}`;
+    let upd;
+    try {
+      upd = await this.pool.query(
+        `UPDATE content.txilladas SET status = 'live', room = $2, ended_at = NULL, end_reason = NULL, viewers = 0, video_on = false, video_at = now(),
+                host_gone_at = now(), resumes = resumes + 1
+          WHERE id = $1 AND host_id = $3 AND status = 'ended' AND end_reason = 'lost' AND ended_at > now() - make_interval(secs => $4)`,
+        [id, room, me, RESUME_WINDOW_MS / 1000],
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code === '23505') throw new ConflictException({ message: 'Já tens uma Txillada a decorrer.', code: 'other_live' });
+      throw e;
+    }
+    if (!upd.rowCount) throw new ConflictException({ message: 'Já não se pode continuar esta Txillada.', code: 'not_reopenable' });
+    await this.dropAllGuests(id);
+    await this.makeRoom(room);
+    // Quem a tinha aberta (o conjunto de quem vê ficou ao acabar por 'lost'): volta a entrar.
+    this.emit(await this.audience(id, me), { type: 'txillada.resumed', txilladaId: id });
+    return this.get(me, id);
+  }
+
+  /** Os convidados e os pedidos e convites à espera de `id` caem (ao acabar, ao reabrir e ao continuar). */
+  private async dropAllGuests(id: string) {
     await this.pool.query(
       `UPDATE content.txillada_guests SET status = CASE WHEN status = 'accepted' THEN 'left' ELSE 'cancelled' END, updated_at = now()
         WHERE txillada_id = $1 AND status IN ('pending', 'accepted')`,
       [id],
     );
-    void this.announceReopen(me, id, r.title as string, !recentHere).catch((e) => this.log.warn(`não consegui avisar da Txillada reaberta ${id}: ${(e as Error).message}`));
-    return this.get(me, id);
+  }
+
+  /**
+   * Cria a sala no LiveKit com tempos largos (vazia ou depois de o último sair, só fecha ao fim de 5 min): assim não morre
+   * enquanto o anfitrião volta a ligar. Se falhar, a sala cria-se sozinha quando o anfitrião entra (auto_create).
+   */
+  private async makeRoom(room: string) {
+    if (!this.rooms?.createRoom) return;
+    await this.rooms.createRoom(room).catch((e) => this.log.warn(`não consegui criar a sala ${room}: ${(e as Error).message}`));
   }
 
   /**
@@ -532,11 +612,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   }
 
   /** Acaba uma Txillada que está a decorrer (o anfitrião, o webhook, a tarefa ou a moderação). Devolve true se acabou agora. */
-  private async finish(id: string, status: 'ended' | 'cut', reason: string | null = null, by: string | null = null) {
+  private async finish(id: string, status: 'ended' | 'cut', reason: string | null = null, by: string | null = null, endReason: TxEndReason | null = null) {
     const { rows } = await this.pool.query(
-      `UPDATE content.txilladas SET status = $2, ended_at = now(), viewers = 0, video_on = false, cut_reason = $3, cut_by = $4
-        WHERE id = $1 AND status = 'live' RETURNING id, room, host_id, status`,
-      [id, status, reason, by],
+      `UPDATE content.txilladas SET status = $2, ended_at = now(), viewers = 0, video_on = false, cut_reason = $3, cut_by = $4, end_reason = $5
+        WHERE id = $1 AND status = 'live' RETURNING id, room, host_id, status, end_reason`,
+      [id, status, reason, by, endReason],
     );
     if (!rows[0]) return false;
     await this.afterEnd(rows[0]);
@@ -544,16 +624,15 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   }
 
   /** Todos os que estavam a ver (e o anfitrião) recebem `txillada.ended`; a sala no LiveKit fecha. */
-  private async afterEnd(r: { id: string; room: string; host_id: string; status: 'ended' | 'cut' }) {
+  private async afterEnd(r: { id: string; room: string; host_id: string; status: 'ended' | 'cut'; end_reason?: string | null }) {
     // Acaba para todos: os convidados deixam de transmitir e os pedidos e convites à espera caem (0165).
-    await this.pool.query(
-      `UPDATE content.txillada_guests SET status = CASE WHEN status = 'accepted' THEN 'left' ELSE 'cancelled' END, updated_at = now()
-        WHERE txillada_id = $1 AND status IN ('pending', 'accepted')`,
-      [r.id],
-    );
+    await this.dropAllGuests(r.id);
+    const lost = r.status === 'ended' && r.end_reason === 'lost';
     const to = await this.audience(r.id, r.host_id);
-    this.emit(to, { type: 'txillada.ended', txilladaId: r.id, status: r.status });
-    for (const k of [toKey(r.id), inKey(r.id)]) for (const m of await this.bus.recent(k, SET_MS)) await this.bus.untouch(k, m);
+    this.emit(to, { type: 'txillada.ended', txilladaId: r.id, status: r.status, ...(lost ? { reason: 'lost' as const } : {}) });
+    // Acabada por a ligação cair: quem a tinha aberta fica no conjunto (até ~5 h), para receber `txillada.resumed` se o
+    // anfitrião continuar. Quem está na sala sai sempre (a contagem recomeça na sala nova).
+    for (const k of lost ? [inKey(r.id)] : [toKey(r.id), inKey(r.id)]) for (const m of await this.bus.recent(k, SET_MS)) await this.bus.untouch(k, m);
     if (this.rooms) await this.rooms.deleteRoom(r.room).catch((e) => this.log.warn(`não consegui fechar a sala ${r.room}: ${(e as Error).message}`));
     // Cortada pela moderação (0167): as entradas pagas voltam a quem pagou (a tarefa volta a tentar as que falharem).
     if (r.status === 'cut') await this.refundTickets(r.id).catch((e) => this.log.warn(`não consegui devolver as entradas da Txillada ${r.id}: ${(e as Error).message}`));
@@ -657,7 +736,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   async comment(me: string, id: string, body: string) {
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     if (!this.dto(r, me).canComment) throw new ForbiddenException('O anfitrião não deixa comentar.');
     this.filter.assertClean(body);
     if (!(await this.bus.claimOnce(`tx:cmt:${me}`, 2_000))) throw new HttpException('Calma! Espera um bocadinho antes de comentar outra vez.', HttpStatus.TOO_MANY_REQUESTS);
@@ -769,7 +848,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async pin(me: string, id: string, commentId: string | null) {
     const r = await this.access(me, id);
     if (r.host_id !== me) throw new ForbiddenException('Só o anfitrião pode fixar um comentário.');
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     let row: Record<string, any> | null = null;
     if (commentId) {
       row = (
@@ -823,7 +902,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async cheerComment(me: string, id: string, commentId: string) {
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     const c = (
       await this.pool.query(
         `SELECT c.author_id FROM content.txillada_comments c JOIN identity.users a ON a.id = c.author_id AND a.status = 'active'
@@ -842,7 +921,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
 
   async cheer(me: string, id: string) {
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     const cheers = await this.addCheer(me, r);
     return { cheers };
   }
@@ -903,7 +982,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async pay(me: string, id: string) {
     const r = await this.access(me, id, { ticket: false });
     if (r.audience !== 'paid') throw new BadRequestException('Esta Txillada não é paga.');
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     if (r.has_ticket) return { hasTicket: true, charged: false, balance: await this.balance(me), txillada: this.dto(r, me) };
     const price = Number(r.price);
     await this.wallet.ensureWallet(me);
@@ -924,7 +1003,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         [uuidv7(), id, r.host_id, me, price, tr.transactionId],
       );
       const live = await client.query(`UPDATE content.txilladas SET tickets = tickets + $2 WHERE id = $1 AND status = 'live'`, [id, ins.rowCount ? 1 : 0]);
-      if (!live.rowCount) throw new ConflictException('A Txillada já acabou.');
+      if (!live.rowCount) throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
       charged = !tr.replayed && !!ins.rowCount;
       await client.query('COMMIT');
     } catch (e) {
@@ -1005,7 +1084,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async gift(me: string, id: string, amount: number, key: string) {
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     if (r.host_id === me) throw new BadRequestException('Não podes oferecer vibes na tua própria Txillada.');
     if (!Number.isInteger(amount) || amount < 1 || amount > GIFT_MAX) throw new BadRequestException(`Podes oferecer de 1 a ${GIFT_MAX} vibes de cada vez.`);
     const lkey = `txillada_gift:${id}:${key}`;
@@ -1055,7 +1134,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         [gid, id, r.host_id, me, amount, tr.transactionId],
       )).rows[0];
       const s = (await client.query(`UPDATE content.txilladas SET raised = raised + $2 WHERE id = $1 AND status = 'live' RETURNING raised, goal`, [id, amount])).rows[0];
-      if (!s) throw new ConflictException('A Txillada já acabou.');
+      if (!s) throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
       await client.query('COMMIT');
       row = { created_at: g.created_at, raised: s.raised, goal: s.goal };
     } catch (e) {
@@ -1106,7 +1185,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
    */
   async react(me: string, id: string, kind: TxilladaReaction, to?: string) {
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     const isHost = r.host_id === me;
     if (isHost && kind === 'cheers') throw new BadRequestException('Não podes brindar a tua própria Txillada.');
     if (to !== undefined && !isHost) throw new BadRequestException('Só o anfitrião pode responder a alguém.');
@@ -1256,7 +1335,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     this.assertEnabled();
     const r = await this.access(me, id);
     if (r.host_id !== me) throw new ForbiddenException('Só o anfitrião pode escolher quem transmite.');
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     return r;
   }
 
@@ -1268,7 +1347,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async requestToJoin(me: string, id: string): Promise<{ state: GuestState; guests?: GuestDto[] }> {
     this.assertEnabled();
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     if (r.host_id === me) throw new BadRequestException('Já estás a transmitir: és o anfitrião.');
     if (!(await this.canBroadcast(me))) throw new ForbiddenException('Para transmitir numa Txillada tens de ter 18 anos ou mais.');
     const g = await this.guestRow(id, me);
@@ -1369,7 +1448,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async acceptInvite(me: string, id: string): Promise<{ state: GuestState; guests: GuestDto[] }> {
     this.assertEnabled();
     const r = await this.access(me, id);
-    if (r.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+    if (r.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
     const g = await this.guestRow(id, me);
     if (g?.status !== 'accepted') {
       if (g?.status !== 'pending' || g.kind !== 'invite') throw new NotFoundException('Convite não encontrado');
@@ -1430,7 +1509,7 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     try {
       await client.query('BEGIN');
       const row = (await client.query('SELECT status FROM content.txilladas WHERE id = $1 FOR UPDATE', [t.id])).rows[0];
-      if (row?.status !== 'live') throw new ConflictException('A Txillada já acabou.');
+      if (row?.status !== 'live') throw new ConflictException({ message: 'A Txillada já acabou.', code: 'ended' });
       const n = (await client.query(`SELECT count(*)::int AS n FROM content.txillada_guests WHERE txillada_id = $1 AND status = 'accepted'`, [t.id])).rows[0].n as number;
       if (n >= GUESTS_MAX) throw new ConflictException(GUESTS_FULL);
       const u = await client.query(
@@ -1524,7 +1603,9 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     const isHost = who === t.host_id;
     switch (ev.event) {
       case 'room_finished':
-        await this.finish(t.id, 'ended');
+        // A sala fechou (vazia há algum tempo): o anfitrião conta como saído e tem a margem para voltar (ao entrar, a sala
+        // volta a criar-se); só o sweep a acaba, depois de perguntar ao LiveKit.
+        if (t.status === 'live') await this.pool.query(`UPDATE content.txilladas SET host_gone_at = COALESCE(host_gone_at, now()) WHERE id = $1 AND status = 'live'`, [t.id]);
         return;
       case 'participant_joined': {
         if (!who) return;
@@ -1539,7 +1620,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
           if (this.rooms) await this.rooms.removeParticipant(t.room, who).catch(() => undefined);
           return;
         }
-        if (isHost) return;
+        if (isHost) {
+          // O anfitrião entrou (ou voltou): a margem para voltar acaba aqui.
+          await this.pool.query(`UPDATE content.txilladas SET host_gone_at = NULL, video_at = now() WHERE id = $1 AND status = 'live'`, [t.id]);
+          return;
+        }
         await this.bus.touch(toKey(t.id), who, SET_MS);
         await this.bus.touch(inKey(t.id), who, SET_MS);
         await this.recount(t.id, t.host_id);
@@ -1553,7 +1638,11 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       case 'participant_connection_aborted':
         if (!who || t.status !== 'live') return;
         if (isHost) {
-          await this.pool.query('UPDATE content.txilladas SET video_on = false, video_at = now() WHERE id = $1 AND status = $2', [t.id, 'live']);
+          // Saiu ou caiu: começa a margem (HOST_GONE_MS) para voltar. Se já voltou com outra ligação, o sweep vê-o no LiveKit.
+          await this.pool.query(
+            `UPDATE content.txilladas SET video_on = false, video_at = now(), host_gone_at = COALESCE(host_gone_at, now()) WHERE id = $1 AND status = 'live'`,
+            [t.id],
+          );
           return;
         }
         await this.bus.untouch(toKey(t.id), who);
@@ -1566,10 +1655,27 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
         await this.recount(t.id, t.host_id);
         return;
       case 'track_published':
-      case 'track_unpublished':
-        if (!isHost || t.status !== 'live' || ev.track?.type !== TrackType.VIDEO) return;
-        await this.pool.query('UPDATE content.txilladas SET video_on = $2, video_at = now() WHERE id = $1 AND status = $3', [t.id, ev.event === 'track_published', 'live']);
+      case 'track_unpublished': {
+        if (!isHost || t.status !== 'live') return;
+        const video = ev.track?.type === TrackType.VIDEO;
+        if (ev.event === 'track_published') {
+          // Qualquer faixa (a câmara ou só o microfone): o anfitrião está lá.
+          await this.pool.query(
+            `UPDATE content.txilladas SET video_on = video_on OR $2, video_at = now(), host_gone_at = NULL WHERE id = $1 AND status = 'live'`,
+            [t.id, video],
+          );
+          return;
+        }
+        if (video) await this.pool.query(`UPDATE content.txilladas SET video_on = false, video_at = now() WHERE id = $1 AND status = 'live'`, [t.id]);
+        // Desligar a câmara (fica o som) não conta como sair; sem nenhuma faixa, começa a margem para voltar.
+        if (this.rooms) {
+          const on = await this.rooms.participants(t.room).then((ps) => hostOn(ps, t.host_id), (e) => (roomGone(e) ? false : null));
+          if (on === false) {
+            await this.pool.query(`UPDATE content.txilladas SET host_gone_at = COALESCE(host_gone_at, now()) WHERE id = $1 AND status = 'live'`, [t.id]);
+          }
+        }
         return;
+      }
       default:
         return;
     }
@@ -1578,9 +1684,12 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   /* ───────────── tarefas ───────────── */
 
   /**
-   * Acaba as Txilladas a decorrer há mais de 4 h e as que estão sem vídeo do anfitrião há mais de 60 s. «Sem vídeo» vem do
-   * webhook (track_published/unpublished, o anfitrião sair); antes de acabar, pergunta-se ao LiveKit se o anfitrião está mesmo
-   * sem vídeo (assim também funciona com o webhook por ligar ou um aviso perdido). Devolve quantas acabaram.
+   * Acaba as Txilladas a decorrer há mais de 4 h e as de um anfitrião que saiu ou caiu da sala (ou ficou sem nenhuma faixa)
+   * há mais de 3 min (HOST_GONE_MS), com o motivo 'lost' (ele pode continuar até 10 min depois). Desligar só a câmara não
+   * conta: fica o som. «Saiu» vem do webhook (`host_gone_at`); antes de acabar, pergunta-se ao LiveKit se o anfitrião está
+   * mesmo fora (se voltou, a margem cai). Sem notícias do webhook há mais de 60 s (HOST_CHECK_MS), também se pergunta:
+   * se o anfitrião não está lá, a margem começa aí (assim funciona com o webhook por ligar ou um aviso perdido).
+   * Devolve quantas acabaram.
    */
   async sweep(now = new Date()) {
     let n = 0;
@@ -1598,30 +1707,37 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
     );
     for (const r of old.rows) if (await this.finish(r.id, 'ended')) n++;
     const quiet = await this.pool.query(
-      `SELECT id, room, host_id FROM content.txilladas
-        WHERE status = 'live' AND NOT video_on AND COALESCE(video_at, started_at) < $1::timestamptz - make_interval(secs => $2)`,
-      [now, NO_VIDEO_MS / 1000],
+      `SELECT id, room, host_id, host_gone_at FROM content.txilladas
+        WHERE status = 'live' AND (host_gone_at < $1::timestamptz - make_interval(secs => $2)
+           OR (host_gone_at IS NULL AND COALESCE(video_at, started_at) < $1::timestamptz - make_interval(secs => $3)))`,
+      [now, HOST_GONE_MS / 1000, HOST_CHECK_MS / 1000],
     );
     for (const r of quiet.rows) {
+      // O que o LiveKit diz agora: o anfitrião lá com alguma faixa (true), fora ou a sala fechada (false), sem resposta (null).
+      let on: boolean | null = null;
       if (this.rooms) {
-        let hostVideo: boolean;
         try {
-          hostVideo = (await this.rooms.participants(r.room)).some((p) => p.identity === r.host_id && p.videoTracks > 0);
+          on = hostOn(await this.rooms.participants(r.room), r.host_id);
         } catch (e) {
-          const msg = (e as Error).message ?? '';
-          // A sala já não existe: acaba. Outro erro (o LiveKit não responde): tenta-se na volta seguinte (as 4 h travam o resto).
-          if (!/not.?found|does not exist/i.test(msg)) {
-            this.log.warn(`não consegui perguntar ao LiveKit pela sala ${r.room}: ${msg}`);
+          // A sala já não existe: o anfitrião está fora. Outro erro (o LiveKit não responde): tenta-se na volta seguinte
+          // (as 4 h travam o resto).
+          if (!roomGone(e)) {
+            this.log.warn(`não consegui perguntar ao LiveKit pela sala ${r.room}: ${(e as Error).message}`);
             continue;
           }
-          hostVideo = false;
-        }
-        if (hostVideo) {
-          await this.pool.query('UPDATE content.txilladas SET video_at = now() WHERE id = $1', [r.id]);
-          continue;
+          on = false;
         }
       }
-      if (await this.finish(r.id, 'ended')) n++;
+      if (on) {
+        await this.pool.query('UPDATE content.txilladas SET host_gone_at = NULL, video_at = $2 WHERE id = $1', [r.id, now]);
+        continue;
+      }
+      if (!r.host_gone_at) {
+        // Sem notícias e o LiveKit diz que está fora: a margem começa agora. Sem LiveKit para perguntar: conta-se outra vez.
+        await this.pool.query(on === false ? 'UPDATE content.txilladas SET host_gone_at = $2 WHERE id = $1 AND host_gone_at IS NULL' : 'UPDATE content.txilladas SET video_at = $2 WHERE id = $1', [r.id, now]);
+        continue;
+      }
+      if (await this.finish(r.id, 'ended', null, null, 'lost')) n++;
     }
     return n;
   }
