@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { ApiError, api, type FollowState } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 
 /** Seguir / A seguir / Pedido enviado (perfis privados). Responde já e volta atrás se falhar. */
@@ -11,6 +12,11 @@ export function FollowButton({ username, following, requested, isPrivate, style 
   const [busy, setBusy] = useState(false);
   async function toggle() {
     if (busy) return;
+    // Deixar de seguir uma conta privada: depois só se volta a ver com um pedido novo aceite. Pergunta antes.
+    if (s.following && isPrivate) {
+      const ok = await confirm({ title: `Deixar de seguir @${username}?`, message: 'Esta conta é privada. Se mudares de ideias, tens de pedir outra vez para seguir.', confirm: 'Deixar de seguir', danger: true });
+      if (!ok) return;
+    }
     setBusy(true);
     const prev = s;
     try {
