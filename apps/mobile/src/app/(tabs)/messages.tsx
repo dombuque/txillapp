@@ -8,6 +8,8 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { closeOpenSwipe, rowHold, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { InboxMenuSheet } from '@/components/InboxMenuSheet';
 import { GroupCover } from '@/components/groups/GroupParts';
@@ -538,27 +540,17 @@ export default function Messages() {
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : failed ? (
             // Não carregou (sem rede): não é "Ainda sem cochichos" (lib/chatErrors).
-            <View style={styles.empty}>
-              <Icon name="alert" size={44} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>Não consegui carregar as mensagens</Text>
-              <Text style={styles.emptySub}>Verifica a internet e tenta outra vez.</Text>
-              <Pressable onPress={() => { void direct.refetch(); void groups.refetch(); }} disabled={retrying} style={[styles.newBtn, retrying && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={styles.newBtnText}>{retrying ? 'A tentar…' : 'Tentar outra vez'}</Text>
-              </Pressable>
-            </View>
+            <ErrorState what="as mensagens" retryLabel={retrying ? 'A tentar…' : undefined} onRetry={() => { if (retrying) return; void direct.refetch(); void groups.refetch(); }} />
           ) : (
-            <View style={styles.empty}>
-              <Icon name={view === 'groups' && !term ? 'users' : 'messages'} size={44} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}</Text>
-              <Text style={styles.emptySub}>
-                {term ? 'Tenta outro nome ou começa uma conversa nova.'
-                  : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
-                  : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
-                  : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
-              </Text>
-              {!term && view === 'chats' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
-              {!term && view === 'groups' && <Pressable onPress={newGroup} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Novo TxillGroup</Text></Pressable>}
-            </View>
+            <EmptyState
+              icon={view === 'groups' && !term ? 'users' : 'messages'}
+              title={term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}
+              text={term ? 'Tenta outro nome ou começa uma conversa nova.'
+                : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
+                : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e vibes.'
+                : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
+              action={!term && view === 'chats' ? { label: 'Nova conversa', onPress: () => router.push('/messages/new' as never) } : !term && view === 'groups' ? { label: 'Novo TxillGroup', onPress: newGroup } : undefined}
+            />
           )
         }
         ListFooterComponent={
@@ -650,8 +642,7 @@ const styles = StyleSheet.create({
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
   // 44 de altura (a da caixa) para o toque chegar aos 44 pt.
   sBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
-  newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  newBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
   tabBtn: { height: 40, justifyContent: 'center' },
@@ -681,9 +672,7 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, marginRight: 5, backgroundColor: colors.brand },
   mixarNew: { marginLeft: 6, marginRight: 2 },
 
-  empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
-  emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
-  emptySub: { marginTop: 4, maxWidth: 320, fontSize: 16, color: colors.zinc600, textAlign: 'center' },
+
   others: { paddingHorizontal: 4, paddingBottom: 4, paddingTop: 16, fontSize: 12, fontWeight: '700', letterSpacing: 1, color: colors.zinc500 },
   chat: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 6 },
   chatText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
