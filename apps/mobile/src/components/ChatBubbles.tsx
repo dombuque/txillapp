@@ -31,6 +31,7 @@ import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
 import { limitBuffer } from '@/lib/videoMemory';
 import { colors } from '@/lib/theme';
+import { confirm } from '@/lib/confirm';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
@@ -65,7 +66,7 @@ const QUOTE_BAR_MINE = 'rgba(214,51,79,0.45)';
  * agrupam-se (cantos interiores mais pequenos) e o avatar dela vai na última do grupo. O agrupamento vem de lib/chatTimeline; os cantos e os vistos, de lib/chatLayout.
  * Nos grupos, o nome de quem envia por cima da primeira bolha do grupo.
  */
-export type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } & Badged };
+export type Msg = ChatMessage & { /** A caminho (lib/chatPending): 'waiting' à espera de rede (reloginho), 'failed' recusada. */ state?: 'sending' | 'waiting' | 'failed'; /** À espera e a tentar agora mesmo. */ trying?: boolean; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } & Badged };
 
 /** Cada pessoa tem a sua cor nos grupos (a mesma do site, apps/web/src/lib/senderColor.ts). */
 const PALETTE = [colors.brand, '#ea580c', '#b45309', '#15803d', '#0f766e', '#9f1239', '#3f3f46', '#4d7c0f'];
@@ -529,7 +530,14 @@ export function Bubble({
     heldAt.current = Date.now();
     onMenu(m, at);
   };
-  const hold: BubbleHold = real && !desk ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : {};
+  // À espera de rede (ainda não está no servidor): segurar (ou o botão direito no computador) só deixa apagar, que cancela o envio.
+  const waiting = m.state === 'waiting';
+  const cancelWaiting = () => {
+    if (!onDelete || recentlyHeld(heldAt.current)) return;
+    heldAt.current = Date.now();
+    void confirm({ title: 'Apagar esta mensagem?', message: 'Ainda não foi enviada. Se a apagares, já não vai.', confirm: 'Apagar', danger: true }).then((ok) => { if (ok) onDelete(m); });
+  };
+  const hold: BubbleHold = real && !desk ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : waiting && onDelete && !desk ? { onLongPress: cancelWaiting, delayLongPress: HOLD_MS } : {};
   const [hover, setHover] = useState(false);
   const [toolsFocus, setToolsFocus] = useState(false);
   const [full, setFull] = useState(false);
@@ -711,14 +719,14 @@ export function Bubble({
   const timeText = showTime ? timeLabel(m.at) : isLast ? clock(m.at) : null;
   // Editada: "editada" discreto ao lado da hora (mesmo nas bolhas do meio, que não mostram a hora).
   const edited = !!m.edited && !gone;
-  const a11y = bubbleA11yActions({ reply: swipe, remove: real, menu: real });
+  const a11y = bubbleA11yActions({ reply: swipe, remove: real || (waiting && !!onDelete), menu: real });
 
   return (
     <ReplySwipe
       enabled={swipe && !desk}
       onReply={reply}
       // Web: o toque longo em qualquer ponto da mensagem (e o botão direito do rato) também abre o menu.
-      onMenu={real ? openMenu : undefined}
+      onMenu={real ? openMenu : waiting && onDelete ? cancelWaiting : undefined}
       spot={spot}
       // Uma resposta leva sempre o espaço maior por cima: a citação fica colada à SUA bolha, não à de cima.
       style={{ marginTop: isFirst || m.replyTo ? GAP_OUT : GAP_IN }}
@@ -810,6 +818,12 @@ export function Bubble({
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
           <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar outra vez"><Text style={st.failLink}>Tentar outra vez</Text></Pressable>
           {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Apagar a mensagem que não foi enviada"><Text style={[st.failLink, { color: colors.zinc600 }]}>Apagar</Text></Pressable> : null}
+        </View>
+      ) : waiting ? (
+        // À espera de rede: a hora e o reloginho no lugar dos vistos (como no WhatsApp); vai sozinha quando a rede voltar.
+        <View style={st.meta} accessibilityLiveRegion="polite">
+          <Text style={st.time}>{[clock(m.at), isLast ? (m.trying ? 'A enviar…' : 'À espera de rede') : null].filter(Boolean).join(' · ')}</Text>
+          <View accessible accessibilityLabel="À espera para enviar" style={{ paddingRight: 2 }}><Icon name="clock" size={12} strokeWidth={2.2} color={colors.zinc500} /></View>
         </View>
       ) : m.state === 'sending' ? (
         <Text style={st.time}>A enviar…</Text>

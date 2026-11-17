@@ -1,7 +1,7 @@
 import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { headerInMenu } from '@/lib/chatBars';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -36,8 +36,8 @@ import { useTyping } from '@/lib/realtime';
 import { useChatVisible } from '@/lib/chatVisible';
 import { useScreenshotNotice } from '@/lib/screenCapture';
 import { screenshotKey } from '@/lib/screenshotNotice';
-import { blockingError, threadErrorText } from '@/lib/chatErrors';
-import { clearPending } from '@/lib/chatPending';
+import { blockingError, offlineWithPending, threadErrorText } from '@/lib/chatErrors';
+import { clearPending, notePendingTitle, pendingOf, pendingTitle, subscribePending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
 import { useOpenMixar } from '@/components/mixar/useOpenMixar';
 import { useMixarList } from '@/components/mixar/MixarEntry';
@@ -113,6 +113,13 @@ export default function Thread() {
   });
   const first = q.data?.pages[0];
   const person = first?.person;
+  // Sem rede ao abrir: as mensagens à espera desta conversa e o nome guardado com elas (lib/chatPending).
+  const waitingHere = useSyncExternalStore(subscribePending, () => pendingOf(`u:${username}`), () => pendingOf(`u:${username}`));
+  const saved = pendingTitle(`u:${username}`);
+  useEffect(() => {
+    if (person) notePendingTitle(`u:${username}`, { name: person.displayName, username: person.username, hasAvatar: person.hasAvatar });
+  }, [username, person]);
+  const offlineView = !first && waitingHere.length > 0 && (q.isLoading || offlineWithPending(q.error, waitingHere.length));
   const firstName = person?.displayName.split(' ')[0] ?? '';
   // O servidor manda do mais recente para o mais antigo: a lista mostra de baixo para cima (invertida).
   // As mensagens temporárias que expiram com a conversa aberta saem logo (lib/chatTemporary).
@@ -244,7 +251,7 @@ export default function Thread() {
   }
 
   // Com a conversa já carregada, uma falha ao pô-la em dia não a tapa (lib/chatErrors).
-  if (blockingError(q.isError, !!first)) {
+  if (blockingError(q.isError, !!first) && !offlineView) {
     const status = (q.error as { status?: number } | null)?.status;
     return (
       <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
@@ -280,7 +287,7 @@ export default function Thread() {
         avatar={
           <View>
             {/* Enquanto carrega, o nome e a foto vêm da lista de conversas (o cabeçalho não aparece vazio e depois salta). */}
-            <Avatar name={person?.displayName ?? listed?.displayName ?? username} username={person ? avatarOf : listed?.hasAvatar ? username : undefined} size={36} />
+            <Avatar name={person?.displayName ?? listed?.displayName ?? saved?.name ?? username} username={person ? avatarOf : listed?.hasAvatar || saved?.hasAvatar ? username : undefined} size={36} />
             {online ? <OnlineDot size={36} /> : null}
             {ttl ? <TtlBadge size={36} /> : null}
             {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
@@ -290,7 +297,7 @@ export default function Thread() {
         overlay={person && bubble ? (
           <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
         ) : null}
-        title={person?.displayName ?? listed?.displayName ?? ''}
+        title={person?.displayName ?? listed?.displayName ?? saved?.name ?? ''}
         titleWho={person ?? listed}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
@@ -319,7 +326,7 @@ export default function Thread() {
         pendingKey={`u:${username}`}
         onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
         items={items}
-        loading={q.isLoading}
+        loading={q.isLoading && !offlineView}
         hasNext={!!q.hasNextPage}
         fetchNext={() => q.fetchNextPage()}
         fetchingNext={q.isFetchingNextPage}

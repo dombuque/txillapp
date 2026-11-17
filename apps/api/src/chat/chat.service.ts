@@ -122,6 +122,12 @@ export async function wipeMessage(db: Pick<Pool, 'query'>, messageId: string, no
 export const liveEnded = (m: { kind?: unknown; live_until?: unknown }) =>
   m.kind === 'location' && !!m.live_until && new Date(m.live_until as string).getTime() <= Date.now();
 
+/** O INSERT chocou com o índice único do envio repetido (0175: mesmo sender_id e client_id). */
+export function isClientIdClash(e: unknown): boolean {
+  const x = e as { code?: string; constraint?: string } | null;
+  return x?.code === '23505' && x.constraint === 'messages_sender_client_id_key';
+}
+
 export interface Outgoing {
   body: string;
   kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'gif';
@@ -143,6 +149,8 @@ export interface Outgoing {
   address?: string;
   /** Responde a esta mensagem (da mesma conversa ou grupo). */
   replyTo?: string;
+  /** uuid do telemóvel (0175): o mesmo envio repetido devolve a mensagem que já existe (ver `byClientId`). */
+  clientId?: string;
 }
 
 /** Porque não posso escrever a alguém numa conversa a dois (ver ChatService.messageBlock). */
@@ -765,8 +773,24 @@ export class ChatService {
     return { body: (msg.body.trim() || name || '').slice(0, 80), name, address };
   }
 
+  /**
+   * O envio repetido (0175): a mensagem que eu já enviei com este `client_id` (a resposta do primeiro pedido perdeu-se e a
+   * app tentou outra vez). Devolve o mesmo que o envio ({ id, kind, expiresAt }) ou null.
+   */
+  async byClientId(me: string, clientId: string | undefined): Promise<{ id: string; kind: MessageKind; expiresAt: string | null } | null> {
+    if (!clientId) return null;
+    const r = (await this.pool.query('SELECT id, kind, expires_at FROM social.messages WHERE sender_id = $1 AND client_id = $2', [me, clientId])).rows[0];
+    if (!r) return null;
+    const exp = r.expires_at as Date | string | null;
+    return { id: r.id as string, kind: r.kind as MessageKind, expiresAt: exp ? new Date(exp).toISOString() : null };
+  }
+
   /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
   async send(me: string, username: string, msg: Outgoing) {
+    // Já enviada (a mesma, repetida pela app depois de perder a resposta): devolve-se antes das outras regras, que agora
+    // podiam dizer que não (ex.: o limite a quem não me segue já contou com ela).
+    const again = await this.byClientId(me, msg.clientId);
+    if (again) return again;
     if (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'zas_reply') this.filter.assertClean(msg.body);
     const other = await this.userByName(username);
     if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
@@ -817,7 +841,7 @@ export class ChatService {
     const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
     const spot = this.placeFields(msg);
-    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : undefined });
+    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : undefined, clientId: msg.clientId });
   }
 
   /**
@@ -1147,14 +1171,22 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput; pushText?: string; id?: string; silent?: boolean } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput; pushText?: string; id?: string; silent?: boolean; clientId?: string } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = extra.id ?? uuidv7();
-    const ins = await this.pool.query(
+    let ins;
+    try {
+      ins = await this.pool.query(
       // Mensagens temporárias ligadas: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
-      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')}) RETURNING expires_at`,
-      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null, extra.gif ? JSON.stringify(extra.gif) : null],
-    );
+      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at, client_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')}, $20) RETURNING expires_at`,
+      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null, extra.gif ? JSON.stringify(extra.gif) : null, extra.clientId ?? null],
+      );
+    } catch (e) {
+      // Dois pedidos iguais ao mesmo tempo (0175): o segundo devolve a mensagem do primeiro.
+      const again = isClientIdClash(e) ? await this.byClientId(me, extra.clientId) : null;
+      if (again) return again;
+      throw e;
+    }
     // Com as temporárias ligadas, a app sabe logo quando a mensagem enviada desaparece (envio otimista, lib/chatPending).
     const exp = ins.rows[0]?.expires_at as Date | string | null | undefined;
     const expiresAt = exp ? new Date(exp).toISOString() : null;

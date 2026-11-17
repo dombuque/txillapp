@@ -10,6 +10,16 @@
 export const blockingError = (isError: boolean, hasData: boolean): boolean => isError && !hasData;
 
 /**
+ * Sem rede (o erro não traz resposta do servidor) mas com mensagens à espera nesta conversa (lib/chatPending): em vez do
+ * erro, a conversa abre e mostra-as, com o nome guardado com elas. Um 403 ou 404 do servidor continua a tapar.
+ */
+export function offlineWithPending(error: unknown, pendingCount: number): boolean {
+  if (pendingCount <= 0) return false;
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status !== 'number' || status >= 500 || status === 408 || status === 429;
+}
+
+/**
  * A lista de Mensagens vazia porque não carregou (e não porque não há conversas)? Conversas e Pedidos vêm da lista
  * das conversas; TxillGroups, da dos grupos; a pesquisa, das duas. Sem isto, sem rede aparecia "Ainda sem cochichos".
  */

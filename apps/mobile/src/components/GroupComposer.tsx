@@ -18,12 +18,13 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
-import { pendingFrom, sendPending, type SentReply } from '@/lib/chatPending';
+import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { PastedImageSheet } from './PastedImageSheet';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { sendChatMedia, type ChatMediaItem } from '@/lib/chatMediaSend';
 
 /**
  * A barra de escrever dos TxillGroups, com o mesmo desenho da das conversas a dois (components/ChatComposer): uma pílula,
@@ -87,14 +88,32 @@ export function GroupComposer({
     editLast: onEditLast,
   });
 
+  /**
+   * Voz, foto ou vídeo (lib/chatMediaSend): com rede vai já; sem rede o ficheiro fica guardado neste aparelho e a mensagem
+   * fica na conversa com o reloginho, e vai sozinha quando a rede voltar. Sem `pendingKey`, como antes: sobe e envia.
+   */
+  async function sendItem(item: Omit<ChatMediaItem, 'reply'>) {
+    if (!pendingKey) {
+      const mediaId = await uploadChatMedia(item.uri, item.mime);
+      await send({ kind: item.kind, mediaId, body: item.body, ...(item.durationMs ? { durationMs: item.durationMs } : null), ...(replyTo ? { replyTo: replyTo.id } : null) });
+      onClearReply?.();
+      onSent();
+      return 'sent' as const;
+    }
+    const r = await sendChatMedia(pendingKey, { ...item, reply: replyTo }, onSent);
+    if (r !== 'cancelled') onClearReply?.();
+    return r;
+  }
+
   async function dispatch(msg: GroupSendBody) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); sem rede fica à espera (reloginho) e vai sozinha,
+    // pela ordem, quando a rede voltar (lib/chatOutbox, pelo `g:<id>` de pendingKey). Só uma recusa fica «Não enviada».
     const shown = pendingKey ? pendingFrom(msg, replyTo) : null;
     if (pendingKey && shown) {
       onClearReply?.();
-      await sendPending(pendingKey, shown, () => send(payload) as Promise<SentReply>, { onSent });
+      await sendPending(pendingKey, shown, { onSent });
       return;
     }
     try {
@@ -142,8 +161,8 @@ export function GroupComposer({
         setProgress({ done: i, total: picks.length });
         const p = picks[i];
         try {
-          const mediaId = await uploadChatMedia(p.uri, p.mime);
-          await dispatch({ kind: p.video ? 'video' : 'image', mediaId, body: i === 0 ? caption : undefined });
+          // Sem rede, cada uma fica guardada e à espera na conversa, pela mesma ordem (lib/chatMediaSend).
+          await sendItem({ kind: p.video ? 'video' : 'image', uri: p.uri, mime: p.mime, body: i === 0 ? caption : undefined });
           if (i === 0) {
             setText('');
             grow.reset();
@@ -163,8 +182,8 @@ export function GroupComposer({
   async function sendMedia(uri: string, mime: string, video: boolean, caption?: string) {
     setBusy(true);
     try {
-      const mediaId = await uploadChatMedia(uri, mime);
-      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: (caption ?? text).trim() || undefined });
+      setErr('');
+      if ((await sendItem({ kind: video ? 'video' : 'image', uri, mime, body: (caption ?? text).trim() || undefined })) === 'cancelled') return;
       setText('');
       grow.reset();
     } finally {
@@ -218,9 +237,10 @@ export function GroupComposer({
       await recorder.stop();
       const uri = recorder.uri;
       if (!send || !uri || secs < 1) return;
+      setErr('');
       setBusy(true);
-      const mediaId = await uploadChatMedia(uri, Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4');
-      await dispatch({ kind: 'voice', mediaId, durationMs: secs * 1000 });
+      // Sem rede não se perde: fica guardada neste aparelho, na conversa com o reloginho, e vai sozinha (lib/chatMediaSend).
+      await sendItem({ kind: 'voice', uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000 });
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
     } finally {

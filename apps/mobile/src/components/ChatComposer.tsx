@@ -7,7 +7,7 @@ import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, Text
 import { useKeyboardOpen } from '@/components/ChatScreen';
 import { composerTools } from '@/lib/chatBars';
 import { composerPad } from '@/lib/chatKeyboard';
-import { api, uploadChatMedia } from '@/lib/api';
+import { api } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import type { LocationMessage } from '@/lib/sendLocation';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
@@ -29,6 +29,7 @@ import { PastedImageSheet } from './PastedImageSheet';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { CHAT_PICK_MAX, chatPicks, failedLabel, sendingLabel, type ChatPick } from '@/lib/chatPicks';
+import { sendChatMedia, type ChatMediaItem } from '@/lib/chatMediaSend';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -105,14 +106,25 @@ export function ChatComposer({
     if (replyTo?.id) input.current?.focus();
   }, [replyTo?.id]);
 
+  /**
+   * Voz, foto ou vídeo (lib/chatMediaSend): com rede vai já; sem rede o ficheiro fica guardado neste aparelho e a mensagem
+   * fica na conversa com o reloginho, e vai sozinha quando a rede voltar. Lança só uma recusa do servidor.
+   */
+  async function sendItem(item: Omit<ChatMediaItem, 'reply'>) {
+    const r = await sendChatMedia(`u:${username}`, { ...item, reply: replyTo }, onSent);
+    if (r !== 'cancelled') onClearReply?.();
+    return r;
+  }
+
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
     const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
-    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com «Tentar outra vez» (nada se perde).
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); sem rede fica à espera (reloginho) e vai sozinha,
+    // pela ordem, quando a rede voltar (lib/chatOutbox). Só uma recusa do servidor fica «Não enviada» (nada se perde).
     const shown = pendingFrom(msg, replyTo);
     if (shown) {
       onClearReply?.();
-      await sendPending(`u:${username}`, shown, () => api.chatSend(username, payload), { onSent });
+      await sendPending(`u:${username}`, shown, { onSent });
       return;
     }
     try {
@@ -160,8 +172,8 @@ export function ChatComposer({
         setProgress({ done: i, total: picks.length });
         const p = picks[i];
         try {
-          const mediaId = await uploadChatMedia(p.uri, p.mime);
-          await dispatch({ kind: p.video ? 'video' : 'image', mediaId, body: i === 0 ? caption : undefined, once });
+          // Sem rede, cada uma fica guardada e à espera na conversa, pela mesma ordem (lib/chatMediaSend).
+          await sendItem({ kind: p.video ? 'video' : 'image', uri: p.uri, mime: p.mime, body: i === 0 ? caption : undefined, once });
           if (i === 0) {
             setText('');
             grow.reset();
@@ -182,8 +194,8 @@ export function ChatComposer({
   async function sendMedia(uri: string, mime: string, video: boolean, caption?: string) {
     setBusy(true);
     try {
-      const mediaId = await uploadChatMedia(uri, mime);
-      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: (caption ?? text).trim() || undefined, once });
+      setErr('');
+      if ((await sendItem({ kind: video ? 'video' : 'image', uri, mime, body: (caption ?? text).trim() || undefined, once })) === 'cancelled') return;
       setText('');
       grow.reset();
       setOnce(false);
@@ -242,9 +254,10 @@ export function ChatComposer({
       await recorder.stop();
       const uri = recorder.uri;
       if (!send || !uri || secs < 1) return;
+      setErr('');
       setBusy(true);
-      const mediaId = await uploadChatMedia(uri, Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4');
-      await dispatch({ kind: 'voice', mediaId, durationMs: secs * 1000, once });
+      // Sem rede não se perde: fica guardada neste aparelho, na conversa com o reloginho, e vai sozinha (lib/chatMediaSend).
+      await sendItem({ kind: 'voice', uri, mime: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4', durationMs: secs * 1000, once });
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar a mensagem de voz');
     } finally {

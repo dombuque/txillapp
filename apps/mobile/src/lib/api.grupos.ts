@@ -28,6 +28,8 @@ export interface GroupSendBody {
   replyTo?: string;
   /** GIF do GIPHY (kind 'gif'). */
   gif?: import('./gifs').ChatGif;
+  /** uuid deste aparelho (lib/chatPending): repetir o envio não duplica a mensagem. */
+  clientId?: string;
 }
 
 export const gruposApi = {

@@ -11,7 +11,7 @@ export interface LayoutMsg {
   fromMe: boolean;
   kind: string;
   at: string;
-  state?: 'sending' | 'failed';
+  state?: 'sending' | 'waiting' | 'failed';
   sender?: { username: string } | null;
 }
 
