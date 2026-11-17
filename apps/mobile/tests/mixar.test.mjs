@@ -177,9 +177,9 @@ test('Mixa Challenge: escolhi e o outro ainda não → «À espera de Ana…»',
   assert.equal(x.optionBadge(challenge({ myPick: 'p2', theirPicked: true }), 'p2'), 'mine');
 });
 
-test('Mixa Challenge: o resultado — match 🎉 ou «Ana escolheu esta», com os selos certos', () => {
+test('Mixa Challenge: o resultado: match ou «Ana escolheu esta», com os selos certos', () => {
   const same = challenge({ myPick: 'p2', theirPicked: true, theirPick: 'p2', match: true });
-  assert.deepEqual(x.challengeView(same, 'Ana'), { phase: 'result', line: 'Escolheram o mesmo! 🎉', match: true });
+  assert.deepEqual(x.challengeView(same, 'Ana'), { phase: 'result', line: 'Escolheram o mesmo!', match: true });
   assert.equal(x.optionBadge(same, 'p2'), 'both');
   assert.equal(x.optionBadge(same, 'p1'), null);
   const diff = challenge({ myPick: 'p1', theirPicked: true, theirPick: 'p3', match: false });

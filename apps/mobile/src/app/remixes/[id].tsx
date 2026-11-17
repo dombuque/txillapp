@@ -5,7 +5,12 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
+import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { EmptyState } from '@/components/Empty';
+import { Button } from '@/components/ui/Button';
 import { DuetGlyph } from '@/components/remix/RemixParts';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { StackPage } from '@/components/StackPage';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { remixApi } from '@/lib/api.remix';
@@ -42,7 +47,7 @@ export default function RemixesPage() {
       <Pressable onPress={() => router.push(`/p/${item.id}` as never)} style={{ width: side, height: side * (16 / 9) * 0.75, margin: 1 }} accessibilityRole="link" accessibilityLabel={`${item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'} de @${item.author.username}`}>
         {poster ? <Image source={{ uri: abs(poster) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc800 }]} />}
         <View style={st.badge}>{item.remixOf?.kind === 'reply' ? <Icon name="reply" size={12} color="#fff" /> : <DuetGlyph size={14} />}<Text style={st.badgeText}>{item.remixOf?.kind === 'reply' ? 'Resposta' : 'Dueto'}</Text></View>
-        <Text style={st.who} numberOfLines={1}>@{item.author.username}</Text>
+        <NameWithBadge name={`@${item.author.username}`} who={item.author} style={st.who} containerStyle={st.whoRow} />
       </Pressable>
     );
   };
@@ -63,31 +68,23 @@ export default function RemixesPage() {
                 {p.media[0]?.posterUrl || p.media[0]?.kind === 'image' ? <Image source={{ uri: abs(p.media[0].posterUrl ?? p.media[0].url) }} style={st.origThumb} contentFit="cover" /> : <View style={[st.origThumb, { backgroundColor: colors.zinc200 }]} />}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={st.origTitle} numberOfLines={1}>{p.body || `Tcheka de @${p.author.username}`}</Text>
-                  <Text style={st.origSub} numberOfLines={1}>@{p.author.username} · {remixCount(p.remixes ?? items.length)}</Text>
+                  <NameWithBadge name={`@${p.author.username}`} who={p.author} style={st.origSub}><Text style={[st.origSub, { flexShrink: 0 }]}>· {remixCount(p.remixes ?? items.length)}</Text></NameWithBadge>
                 </View>
               </Pressable>
             ) : null}
             {canDuet ? (
-              <Pressable onPress={() => router.push(duetHref(id) as never)} style={st.duetBtn} accessibilityRole="button">
-                <DuetGlyph size={20} />
-                <Text style={st.duetText}>Fazer dueto</Text>
-              </Pressable>
+              <Button label="Fazer dueto" icon={<DuetGlyph size={20} />} size="md" onPress={() => router.push(duetHref(id) as never)} style={{ marginHorizontal: 16, marginTop: 12 }} />
             ) : null}
-            <View style={st.tabs} accessibilityRole="tablist">
-              {TABS.map((t) => (
-                <Pressable key={t.label} onPress={() => setTab(t.id)} style={[st.tab, tab === t.id && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }}>
-                  <Text style={[st.tabText, tab === t.id && { color: '#fff' }]}>{t.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedTabs tabs={TABS.map((t) => ({ value: t.id ?? 'all', label: t.label }))} value={tab ?? 'all'} onChange={(v) => setTab(v === 'all' ? null : (v as RemixKind))} style={{ marginHorizontal: 16, marginVertical: 12 }} />
           </View>
         }
         ListEmptyComponent={
           q.isLoading ? <View style={st.empty}><ActivityIndicator /></View>
-            : q.isError ? <View style={st.empty}><Text style={st.emptyText}>Esta tcheka já não está disponível.</Text></View>
-            : <View style={st.empty}><Text style={st.emptyTitle}>Ainda não há {tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}</Text><Text style={st.emptyText}>Quando alguém fizer, aparece aqui.</Text></View>
+            : q.isError ? <EmptyState icon="film" title="Esta tcheka já não está disponível" />
+            : <EmptyState icon="film" title={`Ainda não há ${tab === 'reply' ? 'respostas' : tab === 'duet' ? 'duetos' : 'duetos nem respostas'}`} text="Quando alguém fizer, aparece aqui." />
         }
-        ListFooterComponent={q.isFetchingNextPage ? <View style={{ padding: 16 }}><ActivityIndicator /></View> : undefined}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }} loading={q.isFetchingNextPage} label="Ver mais duetos e respostas" /> : undefined}
       />
     </StackPage>
   );
@@ -106,7 +103,8 @@ const st = StyleSheet.create({
   tabText: { color: colors.zinc800, fontSize: 14, fontWeight: '700' },
   badge: { position: 'absolute', left: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  who: { position: 'absolute', left: 6, right: 6, bottom: 6, color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 },
+  whoRow: { position: 'absolute', left: 6, right: 6, bottom: 6 },
+  who: { color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32, gap: 6 },
   emptyTitle: { color: colors.zinc900, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   emptyText: { color: colors.zinc500, fontSize: 14, textAlign: 'center' },

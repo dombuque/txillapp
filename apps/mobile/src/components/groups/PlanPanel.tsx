@@ -44,7 +44,7 @@ export function PlanPanel({ groupId, me, admin, members }: { groupId: string; me
   const plan = q.data;
   const name = (u: string) => members.find((m) => m.username === u)?.displayName.split(' ')[0] ?? (u === me ? 'Tu' : `@${u}`);
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#fafafa' }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ flex: 1, backgroundColor: colors.zinc50 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
       <WhereWhen groupId={groupId} plan={plan} admin={admin} onChanged={refresh} />
       <WhoComes groupId={groupId} plan={plan} me={me} onChanged={refresh} />
       <Polls groupId={groupId} plan={plan} me={me} admin={admin} />
@@ -363,7 +363,7 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
       {deleting && (
         <ConfirmSheet
           title="Apagar a despesa?"
-          lines={[`“${deleting.description}” (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
+          lines={[`«${deleting.description}» (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
           confirmLabel="Apagar"
           danger
           onConfirm={() => remove(deleting)}

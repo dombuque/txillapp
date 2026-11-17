@@ -3,14 +3,20 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { CheersPour } from '@/components/CheersPour';
 import { Icon, type IconName } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
 import { TasteBubble } from '@/components/TasteBubble';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { SearchField } from '@/components/ui/SearchField';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { AskSheet } from '@/components/gelada/AskSheet';
 import { DrinkSheet } from '@/components/gelada/DrinkSheet';
 import { PaidSheet, type PaidChoice } from '@/components/gelada/PaidSheet';
@@ -20,6 +26,7 @@ import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { newDraftKey, saveDraft } from '@/lib/drafts';
 import { bookSummary, debtLine, debtState, geladaErrorText, momentText, venueTag } from '@/lib/gelada';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -30,7 +37,7 @@ const AMBER_INK = '#92400e';
  * (`/geladas?pedir=1` abre logo «Paga-me uma»). Com `?u=ana`, o livro da Ana como eu o posso ver (o dela, se o mostra; senão só
  * o que há entre nós).
  * - Quem deve: «Já paguei» (com uma foto e/ou o local onde foi, se quiser: components/gelada/PaidSheet). Só conta como paga
- *   quando a outra pessoa confirma, que vê o local («no Bar X», com «✓ estiveram lá» se a pessoa estava mesmo lá).
+ *   quando a outra pessoa confirma, que vê o local («no Bar X», com «estiveram lá» se a pessoa estava mesmo lá).
  * - Quem recebe: «Confirmar» (os copos batem e aparece «Publicar o momento»), «Ainda não» ou «Perdoar».
  */
 export default function GeladasScreen() {
@@ -85,7 +92,7 @@ export default function GeladasScreen() {
       }
       setBusy(null);
     }
-    // O local (se o escolheu) e a posição de agora, para o selo «✓ estiveram lá» (o servidor não a guarda).
+    // O local (se o escolheu) e a posição de agora, para o selo «estiveram lá» (o servidor não a guarda).
     await act(d, () => geladaApi.paid(d.id, { ...(mediaId ? { mediaId } : {}), ...(place ? { venueSlug: place.slug, ...(at ? { lat: at.lat, lng: at.lng } : {}) } : {}) }));
   }
   async function publishMoment(d: GeladaDebt) {
@@ -118,17 +125,13 @@ export default function GeladasScreen() {
             <Pill icon="plus" label="Fico a dever" onPress={() => setOwing(true)} />
           </View>
         )}
-        <View style={st.tabs} accessibilityRole="tablist">
-          {([['open', 'Por pagar'], ['closed', 'Pagas e perdoadas']] as const).map(([t, label]) => (
-            <Pressable key={t} onPress={() => setTab(t)} style={[st.tab, tab === t && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: tab === t }}>
-              <Text style={[st.tabText, tab === t && { color: '#fff' }]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <SegmentedTabs tabs={[{ value: 'open', label: 'Por pagar' }, { value: 'closed', label: 'Pagas e perdoadas' }]} value={tab} onChange={setTab} />
         {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 32 }} />}
-        {q.isError && <Text style={st.empty} accessibilityRole="alert">Não consegui abrir o livro. Puxa para tentar outra vez.</Text>}
+        {q.isError && <ErrorState what="o livro" onRetry={() => void q.refetch()} style={{ marginTop: 16 }} />}
         {q.isSuccess && items.length === 0 && (
-          <Text style={st.empty}>{tab === 'open' ? 'Tudo em dia por aqui 🙌' : 'Ainda nenhuma gelada paga. A sexta está aí!'}</Text>
+          tab === 'open'
+            ? <EmptyState icon="check-circle" title="Tudo em dia por aqui" text="Ninguém te deve e não deves a ninguém." style={{ marginTop: 16 }} />
+            : <EmptyState icon="cheers" title="Ainda nenhuma gelada paga" text="A sexta está aí!" style={{ marginTop: 16 }} />
         )}
         {items.map((d) => (
           <DebtCard
@@ -138,19 +141,16 @@ export default function GeladasScreen() {
             onClaim={() => setClaiming(d)}
             onConfirm={() => void act(d, () => geladaApi.confirm(d.id), (r) => { setBurst((n) => n + 1); setMoment(r); })}
             onReject={() => void act(d, () => geladaApi.reject(d.id))}
-            onForgive={() => Alert.alert('Perdoar esta gelada?', `${debtLine(d)}. Fica fechada no livro.`, [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Perdoar', onPress: () => void act(d, () => geladaApi.forgive(d.id)) },
-            ])}
+            onForgive={() => void confirm({ title: 'Perdoar esta gelada?', message: `${debtLine(d)}. Fica fechada no livro.`, confirm: 'Perdoar' }).then((ok) => { if (ok) void act(d, () => geladaApi.forgive(d.id)); })}
             onMoment={() => setMoment(d)}
           />
         ))}
-        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação 🙌</Text>
+        <Text style={st.fine}>Não há dinheiro nem vibes no livro: é palavra entre amigos. Bebe com moderação.</Text>
       </ScrollView>
       <CheersPour n={burst} size={220} />
       {claiming && <PaidSheet debt={claiming} onClose={() => setClaiming(null)} onClaim={(c) => void claim(claiming, c)} />}
       {moment && (
-        <Sheet title="Gelada paga 🙌" onClose={() => setMoment(null)}>
+        <Sheet title="Gelada paga" onClose={() => setMoment(null)}>
           <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
             <Text style={st.sheetText}>{momentText(moment)}</Text>
             {moment.venue ? <VenueLine v={moment.venue} /> : null}
@@ -165,13 +165,9 @@ export default function GeladasScreen() {
   );
 }
 
+/** Os botões grandes do livro: o Button comum (coral ou cinzento), lado a lado ou à largura toda (`wide`). */
 function Pill({ icon, label, onPress, primary = false, wide = false }: { icon: IconName; label: string; onPress: () => void; primary?: boolean; wide?: boolean }) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.pill, primary && st.pillPrimary, wide ? { alignSelf: 'stretch' } : { flex: 1 }, pressed && { opacity: 0.8 }]} accessibilityRole="button">
-      <Icon name={icon} size={18} color={primary ? '#fff' : colors.zinc800} />
-      <Text style={[st.pillText, primary && { color: '#fff' }]} numberOfLines={1}>{label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} icon={icon} kind={primary ? 'primary' : 'secondary'} size="md" block={wide} onPress={onPress} style={wide ? undefined : { flex: 1 }} />;
 }
 
 function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }: { d: GeladaDebt; busy: boolean; onClaim: () => void; onConfirm: () => void; onReject: () => void; onForgive: () => void; onMoment: () => void }) {
@@ -208,22 +204,20 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
   );
 }
 
-/** O local da gelada: «📍 no Bar X» e, se estiveram mesmo lá, o selo «✓ estiveram lá». Só as duas pessoas o recebem. */
+/** O local da gelada: o alfinete e «no Bar X» e, se estiveram mesmo lá, o selo «estiveram lá» com o visto. Só as duas pessoas o recebem. */
 function VenueLine({ v }: { v: NonNullable<GeladaDebt['venue']> }) {
   return (
     <View style={st.venue} accessibilityLabel={`${venueTag(v)}${v.there ? ', estiveram lá' : ''}`}>
-      <Text style={st.venueText} numberOfLines={1}>📍 {venueTag(v)}</Text>
-      {v.there ? <View style={st.thereBadge}><Text style={st.thereText}>✓ estiveram lá</Text></View> : null}
+      <Icon name="map-pin" size={15} color={colors.zinc600} />
+      <Text style={st.venueText} numberOfLines={1}>{venueTag(v)}</Text>
+      {v.there ? <View style={st.thereBadge}><Icon name="check" size={12} strokeWidth={2.6} color={colors.green700} /><Text style={st.thereText}>estiveram lá</Text></View> : null}
     </View>
   );
 }
 
+/** As ações de cada dívida: o Button pequeno (36, com área de toque de 44). */
 function Small({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.small, primary && st.pillPrimary, pressed && { opacity: 0.8 }]} accessibilityRole="button">
-      <Text style={[st.smallText, primary && { color: '#fff' }]}>{label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} kind={primary ? 'primary' : 'secondary'} size="sm" onPress={onPress} />;
 }
 
 /** «Fico a dever-te uma»: escolher a quem (quem sigo) e a bebida. */
@@ -253,17 +247,14 @@ function OweFlow({ onClose, onDone }: { onClose: () => void; onDone: () => void 
     <Sheet title="Fico a dever-te uma" onClose={onClose} full>
       <View style={{ paddingHorizontal: 16, gap: 8, flex: 1 }}>
         <Text style={st.sheetText}>A quem ficas a dever? Só tu crias estas dívidas.</Text>
-        <View style={st.search}>
-          <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={search} onChangeText={setSearch} placeholder="Procurar amigos…" placeholderTextColor={colors.zinc500} style={st.searchInput} accessibilityLabel="Procurar amigos" autoCapitalize="none" autoCorrect={false} />
-        </View>
+        <SearchField value={search} onChangeText={setSearch} placeholder="Procurar amigos…" accessibilityLabel="Procurar amigos" />
         {friends.isLoading && <ActivityIndicator color={colors.brand} />}
         <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
           {(friends.data?.items ?? []).map((p) => (
             <Pressable key={p.username} onPress={() => setWho(p.username)} style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`${p.displayName}, @${p.username}`}>
               <Avatar name={p.displayName} username={p.username} size={40} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.line} numberOfLines={1}>{p.displayName}</Text>
+                <NameWithBadge name={p.displayName} who={p} style={st.line} />
                 <Text style={st.meta} numberOfLines={1}>@{p.username}</Text>
               </View>
               <Icon name="chevron-right" size={18} color={colors.zinc500} />
@@ -279,11 +270,7 @@ const st = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 22, borderWidth: 1, borderColor: '#fde68a', backgroundColor: '#fffbeb', padding: 16 },
   heroTitle: { fontSize: 22, fontWeight: '800', color: colors.zinc900 },
   heroSub: { marginTop: 2, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
-  tabs: { flexDirection: 'row', gap: 8 },
-  tab: { flex: 1, height: 40, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: colors.zinc900 },
-  tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc700 },
-  empty: { paddingVertical: 32, textAlign: 'center', fontSize: 16, color: colors.zinc600 },
+
   card: { borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: '#fff', padding: 12, gap: 10 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   line: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
@@ -293,17 +280,12 @@ const st = StyleSheet.create({
   photo: { width: 72, height: 72, borderRadius: 12, backgroundColor: colors.zinc100 },
   venue: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   venueText: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: colors.zinc700 },
-  thereBadge: { borderRadius: 999, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2 },
+  thereBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2 },
   thereText: { fontSize: 12, fontWeight: '700', color: colors.green700 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  small: { minHeight: 40, minWidth: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  smallText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
-  pill: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
-  pillPrimary: { backgroundColor: colors.brand },
-  pillText: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: colors.zinc800 },
+
   sheetText: { fontSize: 15, lineHeight: 22, color: colors.zinc700 },
   fine: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' } as never,
+
   person: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 4, paddingVertical: 6 },
 });

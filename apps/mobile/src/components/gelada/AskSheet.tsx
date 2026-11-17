@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { api } from '@/lib/api';
+import { api, type Badged } from '@/lib/api';
 import { geladaApi, geladaKeys, type DrinkChoice, type GeladaChannel } from '@/lib/api.gelada';
 import { useAuth } from '@/lib/auth';
 import { drinkEmoji, drinkPhrase, pickable, geladaErrorText } from '@/lib/gelada';
@@ -11,20 +11,23 @@ import { colors } from '@/lib/theme';
 import type { Track } from '@/lib/api.music';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
+import { NameWithBadge } from '../NameWithBadge';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { TasteBubble } from '../TasteBubble';
+import { Button } from '../ui/Button';
+import { SearchField } from '../ui/SearchField';
 import { DrinkSheet } from './DrinkSheet';
 import { MusicPicker } from '../MusicPicker';
 import { TrackCard } from '../TrackCard';
 
 const AMBER_INK = '#92400e';
-type Friend = { username: string; displayName: string; mutual: boolean };
+type Friend = Badged & { username: string; displayName: string; mutual: boolean };
 
 /**
  * «Paga-me uma»: pedir a um ou mais amigos que te paguem uma bebida. Numa folha só: a bebida (vem escolhida — a que tocaste
  * na geleira ou a tua favorita — e muda-se com «Mudar»), os amigos (mútuos primeiro, depois quem segues; com `lockTo` já vêm
- * escolhidos), «Mandar no chat» ou «Publicar» (em público só a seguidores mútuos, com legenda opcional) e quantos pedidos
+ * escolhidos), «Enviar no chat» ou «Publicar» (em público só a seguidores mútuos, com legenda opcional) e quantos pedidos
  * ainda tens hoje. Com menores no pedido só há refrescos: o servidor já manda as bebidas sem álcool e o texto muda sozinho.
  */
 export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', onClose }: { to?: string[]; itemId?: string | null; lockTo?: boolean; defaultChannel?: 'chat' | 'post'; onClose: () => void }) {
@@ -64,7 +67,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
   const swapped = !!drinkId && !picked && !!drinks.data?.soft && list.length > 0;
 
   const people: Friend[] = useMemo(
-    () => pickable((friends.data?.items ?? []).map((p) => ({ username: p.username, displayName: p.displayName, mutual: !!p.followsYou })), channel),
+    () => pickable((friends.data?.items ?? []).map((p) => ({ username: p.username, displayName: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier, mutual: !!p.followsYou })), channel),
     [friends.data, channel],
   );
   const toggle = (f: Friend) => setChosen((l) => (l.some((x) => x.username === f.username) ? l.filter((x) => x.username !== f.username) : l.length >= 10 ? l : [...l, f]));
@@ -90,7 +93,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         doneTimer.current = setTimeout(onClose, 1400);
       }
     } catch (e) {
-      setErr(geladaErrorText(e, 'Não consegui mandar o pedido. Tenta outra vez.'));
+      setErr(geladaErrorText(e, 'Não consegui enviar o pedido. Tenta outra vez.'));
       setBusy(false);
     }
   }
@@ -117,8 +120,8 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         {swapped ? <Text style={st.note}>Há menores no pedido: vai um refresco no lugar.</Text> : drinks.data?.soft ? <Text style={st.note}>Só refrescos e sumos neste pedido.</Text> : null}
 
         {/* Por onde vai. */}
-        <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel="Por onde mandar">
-          {([['chat', 'messages', 'Mandar no chat'], ['post', 'compose', 'Publicar']] as const).map(([c, ic, label]) => {
+        <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel="Por onde enviar">
+          {([['chat', 'messages', 'Enviar no chat'], ['post', 'compose', 'Publicar']] as const).map(([c, ic, label]) => {
             const on = channel === c;
             return (
               <Pressable key={c} onPress={() => setChannel(c)} style={[st.segBtn, on && st.segOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
@@ -154,19 +157,16 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
               {chosen.map((c) => (
                 <Pressable key={c.username} disabled={lockTo} onPress={() => toggle(c)} style={[st.chip, !lockTo && notMutual.includes(c) && { borderColor: colors.red600 }]} accessibilityRole="button" accessibilityLabel={lockTo ? `@${c.username}` : `Tirar @${c.username}`}>
                   <Avatar name={c.displayName} username={c.username} size={24} />
-                  <Text style={st.chipText} numberOfLines={1}>@{c.username}</Text>
+                  <NameWithBadge name={`@${c.username}`} who={c} style={st.chipText} containerStyle={{ flexShrink: 1 }} />
                   {!lockTo && <Icon name="x" size={14} color={colors.zinc600} />}
                 </Pressable>
               ))}
             </View>
           )}
-          {notMutual.length > 0 && <Text style={st.err}>Em público só pedes a quem te segue de volta. Tira {notMutual.map((n) => `@${n.username}`).join(', ')} ou manda no chat.</Text>}
+          {notMutual.length > 0 && <Text style={st.err}>Em público só pedes a quem te segue de volta. Tira {notMutual.map((n) => `@${n.username}`).join(', ')} ou envia no chat.</Text>}
           {!lockTo && (
             <>
-              <View style={st.search}>
-                <Icon name="search" size={18} color={colors.zinc500} />
-                <TextInput value={search} onChangeText={setSearch} placeholder="Procurar amigos…" placeholderTextColor={colors.zinc500} style={st.searchInput} accessibilityLabel="Procurar amigos" autoCapitalize="none" autoCorrect={false} maxLength={40} />
-              </View>
+              <SearchField value={search} onChangeText={setSearch} placeholder="Procurar amigos…" accessibilityLabel="Procurar amigos" maxLength={40} />
               {friends.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 12 }} />}
               {friends.isSuccess && people.length === 0 && <Text style={st.hint}>{channel === 'post' ? 'Ninguém mútuo com esse nome.' : 'Ninguém com esse nome entre quem segues.'}</Text>}
               {people.slice(0, 30).map((p) => {
@@ -175,7 +175,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
                   <Pressable key={p.username} onPress={() => toggle(p)} style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`${p.displayName}, @${p.username}${p.mutual ? ', seguem-se os dois' : ''}`}>
                     <Avatar name={p.displayName} username={p.username} size={40} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={st.personName} numberOfLines={1}>{p.displayName}</Text>
+                      <NameWithBadge name={p.displayName} who={p} style={st.personName} />
                       <Text style={st.personHandle} numberOfLines={1}>@{p.username}{p.mutual ? ' · seguem-se' : ''}</Text>
                     </View>
                     <View style={[st.tick, on && st.tickOn]}>{on && <Icon name="check" size={14} color="#fff" />}</View>
@@ -187,14 +187,18 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         </View>
 
         <Text style={[st.hint, left <= 2 && { color: AMBER_INK, fontWeight: '600' }]} accessibilityLiveRegion="polite">
-          {left <= 0 ? 'Já fizeste os pedidos todos de hoje. Amanhã há mais 🙌' : `Ainda podes fazer ${left} ${left === 1 ? 'pedido' : 'pedidos'} hoje (até 3 ao mesmo amigo).`}
+          {left <= 0 ? 'Já fizeste os pedidos todos de hoje. Amanhã há mais.' : `Ainda podes fazer ${left} ${left === 1 ? 'pedido' : 'pedidos'} hoje (até 3 ao mesmo amigo).`}
         </Text>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
         {done ? <Text style={st.done} accessibilityLiveRegion="polite">{done}</Text> : null}
-        <Pressable onPress={() => void send()} disabled={!canSend} style={({ pressed }) => [st.send, !canSend && { opacity: 0.45 }, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityState={{ disabled: !canSend, busy }}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Icon name={channel === 'post' ? 'compose' : 'send'} size={18} color="#fff" />}
-          <Text style={st.sendText}>{channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Mandar a ${chosen.length}` : 'Mandar'}</Text>
-        </Pressable>
+        <Button
+          label={channel === 'post' ? 'Publicar o pedido' : chosen.length > 1 ? `Enviar a ${chosen.length}` : 'Enviar'}
+          icon={channel === 'post' ? 'compose' : 'messages'}
+          block
+          loading={busy}
+          disabled={!canSend && !busy}
+          onPress={() => void send()}
+        />
         <Text style={st.fine}>Sem dinheiro nem vibes: é entre amigos. Bebe com moderação.</Text>
       </ScrollView>
     </Sheet>
@@ -237,8 +241,7 @@ const st = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { height: 36, maxWidth: 220, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc200, paddingLeft: 6, paddingRight: 10, backgroundColor: '#fff' },
   chipText: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc900 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' } as never,
+
   person: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 4, paddingVertical: 6 },
   personName: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   personHandle: { fontSize: 13, color: colors.zinc500 },
@@ -246,7 +249,6 @@ const st = StyleSheet.create({
   tickOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   err: { fontSize: 14, lineHeight: 20, color: colors.red600 },
   done: { fontSize: 15, fontWeight: '700', color: colors.green700, textAlign: 'center' },
-  send: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.brand },
-  sendText: { fontSize: 17, fontWeight: '800', color: '#fff' },
+
   fine: { textAlign: 'center', fontSize: 12, color: colors.zinc500 },
 });

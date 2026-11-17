@@ -4,9 +4,12 @@ import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
-import { Empty } from '@/components/Empty';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, PageLoader } from '@/components/PontoLoader';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { IconButton } from '@/components/ui/IconButton';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { Icon, type IconName } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
@@ -128,21 +131,19 @@ export default function Invites() {
       <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc700 }}>{t}</Text>
     </View>
   );
-  const action = (kind: Action, icon: IconName, label: string, a11yHint: string, bg: string, fg: string, border?: string) => {
+  const action = (kind: Action, icon: IconName, label: string, a11yHint: string, look: 'whatsapp' | 'primary' | 'secondary') => {
     const off = !d || (kind !== 'wa' && !card);
     return (
-      <Pressable
+      <Button
+        label={label}
+        icon={icon}
+        kind={look === 'secondary' ? 'secondary' : 'primary'}
         onPress={() => void run(kind)}
-        disabled={off || !!busy}
-        style={({ pressed }) => [st.action, { backgroundColor: bg, opacity: off ? 0.5 : pressed ? 0.85 : 1 }, border ? { borderWidth: 1.5, borderColor: border } : null]}
-        accessibilityRole="button"
-        accessibilityLabel={label}
+        loading={busy === kind}
+        disabled={off || (!!busy && busy !== kind)}
         accessibilityHint={a11yHint}
-        accessibilityState={{ disabled: off, busy: busy === kind }}
-      >
-        {busy === kind ? <ActivityIndicator color={fg} /> : <Icon name={icon} size={20} color={fg} />}
-        <Text style={{ fontWeight: '700', fontSize: 16, color: fg }}>{label}</Text>
-      </Pressable>
+        style={look === 'whatsapp' ? { backgroundColor: WHATSAPP } : undefined}
+      />
     );
   };
   const ratio = CARD_SIZE[format].width / CARD_SIZE[format].height;
@@ -152,14 +153,12 @@ export default function Invites() {
       title="Convida a tua malta"
       right={
         // Alguém mostrou o QR do perfil (ou mandou-o como imagem): lê-se daqui.
-        <Pressable onPress={() => router.push('/qr' as never)} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ler um QR">
-          <Icon name="qr-scan" size={24} />
-        </Pressable>
+        <IconButton icon="qr-scan" iconSize={24} label="Ler um QR" onPress={() => router.push('/qr' as never)} />
       }
     >
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        {q.isLoading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.brand} />}
-        {q.isError && <Empty icon="user-plus" title="Não consegui abrir os convites." />}
+        {q.isLoading && <PageLoader />}
+        {q.isError && <ErrorState what="os convites" onRetry={() => void q.refetch()} />}
         {d && (
           <>
             {/* O progresso primeiro: quem entrou e quem já deu Txills. */}
@@ -174,52 +173,33 @@ export default function Invites() {
 
             {/* O cartão do convite, feito no aparelho. */}
             <Text style={st.h2} accessibilityRole="header">O teu cartão</Text>
-            <View style={st.segment}>
-              {(['post', 'status'] as const).map((f) => (
-                <Pressable
-                  key={f}
-                  onPress={() => setFormat(f)}
-                  style={[st.segBtn, format === f && st.segOn]}
-                  accessibilityRole="button"
-                  accessibilityLabel={f === 'post' ? 'Formato para conversas' : 'Formato para o Status'}
-                  accessibilityState={{ selected: format === f }}
-                >
-                  <Text style={{ fontWeight: '700', fontSize: 15, color: format === f ? colors.zinc900 : colors.zinc600 }}>{f === 'post' ? 'Conversa' : 'Status'}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedTabs tabs={[{ value: 'post', label: 'Conversa' }, { value: 'status', label: 'Status' }]} value={format} onChange={setFormat} style={st.segment} />
             <View style={[st.preview, { aspectRatio: ratio, maxWidth: format === 'status' ? 300 : 380 }]}>
               {card && <Image source={{ uri: card.uri }} style={StyleSheet.absoluteFill} contentFit="contain" accessible accessibilityRole="image" accessibilityLabel={card.label} />}
               {drawing && !card && <ActivityIndicator color={colors.brand} />}
               {drawError && !card && <Text style={{ color: colors.zinc600, textAlign: 'center', padding: 16 }}>Não consegui desenhar o cartão. A ligação funciona na mesma.</Text>}
             </View>
-            <Pressable onPress={() => setPhrase(nextPhrase(ph))} style={st.again} accessibilityRole="button" accessibilityLabel="Outra frase" accessibilityHint={`Agora: ${INVITE_PHRASES[ph]}`}>
-              <Icon name="repeat" size={18} color={colors.brand} />
-              <Text style={{ fontWeight: '700', fontSize: 15, color: colors.brand }}>Outra frase</Text>
-            </Pressable>
+            <Button label="Outra frase" icon="repeat" kind="ghost" size="md" onPress={() => setPhrase(nextPhrase(ph))} accessibilityHint={`Agora: ${INVITE_PHRASES[ph]}`} style={st.again} />
             {d.card && !d.card.geleiraPublic ? <Text style={st.small}>A tua Geleira não está à vista de todos, por isso não vai no cartão.</Text> : null}
 
             <View style={{ gap: 10, marginTop: 12 }}>
-              {action('wa', 'messages', 'Partilhar no WhatsApp', 'Abre o WhatsApp com o convite e a ligação', WHATSAPP, '#ffffff')}
-              {action('share', 'share', 'Partilhar', 'Abre a folha de partilha com a imagem e a ligação', colors.brand, '#ffffff')}
-              {action('save', 'download', 'Guardar imagem', 'Guarda o cartão na galeria, para o Status', '#ffffff', colors.zinc900, colors.zinc200)}
+              {action('wa', 'messages', 'Partilhar no WhatsApp', 'Abre o WhatsApp com o convite e a ligação', 'whatsapp')}
+              {action('share', 'share', 'Partilhar', 'Abre a folha de partilha com a imagem e a ligação', 'primary')}
+              {action('save', 'download', 'Guardar imagem', 'Guarda o cartão na galeria, para o Status', 'secondary')}
             </View>
             {hint ? <Text style={st.hint} accessibilityLiveRegion="polite">{hint}</Text> : null}
 
             <LinearGradient colors={[colors.brand, '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600', opacity: 0.9 }}>O teu código</Text>
               <Text style={{ color: '#fff', fontSize: 34, fontWeight: '900', letterSpacing: 6, marginTop: 4 }} selectable>{d.code}</Text>
-              <Pressable onPress={() => void copy()} style={st.copy} accessibilityRole="button" accessibilityLabel={copied ? 'Ligação copiada' : 'Copiar a ligação'}>
-                <Icon name={copied ? 'check' : 'link'} size={19} color="#fff" />
-                <Text style={{ fontWeight: '700', fontSize: 16, color: '#fff' }}>{copied ? 'Copiado' : 'Copiar a ligação'}</Text>
-              </Pressable>
+              <Button label={copied ? 'Copiado' : 'Copiar a ligação'} icon={copied ? 'check' : 'link'} kind="ghost" dark block onPress={() => void copy()} accessibilityLabel={copied ? 'Ligação copiada' : 'Copiar a ligação'} style={st.copy} />
             </LinearGradient>
 
             <Text style={st.h2} accessibilityRole="header">Como funciona</Text>
             <View style={{ gap: 8 }}>
-              {li('check-circle', '#059669', 'A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.')}
-              {li('check-circle', '#059669', `Ela ganha ${formatVibes(d.rules.reward)} quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
-              {li('check-circle', '#059669', `Tu ganhas ${formatVibes(d.rules.reward)} quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
+              {li('check-circle', colors.green600, 'A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.')}
+              {li('check-circle', colors.green600, `Ela ganha ${formatVibes(d.rules.reward)} quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
+              {li('check-circle', colors.green600, `Tu ganhas ${formatVibes(d.rules.reward)} quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
               {li('info', colors.zinc500, `Até ${d.rules.perDay} convites premiados por dia e ${d.rules.maxPaid} no total. Depois disso o convite continua a funcionar, mas sem vibes.`)}
               {li('info', colors.zinc500, 'Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. As vibes são pontos da app.')}
               {li('info', colors.zinc500, 'O cartão é feito no teu aparelho. Leva o teu nome, a tua foto e, se a tua Geleira estiver à vista de todos, alguns itens dela.')}
@@ -235,15 +215,12 @@ const st = StyleSheet.create({
   progress: { fontSize: 20, lineHeight: 26, fontWeight: '800', color: colors.zinc900, textAlign: 'center', marginTop: 4 },
   h2: { marginTop: 28, marginBottom: 10, fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   hero: { marginTop: 24, borderRadius: 26, paddingHorizontal: 20, paddingVertical: 20, alignItems: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.35)' },
-  copy: { marginTop: 12, minHeight: 48, paddingHorizontal: 20, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'stretch' },
-  action: { minHeight: 52, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20 },
-  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 999, backgroundColor: colors.zinc100, alignSelf: 'center', marginBottom: 12 },
-  segBtn: { minHeight: 44, minWidth: 120, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  segOn: { backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' },
+  copy: { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.2)' },
+  segment: { alignSelf: 'center', width: 280, maxWidth: '100%', marginBottom: 12 },
   preview: { width: '100%', alignSelf: 'center', borderRadius: 20, overflow: 'hidden', backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  again: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  again: { alignSelf: 'center', marginTop: 6 },
   small: { textAlign: 'center', fontSize: 13, color: colors.zinc500, marginTop: 2 },
   hint: { marginTop: 10, textAlign: 'center', fontSize: 14, lineHeight: 20, color: colors.zinc700 },
-  stat: { flex: 1, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center' },
+  stat: { flex: 1, borderRadius: 16, backgroundColor: colors.zinc50, borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center' },
   note: { marginTop: 16, borderRadius: 16, backgroundColor: '#fffbeb', paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, color: '#78350f' },
 });

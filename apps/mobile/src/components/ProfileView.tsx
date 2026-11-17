@@ -4,10 +4,15 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Animated, FlatList, Linking, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Reanimated from 'react-native-reanimated';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
+import { ActionRow } from './ui/ActionRow';
+import { Button } from './ui/Button';
+import { ErrorState } from './ui/ErrorState';
+import { EmptyState } from './Empty';
+import { showToast } from '@/lib/toast';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
@@ -27,7 +32,11 @@ import { GeleiraGridTile } from './GeleiraPostCard';
 import { GeladaGridTile } from './gelada/GeladaPostCard';
 import { ProfileQrSheet } from './ProfileQrSheet';
 import { ProfileStoryAvatar } from './ProfileStoryAvatar';
-import { GiftSheet } from './PostSheets';
+import { GiftSheet, PostMenuSheet } from './PostSheets';
+import { ShareSheet } from './ShareSheet';
+import { LoadMore } from './LoadMore';
+import { PullView, usePullToRefresh } from './PullToRefresh';
+import * as Haptics from 'expo-haptics';
 import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
@@ -77,7 +86,7 @@ function QrGlyph() {
   );
 }
 
-function Grid({ posts, onOpen, width, onUnhide }: { posts: Post[]; onOpen: (p: Post) => void; width: number; /** O separador «Ocultas»: cada quadrado leva «Voltar a mostrar». */ onUnhide?: (p: Post) => void }) {
+function Grid({ posts, onOpen, onHold, width, onUnhide }: { posts: Post[]; onOpen: (p: Post) => void; /** Segurar num quadrado (telemóvel): o menu do «⋯» da publicação. */ onHold?: (p: Post) => void; width: number; /** O separador «Ocultas»: cada quadrado leva «Voltar a mostrar». */ onUnhide?: (p: Post) => void }) {
   const gap = 6;
   // Computador: mais colunas quando a coluna é larga (3 no telemóvel).
   const desktop = useDesktop();
@@ -89,7 +98,7 @@ function Grid({ posts, onOpen, width, onUnhide }: { posts: Post[]; onOpen: (p: P
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
         const tile = (
-          <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
+          <Pressable key={post.id} onPress={() => onOpen(post)} onLongPress={onHold ? () => onHold(post) : undefined} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || (shown.geleira ? 'geleira' : 'foto')}`}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
                 <View style={{ width: 46, height: 28 }}>
@@ -149,6 +158,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block' | 'gelada'>(null);
+  // Segurar num quadrado da grelha: o mesmo menu do «⋯» dessa publicação (e o Partilhar dele abre a folha de partilha).
+  const [held, setHeld] = useState<{ post: Post; share: boolean } | null>(null);
   // `?geleira=1` (o «Ver a geleira de @x» de um post da geleira): o perfil abre já com a geleira aberta.
   const { geleira: geleiraParam } = useLocalSearchParams<{ geleira?: string }>();
   const [geleiraOpen, setGeleiraOpen] = useState(geleiraParam === '1');
@@ -218,6 +229,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     enabled: !!p?.canView,
   });
   const items = posts.data?.pages.flatMap((x) => x.items) ?? [];
+  const loadMore = () => { if (posts.hasNextPage && !posts.isFetchingNextPage) void posts.fetchNextPage(); };
+  // Puxar para atualizar: o perfil e o separador aberto.
+  const pull = usePullToRefresh(() => Promise.all([q.refetch(), p?.canView ? posts.refetch() : null]));
   // Um separador ainda por carregar: quando a grelha chega, entra também com o fade (e não aos saltos).
   const arrived = useRef(false);
   useLayoutEffect(() => {
@@ -228,12 +242,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   if (q.isError && !p) {
     const missing = q.error instanceof ApiError && q.error.status === 404;
     return (
-      <View style={[styles.center, { paddingTop: insets.top + 64 }]}>
-        <Icon name={missing ? 'search' : 'alert'} size={44} color={colors.zinc300} />
-        <Text style={styles.errTitle}>{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</Text>
-        {missing ? null : <Text style={styles.errText}>Verifica a internet e tenta outra vez.</Text>}
-        {missing ? null : <Pressable onPress={() => void q.refetch()} style={styles.ghost} accessibilityRole="button"><Text style={styles.ghostText}>Tentar outra vez</Text></Pressable>}
-        {isMine ? null : <Pressable onPress={() => goBack(router)} style={[styles.ghost, !missing && { marginTop: 12 }]} accessibilityRole="button"><Text style={styles.ghostText}>Voltar</Text></Pressable>}
+      <View style={[styles.center, { paddingTop: insets.top + 16 }]}>
+        {missing ? <EmptyState icon="search" title="Essa pessoa não existe" text="Confirma o @ e tenta outra vez." /> : <ErrorState what="este perfil" onRetry={() => void q.refetch()} />}
+        {isMine ? null : <Button label="Voltar" kind="ghost" size="md" onPress={() => goBack(router)} style={{ marginTop: 8 }} />}
       </View>
     );
   }
@@ -267,7 +278,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       await qc.invalidateQueries({ queryKey: ['profile'] });
       void qc.invalidateQueries({ queryKey: ['blocked'] });
     } catch (e) {
-      Alert.alert('Não deu', (e as Error).message || 'Não consegui desbloquear agora. Tenta outra vez.');
+      showToast((e as Error).message || 'Não consegui desbloquear agora. Tenta outra vez.');
     } finally {
       setActing(false);
     }
@@ -280,25 +291,28 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
       setSheet(null);
     } catch (e) {
-      Alert.alert('Não deu', (e as Error).message || 'Não consegui bloquear agora. Tenta outra vez.');
+      showToast((e as Error).message || 'Não consegui bloquear agora. Tenta outra vez.');
     } finally {
       setActing(false);
     }
   }
   const openPost = (post: Post) => router.push(`/p/${post.code ?? post.id}` as never);
+  const hold = desktop ? undefined : (post: Post) => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); setHeld({ post, share: false }); };
+  // Repost simples: o menu é o da original, com o «Ocultar o meu repost» (como no feed).
+  const heldShown = held ? (held.post.kind === 'repost' && held.post.repostOf && !held.post.body ? held.post.repostOf : held.post) : null;
 
   const header = (
     <View>
       {p.isMe ? (
         <View style={[styles.topMe, deskCol]}>
           <Text style={styles.handleTop}>@{p.username}</Text>
-          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={26} strokeWidth={2} /></Pressable>
+          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={24} strokeWidth={2} /></Pressable>
         </View>
       ) : (
         <View style={[styles.topOther, deskCol]}>
           <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
-          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
+          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} /></Pressable>
         </View>
       )}
 
@@ -371,7 +385,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Bloqueaste @{p.username}</Text>
             <Text style={styles.noticeText}>A pessoa não vê o teu conteúdo nem te pode seguir.</Text>
-            <Pressable onPress={() => void unblock()} disabled={acting} style={[styles.ghost, { marginTop: 12 }, acting && { opacity: 0.5 }]} accessibilityRole="button"><Text style={styles.ghostText}>{acting ? 'A desbloquear…' : 'Desbloquear'}</Text></Pressable>
+            <Button label="Desbloquear" kind="secondary" size="md" onPress={() => void unblock()} loading={acting} style={{ marginTop: 12 }} />
           </View>
         )}
 
@@ -390,7 +404,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                 <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} style={styles.rowFollow} />
                 {p.following && (
                   // Só o ícone, como os outros da fila (com o texto ficava «Pr…» cortado).
-                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Presentear ${p.displayName}`}>
+                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, styles.rowIcon]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a ${p.displayName}`}>
                     <Icon name="gift" size={ROW_ICON} />
                   </Pressable>
                 )}
@@ -446,22 +460,15 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {slider.bar}
           </View>
           <Reanimated.View style={[{ minHeight: height * 0.4 }, fade.style]}>
-          {posts.isLoading && <Text style={styles.loading}>A carregar…</Text>}
+          {posts.isLoading && <PageLoader />}
           {tab === 'hidden' && items.length > 0 ? <Text style={styles.hiddenNote}>Só tu vês estas publicações. Ao voltares a mostrar uma, volta ao mesmo sítio, com os brindes e os comentários.</Text> : null}
           {posts.isSuccess && items.length === 0 && tab !== 'all' && <Text style={styles.emptyText}>{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</Text>}
           {posts.isSuccess && items.length === 0 && tab === 'all' && (
-            <View style={{ marginTop: 32, alignItems: 'center' }}>
-              <Icon name="camera" size={36} color={colors.zinc300} />
-              <Text style={styles.noPosts}>{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</Text>
-              {p.isMe && <Text style={styles.first} onPress={() => router.push('/new' as never)}>Faz a primeira!</Text>}
-            </View>
+            <EmptyState icon="camera" title={p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'} action={p.isMe ? { label: 'Faz a primeira', onPress: () => router.push('/new' as never) } : undefined} style={{ marginTop: 32 }} />
           )}
-          <Grid posts={items} onOpen={openPost} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
-          {posts.hasNextPage && (
-            <Pressable onPress={() => void posts.fetchNextPage()} disabled={posts.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginTop: 16 }]}>
-              {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}
-            </Pressable>
-          )}
+          <Grid posts={items} onOpen={openPost} onHold={tab === 'hidden' ? undefined : hold} width={gridW || Math.min(width, 576)} onUnhide={tab === 'hidden' ? (post) => void setPostHidden(qc, post, false) : undefined} />
+          {/* Carrega sozinha ao chegar ao fim (onEndReached e, na web, o LoadMore); o botão fica de reserva. */}
+          {posts.hasNextPage && items.length > 0 ? <View style={{ marginTop: 16 }}><LoadMore onLoad={loadMore} loading={posts.isFetchingNextPage} /></View> : null}
           </Reanimated.View>
         </View>
         </SwipeArea>
@@ -471,35 +478,19 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
-      <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
+      <PullView pull={pull}>
+        <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} onScroll={pull.onScroll} scrollEventThrottle={16} refreshControl={pull.control} onEndReached={loadMore} onEndReachedThreshold={1} />
+      </PullView>
       {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} invite={p.isMe} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'gelada' && <AskSheet to={[p.username]} lockTo onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (
-        <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null}>
+        <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={{ paddingHorizontal: desktop && menuAt ? 8 : 24, paddingBottom: 8 }}>
-            <Pressable onPress={() => setSheet('qr')} style={styles.menuRow} accessibilityRole="button">
-              <View style={[styles.menuIcon, { backgroundColor: colors.zinc100 }]}><Icon name="share" size={22} color={colors.zinc800} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.menuText}>Partilhar o perfil</Text>
-                <Text style={styles.menuSub}>Um link ou o código QR de @{p.username}.</Text>
-              </View>
-            </Pressable>
-            <Pressable onPress={() => setSheet('block')} style={styles.menuRow} accessibilityRole="button">
-              <View style={[styles.menuIcon, { backgroundColor: '#fef2f2' }]}><Icon name="block" size={24} color="#b91c1c" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.menuText, { color: '#b91c1c' }]}>{p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`}</Text>
-                <Text style={styles.menuSub}>Deixa de ver o teu conteúdo e de te poder seguir.</Text>
-              </View>
-            </Pressable>
-            <Pressable onPress={() => setSheet('report')} style={styles.menuRow} accessibilityRole="button">
-              <View style={[styles.menuIcon, { backgroundColor: colors.zinc100 }]}><Icon name="flag" size={24} color={colors.zinc800} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.menuText}>Denunciar @{p.username}</Text>
-                <Text style={styles.menuSub}>Avisa a moderação. A pessoa não sabe.</Text>
-              </View>
-            </Pressable>
+            <ActionRow icon="share" title="Partilhar o perfil" text={`Um link ou o código QR de @${p.username}.`} onPress={() => setSheet('qr')} />
+            <ActionRow icon="block" title={p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`} text="Deixa de ver o teu conteúdo e de te poder seguir." danger onPress={() => setSheet('block')} />
+            <ActionRow icon="flag" title={`Denunciar @${p.username}`} text="Avisa a moderação. A pessoa não sabe." danger onPress={() => setSheet('report')} />
           </View>
         </Sheet>
       )}
@@ -509,15 +500,24 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {[`${p.displayName} deixa de ver as tuas publicações e mimos.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
               <View key={t} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}><Text style={styles.bullet}>{'\u2022'}</Text><Text style={[styles.bullet, { flex: 1 }]}>{t}</Text></View>
             ))}
-            <Pressable onPress={() => void block()} disabled={acting} style={[styles.blockBtn, acting && { opacity: 0.6 }]} accessibilityRole="button" accessibilityState={{ disabled: acting, busy: acting }}>
-              {acting ? <ActivityIndicator color="#fff" /> : <Text style={styles.blockBtnText}>Bloquear</Text>}
-            </Pressable>
-            <Pressable onPress={() => setSheet(null)} style={[styles.ghost, { marginTop: 12, alignSelf: 'stretch' }]}><Text style={styles.ghostText}>Cancelar</Text></Pressable>
+            <Button label="Bloquear" kind="dangerSolid" onPress={() => void block()} loading={acting} block style={{ marginTop: 16 }} />
+            <Button label="Cancelar" kind="secondary" onPress={() => setSheet(null)} block style={{ marginTop: 8 }} />
           </View>
         </Sheet>
       )}
       {sheet === 'report' && <ReportSheet type="user" id={p.id} onClose={() => setSheet(null)} />}
       {sheet === 'gift' && <GiftSheet recipient={{ username: p.username, displayName: p.displayName }} onClose={() => setSheet(null)} />}
+      {held && heldShown && !held.share ? (
+        <PostMenuSheet
+          post={heldShown}
+          mine={heldShown.author.id === user?.id}
+          myRepost={heldShown !== held.post && held.post.author.id === user?.id ? held.post : null}
+          onClose={() => setHeld(null)}
+          onSaved={() => undefined}
+          onShare={() => setHeld({ post: held.post, share: true })}
+        />
+      ) : null}
+      {held && heldShown && held.share ? <ShareSheet post={heldShown} onClose={() => setHeld(null)} /> : null}
     </View>
   );
 }

@@ -192,7 +192,7 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
 
         {searching ? (
           <View style={{ marginTop: 8 }} accessibilityLiveRegion="polite">
-            <Row o={{ label: `Usar “${text}”`, sub: 'Escrever à mão', icon: 'pencil' }} onPick={() => pick(text)} />
+            <Row o={{ label: `Usar «${text}»`, sub: 'Escrever à mão', icon: 'pencil' }} onPick={() => pick(text)} />
             {found.isFetching && suggestions.length === 0 ? <Skeleton /> : null}
             {suggestions.map((o, i) => <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(fullName(o))} />)}
             {!found.isFetching && debounced === text && suggestions.length === 0 ? <Text style={styles.empty}>Nada com esse nome. Podes usar o que escreveste.</Text> : null}

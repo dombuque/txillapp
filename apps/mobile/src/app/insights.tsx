@@ -3,7 +3,9 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { BarChart } from '@/components/BarChart';
 import { Icon, type IconName } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
@@ -79,16 +81,10 @@ export default function Insights() {
   return (
     <StackPage title="Estatísticas do perfil">
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }}>
-        <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="tablist">
-          {([7, 30, 90] as const).map((p) => (
-            <Pressable key={p} onPress={() => setDays(p)} accessibilityRole="tab" accessibilityState={{ selected: days === p }} style={[st.tab, days === p && { backgroundColor: colors.zinc900 }]}>
-              <Text style={[st.tabText, days === p && { color: '#fff' }]}>{p} dias</Text>
-            </Pressable>
-          ))}
-        </View>
+        <SegmentedTabs tabs={([7, 30, 90] as const).map((p) => ({ value: String(p) as `${Period}`, label: `${p} dias` }))} value={String(days) as `${Period}`} onChange={(v) => setDays(Number(v) as Period)} />
 
-        {q.isLoading && <ActivityIndicator style={{ marginVertical: 64 }} color={colors.brand} />}
-        {q.isError && <Text style={{ paddingVertical: 64, textAlign: 'center', fontSize: 16, color: colors.zinc600 }}>Não consegui ver as estatísticas agora</Text>}
+        {q.isLoading && <PageLoader />}
+        {q.isError && <ErrorState what="as estatísticas" onRetry={() => void q.refetch()} />}
         {d && (
           <>
             <Text style={{ fontSize: 14, color: colors.zinc600 }}>Só tu vês isto. Mostramos números, nunca quem é quem.</Text>
@@ -148,11 +144,11 @@ export default function Insights() {
                 <Text style={st.bold}>Publicações em destaque</Text>
                 <View style={{ marginTop: 8 }}>
                   {d.top.map((p, i) => (
-                    <Pressable key={p.id} onPress={() => router.push(((p.tcheka ?? p.video) ? `/r/${p.code}` : `/p/${p.code}`) as never)} accessibilityRole="button" style={({ pressed }) => [st.top, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && { backgroundColor: '#fafafa' }]}>
+                    <Pressable key={p.id} onPress={() => router.push(((p.tcheka ?? p.video) ? `/r/${p.code}` : `/p/${p.code}`) as never)} accessibilityRole="button" style={({ pressed }) => [st.top, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && { backgroundColor: colors.zinc50 }]}>
                       {p.mediaUrl ? (
                         <Image source={{ uri: abs(p.mediaUrl) }} style={st.thumb} contentFit="cover" />
                       ) : (
-                        <View style={[st.thumb, { alignItems: 'center', justifyContent: 'center' }]}><Icon name="file-text" size={22} color="#a1a1aa" /></View>
+                        <View style={[st.thumb, { alignItems: 'center', justifyContent: 'center' }]}><Icon name="file-text" size={22} color={colors.zinc400} /></View>
                       )}
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{p.body || 'Publicação'}</Text>
@@ -189,8 +185,6 @@ export default function Insights() {
 
 const st = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, padding: 16 },
-  tab: { flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: colors.zinc100, paddingVertical: 10 },
-  tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
   statLabel: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.zinc600 },
   statValue: { marginTop: 4, fontSize: 30, fontWeight: '800', color: colors.zinc900 },
   delta: { fontSize: 12, fontWeight: '700' },

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { useRef, useState, type ReactNode } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { track } from '@/lib/analytics';
@@ -12,7 +12,11 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { Icon, type IconName } from './Icon';
 import { ReportSheet } from './ReportSheet';
-import { Sheet, useSheetMode } from './Sheet';
+import { Sheet } from './Sheet';
+import { ActionRow as MenuRow } from './ui/ActionRow';
+import { Button } from './ui/Button';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 import type { Rect } from '@/lib/desktopKeys';
 import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
@@ -30,33 +34,15 @@ const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
   { value: 'silent', icon: 'eye-off', title: 'Discreto', text: 'Só o presente. Sem mensagem, sem post.' },
   { value: 'private', icon: 'mail', title: 'No privado', text: 'Uma mensagem que só a pessoa vê.' },
-  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Post "presenteou" para a malta ver.' },
+  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Uma publicação no feed para a malta ver.' },
 ];
 
 export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
 
-export function MenuRow({ icon, title, text, onPress, disabled }: { icon: ReactNode; title: string; text: string; onPress: () => void; disabled?: boolean }) {
-  // Menu pendente do computador: uma linha compacta (ícone e título; a explicação aparece ao passar o rato).
-  const compact = useSheetMode() === 'menu';
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={(s) => [styles.menuRow, compact && styles.menuRowCompact, ((s as { hovered?: boolean }).hovered || s.pressed) && { backgroundColor: colors.zinc100 }, disabled && { opacity: 0.6 }]}
-      accessibilityRole={compact ? 'menuitem' : 'button'}
-      accessibilityHint={compact ? text : undefined}
-      {...(compact ? ({ dataSet: { tip: text } } as object) : null)}
-    >
-      <View style={compact ? styles.menuIconCompact : styles.menuIcon}>{icon}</View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={compact ? styles.menuTitleCompact : styles.menuTitle} numberOfLines={compact ? 1 : undefined}>{title}</Text>
-        {compact ? null : <Text style={styles.menuText}>{text}</Text>}
-      </View>
-    </Pressable>
-  );
-}
+/** A linha de menu passou a ser a partilhada (components/ui/ActionRow); o nome antigo continua a funcionar. */
+export { MenuRow };
 
-/** Presentear com Txills: discreto, no privado ou no feed (igual ao do site). */
+/** Oferecer vibes: discreto, no privado ou no feed (igual ao do site). */
 export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: { username: string; displayName: string }; postId?: string; preset?: { amount?: number; note?: string; visibility?: 'silent' | 'private' | 'public' }; onClose: () => void }) {
   const qc = useQueryClient();
   const [amount, setAmount] = useState(preset?.amount && AMOUNTS.includes(preset.amount) ? preset.amount : 10);
@@ -106,19 +92,19 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
     return (
       <Sheet title="Presente enviado" onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.sentText}>Mandaste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
+          <Text style={styles.sentText}>Ofereceste {formatVibes(Number(custom || amount))} a {name}! Que generoso</Text>
           {sent.published ? <Text style={[styles.sentText, { color: colors.green700, fontSize: 16 }]}>Já está no feed.</Text> : (
-            <Pressable onPress={() => void publishNow()} disabled={publishing} style={styles.ghost}><Text style={styles.ghostText}>{publishing ? 'A publicar…' : 'Publicar no feed agora'}</Text></Pressable>
+            <Button label="Publicar no feed agora" kind="secondary" onPress={() => void publishNow()} loading={publishing} block style={{ marginTop: 8 }} />
           )}
           <Text style={styles.err}>{err}</Text>
-          <Pressable onPress={onClose} style={styles.primary}><Text style={styles.primaryText}>Feito</Text></Pressable>
+          <Button label="Feito" onPress={onClose} block style={{ marginTop: 8 }} />
         </View>
       </Sheet>
     );
   }
 
   return (
-    <Sheet title={`Presentear ${name}`} onClose={onClose}>
+    <Sheet title={`Oferecer vibes a ${name}`} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
           {AMOUNTS.map((v) => {
@@ -147,7 +133,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
           <TextInput value={note} onChangeText={(t) => { setNote(t); fresh(); }} maxLength={280} multiline placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'} placeholderTextColor={colors.zinc500} style={[styles.field, { marginTop: 16, minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel="Mensagem" />
         )}
         <Text style={styles.err} accessibilityRole="alert">{err}</Text>
-        <Pressable disabled={busy} onPress={() => void send()} style={[styles.primary, { height: 56 }, busy && { opacity: 0.5 }]}><Text style={[styles.primaryText, { fontSize: 18 }]}>{busy ? 'A enviar…' : `Mandar ${formatVibes(Number(custom || amount))}`}</Text></Pressable>
+        <Button label={`Oferecer ${formatVibes(Number(custom || amount))}`} icon="gift" onPress={() => void send()} loading={busy} block style={{ marginTop: 8 }} />
         <View style={{ height: 8 }} />
       </ScrollView>
     </Sheet>
@@ -195,17 +181,17 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
               </View>
             </View>
             <Text style={styles.err}>{err}</Text>
-            <Pressable disabled={busy || !text.trim()} onPress={() => void run(async () => { await api.repost(post.id, text); onChange({ reposts: post.reposts + 1 }); })} style={[styles.primary, (busy || !text.trim()) && { opacity: 0.5 }]}><Text style={styles.primaryText}>{busy ? 'A publicar…' : 'Publicar'}</Text></Pressable>
-            <Pressable onPress={() => setQuote(false)} style={styles.ghost}><Text style={styles.ghostText}>Voltar</Text></Pressable>
+            <Button label="Publicar" onPress={() => void run(async () => { await api.repost(post.id, text); onChange({ reposts: post.reposts + 1 }); })} loading={busy} disabled={!text.trim()} block />
+            <Button label="Voltar" kind="ghost" onPress={() => setQuote(false)} block />
           </View>
         ) : (
           <View>
             {post.reposted ? (
-              <MenuRow icon={<Icon name="undo" size={22} />} title="Desfazer repost" text="Tira esta publicação do teu perfil." disabled={busy} onPress={() => void run(async () => onChange(await api.unrepost(post.id)))} />
+              <MenuRow icon="undo" title="Desfazer repost" text="Tira esta publicação do teu perfil." disabled={busy} onPress={() => void run(async () => onChange(await api.unrepost(post.id)))} />
             ) : allowed ? (
-              <MenuRow icon={<Icon name="repeat" size={22} />} title="Repostar" text="Partilha no teu perfil, tal como está." disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
+              <MenuRow icon="repeat" title="Repostar" text="Partilha no teu perfil, tal como está." disabled={busy} onPress={() => void run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })} />
             ) : null}
-            {allowed ? <MenuRow icon={<Icon name="pencil" size={22} />} title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onPress={() => setQuote(true)} /> : null}
+            {allowed ? <MenuRow icon="pencil" title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onPress={() => setQuote(true)} /> : null}
             {err ? <Text style={styles.err}>{err}</Text> : !allowed ? <Text style={styles.note}>{REPOST_BLOCKED}</Text> : null}
           </View>
         )}
@@ -288,26 +274,23 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
     onClose();
     await setPostHidden(qc, target, !target.hidden, repost);
   }
-  function confirmDelete() {
-    Alert.alert('Apagar a publicação?', 'Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Apagar', style: 'destructive', onPress: async () => { await api.removePost(post.id).catch(() => undefined); onClose(); await refresh(['feed', 'profile-posts', 'post']); } },
-    ]);
+  async function confirmDelete() {
+    if (!(await confirm({ title: 'Apagar a publicação?', message: 'Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.', confirm: 'Apagar', danger: true }))) return;
+    await api.removePost(post.id).catch(() => undefined);
+    onClose();
+    await refresh(['feed', 'profile-posts', 'post']);
   }
   // «Retirar o dueto»: só o autor da tcheka original, só em duetos (o vídeo e o som dele estão gravados no dueto).
-  function confirmTakedown() {
-    Alert.alert(takedownTitle, takedownText(post.author.username), [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Retirar', style: 'destructive', onPress: async () => {
-        try {
-          await api.takeDownDuet(post.id);
-          onClose();
-          await refresh(['feed', 'profile-posts', 'post', 'reels', 'remixes']);
-        } catch (e) {
-          Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.');
-        }
-      } },
-    ]);
+  async function confirmTakedown() {
+    if (!(await confirm({ title: takedownTitle, message: takedownText(post.author.username), confirm: 'Retirar', danger: true }))) return;
+    try {
+      await api.takeDownDuet(post.id);
+      onClose();
+      await refresh(['feed', 'profile-posts', 'post', 'reels', 'remixes']);
+    } catch (e) {
+      // Erro passageiro: o aviso no fundo (o menu continua aberto para tentar outra vez).
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não deu para retirar o dueto. Tenta outra vez daqui a pouco.');
+    }
   }
   async function saveEdit() {
     setSaving(true);
@@ -330,31 +313,31 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
           <TextInput value={draft} onChangeText={setDraft} maxLength={2000} multiline autoFocus style={[styles.field, { minHeight: 120, textAlignVertical: 'top' }]} accessibilityLabel="Texto" />
           {textOnly ? <FontChips value={draftFont} onChange={setDraftFont} label="Letra da publicação" style={{ marginHorizontal: -24, marginTop: 10 }} /> : null}
           <Text style={styles.err}>{editErr}</Text>
-          <Pressable onPress={() => void saveEdit()} disabled={saving} style={[styles.primary, saving && { opacity: 0.6 }]}><Text style={styles.primaryText}>Guardar</Text></Pressable>
-          <Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
+          <Button label="Guardar" onPress={() => void saveEdit()} loading={saving} block style={{ marginTop: 8 }} />
+          <Button label="Cancelar" kind="ghost" onPress={onClose} block style={{ marginTop: 8 }} />
         </View>
       </Sheet>
     );
   }
   return (
-    <Sheet title="Publicação" onClose={onClose} variant="menu" anchor={anchor}>
+    <Sheet title="Publicação" onClose={onClose} variant="menu" anchor={anchor} cancel>
       <ScrollView style={{ paddingHorizontal: anchor && deskMenu ? 6 : 24 }}>
-        <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
+        <MenuRow icon="share" title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
         <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
-        {canDownload(post) ? <MenuRow icon={<Icon name="download" size={22} />} title={Platform.OS === 'web' ? 'Descarregar o vídeo' : 'Guardar o vídeo'} text={downloading ? 'A preparar o vídeo…' : 'Com a assinatura do Txillapp no fim.'} onPress={() => void download()} disabled={downloading} /> : null}
-        <MenuRow icon={<Icon name="link" size={22} />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
-        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
-        {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" size={22} />} title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}
-        {mine && <MenuRow icon={<Icon name="comment" size={22} />} title={post.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} text={post.commentsOff ? 'Voltam a poder comentar.' : 'Ninguém pode comentar esta publicação.'} onPress={() => void toggleComments()} />}
-        {mine && !(post.kind === 'repost' && !post.body) ? <MenuRow icon={<Icon name={post.hidden ? 'eye' : 'eye-off'} size={22} />} {...hideMenuRow(post)} onPress={() => void toggleHidden(post, false)} /> : null}
-        {!mine && myRepost ? <MenuRow icon={<Icon name={myRepost.hidden ? 'eye' : 'eye-off'} size={22} />} {...hideMenuRow(myRepost, true)} onPress={() => void toggleHidden(myRepost, true)} /> : null}
+        {canDownload(post) ? <MenuRow icon="download" title={Platform.OS === 'web' ? 'Descarregar o vídeo' : 'Guardar o vídeo'} text={downloading ? 'A preparar o vídeo…' : 'Com a assinatura do Txillapp no fim.'} onPress={() => void download()} disabled={downloading} /> : null}
+        <MenuRow icon="link" title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
+        {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon="pencil" title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setDraftFont(normTextFont(post.textFont)); setView('edit'); }} />}
+        {mine && post.locationLabel && <MenuRow icon="map-pin" title="Tirar o local" text="O sítio deixa de aparecer nesta publicação." onPress={() => void clearPlace()} />}
+        {mine && <MenuRow icon="comment" title={post.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} text={post.commentsOff ? 'Voltam a poder comentar.' : 'Ninguém pode comentar esta publicação.'} onPress={() => void toggleComments()} />}
+        {mine && !(post.kind === 'repost' && !post.body) ? <MenuRow icon={post.hidden ? 'eye' : 'eye-off'} {...hideMenuRow(post)} onPress={() => void toggleHidden(post, false)} /> : null}
+        {!mine && myRepost ? <MenuRow icon={myRepost.hidden ? 'eye' : 'eye-off'} {...hideMenuRow(myRepost, true)} onPress={() => void toggleHidden(myRepost, true)} /> : null}
         {mine ? (
-          <MenuRow icon={<Icon name="trash" size={22} />} title="Apagar" text="Some para toda a gente." onPress={confirmDelete} />
+          <MenuRow icon="trash" title="Apagar" text="Some para toda a gente." danger onPress={() => void confirmDelete()} />
         ) : (
           <>
-            <MenuRow icon={<Icon name="eye-off" size={22} />} title="Não me interessa" text="Esta publicação deixa de aparecer no teu feed." onPress={() => void hide()} />
-            {post.remixOf?.kind === 'duet' && post.remixOf.canTakeDown ? <MenuRow icon={<Icon name="trash" size={22} />} title="Retirar o dueto" text="Foi feito com a tua tcheka. Deixa de aparecer para todos." onPress={confirmTakedown} /> : null}
-            <MenuRow icon={<Icon name="flag" size={22} />} title="Denunciar" text="Avisa a moderação. A pessoa não sabe." onPress={() => setView('report')} />
+            <MenuRow icon="eye-off" title="Não me interessa" text="Esta publicação deixa de aparecer no teu feed." onPress={() => void hide()} />
+            {post.remixOf?.kind === 'duet' && post.remixOf.canTakeDown ? <MenuRow icon="trash" title="Retirar o dueto" text="Foi feito com a tua tcheka. Deixa de aparecer para todos." danger onPress={() => void confirmTakedown()} /> : null}
+            <MenuRow icon="flag" title="Denunciar" text="Avisa a moderação. A pessoa não sabe." danger onPress={() => setView('report')} />
           </>
         )}
         <View style={{ height: 8 }} />
@@ -373,13 +356,6 @@ function newKey() {
 }
 
 const styles = StyleSheet.create({
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
-  menuIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  menuTitle: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
-  menuText: { fontSize: 14, color: colors.zinc600 },
-  menuRowCompact: { gap: 12, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9 },
-  menuIconCompact: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  menuTitleCompact: { fontSize: 15, fontWeight: '500', color: colors.zinc900 },
   field: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
   amount: { flex: 1, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   amountText: { fontWeight: '600', fontSize: 16, color: colors.zinc900 },

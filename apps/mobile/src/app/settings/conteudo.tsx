@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { FindContacts } from '@/components/FindContacts';
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
@@ -12,6 +12,7 @@ import { settingsApi, type GeleiraSettings } from '@/lib/api.settings';
 import { reuseSetting } from '@/lib/sounds';
 import { downloadSetting } from '@/lib/tchekaDownload';
 import { repostSetting } from '@/lib/repost';
+import { showToast } from '@/lib/toast';
 
 /** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, os reposts das tuas publicações, as tchekas (duetos, o teu som e guardá-las), as estatísticas, o teu local e os convites. */
 export default function ContentSettings() {
@@ -30,7 +31,7 @@ export default function ContentSettings() {
       qc.setQueryData(['sounds', 'settings'], await soundsApi.setSettings(on));
     } catch (e) {
       qc.setQueryData(['sounds', 'settings'], before);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
   // «Deixar guardar as minhas tchekas» (0153): ligado por omissão; numa conta privada (ou de menor) fica desligado e bloqueado.
@@ -43,7 +44,7 @@ export default function ContentSettings() {
       qc.setQueryData(['downloads', 'settings'], await settingsApi.setDownloadSettings(on));
     } catch (e) {
       qc.setQueryData(['downloads', 'settings'], before);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
   // «Deixar repostar as minhas publicações» (0156): ligado por omissão (as contas que já eram privadas ficaram desligadas).
@@ -56,7 +57,7 @@ export default function ContentSettings() {
       qc.setQueryData(['reposts', 'settings'], await settingsApi.setRepostSettings(on));
     } catch (e) {
       qc.setQueryData(['reposts', 'settings'], before);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
   // «Mostrar o livro das geladas a quem vê a geleira» (0145): desligado por omissão; servidor antigo não manda (sem linha).
@@ -69,7 +70,7 @@ export default function ContentSettings() {
       void qc.invalidateQueries({ queryKey: ['gelada-book'] });
     } catch (e) {
       qc.setQueryData(['geleira', 'settings'], before);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
   return (

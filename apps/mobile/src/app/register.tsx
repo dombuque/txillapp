@@ -1,12 +1,13 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { BackButton } from '@/components/BackButton';
 import { GoogleButton } from '@/components/GoogleButton';
 import { useHumanCheck } from '@/components/HumanCheck';
 import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
 import { ApiError, api, inviteStore, type Badged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -19,12 +20,12 @@ const MIN_AGE = 15;
 type Key = 'displayName' | 'username' | 'email' | 'birthDate' | 'gender' | 'password';
 
 const steps: { key: Key; title: string; sub: string; placeholder: string; icon: 'user' | 'at' | 'mail' | 'calendar' | 'lock' | null; cta: string }[] = [
-  { key: 'displayName', title: 'Como te chamas?', sub: 'Diz-nos o teu nome, não mordemos', placeholder: 'Nome', icon: 'user', cta: 'Próximo' },
-  { key: 'username', title: 'Qual vai ser o teu @?', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: 'at', cta: 'Próximo' },
-  { key: 'email', title: 'E o teu email?', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: 'mail', cta: 'Próximo' },
-  { key: 'birthDate', title: 'Quando nasceste?', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: 'calendar', cta: 'Próximo' },
-  { key: 'gender', title: 'Como te identificas?', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, cta: 'Próximo' },
-  { key: 'password', title: 'Agora uma senha', sub: 'Mínimo 10 caracteres. Nada de "123456", ok?', placeholder: 'Senha', icon: 'lock', cta: 'Criar conta' },
+  { key: 'displayName', title: 'Como te chamas?', sub: 'Diz-nos o teu nome, não mordemos', placeholder: 'Nome', icon: 'user', cta: 'Seguinte' },
+  { key: 'username', title: 'Qual vai ser o teu @?', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: 'at', cta: 'Seguinte' },
+  { key: 'email', title: 'E o teu email?', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: 'mail', cta: 'Seguinte' },
+  { key: 'birthDate', title: 'Quando nasceste?', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: 'calendar', cta: 'Seguinte' },
+  { key: 'gender', title: 'Como te identificas?', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, cta: 'Seguinte' },
+  { key: 'password', title: 'Agora uma senha', sub: 'Mínimo 10 caracteres. Nada de «123456», ok?', placeholder: 'Senha', icon: 'lock', cta: 'Criar conta' },
 ];
 
 const ageOf = (v: string) => {
@@ -42,7 +43,7 @@ export function problemOf(key: Key, raw: string): string | null {
   if (key === 'username') {
     if (v.length < 3) return 'Mínimo 3 caracteres';
     if (v.length > 30) return 'Máximo 30 caracteres';
-    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : 'Só letras, números, "_" e ".", sem espaços';
+    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : 'Só letras, números, «_» e «.», sem espaços';
   }
   if (key === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Esse email não parece certo';
   if (key === 'gender') return v ? null : 'Escolhe uma opção';
@@ -89,7 +90,7 @@ export function useAvailability(kind: 'username' | 'email', raw: string, enabled
 
 function strength(p: string) {
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^\w\s]/].filter((r) => r.test(p)).length;
-  if (p.length < 10) return { level: 1, label: 'Ainda fraca', color: '#f87171' };
+  if (p.length < 10) return { level: 1, label: 'Ainda fraca', color: colors.danger };
   if (p.length >= 14 || kinds >= 3) return { level: 3, label: 'Forte', color: '#22c55e' };
   return { level: 2, label: 'Boa', color: '#fbbf24' };
 }
@@ -136,7 +137,7 @@ export default function Register() {
 
   async function next() {
     if (busy) return;
-    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo'));
+    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho…' : 'Preenche este campo'));
     setError('');
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
@@ -186,13 +187,12 @@ export default function Register() {
   };
   const s = step.key === 'password' ? strength(value) : null;
   const status = kind ? (check.state === 'ok' ? 'ok' : check.state === 'bad' ? 'bad' : check.state === 'checking' ? 'checking' : undefined) : undefined;
-  void styles2;
 
   return (
     <>
     <Screen>
       <View style={st.topRow}>
-        <Pressable onPress={back} style={st.back} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={30} strokeWidth={2} color={colors.brand} /></Pressable>
+        <BackButton onPress={back} style={st.back} />
         <View style={st.bars} accessibilityRole="progressbar">
           {steps.map((_, n) => <View key={n} style={[st.bar, { backgroundColor: n <= i ? colors.brand : colors.zinc300 }]} />)}
         </View>
@@ -235,14 +235,14 @@ export default function Register() {
           )}
           {step.key === 'username' && (
             <View style={st.avail}>
-              {check.state === 'checking' && <Text style={st.hint}>A verificar… ⏳</Text>}
-              {check.state === 'ok' && <Text style={[st.hint, { color: '#16a34a', fontWeight: '600' }]}>@{value.trim().replace(/^@/, '')} está livre</Text>}
+              {check.state === 'checking' && <Text style={st.hint}>A verificar…</Text>}
+              {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>@{value.trim().replace(/^@/, '')} está livre</Text>}
               {check.state === 'bad' && (
                 <View>
-                  <Text style={[st.hint, { color: colors.red600, fontWeight: '600' }]}>{check.message}</Text>
+                  <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
                   {check.suggestions && check.suggestions.length > 0 && (
                     <View style={st.sugs}>
-                      {check.suggestions.slice(0, 4).map((u) => <Pressable key={u} onPress={() => set(u)} style={st.sug}><Text style={st.sugText}>@{u}</Text></Pressable>)}
+                      {check.suggestions.slice(0, 4).map((u) => <Chip key={u} label={`@${u}`} onPress={() => set(u)} style={st.sug} />)}
                     </View>
                   )}
                 </View>
@@ -251,12 +251,12 @@ export default function Register() {
           )}
           {step.key === 'email' && check.state === 'bad' && (
             <View style={st.avail}>
-              <Text style={[st.hint, { color: colors.red600, fontWeight: '600' }]}>{check.message}</Text>
+              <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
               {check.taken && <Text style={st.link} onPress={() => router.replace('/login')}>Já tens conta? Entra aqui</Text>}
             </View>
           )}
-          {step.key === 'displayName' && value && local ? <Text style={[st.hint, { color: colors.red600, marginTop: 12 }]}>{local}</Text> : null}
-          {step.key === 'birthDate' && value.length === 10 && local ? <Text style={[st.hint, { color: colors.red600, marginTop: 12 }]}>{local}</Text> : null}
+          {step.key === 'displayName' && value && local ? <Text style={[st.hint, { color: colors.danger, marginTop: 12 }]}>{local}</Text> : null}
+          {step.key === 'birthDate' && value.length === 10 && local ? <Text style={[st.hint, { color: colors.danger, marginTop: 12 }]}>{local}</Text> : null}
           {s && value.length > 0 && (
             <View style={st.strength}>
               <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
@@ -280,11 +280,7 @@ export default function Register() {
 
       <View style={st.alert} accessibilityRole="alert"><Text style={st.alertText}>{error}</Text></View>
       <View style={{ marginTop: 'auto', paddingBottom: 24 }}>
-        <Pressable onPress={() => void next()} disabled={busy || blocked} style={({ pressed }) => [st.ctaWrap, (busy || blocked) && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-          <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={st.cta}>
-            {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={st.ctaText}>{step.cta}</Text>}
-          </LinearGradient>
-        </Pressable>
+        <Button label={step.cta} onPress={() => void next()} loading={busy} disabled={blocked} block style={styles2.cta} />
       </View>
     </Screen>
     {human.node}
@@ -294,7 +290,7 @@ export default function Register() {
 
 const st = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 8 },
-  back: { marginLeft: -4, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  back: { marginLeft: -12 },
   bars: { flex: 1, flexDirection: 'row', gap: 6 },
   bar: { flex: 1, height: 6, borderRadius: 3 },
   invite: { marginBottom: 16, borderRadius: 16, backgroundColor: '#ecfdf5', paddingHorizontal: 16, paddingVertical: 10, textAlign: 'center', fontSize: 15, fontWeight: '600', color: '#065f46', overflow: 'hidden' },
@@ -305,8 +301,8 @@ const st = StyleSheet.create({
   avail: { marginTop: 12, minHeight: 52, paddingHorizontal: 4 },
   hint: { fontSize: 14, color: colors.zinc600 },
   sugs: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  sug: { borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6 },
-  sugText: { fontSize: 14, fontWeight: '600', color: colors.brand },
+  /** Chip branco por cima do fundo creme do registo. */
+  sug: { backgroundColor: '#fff' },
   link: { marginTop: 4, fontSize: 14, fontWeight: '600', color: colors.brand, textDecorationLine: 'underline' },
   strength: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   sbar: { flex: 1, height: 6, borderRadius: 3 },
@@ -314,8 +310,5 @@ const st = StyleSheet.create({
   box: { marginTop: 2, width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   termsText: { flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc700 },
   alert: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  alertText: { fontSize: 15, color: colors.red600, textAlign: 'center' },
-  ctaWrap: { borderRadius: 999, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
-  cta: { borderRadius: 999, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#fff', fontSize: 18, lineHeight: 28, fontWeight: '600' },
+  alertText: { fontSize: 15, color: colors.danger, textAlign: 'center' },
 });

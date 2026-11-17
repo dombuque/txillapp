@@ -7,7 +7,7 @@ import { holdMenu, SPEEDS, speedLabel, type HoldItem } from '@/lib/reelView';
 
 /**
  * O menu de segurar o dedo numa tcheka (como no TikTok): em cima três atalhos grandes (Não me interessa, Denunciar,
- * Guardar), depois a velocidade (0,5× a 2×), as legendas (se o vídeo as tiver), presentear e o menu ⋯ de sempre.
+ * Guardar), depois a velocidade (0,5× a 2×), as legendas (se o vídeo as tiver), oferecer vibes e o menu ⋯ de sempre.
  * A tcheka continua a tocar por trás.
  */
 export function HoldMenu({ mine, saved, canGift, speed, captions, captionsOn, onPick, onSpeed, onClose }: {
@@ -58,8 +58,8 @@ export function HoldMenu({ mine, saved, canGift, speed, captions, captionsOn, on
         </View>
 
         {items.includes('captions') && row('captions', <Icon name="file-text" size={22} color="#fff" />, 'Legendas', <Text style={st.rowRight}>{captionsOn ? 'Ligadas' : 'Desligadas'}</Text>)}
-        {items.includes('gift') && row('gift', <Icon name="gift" size={22} color="#fff" />, 'Presentear')}
-        {row('more', <Icon name="more" size={22} color="#fff" strokeWidth={3} />, 'Mais opções')}
+        {items.includes('gift') && row('gift', <Icon name="gift" size={22} color="#fff" />, 'Oferecer vibes')}
+        {row('more', <Icon name="more" size={22} color="#fff" />, 'Mais opções')}
       </View>
     </Sheet>
   );

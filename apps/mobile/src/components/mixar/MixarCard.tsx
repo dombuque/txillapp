@@ -3,7 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { showToast } from '@/lib/toast';
 import { mixarApi, mixarKeys, type ChatMixar } from '@/lib/api.mixar';
 import { CARD_ACTION_LABEL, firstName, mixarCardState, mixarErrorText } from '@/lib/mixar';
 import { colors } from '@/lib/theme';
@@ -43,7 +44,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
       setM({ ...m, status: 'active', name: r.name || m.name });
       refresh();
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
     } finally {
       setBusy(null);
     }
@@ -56,7 +57,7 @@ export function MixarCard({ mixar: initial, peer, peerHandle }: { mixar: ChatMix
       setM({ ...m, status: 'declined' });
       refresh();
     } catch (e) {
-      Alert.alert('Não deu', mixarErrorText(e, 'Não consegui recusar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, 'Não consegui recusar agora. Tenta outra vez.'));
     } finally {
       setBusy(null);
     }

@@ -46,3 +46,43 @@ export function BrandLoader({ message }: { message?: string }) {
     </View>
   );
 }
+
+/** A carregar um ecrã ou um bloco: o ponto de 18 ao centro, com 48 de margem em cima (o mesmo em toda a app). */
+export function PageLoader({ dark = false, style }: { dark?: boolean; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[{ alignItems: 'center', paddingTop: 48, paddingBottom: 24 }, style]}>
+      <PontoLoader size={18} color={dark ? '#ffffff' : colors.brand} />
+    </View>
+  );
+}
+
+/**
+ * Esqueleto das listas principais enquanto carregam: `rows` linhas com um avatar redondo e dois traços.
+ * `avatar` o diâmetro (44 por omissão; 0 tira o avatar).
+ */
+export function ListSkeleton({ rows = 6, avatar = 44, dark = false, style }: { rows?: number; avatar?: number; dark?: boolean; style?: StyleProp<ViewStyle> }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(t, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+      Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [t]);
+  const opacity = t.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] });
+  const fill = dark ? 'rgba(255,255,255,0.1)' : colors.zinc100;
+  return (
+    <Animated.View style={[{ paddingHorizontal: 16, paddingTop: 8, opacity }, style]} accessibilityRole="progressbar" accessibilityLabel="A carregar">
+      {Array.from({ length: rows }, (_, i) => (
+        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+          {avatar ? <View style={{ width: avatar, height: avatar, borderRadius: avatar / 2, backgroundColor: fill }} /> : null}
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ height: 12, borderRadius: 6, width: `${55 + ((i * 17) % 30)}%`, backgroundColor: fill }} />
+            <View style={{ height: 10, borderRadius: 5, width: `${30 + ((i * 23) % 35)}%`, backgroundColor: fill }} />
+          </View>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}

@@ -45,7 +45,8 @@ test('o ecrã da conversa e a lista usam estas regras', () => {
   const inbox = read('src/app/(tabs)/messages.tsx');
   assert.match(inbox, /const failed = inboxFailed\(/);
   assert.match(inbox, /failed \? \(/);
-  assert.match(inbox, /Não consegui carregar as mensagens/);
+  // O erro comum (components/ui/ErrorState): «Ups, não consegui carregar as mensagens» e «Tentar outra vez».
+  assert.match(inbox, /<ErrorState what="as mensagens"/);
 });
 
 test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os botões da pesquisa têm 44 de altura', () => {

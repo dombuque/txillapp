@@ -6,6 +6,7 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions
 import { Empty } from '@/components/Empty';
 import { ExploreViewer } from '@/components/ExploreViewer';
 import { Icon } from '@/components/Icon';
+import { LoadMore } from '@/components/LoadMore';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
@@ -160,7 +161,8 @@ export default function SoundScreen() {
         contentContainerStyle={{ gap: 2, paddingBottom: 32 }}
         ListHeaderComponent={sound.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : header ?? undefined}
         ListEmptyComponent={sound.isSuccess ? (grid.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : <Empty icon="film" title="Ainda ninguém usou este som" text="Sê a primeira pessoa." />) : undefined}
-        ListFooterComponent={grid.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : undefined}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={grid.hasNextPage ? <LoadMore onLoad={() => { if (grid.hasNextPage && !grid.isFetchingNextPage) void grid.fetchNextPage(); }} loading={grid.isFetchingNextPage} label="Ver mais tchekas" /> : undefined}
         onEndReached={() => grid.hasNextPage && !grid.isFetchingNextPage && void grid.fetchNextPage()}
         renderItem={({ item, index }) => <Cell post={item} size={cell} original={index === 0 && sort === 'top' && s?.sourcePost?.id === item.id} onPress={() => setViewing(item.id)} />}
       />

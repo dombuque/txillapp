@@ -9,6 +9,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PlaceField, type PlaceFieldHandle } from '@/components/PlaceField';
+import { Chip } from '@/components/ui/Chip';
 import { PontoLoader } from '@/components/PontoLoader';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
@@ -24,6 +25,7 @@ import { sized } from '@/lib/config';
 import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { ApiError } from '@/lib/api';
 import { resyncDraft } from '@/lib/draftSync';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
 
@@ -196,11 +198,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       <Text style={st.label}>Nome e tipo</Text>
       {input('name', 'Nome do local', { maxLength: 80 })}
       <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {KINDS.map((k) => (
-          <Pressable key={k} onPress={() => setF((o) => ({ ...o, kind: k }))} accessibilityRole="radio" accessibilityState={{ selected: f.kind === k }} style={[st.chip, f.kind === k && { backgroundColor: colors.zinc900 }]}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: f.kind === k ? '#fff' : colors.zinc800 }}>{KIND_LABEL[k]}</Text>
-          </Pressable>
-        ))}
+        {KINDS.map((k) => <Chip key={k} label={KIND_LABEL[k]} selected={f.kind === k} onPress={() => setF((o) => ({ ...o, kind: k }))} />)}
       </View>
       <Text style={st.label}>Onde e quando</Text>
       <PlaceField ref={placeRef} label="Onde fica?" value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
@@ -258,8 +256,12 @@ function Managers({ v }: { v: Venue }) {
       if ('left' in r) { void qc.invalidateQueries({ queryKey: ['venue', v.slug] }); void qc.invalidateQueries({ queryKey: ['venues-mine'] }); goBack(router, '/locais'); }
       return r;
     }, self ? 'Saíste da página.' : 'Gestor removido.');
-    if (Platform.OS === 'web') { if (confirm(self ? 'Sair desta página?' : `Tirar @${u} da página?`)) void go(); return; }
-    Alert.alert(self ? 'Sair da página?' : `Tirar @${u}?`, self ? 'Deixas de poder publicar como este local.' : 'Deixa de poder gerir ou publicar como este local.', [{ text: 'Cancelar', style: 'cancel' }, { text: self ? 'Sair' : 'Tirar', style: 'destructive', onPress: () => void go() }]);
+    void confirm({
+      title: self ? 'Sair da página?' : `Tirar @${u}?`,
+      message: self ? 'Deixas de poder publicar como este local.' : 'Deixa de poder gerir ou publicar como este local.',
+      confirm: self ? 'Sair' : 'Tirar',
+      danger: true,
+    }).then((ok) => { if (ok) void go(); });
   };
 
   return (
@@ -277,11 +279,11 @@ function Managers({ v }: { v: Venue }) {
             {m.role !== 'owner' && (v.canEdit || self) ? (
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {v.canEdit && m.status === 'active' ? (
-                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), 'Papel alterado.')} disabled={busy} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? 'Passar a editor' : 'Passar a administrador'}>
+                  <Pressable onPress={() => void run(() => locaisApi.setRole(v.slug, m.username, m.role === 'admin' ? 'editor' : 'admin'), 'Papel alterado.')} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={m.role === 'admin' ? 'Passar a editor' : 'Passar a administrador'}>
                     <Icon name={m.role === 'admin' ? 'user' : 'shield'} size={18} color={colors.zinc800} />
                   </Pressable>
                 ) : null}
-                <Pressable onPress={() => remove(m.username, self)} disabled={busy} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? 'Sair da página' : 'Tirar da página'}>
+                <Pressable onPress={() => remove(m.username, self)} disabled={busy} hitSlop={4} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={self ? 'Sair da página' : 'Tirar da página'}>
                   <Icon name={self ? 'logout' : 'x'} size={18} color={colors.red600} />
                 </Pressable>
               </View>
@@ -294,11 +296,7 @@ function Managers({ v }: { v: Venue }) {
           <Text style={{ fontSize: 16, fontWeight: '800', color: colors.zinc900 }}>Convidar um gestor</Text>
           <TextInput value={username} onChangeText={setUsername} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Nome de utilizador" style={st.input} />
           <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
-            {(['editor', 'admin'] as const).map((r) => (
-              <Pressable key={r} onPress={() => setRole(r)} accessibilityRole="radio" accessibilityState={{ selected: role === r }} style={[st.chip, role === r && { backgroundColor: colors.zinc900 }]}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: role === r ? '#fff' : colors.zinc800 }}>{ROLE_LABEL[r]}</Text>
-              </Pressable>
-            ))}
+            {(['editor', 'admin'] as const).map((r) => <Chip key={r} label={ROLE_LABEL[r]} selected={role === r} onPress={() => setRole(r)} />)}
           </View>
           <Pressable onPress={() => void invite()} disabled={busy || username.trim().length < 3} style={[st.cta, (busy || username.trim().length < 3) && { opacity: 0.5 }]} accessibilityRole="button">
             <Text style={st.ctaText}>{busy ? 'A enviar…' : 'Enviar convite'}</Text>
@@ -398,14 +396,14 @@ const st = StyleSheet.create({
   mapNoticeText: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: '#78350f' },
   noticeBtn: { height: 36, borderRadius: 999, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc900 },
   noticeBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14 },
   tab: { height: 36, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.zinc900 },
   tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc700 },
   hint: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   label: { marginTop: 6, fontSize: 13, fontWeight: '700', color: colors.zinc500, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
-  chip: { height: 40, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+
   cta: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   secondary: { height: 40, borderRadius: 999, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100 },
@@ -413,9 +411,9 @@ const st = StyleSheet.create({
   coverPick: { height: 150, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' },
   pickBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
   pickText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  mRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 12 },
+  mRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, padding: 12 },
   iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   inviteBox: { gap: 10, borderRadius: 20, backgroundColor: colors.rose50, padding: 14 },
-  stat: { flexBasis: '48%', flexGrow: 1, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
-  chart: { borderRadius: 20, backgroundColor: '#fafafa', padding: 14 },
+  stat: { flexBasis: '48%', flexGrow: 1, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14 },
+  chart: { borderRadius: 20, backgroundColor: colors.zinc50, padding: 14 },
 });

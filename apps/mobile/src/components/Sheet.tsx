@@ -2,13 +2,14 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Modal, iosWeb } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/lib/theme';
+import { colors, dark as DARK_UI } from '@/lib/theme';
 import { useDesktop } from '@/lib/desktop';
 import { menuPosition, type Rect } from '@/lib/desktopKeys';
 import { useOverlay } from '@/lib/overlays';
 import { sheetHeights, sheetViewport } from '@/lib/sheetViewport';
 import { Icon } from './Icon';
 import { ListReset } from './ListReset';
+import { Button } from './ui/Button';
 import { useVisibleViewport } from './zas/useVisibleViewport';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
@@ -17,6 +18,9 @@ export const useSheetScroll = () => useContext(ScrollCtx);
 /** Em que forma está a folha à volta (as linhas de menu ficam compactas no menu pendente do computador). */
 const ModeCtx = createContext<SheetMode>('bottom');
 export const useSheetMode = () => useContext(ModeCtx);
+/** A folha à volta é escura (as linhas de menu, ActionRow, pintam-se de claro). */
+const DarkCtx = createContext(false);
+export const useSheetDark = () => useContext(DarkCtx);
 
 /**
  * Como a folha aparece no computador (no telemóvel é sempre a folha de baixo):
@@ -39,8 +43,11 @@ export const PANEL_W = 460;
  * No computador muda de forma (`variant`, ver SheetVariant), não se arrasta e fecha com Esc, com um clique fora ou no ×.
  * `dark`: a folha escura (fundo #1c1c1e, como o seletor de música por cima do mimo ou do vídeo).
  * `dim`: quanto escurece o que está por trás (0,4 por omissão; os comentários de uma tcheka escurecem pouco: o vídeo continua à vista).
+ * `cancel`: o botão «Cancelar» no fim (menus de ações, no telemóvel; nunca em formulários, que têm o × ou «Feito»). Com texto,
+ * usa esse texto.
+ * Regra: por cima de vídeo ou câmara em ecrã inteiro (tcheka, mimo, Zás, Txillada, estúdio) a folha é `dark`; no resto, clara.
  */
-export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null, dark = false, dim = 0.4 }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null; dark?: boolean; dim?: number }) {
+export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null, dark = false, dim = 0.4, cancel }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null; dark?: boolean; dim?: number; cancel?: boolean | string }) {
   const insets = useSafeAreaInsets();
   const h = Dimensions.get('window').height;
   const y = useRef(new Animated.Value(h)).current;
@@ -104,7 +111,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
 
   const head = title && !plain ? (
     <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead]}>
-      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1}>{title}</Text>
+      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1} accessibilityRole="header">{title}</Text>
       {mode === 'dialog' || mode === 'panel' ? (
         <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
           <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
@@ -133,10 +140,10 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
             accessibilityViewIsModal
             role="menu"
           >
-            <ListReset><ModeCtx.Provider value={mode}><ScrollCtx.Provider value={{ top: atTop }}>
+            <ListReset><ModeCtx.Provider value={mode}><DarkCtx.Provider value={dark}><ScrollCtx.Provider value={{ top: atTop }}>
               {head}
               {body}
-            </ScrollCtx.Provider></ModeCtx.Provider></ListReset>
+            </ScrollCtx.Provider></DarkCtx.Provider></ModeCtx.Provider></ListReset>
           </Animated.View>
         </View>
       </Modal>
@@ -152,7 +159,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: y.interpolate({ inputRange: [0, h], outputRange: [0.25, 0], extrapolate: 'clamp' }) }]} />
           <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
           <Animated.View style={[styles.panel, dark && { backgroundColor: DARK.bg }, { width: w, transform: [{ translateX: y.interpolate({ inputRange: [0, h], outputRange: [0, w], extrapolate: 'clamp' }) }] }]} accessibilityViewIsModal>
-            <ListReset><ModeCtx.Provider value={mode}><ScrollCtx.Provider value={{ top: atTop }}>
+            <ListReset><ModeCtx.Provider value={mode}><DarkCtx.Provider value={dark}><ScrollCtx.Provider value={{ top: atTop }}>
               {head}
               <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
               {head ? null : (
@@ -161,7 +168,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
                   <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
                 </Pressable>
               )}
-            </ScrollCtx.Provider></ModeCtx.Provider></ListReset>
+            </ScrollCtx.Provider></DarkCtx.Provider></ModeCtx.Provider></ListReset>
           </Animated.View>
         </View>
       </Modal>
@@ -179,11 +186,16 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
           style={[styles.sheet, dark && { backgroundColor: DARK.bg }, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
           accessibilityViewIsModal
         >
-          <ListReset><ModeCtx.Provider value={mode}><ScrollCtx.Provider value={{ top: atTop }}>
+          <ListReset><ModeCtx.Provider value={mode}><DarkCtx.Provider value={dark}><ScrollCtx.Provider value={{ top: atTop }}>
             {desktop ? <View style={{ height: 8 }} /> : <View style={[styles.handle, dark && { backgroundColor: DARK.handle }]} />}
             {head}
             {body}
-          </ScrollCtx.Provider></ModeCtx.Provider></ListReset>
+            {cancel && mode === 'bottom' ? (
+              <View style={styles.cancel}>
+                <Button label={typeof cancel === 'string' ? cancel : 'Cancelar'} kind="secondary" dark={dark} block onPress={close} />
+              </View>
+            ) : null}
+          </ScrollCtx.Provider></DarkCtx.Provider></ModeCtx.Provider></ListReset>
         </Animated.View>
       </View>
     </Modal>
@@ -191,17 +203,18 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
 }
 
 /** As cores da folha escura. */
-export const DARK = { bg: '#1c1c1e', hover: '#2c2c2e', handle: '#5a5a5e', icon: '#e5e5ea' } as const;
+export const DARK = { bg: DARK_UI.bg, hover: DARK_UI.raised, handle: DARK_UI.handle, icon: DARK_UI.icon } as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
   sheet: { width: '100%', maxWidth: 576, backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 12 },
-  handle: { alignSelf: 'center', width: 40, height: 6, borderRadius: 3, backgroundColor: colors.zinc300, marginBottom: 12 },
+  handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 2.5, backgroundColor: colors.zinc300, marginBottom: 12 },
   head: { paddingHorizontal: 24, marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: '700', color: colors.zinc900 },
+  title: { fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   deskHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, paddingRight: 14 },
   menuHead: { paddingHorizontal: 16, paddingTop: 6, marginBottom: 2 },
   menuTitle: { fontSize: 13, fontWeight: '600', color: colors.zinc500 },
+  cancel: { paddingHorizontal: 16, paddingTop: 8 },
   x: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   panelX: { position: 'absolute', right: 12, top: 12 },
   deskScroll: { flexGrow: 0, flexShrink: 1, minHeight: 0 },

@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
@@ -9,6 +8,7 @@ import { GoogleButton } from '@/components/GoogleButton';
 import { useHumanCheck } from '@/components/HumanCheck';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
+import { Button } from '@/components/ui/Button';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -39,7 +39,7 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
   const [shown, setShown] = useState(false);
   const tint = focus ? colors.brand : colors.zinc600;
   return (
-    <View style={[styles.field, { boxShadow: status === 'ok' ? '0 0 0 2px #22c55e' : status === 'bad' ? '0 0 0 2px #ef4444' : focus ? `0 0 0 2px ${colors.brand}` : '0 1px 10px rgba(0,0,0,0.06)' }]}>
+    <View style={[styles.field, { boxShadow: status === 'ok' ? '0 0 0 2px #22c55e' : status === 'bad' ? `0 0 0 2px ${colors.danger}` : focus ? `0 0 0 2px ${colors.brand}` : '0 1px 10px rgba(0,0,0,0.06)' }]}>
       <Icon name={icon} size={22} color={tint} />
       <TextInput
         {...rest}
@@ -53,7 +53,7 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
       />
       {status === 'checking' && <ActivityIndicator size="small" color={colors.zinc600} />}
       {status === 'ok' && <Icon name="check" size={22} color="#22c55e" strokeWidth={2.4} />}
-      {status === 'bad' && <Icon name="x" size={22} color="#ef4444" strokeWidth={2.4} />}
+      {status === 'bad' && <Icon name="x" size={22} color={colors.danger} strokeWidth={2.4} />}
       {secure && (
         <Pressable onPress={() => setShown((s) => !s)} hitSlop={8} accessibilityRole="button" accessibilityLabel={shown ? 'Esconder a senha' : 'Mostrar a senha'}>
           <Icon name={shown ? 'eye-off' : 'eye'} size={22} color={colors.zinc600} />
@@ -74,8 +74,8 @@ function BrandPanel() {
   ] as const;
   return (
     <View style={{ width: '46%', maxWidth: 640, justifyContent: 'space-between', overflow: 'hidden', backgroundColor: colors.canvas, padding: 56 }}>
-      <Blob size={480} color="#d6334f" style={{ right: -150, top: -150 }} />
-      <Blob size={400} color="#fcd34d" style={{ left: -170, bottom: 0 }} />
+      <Blob size={480} color={colors.brand} style={{ right: -150, top: -150 }} />
+      <Blob size={400} color={colors.amber300} style={{ left: -170, bottom: 0 }} />
       <Pressable onPress={() => router.push('/' as never)} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial" style={{ alignSelf: 'flex-start' }}><Wordmark height={48} /></Pressable>
       <View>
         <Text style={{ fontSize: 48, fontWeight: '800', lineHeight: 50, letterSpacing: -1, color: colors.zinc900 }}>Posta. Mostra.{'\n'}<Text style={{ color: colors.brand }}>Txilla.</Text></Text>
@@ -115,8 +115,8 @@ export function Screen({ children, footer }: { children: ReactNode; footer?: Rea
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' }} behavior="padding">
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Blob size={380} color="#d6334f" style={{ right: -150, top: -150 }} />
-        <Blob size={340} color="#fcd34d" style={{ left: -170, top: 190 }} />
+        <Blob size={380} color={colors.brand} style={{ right: -150, top: -150 }} />
+        <Blob size={340} color={colors.amber300} style={{ left: -170, top: 190 }} />
       </View>
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 24, paddingHorizontal: 28, paddingBottom: footer ? 0 : insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {children}
@@ -212,11 +212,7 @@ export default function Login() {
         <View style={styles.alert} accessibilityRole="alert">
           <Text style={styles.alertText}>{error}</Text>
         </View>
-        <Pressable onPress={() => void submit()} disabled={busy} style={({ pressed }) => [styles.ctaWrap, busy && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-          <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.cta}>
-            {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={styles.ctaText}>Entrar</Text>}
-          </LinearGradient>
-        </Pressable>
+        <Button label="Entrar" onPress={() => void submit()} loading={busy} block style={styles.cta} />
         <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">Esqueceste a senha?</Text>
       </View>
       <GoogleButton mode="login" onError={setError} />
@@ -234,10 +230,9 @@ const styles = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16 },
   input: { flex: 1, minWidth: 0, fontSize: 18, lineHeight: 24, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   alert: { minHeight: 40, alignItems: 'center', justifyContent: 'center' },
-  alertText: { fontSize: 15, color: colors.red600, textAlign: 'center' },
-  ctaWrap: { borderRadius: 999, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
-  cta: { borderRadius: 999, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#fff', fontSize: 18, lineHeight: 28, fontWeight: '600' },
+  alertText: { fontSize: 15, color: colors.danger, textAlign: 'center' },
+  /** O botão de entrar e de criar conta (Button lg) com a sombra coral da marca. */
+  cta: { boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   // 12 em cima e em baixo: a ligação tem o toque de 44 px, não só a altura da letra.
   forgot: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 12, textAlign: 'center', fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' },
   footer: { borderTopWidth: 1, borderTopColor: colors.zinc200, backgroundColor: 'rgba(255,255,255,0.7)', paddingTop: 20, alignItems: 'center' },

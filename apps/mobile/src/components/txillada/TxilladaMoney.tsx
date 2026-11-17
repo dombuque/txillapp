@@ -4,8 +4,9 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
+import { Button } from '@/components/ui/Button';
 import { txilladaApi } from '@/lib/api.txillada';
-import { colors } from '@/lib/theme';
+import { colors, dark as D } from '@/lib/theme';
 import { VIB, formatVibes } from '@/lib/vibes';
 import { GIFT_MAX, GIFT_PRESETS, fmtTxills, giftError, goalProgress, parseAmount, txillsLabel, type TxilladaDto, type TxilladaGiver } from '@/lib/txillada';
 import { GlassButton, LiveBadge } from './TxilladaParts';
@@ -150,7 +151,7 @@ export function TopGivers({ items }: { items: readonly TxilladaGiver[] }) {
 }
 
 /**
- * A folha «Oferecer Txills» (num Panel claro): 5, 10, 50, 100 ou outro valor, o saldo e «Oferecer». Sem saldo: a mensagem e
+ * A folha «Oferecer vibes» (no Panel escuro, por cima da Txillada): 5, 10, 50, 100 ou outro valor, o saldo e «Oferecer». Sem saldo: a mensagem e
  * «Ver a carteira». `onSend` devolve o saldo novo, ou o erro.
  */
 export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
@@ -216,7 +217,7 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
       </View>
       {given ? (
         <View style={gs.done} accessibilityRole="alert" accessibilityLiveRegion="polite">
-          <Icon name="check" size={16} color={colors.green700} strokeWidth={2.6} />
+          <Icon name="check" size={16} color={DONE} strokeWidth={2.6} />
           <Text style={gs.doneText} numberOfLines={2}>
             {given.total === given.last ? `Ofereceste ${txillsLabel(given.last)} a @${host}.` : `Ofereceste ${txillsLabel(given.last)} (${txillsLabel(given.total)} agora) a @${host}.`} Toca de novo para dar mais.
           </Text>
@@ -230,7 +231,7 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
             keyboardType="number-pad"
             inputMode="numeric"
             placeholder="Outro valor"
-            placeholderTextColor={colors.zinc500}
+            placeholderTextColor={D.sub}
             style={gs.customInput}
             maxLength={4}
             returnKeyType="send"
@@ -240,9 +241,15 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
           <Text style={gs.customUnit}>{VIB}</Text>
         </View>
         {custom ? (
-          <Pressable onPress={() => void give(customAmount, 'custom')} disabled={busy != null || customAmount == null} style={({ pressed }) => [gs.customSend, (busy != null || customAmount == null) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.96 }] }]} accessibilityRole="button" accessibilityLabel={customAmount != null ? `Oferecer ${txillsLabel(customAmount)}` : 'Oferecer'}>
-            {busy === 'custom' ? <ActivityIndicator color="#fff" /> : <Text style={gs.customSendText}>Oferecer</Text>}
-          </Pressable>
+          <Button
+            label="Oferecer"
+            size="md"
+            dark
+            loading={busy === 'custom'}
+            disabled={busy != null || customAmount == null}
+            onPress={() => void give(customAmount, 'custom')}
+            accessibilityLabel={customAmount != null ? `Oferecer ${txillsLabel(customAmount)}` : 'Oferecer'}
+          />
         ) : null}
       </View>
       <Text style={gs.balance}>{balance == null ? ' ' : `Tens ${txillsLabel(balance)} na carteira.`}</Text>
@@ -310,26 +317,28 @@ const tg = StyleSheet.create({
   total: { color: colors.brandWarm, fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
 });
 
+/** O verde do «Ofereceste…» na folha escura. */
+const DONE = '#86efac';
+
+// A folha de oferecer vive no Panel escuro (Sheet `dark`): as cores vêm de `dark` do tema.
 const gs = StyleSheet.create({
   wrap: { gap: 10, paddingHorizontal: 4, paddingBottom: 6 },
-  lead: { fontSize: 14.5, lineHeight: 20, color: colors.zinc600, textAlign: 'center' },
+  lead: { fontSize: 14.5, lineHeight: 20, color: D.sub, textAlign: 'center' },
   presets: { flexDirection: 'row', gap: 8 },
-  preset: { flex: 1, minWidth: 0, height: 78, gap: 1, borderRadius: 16, borderWidth: 1.5, borderColor: colors.zinc200, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  preset: { flex: 1, minWidth: 0, height: 78, gap: 1, borderRadius: 16, borderWidth: 1.5, borderColor: D.line, backgroundColor: D.raised, alignItems: 'center', justifyContent: 'center' },
   presetOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  presetNum: { fontSize: 20, fontWeight: '900', color: colors.zinc900, fontVariant: ['tabular-nums'] },
-  presetUnit: { fontSize: 11.5, fontWeight: '700', color: colors.zinc500 },
+  presetNum: { fontSize: 20, fontWeight: '900', color: D.text, fontVariant: ['tabular-nums'] },
+  presetUnit: { fontSize: 11.5, fontWeight: '700', color: D.sub },
   customRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  customSend: { height: 48, paddingHorizontal: 20, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  customSendText: { color: '#fff', fontSize: 15.5, fontWeight: '800' },
-  done: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: '#ecfdf5' },
-  doneText: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 19, color: colors.green700, fontWeight: '700' },
-  custom: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: colors.zinc200, paddingRight: 16 },
+  done: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: 'rgba(34,197,94,0.14)' },
+  doneText: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 19, color: DONE, fontWeight: '700' },
+  custom: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: D.line, backgroundColor: D.raised, paddingRight: 16 },
   customOn: { borderColor: colors.brand },
-  customInput: { flex: 1, minWidth: 0, height: 46, paddingHorizontal: 18, fontSize: 16, fontWeight: '700', color: colors.zinc900, outlineStyle: 'none' as never },
-  customUnit: { fontSize: 14, fontWeight: '700', color: colors.zinc500 },
-  balance: { fontSize: 13.5, color: colors.zinc500, textAlign: 'center' },
-  err: { padding: 12, borderRadius: 14, backgroundColor: '#fef2f2', gap: 8, alignItems: 'center' },
-  errText: { color: colors.red600, fontSize: 14, lineHeight: 19, textAlign: 'center', fontWeight: '600' },
+  customInput: { flex: 1, minWidth: 0, height: 46, paddingHorizontal: 18, fontSize: 16, fontWeight: '700', color: D.text, outlineStyle: 'none' as never },
+  customUnit: { fontSize: 14, fontWeight: '700', color: D.sub },
+  balance: { fontSize: 13.5, color: D.sub, textAlign: 'center' },
+  err: { padding: 12, borderRadius: 14, backgroundColor: 'rgba(185,28,28,0.22)', gap: 8, alignItems: 'center' },
+  errText: { color: '#fca5a5', fontSize: 14, lineHeight: 19, textAlign: 'center', fontWeight: '600' },
   walletBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1.5, borderColor: colors.brand },
   walletText: { color: colors.brand, fontSize: 14, fontWeight: '800' },
   send: { height: 52, borderRadius: 26, backgroundColor: colors.brand, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },

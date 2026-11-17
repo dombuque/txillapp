@@ -216,7 +216,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
   const countButton = (wide: boolean) => (
     <Pressable onPress={onOpenList} style={({ pressed }) => [st.cheerBtn, wide ? { flex: 1, justifyContent: 'flex-start' } : st.cheerCount, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={ownerCheersA11yLabel(n)}>
       {wide && <Icon name="cheers" size={22} color={colors.amber600} />}
-      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{wide && isMe ? ownerCheersText(n).replace(/^🥂 /, '') : cheersCount(n)}</Text>
+      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{wide && isMe ? ownerCheersText(n) : cheersCount(n)}</Text>
       <Icon name="chevron-right" size={16} color={colors.zinc500} />
     </Pressable>
   );
@@ -544,7 +544,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
 
   const cardStyle = [st.card, { marginHorizontal: margin, borderColor: pointed ? colors.zinc300 : colors.zinc200, paddingTop: folded ? 12 : 16 }];
   const inner = (
-    <LinearGradient colors={['#fafafa', '#fff', 'rgba(255,255,255,0.6)']} style={StyleSheet.absoluteFill} />
+    <LinearGradient colors={[colors.zinc50, '#fff', 'rgba(255,255,255,0.6)']} style={StyleSheet.absoluteFill} />
   );
   // Fechada, o cabeçalho todo abre a geleira; os brindes ficam fora desse toque (botões próprios para o leitor de ecrã).
   // Os copos (CheersPour) ocupam o cartão inteiro e ficam centrados nele.

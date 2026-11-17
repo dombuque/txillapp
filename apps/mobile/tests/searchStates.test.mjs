@@ -17,7 +17,7 @@ test('pesquisa e menções mantêm os resultados anteriores enquanto carregam', 
 });
 
 test('erro da pesquisa e do Explorar com Tentar outra vez', () => {
-  assert.match(src, /onPress=\{\(\) => void q\.refetch\(\)\}/);
+  assert.match(src, /<ErrorState title="Ups, a pesquisa falhou" onRetry=\{\(\) => void q\.refetch\(\)\} \/>/);
   assert.match(src, /explore\.isError && grid\.length === 0/);
-  assert.match(src, /onPress=\{\(\) => void explore\.refetch\(\)\}/);
+  assert.match(src, /<ErrorState what="o Explorar" onRetry=\{\(\) => void explore\.refetch\(\)\} \/>/);
 });

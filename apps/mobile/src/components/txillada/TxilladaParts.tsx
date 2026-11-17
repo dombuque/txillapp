@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
+import { Button } from '@/components/ui/Button';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
 import { fmtTxills, txillsLabel, viewersLabel } from '@/lib/txillada';
@@ -85,9 +86,7 @@ export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas nã
       <View style={st.endIcon}><Icon name="txillada" size={32} color="#fff" /></View>
       <Text style={st.endTitle} accessibilityRole="header">{title}</Text>
       <Text style={st.endSub}>{sub}</Text>
-      <Pressable onPress={onBack} style={({ pressed }) => [st.cta, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-        <Text style={st.ctaText}>Voltar</Text>
-      </Pressable>
+      <Button label="Voltar" onPress={onBack} style={st.cta} />
     </View>
   );
 }
@@ -122,14 +121,10 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
       {reopen && !cut ? (
         <View style={st.reopen}>
           <Text style={st.endSub}>{reopenText(reopen.raised, reopen.goal, reopen.until)}</Text>
-          <Pressable onPress={reopen.onPress} disabled={reopen.busy} style={({ pressed }) => [st.cta, pressed && { opacity: 0.85 }, reopen.busy && { opacity: 0.6 }]} accessibilityRole="button" testID="txillada-reopen">
-            <Text style={st.ctaText}>{reopen.busy ? 'A reabrir…' : 'Reabrir a Angariação'}</Text>
-          </Pressable>
+          <Button label="Reabrir a Angariação" onPress={reopen.onPress} loading={reopen.busy} style={st.cta} testID="txillada-reopen" />
         </View>
       ) : null}
-      <Pressable onPress={onDone} style={({ pressed }) => [st.cta, reopen && !cut && st.ctaGhost, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-        <Text style={st.ctaText}>Concluir</Text>
-      </Pressable>
+      <Button label="Feito" kind={reopen && !cut ? 'secondary' : 'primary'} dark onPress={onDone} style={st.cta} />
     </View>
   );
 }
@@ -181,9 +176,7 @@ const st = StyleSheet.create({
   cell: { width: 160, paddingVertical: 14, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', gap: 2 },
   cellValue: { color: '#fff', fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
   cellLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '600' },
-  cta: { marginTop: 14, height: 48, minWidth: 180, paddingHorizontal: 28, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  ctaGhost: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  cta: { marginTop: 14, minWidth: 180 },
   reopen: { marginTop: 16, alignItems: 'center', gap: 2 },
   glassBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(14,14,18,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', ...(glass ?? {}) },
   glassOn: { backgroundColor: 'rgba(214,51,79,0.85)', borderColor: 'rgba(255,255,255,0.2)' },

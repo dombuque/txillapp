@@ -147,7 +147,7 @@ export type HoldItem = 'not-interested' | 'report' | 'save' | 'speed' | 'caption
 
 /**
  * O menu de segurar (toque longo no vídeo). Nas tchekas dos outros: «Não me interessa» e «Denunciar»; em todas: guardar
- * e velocidade; «Legendas» só se o vídeo as tiver; «Presentear» só se der; e por fim «Mais opções» (o menu ⋯ de sempre).
+ * e velocidade; «Legendas» só se o vídeo as tiver; «Oferecer vibes» só se der; e por fim «Mais opções» (o menu ⋯ de sempre).
  */
 export function holdMenu(o: { mine: boolean; captions: boolean; canGift?: boolean }): HoldItem[] {
   const out: HoldItem[] = [];

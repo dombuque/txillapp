@@ -4,8 +4,12 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
+import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { locaisApi } from '@/lib/api.locais';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
@@ -34,6 +38,8 @@ export default function PlaceScreen() {
   const venue = useQuery({ queryKey: ['venue-by-name', label.toLowerCase()], queryFn: () => locaisApi.findVenue(label), staleTime: 5 * 60_000, retry: false });
   const first = q.data?.pages[0];
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  const pull = usePullToRefresh(() => q.refetch());
   const vd = venue.data;
 
   const head = (
@@ -48,39 +54,38 @@ export default function PlaceScreen() {
           <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
         </Pressable>
       )}
-      <View accessibilityRole="tablist" style={{ marginVertical: 16, flexDirection: 'row', gap: 8 }}>
-        {([['at', 'Neste sítio'], ['near', 'Perto']] as const).map(([k, text]) => {
-          const dis = k === 'near' && !!first && !first.hasNear;
-          return (
-            <Pressable key={k} onPress={() => setMode(k)} disabled={dis} accessibilityRole="tab" accessibilityState={{ selected: mode === k, disabled: dis }} style={[st.tab, mode === k && { backgroundColor: colors.zinc900 }, dis && { opacity: 0.4 }]}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: mode === k ? '#fff' : colors.zinc800 }}>{text}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* «Perto» sem posições: fica em «Neste sítio» (e a frase por baixo explica porquê). */}
+      <SegmentedTabs tabs={[{ value: 'at', label: 'Neste sítio' }, { value: 'near', label: 'Perto' }]} value={mode} onChange={(k) => { if (k === 'near' && first && !first.hasNear) return; setMode(k); }} style={{ marginVertical: 16 }} />
       {first && !first.hasNear && <Text style={{ marginBottom: 12, fontSize: 14, lineHeight: 20, color: colors.zinc500 }}>Ainda não há publicações com a posição deste sítio, por isso não dá para ver o que há por perto.</Text>}
     </View>
   );
 
   return (
     <StackPage title={label}>
+      <PullView pull={pull}>
       <FlatList
         data={items}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={head}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         ListEmptyComponent={
           q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (
-            <Empty icon="map-pin" title="Não consegui ver este sítio agora" />
+            <ErrorState what="este sítio" onRetry={() => void q.refetch()} />
           ) : (
             <Empty icon="map-pin" title={mode === 'at' ? 'Ainda ninguém publicou aqui' : 'Nada por perto, por agora'} />
           )
         }
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}
         viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
+      </PullView>
     </StackPage>
   );
 }

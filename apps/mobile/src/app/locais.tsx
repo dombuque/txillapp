@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PlaceField } from '@/components/PlaceField';
+import { Chip } from '@/components/ui/Chip';
 import { StackPage } from '@/components/StackPage';
 import { VenueRow } from '@/components/VenueCard';
 import { KIND_LABEL, KINDS, ROLE_LABEL, locaisApi } from '@/lib/api.locais';
@@ -96,11 +97,7 @@ export default function Locais() {
             <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>Criar uma página de local</Text>
             <TextInput value={name} onChangeText={setName} maxLength={80} placeholder="Nome do local" placeholderTextColor={colors.zinc500} accessibilityLabel="Nome do local" style={st.input} />
             <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {KINDS.map((k) => (
-                <Pressable key={k} onPress={() => setKind(k)} accessibilityRole="radio" accessibilityState={{ selected: kind === k }} style={[st.chip, kind === k && { backgroundColor: colors.zinc900 }]}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: kind === k ? '#fff' : colors.zinc800 }}>{KIND_LABEL[k]}</Text>
-                </Pressable>
-              ))}
+              {KINDS.map((k) => <Chip key={k} label={KIND_LABEL[k]} selected={kind === k} onPress={() => setKind(k)} />)}
             </View>
             <PlaceField label="Onde fica?" value={place} onChange={setPlace} onTyped={setTyped} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
             <View style={st.switchRow}>
@@ -131,15 +128,15 @@ export default function Locais() {
 
 const st = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '800', color: colors.zinc900, marginBottom: 4 },
-  row: { borderRadius: 20, backgroundColor: '#fafafa', paddingHorizontal: 14, paddingVertical: 8, gap: 8, marginBottom: 8 },
+  row: { borderRadius: 20, backgroundColor: colors.zinc50, paddingHorizontal: 14, paddingVertical: 8, gap: 8, marginBottom: 8 },
   invite: { borderRadius: 20, backgroundColor: colors.rose50, paddingHorizontal: 14, paddingVertical: 8 },
   small: { height: 34, borderRadius: 999, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100 },
   smallText: { fontSize: 13, fontWeight: '700', color: colors.zinc900 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: colors.zinc50, padding: 14 },
   warn: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 14, backgroundColor: '#fffbeb', paddingHorizontal: 12, paddingVertical: 10 },
   warnText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#78350f' },
-  chip: { height: 40, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+
   cta: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

@@ -4,7 +4,7 @@ import Animated, { Easing, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSh
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { InlineBadge, NameWithBadge } from '@/components/NameWithBadge';
-import { colors } from '@/lib/theme';
+import { colors, dark as D } from '@/lib/theme';
 import { REACTIONS, joinedParts, partsText, viewerStack, type FxParticle, type FxPerson, type Hello, type ReactionKind, type TextPart } from '@/lib/txilladaFx';
 import { viewersLabel } from '@/lib/txillada';
 
@@ -14,7 +14,7 @@ function Parts({ parts, style, lines = 1 }: { parts: readonly TextPart[]; style:
   return (
     <Text style={style} numberOfLines={lines}>
       {parts.map((p, i) => (p.t === 'text' ? p.s : (
-        <Text key={i}>@{p.u.username}{p.u.verified ? <InlineBadge who={{ verified: true, verifiedTier: p.u.verifiedTier ?? 'verified' }} fontSize={size} /> : null}</Text>
+        <Text key={i}>@{p.u.username}<InlineBadge who={p.u} fontSize={size} /></Text>
       )))}
     </Text>
   );
@@ -140,7 +140,7 @@ export function HelloStack({ items, top, left, width }: { items: readonly Hello[
 
 /**
  * O aviso discreto de quem entrou (um de cada vez, agrupado: «@a, @b e mais 3 entraram»). O anfitrião pode responder com
- * um toque: a uma pessoa, «Olá @rui 👋»; a várias, «Olá a todos».
+ * um toque («Dizer olá»): a uma pessoa, «Olá @rui» com o aceno; a várias, «Olá a todos».
  */
 export function JoinedToast({ users, bottom, left, onHello }: { users: readonly FxPerson[] | null; bottom: number; left: number; onHello?: (u: FxPerson | null) => void }) {
   if (!users?.length) return null;
@@ -157,7 +157,7 @@ export function JoinedToast({ users, bottom, left, onHello }: { users: readonly 
         ))}
       </View>
       <Parts parts={parts} style={fx.joinText} />
-      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>👋 {users.length === 1 ? 'Olá' : 'Olá a todos'}</Text></View> : null}
+      {onHello ? <View style={fx.joinBtn}><Text style={fx.joinBtnText}>{users.length === 1 ? 'Dizer olá' : 'Olá a todos'}</Text></View> : null}
     </>
   );
   return (
@@ -202,7 +202,7 @@ export function ViewersList({ items, onOpen }: { items: readonly FxPerson[]; onO
   if (!items.length) {
     return (
       <View style={fx.empty}>
-        <Icon name="users" size={28} color={colors.zinc300} />
+        <Icon name="users" size={28} color={D.sub} />
         <Text style={fx.emptyText}>Ainda ninguém está a ver.</Text>
       </View>
     );
@@ -210,7 +210,7 @@ export function ViewersList({ items, onOpen }: { items: readonly FxPerson[]; onO
   return (
     <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 8 }}>
       {items.map((u) => (
-        <Pressable key={u.username} onPress={onOpen ? () => onOpen(u) : undefined} style={({ pressed }) => [fx.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole={onOpen ? 'link' : undefined} accessibilityLabel={`${u.displayName}, @${u.username}`}>
+        <Pressable key={u.username} onPress={onOpen ? () => onOpen(u) : undefined} style={({ pressed }) => [fx.row, pressed && { backgroundColor: D.raised }]} accessibilityRole={onOpen ? 'link' : undefined} accessibilityLabel={`${u.displayName}, @${u.username}`}>
           <Avatar name={u.displayName} username={u.avatarUrl ? u.username : undefined} size={40} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <NameWithBadge name={u.displayName} who={u} style={fx.rowName} />
@@ -253,8 +253,9 @@ const fx = StyleSheet.create({
   stackAv: { borderRadius: 999, borderWidth: 1.5, borderColor: 'rgba(14,14,18,0.9)' },
   stackText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28 },
-  emptyText: { color: colors.zinc500, fontSize: 15 },
+  // «A ver agora», no Panel escuro.
+  emptyText: { color: D.sub, fontSize: 15 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 12 },
-  rowName: { color: colors.zinc900, fontSize: 15.5, fontWeight: '700' },
-  rowUser: { color: colors.zinc500, fontSize: 13.5, marginTop: 1 },
+  rowName: { color: D.text, fontSize: 15.5, fontWeight: '700' },
+  rowUser: { color: D.sub, fontSize: 13.5, marginTop: 1 },
 });

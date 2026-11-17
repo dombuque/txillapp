@@ -5,8 +5,12 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { PostCard } from '@/components/PostCard';
+import { LoadMore } from '@/components/LoadMore';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { useAuth } from '@/lib/auth';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
@@ -25,12 +29,19 @@ export default function TagScreen() {
   });
   const first = q.data?.pages[0];
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
+  const pull = usePullToRefresh(() => q.refetch());
   return (
     <StackPage title={`#${first?.tag ?? tag}`}>
+      <PullView pull={pull}>
       <FlatList
         data={items}
         keyExtractor={(p) => p.id}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
+        onEndReached={loadMore}
+        onEndReachedThreshold={1.5}
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         ListHeaderComponent={
           <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
             {first && (
@@ -38,21 +49,17 @@ export default function TagScreen() {
                 <Text style={st.b}>{first.posts}</Text> {first.posts === 1 ? 'publicação' : 'publicações'} · <Text style={st.b}>{first.authors}</Text> {first.authors === 1 ? 'pessoa' : 'pessoas'}
               </Text>
             )}
-            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="tablist">
-              {([['recent', 'Recentes'], ['top', 'Mais reagidas']] as const).map(([k, label]) => (
-                <Pressable key={k} onPress={() => setSort(k)} style={[st.pill, sort === k && { backgroundColor: colors.brand }]} accessibilityRole="tab" accessibilityState={{ selected: sort === k }}>
-                  <Text style={[st.pillText, sort === k && { color: '#fff' }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedTabs tabs={[{ value: 'recent', label: 'Recentes' }, { value: 'top', label: 'Mais reagidas' }]} value={sort} onChange={setSort} />
           </View>
         }
-        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? <Empty icon="search" title="Esta hashtag não existe" /> : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (q.error instanceof ApiError && q.error.status === 404 ? <Empty icon="search" title="Esta hashtag não existe" /> : <ErrorState what="esta hashtag" onRetry={() => void q.refetch()} />) : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
+        // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
+        ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}
         viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
+      </PullView>
     </StackPage>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { CallIcon } from '@/components/calls/CallIcons';
@@ -180,7 +181,7 @@ function Row({ c, onOpen, onMention }: { c: TxilladaComment; onOpen?: (c: Txilla
           {onMention && !gift ? <MentionText text={c.body} onMention={onMention} /> : c.body}
         </Text>
       </View>
-      {pill ? <View style={[st.pill, glassWeb]}><Text style={st.pillText}>{pill}</Text></View> : null}
+      {pill ? <View style={[st.pill, glassWeb]}><Icon name="cheers" size={12} color="#fff" strokeWidth={2.2} /><Text style={st.pillText}>{pill}</Text></View> : null}
     </Pressable>
   );
 }
@@ -198,7 +199,7 @@ const st = StyleSheet.create({
   giftText: { color: '#fff', fontWeight: '700' },
   name: { fontWeight: '800', color: '#fff', letterSpacing: -0.1 },
   text: { color: 'rgba(255,255,255,0.94)', fontSize: 13.5, lineHeight: 18, fontWeight: '500' },
-  pill: { alignSelf: 'flex-end', flexShrink: 0, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
+  pill: { alignSelf: 'flex-end', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: GLASS, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
   pillText: { color: '#fff', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   fresh: { position: 'absolute', bottom: 6, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.brand, boxShadow: '0 4px 14px rgba(0,0,0,0.3)' } as object,
   freshText: { color: '#fff', fontSize: 13, fontWeight: '800' },

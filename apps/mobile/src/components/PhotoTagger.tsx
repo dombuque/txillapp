@@ -68,7 +68,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
               {list.map((t, i) => (
                 <View key={`${t.username}-${i}`} style={[styles.tag, { left: `${t.x * 100}%`, top: `${t.y * 100}%` }, t.x < 0.22 ? null : t.x > 0.78 ? { transform: [{ translateX: -120 }, { translateY: 10 }] } : { transform: [{ translateX: -50 }, { translateY: 10 }] }]}>
                   <NameWithBadge name={t.username} who={t} style={styles.tagText} containerStyle={{ flexShrink: 1 }} />
-                  <Pressable onPress={() => setList(list.filter((_, n) => n !== i))} hitSlop={8} accessibilityLabel={`Tirar a identificação de ${t.username}`}><Icon name="x" size={12} color="#fff" /></Pressable>
+                  <Pressable onPress={() => setList(list.filter((_, n) => n !== i))} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Tirar a identificação de ${t.username}`}><Icon name="x" size={14} color="#fff" /></Pressable>
                 </View>
               ))}
             </View>

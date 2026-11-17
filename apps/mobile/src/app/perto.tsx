@@ -1217,7 +1217,7 @@ function VisibilityCard({ onOpen, onLater }: { onOpen: () => void; onLater: () =
         <View style={st.visIcon}><Icon name="eye-off" size={18} color={colors.zinc700} /></View>
         <Text style={st.visTitle} numberOfLines={1}>Estás invisível</Text>
         <Pressable onPress={onLater} hitSlop={4} style={({ pressed }) => [st.visX, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel="Agora não">
-          <Icon name="x" size={16} color={colors.zinc500} />
+          <Icon name="x" size={18} color={colors.zinc500} />
         </Pressable>
       </View>
       <Text style={st.visText}>A malta não te vê no mapa. Tu vês tudo na mesma.</Text>

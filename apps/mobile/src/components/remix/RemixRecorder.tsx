@@ -192,7 +192,7 @@ export function RemixRecorder({ original, title, overlay, onDone, onClose }: { o
       <View style={st.top}>
         <Pressable onPress={onClose} disabled={recording} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title} numberOfLines={1}>{title}</Text>
-        <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} disabled={recording} style={[st.round, recording && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar a câmara"><Icon name="flip-camera" size={22} color="#fff" /></Pressable>
+        <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} disabled={recording} style={[st.round, recording && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar a câmara"><Icon name="cam-flip" size={24} color="#fff" /></Pressable>
       </View>
 
       <View style={st.stage}>

@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
 import { permissionsOnboardingDone } from '@/components/PermissionsOnboarding';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { TX } from '@/icons/tx';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -212,20 +213,8 @@ export function PushReminderSheet({ device, name, start = 'main', onDone }: { de
           {err ? <Text style={st.err} accessibilityLiveRegion="polite">{err}</Text> : null}
         </SheetScroll>
         <View style={st.foot}>
-          <Pressable
-            onPress={() => void press()}
-            disabled={busy}
-            style={({ pressed }) => [st.primary, (pressed || busy) && { opacity: 0.85 }]}
-            accessibilityRole="button"
-            accessibilityState={{ busy, disabled: busy }}
-          >
-            <Text style={st.primaryText}>{busy ? 'A ligar…' : primary}</Text>
-          </Pressable>
-          {view !== 'install' ? (
-            <Pressable onPress={() => onDone(false)} style={({ pressed }) => [st.later, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
-              <Text style={st.laterText}>{REMINDER_LATER}</Text>
-            </Pressable>
-          ) : null}
+          <Button label={primary} onPress={() => void press()} loading={busy} block />
+          {view !== 'install' ? <Button label={REMINDER_LATER} kind="ghost" onPress={() => onDone(false)} block /> : null}
         </View>
       </View>
     </Sheet>
@@ -395,9 +384,7 @@ export function PushOffBanner({ device, onRefresh }: { device: DeviceNotif; onRe
         </View>
       </View>
       {err ? <Text style={[st.err, { textAlign: 'left' }]} accessibilityLiveRegion="polite">{err}</Text> : null}
-      <Pressable onPress={() => void press()} disabled={busy} style={({ pressed }) => [st.bannerBtn, (pressed || busy) && { opacity: 0.85 }]} accessibilityRole="button" accessibilityState={{ busy, disabled: busy }}>
-        <Text style={st.primaryText}>{busy ? 'A ligar…' : REMINDER_BUTTON}</Text>
-      </Pressable>
+      <Button label={REMINDER_BUTTON} onPress={() => void press()} loading={busy} size="md" block />
       {sheet ? (
         <PushReminderSheet
           device={device}
@@ -423,17 +410,12 @@ const st = StyleSheet.create({
   num: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
   numText: { fontSize: 14, fontWeight: '800', color: colors.brand },
   stepText: { flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc900 },
-  err: { marginTop: 12, fontSize: 14, lineHeight: 20, color: colors.red600, textAlign: 'center' },
+  err: { marginTop: 12, fontSize: 14, lineHeight: 20, color: colors.danger, textAlign: 'center' },
   foot: { paddingHorizontal: 24, paddingTop: 8, gap: 4 },
-  primary: { minHeight: 52, borderRadius: 26, paddingHorizontal: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  later: { minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  laterText: { fontSize: 15, fontWeight: '700', color: colors.zinc600 },
   banner: { padding: 16, gap: 12, backgroundColor: colors.rose50 },
   bannerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   bannerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   bannerTitle: { fontSize: 16, fontWeight: '700', color: colors.zinc900 },
   bannerText: { marginTop: 2, fontSize: 14, lineHeight: 20, color: colors.zinc600 },
-  bannerBtn: { minHeight: 46, borderRadius: 23, paddingHorizontal: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
 });
 

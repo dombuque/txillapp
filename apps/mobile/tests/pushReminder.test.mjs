@@ -208,9 +208,9 @@ test('a folha rola e os botões ficam fora da parte que rola (nunca escondidos e
   assert.ok(primary > scrollEnd, 'o botão principal vem depois da parte que rola');
   assert.match(src, /wrap: \{ flexShrink: 1/);
   assert.match(src, /scroll: \{ flexGrow: 0, flexShrink: 1/);
-  // áreas de toque de 44 pt ou mais
-  for (const k of ['primary', 'later', 'bannerBtn']) {
-    const m = src.match(new RegExp(`\\b${k}: \\{ minHeight: (\\d+)`));
-    assert.ok(m && Number(m[1]) >= 44, k);
-  }
+  // áreas de toque de 44 pt ou mais: os botões são o Button partilhado (lg 52, md 44), nunca o sm.
+  assert.match(sheet, /<Button label=\{primary\} onPress=\{\(\) => void press\(\)\} loading=\{busy\} block \/>/);
+  assert.match(sheet, /<Button label=\{REMINDER_LATER\} kind="ghost" onPress=\{\(\) => onDone\(false\)\} block \/>/);
+  assert.match(src, /<Button label=\{REMINDER_BUTTON\} onPress=\{\(\) => void press\(\)\} loading=\{busy\} size="md" block \/>/);
+  assert.doesNotMatch(src, /<Button [^\n]*size="sm"/);
 });

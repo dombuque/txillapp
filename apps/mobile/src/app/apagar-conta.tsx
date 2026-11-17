@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { PageLoader } from '@/components/PontoLoader';
+import { Button } from '@/components/ui/Button';
 import { StackPage } from '@/components/StackPage';
 import { DELETION_DELETED, DELETION_KEPT, DELETION_STEPS, DELETION_WHEN } from '@/lib/accountDeletion';
 import { ApiError } from '@/lib/api';
@@ -88,9 +89,7 @@ function Explain() {
             style={st.input}
           />
           <Text style={st.err} accessibilityRole="alert">{error}</Text>
-          <Pressable onPress={() => void submit()} disabled={busy} style={({ pressed }) => [st.btn, busy && { opacity: 0.6 }, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnText}>Enviar a ligação</Text>}
-          </Pressable>
+          <Button label="Enviar a ligação" onPress={() => void submit()} loading={busy} style={{ marginTop: 4 }} />
         </View>
       )}
 
@@ -143,30 +142,29 @@ function Confirm({ token }: { token: string }) {
   if (done) {
     return (
       <View style={{ marginTop: 24, gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="check-circle" size={30} color="#16a34a" /><Text style={st.h1}>Conta apagada</Text></View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="check-circle" size={30} color={colors.green600} /><Text style={st.h1}>Conta apagada</Text></View>
         <Text style={st.p}>A tua conta do Txillapp e os teus dados foram apagados. Obrigado por teres feito parte da malta.</Text>
-        <Pressable onPress={() => router.replace('/')} style={st.ghost} accessibilityRole="link"><Text style={st.ghostText}>Ir para o início</Text></Pressable>
+        <Button label="Ir para o início" kind="secondary" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
       </View>
     );
   }
   return (
     <>
       <Text style={st.h1} accessibilityRole="header">Confirmar: apagar a conta</Text>
-      {!who && !error ? <ActivityIndicator style={{ marginTop: 24 }} /> : null}
+      {!who && !error ? <PageLoader style={{ paddingTop: 24 }} /> : null}
       {who ? (
         <>
           <Text style={st.p}>Vais apagar a conta <Text style={{ fontWeight: '700' }}>@{who.username}</Text> ({who.displayName}) e os teus dados. Isto não se desfaz.</Text>
           <What />
           <Text style={st.err} accessibilityRole="alert">{error}</Text>
-          <Pressable onPress={() => void confirm()} disabled={busy} style={({ pressed }) => [st.btn, st.danger, busy && { opacity: 0.6 }, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.btnText}>Apagar a minha conta para sempre</Text>}
-          </Pressable>
-          <Pressable onPress={() => router.replace('/')} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Cancelar, não quero apagar</Text></Pressable>
+          {/* Esta página é a própria confirmação (como a caixa): o botão vermelho cheio. */}
+          <Button label="Apagar a minha conta para sempre" kind="dangerSolid" onPress={() => void confirm()} loading={busy} style={{ marginTop: 20 }} />
+          <Button label="Cancelar, não quero apagar" kind="ghost" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
         </>
       ) : error ? (
         <>
           <Text style={[st.err, { textAlign: 'left', marginTop: 16 }]} accessibilityRole="alert">{error}</Text>
-          <Pressable onPress={() => router.replace('/apagar-conta' as never)} style={st.ghost} accessibilityRole="link"><Text style={st.ghostText}>Pedir uma ligação nova</Text></Pressable>
+          <Button label="Pedir uma ligação nova" kind="secondary" onPress={() => router.replace('/apagar-conta' as never)} style={{ marginTop: 8 }} />
         </>
       ) : null}
     </>
@@ -184,10 +182,5 @@ const st = StyleSheet.create({
   num: { marginTop: 6, width: 24, height: 24, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.zinc100, textAlign: 'center', lineHeight: 24, fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   box: { marginTop: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: 16, backgroundColor: colors.zinc100, padding: 14 },
   input: { height: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.zinc200, paddingHorizontal: 16, fontSize: 16, color: colors.zinc900, backgroundColor: '#fff' },
-  err: { minHeight: 20, fontSize: 14, color: colors.red600, textAlign: 'center' },
-  btn: { minHeight: 50, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, marginTop: 4 },
-  danger: { backgroundColor: colors.red600, marginTop: 20 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  ghost: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  ghostText: { color: colors.zinc700, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
+  err: { minHeight: 20, fontSize: 14, color: colors.danger, textAlign: 'center' },
 });

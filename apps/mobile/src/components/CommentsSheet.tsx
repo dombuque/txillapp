@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState, useEffect } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { CheersPour } from './CheersPour';
@@ -16,6 +16,11 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { ActionRow } from './ui/ActionRow';
+import { Button } from './ui/Button';
+import { ErrorState } from './ui/ErrorState';
+import { EmptyState } from './Empty';
+import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
@@ -106,23 +111,15 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       setSaving(false);
     }
   }
-  function confirmDelete() {
-    Alert.alert('Apagar o comentário?', 'O comentário desaparece e não dá para o recuperar.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Apagar',
-        style: 'destructive',
-        onPress: async () => {
-          setGone(true);
-          try {
-            await api.deleteComment(c.id);
-            onRemoved(c);
-          } catch {
-            setGone(false);
-          }
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    if (!(await confirm({ title: 'Apagar o comentário?', message: 'O comentário desaparece e não dá para o recuperar.', confirm: 'Apagar', danger: true }))) return;
+    setGone(true);
+    try {
+      await api.deleteComment(c.id);
+      onRemoved(c);
+    } catch {
+      setGone(false);
+    }
   }
   // Segurar no comentário abre o menu (responder, editar, apagar, denunciar), como no Instagram.
   // Fica antes do `return` do comentário apagado: um hook depois dele mudava a ordem dos hooks e o ecrã rebentava ao apagar.
@@ -170,10 +167,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
             <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
             {editErr ? <Text style={styles.err}>{editErr}</Text> : null}
             <View style={styles.editBtns}>
-              <Pressable onPress={() => { setEditing(false); setEditErr(''); }} style={styles.cancel}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
-              <Pressable onPress={() => void saveEdit()} disabled={saving || !draft.trim()} style={[styles.save, (saving || !draft.trim()) && { opacity: 0.5 }]}>
-                <Text style={styles.saveText}>{saving ? 'A guardar…' : 'Guardar'}</Text>
-              </Pressable>
+              <Button label="Cancelar" kind="ghost" size="sm" onPress={() => { setEditing(false); setEditErr(''); }} />
+              <Button label="Guardar" size="sm" onPress={() => void saveEdit()} loading={saving} disabled={!draft.trim()} />
             </View>
           </View>
         ) : (
@@ -187,8 +182,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
               <Text style={styles.askTitle} numberOfLines={1}>{ask.title}</Text>
               <Text style={styles.askHint}>{ask.hint}</Text>
             </View>
-            <Pressable onPress={() => onGift(c, ask.amount, ask.note)} style={styles.askBtn}><Text style={styles.askBtnText}>Presentear</Text></Pressable>
-            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityLabel="Dispensar sugestão"><Icon name="x" size={16} color={colors.zinc500} /></Pressable>
+            <Button label="Oferecer" size="sm" onPress={() => onGift(c, ask.amount, ask.note)} accessibilityLabel={`Oferecer vibes a ${c.author.displayName}`} />
+            <Pressable onPress={() => setDismissed(true)} hitSlop={6} style={styles.askX} accessibilityRole="button" accessibilityLabel="Dispensar sugestão"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
         <View style={styles.links}>
@@ -207,7 +202,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       </View>
       {desktop ? (
         <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções do comentário" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
-          <Icon name="more" size={18} strokeWidth={2.6} color={colors.zinc600} />
+          <Icon name="more" size={18} color={colors.zinc600} />
         </Pressable>
       ) : null}
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
@@ -216,12 +211,12 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       <CheersPour n={burst} size={120} />
       {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
-        <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null}>
+        <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={[styles.menu, desktop && menuAt ? { paddingHorizontal: 6 } : null]}>
-            <Pressable onPress={() => { setMenu(false); onReply(c); }} style={styles.menuRow} accessibilityRole="button"><Icon name="reply" size={22} /><Text style={styles.menuText}>Responder</Text></Pressable>
-            {mine && !editing && <Pressable onPress={() => { setMenu(false); startEdit(); }} style={styles.menuRow} accessibilityRole="button"><Icon name="pencil" size={22} /><Text style={styles.menuText}>Editar</Text></Pressable>}
-            {canDelete && <Pressable onPress={() => { setMenu(false); setTimeout(confirmDelete, 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="trash" size={22} color={colors.red600} /><Text style={[styles.menuText, { color: colors.red600 }]}>Apagar</Text></Pressable>}
-            {!mine && <Pressable onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="flag" size={22} /><Text style={styles.menuText}>Denunciar</Text></Pressable>}
+            <ActionRow icon="reply" title="Responder" onPress={() => { setMenu(false); onReply(c); }} />
+            {mine && !editing && <ActionRow icon="pencil" title="Editar" onPress={() => { setMenu(false); startEdit(); }} />}
+            {canDelete && <ActionRow icon="trash" title="Apagar" danger onPress={() => { setMenu(false); setTimeout(() => void confirmDelete(), 250); }} />}
+            {!mine && <ActionRow icon="flag" title="Denunciar" danger onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} />}
           </View>
         </Sheet>
       )}
@@ -378,16 +373,9 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
         )}
         ListEmptyComponent={
           q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
-            <View style={{ paddingVertical: 40, alignItems: 'center' }} accessibilityRole="alert">
-              <Text style={[styles.empty, { color: colors.red600, paddingVertical: 0 }]}>Ups, não consegui carregar</Text>
-              <Pressable onPress={() => void q.refetch()} style={styles.retry} accessibilityRole="button"><Text style={styles.retryText}>Tentar outra vez</Text></Pressable>
-            </View>
+            <ErrorState what="os comentários" onRetry={() => void q.refetch()} />
           ) : (
-            <View style={{ paddingVertical: 56, alignItems: 'center' }}>
-              <Icon name="comment-off" size={36} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>Ainda ninguém disse nada</Text>
-              <Text style={styles.empty}>Sê o primeiro a puxar conversa</Text>
-            </View>
+            <EmptyState icon="comment-off" title="Ainda ninguém disse nada" text="Sê o primeiro a puxar conversa." />
           )
         }
         onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
@@ -396,14 +384,14 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }
       {!post.canComment && post.author.id !== user?.id ? (
         <View style={styles.off}>
           <Icon name="bell-off" size={16} color={colors.zinc600} />
-          <Text style={styles.offText}>{post.author.displayName} desativou os comentários nesta publicação.</Text>
+          <Text style={styles.offText}><Text style={{ fontWeight: '700' }}>{post.author.displayName}</Text><InlineBadge who={post.author} fontSize={14} /> desativou os comentários nesta publicação.</Text>
         </View>
       ) : (
         <KeyboardAvoidingView behavior="padding" style={styles.bar}>
           {replyTo && (
             <View style={styles.replying}>
               <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text><InlineBadge who={replyTo.author} fontSize={14} /></Text>
-              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityLabel="Cancelar resposta"><Text style={{ fontSize: 18, color: colors.zinc600, paddingHorizontal: 8 }}>×</Text></Pressable>
+              <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancelar resposta" style={{ paddingHorizontal: 8 }}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
             </View>
           )}
           {typing.length > 0 && (
@@ -456,7 +444,7 @@ const styles = StyleSheet.create({
   tchekaReply: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#fdecef' },
   tchekaReplyText: { fontSize: 12, fontWeight: '700', color: colors.brand },
   link: { fontSize: 12, fontWeight: '600', color: colors.zinc500 },
-  menu: { paddingHorizontal: 8, paddingBottom: 8 },
+  menu: { paddingHorizontal: 20, paddingBottom: 8 },
   menuRow: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, borderRadius: 16 },
   menuText: { fontSize: 17, fontWeight: '500', color: colors.zinc900 },
   thread: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
@@ -480,7 +468,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: 16, color: colors.zinc500, textAlign: 'center', paddingVertical: 20 },
   emptyTitle: { marginTop: 8, fontSize: 18, fontWeight: '700', color: colors.zinc900 },
   off: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingHorizontal: 16, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  offText: { color: colors.zinc600, textAlign: 'center', flexShrink: 1 },
+  offText: { fontSize: 14, color: colors.zinc600, textAlign: 'center', flexShrink: 1 },
   bar: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingBottom: 4 },
   replying: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 8 },
   replyingText: { fontSize: 14, color: colors.zinc600 },

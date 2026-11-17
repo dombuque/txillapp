@@ -22,8 +22,8 @@ test('convite: sem rede (ou erro do servidor) há "Tentar outra vez"; só um 4xx
 
 test('pedidos: a carregar, falhou (com tentar outra vez), número com nome para o leitor de ecrã e sem dois pedidos', () => {
   const src = read('orders.tsx');
-  assert.match(src, /orders\.isLoading \? <ActivityIndicator/);
-  assert.match(src, /Não consegui carregar os pedidos/);
+  assert.match(src, /orders\.isLoading \? <PageLoader/);
+  assert.match(src, /<ErrorState what="os pedidos" onRetry=\{\(\) => void orders\.refetch\(\)\}/);
   assert.match(src, /accessibilityLabel=\{`O teu número \$\{chosen\.label\}`\}/);
   assert.match(src, /if \(busy \|\| !chosen \|\| !chosenPkg\) return;/);
 });
@@ -40,7 +40,10 @@ test('Ajuda: procura sem acentos (normalize das Definições) e a pergunta abert
   assert.match(src, /setOpen\(open === f\.q \? null : f\.q\)/);
   assert.doesNotMatch(src, /list\.map\(\(f, i\)/);
   // O botão do ecrã de entrada chama-se «Esqueceste a senha?»: a Ajuda diz o mesmo.
-  assert.match(src, /toca em "Esqueceste a senha\?"/);
+  assert.match(src, /toca em «Esqueceste a senha\?»/);
+  // Só aspas «» no texto da Ajuda (as retas ficam para o código).
+  const faq = src.slice(src.indexOf('const FAQ'), src.indexOf('/** Ajuda:'));
+  assert.doesNotMatch(faq, /"/);
 });
 
 test('criar evento: no Android as horas abrem o teclado numérico (o de pontuação não existe lá) e sem dois envios', () => {

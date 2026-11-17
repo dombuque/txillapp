@@ -16,6 +16,8 @@ import { CommentsSheet } from '@/components/CommentsSheet';
 import { FollowButton } from '@/components/FollowButton';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/Empty';
 import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
@@ -205,7 +207,7 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
         </Pressable>
         <Text style={st.endReplay}>Ver outra vez</Text>
         <Pressable onPress={more} style={({ pressed }) => [st.endNext, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
-          <Text style={st.endNextText}>Próximo</Text>
+          <Text style={st.endNextText}>Seguinte</Text>
           <Icon name="arrow-up" size={18} strokeWidth={2.6} color="#fff" />
         </Pressable>
       </View>
@@ -678,7 +680,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
         {/* Quem publicou não deixa repostar (lib/repost): sem o botão, a não ser que haja um repost meu para desfazer. */}
         {showRepostButton(post) ? (
           <RailButton
-            icon={<View style={[railStyles.circle, post.reposted && { backgroundColor: 'rgba(16,185,129,0.9)' }]}><Icon name="repeat" size={26} color="#fff" /></View>}
+            icon={<View style={[railStyles.circle, post.reposted && { backgroundColor: 'rgba(16,185,129,0.9)' }]}><Icon name="repeat" size={28} color="#fff" /></View>}
             label={compactCount(post.reposts)}
             onPress={() => setSheet('repost')}
             selected={!!post.reposted}
@@ -687,8 +689,8 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
             labelA11y="Ver quem repostou"
           />
         ) : null}
-        <RailButton icon={<View style={railStyles.circle}><BookmarkIcon on={!!post.saved} size={26} color={post.saved ? '#f5c518' : '#fff'} /></View>} onPress={() => void save()} selected={!!post.saved} accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} />
-        <RailButton icon={<View style={railStyles.circle}><Icon name="share" size={26} color="#fff" /></View>} onPress={() => setSheet('share')} accessibilityLabel="Partilhar" />
+        <RailButton icon={<View style={railStyles.circle}><BookmarkIcon on={!!post.saved} size={28} color={post.saved ? '#f5c518' : '#fff'} /></View>} onPress={() => void save()} selected={!!post.saved} accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} />
+        <RailButton icon={<View style={railStyles.circle}><Icon name="share" size={28} color="#fff" /></View>} onPress={() => setSheet('share')} accessibilityLabel="Partilhar" />
         {extraActions ?? <ReelExtraActions post={post} active={active} />}
         {sound && <SoundDisc sound={sound} spinning={shouldPlay} onPress={goSound} />}
       </Animated.View>
@@ -736,7 +738,7 @@ function ReelsTop({ tab, onTab, top }: { tab: ReelTab; onTab: (t: ReelTab) => vo
   return (
     <View style={[st.top, { paddingTop: top }]} pointerEvents="box-none">
       {/* Sem seta de voltar: nas tchekas o deslize para os lados muda de aba. */}
-      <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Nova tcheka"><Icon name="plus" size={26} color="#fff" strokeWidth={2.4} /></Pressable>
+      <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Nova tcheka"><Icon name="plus" size={24} color="#fff" strokeWidth={2.4} /></Pressable>
       <View style={st.tabs} accessibilityRole="tablist">
         {REEL_TABS.map((t) => {
           const on = t.id === tab;
@@ -748,7 +750,7 @@ function ReelsTop({ tab, onTab, top }: { tab: ReelTab; onTab: (t: ReelTab) => vo
           );
         })}
       </View>
-      <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Filtros das tchekas"><Icon name="sliders" size={22} color="#fff" /></Pressable>
+      <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Filtros das tchekas"><Icon name="sliders" size={24} color="#fff" /></Pressable>
     </View>
   );
 }
@@ -894,25 +896,16 @@ export default function Reels() {
             onEndReachedThreshold={1}
             ListEmptyComponent={
               loading ? <View style={[st.center, { height }]}><ActivityIndicator color="#fff" /></View> : q.isError ? (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]} accessibilityRole="alert">
-                  <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Ups, as tchekas não carregaram</Text>
-                  <Text style={st.emptySub}>Verifica a ligação e tenta outra vez.</Text>
-                  <Pressable onPress={() => void q.refetch()} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
+                <View style={[st.center, { height }]} accessibilityRole="alert">
+                  <ErrorState dark what="as tchekas" onRetry={() => void q.refetch()} style={{ marginTop: 0 }} />
                 </View>
               ) : tab === 'following' ? (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]}>
-                  <Icon name="users" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Nada de quem segues</Text>
-                  <Text style={st.emptySub}>Quando a malta que segues publicar tchekas, aparecem aqui.</Text>
-                  <Pressable onPress={() => pickTab('foryou')} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Ver «Para ti»</Text></Pressable>
+                <View style={[st.center, { height }]}>
+                  <EmptyState dark icon="users" title="Nada de quem segues" text="Quando a malta que segues publicar tchekas, aparecem aqui." action={{ label: 'Ver «Para ti»', onPress: () => pickTab('foryou') }} style={{ marginTop: 0 }} />
                 </View>
               ) : (
-                <View style={[st.center, { height, paddingHorizontal: 32 }]}>
-                  <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Ainda sem tchekas</Text>
-                  <Text style={st.emptySub}>Sê tu a começar: grava um vídeo até 60 segundos.</Text>
-                  <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Publicar um vídeo</Text></Pressable>
+                <View style={[st.center, { height }]}>
+                  <EmptyState dark icon="film" title="Ainda sem tchekas" text="Sê tu a começar: grava um vídeo até 60 segundos." action={{ label: 'Publicar um vídeo', onPress: () => router.push('/new' as never) }} style={{ marginTop: 0 }} />
                 </View>
               )
             }

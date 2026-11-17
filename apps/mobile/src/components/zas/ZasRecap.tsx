@@ -12,6 +12,7 @@ import { CloseFriendsSheet } from '@/components/StoryParts';
 import { ApiError, api } from '@/lib/api';
 import { instantsApi, type RecapAudience, type ZasRecap } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { abs } from '@/lib/config';
 import { finePointer } from '@/lib/desktopKeys';
 import { colors } from '@/lib/theme';
@@ -89,23 +90,15 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
     }
   }
 
-  function discard() {
+  async function discard() {
     if (!r) return;
-    Alert.alert('Descartar o resumo?', 'Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Descartar',
-        style: 'destructive',
-        onPress: () => {
-          instantsApi.removeRecap(r.id).then(() => {
-            qc.setQueryData<ZasRecap[]>(['zas-recaps'], (l) => (l ? l.filter((x) => x.id !== r.id) : l));
-            void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
-            qc.removeQueries({ queryKey: ['zas-recap'] });
-            onClose();
-          }).catch((e) => setErr((e as Error).message || 'Não consegui descartar o resumo.'));
-        },
-      },
-    ]);
+    if (!(await confirm({ title: 'Descartar o resumo?', message: 'Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.', confirm: 'Descartar', danger: true }))) return;
+    instantsApi.removeRecap(r.id).then(() => {
+      qc.setQueryData<ZasRecap[]>(['zas-recaps'], (l) => (l ? l.filter((x) => x.id !== r.id) : l));
+      void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
+      qc.removeQueries({ queryKey: ['zas-recap'] });
+      onClose();
+    }).catch((e) => setErr((e as Error).message || 'Não consegui descartar o resumo.'));
   }
 
   // A área à volta: a partir de 820 px de largura, a imagem à esquerda e as ações ao lado.
@@ -293,7 +286,7 @@ const st = StyleSheet.create({
   brand: { fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' },
   title: { fontSize: 19, fontWeight: '800', letterSpacing: -0.3, color: '#fff' },
   handle: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
-  card: { borderRadius: 28, overflow: 'hidden', backgroundColor: '#18181b', boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)' },
+  card: { borderRadius: 28, overflow: 'hidden', backgroundColor: colors.zinc900, boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)' },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, maxWidth: 460 },
   privacyText: { flexShrink: 1, fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.75)' },
   primary: { height: 52, borderRadius: 999, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(214,51,79,0.4)' },

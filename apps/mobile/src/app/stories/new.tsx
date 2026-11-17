@@ -20,6 +20,7 @@ import { shrinkPhoto } from '@/lib/cropToRatio';
 import { mimoFromParams } from '@/lib/signedMedia';
 import { musicApi, musicPayload, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from '@/components/FeatureIntro';
 import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
@@ -190,12 +191,12 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   function confirmClose() {
     if (busy) return;
     const t = discardCopy('mimo', asset.video);
-    Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: onClose }]);
+    void confirm({ title: t.title, message: t.message, confirm: t.discard, cancel: t.keep, danger: true }).then((ok) => { if (ok) onClose(); });
   }
   function confirmRetake(go: () => void) {
     if (!mimoEdited({ caption, stickers: counts.stickers, texts: counts.texts, music: !!music })) return go();
     const t = discardCopy('retake');
-    Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: go }]);
+    void confirm({ title: t.title, message: t.message, confirm: t.discard, cancel: t.keep, danger: true }).then((ok) => { if (ok) go(); });
   }
   const closeRef = useRef(confirmClose);
   closeRef.current = confirmClose;

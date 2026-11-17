@@ -32,5 +32,5 @@ test('os ecrãs passam o foco à parte (onScreen), em vez de o meter no active',
   const reels = readFileSync(path.join(ROOT, 'src', 'app', '(tabs)', 'reels.tsx'), 'utf8');
   assert.match(reels, /reelShouldPlay\(\{ active, onScreen,/);
   assert.match(reels, /if \(!reelResets\(\{ active, onScreen \}\)\) return;/);
-  assert.match(reels, /Tentar outra vez/, 'erro com tentar outra vez');
+  assert.match(reels, /<ErrorState dark what="as tchekas" onRetry=\{\(\) => void q\.refetch\(\)\}/, 'erro com tentar outra vez');
 });

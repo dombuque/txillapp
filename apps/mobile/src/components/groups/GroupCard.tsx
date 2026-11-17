@@ -59,14 +59,14 @@ function soon(start?: string | null, end?: string | null): string | null {
   return c.replace(/^Daqui a (\d+) dias$/, 'Faltam $1 dias');
 }
 
-/** A linha de contexto: "Viagem · Tofo · 28 dez – 2 jan · 6 vão" ou, sem plano, "Viagem · 8 pessoas". */
+/** A linha de contexto: «Viagem · Tofo · 28 dez a 2 jan · 6 vão» ou, sem plano, «Viagem · 8 pessoas». */
 function contextOf(p: GroupCardProps): string {
   const parts: string[] = [kindInfo(p.kind).label];
   const plan = p.plan;
   const passed = !!plan?.startsOn && countdown(plan.startsOn, plan.endsOn) === 'Já passou';
   if (plan?.destination) parts.push(plan.destination);
   const dates = !passed ? dateRange(plan?.startsOn, plan?.endsOn) : null;
-  if (dates) parts.push(dates.replace(' · ', ' – '));
+  if (dates) parts.push(dates.replace(' · ', ' a '));
   if (plan?.going) parts.push(`${plan.going} ${plan.going === 1 ? 'vai' : 'vão'}`);
   if (parts.length === 1) parts.push(`${p.members} ${p.members === 1 ? 'pessoa' : 'pessoas'}`);
   return parts.join(' · ');

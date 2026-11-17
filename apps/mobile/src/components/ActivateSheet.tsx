@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { Button } from '@/components/ui/Button';
 import { api, onNeedVerify } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -63,17 +64,15 @@ export function ActivateSheet() {
       <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
         <View style={st.hero}>
           <View style={st.heroIcon}><Icon name="mail" size={26} color={colors.brand} /></View>
-          <Text style={st.lead}>Para publicar, comentar, conversar e presentear, falta só confirmares o teu e-mail. É um toque no link que te mandámos.</Text>
+          <Text style={st.lead}>Para publicar, comentar, conversar e oferecer vibes, falta só confirmares o teu e-mail. É um toque no link que te mandámos.</Text>
         </View>
 
         {editing ? (
           <View style={{ gap: 10 }}>
             <TextInput value={draft} onChangeText={setDraft} autoFocus autoCapitalize="none" autoCorrect={false} keyboardType="email-address" inputMode="email" placeholder="o.teu@email.com" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="E-mail certo" onSubmitEditing={() => draft.trim() && change.mutate(draft.trim())} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable onPress={() => setEditing(false)} style={[st.btnSoft, { flex: 1 }]} accessibilityRole="button"><Text style={st.btnSoftText}>Cancelar</Text></Pressable>
-              <Pressable onPress={() => draft.trim() && change.mutate(draft.trim())} disabled={change.isPending || !draft.trim()} style={[st.btn, { flex: 1 }, (change.isPending || !draft.trim()) && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={st.btnText}>{change.isPending ? 'A guardar…' : 'Guardar e enviar'}</Text>
-              </Pressable>
+              <Button label="Cancelar" kind="secondary" onPress={() => setEditing(false)} style={st.half} />
+              <Button label="Guardar e enviar" onPress={() => draft.trim() && change.mutate(draft.trim())} loading={change.isPending} disabled={!draft.trim()} style={st.half} />
             </View>
           </View>
         ) : (
@@ -93,17 +92,11 @@ export function ActivateSheet() {
         {!editing ? (
           <>
             {inbox ? (
-              <Pressable onPress={() => void Linking.openURL(inbox).catch(() => undefined)} style={st.btn} accessibilityRole="button">
-                <Text style={st.btnText}>Abrir o meu e-mail</Text>
-              </Pressable>
+              <Button label="Abrir o meu e-mail" onPress={() => void Linking.openURL(inbox).catch(() => undefined)} block />
             ) : null}
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable onPress={() => resend.mutate()} disabled={resend.isPending} style={[st.btnSoft, { flex: 1 }, resend.isPending && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={st.btnSoftText}>{resend.isPending ? 'A enviar…' : 'Reenviar link'}</Text>
-              </Pressable>
-              <Pressable onPress={() => check.mutate()} disabled={check.isPending} style={[st.btnSoft, { flex: 1 }, check.isPending && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={st.btnSoftText}>{check.isPending ? 'A ver…' : 'Já ativei'}</Text>
-              </Pressable>
+              <Button label="Reenviar link" kind="secondary" onPress={() => resend.mutate()} loading={resend.isPending} style={st.half} />
+              <Button label="Já ativei" kind="secondary" onPress={() => check.mutate()} loading={check.isPending} style={st.half} />
             </View>
           </>
         ) : null}
@@ -122,8 +115,6 @@ const st = StyleSheet.create({
   link: { fontSize: 14, fontWeight: '600', color: colors.brand },
   note: { fontSize: 14, color: colors.zinc700, lineHeight: 19 },
   input: { height: 48, borderRadius: 24, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  btn: { height: 50, borderRadius: 25, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  btnSoft: { height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  btnSoftText: { color: colors.zinc900, fontSize: 15, fontWeight: '600' },
+  /** Dois botões lado a lado. */
+  half: { flex: 1, paddingHorizontal: 12 },
 });

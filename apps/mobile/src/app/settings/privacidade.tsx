@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 import { CloseFriendsSheet } from '@/components/StoryParts';
 import { ChoiceSheet } from '@/components/settings/ChoiceSheet';
 import { CONNECTIONS, NEARBY, VIEWERS, WHO, nearbyLabel, viewersLabel, whoLabel } from '@/components/settings/options';
@@ -14,6 +13,8 @@ import { nearbyApi, type NearbyVisibility } from '@/lib/api.nearby';
 import { KEEP_OFF_PROMPT } from '@/components/zas/zasRecapLogic';
 import { mixarControloApi, mixarControloKeys } from '@/lib/api.mixarControlo';
 import { privateCountLabel } from '@/lib/mixarControlo';
+import { confirm } from '@/lib/confirm';
+import { showToast } from '@/lib/toast';
 
 type SheetName = null | 'type' | 'connections' | 'nearby' | 'blocked' | 'comments' | 'mentions' | 'gifts' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'storyReplies' | 'closeFriends' | 'hidden';
 
@@ -37,7 +38,7 @@ export default function PrivacySettingsScreen() {
       if (v === 'off') void nearbyApi.clearPresence().catch(() => undefined);
       void qc.invalidateQueries({ queryKey: ['nearby'] });
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
 
@@ -51,26 +52,23 @@ export default function PrivacySettingsScreen() {
       qc.setQueryData<ZasSettings>(['zas-settings'], { keepForRecap: r?.keepForRecap ?? on });
       void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
       qc.removeQueries({ queryKey: ['zas-recap'] });
-      if (!on && r?.removed) Alert.alert('Feito', r.removed === 1 ? 'Apagámos 1 Zás guardado.' : `Apagámos ${r.removed} Zás guardados.`);
+      if (!on && r?.removed) showToast(r.removed === 1 ? 'Apagámos 1 Zás guardado.' : `Apagámos ${r.removed} Zás guardados.`);
     } catch (e) {
       qc.setQueryData(['zas-settings'], before);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
-  function toggleZasKeep(on: boolean) {
+  async function toggleZasKeep(on: boolean) {
     // Desligar apaga logo os Zás guardados e o resumo por partilhar: pergunta antes.
     if (on) return void saveZasKeep(true);
-    Alert.alert(KEEP_OFF_PROMPT.title, KEEP_OFF_PROMPT.message, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: KEEP_OFF_PROMPT.confirm, style: 'destructive', onPress: () => void saveZasKeep(false) },
-    ]);
+    if (await confirm({ title: KEEP_OFF_PROMPT.title, message: KEEP_OFF_PROMPT.message, confirm: KEEP_OFF_PROMPT.confirm, danger: true })) void saveZasKeep(false);
   }
 
   async function saveStoryReplies(v: Parameters<typeof api.setStoryReplies>[0]) {
     try {
       qc.setQueryData(['story-settings'], await api.setStoryReplies(v));
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
 

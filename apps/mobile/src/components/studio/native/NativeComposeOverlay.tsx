@@ -1,6 +1,7 @@
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { abs } from '@/lib/config';
 import type { ComposeProblem, RunState } from '@/lib/studio/composeJob';
 import { limitBuffer } from '@/lib/videoMemory';

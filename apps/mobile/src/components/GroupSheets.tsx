@@ -16,6 +16,7 @@ import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
+import { SearchField } from './ui/SearchField';
 
 interface Person extends Badged { username: string; displayName: string; hasAvatar: boolean }
 
@@ -134,10 +135,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
       ) : (
         <View style={{ flex: 1 }}>
           <View style={{ paddingHorizontal: 16 }}>
-            <View style={styles.search}>
-              <Icon name="search" size={18} color={colors.zinc500} />
-              <TextInput value={text} onChangeText={setText} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas" style={styles.searchInput} autoCapitalize="none" />
-            </View>
+            <SearchField value={text} onChangeText={setText} placeholder="Procurar" accessibilityLabel="Procurar pessoas" />
             {!addTo && !groupFlow && !term && (
               <Pressable onPress={() => { setErr(''); setGroupFlow(true); setDetailsFirst(true); setStep('details'); }} style={({ pressed }) => [styles.add, { marginTop: 8 }, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                 <View style={styles.addIcon}><Icon name="users" size={22} color={colors.brand} /></View>
@@ -151,7 +149,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
             {picked.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
                 {picked.map((p) => (
-                  <Pressable key={p.username} onPress={() => toggle(p)} accessibilityLabel={`Tirar ${p.displayName}`} style={{ width: 60, alignItems: 'center', gap: 4 }}>
+                  <Pressable key={p.username} onPress={() => toggle(p)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Tirar ${p.displayName}`} style={{ width: 60, minHeight: 44, alignItems: 'center', gap: 4 }}>
                     <View>
                       <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} />
                       <View style={styles.remove}><Icon name="x" size={12} strokeWidth={3} color="#fff" /></View>
@@ -271,14 +269,19 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
 
   if (confirm) {
     return (
-      <Sheet title="Sair do TxillGroup?" onClose={() => setConfirm(false)}>
-        <View style={{ paddingHorizontal: 24 }}>
-          <Text style={styles.confirmText}>Deixas de receber as mensagens de “{group.name}”. Só voltas se alguém te adicionar.</Text>
-          {err ? <Text style={styles.err}>{err}</Text> : null}
-          <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, user!.username), onLeft)} style={[styles.leave, busy && { opacity: 0.5 }]}><Text style={styles.goText}>Sair do TxillGroup</Text></Pressable>
-          <Pressable onPress={() => setConfirm(false)} style={styles.stay}><Text style={styles.backText}>Ficar</Text></Pressable>
-        </View>
-      </Sheet>
+      <ConfirmSheet
+        title="Sair do TxillGroup?"
+        lines={[`Deixas de receber as mensagens de «${group.name}». Só voltas se alguém te adicionar.`]}
+        confirmLabel="Sair do TxillGroup"
+        cancelLabel="Ficar"
+        danger
+        onConfirm={async () => {
+          await gruposApi.remove(group.id, user!.username);
+          onLeft();
+          onChanged();
+        }}
+        onClose={() => setConfirm(false)}
+      />
     );
   }
 
@@ -335,8 +338,8 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
             );
           }}
           ListFooterComponent={
-            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: '#fef2f2' }]} accessibilityRole="button">
-              <Icon name="logout" size={18} color="#b91c1c" />
+            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: colors.dangerSoft }]} accessibilityRole="button">
+              <Icon name="logout" size={18} color={colors.danger} />
               <Text style={styles.exitText}>Sair do TxillGroup</Text>
             </Pressable>
           }
@@ -355,7 +358,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
       {kick && (
         <ConfirmSheet
           title={`Tirar ${kick.displayName} do TxillGroup?`}
-          lines={[`${kick.displayName} deixa de receber as mensagens de “${group.name}”. ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
+          lines={[`${kick.displayName} deixa de receber as mensagens de «${group.name}». ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
           confirmLabel="Tirar do TxillGroup"
           danger
           onConfirm={async () => {
@@ -395,12 +398,12 @@ function MemberMenuSheet({ member, actions, note, onRole, onRemove, onClose }: {
             key={a.id}
             disabled={!!busy}
             onPress={() => void press(a)}
-            style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: a.destructive ? '#fef2f2' : colors.zinc100 }, !!busy && busy !== a.id && { opacity: 0.5 }]}
+            style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: a.destructive ? colors.dangerSoft : colors.zinc100 }, !!busy && busy !== a.id && { opacity: 0.5 }]}
             accessibilityRole="button"
             accessibilityState={{ disabled: !!busy, busy: busy === a.id }}
           >
-            <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? '#b91c1c' : colors.zinc700} />
-            <Text style={[styles.menuText, a.destructive && { color: '#b91c1c' }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
+            <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? colors.danger : colors.zinc700} />
+            <Text style={[styles.menuText, a.destructive && { color: colors.danger }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
           </Pressable>
         ))}
         {note ? <Text style={styles.menuNote}>{note}</Text> : null}
@@ -416,8 +419,6 @@ const styles = StyleSheet.create({
   chosen: { marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 },
   chipName: { width: '100%', textAlign: 'center', fontSize: 12, color: colors.zinc700 },
   count: { marginTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
-  search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   remove: { position: 'absolute', right: -4, top: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.zinc800, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   sugg: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, fontSize: 13, fontWeight: '700', color: colors.zinc500 },
   none: { paddingVertical: 48, textAlign: 'center', color: colors.zinc500 },
@@ -432,8 +433,6 @@ const styles = StyleSheet.create({
   back: { height: 48, borderRadius: 24, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 16, fontWeight: '600', color: colors.zinc700 },
   hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
-  confirmText: { marginBottom: 16, fontSize: 16, lineHeight: 22, color: colors.zinc600 },
-  leave: { height: 48, borderRadius: 24, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center' },
   stay: { marginTop: 8, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   save: { height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   add: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 4 },
@@ -449,7 +448,7 @@ const styles = StyleSheet.create({
   menuNote: { paddingHorizontal: 4, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   kick: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   exit: { marginTop: 12, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  exitText: { fontSize: 16, fontWeight: '600', color: '#b91c1c' },
+  exitText: { fontSize: 16, fontWeight: '600', color: colors.danger },
   info: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, borderRadius: 20, backgroundColor: colors.zinc100, padding: 12 },
   infoKind: { fontSize: 13, fontWeight: '800', color: colors.brand },
   infoDesc: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.zinc700 },

@@ -67,7 +67,7 @@ function Line({ r, onAnswered, onUntag, untagging }: { r: GeladaRequest; onAnswe
 
 /**
  * O «Paga-me uma» publicado (0145): a bebida desenhada, «@ana, @rui, paga-me uma 2M 🍺» e cada pessoa identificada com o seu
- * estado, que toda a gente que vê o post vê («@ana pagou 🍻», «@rui ficou a dever», «Hoje não»). Só quem foi identificado vê
+ * estado, que toda a gente que vê o post vê («@ana pagou», «@rui ficou a dever», «Hoje não»). Só quem foi identificado vê
  * os botões e pode tirar a identificação. Os outros brindam e comentam o post como de costume. O servidor já trocou a
  * bebida por «uma bebida» para quem tem menos de 18 anos.
  */
@@ -170,7 +170,7 @@ export function GeladaGridTile({ gelada, size }: { gelada: PostGelada; size: num
         <View style={[st.shelf, { width: '70%' }]} />
       </LinearGradient>
       <Text style={{ marginTop: 3, fontSize: 11, fontWeight: '800', color: colors.zinc900 }} numberOfLines={1}>{drinkLabel(gelada.drink)}</Text>
-      <Text style={{ fontSize: 10, fontWeight: '700', color: paid ? '#15803d' : colors.zinc500 }} numberOfLines={1}>{paid ? `${paid} de ${total} ${paid === 1 ? 'pagou' : 'pagaram'} 🍻` : `${total} ${total === 1 ? 'pedido' : 'pedidos'}`}</Text>
+      <Text style={{ fontSize: 10, fontWeight: '700', color: paid ? '#15803d' : colors.zinc500 }} numberOfLines={1}>{paid ? `${paid} de ${total} ${paid === 1 ? 'pagou' : 'pagaram'}` : `${total} ${total === 1 ? 'pedido' : 'pedidos'}`}</Text>
     </LinearGradient>
   );
 }
