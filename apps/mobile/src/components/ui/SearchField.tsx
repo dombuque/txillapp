@@ -1,4 +1,4 @@
-import type { ComponentRef, Ref } from 'react';
+import type { ComponentRef, ReactNode, Ref } from 'react';
 import { Pressable, StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { colors, dark as D, iconSize } from '@/lib/theme';
 import { Icon } from '../Icon';
@@ -10,12 +10,17 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'value' | 'onChang
   /** Chamado no X, depois de limpar (ex.: voltar à lista inteira). */
   onClear?: () => void;
   dark?: boolean;
+  /** Acessórios à direita, depois do X (ex.: ler um QR, abrir o SuperTxill): botões só com ícone de 32, área de toque de 44. */
+  right?: ReactNode;
   style?: StyleProp<ViewStyle>;
   ref?: Ref<ComponentRef<typeof TextInput>>;
 };
 
-/** Caixa de pesquisa: 44 de altura, pílula, lupa e X de 18 (iconSize.field), o X «Limpar a pesquisa» quando há texto. */
-export function SearchField({ value, onChangeText, onClear, dark = false, style, placeholder = t('Pesquisar'), ref, ...rest }: SearchFieldProps) {
+/**
+ * Caixa de pesquisa: 44 de altura, pílula, lupa e X de 18 (iconSize.field), o X «Limpar a pesquisa» quando há texto e,
+ * depois dele, os acessórios de `right` (usa `SearchFieldButton` para cada um).
+ */
+export function SearchField({ value, onChangeText, onClear, dark = false, right, style, placeholder = t('Pesquisar'), ref, ...rest }: SearchFieldProps) {
   const fg = dark ? D.sub : colors.zinc500;
   return (
     <View style={[st.box, dark && { backgroundColor: D.raised }, style]}>
@@ -38,7 +43,17 @@ export function SearchField({ value, onChangeText, onClear, dark = false, style,
           <Icon name="x" size={iconSize.field} color={fg} />
         </Pressable>
       ) : null}
+      {right}
     </View>
+  );
+}
+
+/** Um acessório da caixa de pesquisa (prop `right`): só ícone, 32 por 32 com área de toque de 44. */
+export function SearchFieldButton({ onPress, label, children }: { onPress: () => void; label: string; children: ReactNode }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={st.clear} accessibilityRole="button" accessibilityLabel={label}>
+      {children}
+    </Pressable>
   );
 }
 
