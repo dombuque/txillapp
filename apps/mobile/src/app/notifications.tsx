@@ -133,8 +133,9 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Txillada (o live): «@x abriu uma Txillada: <título>».
     case 'txillada_live': return { text: txilladaNoticeText(n.data), sub: txilladaNoticeSub(n.txillada) };
-    // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar).
-    case 'txillada_invite': return { text: txilladaInviteText(n.data), sub: txilladaInviteSub(n.txillada) };
+    // «Convidar por @» (0168): «@x convidou-te para transmitir na Txillada» (numa privada, entra-se sem pagar); mencionado
+    // sem estar a ver (txillada-voltar): «@ana mencionou-te na Txillada de @zeca: vem ver».
+    case 'txillada_invite': return { text: txilladaInviteText(n.data, n.actor.username), sub: txilladaInviteSub(n.txillada, n.data as { mention?: unknown }) };
     // O resumo semanal dos Zás (do Txillapp; a linha não leva o nome do ator à frente): «8 a 15 nov · 12 Zás».
     case 'zas_recap': return { text: RECAP_NOTICE, sub: recapNoticeSub(n.data) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.

@@ -54,7 +54,7 @@ export function moveHighlight(index: number, delta: number, count: number): numb
   return (((index + delta) % count) + count) % count;
 }
 
-export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo';
+export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' | 'anfitriao' | 'a-transmitir' | 'a-ver' | 'comentou';
 
 /** A razão discreta por baixo do nome. */
 export function reasonLabel(reason?: MentionReason | null): string | null {
@@ -65,6 +65,11 @@ export function reasonLabel(reason?: MentionReason | null): string | null {
     case 'amigo-proximo': return 'Amigo próximo';
     case 'neste-post': return 'Neste post';
     case 'no-grupo': return 'No grupo';
+    // Na Txillada.
+    case 'anfitriao': return 'Anfitrião';
+    case 'a-transmitir': return 'A transmitir';
+    case 'a-ver': return 'A ver';
+    case 'comentou': return 'Comentou';
     default: return null;
   }
 }

@@ -7,6 +7,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { CheersPour } from '@/components/CheersPour';
 import { InlineBadge } from '@/components/NameWithBadge';
+import { MentionText } from '@/components/txillada/MentionText';
 import { api, type Badged, type StoryComment } from '@/lib/api';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP, type FloatColumn } from '@/lib/storyFrame';
@@ -100,7 +101,8 @@ export const DOUBLE_MS = 250;
  * que salta quando a contagem sobe; com a contagem a subir por outra pessoa (a sala da Txillada) também saltam os copos.
  */
 /** `gift`: a linha destacada «@x ofereceu N Txills» da Txillada (0167): o vidro na cor da marca, com o presente. */
-export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários', gift = false }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string; gift?: boolean }) {
+/** `onMention`: os @nomes do texto ficam a negrito e tocáveis (a Txillada: abrem o perfil). */
+export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, onDoubleTap, cheers = 0, onHeight, label = 'Abrir os comentários', gift = false, onMention }: { c: FloatComment; y: number; age: number; leaving: boolean; reduce: boolean; onPress?: () => void; onLongPress?: () => void; onDoubleTap?: () => void; cheers?: number; onHeight: (h: number) => void; label?: string; gift?: boolean; onMention?: (username: string) => void }) {
   const ty = useSharedValue(reduce ? -y : 22);
   const scale = useSharedValue(reduce ? 1 : 0.9);
   const op = useSharedValue(0);
@@ -172,7 +174,7 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
             {/* Contas verificadas com o selo em todo o lado, também nos balões. */}
             {c.author.verified ? <InlineBadge who={c.author} fontSize={14} /> : null}
             {'  '}
-            {text}
+            {onMention ? <MentionText text={text} onMention={onMention} /> : text}
           </Text>
         </View>
         {/* O rabinho do balão, no canto de baixo à esquerda, virado para a foto de quem comentou. */}

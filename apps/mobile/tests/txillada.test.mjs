@@ -108,7 +108,7 @@ test('o canal da app entrega os txillada.* ao ecrã da Txillada e não mexe no c
     assert.deepEqual(se.planChatEvent({ type }), { notify: false, keys: [] }, type);
   }
   const room = read('src/lib/txilladaRoom.ts');
-  assert.match(room, /onTxilladaEvent\(\(raw\) => \{[\s\S]{0,500}?const ev = parseTxilladaEvent\(raw, id\);/);
+  assert.match(room, /onTxilladaEvent\(\(raw\) => \{[\s\S]{0,900}?const ev = parseTxilladaEvent\(raw, id\);/);
 });
 
 // ── estado do live ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ test('estado: os brindes dos outros fazem os copos; os meus já os fizeram ao to
   assert.deepEqual([s.cheerBurst, s.cheers], [1, 12]);
 });
 
-test('comentários: sem repetidos, por hora, os últimos 50, e um apagado não volta num pedido atrasado', () => {
+test('comentários: sem repetidos, por hora, os últimos (até 1000, para ler para trás), e um apagado não volta num pedido atrasado', () => {
   let s = t.initialLive(dto({ comments: 0 }));
   s = t.withComments(s, [cm('a', 1), cm('b', 2)]);
   s = t.applyEvent(s, { type: 'txillada.comment', txilladaId: 't1', comment: cm('c', 3) });
@@ -153,7 +153,10 @@ test('comentários: sem repetidos, por hora, os últimos 50, e um apagado não v
   assert.deepEqual(s.comments.map((c) => c.id), ['z', 'a', 'c'], 'o apagado não volta');
   const many = Array.from({ length: 70 }, (_, i) => ({ ...cm(`m${i}`, 10), createdAt: new Date(Date.UTC(2026, 10, 15, 11, 0, i)).toISOString() }));
   s = t.withComments(s, many);
-  assert.equal(s.comments.length, 50);
+  // Ficam todos (até KEEP_COMMENTS, 1000): a lista dos comentários rola por eles (components/txillada/LiveCommentList).
+  assert.equal(t.KEEP_COMMENTS, 1000);
+  assert.equal(s.comments.length, 73);
+  assert.equal(t.mergeComments(s.comments, [], [], 50).length, 50, 'com um máximo, os últimos');
   assert.equal(s.comments.at(-1).id, 'm69');
   assert.equal(t.lastCommentId(s), 'm69');
   const same = t.withComments(s, [many[69]]);
@@ -561,7 +564,7 @@ test('brindes aos comentários: a rota do contrato, o ecrã e os balões', async
   assert.match(room, /cheerComment, pin, hideComment, removeComment/);
   // O ecrã liga os dois toques; um toque (ou o toque longo) abre o menu do comentário.
   const screen = read('src/app/txillada/[id].tsx');
-  assert.match(screen, /onOpen=\{tx\.me \? openMenu : undefined\} onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
+  assert.match(screen, /onOpen=\{tx\.me \? openMenu : undefined\}\s+onCheer=\{tx\.me && tx\.kind === 'live' \? tx\.cheerComment : undefined\}/);
   const live = read('src/components/txillada/LiveFloatComments.tsx');
   // As linhas das ofertas (0167) não se brindam.
   assert.match(live, /onDoubleTap=\{onCheer && !c\.gift \? \(\) => onCheer\(c\) : undefined\}/);
