@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
+import { SendButton } from '@/components/ui/SendButton';
 import {
   acceptCall, audioOutputs, currentAudioOutput, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall,
   onAudioOutputsChange, setAudioOutput, speakerLabel, speakerLit, speakerMode, toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev,
@@ -258,7 +259,7 @@ function Incoming({ c }: { c: CallState }) {
           {writing ? (
             <View style={st.writeRow}>
               <TextInput autoFocus value={text} onChangeText={setText} placeholder="Escreve a tua mensagem…" placeholderTextColor={colors.zinc500} style={st.writeInput} maxLength={300} onSubmitEditing={() => text.trim() && declineCall(text)} returnKeyType="send" accessibilityLabel="Mensagem" />
-              <Pressable onPress={() => text.trim() && declineCall(text)} disabled={!text.trim()} style={[st.sendBtn, !text.trim() && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Enviar e recusar"><Icon name="send" size={20} color="#fff" /></Pressable>
+              <SendButton label="Enviar e recusar" onPress={() => { if (text.trim()) declineCall(text); }} disabled={!text.trim()} />
             </View>
           ) : (
             <>
@@ -568,7 +569,7 @@ const st = StyleSheet.create({
   replyText: { fontSize: 16, color: colors.zinc900 },
   writeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 8 },
   writeInput: { flex: 1, height: 46, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
   sinkBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'flex-end', padding: 16 },
   sinkSheet: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 20, padding: 12, gap: 2 },
   bar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-evenly', paddingHorizontal: 24 },

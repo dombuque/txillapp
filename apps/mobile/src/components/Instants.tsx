@@ -32,6 +32,7 @@ import { Sheet } from './Sheet';
 import { finePointer, type Rect } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
 import { CloseFriendsSheet, REACTIONS, ReactionArt, useKeyboardHeight } from './StoryParts';
+import { SendButton } from './ui/SendButton';
 import { KB_GAP, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { CurvedCaption } from './zas/CurvedCaption';
 import { squircle } from './zas/squircle';
@@ -1243,9 +1244,7 @@ function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera,
                   onSubmitEditing={() => void sendReply()}
                   style={st.replyInput}
                 />
-                <Pressable onPress={() => void sendReply()} disabled={!reply.trim()} accessibilityRole="button" accessibilityLabel="Enviar" style={[st.send, !reply.trim() && { opacity: 0.4 }]}>
-                  <Icon name="send" size={18} color="#fff" />
-                </Pressable>
+                <SendButton onPress={() => void sendReply()} disabled={!reply.trim()} />
               </View>
             </>
           )}
@@ -1319,5 +1318,5 @@ const st = StyleSheet.create({
   glass: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
   replyBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', padding: 6, paddingLeft: 20 },
   replyInput: { flex: 1, minWidth: 0, fontSize: 16, color: '#fff', paddingVertical: 0, outlineStyle: 'none' } as never,
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+
 });

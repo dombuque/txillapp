@@ -12,6 +12,7 @@ import { CloseFriendsSheet } from '@/components/StoryParts';
 import { ApiError, api } from '@/lib/api';
 import { instantsApi, type RecapAudience, type ZasRecap } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { abs } from '@/lib/config';
 import { finePointer } from '@/lib/desktopKeys';
 import { colors } from '@/lib/theme';
@@ -89,23 +90,15 @@ export function ZasRecapView({ id, initial, onClose }: { id?: string; initial?: 
     }
   }
 
-  function discard() {
+  async function discard() {
     if (!r) return;
-    Alert.alert('Descartar o resumo?', 'Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Descartar',
-        style: 'destructive',
-        onPress: () => {
-          instantsApi.removeRecap(r.id).then(() => {
-            qc.setQueryData<ZasRecap[]>(['zas-recaps'], (l) => (l ? l.filter((x) => x.id !== r.id) : l));
-            void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
-            qc.removeQueries({ queryKey: ['zas-recap'] });
-            onClose();
-          }).catch((e) => setErr((e as Error).message || 'Não consegui descartar o resumo.'));
-        },
-      },
-    ]);
+    if (!(await confirm({ title: 'Descartar o resumo?', message: 'Apaga-se já e deixas de o poder partilhar. Os teus Zás continuam.', confirm: 'Descartar', danger: true }))) return;
+    instantsApi.removeRecap(r.id).then(() => {
+      qc.setQueryData<ZasRecap[]>(['zas-recaps'], (l) => (l ? l.filter((x) => x.id !== r.id) : l));
+      void qc.invalidateQueries({ queryKey: ['zas-recaps'] });
+      qc.removeQueries({ queryKey: ['zas-recap'] });
+      onClose();
+    }).catch((e) => setErr((e as Error).message || 'Não consegui descartar o resumo.'));
   }
 
   // A área à volta: a partir de 820 px de largura, a imagem à esquerda e as ações ao lado.
