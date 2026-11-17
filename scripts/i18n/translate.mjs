@@ -350,7 +350,9 @@ export async function run({ check = false, only = null, log = console.log } = {}
   }
   if (!check) {
     writeJson(path.join(LOCALES, '.hash.json'), hashes);
-    writeJson(path.join(LOCALES, '.phrases.json'), phrases);
+    // Uma linha por frase: diffs e merges pequenos.
+    const keys = Object.keys(phrases).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    writeFileSync(path.join(LOCALES, '.phrases.json'), `{\n${keys.map((k) => `  ${JSON.stringify(k)}: ${JSON.stringify(phrases[k])}`).join(',\n')}\n}\n`);
     writeMobileBlock(langs);
   }
   for (const [code, keys] of Object.entries(missingAll)) {
