@@ -239,7 +239,7 @@ test('reabrir a Angariação: a rota, a sala volta ao vivo do zero (a conversa f
   assert.match(room, /case 'reopen': return \{ \.\.\.initialLive\(a\.dto\), comments: s\.comments, removed: s\.removed \};/);
   const s = read('app/txillada/[id].tsx');
   assert.match(s, /const canReopen = !!dto\?\.canReopen && !cut && dto\.goal != null;/);
-  assert.match(read('components/txillada/TxilladaParts.tsx'), /'Reabrir a Angariação'/);
+  assert.match(read('components/txillada/TxilladaParts.tsx'), /label="Reabrir a Angariação"/);
   // O estado: reaberta, volta a 'live' (um fim normal não volta).
   const ended = { ...t.initialLive(), status: 'ended' };
   assert.equal(t.withDto(ended, { id: 'x', status: 'live', viewers: 0, peakViewers: 0, cheers: 0, comments: 0 }).status, 'ended');

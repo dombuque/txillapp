@@ -15,6 +15,7 @@ import { ReportSheet } from '@/components/ReportSheet';
 import { Panel, useKeyboardHeight } from '@/components/StoryParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { ActionRow } from '@/components/ui/ActionRow';
+import { Button } from '@/components/ui/Button';
 import { SendButton } from '@/components/ui/SendButton';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { FxLayer, HelloAllButton, HelloStack, JoinedToast, ReactionBar, ViewersList, ViewersStack } from '@/components/txillada/LiveFx';
@@ -490,7 +491,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           {tx.conn === 'failed' ? (
             <View style={st.failed}>
               <Text style={st.failedText}>A ligação caiu.</Text>
-              <Pressable onPress={tx.reconnect} style={st.failedBtn} accessibilityRole="button"><Text style={st.failedBtnText}>Tentar outra vez</Text></Pressable>
+              <Button label="Tentar outra vez" kind="secondary" size="md" dark onPress={tx.reconnect} />
             </View>
           ) : null}
 
@@ -721,8 +722,7 @@ const st = StyleSheet.create({
   mutedText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
   failed: { position: 'absolute', left: 24, right: 24, top: '42%', zIndex: 7, alignItems: 'center', gap: 10, padding: 16, borderRadius: 18, backgroundColor: 'rgba(14,14,18,0.82)' },
   failedText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  failedBtn: { height: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  failedBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
   sound: { position: 'absolute', alignSelf: 'center', top: '46%', zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: 'rgba(14,14,18,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
   soundText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   flash: { position: 'absolute', left: 16, right: 16, zIndex: 9, alignItems: 'center' },
