@@ -13,6 +13,7 @@ import { geleiraApi, type CatalogItem, type TasteKind } from '@/lib/api.geleira'
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
 import { shareBlockReason } from '@/lib/geleiraPost';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const SKY50 = '#f0f9ff';
 const SKY500 = '#0ea5e9';
@@ -26,9 +27,9 @@ const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
 /** Nota de 1 a 5 flocos de gelo. Tocar no mesmo outra vez tira a nota. */
 function IceRating({ value, onChange, size = 30 }: { value: number | null; onChange: (v: number | null) => void; size?: number }) {
   return (
-    <View style={{ flexDirection: 'row' }} accessibilityRole="radiogroup" accessibilityLabel={value ? `Nota ${value} de 5: ${ICE[value]}` : 'Sem nota'}>
+    <View style={{ flexDirection: 'row' }} accessibilityRole="radiogroup" accessibilityLabel={value ? t('Nota {value} de 5: {ice}', { value, ice: ICE[value] }) : t('Sem nota')}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <Pressable key={n} onPress={() => onChange(value === n ? null : n)} accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={`${n} de 5: ${ICE[n]}`} style={st.ice}>
+        <Pressable key={n} onPress={() => onChange(value === n ? null : n)} accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={t('{n} de 5: {ice}', { n, ice: ICE[n] })} style={st.ice}>
           <Icon name="snowflake" size={size} color={!!value && n <= value ? SKY500 : colors.zinc300} />
         </Pressable>
       ))}
@@ -145,7 +146,7 @@ export default function GeleiraEditor() {
       void qc.invalidateQueries({ queryKey: ['geleira-level'] });
       leave();
     } catch {
-      say('Não consegui guardar. Tenta outra vez.');
+      say(t('Não consegui guardar. Tenta outra vez.'));
       setSaving(false);
     }
   }
@@ -154,7 +155,7 @@ export default function GeleiraEditor() {
   const mine = list.filter((i) => i.mine);
   /** «Partilhar a minha geleira»: com mudanças por guardar, pede para guardar primeiro (o post leva a geleira guardada). */
   function share() {
-    if (changes.length > 0) return say('Guarda primeiro as mudanças e depois partilha.');
+    if (changes.length > 0) return say(t('Guarda primeiro as mudanças e depois partilha.'));
     const why = shareBlockReason((saved ?? []).filter((i) => i.mine));
     if (why) return say(why);
     router.push('/partilhar-geleira' as never);
@@ -190,8 +191,8 @@ export default function GeleiraEditor() {
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.zinc100, backgroundColor: colors.white }}>
         <View style={st.top}>
           <BackButton onPress={back} />
-          <Text style={st.title} numberOfLines={1}>A minha geleira</Text>
-          <Pressable onPress={share} style={({ pressed }) => [st.shareBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Partilhar a minha geleira">
+          <Text style={st.title} numberOfLines={1}>{t('A minha geleira')}</Text>
+          <Pressable onPress={share} style={({ pressed }) => [st.shareBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Partilhar a minha geleira')}>
             <Icon name="share" size={20} color={colors.brand} />
           </Pressable>
           <View style={st.count} accessibilityLiveRegion="polite">
@@ -234,21 +235,21 @@ export default function GeleiraEditor() {
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder={`Procurar em ${KIND_LABEL[kind].toLowerCase()}…`}
+              placeholder={t('Procurar em {kindLabel}…', { kindLabel: KIND_LABEL[kind].toLowerCase() })}
               placeholderTextColor={colors.zinc500}
-              accessibilityLabel="Procurar"
+              accessibilityLabel={t('Procurar')}
               maxLength={40}
               style={st.input}
             />
             {text ? (
-              <Pressable onPress={() => setText('')} accessibilityLabel="Limpar" style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => setText('')} accessibilityLabel={t('Limpar')} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="x" size={16} color={colors.zinc500} />
               </Pressable>
             ) : null}
           </View>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingBottom: 12 }} style={{ flexGrow: 0 }} accessibilityRole="radiogroup" accessibilityLabel="Grupo">
-          {[{ slug: 'todas', label: 'Tudo' }, ...groups].map((g) => {
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingBottom: 12 }} style={{ flexGrow: 0 }} accessibilityRole="radiogroup" accessibilityLabel={t('Grupo')}>
+          {[{ slug: 'todas', label: t('Tudo') }, ...groups].map((g) => {
             const on = group === g.slug;
             return (
               <Pressable key={g.slug} onPress={() => setGroup(g.slug)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.chip, { backgroundColor: on ? colors.brand : colors.zinc100 }]}>
@@ -263,8 +264,8 @@ export default function GeleiraEditor() {
               <Icon name="globe" size={16} color={SKY800} />
               <Text style={{ fontSize: 14, fontWeight: '600', color: SKY800, flexShrink: 1 }} numberOfLines={1}>
                 {world
-                  ? `A mostrar bebidas de todo o mundo · só ${countryName ?? 'do meu país'}`
-                  : `${countryName ? `Bebidas de ${countryName} e de todo o lado` : 'Bebidas do teu país'} · ver de outros países (${hiddenForeign})`}
+                  ? t('A mostrar bebidas de todo o mundo · só {countryName}', { countryName: countryName ?? t('do meu país') })
+                  : t('{value} · ver de outros países ({hiddenForeign})', { value: countryName ? t('Bebidas de {countryName} e de todo o lado', { countryName }) : t('Bebidas do teu país'), hiddenForeign })}
               </Text>
             </Pressable>
           </View>
@@ -273,15 +274,15 @@ export default function GeleiraEditor() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 128 }} keyboardShouldPersistTaps="handled">
         {!items && !cat.isError && (
-          <View style={{ gap: 8 }} accessibilityLabel="A carregar">
+          <View style={{ gap: 8 }} accessibilityLabel={t('A carregar')}>
             {[0, 1, 2, 3, 4, 5].map((n) => <View key={n} style={{ height: 68, borderRadius: 16, backgroundColor: colors.zinc100 }} />)}
           </View>
         )}
         {cat.isError && !items && (
           // Antes ficavam os cartões cinzentos "a carregar" por cima do aviso, e não havia como tentar outra vez.
           <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
-            <Text style={[st.none, { paddingVertical: 0 }]}>Não consegui abrir a geleira.</Text>
-            <Pressable onPress={() => void cat.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+            <Text style={[st.none, { paddingVertical: 0 }]}>{t('Não consegui abrir a geleira.')}</Text>
+            <Pressable onPress={() => void cat.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         )}
         {items &&
@@ -302,7 +303,7 @@ export default function GeleiraEditor() {
                               {i.favorite && <Icon name="heart" size={14} solid color={colors.brand} />}
                             </View>
                             <Text numberOfLines={1} style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>
-                              {i.pending ? 'À espera de aprovação' : i.mine ? (i.rating ? ICE[i.rating] : 'Dá-lhe gelo') : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : 'Ninguém tem ainda. Sê o primeiro'}
+                              {i.pending ? t('À espera de aprovação') : i.mine ? (i.rating ? ICE[i.rating] : t('Dá-lhe gelo')) : others(i) > 0 ? t('{fmt} na geleira da malta', { fmt: fmt(others(i)) }) : t('Ninguém tem ainda. Sê o primeiro')}
                             </Text>
                           </View>
                         </Pressable>
@@ -310,7 +311,7 @@ export default function GeleiraEditor() {
                           onPress={() => toggle(i)}
                           accessibilityRole="button"
                           accessibilityState={{ selected: i.mine }}
-                          accessibilityLabel={i.mine ? `Tirar ${i.name}` : `Juntar ${i.name}`}
+                          accessibilityLabel={i.mine ? t('Tirar {name}', { name: i.name }) : t('Juntar {name}', { name: i.name })}
                           style={[st.plus, i.mine ? { backgroundColor: colors.brand } : { borderWidth: 1, borderColor: colors.zinc300 }]}
                         >
                           <Icon name={i.mine ? 'check' : 'plus'} size={20} color={i.mine ? '#fff' : colors.zinc600} />
@@ -323,7 +324,7 @@ export default function GeleiraEditor() {
                             onPress={() => edit(i.id, { favorite: !i.favorite })}
                             accessibilityRole="button"
                             accessibilityState={{ selected: i.favorite }}
-                            accessibilityLabel="Favorito"
+                            accessibilityLabel={t('Favorito')}
                             style={[st.plus, { backgroundColor: i.favorite ? colors.rose50 : colors.zinc100 }]}
                           >
                             <Icon name="heart" size={20} solid={i.favorite} color={i.favorite ? colors.brand : colors.zinc600} />
@@ -337,7 +338,7 @@ export default function GeleiraEditor() {
             </View>
           ))}
 
-        {items && sections.length === 0 && <Text style={st.none}>Nada com esse nome em {KIND_LABEL[kind].toLowerCase()}.</Text>}
+        {items && sections.length === 0 && <Text style={st.none}>{t('Nada com esse nome em {kindLabel}.', { kindLabel: KIND_LABEL[kind].toLowerCase() })}</Text>}
 
         {items && q.length >= 2 && !exact && (
           <View style={st.suggest}>
@@ -345,13 +346,13 @@ export default function GeleiraEditor() {
               <Pressable onPress={() => setSuggesting(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="button">
                 <View style={st.sparkle}><Icon name="sparkles" size={22} color={colors.zinc900} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Não está cá? Sugere «{text.trim()}»</Text>
-                  <Text style={{ fontSize: 14, color: colors.zinc500 }}>Entra já na tua geleira; a malta vê depois de aprovado.</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{t('Não está cá? Sugere «{text}»', { text: text.trim() })}</Text>
+                  <Text style={{ fontSize: 14, color: colors.zinc500 }}>{t('Entra já na tua geleira; a malta vê depois de aprovado.')}</Text>
                 </View>
               </Pressable>
             ) : (
               <>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Em que grupo fica «{text.trim()}»?</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{t('Em que grupo fica «{text}»?', { text: text.trim() })}</Text>
                 <View style={{ marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {groups.map((g) => (
                     <Pressable key={g.slug} disabled={create.isPending} onPress={() => create.mutate({ name: text.trim(), category: g.slug })} accessibilityRole="button" style={[st.pick, create.isPending && { opacity: 0.5 }]}>
@@ -367,22 +368,22 @@ export default function GeleiraEditor() {
 
       <View style={[st.bar, { paddingBottom: Math.max(12, insets.bottom) }]}>
         <Text style={{ flex: 1, fontSize: 14, lineHeight: 18, color: colors.zinc600 }}>
-          <Text style={{ fontWeight: '700', color: colors.zinc900 }}>{mine.length}</Text> {mine.length === 1 ? 'gosto' : 'gostos'}
+          <Text style={{ fontWeight: '700', color: colors.zinc900 }}>{mine.length}</Text> {mine.length === 1 ? t('gosto') : t('gostos')}
         </Text>
         <Pressable onPress={() => void save()} disabled={changes.length === 0 || saving} accessibilityRole="button" style={[st.save, (changes.length === 0 || saving) && { backgroundColor: 'rgba(214,51,79,0.4)' }]}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{saving ? 'A guardar…' : changes.length > 0 ? `Guardar (${changes.length})` : 'Guardar'}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{saving ? t('A guardar…') : changes.length > 0 ? t('Guardar ({n})', { n: changes.length }) : t('Guardar')}</Text>
         </Pressable>
       </View>
 
       {leaving && (
-        <Sheet title="Sair sem guardar?" onClose={() => setLeaving(false)}>
+        <Sheet title={t('Sair sem guardar?')} onClose={() => setLeaving(false)}>
           <View style={{ paddingHorizontal: 24 }}>
             <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>
-              Tens {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} na geleira que ainda não guardaste.
+              {t('Tens {count} mudança na geleira que ainda não guardaste.', { count: changes.length, other: 'Tens {count} mudanças na geleira que ainda não guardaste.' })}
             </Text>
-            <Button label="Guardar e sair" block onPress={() => { setLeaving(false); void save(); }} />
-            <Button label="Sair sem guardar" kind="danger" block onPress={leave} style={{ marginTop: 8 }} />
-            <Button label="Continuar a editar" kind="secondary" block onPress={() => setLeaving(false)} style={{ marginTop: 8 }} />
+            <Button label={t('Guardar e sair')} block onPress={() => { setLeaving(false); void save(); }} />
+            <Button label={t('Sair sem guardar')} kind="danger" block onPress={leave} style={{ marginTop: 8 }} />
+            <Button label={t('Continuar a editar')} kind="secondary" block onPress={() => setLeaving(false)} style={{ marginTop: 8 }} />
           </View>
         </Sheet>
       )}

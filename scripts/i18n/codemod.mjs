@@ -68,6 +68,8 @@ const CSS_WORDS = new Set(['solid', 'dashed', 'dotted', 'none', 'auto', 'inherit
 function codeLike(s) {
   const t = s.replace(/\{\w+\}/g, ' ');
   if (/:\/\/|^\s*www\.|^mailto:|^tel:|^data:|^blob:|^file:/i.test(t)) return 'url';
+  if (/^\s*[\w.+-]+@[\w-]+(\.[\w-]+)+\s*$/.test(t)) return 'email';
+  if (/^\s*[\w-]+(\.[\w-]+)*\.(com|co\.mz|mz|app|pt|org|net|io)\s*$/i.test(t)) return 'domínio';
   if (/^\s*[\/~#]|^\s*\.\.?\//.test(t) || /^\s*@\//.test(t)) return 'caminho';
   if (/[{}<>=\\`$]/.test(t)) return 'caracteres de código';
   if (/\b\d+(\.\d+)?(px|ms|deg|em|rem|vh|vw|fr|dp)\b/.test(t)) return 'unidade CSS';
@@ -365,7 +367,17 @@ function transformFile(sf, seed) {
     const phrase = buildPhrase(parts, plusOps ? 'plus' : 'tpl', pt ? { subject: pt.subject, otherParts: pt.manyParts } : undefined);
     if (!phrase) return;
     if (phrase.plural) for (const p of parts) { const pc = p.e && isPluralCond(p.e); if (pc) { handled.add(skipOuter(skipOuter(p.e).whenTrue)); handled.add(skipOuter(skipOuter(p.e).whenFalse)); } }
-    const verdict = judge(phrase.staticText, ctx.strength);
+    let verdict = judge(phrase.staticText, ctx.strength);
+    // listas de textos (['janeiro', 'fevereiro', 'março', …]): decide-se a lista toda, para não ficar metade traduzida
+    if (ctx.strength === 'weak') {
+      let arr = u.parent; while (arr && ts.isParenthesizedExpression(arr)) arr = arr.parent;
+      if (arr && ts.isArrayLiteralExpression(arr)) {
+        const strs = arr.elements.map(skipOuter).filter((x) => ts.isStringLiteralLike(x));
+        const allTexty = strs.length >= 2 && strs.every((x) => LETTER.test(x.text) && !codeLike(x.text) && !/^[a-z]+[A-Z_]/.test(x.text));
+        const any = strs.filter((x) => judge(x.text, 'weak').ok).length;
+        if (allTexty && any > 0) { const v2 = judge(phrase.staticText, 'strong'); if (v2.ok) verdict = { ok: true, doubt: verdict.ok ? verdict.doubt : 'lista decidida em conjunto' }; }
+      }
+    }
     if (!verdict.ok) {
       if (looksProse(phrase.staticText) || ctx.strength === 'strong' && LETTER.test(phrase.staticText)) logSkip(u, phrase.key, verdict.why + (ctx.where ? ` (${ctx.where})` : ''));
       return;
@@ -616,7 +628,15 @@ function transformFile(sf, seed) {
     let s;
     if (identRepl.has(node)) s = identRepl.get(node);
     else if (repl.get(node)) s = repl.get(node)(emit);
-    else if (getters.has(node)) s = `get ${node.name.getText(sf)}() { return ${emit(node.initializer)}; }`;
+    else if (getters.has(node)) {
+      // o getter não herda o tipo do sítio: um tuplo ([string, string]) tem de ser dito
+      let cast = '';
+      if (ts.isArrayLiteralExpression(skipOuter(node.initializer))) {
+        const ct = checker.getContextualType(node.initializer);
+        if (ct && checker.isTupleType(ct)) cast = ` as ${checker.typeToString(ct)}`;
+      }
+      s = `get ${node.name.getText(sf)}() { return ${emit(node.initializer)}${cast}; }`;
+    }
     else if ((ts.isJsxElement(node) || ts.isJsxFragment(node)) && jsxRuns.has(node)) s = emitJsx(node);
     else s = emitChildren(node, ts.isJsxText(node) ? node.pos : node.getStart(sf), node.end);
     if (importHook?.after === node) s += eol + IMPORT;
@@ -944,7 +964,13 @@ function jsxNormalize(raw) {
 function DEACCENT(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function varName(e) {
   e = skipOuter(e);
-  const clean = (s) => { s = DEACCENT(String(s)).replace(/^[_$]+/, '').replace(/[^\w]/g, ''); if (!s) return 'value'; if (/^\d/.test(s)) s = 'v' + s; return s; };
+  const clean = (s) => {
+    s = DEACCENT(String(s)).replace(/^[_$]+/, '').replace(/[^\w]/g, '');
+    if (/^[A-Z0-9_]+$/.test(s) && /[A-Z]{2}/.test(s)) s = s.toLowerCase().replace(/_+([a-z0-9])/g, (_m, c) => c.toUpperCase());
+    if (!s) return 'value';
+    if (/^\d/.test(s)) s = 'v' + s;
+    return s;
+  };
   if (ts.isIdentifier(e)) return clean(e.text);
   if (ts.isPropertyAccessExpression(e)) {
     const nm = e.name.text;
@@ -952,7 +978,7 @@ function varName(e) {
     if (nm === 'current' || nm === 'value' || nm === 'data') return varName(e.expression);
     return clean(nm);
   }
-  if (ts.isElementAccessExpression(e)) { const b = varName(e.expression); return b.length > 3 && b.endsWith('s') ? b.slice(0, -1) : b; }
+  if (ts.isElementAccessExpression(e)) { const b = varName(skipOuter(e.expression).kind === ts.SyntaxKind.CallExpression && !skipOuter(e.expression).arguments.length ? skipOuter(e.expression).expression : e.expression); return b.length > 3 && b.endsWith('s') ? b.slice(0, -1) : b; }
   if (ts.isCallExpression(e)) {
     const callee = skipOuter(e.expression);
     const nm = lastName(callee) ?? '';

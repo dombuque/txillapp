@@ -326,7 +326,7 @@ test('o cartão: «Denunciar» abre o ReportSheet só a quem não é anfitrião,
   const card = read('app/txillada/agendada/[id].tsx');
   assert.match(card, /<ReportSheet type="txillada_schedule" id=\{s\.id\}/);
   assert.match(card, /view === 'scheduled' && !s\.isHost \? \(\s*<Pressable onPress=\{\(\) => setReporting\(true\)\}/);
-  assert.ok(card.includes('>Denunciar</Text>'));
+  assert.ok(card.includes(">{t('Denunciar')}</Text>"));
   // Depois de denunciar: esquece o cartão, volta a pedir as listas e sai.
   assert.match(card, /qc\.removeQueries\(\{ queryKey: scheduleKey\(id\) \}\)/);
   assert.match(card, /router\.back\(\)/);

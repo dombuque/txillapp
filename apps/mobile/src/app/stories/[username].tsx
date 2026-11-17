@@ -46,6 +46,7 @@ import { trackColors } from '@/lib/musicLook';
 import { useMusicMuted } from '@/lib/musicPlayer';
 import { finePointer, overlayOpen } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
+import { t } from '@/lib/i18n';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -53,7 +54,7 @@ const IMAGE_MS = 30_000;
 let lastDir: 1 | -1 | 0 = 0;
 const expiresIn = (iso: string) => {
   const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
-  return h <= 0 ? 'a expirar' : `expira em ${h} h`;
+  return h <= 0 ? 'a expirar' : t('expira em {h} h', { h });
 };
 
 /**
@@ -79,7 +80,7 @@ function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused
         onLoadedMetadata: (e: { currentTarget: HTMLVideoElement }) => { if (Number.isFinite(e.currentTarget.duration)) onDuration(e.currentTarget.duration * 1000); },
         style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000', pointerEvents: 'none' },
       })}
-      <Pressable onPress={() => setMuted((m) => !m)} hitSlop={4} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
+      <Pressable onPress={() => setMuted((m) => !m)} hitSlop={4} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? t('Ativar o som') : t('Silenciar')}>
         <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
       </Pressable>
     </>
@@ -367,7 +368,7 @@ export default function StoryViewer() {
   async function remove() {
     if (!cur) return;
     setPanel(null);
-    if (!(await confirm({ title: 'Apagar o mimo?', message: 'Desaparece para toda a gente.', confirm: 'Apagar', danger: true }))) return;
+    if (!(await confirm({ title: t('Apagar o mimo?'), message: t('Desaparece para toda a gente.'), confirm: t('Apagar'), danger: true }))) return;
     await api.deleteStory(cur.id).catch(() => undefined);
     await q.refetch();
     void qc.invalidateQueries({ queryKey: ['stories'] });
@@ -378,13 +379,13 @@ export default function StoryViewer() {
     if (!cur) return;
     const u = cur.author.username;
     setPanel(null);
-    if (!(await confirm({ title: `Bloquear @${u}?`, message: 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo.', confirm: 'Bloquear', danger: true }))) return;
+    if (!(await confirm({ title: t('Bloquear @{u}?', { u }), message: t('Deixa de ver as tuas publicações e mimos e não pode interagir contigo.'), confirm: t('Bloquear'), danger: true }))) return;
     try {
       await api.block(u);
       for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
       close();
     } catch (e) {
-      Alert.alert('Não deu', (e as Error)?.message || 'Não consegui bloquear agora. Tenta outra vez.');
+      Alert.alert(t('Não deu'), (e as Error)?.message || t('Não consegui bloquear agora. Tenta outra vez.'));
     }
   }
   async function toggleComments() {
@@ -417,9 +418,9 @@ export default function StoryViewer() {
     return (
       <View style={st.center} accessibilityRole={offline ? 'alert' : undefined}>
         {offline
-          ? <ErrorState what="o mimo" onRetry={() => void q.refetch()} dark style={{ marginTop: 0 }} />
-          : <EmptyState icon="clock" title="Este mimo já não está disponível" text="Os mimos ficam 24 horas." dark style={{ marginTop: 0 }} />}
-        <Button label="Fechar" kind="ghost" size="md" dark onPress={close} />
+          ? <ErrorState what={t('o mimo')} onRetry={() => void q.refetch()} dark style={{ marginTop: 0 }} />
+          : <EmptyState icon="clock" title={t('Este mimo já não está disponível')} text={t('Os mimos ficam 24 horas.')} dark style={{ marginTop: 0 }} />}
+        <Button label={t('Fechar')} kind="ghost" size="md" dark onPress={close} />
       </View>
     );
   }
@@ -432,10 +433,10 @@ export default function StoryViewer() {
     setAway(true);
     try {
       const r = await saveToGallery(`/stories/${cur.id}/download`, `txillapp-mimo-${cur.id.slice(0, 8)}.${cur.mediaKind === 'video' ? 'mp4' : 'jpg'}`);
-      if (r === 'denied') Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar o mimo.');
-      else if (Platform.OS !== 'web') Alert.alert('Guardado', 'O mimo está na tua galeria, com a assinatura do Txillapp.');
+      if (r === 'denied') Alert.alert(t('Sem acesso à galeria'), t('Dá acesso às fotos nas definições do telemóvel para guardar o mimo.'));
+      else if (Platform.OS !== 'web') Alert.alert(t('Guardado'), t('O mimo está na tua galeria, com a assinatura do Txillapp.'));
     } catch (e) {
-      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+      Alert.alert(t('Não consegui guardar'), (e as Error).message || t('Tenta outra vez.'));
     } finally {
       setSaving(false);
       setAway(false);
@@ -446,9 +447,9 @@ export default function StoryViewer() {
     setAway(true);
     // Ligação curta (txillapp.com/m/@). No iPhone a partilha junta a mensagem e o endereço: o endereço vai só uma vez.
     const url = `${SITE_URL || 'https://txillapp.com'}/m/${cur.author.username}`;
-    const message = `Vê o mimo de @${cur.author.username} no Txillapp`;
+    const message = t('Vê o mimo de @{username} no Txillapp', { username: cur.author.username });
     try {
-      await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: `Mimo de @${cur.author.username}` });
+      await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: t('Mimo de @{username}', { username: cur.author.username }) });
     } catch { /* cancelado */ }
     setAway(false);
   }
@@ -504,7 +505,7 @@ export default function StoryViewer() {
             ) : (
               <>
                 <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
-                <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit={mimoFit(ratio, frame.cardW, frame.cardH)} onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) setPhotoRatio({ id: cur.id, r: w / h }); }} accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
+                <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit={mimoFit(ratio, frame.cardW, frame.cardH)} onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) setPhotoRatio({ id: cur.id, r: w / h }); }} accessibilityLabel={cur.caption ?? t('Mimo de {displayName}', { displayName: cur.author.displayName })} />
               </>
             )}
           </View>
@@ -512,13 +513,13 @@ export default function StoryViewer() {
           {cur.music ? <SoundWaves active={tune.playing && !tuneMuted && !typing} colors={trackColors(cur.music)} player={tune.player} band={0.3} /> : null}
           <StickerLayer stickers={cur.stickers} width={frame.cardW} height={frame.cardH} animate={!paused} />
 
-          <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />
-          {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel="Mostrar a ligação à publicação" />}
-          <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
+          <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel={t('Anterior')} />
+          {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel={t('Mostrar a ligação à publicação')} />}
+          <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel={t('Seguinte')} />
 
           {shared && seePost && (
             <Pressable onPress={() => { setAway(true); router.push(`/${cur.mediaKind === 'video' ? 'r' : 'p'}/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{cur.mediaKind === 'video' ? 'Ver tcheka' : 'Ver publicação'}</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{cur.mediaKind === 'video' ? t('Ver tcheka') : t('Ver publicação')}</Text>
               <Icon name="chevron-right" size={16} color="#fff" strokeWidth={3} />
             </Pressable>
           )}
@@ -526,7 +527,7 @@ export default function StoryViewer() {
           <CheersPour n={burst} size={Math.min(240, frame.cardW * 0.6)} />
 
           {/* A escrever: o mimo fica atrás, pausado e um pouco mais escuro; um toque nele só fecha o teclado. */}
-          {typing && <Pressable style={[StyleSheet.absoluteFill, st.dim]} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fechar o teclado" />}
+          {typing && <Pressable style={[StyleSheet.absoluteFill, st.dim]} onPress={dismiss} accessibilityRole="button" accessibilityLabel={t('Fechar o teclado')} />}
 
           {/* Em cima do cartão, num degradê suave: o progresso, o autor e as ações (longe do canto da assinatura). */}
           <LinearGradient colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.22)', 'transparent']} style={[st.top, fade]} pointerEvents="box-none">
@@ -541,7 +542,7 @@ export default function StoryViewer() {
             </View>
             <View style={st.who} pointerEvents="box-none">
               {/* Tocar na pessoa abre o perfil dela (o mimo fica em pausa enquanto estás lá). */}
-              <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={st.author} accessibilityRole="link" accessibilityLabel={`Perfil de ${cur.author.displayName}`}>
+              <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={st.author} accessibilityRole="link" accessibilityLabel={t('Perfil de {displayName}', { displayName: cur.author.displayName })}>
                 <View style={[st.ring, cur.audience === 'close_friends' && st.ringFriends]}>
                   <Avatar name={cur.author.displayName} username={cur.author.username} size={34} />
                 </View>
@@ -553,9 +554,9 @@ export default function StoryViewer() {
                   {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
                 </View>
               </Pressable>
-              {mine && <Pressable onPress={() => setPanel('menu')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
-              {!mine && <Pressable onPress={() => setPanel('more')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
-              <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+              {mine && <Pressable onPress={() => setPanel('menu')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel={t('Mais opções')}><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              {!mine && <Pressable onPress={() => setPanel('more')} hitSlop={4} style={st.circle} accessibilityRole="button" accessibilityLabel={t('Mais opções')}><Icon name="more" size={22} color="#fff" strokeWidth={2.4} /></Pressable>}
+              <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             </View>
             {!typing && cur.music && <View style={st.music} pointerEvents="box-none"><StoryMusic key={cur.id} track={cur.music} paused={paused} onLive={setTune} /></View>}
           </LinearGradient>
@@ -577,15 +578,15 @@ export default function StoryViewer() {
         <View style={[st.bar, { left: frame.cardLeft, width: frame.cardW, minHeight: frame.barH, bottom: replyBottom }]} pointerEvents="box-none">
           {mine && (
             <View style={st.barRow}>
-              <Pressable onPress={() => setPanel('viewers')} style={({ pressed }) => [st.activity, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${cur.viewCount ?? 0} visualizações`}>
+              <Pressable onPress={() => setPanel('viewers')} style={({ pressed }) => [st.activity, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('{viewCount} visualizações', { viewCount: cur.viewCount ?? 0 })}>
                 <Icon name="eye" size={18} color="#fff" strokeWidth={2} />
                 <Text style={st.activityN}>{cur.viewCount ?? 0}</Text>
-                {frame.cardW >= 340 && <Text style={st.activityLabel} numberOfLines={1}>Atividade</Text>}
+                {frame.cardW >= 340 && <Text style={st.activityLabel} numberOfLines={1}>{t('Atividade')}</Text>}
               </Pressable>
               <View style={{ flex: 1 }} />
-              <BarButton icon="cheers" label={`${cur.cheerCount ?? 0} brindes`} n={cur.cheerCount} on={!!cur.cheerCount} color={cur.cheerCount ? colors.brandWarm : '#fff'} onPress={() => setPanel('viewers')} />
-              <BarButton icon="comment" label={`${cur.commentCount} comentários`} n={cur.commentCount} onPress={() => setPanel('comments')} />
-              <BarButton icon="share" label="Partilhar o mimo" size={24} onPress={() => void shareMimo()} />
+              <BarButton icon="cheers" label={t('{cheerCount} brindes', { cheerCount: cur.cheerCount ?? 0 })} n={cur.cheerCount} on={!!cur.cheerCount} color={cur.cheerCount ? colors.brandWarm : '#fff'} onPress={() => setPanel('viewers')} />
+              <BarButton icon="comment" label={t('{commentCount} comentários', { commentCount: cur.commentCount })} n={cur.commentCount} onPress={() => setPanel('comments')} />
+              <BarButton icon="share" label={t('Partilhar o mimo')} size={24} onPress={() => void shareMimo()} />
             </View>
           )}
           {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} onCheered={() => setBurst((b) => b + 1)} onComments={() => setPanel('comments')} onShare={() => void shareMimo()} compact={frame.cardW < 340} />}
@@ -593,10 +594,10 @@ export default function StoryViewer() {
             <View style={st.barRow}>
               <View style={st.noReply}>
                 <Icon name="lock" size={15} color="rgba(255,255,255,0.6)" />
-                <Text style={st.noReplyText} numberOfLines={1}>Este mimo não aceita respostas</Text>
+                <Text style={st.noReplyText} numberOfLines={1}>{t('Este mimo não aceita respostas')}</Text>
               </View>
-              <BarButton icon="comment" label={cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'} onPress={() => setPanel('comments')} />
-              <BarButton icon="share" label="Partilhar o mimo" size={24} onPress={() => void shareMimo()} />
+              <BarButton icon="comment" label={cur.commentCount > 0 ? t('{count} comentário', { count: cur.commentCount, other: '{count} comentários' }) : t('Comentar')} onPress={() => setPanel('comments')} />
+              <BarButton icon="share" label={t('Partilhar o mimo')} size={24} onPress={() => void shareMimo()} />
             </View>
           )}
         </View>
@@ -604,20 +605,20 @@ export default function StoryViewer() {
         {panel !== null && <View style={[StyleSheet.absoluteFill, { bottom: panelBottom }, wide && { left: frame.cardLeft, width: frame.cardW, top: frame.cardTop, height: frame.cardH + frame.barH, right: undefined, bottom: undefined, borderRadius: frame.radius, overflow: 'hidden' }]} pointerEvents="box-none">
 
         {panel === 'menu' && (
-          <Panel title="O teu mimo" onClose={() => setPanel(null)} cancel>
-            <ActionRow icon="settings" title="Definições do mimo" onPress={() => { close(); router.push('/settings/privacidade?o=storyReplies' as never); }} />
-            <ActionRow icon="download" title={saving ? 'A guardar…' : 'Guardar na galeria'} disabled={saving} onPress={() => void saveMimo()} />
-            <ActionRow icon="share" title="Partilhar" onPress={() => void shareMimo()} />
-            <ActionRow icon={cur.commentsOff ? 'comment' : 'comment-off'} title={cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'} onPress={() => void toggleComments()} />
-            <ActionRow icon="trash" title="Apagar mimo" danger onPress={() => void remove()} />
+          <Panel title={t('O teu mimo')} onClose={() => setPanel(null)} cancel>
+            <ActionRow icon="settings" title={t('Definições do mimo')} onPress={() => { close(); router.push('/settings/privacidade?o=storyReplies' as never); }} />
+            <ActionRow icon="download" title={saving ? t('A guardar…') : t('Guardar na galeria')} disabled={saving} onPress={() => void saveMimo()} />
+            <ActionRow icon="share" title={t('Partilhar')} onPress={() => void shareMimo()} />
+            <ActionRow icon={cur.commentsOff ? 'comment' : 'comment-off'} title={cur.commentsOff ? t('Ativar comentários') : t('Desativar comentários')} onPress={() => void toggleComments()} />
+            <ActionRow icon="trash" title={t('Apagar mimo')} danger onPress={() => void remove()} />
           </Panel>
         )}
         {panel === 'more' && (
-          <Panel title={`Mimo de @${cur.author.username}`} onClose={() => setPanel(null)} cancel>
-            {cur.sharedFrom && <ActionRow icon="share" title={cur.mediaKind === 'video' ? 'Partilhar a tcheka' : 'Partilhar a publicação'} onPress={() => { setPanel(null); void shareSharedPost(cur); }} />}
-            <ActionRow icon="user" title="Ver o perfil" onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} />
-            <ActionRow icon="flag" title="Denunciar mimo" danger onPress={() => setPanel('report')} />
-            <ActionRow icon="block" title={`Bloquear @${cur.author.username}`} danger onPress={() => void confirmBlock()} />
+          <Panel title={t('Mimo de @{username}', { username: cur.author.username })} onClose={() => setPanel(null)} cancel>
+            {cur.sharedFrom && <ActionRow icon="share" title={cur.mediaKind === 'video' ? t('Partilhar a tcheka') : t('Partilhar a publicação')} onPress={() => { setPanel(null); void shareSharedPost(cur); }} />}
+            <ActionRow icon="user" title={t('Ver o perfil')} onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} />
+            <ActionRow icon="flag" title={t('Denunciar mimo')} danger onPress={() => setPanel('report')} />
+            <ActionRow icon="block" title={t('Bloquear @{username}', { username: cur.author.username })} danger onPress={() => void confirmBlock()} />
           </Panel>
         )}
         {/* Denunciado, o mimo sai para quem denunciou: ao fechar passa ao seguinte (o servidor também já não o devolve). */}

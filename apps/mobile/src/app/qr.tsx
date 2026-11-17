@@ -16,6 +16,7 @@ import { readQr, type QrRead } from '@/lib/qrRead';
 import { scanImage } from '@/lib/qrScan';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const BG = '#0b0b0f';
 const web = Platform.OS === 'web';
@@ -136,7 +137,7 @@ export default function QrScreen() {
       const a = r.canceled ? null : r.assets[0];
       if (a) await fromImage(a.uri);
     } catch {
-      setErr('Não consegui abrir a galeria. Tenta outra vez.');
+      setErr(t('Não consegui abrir a galeria. Tenta outra vez.'));
     }
   }
 
@@ -160,17 +161,17 @@ export default function QrScreen() {
     return () => document.removeEventListener('paste', onPaste);
   }, []);
 
-  async function copy(t: string) {
+  async function copy(txt: string) {
     try {
-      await Clipboard.setStringAsync(t);
-      flash('Copiado');
+      await Clipboard.setStringAsync(txt);
+      flash(t('Copiado'));
     } catch {
-      flash('Não consegui copiar');
+      flash(t('Não consegui copiar'));
     }
   }
   function openOutside(href: string) {
     if (web) window.open(href, '_blank', 'noopener,noreferrer');
-    else void Linking.openURL(href).catch(() => flash('Não consegui abrir a ligação'));
+    else void Linking.openURL(href).catch(() => flash(t('Não consegui abrir a ligação')));
   }
   const again = () => {
     going.current = false;
@@ -186,30 +187,30 @@ export default function QrScreen() {
     <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
       <View style={st.bar}>
         <BackButton color="#fff" style={{ backgroundColor: 'transparent' }} />
-        <Text style={st.title} accessibilityRole="header">Ler um QR</Text>
+        <Text style={st.title} accessibilityRole="header">{t('Ler um QR')}</Text>
         <View style={{ width: 48 }} />
       </View>
       <ScrollView ref={scroller} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ width: col, alignItems: 'center' }}>
-          <View style={[st.finder, { width: finder, height: finder }]} accessible accessibilityLabel="Visor da câmara: aponta ao QR">
+          <View style={[st.finder, { width: finder, height: finder }]} accessible accessibilityLabel={t('Visor da câmara: aponta ao QR')}>
             <QrCamera paused={paused} onRead={handle} onLive={setLive} />
             {/* Sem imagem da câmara, a linha não varre por cima do aviso (ficam só os cantos). */}
             <QrFrame size={finder} pulse={hit} reduce={reduce || !live} />
             {busy ? (
               <View style={st.busy}>
                 <ActivityIndicator color="#fff" />
-                <Text style={st.busyText}>A procurar o QR na imagem…</Text>
+                <Text style={st.busyText}>{t('A procurar o QR na imagem…')}</Text>
               </View>
             ) : null}
           </View>
-          <Text style={st.hint}>Aponta a câmara ao QR, ou escolhe a imagem onde ele está.</Text>
+          <Text style={st.hint}>{t('Aponta a câmara ao QR, ou escolhe a imagem onde ele está.')}</Text>
 
-          <Pressable onPress={() => void pick()} disabled={busy} style={({ pressed }) => [st.galleryWrap, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityLabel="Escolher da galeria" accessibilityHint="Lê o QR de uma imagem ou captura de ecrã">
+          <Pressable onPress={() => void pick()} disabled={busy} style={({ pressed }) => [st.galleryWrap, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityLabel={t('Escolher da galeria')} accessibilityHint={t('Lê o QR de uma imagem ou captura de ecrã')}>
             <LinearGradient colors={[colors.brand, colors.brandWarm]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={st.gallery}>
               <View style={st.galleryIcon}><Icon name="image" size={24} color="#fff" /></View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.galleryText}>Escolher da galeria</Text>
-                <Text style={st.gallerySub}>{web ? 'Uma imagem ou captura de ecrã com o QR (também podes colá-la aqui)' : 'Uma imagem ou captura de ecrã com o QR'}</Text>
+                <Text style={st.galleryText}>{t('Escolher da galeria')}</Text>
+                <Text style={st.gallerySub}>{web ? t('Uma imagem ou captura de ecrã com o QR (também podes colá-la aqui)') : t('Uma imagem ou captura de ecrã com o QR')}</Text>
               </View>
               <Icon name="chevron-right" size={20} color="#fff" />
             </LinearGradient>
@@ -220,7 +221,7 @@ export default function QrScreen() {
               <Text style={st.errText}>{err}</Text>
               {!web ? (
                 <Pressable onPress={() => void pick(true)} style={st.errBtn} accessibilityRole="button">
-                  <Text style={st.errBtnText}>Escolher e recortar à volta do QR</Text>
+                  <Text style={st.errBtnText}>{t('Escolher e recortar à volta do QR')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -239,7 +240,7 @@ function ResultCard({ r, onCopy, onOpen, onAgain }: { r: QrRead; onCopy: (t: str
     return (
       <View style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} accessibilityLiveRegion="polite">
         <ActivityIndicator color={colors.brand} />
-        <Text style={st.cardTitle} numberOfLines={2}>A abrir: {r.label}</Text>
+        <Text style={st.cardTitle} numberOfLines={2}>{t('A abrir: {label}', { label: r.label })}</Text>
       </View>
     );
   }
@@ -247,27 +248,27 @@ function ResultCard({ r, onCopy, onOpen, onAgain }: { r: QrRead; onCopy: (t: str
   const body = url ? r.href : r.text;
   return (
     <View style={st.card} accessibilityLiveRegion="polite">
-      <Text style={st.cardKicker}>{url ? 'Ligação de fora do Txillapp' : 'Texto do QR'}</Text>
+      <Text style={st.cardKicker}>{url ? t('Ligação de fora do Txillapp') : t('Texto do QR')}</Text>
       {url ? <Text style={st.cardTitle} numberOfLines={1}>{r.host}</Text> : null}
       <ScrollView style={{ maxHeight: 160, marginTop: 6 }} nestedScrollEnabled>
-        <Text style={st.cardBody} selectable>{body || '(vazio)'}</Text>
+        <Text style={st.cardBody} selectable>{body || t('(vazio)')}</Text>
       </ScrollView>
-      {url ? <Text style={st.ask}>Abrir no browser?</Text> : null}
+      {url ? <Text style={st.ask}>{t('Abrir no browser?')}</Text> : null}
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {url ? (
-          <Pressable onPress={() => onOpen(r.href)} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={`Abrir ${r.host} no browser`}>
+          <Pressable onPress={() => onOpen(r.href)} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={t('Abrir {host} no browser', { host: r.host })}>
             <Icon name="globe" size={18} color="#fff" />
-            <Text style={[st.btnText, { color: '#fff' }]}>Abrir</Text>
+            <Text style={[st.btnText, { color: '#fff' }]}>{t('Abrir')}</Text>
           </Pressable>
         ) : null}
-        <Pressable onPress={() => onCopy(body)} disabled={!body} style={st.btn} accessibilityRole="button" accessibilityLabel={url ? 'Copiar a ligação' : 'Copiar o texto'}>
+        <Pressable onPress={() => onCopy(body)} disabled={!body} style={st.btn} accessibilityRole="button" accessibilityLabel={url ? t('Copiar a ligação') : t('Copiar o texto')}>
           <Icon name={url ? 'link' : 'file-text'} size={18} />
-          <Text style={st.btnText}>Copiar</Text>
+          <Text style={st.btnText}>{t('Copiar')}</Text>
         </Pressable>
       </View>
       <Pressable onPress={onAgain} style={st.againBtn} accessibilityRole="button">
         <Icon name="qr-scan" size={18} color={colors.zinc700} />
-        <Text style={st.againText}>Ler outro QR</Text>
+        <Text style={st.againText}>{t('Ler outro QR')}</Text>
       </Pressable>
     </View>
   );

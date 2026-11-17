@@ -133,7 +133,7 @@ test('ações do lado: avatar com «+» (seguir), brindar, comentários, reposta
   assert.equal(v.showFollowPlus({ mine: false, authorFollowed: false, followedNow: true }), false);
   assert.equal(v.showFollowPlus({ mine: false }), false, 'sem saber se segue, não mostra');
   assert.match(reels, /await api\.follow\(post\.author\.username\);/);
-  const order = ['<AuthorBubble', "accessibilityLabel={post.cheered ? 'Tirar o brinde' : 'Brindar'}", "onPress={() => setSheet('comments')}", "onPress={() => setSheet('repost')}", 'onPress={() => void save()}', "onPress={() => setSheet('share')}", '{extraActions ?? <ReelExtraActions post={post} active={active} />}', '{sound && <SoundDisc'];
+  const order = ['<AuthorBubble', "accessibilityLabel={post.cheered ? t('Tirar o brinde') : t('Brindar')}", "onPress={() => setSheet('comments')}", "onPress={() => setSheet('repost')}", 'onPress={() => void save()}', "onPress={() => setSheet('share')}", '{extraActions ?? <ReelExtraActions post={post} active={active} />}', '{sound && <SoundDisc'];
   let at = reels.indexOf('<Animated.View style={[st.rails');
   assert.ok(at > 0);
   for (const s of order) {

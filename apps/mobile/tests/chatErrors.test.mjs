@@ -47,12 +47,12 @@ test('o ecrã da conversa e a lista usam estas regras', () => {
   assert.match(inbox, /const failed = inboxFailed\(/);
   assert.match(inbox, /failed \? \(/);
   // O erro comum (components/ui/ErrorState): «Ups, não consegui carregar as mensagens» e «Tentar outra vez».
-  assert.match(inbox, /<ErrorState what="as mensagens"/);
+  assert.match(inbox, /<ErrorState what=\{t\('as mensagens'\)\}/);
 });
 
 test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os botões da pesquisa têm 44 de altura', () => {
   const inbox = read('src/app/(tabs)/messages.tsx');
-  assert.match(inbox, /m\.fromMe \? 'Partilhaste uma publicação' : 'Partilhou uma publicação'/);
+  assert.match(inbox, /m\.fromMe \? t\('Partilhaste uma publicação'\) : t\('Partilhou uma publicação'\)/);
   assert.match(inbox, /sBtn: \{ width: 36, height: 44,/);
 });
 

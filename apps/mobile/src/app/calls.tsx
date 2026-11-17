@@ -20,6 +20,7 @@ import { confirm } from '@/lib/confirm';
 import { colors, typo } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
 import { timeAgo } from '@/lib/time';
+import { t } from '@/lib/i18n';
 
 /** Perdida: ligaram-me e não atendi (tocou até ao fim, ou desistiram antes). */
 /** O tempo para «Desfazer» antes de apagar uma chamada no servidor (o mesmo do aviso com botão). */
@@ -28,12 +29,12 @@ const UNDO_MS = 6000;
 const isMissed = (c: CallLogItem) => c.direction === 'in' && (c.status === 'missed' || c.status === 'cancelled');
 
 function subtitle(c: CallLogItem): string {
-  const kind = c.video ? 'Videochamada' : 'Chamada de voz';
+  const kind = c.video ? t('Videochamada') : t('Chamada de voz');
   const when = timeAgo(c.startedAt);
   if (isMissed(c)) return `${kind} perdida · ${when}`;
   if (c.status === 'ringing' || c.status === 'active') return `${kind} · agora`;
   if (c.status === 'declined') return `${kind} recusada · ${when}`;
-  if (c.status === 'missed' || c.status === 'cancelled') return `${kind} sem resposta · ${when}`;
+  if (c.status === 'missed' || c.status === 'cancelled') return t('{kind} sem resposta · {when}', { kind, when });
   const dur = c.durationS ? ` · ${fmtDuration(c.durationS * 1000)}` : '';
   return `${kind}${dur} · ${when}`;
 }
@@ -62,27 +63,27 @@ export default function Calls() {
     const before = qc.getQueryData<Pages>(['calls']);
     qc.setQueryData<Pages>(['calls'], (d) => d && { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.filter((x) => x.id !== c.id) })) });
     let undone = false;
-    showToast('Chamada apagada do registo', { label: 'Desfazer', onPress: () => { undone = true; qc.setQueryData(['calls'], before); } });
+    showToast(t('Chamada apagada do registo'), { label: t('Desfazer'), onPress: () => { undone = true; qc.setQueryData(['calls'], before); } });
     setTimeout(() => {
       if (undone) return;
-      callsApi.remove(c.id).catch(() => { qc.setQueryData(['calls'], before); showToast('Não consegui apagar. Tenta outra vez.'); });
+      callsApi.remove(c.id).catch(() => { qc.setQueryData(['calls'], before); showToast(t('Não consegui apagar. Tenta outra vez.')); });
     }, UNDO_MS);
   }
   async function clearAll() {
-    const ok = await confirm({ title: 'Limpar o histórico?', message: 'Todas as chamadas saem da tua lista. Do lado da outra pessoa ficam.', confirm: 'Limpar', danger: true });
+    const ok = await confirm({ title: t('Limpar o histórico?'), message: t('Todas as chamadas saem da tua lista. Do lado da outra pessoa ficam.'), confirm: t('Limpar'), danger: true });
     if (!ok) return;
-    void callsApi.removeAll().then(() => qc.invalidateQueries({ queryKey: ['calls'] })).catch(() => showToast('Não consegui limpar o histórico. Tenta outra vez.'));
+    void callsApi.removeAll().then(() => qc.invalidateQueries({ queryKey: ['calls'] })).catch(() => showToast(t('Não consegui limpar o histórico. Tenta outra vez.')));
   }
 
   function callBack(c: CallLogItem) {
-    void startCall(c.peer, c.video).catch((e: Error) => showToast(e.message ? `Não consegui ligar: ${e.message}` : 'Não consegui ligar. Tenta outra vez.'));
+    void startCall(c.peer, c.video).catch((e: Error) => showToast(e.message ? t('Não consegui ligar: {message}', { message: e.message }) : t('Não consegui ligar. Tenta outra vez.')));
   }
 
   return (
     <StackPage
-      title="Chamadas"
+      title={t('Chamadas')}
       right={items.length ? (
-        <Button label="Limpar" kind="ghost" size="sm" onPress={() => void clearAll()} accessibilityLabel="Limpar o histórico de chamadas" />
+        <Button label={t('Limpar')} kind="ghost" size="sm" onPress={() => void clearAll()} accessibilityLabel={t('Limpar o histórico de chamadas')} />
       ) : undefined}
     >
       <FlatList
@@ -94,14 +95,14 @@ export default function Calls() {
         contentContainerStyle={{ paddingVertical: 6 }}
         ListEmptyComponent={
           q.isLoading ? <ListSkeleton avatar={48} /> :
-          q.isError ? <ErrorState what="as chamadas" onRetry={() => void q.refetch()} /> :
-          <EmptyState icon="phone" title="Ainda não há chamadas" text="Liga a alguém a partir de uma conversa: o botão está no topo." />
+          q.isError ? <ErrorState what={t('as chamadas')} onRetry={() => void q.refetch()} /> :
+          <EmptyState icon="phone" title={t('Ainda não há chamadas')} text={t('Liga a alguém a partir de uma conversa: o botão está no topo.')} />
         }
         ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} color={colors.brand} /> : undefined}
         renderItem={({ item: c }) => {
           const missed = isMissed(c);
           return (
-            <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} onLongPress={() => setHeld(c)} delayLongPress={HOLD_MS} accessibilityHint="Segura para mais opções" accessibilityActions={[{ name: 'more', label: 'Mais opções' }]} onAccessibilityAction={() => setHeld(c)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
+            <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} onLongPress={() => setHeld(c)} delayLongPress={HOLD_MS} accessibilityHint={t('Segura para mais opções')} accessibilityActions={[{ name: 'more', label: t('Mais opções') }]} onAccessibilityAction={() => setHeld(c)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
               <Avatar name={c.peer.displayName} username={c.peer.hasAvatar ? c.peer.username : undefined} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <NameWithBadge name={c.peer.displayName} who={c.peer} style={[st.name, missed && { color: colors.red600 }]} />
@@ -110,7 +111,7 @@ export default function Calls() {
                   <Text style={[st.sub, missed && { color: colors.red600 }]} numberOfLines={1}>{subtitle(c)}</Text>
                 </View>
               </View>
-              <IconButton variant="soft" onPress={() => callBack(c)} label={c.video ? `Videochamada a ${c.peer.displayName}` : `Ligar a ${c.peer.displayName}`}>
+              <IconButton variant="soft" onPress={() => callBack(c)} label={c.video ? t('Videochamada a {displayName}', { displayName: c.peer.displayName }) : t('Ligar a {displayName}', { displayName: c.peer.displayName })}>
                 {c.video ? <Icon name="video" size={22} color={colors.zinc800} /> : <CallIcon name="handset" size={21} color={colors.zinc800} />}
               </IconButton>
             </Pressable>
@@ -122,11 +123,11 @@ export default function Calls() {
           <View style={{ paddingHorizontal: 16 }}>
             <NameWithBadge name={held.peer.displayName} who={held.peer} style={st.sheetName} containerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }} />
             {[
-              { label: 'Mensagem', icon: 'comment' as const, run: () => router.push(`/messages/${held.peer.username}` as never) },
-              { label: 'Chamada de voz', icon: 'phone' as const, run: () => callBack({ ...held, video: false }) },
-              { label: 'Videochamada', icon: 'video' as const, run: () => callBack({ ...held, video: true }) },
-              { label: 'Ver perfil', icon: 'user' as const, run: () => router.push(`/u/${held.peer.username}` as never) },
-              ...(held.status === 'ringing' || held.status === 'active' ? [] : [{ label: 'Apagar do registo', icon: 'trash' as const, run: () => remove(held), danger: true }]),
+              { label: t('Mensagem'), icon: 'comment' as const, run: () => router.push(`/messages/${held.peer.username}` as never) },
+              { label: t('Chamada de voz'), icon: 'phone' as const, run: () => callBack({ ...held, video: false }) },
+              { label: t('Videochamada'), icon: 'video' as const, run: () => callBack({ ...held, video: true }) },
+              { label: t('Ver perfil'), icon: 'user' as const, run: () => router.push(`/u/${held.peer.username}` as never) },
+              ...(held.status === 'ringing' || held.status === 'active' ? [] : [{ label: t('Apagar do registo'), icon: 'trash' as const, run: () => remove(held), danger: true }]),
             ].map((o) => (
               <ActionRow key={o.label} icon={o.icon} title={o.label} danger={'danger' in o && o.danger} onPress={() => { const c = o.run; setHeld(null); c(); }} />
             ))}

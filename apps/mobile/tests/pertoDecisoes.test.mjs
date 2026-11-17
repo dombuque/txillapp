@@ -22,7 +22,7 @@ function fnBody(src, name) {
 
 test('linhas da lista: ação "Abrir" do leitor de ecrã que abre logo; o toque normal fica', () => {
   const row = fnBody(perto, 'Row');
-  assert.match(perto, /OPEN_ACTIONS[^=]*=\s*\[\{\s*name:\s*'open',\s*label:\s*'Abrir'\s*\}\]/);
+  assert.match(perto, /OPEN_ACTIONS[^=]*=\s*\[\{\s*name:\s*'open',\s*get label\(\) \{ return t\('Abrir'\); \}\s*\}\]/);
   assert.match(row, /accessibilityActions=\{OPEN_ACTIONS\}/);
   assert.match(row, /onAccessibilityAction=\{\(e\)\s*=>\s*\{\s*if \(e\.nativeEvent\.actionName === 'open'\) onOpen\(\);/);
   assert.match(row, /onPress=\{onPress\}/);

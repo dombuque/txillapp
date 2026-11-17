@@ -194,8 +194,8 @@ test('«Tirar outra» também pergunta quando só há textos', () => {
 
 test('editor do mimo: «Aa» abre o texto, Feito pousa, tocar reescreve, e vai tudo em `stickers`', () => {
   const src = read('app', 'stories', 'new.tsx');
-  assert.match(src, /accessibilityLabel="Texto"/);
-  assert.match(src, />Aa</);
+  assert.match(src, /accessibilityLabel=\{t\('Texto'\)\}/);
+  assert.match(src, />\{t\('Aa'\)\}</);
   assert.match(src, /<TextLayerEditor initial=\{textEdit\.layer\} boxW=\{frame\.w\} onDone=\{textDone\} \/>/);
   assert.match(src, /onEdit=\{editText\} hidden=\{textEdit\?\.index \?\? null\}/);
   assert.match(src, /counts\.texts >= MAX_TEXT_LAYERS/);

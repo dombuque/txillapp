@@ -34,6 +34,7 @@ import { navTap } from '@/lib/tapGuard';
 import { onPostsViewable } from '@/lib/visiblePosts';
 import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const WEB = Platform.OS === 'web';
 
@@ -44,7 +45,7 @@ function Header() {
   const count = unread.data?.count ?? 0;
   return (
     <View style={styles.header}>
-      <Pressable onPress={() => { if (navTap('/notifications')) router.push('/notifications'); }} style={[styles.hBtn, { left: 12 }]} accessibilityRole="button" accessibilityLabel={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'}>
+      <Pressable onPress={() => { if (navTap('/notifications')) router.push('/notifications'); }} style={[styles.hBtn, { left: 12 }]} accessibilityRole="button" accessibilityLabel={count > 0 ? t('Notificações ({total} por ler)', { total: count }) : t('Notificações')}>
         <View>
           <Icon name="bell" size={24} />
           {count > 0 && (
@@ -55,7 +56,7 @@ function Header() {
         </View>
       </Pressable>
       <Wordmark height={32} />
-      <Pressable onPress={() => { if (navTap('/search')) router.push('/search'); }} style={[styles.hBtn, { right: 12 }]} accessibilityRole="button" accessibilityLabel="Pesquisar">
+      <Pressable onPress={() => { if (navTap('/search')) router.push('/search'); }} style={[styles.hBtn, { right: 12 }]} accessibilityRole="button" accessibilityLabel={t('Pesquisar')}>
         <Icon name="search" size={24} />
       </Pressable>
     </View>
@@ -182,7 +183,7 @@ function Feed() {
         <View style={styles.freshWrap} pointerEvents="box-none">
           <Pressable onPress={() => void showNew()} style={({ pressed }) => [styles.fresh, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
             <Icon name="arrow-up" size={16} strokeWidth={3} color="#fff" />
-            <Text style={styles.freshText}>{fresh === 1 ? 'Há novidades' : `${fresh} novidades`}</Text>
+            <Text style={styles.freshText}>{t('Há novidades', { count: fresh, other: '{count} novidades' })}</Text>
           </Pressable>
         </View>
       )}
@@ -203,8 +204,8 @@ function Feed() {
           <>
             {index === firstSeen && firstSeen > 0 && (
               <View style={styles.caughtUp}>
-                <Text style={styles.caughtTitle}>Estás em dia</Text>
-                <Text style={styles.caughtSub}>Daqui para baixo são publicações que já viste.</Text>
+                <Text style={styles.caughtTitle}>{t('Estás em dia')}</Text>
+                <Text style={styles.caughtSub}>{t('Daqui para baixo são publicações que já viste.')}</Text>
               </View>
             )}
             <PostCard post={item} me={user?.id} />
@@ -230,9 +231,9 @@ function Feed() {
               <Skeleton />
             </>
           ) : q.isError ? (
-            <ErrorState what="o teu feed" onRetry={() => void q.refetch()} />
+            <ErrorState what={t('o teu feed')} onRetry={() => void q.refetch()} />
           ) : (
-            <EmptyState icon="cheers" title="Ainda ninguém brindou por aqui" text="Sê tu a começar a festa!" action={{ label: 'Faz a primeira publicação', onPress: () => router.push('/new' as never) }} />
+            <EmptyState icon="cheers" title={t('Ainda ninguém brindou por aqui')} text={t('Sê tu a começar a festa!')} action={{ label: t('Faz a primeira publicação'), onPress: () => router.push('/new' as never) }} />
           )
         }
         ListFooterComponent={
@@ -242,7 +243,7 @@ function Feed() {
             {q.isFetchNextPageError && !q.isFetchingNextPage ? (
               // Falhou ao pedir mais (sem rede): o que já estava fica, e dá para tentar outra vez aqui em baixo.
               <View style={{ alignItems: 'center', marginBottom: 24 }} accessibilityRole="alert">
-                <Button label="Tentar outra vez" kind="secondary" size="md" onPress={() => void q.fetchNextPage()} />
+                <Button label={t('Tentar outra vez')} kind="secondary" size="md" onPress={() => void q.fetchNextPage()} />
               </View>
             ) : q.hasNextPage ? <LoadMore onLoad={onEnd} loading={q.isFetchingNextPage} /> : <View style={{ height: 8 }} />}
           </>

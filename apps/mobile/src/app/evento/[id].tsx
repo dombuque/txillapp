@@ -12,6 +12,7 @@ import { locaisApi } from '@/lib/api.locais';
 import { directionsUrl, eventWhen, nearbyApi, type EventDetail } from '@/lib/api.nearby';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Um evento num local: capa, quando, onde, "Tenho interesse" e "Ir até lá". */
 export default function Evento() {
@@ -34,7 +35,7 @@ export default function Evento() {
     },
     onError: (e, _on, ctx) => {
       if (ctx?.prev) qc.setQueryData(['event', id], ctx.prev);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.');
+      Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Tenta outra vez daqui a pouco.'));
     },
     onSuccess: (r) => {
       if (r && typeof r === 'object' && typeof r.interested === 'number') {
@@ -46,17 +47,17 @@ export default function Evento() {
   });
 
   if (q.isLoading) {
-    return <StackPage title="Evento"><View style={st.center}><ActivityIndicator /></View></StackPage>;
+    return <StackPage title={t('Evento')}><View style={st.center}><ActivityIndicator /></View></StackPage>;
   }
   if (!ev) {
     return (
-      <StackPage title="Evento">
+      <StackPage title={t('Evento')}>
         <View style={st.center}>
           <Icon name="calendar" size={36} color={colors.zinc300} />
-          <Text style={st.emptyTitle}>{q.error instanceof ApiError && q.error.status === 404 ? 'Este evento já não existe' : 'Não consegui abrir o evento'}</Text>
+          <Text style={st.emptyTitle}>{q.error instanceof ApiError && q.error.status === 404 ? t('Este evento já não existe') : t('Não consegui abrir o evento')}</Text>
           {/* Um evento apagado não volta por tentar outra vez: o botão é só para quando falhou a rede. */}
           {q.error instanceof ApiError && q.error.status === 404 ? null : (
-            <Pressable onPress={() => void q.refetch()} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+            <Pressable onPress={() => void q.refetch()} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>{t('Tentar outra vez')}</Text></Pressable>
           )}
         </View>
       </StackPage>
@@ -69,17 +70,17 @@ export default function Evento() {
   const others = (more.data ?? []).filter((e) => e.id !== ev.id).slice(0, 6);
 
   return (
-    <StackPage title="Evento">
+    <StackPage title={t('Evento')}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40, maxWidth: 720, width: '100%', alignSelf: 'center' }}>
         <View style={st.cover}>
           <Icon name="calendar" size={40} color="rgba(255,255,255,0.7)" />
-          {ev.coverUrl ? <Image source={{ uri: sized(ev.coverUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`Capa de ${ev.title}`} /> : null}
+          {ev.coverUrl ? <Image source={{ uri: sized(ev.coverUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={t('Capa de {title}', { title: ev.title })} /> : null}
         </View>
         <View style={{ padding: 16, gap: 14 }}>
           <View style={{ gap: 6 }}>
             <Text style={st.when}>{eventWhen(ev.startsAt, ev.endsAt)}</Text>
             <Text style={st.title}>{ev.title}</Text>
-            <Text style={st.sub}>{ev.interested ? `${ev.interested} ${ev.interested === 1 ? 'pessoa tem' : 'pessoas têm'} interesse` : 'Sê o primeiro a mostrar interesse'}</Text>
+            <Text style={st.sub}>{ev.interested ? t('{count} pessoa tem interesse', { count: ev.interested, other: '{count} pessoas têm interesse' }) : t('Sê o primeiro a mostrar interesse')}</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -91,12 +92,12 @@ export default function Evento() {
               accessibilityState={{ selected: ev.imInterested }}
             >
               <Icon name={ev.imInterested ? 'check' : 'star'} size={18} color={ev.imInterested ? colors.zinc900 : colors.white} />
-              <Text style={[st.btnText, ev.imInterested && { color: colors.zinc900 }]}>{ev.imInterested ? 'Tens interesse' : 'Tenho interesse'}</Text>
+              <Text style={[st.btnText, ev.imInterested && { color: colors.zinc900 }]}>{ev.imInterested ? t('Tens interesse') : t('Tenho interesse')}</Text>
             </Pressable>
             {go ? (
-              <Pressable onPress={go} style={[st.btn, st.btnOn]} accessibilityRole="link" accessibilityLabel={`Ir até ${ev.venue.name} na app de mapas`}>
+              <Pressable onPress={go} style={[st.btn, st.btnOn]} accessibilityRole="link" accessibilityLabel={t('Ir até {name} na app de mapas', { name: ev.venue.name })}>
                 <Icon name="map-pin" size={18} color={colors.zinc900} />
-                <Text style={[st.btnText, { color: colors.zinc900 }]}>Ir até lá</Text>
+                <Text style={[st.btnText, { color: colors.zinc900 }]}>{t('Ir até lá')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -108,7 +109,7 @@ export default function Evento() {
                 <Text style={st.venueName} numberOfLines={1}>{ev.venue.name}</Text>
                 {ev.venue.verified ? <VerifiedBadge size={14} /> : null}
               </View>
-              <Text style={st.sub}>Ver o local</Text>
+              <Text style={st.sub}>{t('Ver o local')}</Text>
             </View>
             <Icon name="chevron-right" size={18} color={colors.zinc500} />
           </Pressable>
@@ -118,13 +119,13 @@ export default function Evento() {
           {canCreate ? (
             <Pressable onPress={() => router.push(`/evento/novo?venue=${encodeURIComponent(ev.venue.slug)}` as never)} style={[st.btn, st.btnOn, { alignSelf: 'flex-start', flex: 0, paddingHorizontal: 18 }]} accessibilityRole="button">
               <Icon name="plus" size={18} color={colors.zinc900} />
-              <Text style={[st.btnText, { color: colors.zinc900 }]}>Criar evento</Text>
+              <Text style={[st.btnText, { color: colors.zinc900 }]}>{t('Criar evento')}</Text>
             </Pressable>
           ) : null}
 
           {others.length ? (
             <View style={{ gap: 4, marginTop: 6 }}>
-              <Text style={st.section}>Mais em {ev.venue.name}</Text>
+              <Text style={st.section}>{t('Mais em {name}', { name: ev.venue.name })}</Text>
               {others.map((o) => (
                 <Pressable key={o.id} onPress={() => router.push(`/evento/${o.id}` as never)} style={st.other} accessibilityRole="link">
                   <View style={st.otherThumb}>
@@ -133,7 +134,7 @@ export default function Evento() {
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={st.venueName} numberOfLines={1}>{o.title}</Text>
-                    <Text style={st.sub} numberOfLines={1}>{eventWhen(o.startsAt, o.endsAt)}{o.interested ? ` · ${o.interested} com interesse` : ''}</Text>
+                    <Text style={st.sub} numberOfLines={1}>{eventWhen(o.startsAt, o.endsAt)}{o.interested ? (' ' + t('· {interested} com interesse', { interested: o.interested })) : ''}</Text>
                   </View>
                 </Pressable>
               ))}

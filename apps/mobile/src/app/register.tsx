@@ -15,17 +15,18 @@ import { needsHumanCheck, registerStepFor, securityErrorText } from '@/lib/human
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
 import { Field, Screen, authStyles } from './login';
+import { t } from '@/lib/i18n';
 
 const MIN_AGE = 15;
 type Key = 'displayName' | 'username' | 'email' | 'birthDate' | 'gender' | 'password';
 
 const steps: { key: Key; title: string; sub: string; placeholder: string; icon: 'user' | 'at' | 'mail' | 'calendar' | 'lock' | null; cta: string }[] = [
-  { key: 'displayName', title: 'Como te chamas?', sub: 'Diz-nos o teu nome, não mordemos', placeholder: 'Nome', icon: 'user', cta: 'Seguinte' },
-  { key: 'username', title: 'Qual vai ser o teu @?', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: 'at', cta: 'Seguinte' },
-  { key: 'email', title: 'E o teu email?', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: 'mail', cta: 'Seguinte' },
-  { key: 'birthDate', title: 'Quando nasceste?', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: 'calendar', cta: 'Seguinte' },
-  { key: 'gender', title: 'Como te identificas?', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, cta: 'Seguinte' },
-  { key: 'password', title: 'Agora uma senha', sub: 'Mínimo 10 caracteres. Nada de «123456», ok?', placeholder: 'Senha', icon: 'lock', cta: 'Criar conta' },
+  { key: 'displayName', get title() { return t('Como te chamas?'); }, get sub() { return t('Diz-nos o teu nome, não mordemos'); }, get placeholder() { return t('Nome'); }, icon: 'user', get cta() { return t('Seguinte'); } },
+  { key: 'username', get title() { return t('Qual vai ser o teu @?'); }, get sub() { return t('É único: só tu o podes ter'); }, get placeholder() { return t('utilizador'); }, icon: 'at', get cta() { return t('Seguinte'); } },
+  { key: 'email', get title() { return t('E o teu email?'); }, get sub() { return t('Prometemos não fazer spam'); }, placeholder: 'email@exemplo.com', icon: 'mail', get cta() { return t('Seguinte'); } },
+  { key: 'birthDate', get title() { return t('Quando nasceste?'); }, get sub() { return t('Para confirmar que tens {minAge}+ anos. Ninguém vê esta data', { minAge: MIN_AGE }); }, placeholder: 'AAAA-MM-DD', icon: 'calendar', get cta() { return t('Seguinte'); } },
+  { key: 'gender', get title() { return t('Como te identificas?'); }, get sub() { return t('Só tu decides se isto aparece no teu perfil'); }, placeholder: '', icon: null, get cta() { return t('Seguinte'); } },
+  { key: 'password', get title() { return t('Agora uma senha'); }, get sub() { return t('Mínimo 10 caracteres. Nada de «123456», ok?'); }, get placeholder() { return t('Senha'); }, icon: 'lock', get cta() { return t('Criar conta'); } },
 ];
 
 const ageOf = (v: string) => {
@@ -39,20 +40,20 @@ const ageOf = (v: string) => {
 /** Devolve o problema do valor ou null. Corre a cada tecla, sem esperar pelo servidor. */
 export function problemOf(key: Key, raw: string): string | null {
   const v = key === 'username' ? raw.trim().replace(/^@/, '') : raw.trim();
-  if (key === 'displayName') return v.length === 0 ? 'Diz-nos o teu nome' : v.length > 60 ? 'Nome demasiado comprido' : null;
+  if (key === 'displayName') return v.length === 0 ? t('Diz-nos o teu nome') : v.length > 60 ? t('Nome demasiado comprido') : null;
   if (key === 'username') {
-    if (v.length < 3) return 'Mínimo 3 caracteres';
-    if (v.length > 30) return 'Máximo 30 caracteres';
-    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : 'Só letras, números, «_» e «.», sem espaços';
+    if (v.length < 3) return t('Mínimo 3 caracteres');
+    if (v.length > 30) return t('Máximo 30 caracteres');
+    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : t('Só letras, números, «_» e «.», sem espaços');
   }
-  if (key === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Esse email não parece certo';
-  if (key === 'gender') return v ? null : 'Escolhe uma opção';
+  if (key === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : t('Esse email não parece certo');
+  if (key === 'gender') return v ? null : t('Escolhe uma opção');
   if (key === 'birthDate') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(`${v}T00:00:00Z`).getTime())) return 'Data inválida (AAAA-MM-DD)';
-    if (ageOf(v) < MIN_AGE) return `Tens de ter pelo menos ${MIN_AGE} anos para criar conta`;
-    return ageOf(v) > 120 ? 'Data inválida' : null;
+    if (ageOf(v) < MIN_AGE) return t('Tens de ter pelo menos {minAge} anos para criar conta', { minAge: MIN_AGE });
+    return ageOf(v) > 120 ? t('Data inválida') : null;
   }
-  return raw.length >= 10 ? null : 'Mínimo 10 caracteres';
+  return raw.length >= 10 ? null : t('Mínimo 10 caracteres');
 }
 
 type Check = { state: 'idle' } | { state: 'checking' } | { state: 'ok' } | { state: 'bad'; message: string; suggestions?: string[]; taken?: boolean } | { state: 'error' };
@@ -67,32 +68,32 @@ export function useAvailability(kind: 'username' | 'email', raw: string, enabled
     if (local) return setCheck({ state: 'bad', message: local });
     setCheck({ state: 'checking' });
     let stale = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         if (kind === 'username') {
           const r = await api.usernameAvailable(value);
           if (stale) return;
           if (r.available) return setCheck({ state: 'ok' });
-          setCheck(r.reason === 'taken' ? { state: 'bad', taken: true, message: `@${value} já tem dono`, suggestions: r.suggestions } : { state: 'bad', message: r.reason === 'reserved' ? 'Esse nome está reservado' : 'Nome de utilizador inválido' });
+          setCheck(r.reason === 'taken' ? { state: 'bad', taken: true, message: t('@{value} já tem dono', { value }), suggestions: r.suggestions } : { state: 'bad', message: r.reason === 'reserved' ? t('Esse nome está reservado') : t('Nome de utilizador inválido') });
         } else {
           const r = await api.emailAvailable(value);
           if (stale) return;
-          setCheck(r.available ? { state: 'ok' } : { state: 'bad', taken: r.reason === 'taken', message: r.reason === 'taken' ? 'Este email já tem conta' : 'Esse email não parece certo' });
+          setCheck(r.available ? { state: 'ok' } : { state: 'bad', taken: r.reason === 'taken', message: r.reason === 'taken' ? t('Este email já tem conta') : t('Esse email não parece certo') });
         }
       } catch {
         if (!stale) setCheck({ state: 'error' }); // sem rede: deixa continuar, o servidor valida no fim
       }
     }, 350);
-    return () => { stale = true; clearTimeout(t); };
+    return () => { stale = true; clearTimeout(timer); };
   }, [kind, raw, enabled]);
   return check;
 }
 
 function strength(p: string) {
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^\w\s]/].filter((r) => r.test(p)).length;
-  if (p.length < 10) return { level: 1, label: 'Ainda fraca', color: colors.danger };
-  if (p.length >= 14 || kinds >= 3) return { level: 3, label: 'Forte', color: '#22c55e' };
-  return { level: 2, label: 'Boa', color: '#fbbf24' };
+  if (p.length < 10) return { level: 1, label: t('Ainda fraca'), color: colors.danger };
+  if (p.length >= 14 || kinds >= 3) return { level: 3, label: t('Forte'), color: '#22c55e' };
+  return { level: 2, label: t('Boa'), color: '#fbbf24' };
 }
 
 /** Criar conta em 6 passos, como no site. */
@@ -137,7 +138,7 @@ export default function Register() {
 
   async function next() {
     if (busy) return;
-    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho…' : 'Preenche este campo'));
+    if (blocked) return setError(termsMissing ? t('Tens de aceitar os Termos e a Política de Privacidade') : local ?? (check.state === 'bad' ? check.message : value ? t('Só um segundinho…') : t('Preenche este campo')));
     setError('');
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
@@ -166,7 +167,7 @@ export default function Register() {
       const msg = (x as Error).message;
       if (x instanceof ApiError && x.status === 409) {
         setI(/email/i.test(msg) ? 2 : 1);
-        setError(/email/i.test(msg) ? 'Esse email já tem conta' : 'Esse @ acabou de ser escolhido por outra pessoa');
+        setError(/email/i.test(msg) ? t('Esse email já tem conta') : t('Esse @ acabou de ser escolhido por outra pessoa'));
       } else if (x instanceof ApiError) {
         // Email temporário: volta ao passo do email. Limites, prova de humano e servidor ocupado: o texto certo.
         if (registerStepFor(x) === 'email') setI(steps.findIndex((s) => s.key === 'email'));
@@ -199,14 +200,14 @@ export default function Register() {
       </View>
 
       <View style={{ marginTop: 40 }}>
-        {invite && i === 0 && <Text style={st.invite}>Convite de {invite.displayName}<InlineBadge who={invite} fontSize={15} />: os dois ganham vibes quando entrares a sério.</Text>}
+        {invite && i === 0 && <Text style={st.invite}>{t('Convite de {displayName}', { displayName: invite.displayName })}<InlineBadge who={invite} fontSize={15} />{t(': os dois ganham vibes quando entrares a sério.')}</Text>}
         <Text style={st.title}>{step.title}</Text>
         <Text style={st.sub}>{step.sub}</Text>
 
         <View style={{ marginTop: 28 }}>
           {step.key === 'gender' ? (
             <View style={{ flexDirection: 'row', gap: 12 }} accessibilityRole="radiogroup">
-              {[['female', 'Feminino'], ['male', 'Masculino']].map(([v, label]) => {
+              {[['female', t('Feminino')], ['male', t('Masculino')]].map(([v, label]) => {
                 const on = data.gender === v;
                 return (
                   <Pressable key={v} onPress={() => set(v)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.opt, on ? { borderColor: colors.brand, backgroundColor: colors.rose50 } : { borderColor: colors.zinc200, backgroundColor: '#fff' }]}>
@@ -235,8 +236,8 @@ export default function Register() {
           )}
           {step.key === 'username' && (
             <View style={st.avail}>
-              {check.state === 'checking' && <Text style={st.hint}>A verificar…</Text>}
-              {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>@{value.trim().replace(/^@/, '')} está livre</Text>}
+              {check.state === 'checking' && <Text style={st.hint}>{t('A verificar…')}</Text>}
+              {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>{t('@{value} está livre', { value: value.trim().replace(/^@/, '') })}</Text>}
               {check.state === 'bad' && (
                 <View>
                   <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
@@ -252,7 +253,7 @@ export default function Register() {
           {step.key === 'email' && check.state === 'bad' && (
             <View style={st.avail}>
               <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
-              {check.taken && <Text style={st.link} onPress={() => router.replace('/login')}>Já tens conta? Entra aqui</Text>}
+              {check.taken && <Text style={st.link} onPress={() => router.replace('/login')}>{t('Já tens conta? Entra aqui')}</Text>}
             </View>
           )}
           {step.key === 'displayName' && value && local ? <Text style={[st.hint, { color: colors.danger, marginTop: 12 }]}>{local}</Text> : null}
@@ -269,8 +270,8 @@ export default function Register() {
             <Pressable onPress={() => { setError(''); setData({ ...data, acceptTerms: !data.acceptTerms }); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: !!data.acceptTerms }}>
               <View style={[st.box, data.acceptTerms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{data.acceptTerms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
               <Text style={st.termsText}>
-                Li e aceito os <Text style={st.link} onPress={() => legal('/terms')}>Termos de Uso</Text> e a{' '}
-                <Text style={st.link} onPress={() => legal('/privacy')}>Política de Privacidade</Text>.
+                {t('Li e aceito os')} <Text style={st.link} onPress={() => legal('/terms')}>{t('Termos de Uso')}</Text> e a{' '}
+                <Text style={st.link} onPress={() => legal('/privacy')}>{t('Política de Privacidade')}</Text>.
               </Text>
             </Pressable>
           )}

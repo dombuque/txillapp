@@ -38,6 +38,7 @@ import { gruposApi } from '@/lib/api.grupos';
 import { colors } from '@/lib/theme';
 import { reelMounted } from '@/lib/videoMemory';
 import { Reel } from '../(tabs)/reels';
+import { t } from '@/lib/i18n';
 
 const isWeb = Platform.OS === 'web';
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
@@ -166,7 +167,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       else soc.afterReact(it.post.id, r.mine, r.theirs);
     } catch {
       patchItem(it.post.id, (x) => ({ ...x, mine: before }));
-      say('Não consegui reagir. Tenta outra vez.');
+      say(t('Não consegui reagir. Tenta outra vez.'));
     }
   }, [patchItem, mx, id, soc]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -187,11 +188,11 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         void qc.invalidateQueries({ queryKey: ['chat-list'] });
       }
       setSent((s) => ({ ...s, [p.id]: 'sent' }));
-      say(grp ? 'Enviado para a conversa do grupo' : `Enviado a ${firstName(mixar.partner.displayName)}`);
+      say(grp ? t('Enviado para a conversa do grupo') : t('Enviado a {firstName}', { firstName: firstName(mixar.partner.displayName) }));
       void mx.shared(id, p.id).catch(() => undefined);
     } catch (e) {
       setSent((s) => { const n = { ...s }; delete n[p.id]; return n; });
-      say((e as Error).message || 'Não consegui enviar. Tenta outra vez.');
+      say((e as Error).message || t('Não consegui enviar. Tenta outra vez.'));
     }
   }, [mixar, sent, preview, qc, mx, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -205,7 +206,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       qc.setQueryData(mixarKeys.challenge(id), r);
       void qc.invalidateQueries({ queryKey: mixarKeys.list() });
     } catch (e) {
-      showToast(mixarErrorText(e, 'Não consegui guardar a tua escolha. Tenta outra vez.'));
+      showToast(mixarErrorText(e, t('Não consegui guardar a tua escolha. Tenta outra vez.')));
     } finally {
       setPicking(false);
     }
@@ -220,16 +221,16 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       say(lessToast(r));
       goNext(activeRef.current);
     } catch (e) {
-      say(mixarErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+      say(mixarErrorText(e, t('Não consegui agora. Tenta outra vez.')));
     }
   }
   async function offTopic(topic: string) {
     try {
       qc.setQueryData(mixarControloKeys.topics(id), await cx.setTopic(id, topic, 'off'));
-      say('Tirado do vosso Mixar');
+      say(t('Tirado do vosso Mixar'));
       void qc.invalidateQueries({ queryKey: mixarKeys.one(id) });
     } catch (e) {
-      say(mixarErrorText(e, 'Não consegui agora. Tenta outra vez.'));
+      say(mixarErrorText(e, t('Não consegui agora. Tenta outra vez.')));
     }
   }
 
@@ -251,7 +252,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
       if (r.group) void qc.invalidateQueries({ queryKey: ['mixar', id] });
       afterChange();
     } catch (e) {
-      showToast(mixarErrorText(e, 'Não consegui aceitar agora. Tenta outra vez.'));
+      showToast(mixarErrorText(e, t('Não consegui aceitar agora. Tenta outra vez.')));
     } finally {
       setAnswering(null);
     }
@@ -274,10 +275,10 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     const gl = grp ? groupLeaveText(grp.people.length) : null;
     void (async () => {
       const ok = await confirm({
-        title: gl ? gl.title : pending ? 'Cancelar o convite?' : 'Sair do Mixar?',
-        message: gl ? gl.line : pending ? `${partner.name} deixa de ver o convite.` : `O vosso Mixar acaba para os dois. Podes convidar ${partner.name} outra vez quando quiseres.`,
-        confirm: gl ? 'Sair' : pending ? 'Cancelar convite' : 'Sair',
-        cancel: 'Ficar',
+        title: gl ? gl.title : pending ? t('Cancelar o convite?') : t('Sair do Mixar?'),
+        message: gl ? gl.line : pending ? t('{name} deixa de ver o convite.', { name: partner.name }) : t('O vosso Mixar acaba para os dois. Podes convidar {name} outra vez quando quiseres.', { name: partner.name }),
+        confirm: gl ? t('Sair') : pending ? t('Cancelar convite') : t('Sair'),
+        cancel: t('Ficar'),
         danger: true,
       });
       if (!ok) return;
@@ -364,7 +365,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         <RailButton
           icon={<View style={railStyles.circle}>{sendState === 'sending' ? <ActivityIndicator color="#fff" /> : <Icon name="more" size={28} color="#fff" />}</View>}
           onPress={() => setItemMenu(it)}
-          accessibilityLabel={sendState === 'sent' ? `Mais opções deste item no Mixar (enviado a ${partner.name})` : 'Mais opções deste item no Mixar'}
+          accessibilityLabel={sendState === 'sent' ? t('Mais opções deste item no Mixar (enviado a {name})', { name: partner.name }) : t('Mais opções deste item no Mixar')}
         />
       </>
     );
@@ -385,10 +386,10 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     body = (
       <View style={st.center} accessibilityRole="alert">
         <Icon name="mixar" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={st.title}>{gone ? 'Este Mixar já não existe' : 'Ups, o Mixar não abriu'}</Text>
-        <Text style={st.sub}>{gone ? 'Pode ter terminado, ou o convite foi recusado.' : 'Verifica a ligação e tenta outra vez.'}</Text>
-        {gone ? null : <Pressable onPress={() => void m.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>}
-        <Pressable onPress={() => router.replace('/mixar' as never)} style={st.link} accessibilityRole="button"><Text style={st.linkText}>Ver os meus Mixar</Text></Pressable>
+        <Text style={st.title}>{gone ? t('Este Mixar já não existe') : t('Ups, o Mixar não abriu')}</Text>
+        <Text style={st.sub}>{gone ? t('Pode ter terminado, ou o convite foi recusado.') : t('Verifica a ligação e tenta outra vez.')}</Text>
+        {gone ? null : <Pressable onPress={() => void m.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>{t('Tentar outra vez')}</Text></Pressable>}
+        <Pressable onPress={() => router.replace('/mixar' as never)} style={st.link} accessibilityRole="button"><Text style={st.linkText}>{t('Ver os meus Mixar')}</Text></Pressable>
       </View>
     );
   } else if (grp && (mixar.status === 'pending' || grp.myState !== 'in')) {
@@ -399,9 +400,9 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
     body = (
       <View style={st.center} accessibilityRole="alert">
         <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={st.title}>{saved ? 'Os Guardados não carregaram' : 'A seleção de hoje não carregou'}</Text>
-        <Text style={st.sub}>Verifica a ligação e tenta outra vez.</Text>
-        <Pressable onPress={() => void feed.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
+        <Text style={st.title}>{saved ? t('Os Guardados não carregaram') : t('A seleção de hoje não carregou')}</Text>
+        <Text style={st.sub}>{t('Verifica a ligação e tenta outra vez.')}</Text>
+        <Pressable onPress={() => void feed.refetch()} style={st.cta} accessibilityRole="button"><Text style={st.ctaText}>{t('Tentar outra vez')}</Text></Pressable>
       </View>
     );
   } else {
@@ -442,8 +443,8 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
         </View>
         {desktop ? (
           <View style={[st.deskNav, { opacity: hover ? 1 : 0 }]}>
-            <DeskNavButton icon="up" label="Item anterior (↑ ou ←)" disabled={active <= 0} onPress={() => goTo(active - 1)} />
-            <DeskNavButton icon="down" label="Item seguinte (↓ ou →)" disabled={active >= pages.length - 1} onPress={() => goTo(active + 1)} />
+            <DeskNavButton icon="up" label={t('Item anterior (↑ ou ←)')} disabled={active <= 0} onPress={() => goTo(active - 1)} />
+            <DeskNavButton icon="down" label={t('Item seguinte (↓ ou →)')} disabled={active >= pages.length - 1} onPress={() => goTo(active + 1)} />
           </View>
         ) : null}
       </View>
@@ -460,7 +461,7 @@ export default function MixarScreen({ saved: savedMode }: { saved?: boolean } = 
           <View style={st.headActions}>
             {preview ? null : <SavedHeaderButton onPress={() => router.push(`/mixar/guardados/${id}` as never)} />}
             {grp ? null : (
-              <Pressable onPress={() => setWeekOpen(true)} style={({ pressed }) => [st.weekBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Resumo da semana">
+              <Pressable onPress={() => setWeekOpen(true)} style={({ pressed }) => [st.weekBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('Resumo da semana')}>
                 <Icon name="calendar" size={22} color="#fff" />
               </Pressable>
             )}
@@ -486,11 +487,11 @@ function MixarHeader({ mixar, me, them, top, onBack, onOpen, saved = false, righ
       <View style={st.topRow} pointerEvents="box-none">
         <BackButton onPress={onBack} color="#fff" />
         {mixar ? (
-          <Pressable onPress={onOpen} disabled={!onOpen} style={({ pressed }) => [st.head, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`${mixar.name}. ${matchLabel(mixar.match)}${mixar.common.length ? `. Em comum: ${mixar.common.slice(0, 3).map((t) => t.label).join(', ')}` : ''}. Toca para ver a Descoberta de interesses`}>
+          <Pressable onPress={onOpen} disabled={!onOpen} style={({ pressed }) => [st.head, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('{name}. {matchLabel}{value}. Toca para ver a Descoberta de interesses', { name: mixar.name, matchLabel: matchLabel(mixar.match), value: mixar.common.length ? t('. Em comum: {map}', { map: mixar.common.slice(0, 3).map((t) => t.label).join(', ') }) : '' })}>
             {mixar.group ? <GroupAvatars people={mixar.group.people} size={26} ring="rgba(255,255,255,0.9)" /> : <PairAvatars me={me} them={them} size={30} ring="rgba(255,255,255,0.9)" />}
             <View style={{ flexShrink: 1, minWidth: 0 }}>
               {mixar.group ? <Text style={st.headName} numberOfLines={1}>{mixar.group.groupName}</Text> : <NameWithBadge name={mixar.name} who={mixar.partner} style={st.headName} />}
-              {mixar.status === 'active' && (!mixar.group || mixar.group.myState === 'in') ? <Text style={st.headMatch} numberOfLines={1}>{saved ? 'Os vossos Guardados' : mixar.group ? `${mixar.group.people.length} pessoas, ${matchLabel(mixar.match)}` : matchLabel(mixar.match)}</Text> : mixar.group ? <Text style={st.headMatch} numberOfLines={1}>Mixar do grupo</Text> : null}
+              {mixar.status === 'active' && (!mixar.group || mixar.group.myState === 'in') ? <Text style={st.headMatch} numberOfLines={1}>{saved ? t('Os vossos Guardados') : mixar.group ? t('{n} pessoas, {matchLabel}', { n: mixar.group.people.length, matchLabel: matchLabel(mixar.match) }) : matchLabel(mixar.match)}</Text> : mixar.group ? <Text style={st.headMatch} numberOfLines={1}>{t('Mixar do grupo')}</Text> : null}
             </View>
             {onOpen ? <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.8)" strokeWidth={2.4} /> : null}
           </Pressable>
@@ -514,14 +515,14 @@ function PendingView({ mixar, me, them, busy, onAccept, onDecline, onCancel }: {
       <LinearGradient colors={['rgba(214,51,79,0.35)', 'rgba(0,0,0,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.8 }} style={StyleSheet.absoluteFill} />
       <MixarBadge size={56} />
       <View style={{ marginTop: 18 }}><PairAvatars me={me} them={them} size={64} ring="#000" /></View>
-      <Text style={st.title}>{mixar.invitedByMe ? `À espera de ${them.name}` : `${them.name} convidou-te para um Mixar`}</Text>
-      <Text style={st.sub}>{mixar.invitedByMe ? 'Quando aceitar, o vosso feed a dois abre com a primeira seleção.' : 'Um feed só vosso, com o que os dois curtem: reagem, mandam um ao outro e jogam o Mixa Challenge. Novo todos os dias.'}</Text>
+      <Text style={st.title}>{mixar.invitedByMe ? t('À espera de {name}', { name: them.name }) : t('{name} convidou-te para um Mixar', { name: them.name })}</Text>
+      <Text style={st.sub}>{mixar.invitedByMe ? t('Quando aceitar, o vosso feed a dois abre com a primeira seleção.') : t('Um feed só vosso, com o que os dois curtem: reagem, mandam um ao outro e jogam o Mixa Challenge. Novo todos os dias.')}</Text>
       {mixar.invitedByMe ? (
-        <Pressable onPress={onCancel} disabled={!!busy} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.linkText}>{busy === 'leave' ? 'A cancelar…' : 'Cancelar convite'}</Text></Pressable>
+        <Pressable onPress={onCancel} disabled={!!busy} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.linkText}>{busy === 'leave' ? t('A cancelar…') : t('Cancelar convite')}</Text></Pressable>
       ) : (
         <View style={{ marginTop: 24, gap: 10, width: '100%', maxWidth: 300 }}>
-          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? 'A juntar…' : 'Aceitar'}</Text></Pressable>
-          <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? 'A recusar…' : 'Agora não'}</Text></Pressable>
+          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? t('A juntar…') : t('Aceitar')}</Text></Pressable>
+          <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? t('A recusar…') : t('Agora não')}</Text></Pressable>
         </View>
       )}
     </View>
@@ -544,19 +545,19 @@ function GroupJoinView({ mixar, busy, onAccept, onDecline, onLeave }: { mixar: M
       <Text style={st.title}>{v.title}</Text>
       <Text style={st.sub}>{v.line}</Text>
       {g.people.length ? (
-        <View style={st.people} accessibilityLabel="Quem está no Mixar do grupo">
+        <View style={st.people} accessibilityLabel={t('Quem está no Mixar do grupo')}>
           {g.people.map((p) => <NameWithBadge key={p.username} name={firstName(p.displayName)} who={p} style={st.person} gap={3} />)}
         </View>
       ) : null}
       {v.tone === 'join' ? (
         <View style={{ marginTop: 24, gap: 10, width: '100%', maxWidth: 300 }}>
-          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? 'A entrar…' : 'Entrar'}</Text></Pressable>
+          <Pressable onPress={onAccept} disabled={!!busy} style={({ pressed }) => [st.cta, { marginTop: 0 }, pressed && { transform: [{ scale: 0.97 }] }, busy === 'decline' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ctaText}>{busy === 'accept' ? t('A entrar…') : t('Entrar')}</Text></Pressable>
           {g.myState === null ? (
-            <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? 'A responder…' : 'Agora não'}</Text></Pressable>
+            <Pressable onPress={onDecline} disabled={!!busy} style={({ pressed }) => [st.ghost, pressed && { opacity: 0.7 }, busy === 'accept' && { opacity: 0.5 }]} accessibilityRole="button"><Text style={st.ghostText}>{busy === 'decline' ? t('A responder…') : t('Agora não')}</Text></Pressable>
           ) : null}
         </View>
       ) : v.tone === 'waiting' ? (
-        <Pressable onPress={onLeave} disabled={!!busy} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.linkText}>{busy === 'leave' ? 'A sair…' : 'Sair do Mixar do grupo'}</Text></Pressable>
+        <Pressable onPress={onLeave} disabled={!!busy} style={({ pressed }) => [st.link, pressed && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.linkText}>{busy === 'leave' ? t('A sair…') : t('Sair do Mixar do grupo')}</Text></Pressable>
       ) : null}
     </View>
   );
@@ -592,7 +593,7 @@ function PhotoPage({ post, height, active, extra, send, bottomInset, onOpen, onW
   const more = post.media.length - 1;
   return (
     <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Abrir a publicação de ${post.author.displayName}`}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onOpen} accessibilityRole="button" accessibilityLabel={t('Abrir a publicação de {displayName}', { displayName: post.author.displayName })}>
         {src ? <Image source={{ uri: abs(src) }} style={StyleSheet.absoluteFill} contentFit="contain" /> : null}
       </Pressable>
       {more > 0 ? <View style={st.more} pointerEvents="none"><Icon name="images" size={14} color="#fff" /><Text style={st.moreText}>+{more}</Text></View> : null}
@@ -606,7 +607,7 @@ function PhotoPage({ post, height, active, extra, send, bottomInset, onOpen, onW
       </View>
       <View style={[st.rails, { bottom: bottomInset + 14 }]} pointerEvents="box-none">
         {send}
-        <RailButton icon={<View style={railStyles.circle}><Icon name="expand" size={28} color="#fff" /></View>} label="Abrir" onPress={onOpen} accessibilityLabel="Abrir a publicação" />
+        <RailButton icon={<View style={railStyles.circle}><Icon name="expand" size={28} color="#fff" /></View>} label={t('Abrir')} onPress={onOpen} accessibilityLabel={t('Abrir a publicação')} />
       </View>
     </View>
   );

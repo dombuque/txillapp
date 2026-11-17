@@ -54,7 +54,7 @@ test('2.1/2.2: nas lojas não há «em breve» no ecrã do idioma', () => {
   assert.equal(showComingSoon('web'), true);
   const src = read('src/app/language.tsx');
   assert.match(src, /const SOON = showComingSoon\(CHANNEL\)/);
-  assert.match(src, /\{SOON \? <Line icon="globe" label="English"/);
+  assert.match(src, /\{SOON \? <Line icon="globe" label=\{t\('English'\)\}/);
 });
 
 test('2.3.10: o aviso de nova versão (APK) só corre no Android (e só no APK beta: ver tests/googlePlay.test.mjs)', () => {

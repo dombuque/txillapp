@@ -23,5 +23,5 @@ test('o visor pára quando a app sai do ecrã e tem Tentar outra vez sem rede', 
   assert.match(src, /const paused = storyPaused\(\{ held, typing, panelOpen: panel !== null, away, background \}\);/);
   assert.match(src, /const offline = q\.isError && !isGone\(q\.error\);/);
   // O erro comum (ErrorState, escuro): o botão é «Tentar outra vez».
-  assert.match(src, /<ErrorState what="o mimo" onRetry=\{\(\) => void q\.refetch\(\)\} dark/);
+  assert.match(src, /<ErrorState what=\{t\('o mimo'\)\} onRetry=\{\(\) => void q\.refetch\(\)\} dark/);
 });

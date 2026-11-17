@@ -146,7 +146,7 @@ test('«Já paguei» no local: distância, etiqueta «no Bar X», o raio de 150 
   const book = read('app', 'geladas.tsx');
   assert.match(book, /<PaidSheet debt=\{claiming\}/);
   assert.match(book, /venueSlug: place\.slug/);
-  assert.match(book, /<Icon name="check"[^>]*\/><Text style=\{st\.thereText\}>estiveram lá/);
+  assert.match(book, /<Icon name="check"[^>]*\/><Text style=\{st\.thereText\}>\{t\('estiveram lá'\)\}/);
   assert.match(book, /place: d\.venue\?\.name/, '«Publicar o momento» leva o local');
   const sheet = read('components', 'gelada', 'PaidSheet.tsx');
   assert.match(sheet, /locaisApi\.discover\(coarse\)/, 'perto: só a posição arredondada vai ao servidor');
@@ -167,7 +167,7 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
   // Todos os caminhos (chat, post, rodada, livro) mostram a frase do servidor por aqui, nunca um erro genérico.
   for (const file of [['components', 'gelada', 'AskSheet.tsx'], ['components', 'gelada', 'GeladaCard.tsx'], ['components', 'gelada', 'GeladaPostCard.tsx'], ['components', 'gelada', 'RoundCard.tsx'], ['app', 'geladas.tsx'], ['app', 'messages', 'g', '[id].tsx']]) {
     const src = read(...file);
-    assert.match(src, /geladaErrorText\(e, '/, file.join('/'));
+    assert.match(src, /geladaErrorText\(e, (t\()?'/, file.join('/'));
     assert.doesNotMatch(src, /e instanceof ApiError && e\.message \? e\.message/, file.join('/'));
   }
 });

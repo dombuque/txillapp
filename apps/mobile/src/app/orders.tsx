@@ -14,6 +14,7 @@ import { extraApi, newKey, type PaymentOrder } from '@/lib/api.extra';
 import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 import { vibesWord } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 /** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra nada de "em breve". */
 const NATIVE = Platform.OS !== 'web';
@@ -21,11 +22,11 @@ const NATIVE = Platform.OS !== 'web';
 const n = (v: number) => v.toLocaleString('pt-PT');
 const money = (minor: number, currency: string) => `${(minor / 100).toFixed(2).replace('.', ',')} ${currency === 'MZN' ? 'MT' : currency}`;
 const STATUS: Record<PaymentOrder['status'], { label: string; bg: string; fg: string }> = {
-  pending: { label: 'À espera', bg: '#fef3c7', fg: '#92400e' },
-  paid: { label: 'Pago', bg: '#d1fae5', fg: '#065f46' },
-  failed: { label: 'Falhou', bg: colors.dangerSoft, fg: colors.danger },
-  cancelled: { label: 'Cancelado', bg: colors.zinc100, fg: colors.zinc600 },
-  expired: { label: 'Expirou', bg: colors.zinc100, fg: colors.zinc600 },
+  pending: { get label() { return t('À espera'); }, bg: '#fef3c7', fg: '#92400e' },
+  paid: { get label() { return t('Pago'); }, bg: '#d1fae5', fg: '#065f46' },
+  failed: { get label() { return t('Falhou'); }, bg: colors.dangerSoft, fg: colors.danger },
+  cancelled: { get label() { return t('Cancelado'); }, bg: colors.zinc100, fg: colors.zinc600 },
+  expired: { get label() { return t('Expirou'); }, bg: colors.zinc100, fg: colors.zinc600 },
 };
 const date = (iso: string) => {
   const d = new Date(iso);
@@ -38,7 +39,7 @@ const date = (iso: string) => {
  */
 export default function Orders() {
   const rules = usePurchases();
-  if (rules.pending) return <StackPage title="Pedidos e pagamentos"><PageLoader /></StackPage>;
+  if (rules.pending) return <StackPage title={t('Pedidos e pagamentos')}><PageLoader /></StackPage>;
   if (!rules.buyTxills) return <Redirect href={'/wallet' as never} />;
   return <OrdersScreen />;
 }
@@ -119,20 +120,20 @@ function OrdersScreen() {
   const payDisabled = busy || !chosenPkg || (!!chosen?.needsPhone && phone.trim().length < 9);
 
   return (
-    <StackPage title="Pedidos e pagamentos">
+    <StackPage title={t('Pedidos e pagamentos')}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.balance}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>O teu saldo</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>{t('O teu saldo')}</Text>
           <Text style={{ marginTop: 4, fontSize: 38, fontWeight: '900', lineHeight: 38, color: '#fff' }}>
             {w.data ? n(w.data.balance) : '…'} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(w.data?.balance ?? 0)}</Text>
           </Text>
-          <Button label="Ver movimentos e presentes" kind="ghost" dark size="sm" onPress={() => router.push('/wallet' as never)} style={st.balBtn} />
+          <Button label={t('Ver movimentos e presentes')} kind="ghost" dark size="sm" onPress={() => router.push('/wallet' as never)} style={st.balBtn} />
         </LinearGradient>
 
         {(!NATIVE || providers.length > 0) && (
-          <Group title="Recarregar vibes">
+          <Group title={t('Recarregar vibes')}>
             {cfg.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
-            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar vibes" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
+            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label={t('Comprar vibes')} value={t('Em breve: M-Pesa, e-Mola e cartão')} /> : null}
             {cfg.data && providers.length > 0 && !current ? (
               <View style={{ padding: 16, gap: 16 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -146,43 +147,43 @@ function OrdersScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {providers.map((p) => (
-                    <Chip key={p.id} label={p.label} selected={chosen?.id === p.id} onPress={() => setProvider(p.id)} accessibilityLabel={`Pagar com ${p.label}`} />
+                    <Chip key={p.id} label={p.label} selected={chosen?.id === p.id} onPress={() => setProvider(p.id)} accessibilityLabel={t('Pagar com {label}', { label: p.label })} />
                   ))}
                 </View>
                 {chosen?.needsPhone ? (
                   <View>
-                    <Text style={{ marginBottom: 6, fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>O teu número {chosen.label}</Text>
-                    <TextInput value={phone} onChangeText={(t) => { setPhone(t); setErr(''); }} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={20} placeholder="84 123 4567" placeholderTextColor={colors.zinc500} style={st.phone} accessibilityLabel={`O teu número ${chosen.label}`} />
+                    <Text style={{ marginBottom: 6, fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{t('O teu número {label}', { label: chosen.label })}</Text>
+                    <TextInput value={phone} onChangeText={(t) => { setPhone(t); setErr(''); }} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={20} placeholder="84 123 4567" placeholderTextColor={colors.zinc500} style={st.phone} accessibilityLabel={t('O teu número {label}', { label: chosen.label })} />
                   </View>
                 ) : null}
                 {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.danger }} accessibilityRole="alert">{err}</Text> : null}
-                <Button label={chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : 'Escolhe um pacote'} onPress={() => void pay()} loading={busy} disabled={payDisabled} />
+                <Button label={chosenPkg ? t('Pagar {money}', { money: money(chosenPkg.priceMinor, chosenPkg.currency) }) : t('Escolhe um pacote')} onPress={() => void pay()} loading={busy} disabled={payDisabled} />
               </View>
             ) : null}
             {current ? (
               <View style={{ padding: 16, gap: 12, alignItems: 'stretch' }}>
                 {current.status === 'pending' && (
                   <>
-                    <Text style={st.stateTitle}>À espera do pagamento</Text>
+                    <Text style={st.stateTitle}>{t('À espera do pagamento')}</Text>
                     <Text style={{ textAlign: 'center', fontSize: 14, color: colors.zinc600 }}>
-                      {current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} Isto atualiza sozinho.
+                      {current.provider === 'sandbox' ? t('Pagamento de teste: confirma abaixo.') : t('Confirma o pagamento no teu telemóvel{value}.', { value: current.phoneTail ? (' ' + t('(número terminado em {phoneTail})', { phoneTail: current.phoneTail })) : '' })} {t('Isto atualiza sozinho.')}
                     </Text>
                     {current.provider === 'sandbox' ? (
-                      <Button label="Simular pagamento" size="md" onPress={() => void sandboxPay()} loading={busy} />
+                      <Button label={t('Simular pagamento')} size="md" onPress={() => void sandboxPay()} loading={busy} />
                     ) : null}
-                    <Button label="Cancelar pedido" kind="ghost" size="md" onPress={() => void cancel()} />
+                    <Button label={t('Cancelar pedido')} kind="ghost" size="md" onPress={() => void cancel()} />
                   </>
                 )}
                 {current.status === 'paid' && (
                   <>
-                    <Text style={[st.stateTitle, { color: colors.green700 }]}>Pago! +{n(current.txills)} {vibesWord(current.txills)}</Text>
-                    <Button label="Fechar" kind="secondary" size="md" onPress={() => setCurrent(null)} />
+                    <Text style={[st.stateTitle, { color: colors.green700 }]}>{t('Pago! +{n} {vibesWord}', { n: n(current.txills), vibesWord: vibesWord(current.txills) })}</Text>
+                    <Button label={t('Fechar')} kind="secondary" size="md" onPress={() => setCurrent(null)} />
                   </>
                 )}
                 {(current.status === 'failed' || current.status === 'cancelled' || current.status === 'expired') && (
                   <>
                     <Text style={st.stateTitle}>{STATUS[current.status].label}</Text>
-                    <Button label="Tentar outra vez" size="md" onPress={() => { setCurrent(null); setErr(''); }} />
+                    <Button label={t('Tentar outra vez')} size="md" onPress={() => { setCurrent(null); setErr(''); }} />
                   </>
                 )}
               </View>
@@ -190,10 +191,10 @@ function OrdersScreen() {
           </Group>
         )}
 
-        <Group title="Pedidos">
+        <Group title={t('Pedidos')}>
           {orders.isLoading ? <PageLoader style={{ paddingTop: 24 }} /> : null}
-          {orders.isError && !orders.data ? <ErrorState what="os pedidos" onRetry={() => void orders.refetch()} style={{ marginTop: 16, marginBottom: 16 }} /> : null}
-          {orders.data && orders.data.length === 0 ? <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" /> : null}
+          {orders.isError && !orders.data ? <ErrorState what={t('os pedidos')} onRetry={() => void orders.refetch()} style={{ marginTop: 16, marginBottom: 16 }} /> : null}
+          {orders.data && orders.data.length === 0 ? <Line icon="file-text" label={t('Histórico de pedidos')} value={t('Ainda não tens pedidos')} /> : null}
           {orders.data?.map((o) => (
             <View key={o.id} style={st.order}>
               <View style={{ flex: 1 }}>
@@ -207,7 +208,7 @@ function OrdersScreen() {
           ))}
         </Group>
         <Text style={{ marginHorizontal: 24, marginTop: 20, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>
-          As vibes compradas entram na carteira e usam-se como as outras: para oferecer a quem segues. Não se trocam por dinheiro.
+          {t('As vibes compradas entram na carteira e usam-se como as outras: para oferecer a quem segues. Não se trocam por dinheiro.')}
         </Text>
       </ScrollView>
     </StackPage>

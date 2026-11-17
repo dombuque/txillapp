@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { findCachedPost, isGone } from '@/lib/postCache';
 import { flushSeen, trackSeen } from '@/lib/seen';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** As listas onde a publicação pode já estar carregada (para a abrir logo, sem ecrã vazio). */
 const LISTS = ['feed', 'profile-posts', 'explore', 'saved', 'tag', 'place'];
@@ -41,15 +42,15 @@ export default function PostPage() {
   }, [seenId]);
   const gone = q.isError && isGone(q.error);
   return (
-    <StackPage title="Publicação">
+    <StackPage title={t('Publicação')}>
       <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}>
         {q.isLoading && <ActivityIndicator color={colors.brand} style={{ marginTop: 48 }} />}
         {gone && (
-          <EmptyState icon="search" title="Esta publicação não está disponível" text="Pode ter sido apagada ou ocultada, ou a conta passou a privada." />
+          <EmptyState icon="search" title={t('Esta publicação não está disponível')} text={t('Pode ter sido apagada ou ocultada, ou a conta passou a privada.')} />
         )}
         {q.isError && !gone && (
           // Sem rede (ou o servidor falhou): não quer dizer que a publicação tenha desaparecido.
-          <ErrorState what="a publicação" onRetry={() => void q.refetch()} />
+          <ErrorState what={t('a publicação')} onRetry={() => void q.refetch()} />
         )}
         {q.data && <PostCard post={q.data} me={user?.id} detail openComments={comments === '1' || !!c} highlightComment={c || undefined} />}
       </ScrollView>

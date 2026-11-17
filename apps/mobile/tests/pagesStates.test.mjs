@@ -23,8 +23,8 @@ test('convite: sem rede (ou erro do servidor) há "Tentar outra vez"; só um 4xx
 test('pedidos: a carregar, falhou (com tentar outra vez), número com nome para o leitor de ecrã e sem dois pedidos', () => {
   const src = read('orders.tsx');
   assert.match(src, /orders\.isLoading \? <PageLoader/);
-  assert.match(src, /<ErrorState what="os pedidos" onRetry=\{\(\) => void orders\.refetch\(\)\}/);
-  assert.match(src, /accessibilityLabel=\{`O teu número \$\{chosen\.label\}`\}/);
+  assert.match(src, /<ErrorState what=\{t\('os pedidos'\)\} onRetry=\{\(\) => void orders\.refetch\(\)\}/);
+  assert.match(src, /accessibilityLabel=\{t\('O teu número \{label\}', \{ label: chosen\.label \}\)\}/);
   assert.match(src, /if \(busy \|\| !chosen \|\| !chosenPkg\) return;/);
 });
 

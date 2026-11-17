@@ -14,6 +14,7 @@ import { doneMessage, iapMessage, outcomeMessage, type IapOutcome, type StorePro
 import { BLUE_BENEFITS, PRIVACY_URL, TERMS_URL, activeText, blueScreenState, periodLabel, periodTitle, storeName, subscriptionTerms } from '@/lib/iap/view';
 import { ASK_IAP, IAP_PLATFORM, useIapCatalog } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * «Verificação com selo azul»: a verificação paga, uma subscrição da App Store ou do Google Play. Só nas versões das lojas,
@@ -58,7 +59,7 @@ export default function BlueSeal() {
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: iapCatalogKey(platform) }), qc.invalidateQueries({ queryKey: ['verification'] })]);
 
   const show = (o: IapOutcome) => {
-    if (o.status === 'done') setMsg(doneMessage(o.entitlement, 'Feito! O teu selo azul já está ativo.'));
+    if (o.status === 'done') setMsg(doneMessage(o.entitlement, t('Feito! O teu selo azul já está ativo.')));
     else {
       const text = outcomeMessage(o);
       setMsg(text ? { ok: o.status === 'pending', text } : null);
@@ -81,8 +82,8 @@ export default function BlueSeal() {
     const r = await iap.restore();
     if (r.ok) {
       await refresh();
-      setMsg({ ok: true, text: 'Compras restauradas. Se tinhas uma subscrição ativa nesta conta da loja, o selo azul volta.' });
-    } else setMsg({ ok: false, text: r.code === 503 ? 'As compras pela loja estão em pausa. Tenta outra vez mais tarde.' : r.code === 502 ? 'A loja não respondeu. Tenta outra vez daqui a pouco.' : (r.kind === 'failed' ? null : iapMessage(r.kind ?? 'failed')) ?? 'Não deu para restaurar agora. Tenta outra vez.' });
+      setMsg({ ok: true, text: t('Compras restauradas. Se tinhas uma subscrição ativa nesta conta da loja, o selo azul volta.') });
+    } else setMsg({ ok: false, text: r.code === 503 ? t('As compras pela loja estão em pausa. Tenta outra vez mais tarde.') : r.code === 502 ? t('A loja não respondeu. Tenta outra vez daqui a pouco.') : (r.kind === 'failed' ? null : iapMessage(r.kind ?? 'failed')) ?? t('Não deu para restaurar agora. Tenta outra vez.') });
     setBusy(null);
   };
   const manage = () => void iap.manage(c?.verification.active?.productId ?? pick ?? undefined).catch(() => setMsg({ ok: false, text: iapMessage('unavailable')! }));
@@ -90,34 +91,34 @@ export default function BlueSeal() {
   const period = (id: string) => c?.verification.products.find((p) => p.id === id)?.period ?? 'month';
 
   return (
-    <StackPage title="Selo azul">
+    <StackPage title={t('Selo azul')}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 16 }}>
         <View style={st.hero}>
           <VerifiedBadge size={56} tier="paid" />
-          <Text style={st.heroTitle}>Verificação com selo azul</Text>
-          <Text style={st.heroSub}>O selo azul mostra que a conta foi verificada e que és tu a mantê-la, com uma subscrição.</Text>
+          <Text style={st.heroTitle}>{t('Verificação com selo azul')}</Text>
+          <Text style={st.heroSub}>{t('O selo azul mostra que a conta foi verificada e que és tu a mantê-la, com uma subscrição.')}</Text>
         </View>
 
         {state === 'loading' ? <PageLoader style={{ paddingTop: 16 }} /> : null}
 
         {state === 'not-eligible' ? (
           <View style={st.box}>
-            <Text style={st.boxTitle}>Primeiro, pede a verificação</Text>
-            <Text style={st.text}>O selo azul é para contas já verificadas. Pede a verificação (requisitos da conta, documento e selfie, revistos pela moderação). Depois de aprovada, voltas aqui e ativas o selo azul.</Text>
-            <Button label="Pedir a verificação" kind="secondary" size="md" onPress={() => router.push('/verification' as never)} style={{ marginTop: 6, alignSelf: 'flex-start' }} />
+            <Text style={st.boxTitle}>{t('Primeiro, pede a verificação')}</Text>
+            <Text style={st.text}>{t('O selo azul é para contas já verificadas. Pede a verificação (requisitos da conta, documento e selfie, revistos pela moderação). Depois de aprovada, voltas aqui e ativas o selo azul.')}</Text>
+            <Button label={t('Pedir a verificação')} kind="secondary" size="md" onPress={() => router.push('/verification' as never)} style={{ marginTop: 6, alignSelf: 'flex-start' }} />
           </View>
         ) : null}
 
         {state === 'active' && c?.verification.active ? (
           <View style={[st.box, { backgroundColor: '#eff6ff' }]}>
-            <Text style={st.boxTitle}>Subscrição ativa</Text>
+            <Text style={st.boxTitle}>{t('Subscrição ativa')}</Text>
             <Text style={st.text}>{activeText(c.verification.active)}</Text>
           </View>
         ) : null}
 
         {state === 'offer' || state === 'active' || state === 'not-eligible' ? (
           <View style={{ gap: 8 }}>
-            <Text style={st.label}>O que tens</Text>
+            <Text style={st.label}>{t('O que tens')}</Text>
             {BLUE_BENEFITS.map((b) => (
               <View key={b} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                 <Icon name="check" size={18} color={colors.sky} />
@@ -129,18 +130,18 @@ export default function BlueSeal() {
 
         {state === 'offer' ? (
           <View style={{ gap: 10 }}>
-            <Text style={st.label}>Escolhe o plano</Text>
+            <Text style={st.label}>{t('Escolhe o plano')}</Text>
             {products == null ? <PontoLoader size={14} style={{ alignSelf: 'center' }} /> : null}
-            {products && !products.length ? <Text style={st.text}>A {storeName(platform)} não mostrou os planos agora. Tenta outra vez daqui a pouco.</Text> : null}
+            {products && !products.length ? <Text style={st.text}>{t('A {storeName} não mostrou os planos agora. Tenta outra vez daqui a pouco.', { storeName: storeName(platform) })}</Text> : null}
             <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
               {(products ?? []).map((p) => {
                 const on = pick === p.id;
                 const per = period(p.id);
                 return (
-                  <Pressable key={p.id} onPress={() => setPick(p.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${periodTitle(per)}: ${p.price} ${periodLabel(per)}, renova automaticamente`} style={[st.plan, on && st.planOn]}>
+                  <Pressable key={p.id} onPress={() => setPick(p.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={t('{periodTitle}: {price} {periodLabel}, renova automaticamente', { periodTitle: periodTitle(per), price: p.price, periodLabel: periodLabel(per) })} style={[st.plan, on && st.planOn]}>
                     <View style={{ flex: 1 }}>
                       <Text style={st.planTitle}>{periodTitle(per)}</Text>
-                      <Text style={st.small}>Renova automaticamente</Text>
+                      <Text style={st.small}>{t('Renova automaticamente')}</Text>
                     </View>
                     <Text style={st.planPrice}>{p.price} <Text style={st.small}>{periodLabel(per)}</Text></Text>
                   </Pressable>
@@ -148,7 +149,7 @@ export default function BlueSeal() {
               })}
             </View>
             {/* O azul do selo (e não o coral) no botão de subscrever. */}
-            <Button label="Subscrever" onPress={() => void subscribe()} loading={busy === 'buy'} disabled={!pick || !!busy} style={{ backgroundColor: colors.sky }} />
+            <Button label={t('Subscrever')} onPress={() => void subscribe()} loading={busy === 'buy'} disabled={!pick || !!busy} style={{ backgroundColor: colors.sky }} />
           </View>
         ) : null}
 
@@ -157,14 +158,14 @@ export default function BlueSeal() {
         {state === 'offer' || state === 'active' ? (
           <>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button label={'Restaurar compras'} kind="secondary" size="md" onPress={() => void restore()} loading={busy === 'restore'} disabled={!!busy} style={{ flex: 1 }} />
-              <Button label="Gerir subscrição" kind="secondary" size="md" onPress={manage} style={{ flex: 1 }} />
+              <Button label={t('Restaurar compras')} kind="secondary" size="md" onPress={() => void restore()} loading={busy === 'restore'} disabled={!!busy} style={{ flex: 1 }} />
+              <Button label={t('Gerir subscrição')} kind="secondary" size="md" onPress={manage} style={{ flex: 1 }} />
             </View>
             <View style={{ gap: 6 }}>
               {subscriptionTerms(platform).map((t) => <Text key={t} style={st.small}>{t}</Text>)}
               <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
-                <Pressable onPress={() => void Linking.openURL(TERMS_URL)} accessibilityRole="link"><Text style={st.link}>Termos de Utilização</Text></Pressable>
-                <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link"><Text style={st.link}>Política de Privacidade</Text></Pressable>
+                <Pressable onPress={() => void Linking.openURL(TERMS_URL)} accessibilityRole="link"><Text style={st.link}>{t('Termos de Utilização')}</Text></Pressable>
+                <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link"><Text style={st.link}>{t('Política de Privacidade')}</Text></Pressable>
               </View>
             </View>
           </>

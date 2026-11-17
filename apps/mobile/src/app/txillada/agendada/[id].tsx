@@ -27,6 +27,7 @@ import {
   canStartNow, countdown, coverWhen, earliest, errorCode, GONE_TITLE, isNotScheduled, fmtFor, showCountdown, remindersText, scheduleErrorText, scheduleGoalText, scheduleKindIcon, scheduleKindText, scheduleTitle,
   scheduleView, viewText, type ScheduledTxillada,
 } from '@/lib/txilladaSchedule';
+import { t } from '@/lib/i18n';
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -82,9 +83,9 @@ export default function ScheduledTxilladaScreen() {
     if (busy) return;
     if (early) {
       const ok = await confirm({
-        title: 'Começar agora?',
-        message: `Está marcada para ${fmtFor(cur.startsAt, Date.now(), true)}. A hora passa para agora e quem pediu para ser lembrado recebe logo o aviso.`,
-        confirm: 'Começar agora',
+        title: t('Começar agora?'),
+        message: t('Está marcada para {for}. A hora passa para agora e quem pediu para ser lembrado recebe logo o aviso.', { for: fmtFor(cur.startsAt, Date.now(), true) }),
+        confirm: t('Começar agora'),
       });
       if (!ok) return;
     }
@@ -141,10 +142,10 @@ export default function ScheduledTxilladaScreen() {
   async function cancel(cur: ScheduledTxillada) {
     if (busy) return;
     const ok = await confirm({
-      title: 'Cancelar a Txillada?',
-      message: cur.reminders ? `${remindersText(cur.reminders)}. Vão receber um aviso de que a cancelaste.` : 'Quem pediu para ser lembrado recebe um aviso de que a cancelaste.',
-      confirm: 'Sim, cancelar',
-      cancel: 'Manter',
+      title: t('Cancelar a Txillada?'),
+      message: cur.reminders ? t('{remindersText}. Vão receber um aviso de que a cancelaste.', { remindersText: remindersText(cur.reminders) }) : t('Quem pediu para ser lembrado recebe um aviso de que a cancelaste.'),
+      confirm: t('Sim, cancelar'),
+      cancel: t('Manter'),
       danger: true,
     });
     if (!ok) return;
@@ -171,8 +172,8 @@ export default function ScheduledTxilladaScreen() {
     body = (
       <View style={st.center}>
         {missing
-          ? <EmptyState dark icon="calendar" title={GONE_TITLE} text="Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou." />
-          : <ErrorState dark what="esta Txillada" onRetry={() => void q.refetch()} />}
+          ? <EmptyState dark icon="calendar" title={GONE_TITLE} text={t('Ou não a podes ver. Se te mandaram a ligação, pede outra a quem ta mandou.')} />
+          : <ErrorState dark what={t('esta Txillada')} onRetry={() => void q.refetch()} />}
       </View>
     );
   } else {
@@ -185,7 +186,7 @@ export default function ScheduledTxilladaScreen() {
         <View style={[st.col, desktop && { paddingTop: 24 }]}>
           <LinearGradient colors={view === 'scheduled' || view === 'live' ? ['#e5506a', '#8a1d3a', '#2a0f18'] : ['#3f3f46', '#27272a', '#18181b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.cover}>
             <View style={st.tagRow}>
-              {view === 'live' ? <LiveBadge small /> : <><Icon name="txillada" size={16} color="#fff" strokeWidth={2.2} /><Text style={st.tag}>TXILLADA AGENDADA</Text></>}
+              {view === 'live' ? <LiveBadge small /> : <><Icon name="txillada" size={16} color="#fff" strokeWidth={2.2} /><Text style={st.tag}>{t('TXILLADA AGENDADA')}</Text></>}
             </View>
             <View style={st.avatar}><Avatar name={s.host.displayName} username={s.host.avatarUrl ? s.host.username : undefined} size={84} /></View>
             <NameWithBadge name={s.host.displayName} who={s.host} center size={17} style={st.host} />
@@ -204,24 +205,24 @@ export default function ScheduledTxilladaScreen() {
           {state ? (
             <View style={st.state} accessibilityRole="summary">
               <Text style={st.stateText}>{state}</Text>
-              {view === 'ended' ? <Text style={st.stateSub}>As Txilladas não ficam gravadas: só se veem ao vivo.</Text> : null}
-              {view === 'expired' && s.isHost ? <Text style={st.stateSub}>Podes agendar outra em Criar, no modo Txillada.</Text> : null}
+              {view === 'ended' ? <Text style={st.stateSub}>{t('As Txilladas não ficam gravadas: só se veem ao vivo.')}</Text> : null}
+              {view === 'expired' && s.isHost ? <Text style={st.stateSub}>{t('Podes agendar outra em Criar, no modo Txillada.')}</Text> : null}
             </View>
           ) : null}
 
           {msg ? <Text style={st.msg} accessibilityRole="alert">{msg}</Text> : null}
 
           {view === 'live' && s.txilladaId ? (
-            <Button label="Entrar" icon="txillada" dark block onPress={() => router.replace(`/txillada/${encodeURIComponent(s.txilladaId!)}` as never)} />
+            <Button label={t('Entrar')} icon="txillada" dark block onPress={() => router.replace(`/txillada/${encodeURIComponent(s.txilladaId!)}` as never)} />
           ) : null}
 
           {view === 'scheduled' && !s.isHost ? (
             <View style={st.actions}>
               {s.reminded
-                ? <Button label="Vais ser lembrado" icon="check" kind="secondary" dark block onPress={() => void remind(s.id, false)} accessibilityHint="Toca para deixares de ser lembrado" />
-                : <Button label="Lembrar-me" icon="bell" dark block onPress={() => void remind(s.id, true)} />}
-              <Button label="Partilhar" icon="share" kind="secondary" dark block onPress={() => void shareSchedule(s)} />
-              {s.kind === 'paid' || s.audience === 'paid' ? <Text style={st.hint}>A entrada só se paga quando a Txillada estiver a decorrer.</Text> : null}
+                ? <Button label={t('Vais ser lembrado')} icon="check" kind="secondary" dark block onPress={() => void remind(s.id, false)} accessibilityHint={t('Toca para deixares de ser lembrado')} />
+                : <Button label={t('Lembrar-me')} icon="bell" dark block onPress={() => void remind(s.id, true)} />}
+              <Button label={t('Partilhar')} icon="share" kind="secondary" dark block onPress={() => void shareSchedule(s)} />
+              {s.kind === 'paid' || s.audience === 'paid' ? <Text style={st.hint}>{t('A entrada só se paga quando a Txillada estiver a decorrer.')}</Text> : null}
             </View>
           ) : null}
 
@@ -229,25 +230,25 @@ export default function ScheduledTxilladaScreen() {
             <View style={st.actions}>
               <View style={st.reminders}><Icon name="bell" size={17} color={D.icon} /><Text style={st.remindersText}>{remindersText(s.reminders)}</Text></View>
               {ready
-                ? <Button label="Começar" icon="txillada" dark block loading={busy === 'start'} onPress={() => void begin(s, false)} />
-                : <Button label="Começar agora" icon="txillada" kind="secondary" dark block loading={busy === 'start'} onPress={() => void begin(s, true)} accessibilityHint="Falta mais de uma hora: pede confirmação e muda a hora para agora" />}
+                ? <Button label={t('Começar')} icon="txillada" dark block loading={busy === 'start'} onPress={() => void begin(s, false)} />
+                : <Button label={t('Começar agora')} icon="txillada" kind="secondary" dark block loading={busy === 'start'} onPress={() => void begin(s, true)} accessibilityHint={t('Falta mais de uma hora: pede confirmação e muda a hora para agora')} />}
               <View style={st.pair}>
-                <Button label="Editar" icon="pencil" kind="secondary" dark onPress={() => setEditing(true)} style={{ flex: 1 }} />
-                <Button label="Partilhar" icon="share" kind="secondary" dark onPress={() => void shareSchedule(s)} style={{ flex: 1 }} />
+                <Button label={t('Editar')} icon="pencil" kind="secondary" dark onPress={() => setEditing(true)} style={{ flex: 1 }} />
+                <Button label={t('Partilhar')} icon="share" kind="secondary" dark onPress={() => void shareSchedule(s)} style={{ flex: 1 }} />
               </View>
-              <Button label="Cancelar a Txillada" icon="trash" kind="danger" dark block loading={busy === 'cancel'} onPress={() => void cancel(s)} />
-              {!ready ? <Text style={st.hint}>«Começar» fica pronto 1 hora antes. Recebes um aviso 15 min antes e outro na hora.</Text> : null}
+              <Button label={t('Cancelar a Txillada')} icon="trash" kind="danger" dark block loading={busy === 'cancel'} onPress={() => void cancel(s)} />
+              {!ready ? <Text style={st.hint}>{t('«Começar» fica pronto 1 hora antes. Recebes um aviso 15 min antes e outro na hora.')}</Text> : null}
             </View>
           ) : null}
 
           {view !== 'scheduled' && view !== 'live' ? (
-            <Button label={s.isHost ? 'Ver o meu perfil' : `Ver o perfil de @${s.host.username}`} kind="secondary" dark block onPress={() => router.push(`/u/${encodeURIComponent(s.host.username)}` as never)} />
+            <Button label={s.isHost ? t('Ver o meu perfil') : t('Ver o perfil de @{username}', { username: s.host.username })} kind="secondary" dark block onPress={() => router.push(`/u/${encodeURIComponent(s.host.username)}` as never)} />
           ) : null}
 
           {view === 'scheduled' && !s.isHost ? (
-            <Pressable onPress={() => setReporting(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Denunciar esta Txillada agendada" style={st.report}>
+            <Pressable onPress={() => setReporting(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Denunciar esta Txillada agendada')} style={st.report}>
               <Icon name="flag" size={15} color={D.sub} strokeWidth={2} />
-              <Text style={st.reportText}>Denunciar</Text>
+              <Text style={st.reportText}>{t('Denunciar')}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -256,7 +257,7 @@ export default function ScheduledTxilladaScreen() {
   }
 
   return (
-    <StackPage title="Txillada agendada" dark>
+    <StackPage title={t('Txillada agendada')} dark>
       {body}
       {editing && s ? <EditScheduleSheet s={s} onClose={() => setEditing(false)} onSaved={(n) => { qc.setQueryData(scheduleKey(n.id), n); refresh(); }} /> : null}
       {reporting && s ? <ReportSheet type="txillada_schedule" id={s.id} onReported={() => { reported.current = true; }} onClose={afterReport} /> : null}

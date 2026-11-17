@@ -12,6 +12,7 @@ import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Field, Screen } from './login';
 import { problemOf, useAvailability } from './register';
+import { t } from '@/lib/i18n';
 
 /** Depois do Google, numa conta nova: escolher o @, o género e a data de nascimento. */
 export default function GoogleUsername() {
@@ -48,7 +49,7 @@ export default function GoogleUsername() {
       signInWith(r);
       router.replace('/');
     } catch (x) {
-      setError(x instanceof ApiError && x.status === 401 ? 'O pedido expirou. Volta atrás e entra com a Google outra vez' : (x as Error).message);
+      setError(x instanceof ApiError && x.status === 401 ? t('O pedido expirou. Volta atrás e entra com a Google outra vez') : (x as Error).message);
       setBusy(false);
     }
   }
@@ -60,25 +61,25 @@ export default function GoogleUsername() {
       </View>
 
       <View style={{ marginTop: 40 }}>
-        <Text style={st.title}>Quase lá, {first}!</Text>
-        <Text style={st.sub}>Escolhe o teu @. É único e é assim que a malta te encontra</Text>
+        <Text style={st.title}>{t('Quase lá, {first}!', { first })}</Text>
+        <Text style={st.sub}>{t('Escolhe o teu @. É único e é assim que a malta te encontra')}</Text>
 
         <View style={{ marginTop: 32 }}>
           <Field
             icon="at"
             value={username}
             onChangeText={(v) => { setError(''); setUsername(v); }}
-            placeholder="utilizador"
+            placeholder={t('utilizador')}
             autoFocus
             autoCapitalize="none"
             autoComplete="username"
             returnKeyType="go"
             onSubmitEditing={() => void submit()}
             status={check.state === 'ok' ? 'ok' : check.state === 'bad' ? 'bad' : check.state === 'checking' ? 'checking' : undefined}
-            accessibilityLabel="utilizador"
+            accessibilityLabel={t('utilizador')}
           />
           <View style={st.avail}>
-            {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>@{username.trim().replace(/^@/, '')} está livre</Text>}
+            {check.state === 'ok' && <Text style={[st.hint, { color: colors.green600, fontWeight: '600' }]}>{t('@{username} está livre', { username: username.trim().replace(/^@/, '') })}</Text>}
             {check.state === 'bad' && (
               <View>
                 <Text style={[st.hint, { color: colors.danger, fontWeight: '600' }]}>{check.message}</Text>
@@ -92,9 +93,9 @@ export default function GoogleUsername() {
           </View>
         </View>
 
-        <Text style={st.label}>Como te identificas?</Text>
+        <Text style={st.label}>{t('Como te identificas?')}</Text>
         <View style={{ flexDirection: 'row', gap: 12 }} accessibilityRole="radiogroup">
-          {[['female', 'Feminino'], ['male', 'Masculino']].map(([v, label]) => {
+          {[['female', t('Feminino')], ['male', t('Masculino')]].map(([v, label]) => {
             const on = gender === v;
             return (
               <Pressable key={v} onPress={() => { setError(''); setGender(v); }} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.opt, on ? { borderColor: colors.brand, backgroundColor: colors.rose50 } : { borderColor: colors.zinc200, backgroundColor: '#fff' }]}>
@@ -104,7 +105,7 @@ export default function GoogleUsername() {
           })}
         </View>
 
-        <Text style={st.label}>Quando nasceste?</Text>
+        <Text style={st.label}>{t('Quando nasceste?')}</Text>
         <Field
           icon="calendar"
           value={birth}
@@ -113,22 +114,22 @@ export default function GoogleUsername() {
           keyboardType="number-pad"
           autoComplete="birthdate-full"
           status={birth.length === 10 ? (birthProblem ? 'bad' : 'ok') : undefined}
-          accessibilityLabel="Data de nascimento"
+          accessibilityLabel={t('Data de nascimento')}
         />
         {birthProblem && birth.length === 10 ? <Text style={[st.hint, { color: colors.danger, fontWeight: '600', marginTop: 8, paddingHorizontal: 4 }]}>{birthProblem}</Text> : null}
 
         <Pressable onPress={() => { setError(''); setTerms(!terms); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: terms }}>
           <View style={[st.box, terms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{terms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
           <Text style={st.termsText}>
-            Li e aceito os <Text style={st.link} onPress={() => legal('/terms')}>Termos de Uso</Text> e a{' '}
-            <Text style={st.link} onPress={() => legal('/privacy')}>Política de Privacidade</Text>.
+            {t('Li e aceito os')} <Text style={st.link} onPress={() => legal('/terms')}>{t('Termos de Uso')}</Text> e a{' '}
+            <Text style={st.link} onPress={() => legal('/privacy')}>{t('Política de Privacidade')}</Text>.
           </Text>
         </Pressable>
       </View>
 
       <View style={st.alert} accessibilityRole="alert"><Text style={st.alertText}>{error}</Text></View>
       <View style={{ marginTop: 'auto', paddingBottom: 24 }}>
-        <Button label="Continuar" onPress={() => void submit()} loading={busy} disabled={!ready || !usernameOk} block style={st.cta} />
+        <Button label={t('Continuar')} onPress={() => void submit()} loading={busy} disabled={!ready || !usernameOk} block style={st.cta} />
       </View>
     </Screen>
   );

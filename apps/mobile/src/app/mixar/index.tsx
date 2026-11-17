@@ -19,6 +19,7 @@ import { useMixarSeen } from '@/lib/mixarSeen';
 import { groupShowDot, groupSummaryLine } from '@/lib/mixarGrupo';
 import { MIXAR_PREVIEW_ID, isMixarPreview } from '@/lib/mixarPreview';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Os meus Mixar: os convites que recebi (Aceitar / Agora não), os Mixar ativos (com os «novos hoje» e o desafio à espera)
@@ -70,16 +71,16 @@ export default function MixarList() {
             <Text style={[st.sub, hot && st.subHot]} numberOfLines={1}>{summaryLine(s, partner.name)}</Text>
           </View>
           {kind === 'active' && s.challengePending ? <Icon name="sparkles" size={18} color={colors.brand} /> : null}
-          {fresh ? <MixarDot inline label="Há novidades" /> : null}
+          {fresh ? <MixarDot inline label={t('Há novidades')} /> : null}
           <Icon name="chevron-right" size={16} color={colors.zinc500} />
         </Pressable>
         {kind === 'received' ? (
           <View style={st.actions}>
-            <Pressable onPress={() => void answer(s, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.8 }, !!busy && busy !== s.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Aceitar o Mixar com ${partner.name}`}>
-              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>Aceitar</Text>}
+            <Pressable onPress={() => void answer(s, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.8 }, !!busy && busy !== s.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Aceitar o Mixar com {name}', { name: partner.name })}>
+              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>{t('Aceitar')}</Text>}
             </Pressable>
-            <Pressable onPress={() => void answer(s, false)} disabled={!!busy} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Agora não: recusar o Mixar com ${partner.name}`}>
-              <Text style={st.ghostText}>Agora não</Text>
+            <Pressable onPress={() => void answer(s, false)} disabled={!!busy} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Agora não: recusar o Mixar com {name}', { name: partner.name })}>
+              <Text style={st.ghostText}>{t('Agora não')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -95,23 +96,23 @@ export default function MixarList() {
     const ask = g.myState === null && g.canJoin;
     return (
       <View key={s.id} style={st.card}>
-        <Pressable onPress={() => router.push(`/mixar/${s.id}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={`Mixar de ${g.groupName}. ${line}`}>
+        <Pressable onPress={() => router.push(`/mixar/${s.id}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Mixar de {groupName}. {line}', { groupName: g.groupName, line })}>
           <GroupAvatars people={g.people.length ? g.people : g.proposedBy ? [g.proposedBy] : []} size={34} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={st.name} numberOfLines={1}>{g.groupName}</Text>
             <Text style={[st.sub, hot && st.subHot]} numberOfLines={1}>{line}</Text>
           </View>
           {hot && s.challengePending ? <Icon name="sparkles" size={18} color={colors.brand} /> : null}
-          {groupShowDot(s, seen[s.id]) ? <MixarDot inline label="Há novidades" /> : null}
+          {groupShowDot(s, seen[s.id]) ? <MixarDot inline label={t('Há novidades')} /> : null}
           <Icon name="chevron-right" size={16} color={colors.zinc500} />
         </Pressable>
         {ask ? (
           <View style={st.actions}>
-            <Pressable onPress={() => void answer(s, true, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.8 }, !!busy && busy !== s.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Entrar no Mixar de ${g.groupName}`}>
-              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>Entrar</Text>}
+            <Pressable onPress={() => void answer(s, true, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.8 }, !!busy && busy !== s.id && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={t('Entrar no Mixar de {groupName}', { groupName: g.groupName })}>
+              {busy === s.id ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>{t('Entrar')}</Text>}
             </Pressable>
-            <Pressable onPress={() => void answer(s, false, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={`Agora não: não entrar no Mixar de ${g.groupName}`}>
-              <Text style={st.ghostText}>Agora não</Text>
+            <Pressable onPress={() => void answer(s, false, true)} disabled={!!busy} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Agora não: não entrar no Mixar de {groupName}', { groupName: g.groupName })}>
+              <Text style={st.ghostText}>{t('Agora não')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -124,28 +125,28 @@ export default function MixarList() {
       <ScrollView contentContainerStyle={st.wrap} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
         <View style={st.intro}>
           <MixarBadge size={44} />
-          <Text style={st.introText}>Um feed a dois: juntam os gostos e recebem todos os dias, às 05:00, uma seleção que tem a ver com os dois.</Text>
+          <Text style={st.introText}>{t('Um feed a dois: juntam os gostos e recebem todos os dias, às 05:00, uma seleção que tem a ver com os dois.')}</Text>
         </View>
 
         {q.isPending ? <ActivityIndicator style={{ marginTop: 32 }} /> : null}
         {q.isError ? (
-          <ErrorState what="os teus Mixar" onRetry={() => void q.refetch()} />
+          <ErrorState what={t('os teus Mixar')} onRetry={() => void q.refetch()} />
         ) : null}
 
-        {groups.received.length ? <Text style={st.section}>Convites</Text> : null}
+        {groups.received.length ? <Text style={st.section}>{t('Convites')}</Text> : null}
         {groups.received.map((s) => row(s, 'received'))}
-        {groups.active.length ? <Text style={st.section}>Os teus Mixar</Text> : null}
+        {groups.active.length ? <Text style={st.section}>{t('Os teus Mixar')}</Text> : null}
         {groups.active.map((s) => row(s, 'active'))}
-        {groups.sent.length ? <Text style={st.section}>À espera de resposta</Text> : null}
+        {groups.sent.length ? <Text style={st.section}>{t('À espera de resposta')}</Text> : null}
         {groups.sent.map((s) => row(s, 'sent'))}
-        {groupMixars.length ? <Text style={st.section}>Os vossos Mixar de grupo</Text> : null}
+        {groupMixars.length ? <Text style={st.section}>{t('Os vossos Mixar de grupo')}</Text> : null}
         {groupMixars.map(groupRow)}
 
         {empty ? (
           <View style={st.empty}>
-            <Text style={st.emptyTitle}>Ainda não tens nenhum Mixar</Text>
-            <Text style={st.emptySub}>Abre uma conversa e toca em «⋯» ou no «+» e escolhe «Mixar». Quando a pessoa aceitar, o vosso feed a dois começa. Num grupo de 3 a 5 pessoas, toca no ícone do Mixar no cabeçalho do grupo.</Text>
-            <Pressable onPress={() => router.navigate('/messages' as never)} style={[st.btn, st.primary, { marginTop: 16, paddingHorizontal: 24 }]} accessibilityRole="button"><Text style={st.primaryText}>Ir às mensagens</Text></Pressable>
+            <Text style={st.emptyTitle}>{t('Ainda não tens nenhum Mixar')}</Text>
+            <Text style={st.emptySub}>{t('Abre uma conversa e toca em «⋯» ou no «+» e escolhe «Mixar». Quando a pessoa aceitar, o vosso feed a dois começa. Num grupo de 3 a 5 pessoas, toca no ícone do Mixar no cabeçalho do grupo.')}</Text>
+            <Pressable onPress={() => router.navigate('/messages' as never)} style={[st.btn, st.primary, { marginTop: 16, paddingHorizontal: 24 }]} accessibilityRole="button"><Text style={st.primaryText}>{t('Ir às mensagens')}</Text></Pressable>
           </View>
         ) : null}
         {/* «Faz um Mixar com…» (0170): quem fala muito comigo e tem gostos parecidos (também quando ainda não há nenhum Mixar). */}
@@ -153,7 +154,7 @@ export default function MixarList() {
         {/* Só em desenvolvimento: o Mixar de exemplo (lib/mixarPreview), para ver os ecrãs sem a API. */}
         {isMixarPreview(MIXAR_PREVIEW_ID) ? (
           <Pressable onPress={() => router.push(`/mixar/${MIXAR_PREVIEW_ID}` as never)} style={st.dev} accessibilityRole="button">
-            <Text style={st.devText}>Ver um Mixar de exemplo (só em desenvolvimento)</Text>
+            <Text style={st.devText}>{t('Ver um Mixar de exemplo (só em desenvolvimento)')}</Text>
           </Pressable>
         ) : null}
       </ScrollView>

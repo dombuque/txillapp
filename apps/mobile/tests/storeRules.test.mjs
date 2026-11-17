@@ -73,7 +73,7 @@ test('a Ajuda nas lojas não manda recarregar nem bombar; no site fica igual', (
   const help = read('app', 'help.tsx');
   assert.match(help, /helpFaqFor\(purchases, FAQ\)/);
   assert.match(help, /Também podes recarregar em Definições[^.]*\./);
-  assert.match(help, /q: 'Como bombo o meu local\?'/);
+  assert.match(help, /q\(\) \{ return t\('Como bombo o meu local\?'\)/);
 });
 
 test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, sem linha nas Definições nem «carrega a carteira»', () => {

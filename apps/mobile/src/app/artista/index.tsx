@@ -12,6 +12,7 @@ import { artistsApi, type ArtistMe } from '@/lib/api.artists';
 import { RIGHTS_CONTACT, RIGHTS_SUBJECT, artistStatusText, guessLinkKind, linkProblem } from '@/lib/artists';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * «Sou artista»: o pedido para entrar no programa de artistas moçambicanos (nome artístico, estilos, ligações e quem tem os
@@ -29,17 +30,17 @@ export default function SouArtista() {
   const showForm = !a || editing || a.status === 'withdrawn';
 
   function withdraw() {
-    Alert.alert('Retirar o pedido?', 'A prova que enviaste é apagada. Podes pedir outra vez quando quiseres.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Retirar', style: 'destructive', onPress: () => void artistsApi.withdrawApplication().then(() => qc.invalidateQueries({ queryKey: ['artist-me'] })).catch((e: Error) => Alert.alert('Não deu', e.message)) },
+    Alert.alert(t('Retirar o pedido?'), t('A prova que enviaste é apagada. Podes pedir outra vez quando quiseres.'), [
+      { text: t('Cancelar'), style: 'cancel' },
+      { text: t('Retirar'), style: 'destructive', onPress: () => void artistsApi.withdrawApplication().then(() => qc.invalidateQueries({ queryKey: ['artist-me'] })).catch((e: Error) => Alert.alert(t('Não deu'), e.message)) },
     ]);
   }
 
   return (
-    <StackPage title="Sou artista">
+    <StackPage title={t('Sou artista')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
         {q.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 40 }} /> : null}
-        {q.isError ? <Text style={ast.err}>Não consegui carregar. Tenta outra vez.</Text> : null}
+        {q.isError ? <Text style={ast.err}>{t('Não consegui carregar. Tenta outra vez.')}</Text> : null}
         {q.data ? (
           <>
             <View style={[ast.card, { marginTop: 0, backgroundColor: a?.status === 'approved' ? '#fff7ed' : '#fafafa' }]}>
@@ -48,16 +49,16 @@ export default function SouArtista() {
                 {a?.status === 'approved' ? <ArtistTag /> : null}
               </View>
               <Text style={ast.cardSub}>{status.sub}</Text>
-              {a?.reason && (a.status === 'rejected' || a.status === 'revoked') ? <Text style={[ast.cardSub, { color: colors.red600 }]}>Motivo: {a.reason}</Text> : null}
-              {a?.status === 'pending' ? <Ghost title="Retirar o pedido" onPress={withdraw} /> : null}
-              {a?.status === 'rejected' && !editing ? <Ghost title="Corrigir e pedir outra vez" onPress={() => setEditing(true)} /> : null}
+              {a?.reason && (a.status === 'rejected' || a.status === 'revoked') ? <Text style={[ast.cardSub, { color: colors.red600 }]}>{t('Motivo: {reason}', { reason: a.reason })}</Text> : null}
+              {a?.status === 'pending' ? <Ghost title={t('Retirar o pedido')} onPress={withdraw} /> : null}
+              {a?.status === 'rejected' && !editing ? <Ghost title={t('Corrigir e pedir outra vez')} onPress={() => setEditing(true)} /> : null}
             </View>
 
             {a?.status === 'approved' ? (
               <>
-                <Primary title="Carregar uma música" onPress={() => router.push('/artista/carregar' as never)} />
-                <Ghost title="Gerir as minhas músicas" onPress={() => router.push('/artista/gerir' as never)} />
-                {user ? <Ghost title="Ver o meu perfil de artista" onPress={() => router.push(`/u/${user.username}` as never)} /> : null}
+                <Primary title={t('Carregar uma música')} onPress={() => router.push('/artista/carregar' as never)} />
+                <Ghost title={t('Gerir as minhas músicas')} onPress={() => router.push('/artista/gerir' as never)} />
+                {user ? <Ghost title={t('Ver o meu perfil de artista')} onPress={() => router.push(`/u/${user.username}` as never)} /> : null}
               </>
             ) : null}
 
@@ -66,15 +67,12 @@ export default function SouArtista() {
             ) : null}
 
             <View style={[ast.card, { backgroundColor: '#fafafa' }]}>
-              <Text style={ast.cardTitle}>Como funciona</Text>
+              <Text style={ast.cardTitle}>{t('Como funciona')}</Text>
               <Text style={ast.cardSub}>
-                1. Pedes aqui, com o teu nome artístico, os estilos, as tuas ligações (redes e streaming) e quem tem os direitos das músicas.{'\n'}
-                2. A equipa do Txillapp confirma o pedido. O teu perfil passa a ter a etiqueta «Artista».{'\n'}
-                3. Carregas as tuas músicas, escolhes o trecho (o refrão, até 60 s) e aceitas a Licença de uso de música no Txillapp.{'\n'}
-                4. Depois de revistas, aparecem nos «Artistas de Moçambique» e a malta usa-as nos mimos e nas tchekas, com «♪ Título · Artista» e a ligação ao teu perfil.
+                {t('1. Pedes aqui, com o teu nome artístico, os estilos, as tuas ligações (redes e streaming) e quem tem os direitos das músicas.\n2. A equipa do Txillapp confirma o pedido. O teu perfil passa a ter a etiqueta «Artista».\n3. Carregas as tuas músicas, escolhes o trecho (o refrão, até 60 s) e aceitas a Licença de uso de música no Txillapp.\n4. Depois de revistas, aparecem nos «Artistas de Moçambique» e a malta usa-as nos mimos e nas tchekas, com «♪ Título · Artista» e a ligação ao teu perfil.')}
               </Text>
               <Text style={[ast.cardSub, { marginTop: 10 }]}>
-                Direitos de autor:{' '}
+                {t('Direitos de autor:')}{' '}
                 <Text style={{ fontWeight: '600', textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT)}`)}>{RIGHTS_CONTACT}</Text>
               </Text>
             </View>
@@ -109,7 +107,7 @@ function ApplyForm({ me, onDone }: { me: ArtistMe; onDone: () => void }) {
       const p = r.canceled ? null : r.assets[0];
       if (p) setProof({ uri: p.uri, mime: p.mimeType ?? 'image/jpeg' });
     } catch {
-      setErr('Não consegui abrir a galeria');
+      setErr(t('Não consegui abrir a galeria'));
     }
   }
   async function send() {
@@ -124,55 +122,55 @@ function ApplyForm({ me, onDone }: { me: ArtistMe; onDone: () => void }) {
       });
       onDone();
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui enviar o pedido');
+      setErr((e as Error).message || t('Não consegui enviar o pedido'));
     }
     setBusy(false);
   }
 
   return (
     <View style={{ marginTop: 8 }}>
-      <Field label="Nome artístico">
-        <TextInput value={stageName} onChangeText={setStageName} maxLength={60} placeholder="Como a malta te conhece" placeholderTextColor={colors.zinc500} style={ast.input} accessibilityLabel="Nome artístico" />
+      <Field label={t('Nome artístico')}>
+        <TextInput value={stageName} onChangeText={setStageName} maxLength={60} placeholder={t('Como a malta te conhece')} placeholderTextColor={colors.zinc500} style={ast.input} accessibilityLabel={t('Nome artístico')} />
       </Field>
-      <Field label="Estilos (até 5)">
+      <Field label={t('Estilos (até 5)')}>
         <Chips options={me.styles} value={styles} onChange={setStyles} />
       </Field>
-      <Field label="Ligações" hint="Uma por linha: Instagram, TikTok, YouTube, Spotify, Audiomack, Boomplay… Só https://. Ajudam a equipa a confirmar que és tu.">
-        <TextInput value={links} onChangeText={setLinks} multiline autoCapitalize="none" autoCorrect={false} placeholder={'https://instagram.com/…\nhttps://open.spotify.com/artist/…'} placeholderTextColor={colors.zinc500} style={[ast.input, { minHeight: 88, textAlignVertical: 'top' }]} accessibilityLabel="Ligações" />
+      <Field label={t('Ligações')} hint="Uma por linha: Instagram, TikTok, YouTube, Spotify, Audiomack, Boomplay… Só https://. Ajudam a equipa a confirmar que és tu.">
+        <TextInput value={links} onChangeText={setLinks} multiline autoCapitalize="none" autoCorrect={false} placeholder={'https://instagram.com/…\nhttps://open.spotify.com/artist/…'} placeholderTextColor={colors.zinc500} style={[ast.input, { minHeight: 88, textAlignVertical: 'top' }]} accessibilityLabel={t('Ligações')} />
         {badLink ? <Text style={ast.err}>{badLink}</Text> : null}
       </Field>
-      <Field label="Quem tem os direitos das músicas?">
+      <Field label={t('Quem tem os direitos das músicas?')}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {([['self', 'Eu (artista independente)'], ['label', 'Uma editora']] as const).map(([k, l]) => (
+          {([['self', t('Eu (artista independente)')], ['label', t('Uma editora')]] as const).map(([k, l]) => (
             <Pressable key={k} onPress={() => setRightsKind(k)} style={[ast.chip, { flex: 1, height: 44 }, rightsKind === k && ast.chipOn]} accessibilityRole="radio" accessibilityState={{ selected: rightsKind === k }}>
               <Text style={[ast.chipTxt, rightsKind === k && { color: '#fff' }]}>{l}</Text>
             </Pressable>
           ))}
         </View>
         {rightsKind === 'label' ? (
-          <TextInput value={labelName} onChangeText={setLabelName} maxLength={80} placeholder="Nome da editora" placeholderTextColor={colors.zinc500} style={[ast.input, { marginTop: 8 }]} accessibilityLabel="Nome da editora" />
+          <TextInput value={labelName} onChangeText={setLabelName} maxLength={80} placeholder={t('Nome da editora')} placeholderTextColor={colors.zinc500} style={[ast.input, { marginTop: 8 }]} accessibilityLabel={t('Nome da editora')} />
         ) : null}
       </Field>
-      <Field label="Declaração" hint="Diz que és o autor e intérprete (ou que a editora te autoriza), e o que mais ajudar: registo na SOMAS, contrato, onde as músicas já estão publicadas.">
+      <Field label={t('Declaração')} hint={t('Diz que és o autor e intérprete (ou que a editora te autoriza), e o que mais ajudar: registo na SOMAS, contrato, onde as músicas já estão publicadas.')}>
         <TextInput
           value={statement}
           onChangeText={setStatement}
           multiline
           maxLength={1000}
-          placeholder="Sou o autor, compositor e intérprete das músicas que vou carregar e tenho todos os direitos sobre elas."
+          placeholder={t('Sou o autor, compositor e intérprete das músicas que vou carregar e tenho todos os direitos sobre elas.')}
           placeholderTextColor={colors.zinc500}
           style={[ast.input, { minHeight: 110, textAlignVertical: 'top' }]}
-          accessibilityLabel="Declaração de direitos"
+          accessibilityLabel={t('Declaração de direitos')}
         />
       </Field>
-      <Field label="Prova (opcional)" hint="Uma foto do contrato, da carta da editora ou do registo. Só a equipa a vê, e é apagada depois da decisão.">
-        <Pressable onPress={() => void pickProof()} style={[ast.license, { height: 120, alignItems: 'center', justifyContent: 'center', padding: 0, overflow: 'hidden' }]} accessibilityRole="button" accessibilityLabel="Escolher a foto da prova">
-          {proof ? <Image source={{ uri: proof.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : <Text style={ast.hint}>Escolher uma foto</Text>}
+      <Field label={t('Prova (opcional)')} hint={t('Uma foto do contrato, da carta da editora ou do registo. Só a equipa a vê, e é apagada depois da decisão.')}>
+        <Pressable onPress={() => void pickProof()} style={[ast.license, { height: 120, alignItems: 'center', justifyContent: 'center', padding: 0, overflow: 'hidden' }]} accessibilityRole="button" accessibilityLabel={t('Escolher a foto da prova')}>
+          {proof ? <Image source={{ uri: proof.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : <Text style={ast.hint}>{t('Escolher uma foto')}</Text>}
         </Pressable>
       </Field>
-      <Check on={sure} onChange={setSure}>Confirmo que a informação é verdadeira e que posso autorizar o uso destas músicas.</Check>
+      <Check on={sure} onChange={setSure}>{t('Confirmo que a informação é verdadeira e que posso autorizar o uso destas músicas.')}</Check>
       {err ? <Text style={ast.err}>{err}</Text> : null}
-      <Primary title={busy ? 'A enviar…' : 'Enviar o pedido'} disabled={!ready || busy} onPress={() => void send()} />
+      <Primary title={busy ? t('A enviar…') : t('Enviar o pedido')} disabled={!ready || busy} onPress={() => void send()} />
     </View>
   );
 }

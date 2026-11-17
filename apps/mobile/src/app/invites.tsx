@@ -20,6 +20,7 @@ import { qrMatrix } from '@/lib/qr';
 import { stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
 import { formatVibes } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 /** Verde do WhatsApp, escurecido para o texto branco ter contraste suficiente (≥ 4,5:1). */
 const WHATSAPP = '#128c4a';
@@ -95,14 +96,14 @@ export default function Invites() {
       if (kind === 'save') {
         if (!card) return;
         const r = await saveCard(card);
-        setHint(r === 'saved' ? (Platform.OS === 'web' ? 'Imagem pronta: guarda-a ou junta-a ao teu Status.' : 'Imagem guardada na galeria. Junta-a ao teu Status.') : 'Sem permissão para guardar na galeria.');
+        setHint(r === 'saved' ? (Platform.OS === 'web' ? t('Imagem pronta: guarda-a ou junta-a ao teu Status.') : t('Imagem guardada na galeria. Junta-a ao teu Status.')) : t('Sem permissão para guardar na galeria.'));
         return;
       }
       const r = kind === 'wa' ? await shareOnWhatsApp(card, text) : card ? await shareCard(card, text) : 'cancelled';
-      if (r === 'copied') setHint('Copiei o convite: cola-o onde quiseres.');
-      else if (r === 'text-only') setHint('Foi a ligação: no WhatsApp aparece o teu cartão. Para mandar a imagem, toca em «Guardar imagem».');
+      if (r === 'copied') setHint(t('Copiei o convite: cola-o onde quiseres.'));
+      else if (r === 'text-only') setHint(t('Foi a ligação: no WhatsApp aparece o teu cartão. Para mandar a imagem, toca em «Guardar imagem».'));
     } catch {
-      setHint('Não deu. Tenta outra vez.');
+      setHint(t('Não deu. Tenta outra vez.'));
     } finally {
       setBusy(null);
     }
@@ -150,59 +151,59 @@ export default function Invites() {
 
   return (
     <StackPage
-      title="Convida a tua malta"
+      title={t('Convida a tua malta')}
       right={
         // Alguém mostrou o QR do perfil (ou mandou-o como imagem): lê-se daqui.
-        <IconButton icon="qr-scan" iconSize={24} label="Ler um QR" onPress={() => router.push('/qr' as never)} />
+        <IconButton icon="qr-scan" iconSize={24} label={t('Ler um QR')} onPress={() => router.push('/qr' as never)} />
       }
     >
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {q.isLoading && <PageLoader />}
-        {q.isError && <ErrorState what="os convites" onRetry={() => void q.refetch()} />}
+        {q.isError && <ErrorState what={t('os convites')} onRetry={() => void q.refetch()} />}
         {d && (
           <>
             {/* O progresso primeiro: quem entrou e quem já deu Txills. */}
             <Text style={st.progress} accessibilityRole="header">{inviteProgress(d.stats)}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              {stat(d.stats.invited, 'Entraram')}
-              {stat(d.stats.active, 'Ficaram ativos')}
-              {stat(d.stats.earned, 'Vibes ganhas')}
+              {stat(d.stats.invited, t('Entraram'))}
+              {stat(d.stats.active, t('Ficaram ativos'))}
+              {stat(d.stats.earned, t('Vibes ganhas'))}
             </View>
-            {d.stats.pending > 0 && <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: colors.zinc500 }}>{d.stats.pending} em espera: o teu prémio chega {d.rules.holdDays} dias depois de a pessoa ficar ativa.</Text>}
+            {d.stats.pending > 0 && <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: colors.zinc500 }}>{t('{pending} em espera: o teu prémio chega {holdDays} dias depois de a pessoa ficar ativa.', { pending: d.stats.pending, holdDays: d.rules.holdDays })}</Text>}
             {d.note ? <Text style={st.note}>{d.note}</Text> : null}
 
             {/* O cartão do convite, feito no aparelho. */}
-            <Text style={st.h2} accessibilityRole="header">O teu cartão</Text>
-            <SegmentedTabs tabs={[{ value: 'post', label: 'Conversa' }, { value: 'status', label: 'Status' }]} value={format} onChange={setFormat} style={st.segment} />
+            <Text style={st.h2} accessibilityRole="header">{t('O teu cartão')}</Text>
+            <SegmentedTabs tabs={[{ value: 'post', label: t('Conversa') }, { value: 'status', label: t('Status') }]} value={format} onChange={setFormat} style={st.segment} />
             <View style={[st.preview, { aspectRatio: ratio, maxWidth: format === 'status' ? 300 : 380 }]}>
               {card && <Image source={{ uri: card.uri }} style={StyleSheet.absoluteFill} contentFit="contain" accessible accessibilityRole="image" accessibilityLabel={card.label} />}
               {drawing && !card && <ActivityIndicator color={colors.brand} />}
-              {drawError && !card && <Text style={{ color: colors.zinc600, textAlign: 'center', padding: 16 }}>Não consegui desenhar o cartão. A ligação funciona na mesma.</Text>}
+              {drawError && !card && <Text style={{ color: colors.zinc600, textAlign: 'center', padding: 16 }}>{t('Não consegui desenhar o cartão. A ligação funciona na mesma.')}</Text>}
             </View>
-            <Button label="Outra frase" icon="repeat" kind="ghost" size="md" onPress={() => setPhrase(nextPhrase(ph))} accessibilityHint={`Agora: ${INVITE_PHRASES[ph]}`} style={st.again} />
-            {d.card && !d.card.geleiraPublic ? <Text style={st.small}>A tua Geleira não está à vista de todos, por isso não vai no cartão.</Text> : null}
+            <Button label={t('Outra frase')} icon="repeat" kind="ghost" size="md" onPress={() => setPhrase(nextPhrase(ph))} accessibilityHint={t('Agora: {invitePhrase}', { invitePhrase: INVITE_PHRASES[ph] })} style={st.again} />
+            {d.card && !d.card.geleiraPublic ? <Text style={st.small}>{t('A tua Geleira não está à vista de todos, por isso não vai no cartão.')}</Text> : null}
 
             <View style={{ gap: 10, marginTop: 12 }}>
-              {action('wa', 'messages', 'Partilhar no WhatsApp', 'Abre o WhatsApp com o convite e a ligação', 'whatsapp')}
-              {action('share', 'share', 'Partilhar', 'Abre a folha de partilha com a imagem e a ligação', 'primary')}
-              {action('save', 'download', 'Guardar imagem', 'Guarda o cartão na galeria, para o Status', 'secondary')}
+              {action('wa', 'messages', t('Partilhar no WhatsApp'), t('Abre o WhatsApp com o convite e a ligação'), 'whatsapp')}
+              {action('share', 'share', t('Partilhar'), t('Abre a folha de partilha com a imagem e a ligação'), 'primary')}
+              {action('save', 'download', t('Guardar imagem'), t('Guarda o cartão na galeria, para o Status'), 'secondary')}
             </View>
             {hint ? <Text style={st.hint} accessibilityLiveRegion="polite">{hint}</Text> : null}
 
             <LinearGradient colors={[colors.brand, '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600', opacity: 0.9 }}>O teu código</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600', opacity: 0.9 }}>{t('O teu código')}</Text>
               <Text style={{ color: '#fff', fontSize: 34, fontWeight: '900', letterSpacing: 6, marginTop: 4 }} selectable>{d.code}</Text>
-              <Button label={copied ? 'Copiado' : 'Copiar a ligação'} icon={copied ? 'check' : 'link'} kind="ghost" dark block onPress={() => void copy()} accessibilityLabel={copied ? 'Ligação copiada' : 'Copiar a ligação'} style={st.copy} />
+              <Button label={copied ? t('Copiado') : t('Copiar a ligação')} icon={copied ? 'check' : 'link'} kind="ghost" dark block onPress={() => void copy()} accessibilityLabel={copied ? t('Ligação copiada') : t('Copiar a ligação')} style={st.copy} />
             </LinearGradient>
 
-            <Text style={st.h2} accessibilityRole="header">Como funciona</Text>
+            <Text style={st.h2} accessibilityRole="header">{t('Como funciona')}</Text>
             <View style={{ gap: 8 }}>
-              {li('check-circle', colors.green600, 'A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.')}
-              {li('check-circle', colors.green600, `Ela ganha ${formatVibes(d.rules.reward)} quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
-              {li('check-circle', colors.green600, `Tu ganhas ${formatVibes(d.rules.reward)} quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
-              {li('info', colors.zinc500, `Até ${d.rules.perDay} convites premiados por dia e ${d.rules.maxPaid} no total. Depois disso o convite continua a funcionar, mas sem vibes.`)}
-              {li('info', colors.zinc500, 'Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. As vibes são pontos da app.')}
-              {li('info', colors.zinc500, 'O cartão é feito no teu aparelho. Leva o teu nome, a tua foto e, se a tua Geleira estiver à vista de todos, alguns itens dela.')}
+              {li('check-circle', colors.green600, t('A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.'))}
+              {li('check-circle', colors.green600, t('Ela ganha {vibes} quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.', { vibes: formatVibes(d.rules.reward) }))}
+              {li('check-circle', colors.green600, t('Tu ganhas {vibes} quando ela continuar por cá mais {holdDays} dias.', { vibes: formatVibes(d.rules.reward), holdDays: d.rules.holdDays }))}
+              {li('info', colors.zinc500, t('Até {perDay} convites premiados por dia e {maxPaid} no total. Depois disso o convite continua a funcionar, mas sem vibes.', { perDay: d.rules.perDay, maxPaid: d.rules.maxPaid }))}
+              {li('info', colors.zinc500, t('Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. As vibes são pontos da app.'))}
+              {li('info', colors.zinc500, t('O cartão é feito no teu aparelho. Leva o teu nome, a tua foto e, se a tua Geleira estiver à vista de todos, alguns itens dela.'))}
             </View>
           </>
         )}

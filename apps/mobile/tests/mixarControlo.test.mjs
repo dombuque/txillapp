@@ -80,7 +80,7 @@ test('os textos novos: sem travessões nem emojis', () => {
 test('as entradas: menu do item e resumo no Mixar, links na Descoberta e nas Definições', () => {
   const screen = read('app', 'mixar', '[id].tsx');
   assert.match(screen, /setItemMenu\(it\)/);
-  assert.match(screen, /accessibilityLabel="Resumo da semana"/);
+  assert.match(screen, /accessibilityLabel=\{t\('Resumo da semana'\)\}/);
   assert.match(screen, /withWeekPage\(/);
   assert.match(screen, /router\.push\('\/settings\/mixar-temas'/);
   assert.match(read('components', 'mixar', 'MixarPages.tsx'), /Afinar os temas do Mixar/);

@@ -5,6 +5,7 @@ import { StackPage } from '@/components/StackPage';
 import { CHANNEL } from '@/lib/distribution';
 import { showComingSoon } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Idioma e traduções. A app ainda só existe em português (o site tem pt-MZ e en, com as frases em apps/web/src/lib/i18n):
@@ -15,21 +16,21 @@ const SOON = showComingSoon(CHANNEL);
 
 export default function Language() {
   return (
-    <StackPage title="Idioma e traduções">
+    <StackPage title={t('Idioma e traduções')}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <Group title="Idioma da app">
+        <Group title={t('Idioma da app')}>
           <Pressable accessibilityRole="radio" accessibilityState={{ checked: true }} style={st.row}>
-            <Text style={st.label}>Português (Moçambique)</Text>
+            <Text style={st.label}>{t('Português (Moçambique)')}</Text>
             <View style={[st.radio, { borderColor: colors.brand, backgroundColor: colors.brand }]}><Icon name="check" size={14} strokeWidth={3} color="#fff" /></View>
           </Pressable>
-          {SOON ? <Line icon="globe" label="English" value="em breve na app" /> : null}
+          {SOON ? <Line icon="globe" label={t('English')} value={t('em breve na app')} /> : null}
         </Group>
         {SOON ? (
-          <Group title="Traduções">
-            <Line icon="globe" label="Traduzir publicações" value="Em breve: ver posts e comentários noutro idioma com um toque" />
+          <Group title={t('Traduções')}>
+            <Line icon="globe" label={t('Traduzir publicações')} value={t('Em breve: ver posts e comentários noutro idioma com um toque')} />
           </Group>
         ) : null}
-        <Text style={st.foot}>{SOON ? 'O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.' : 'A app está em português.'}</Text>
+        <Text style={st.foot}>{SOON ? t('O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.') : t('A app está em português.')}</Text>
       </ScrollView>
     </StackPage>
   );

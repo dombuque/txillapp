@@ -12,6 +12,7 @@ import { clearDraft, listDrafts, restoreDraft, type DraftItem } from '@/lib/draf
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { showToast } from '@/lib/toast';
+import { t } from '@/lib/i18n';
 
 /** Os teus rascunhos: o início do texto, a miniatura da foto e há quanto tempo foram guardados. Toca para continuar. */
 export default function Drafts() {
@@ -29,8 +30,8 @@ export default function Drafts() {
   async function drop(d: DraftItem) {
     await clearDraft(d.key);
     setItems((l) => (l ?? []).filter((x) => x.key !== d.key));
-    showToast('Rascunho apagado', {
-      label: 'Desfazer',
+    showToast(t('Rascunho apagado'), {
+      label: t('Desfazer'),
       onPress: () => {
         void restoreDraft(d).then(() => setItems((l) => [...(l ?? []).filter((x) => x.key !== d.key), d].sort((a, b) => b.savedAt - a.savedAt)));
       },
@@ -38,13 +39,13 @@ export default function Drafts() {
   }
 
   return (
-    <StackPage title="Rascunhos">
+    <StackPage title={t('Rascunhos')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 8 }}>
         {items === null && <PageLoader />}
-        {items?.length === 0 && <EmptyState icon="file-text" title="Sem rascunhos" text="Quando saíres de uma publicação sem a publicar, podes guardá-la aqui." />}
+        {items?.length === 0 && <EmptyState icon="file-text" title={t('Sem rascunhos')} text={t('Quando saíres de uma publicação sem a publicar, podes guardá-la aqui.')} />}
         {items?.map((d) => {
           const photos = d.photos.length;
-          const label = d.body.trim() || (photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : 'Sem texto');
+          const label = d.body.trim() || (photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : t('Sem texto'));
           return (
             <View key={d.key} style={st.row}>
               <Pressable onPress={() => router.push({ pathname: '/new', params: { draft: d.key } } as never)} accessibilityRole="button" style={({ pressed }) => [st.open, pressed && { backgroundColor: colors.zinc100 }]}>
@@ -55,10 +56,10 @@ export default function Drafts() {
                 )}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc800 }} numberOfLines={2}>{label}</Text>
-                  <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(new Date(d.savedAt).toISOString())}{photos > 0 && d.body.trim() ? ` · ${photos} ${photos === 1 ? 'foto' : 'fotos'}` : ''}</Text>
+                  <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(new Date(d.savedAt).toISOString())}{photos > 0 && d.body.trim() ? (' ' + t('· {count} foto', { count: photos, other: '· {count} fotos' })) : ''}</Text>
                 </View>
               </Pressable>
-              <IconButton icon="trash" iconSize={20} color={colors.danger} label="Apagar rascunho" onPress={() => void drop(d)} />
+              <IconButton icon="trash" iconSize={20} color={colors.danger} label={t('Apagar rascunho')} onPress={() => void drop(d)} />
             </View>
           );
         })}

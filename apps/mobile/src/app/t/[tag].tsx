@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useAuth } from '@/lib/auth';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Página de uma #hashtag: quantas publicações e as publicações, recentes ou mais reagidas. */
 export default function TagScreen() {
@@ -46,13 +47,13 @@ export default function TagScreen() {
           <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
             {first && (
               <Text style={{ color: colors.zinc600, marginBottom: 12, fontSize: 16 }}>
-                <Text style={st.b}>{first.posts}</Text> {first.posts === 1 ? 'publicação' : 'publicações'} · <Text style={st.b}>{first.authors}</Text> {first.authors === 1 ? 'pessoa' : 'pessoas'}
+                <Text style={st.b}>{first.posts}</Text> {first.posts === 1 ? t('publicação') : t('publicações')} · <Text style={st.b}>{first.authors}</Text> {first.authors === 1 ? t('pessoa') : t('pessoas')}
               </Text>
             )}
-            <SegmentedTabs tabs={[{ value: 'recent', label: 'Recentes' }, { value: 'top', label: 'Mais reagidas' }]} value={sort} onChange={setSort} />
+            <SegmentedTabs tabs={[{ value: 'recent', label: t('Recentes') }, { value: 'top', label: t('Mais reagidas') }]} value={sort} onChange={setSort} />
           </View>
         }
-        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (q.error instanceof ApiError && q.error.status === 404 ? <Empty icon="search" title="Esta hashtag não existe" /> : <ErrorState what="esta hashtag" onRetry={() => void q.refetch()} />) : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
+        ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (q.error instanceof ApiError && q.error.status === 404 ? <Empty icon="search" title={t('Esta hashtag não existe')} /> : <ErrorState what={t('esta hashtag')} onRetry={() => void q.refetch()} />) : <Empty icon="tag" title={t('Ainda ninguém usou esta hashtag')} />}
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
         ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}

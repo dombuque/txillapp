@@ -57,7 +57,7 @@ test('seguidores / a seguir: a carregar, sem rede, 404, voltar sem histórico e 
   assert.match(conn, /profile\.isLoading \? <ActivityIndicator/);
   assert.match(conn, /Não consegui abrir as listas/);
   assert.match(conn, /onPress=\{\(\) => goBack\(router\)\}/);
-  assert.match(conn, /username === me \? 'Ainda não segues ninguém' : 'Ainda não segue ninguém'/);
+  assert.match(conn, /username === me \? t\('Ainda não segues ninguém'\) : t\('Ainda não segue ninguém'\)/);
   assert.match(conn, /aria-selected=\{cur === k\}/);
   assert.doesNotMatch(conn, /user!/);
 });

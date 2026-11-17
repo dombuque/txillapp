@@ -8,12 +8,13 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { buildId } from '@/lib/push';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const SUPPORT = 'suporte@txillapp.com';
-const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MONTHS = () => [t('janeiro'), t('fevereiro'), t('março'), t('abril'), t('maio'), t('junho'), t('julho'), t('agosto'), t('setembro'), t('outubro'), t('novembro'), t('dezembro')];
 const longDate = (iso: string) => {
   const d = new Date(iso);
-  return `${d.getDate()} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`;
+  return t('{date} de {month} de {fullYear}', { date: d.getDate(), month: MONTHS()[d.getMonth()], fullYear: d.getFullYear() });
 };
 
 /** Sobre: a tua conta, a política de privacidade, os termos e a versão. */
@@ -30,25 +31,25 @@ export default function About() {
     /* sem Intl.DisplayNames: mantém o código */
   }
   return (
-    <StackPage title="Sobre">
+    <StackPage title={t('Sobre')}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <Group title="Sobre o teu perfil">
-          <Line icon="user" label="Nome de utilizador" value={`@${user?.username ?? ''}`} />
-          <Line icon="clock" label="Conta criada em" value={since} />
-          {country ? <Line icon="globe" label="Região" value={country} /> : null}
-          <Line icon="check-circle" label="Verificação" value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : ver.data.tier === 'paid' ? 'Verificado com subscrição' : 'Conta verificada') : 'Sem selo'} to="/verification" />
+        <Group title={t('Sobre o teu perfil')}>
+          <Line icon="user" label={t('Nome de utilizador')} value={`@${user?.username ?? ''}`} />
+          <Line icon="clock" label={t('Conta criada em')} value={since} />
+          {country ? <Line icon="globe" label={t('Região')} value={country} /> : null}
+          <Line icon="check-circle" label={t('Verificação')} value={ver.data?.verified ? (ver.data.tier === 'official' ? t('Conta oficial do Txillapp') : ver.data.tier === 'paid' ? t('Verificado com subscrição') : t('Conta verificada')) : t('Sem selo')} to="/verification" />
         </Group>
-        <Group title="Legal">
-          <Line icon="shield" label="Política de privacidade" to="/privacy" />
-          <Line icon="file-text" label="Termos de utilização" to="/terms" />
+        <Group title={t('Legal')}>
+          <Line icon="shield" label={t('Política de privacidade')} to="/privacy" />
+          <Line icon="file-text" label={t('Termos de utilização')} to="/terms" />
         </Group>
         <Group title="Txillapp">
-          <Line icon="info" label="Versão" value={`${Constants.expoConfig?.version ?? '?'}${buildId() ? ` (build ${buildId()!.slice(0, 8)})` : ''}`} />
-          <Line icon="mail" label="Contactar-nos" value={SUPPORT} href={`mailto:${SUPPORT}`} />
+          <Line icon="info" label={t('Versão')} value={`${Constants.expoConfig?.version ?? '?'}${buildId() ? (' ' + t('(build {id})', { id: buildId()!.slice(0, 8) })) : ''}`} />
+          <Line icon="mail" label={t('Contactar-nos')} value={SUPPORT} href={`mailto:${SUPPORT}`} />
         </Group>
         <View style={{ marginHorizontal: 24, marginTop: 24, alignItems: 'center' }}>
           <Text style={{ textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>
-            O Txillapp é a rede da malta: fotos, vídeos, mimos, tchekas e chat, com vibes para brindar e oferecer.
+            {t('O Txillapp é a rede da malta: fotos, vídeos, mimos, tchekas e chat, com vibes para brindar e oferecer.')}
           </Text>
           {user && ver.data?.verified ? <View style={{ marginTop: 6 }}><VerifiedBadge size={14} tier={ver.data.tier} /></View> : null}
         </View>

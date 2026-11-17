@@ -84,7 +84,7 @@ const SCREENS = [
   ['À tua volta', 'app/perto.tsx', /<NameWithBadge name=\{item\.title\} who=\{item\.who\}/],
   ['locais: gestores', 'app/v/[slug]/gerir.tsx', /<NameWithBadge name=\{m\.displayName\} who=\{m\}/],
   ['locais: pagamentos recebidos', 'components/VenueTxills.tsx', /<NameWithBadge name=\{`Recebido de @\$\{person\.username\}`\} who=\{person\}/],
-  ['convites: página /c/[code]', 'app/c/[code].tsx', /\{p\.displayName\}<InlineBadge who=\{p\} fontSize=\{24\} \/> convidou-te/],
+  ['convites: página /c/[code]', 'app/c/[code].tsx', /\{p\.displayName\}<InlineBadge who=\{p\} fontSize=\{24\} \/> \{t\('convidou-te/],
   ['convites: «Convite de» no registo', 'app/register.tsx', /<InlineBadge who=\{invite\}/],
   ['chamadas: ecrã', 'components/calls/CallOverlay.tsx', /<NameWithBadge name=\{c\.peer\?\.displayName \?\? ''\} who=\{c\.peer\}/],
   ['chamadas: histórico', 'app/calls.tsx', /<NameWithBadge name=\{c\.peer\.displayName\} who=\{c\.peer\}/],
@@ -171,7 +171,7 @@ test('cartão do convite: o desenho e as cores do selo são os do VerifiedBadge 
 
 test('Ajuda: «O que querem dizer as cores do selo?» (vermelho do Txillapp, azul da verificação paga quando existir)', () => {
   const help = read('app/help.tsx');
-  const m = /\{ q: 'O que querem dizer as cores do selo\?', a: '([^']+)' \}/.exec(help);
+  const m = /\{ get q\(\) \{ return t\('O que querem dizer as cores do selo\?'\); \}, get a\(\) \{ return t\('([^']+)'\); \} \}/.exec(help);
   assert.ok(m, 'a pergunta está na Ajuda');
   const a = m[1];
   assert.match(a, /vermelho[^.]*Txillapp[^.]*mérito[^.]*pedido de verificação foi aceite/);

@@ -9,6 +9,7 @@ import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
 import { Screen } from './login';
+import { t } from '@/lib/i18n';
 
 /** Abre-se a partir do link do email: confirma a conta. Pode ser noutro aparelho, por isso não exige sessão. */
 export default function VerifyEmail() {
@@ -25,7 +26,7 @@ export default function VerifyEmail() {
       .then(() => alive && setState('ok'))
       .catch((x) => {
         if (!alive) return;
-        setMessage(x instanceof ApiError ? x.message : 'Não consegui confirmar agora. Tenta outra vez.');
+        setMessage(x instanceof ApiError ? x.message : t('Não consegui confirmar agora. Tenta outra vez.'));
         setState('bad');
       });
     return () => {
@@ -40,21 +41,21 @@ export default function VerifyEmail() {
         {state === 'working' && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="progressbar">
             <ActivityIndicator color={colors.brand} />
-            <Text style={st.sub}>A confirmar o teu email…</Text>
+            <Text style={st.sub}>{t('A confirmar o teu email…')}</Text>
           </View>
         )}
         {state === 'ok' && (
           <>
-            <View style={st.row}><Icon name="check-circle" size={32} color={colors.green600} /><Text style={st.title}>Email confirmado</Text></View>
-            <Text style={st.sub}>Já podes publicar, comentar e conversar.</Text>
-            <Button label="Entrar no Txillapp" onPress={() => router.replace('/')} block style={st.cta} />
+            <View style={st.row}><Icon name="check-circle" size={32} color={colors.green600} /><Text style={st.title}>{t('Email confirmado')}</Text></View>
+            <Text style={st.sub}>{t('Já podes publicar, comentar e conversar.')}</Text>
+            <Button label={t('Entrar no Txillapp')} onPress={() => router.replace('/')} block style={st.cta} />
           </>
         )}
         {state === 'bad' && (
           <>
-            <View style={st.row}><Icon name="alert" size={32} color={colors.brand} /><Text style={st.title}>Link inválido</Text></View>
+            <View style={st.row}><Icon name="alert" size={32} color={colors.brand} /><Text style={st.title}>{t('Link inválido')}</Text></View>
             <Text style={st.sub}>{message}</Text>
-            <Button label="Ir para o Txillapp" kind="secondary" onPress={() => router.replace('/')} block style={st.cta} />
+            <Button label={t('Ir para o Txillapp')} kind="secondary" onPress={() => router.replace('/')} block style={st.cta} />
           </>
         )}
       </View>

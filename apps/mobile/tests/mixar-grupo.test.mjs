@@ -134,7 +134,7 @@ test('avisos: «propôs um Mixar do grupo» e as variantes do grupo', () => {
 test('entradas nos ecrãs: cabeçalho e menu do grupo, linha do grupo nas Mensagens, secção na lista, convite e feed do grupo', () => {
   const grp = read('app/messages/g/[id].tsx');
   assert.match(grp, /useGroupMixar\(id, group\?\.members\.length\)/);
-  assert.match(grp, /label: 'Mixar do grupo', onPress: gmixar\.run/);
+  assert.match(grp, /label: t\('Mixar do grupo'\), onPress: gmixar\.run/);
   assert.match(grp, /gmixar\.dot \? <MixarDot size=\{8\} \/> : null/);
   const hook = read('components/mixar/useGroupMixar.ts');
   assert.match(hook, /const show = !!here \|\| groupCanMixar\(members\);/);

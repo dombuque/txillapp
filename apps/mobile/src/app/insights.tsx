@@ -12,21 +12,22 @@ import { StackPage } from '@/components/StackPage';
 import { extraApi } from '@/lib/api.extra';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 type Period = 7 | 30 | 90;
 const num = (n: number) => n.toLocaleString('pt-PT');
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const GENDER: Record<string, string> = { female: 'Mulheres', male: 'Homens', other: 'Outro' };
+const DAYS = () => [t('Dom'), t('Seg'), t('Ter'), t('Qua'), t('Qui'), t('Sex'), t('Sáb')];
+const GENDER: Record<string, string> = { get female() { return t('Mulheres'); }, get male() { return t('Homens'); }, get other() { return t('Outro'); } };
 
 function Card({ children, style }: { children: ReactNode; style?: object }) {
   return <View style={[st.card, style]}>{children}</View>;
 }
 
 function Delta({ v }: { v: number }) {
-  if (!v) return <Text style={st.deltaGrey}>igual ao período anterior</Text>;
+  if (!v) return <Text style={st.deltaGrey}>{t('igual ao período anterior')}</Text>;
   return (
     <Text style={[st.delta, { color: v > 0 ? colors.green700 : colors.red600 }]}>
-      {v > 0 ? '+' : ''}{v}% <Text style={{ fontWeight: '400', color: colors.zinc500 }}>face ao período anterior</Text>
+      {v > 0 ? '+' : ''}{v}% <Text style={{ fontWeight: '400', color: colors.zinc500 }}>{t('face ao período anterior')}</Text>
     </Text>
   );
 }
@@ -79,40 +80,40 @@ export default function Insights() {
   const aud = d?.audience;
 
   return (
-    <StackPage title="Estatísticas do perfil">
+    <StackPage title={t('Estatísticas do perfil')}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }}>
-        <SegmentedTabs tabs={([7, 30, 90] as const).map((p) => ({ value: String(p) as `${Period}`, label: `${p} dias` }))} value={String(days) as `${Period}`} onChange={(v) => setDays(Number(v) as Period)} />
+        <SegmentedTabs tabs={([7, 30, 90] as const).map((p) => ({ value: String(p) as `${Period}`, label: t('{p} dias', { p }) }))} value={String(days) as `${Period}`} onChange={(v) => setDays(Number(v) as Period)} />
 
         {q.isLoading && <PageLoader />}
-        {q.isError && <ErrorState what="as estatísticas" onRetry={() => void q.refetch()} />}
+        {q.isError && <ErrorState what={t('as estatísticas')} onRetry={() => void q.refetch()} />}
         {d && (
           <>
-            <Text style={{ fontSize: 14, color: colors.zinc600 }}>Só tu vês isto. Mostramos números, nunca quem é quem.</Text>
+            <Text style={{ fontSize: 14, color: colors.zinc600 }}>{t('Só tu vês isto. Mostramos números, nunca quem é quem.')}</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Stat icon="eye" label="Contas alcançadas" value={d.overview.reach} delta={d.overview.reachDelta} />
-              <Stat icon="cheers" label="Interações" value={d.overview.interactions} delta={d.overview.interactionsDelta} />
+              <Stat icon="eye" label={t('Contas alcançadas')} value={d.overview.reach} delta={d.overview.reachDelta} />
+              <Stat icon="cheers" label={t('Interações')} value={d.overview.interactions} delta={d.overview.interactionsDelta} />
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Stat icon="user-plus" label="Novos seguidores" value={d.overview.newFollowers} delta={d.overview.newFollowersDelta} />
-              <Stat icon="user" label="Visitas ao perfil" value={d.overview.profileVisitors} delta={d.overview.profileVisitorsDelta} />
+              <Stat icon="user-plus" label={t('Novos seguidores')} value={d.overview.newFollowers} delta={d.overview.newFollowersDelta} />
+              <Stat icon="user" label={t('Visitas ao perfil')} value={d.overview.profileVisitors} delta={d.overview.profileVisitorsDelta} />
             </View>
             <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>Seguidores</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{t('Seguidores')}</Text>
               <Text style={{ fontSize: 24, fontWeight: '800', color: colors.zinc900 }}>{num(d.overview.followers)}</Text>
             </Card>
 
-            <BarChart title="Contas alcançadas por dia" data={d.series.map((s) => ({ day: s.day, value: s.reach }))} />
-            <BarChart title="Interações por dia" data={d.series.map((s) => ({ day: s.day, value: s.interactions }))} />
-            <BarChart title="Novos seguidores por dia" data={d.series.map((s) => ({ day: s.day, value: s.followers }))} />
+            <BarChart title={t('Contas alcançadas por dia')} data={d.series.map((s) => ({ day: s.day, value: s.reach }))} />
+            <BarChart title={t('Interações por dia')} data={d.series.map((s) => ({ day: s.day, value: s.interactions }))} />
+            <BarChart title={t('Novos seguidores por dia')} data={d.series.map((s) => ({ day: s.day, value: s.followers }))} />
 
             <Card>
-              <Text style={st.bold}>Interações</Text>
+              <Text style={st.bold}>{t('Interações')}</Text>
               <View style={{ marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 }}>
                 {([
-                  ['Brindes', d.interactions.cheers], ['Comentários', d.interactions.comments],
-                  ['Reposts', d.interactions.reposts], ['Presentes', d.interactions.gifts],
-                  ['Brindes em mimos', d.interactions.storyCheers], ['Respostas a mimos', d.interactions.storyReplies],
-                  ['Visualizações de mimos', d.overview.storyViews],
+                  [t('Brindes'), d.interactions.cheers], [t('Comentários'), d.interactions.comments],
+                  [t('Reposts'), d.interactions.reposts], [t('Presentes'), d.interactions.gifts],
+                  [t('Brindes em mimos'), d.interactions.storyCheers], [t('Respostas a mimos'), d.interactions.storyReplies],
+                  [t('Visualizações de mimos'), d.overview.storyViews],
                 ] as const).map(([label, v]) => (
                   <View key={label} style={{ width: '50%' }}>
                     <Text style={{ fontSize: 14, color: colors.zinc600 }}>{label}</Text>
@@ -123,13 +124,13 @@ export default function Insights() {
             </Card>
 
             <Card>
-              <Text style={st.bold}>Quando a malta reage mais</Text>
+              <Text style={st.bold}>{t('Quando a malta reage mais')}</Text>
               {bestHour && bestHour.value > 0 && bestDay ? (
-                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>Melhor hora: {bestHour.hour}h · melhor dia: {DAYS[bestDay.dow]}</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Melhor hora: {hour}h · melhor dia: {day}', { hour: bestHour.hour, day: DAYS()[bestDay.dow] })}</Text>
               ) : (
-                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc500 }}>Ainda sem dados suficientes.</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc500 }}>{t('Ainda sem dados suficientes.')}</Text>
               )}
-              <View style={{ marginTop: 12, height: 80, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }} accessibilityLabel="Reações por hora do dia">
+              <View style={{ marginTop: 12, height: 80, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }} accessibilityLabel={t('Reações por hora do dia')}>
                 {d.hours.map((h) => (
                   <View key={h.hour} style={{ flex: 1, height: `${Math.max(4, (h.value / maxHour) * 100)}%`, borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: h.hour === bestHour?.hour && h.value > 0 ? colors.brand : colors.zinc300 }} />
                 ))}
@@ -141,7 +142,7 @@ export default function Insights() {
 
             {d.top.length > 0 && (
               <Card>
-                <Text style={st.bold}>Publicações em destaque</Text>
+                <Text style={st.bold}>{t('Publicações em destaque')}</Text>
                 <View style={{ marginTop: 8 }}>
                   {d.top.map((p, i) => (
                     <Pressable key={p.id} onPress={() => router.push(((p.tcheka ?? p.video) ? `/r/${p.code}` : `/p/${p.code}`) as never)} accessibilityRole="button" style={({ pressed }) => [st.top, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && { backgroundColor: colors.zinc50 }]}>
@@ -151,8 +152,8 @@ export default function Insights() {
                         <View style={[st.thumb, { alignItems: 'center', justifyContent: 'center' }]}><Icon name="file-text" size={22} color={colors.zinc400} /></View>
                       )}
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{p.body || 'Publicação'}</Text>
-                        <Text style={{ fontSize: 12, color: colors.zinc600 }}>{num(p.reach)} alcançadas · {num(p.cheers)} brindes · {num(p.comments)} comentários · {num(p.reposts)} reposts</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{p.body || t('Publicação')}</Text>
+                        <Text style={{ fontSize: 12, color: colors.zinc600 }}>{t('{num} alcançadas · {num2} brindes · {num3} comentários · {num4} reposts', { num: num(p.reach), num2: num(p.cheers), num3: num(p.comments), num4: num(p.reposts) })}</Text>
                       </View>
                     </Pressable>
                   ))}
@@ -162,18 +163,18 @@ export default function Insights() {
 
             {aud?.enough ? (
               <>
-                <Text style={{ paddingTop: 8, fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>O teu público</Text>
-                <Text style={{ marginTop: -8, fontSize: 14, color: colors.zinc600 }}>Os teus {num(aud.followers)} seguidores, em números agregados.</Text>
-                <Bars title="Idades" rows={aud.ages} />
-                <Bars title="Género" rows={aud.gender.map((g) => ({ ...g, label: GENDER[g.label] ?? g.label }))} />
-                <Bars title="Países" rows={aud.countries} />
-                <Bars title="Cidades" rows={aud.cities} />
-                <Bars title="Interesses do teu público" hint="Da geleira de quem a deixa visível. Só aparecem gostos partilhados por várias pessoas." rows={aud.interests} />
+                <Text style={{ paddingTop: 8, fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>{t('O teu público')}</Text>
+                <Text style={{ marginTop: -8, fontSize: 14, color: colors.zinc600 }}>{t('Os teus {num} seguidores, em números agregados.', { num: num(aud.followers) })}</Text>
+                <Bars title={t('Idades')} rows={aud.ages} />
+                <Bars title={t('Género')} rows={aud.gender.map((g) => ({ ...g, label: GENDER[g.label] ?? g.label }))} />
+                <Bars title={t('Países')} rows={aud.countries} />
+                <Bars title={t('Cidades')} rows={aud.cities} />
+                <Bars title={t('Interesses do teu público')} hint={t('Da geleira de quem a deixa visível. Só aparecem gostos partilhados por várias pessoas.')} rows={aud.interests} />
               </>
             ) : aud ? (
               <Card>
-                <Text style={st.bold}>O teu público</Text>
-                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>Com pelo menos {aud.minimum} seguidores mostramos as idades, o género, os sítios e os interesses do teu público, sempre em números agregados. Tens {aud.followers}.</Text>
+                <Text style={st.bold}>{t('O teu público')}</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600 }}>{t('Com pelo menos {minimum} seguidores mostramos as idades, o género, os sítios e os interesses do teu público, sempre em números agregados. Tens {followers}.', { minimum: aud.minimum, followers: aud.followers })}</Text>
               </Card>
             ) : null}
           </>

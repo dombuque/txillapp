@@ -48,7 +48,7 @@ test('o cabeçalho: botões de 40 com o toque até 44, e a 360 px ou menos o Mix
   assert.match(h, /\{actions \? <View style=\{st\.actions\}>\{actions\}<\/View> : null\}/);
   const t = read('src/app/messages/[username].tsx');
   assert.match(t, /const inMenu = headerInMenu\(useWindowDimensions\(\)\.width\);/);
-  assert.match(t, /\{!inMenu \? <HeaderButton label=\{`Videochamada a/);
-  assert.match(t, /\{ icon: 'video' as const, label: 'Videochamada', onPress: \(\) => call\(true\) \}/);
+  assert.match(t, /\{!inMenu \? <HeaderButton label=\{t\('Videochamada a \{displayName\}'/);
+  assert.match(t, /\{ icon: 'video' as const, label: t\('Videochamada'\), onPress: \(\) => call\(true\) \}/);
   assert.match(t, /\{ icon: 'mixar' as const, label: 'Mixar',/);
 });

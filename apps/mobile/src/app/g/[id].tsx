@@ -11,6 +11,7 @@ import { countdown, dateRange, kindInfo } from '@/lib/api.groups';
 import { abs, sized } from '@/lib/config';
 import { joinModeOf } from '@/lib/groupAccess';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Página pública de um TxillGroup (para quem não está no grupo): capa, foto, nome, tipo, descrição, plano e quantos são,
@@ -33,9 +34,9 @@ export default function PublicGroupPage() {
       <StackPage title="TxillGroup">
         <View style={st.center} accessibilityRole="alert">
           <Icon name={gone ? 'lock' : 'alert'} size={36} color={colors.zinc300} />
-          <Text style={st.emptyTitle}>{gone ? 'Este grupo é privado ou já não existe.' : 'Não consegui abrir o grupo.'}</Text>
+          <Text style={st.emptyTitle}>{gone ? t('Este grupo é privado ou já não existe.') : t('Não consegui abrir o grupo.')}</Text>
           {!gone && (
-            <Pressable onPress={() => void q.refetch()} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+            <Pressable onPress={() => void q.refetch()} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>{t('Tentar outra vez')}</Text></Pressable>
           )}
         </View>
       </StackPage>
@@ -53,7 +54,7 @@ export default function PublicGroupPage() {
       <ScrollView contentContainerStyle={{ paddingBottom: 40, maxWidth: 720, width: '100%', alignSelf: 'center' }}>
         <View style={st.cover}>
           <Icon name={kind.icon} size={40} color="rgba(255,255,255,0.75)" />
-          {cover ? <Image source={{ uri: sized(cover, 1080) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`Capa de ${g.name}`} /> : null}
+          {cover ? <Image source={{ uri: sized(cover, 1080) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={t('Capa de {name}', { name: g.name })} /> : null}
         </View>
         <View style={st.avatarWrap}>
           <View style={st.avatarRing}><GroupCover url={g.avatarUrl ?? g.coverUrl} kind={g.groupKind} size={84} radius={42} /></View>
@@ -69,10 +70,10 @@ export default function PublicGroupPage() {
               </View>
               <View style={st.meta}>
                 <Icon name="users" size={14} color={colors.zinc600} />
-                <Text style={st.metaText}>{g.members} {g.members === 1 ? 'membro' : 'membros'}</Text>
+                <Text style={st.metaText}>{g.members} {g.members === 1 ? t('membro') : t('membros')}</Text>
               </View>
               {g.placeLabel ? (
-                <View style={st.meta} accessibilityLabel={`Aparece em ${g.placeLabel}`}>
+                <View style={st.meta} accessibilityLabel={t('Aparece em {placeLabel}', { placeLabel: g.placeLabel })}>
                   <Icon name="map-pin" size={14} color={colors.brand} />
                   <Text style={st.metaText}>{g.placeLabel}</Text>
                 </View>
@@ -83,8 +84,8 @@ export default function PublicGroupPage() {
           {g.description ? <Text style={st.desc}>{g.description}</Text> : null}
 
           {hasPlan ? (
-            <View style={st.plan} accessibilityLabel="Plano">
-              <Text style={st.planTitle}>Plano</Text>
+            <View style={st.plan} accessibilityLabel={t('Plano')}>
+              <Text style={st.planTitle}>{t('Plano')}</Text>
               {g.destination ? <PlanLine icon="map" text={g.destination} /> : null}
               {g.venueName ? <PlanLine icon="map-pin" text={g.venueName} /> : null}
               {when ? <PlanLine icon="calendar" text={soon ? `${when} · ${soon}` : when} /> : null}
