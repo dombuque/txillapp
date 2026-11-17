@@ -122,3 +122,24 @@ test('loadErrorText: sem rede, demasiados pedidos ou erro do servidor', () => {
   assert.match(v.loadErrorText(429), /muitas procuras/);
   assert.match(v.loadErrorText(500), /nosso lado/);
 });
+
+test('emptyHint de "Tudo": curto, diz o raio e, no raio maior, convida a voltar mais logo', () => {
+  assert.equal(v.emptyHint({ filter: 'all', when: 'week', radius: 10, radii: RADII, canEnable: true }).sub, 'Nada num raio de 10 km, nem eventos esta semana.');
+  assert.match(v.emptyHint({ filter: 'all', when: 'week', radius: 30, radii: RADII, canEnable: true }).sub, /^Nada num raio de 30 km, nem eventos esta semana\. Volta mais logo/);
+});
+
+test('emptyExtras: no máximo dois caminhos a mais, a condizer com o filtro (e sem a malta para menores)', () => {
+  assert.deepEqual(v.emptyExtras({ filter: 'all', canEnable: true }), ['place', 'invite']);
+  assert.deepEqual(v.emptyExtras({ filter: 'people', canEnable: true }), ['invite', 'all']);
+  assert.deepEqual(v.emptyExtras({ filter: 'people', canEnable: false }), ['all']);
+  assert.deepEqual(v.emptyExtras({ filter: 'events', canEnable: true }), ['all', 'venue']);
+  assert.deepEqual(v.emptyExtras({ filter: 'venues', canEnable: true }), ['place', 'venue']);
+  for (const filter of ['all', 'venues', 'events', 'people', 'posts', 'groups']) {
+    const x = v.emptyExtras({ filter, canEnable: true });
+    assert.ok(x.length >= 1 && x.length <= 2, filter);
+    if (filter === 'all') assert.ok(!x.includes('all'), 'em Tudo não se sugere Ver tudo');
+    for (const e of x) assert.ok(v.EMPTY_EXTRA_LABEL[e], e);
+  }
+  // Textos visíveis sem travessões nem emojis.
+  for (const s of Object.values(v.EMPTY_EXTRA_LABEL)) assert.doesNotMatch(s, /[\u2013\u2014]|\p{Extended_Pictographic}/u);
+});
