@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Check, ast } from '@/components/ArtistUi';
+import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/Sheet';
 import { artistsApi } from '@/lib/api.artists';
 import type { Track } from '@/lib/api.music';
@@ -46,7 +47,7 @@ export function RightsReportSheet({ track, onClose }: { track: Track; onClose: (
         {done ? (
           <>
             <Text style={ast.cardSub}>{t('Obrigado. «{title}» fica escondida enquanto a equipa do Txillapp analisa. Podemos contactar-te por email.', { title: track.title })}</Text>
-            <Pressable onPress={onClose} style={ast.primary} accessibilityRole="button"><Text style={ast.primaryTxt}>{t('Fechar')}</Text></Pressable>
+            <Button label={t('Fechar')} onPress={onClose} block style={ast.primary} />
           </>
         ) : (
           <>
@@ -67,7 +68,7 @@ export function RightsReportSheet({ track, onClose }: { track: Track; onClose: (
             <TextInput value={details} onChangeText={setDetails} multiline maxLength={1000} placeholder={t('Qual é a obra original, onde está publicada e porque é tua.')} placeholderTextColor={colors.zinc500} style={[ast.input, { minHeight: 96, textAlignVertical: 'top' }]} accessibilityLabel={t('Detalhes')} />
             <Check on={sure} onChange={setSure}>{t('Confirmo que a informação é verdadeira. Denúncias falsas podem levar à suspensão da conta.')}</Check>
             {err ? <Text style={ast.err}>{err}</Text> : null}
-            <Pressable disabled={!ready} onPress={() => void send()} style={[ast.primary, !ready && { opacity: 0.45 }]} accessibilityRole="button"><Text style={ast.primaryTxt}>{busy ? t('A enviar…') : t('Denunciar')}</Text></Pressable>
+            <Button label={t('Denunciar')} loading={busy} disabled={!ready} onPress={() => void send()} block style={ast.primary} />
             <Text style={[ast.hint, { textAlign: 'center' }]}>
               {t('Também podes escrever para')}{' '}
               <Text style={{ textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(`mailto:${RIGHTS_CONTACT}?subject=${encodeURIComponent(RIGHTS_SUBJECT())}`)}>{RIGHTS_CONTACT}</Text>

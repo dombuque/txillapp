@@ -3,15 +3,19 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { ArtistTag, Check, Chips, Field, Ghost, Primary, ast } from '@/components/ArtistUi';
+import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ArtistTag, Check, Chips, Field, ast } from '@/components/ArtistUi';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { uploadMedia } from '@/lib/api';
 import { artistsApi, type ArtistMe } from '@/lib/api.artists';
 import { RIGHTS_CONTACT, RIGHTS_SUBJECT, artistStatusText, guessLinkKind, linkProblem } from '@/lib/artists';
 import { useAuth } from '@/lib/auth';
+import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
+import { showToast } from '@/lib/toast';
 import { t } from '@/lib/i18n';
 
 /**
@@ -29,36 +33,35 @@ export default function SouArtista() {
   const status = artistStatusText(a?.status);
   const showForm = !a || editing || a.status === 'withdrawn';
 
-  function withdraw() {
-    Alert.alert(t('Retirar o pedido?'), t('A prova que enviaste é apagada. Podes pedir outra vez quando quiseres.'), [
-      { text: t('Cancelar'), style: 'cancel' },
-      { text: t('Retirar'), style: 'destructive', onPress: () => void artistsApi.withdrawApplication().then(() => qc.invalidateQueries({ queryKey: ['artist-me'] })).catch((e: Error) => Alert.alert(t('Não deu'), e.message)) },
-    ]);
+  async function withdraw() {
+    const ok = await confirm({ title: t('Retirar o pedido?'), message: t('A prova que enviaste é apagada. Podes pedir outra vez quando quiseres.'), confirm: t('Retirar'), danger: true });
+    if (!ok) return;
+    artistsApi.withdrawApplication().then(() => qc.invalidateQueries({ queryKey: ['artist-me'] })).catch((e: Error) => showToast(e.message || t('Não deu. Tenta outra vez.')));
   }
 
   return (
     <StackPage title={t('Sou artista')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
         {q.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 40 }} /> : null}
-        {q.isError ? <Text style={ast.err}>{t('Não consegui carregar. Tenta outra vez.')}</Text> : null}
+        {q.isError ? <ErrorState what={t('o teu pedido de artista')} onRetry={() => void q.refetch()} /> : null}
         {q.data ? (
           <>
-            <View style={[ast.card, { marginTop: 0, backgroundColor: a?.status === 'approved' ? '#fff7ed' : '#fafafa' }]}>
+            <View style={[ast.card, { marginTop: 0, backgroundColor: a?.status === 'approved' ? '#fff7ed' : colors.zinc50 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={ast.cardTitle}>{status.title}</Text>
                 {a?.status === 'approved' ? <ArtistTag /> : null}
               </View>
               <Text style={ast.cardSub}>{status.sub}</Text>
-              {a?.reason && (a.status === 'rejected' || a.status === 'revoked') ? <Text style={[ast.cardSub, { color: colors.red600 }]}>{t('Motivo: {reason}', { reason: a.reason })}</Text> : null}
-              {a?.status === 'pending' ? <Ghost title={t('Retirar o pedido')} onPress={withdraw} /> : null}
-              {a?.status === 'rejected' && !editing ? <Ghost title={t('Corrigir e pedir outra vez')} onPress={() => setEditing(true)} /> : null}
+              {a?.reason && (a.status === 'rejected' || a.status === 'revoked') ? <Text style={[ast.cardSub, { color: colors.danger }]}>{t('Motivo: {reason}', { reason: a.reason })}</Text> : null}
+              {a?.status === 'pending' ? <Button label={t('Retirar o pedido')} kind="secondary" size="sm" onPress={() => void withdraw()} style={ast.ghost} /> : null}
+              {a?.status === 'rejected' && !editing ? <Button label={t('Corrigir e pedir outra vez')} kind="secondary" size="sm" onPress={() => setEditing(true)} style={ast.ghost} /> : null}
             </View>
 
             {a?.status === 'approved' ? (
               <>
-                <Primary title={t('Carregar uma música')} onPress={() => router.push('/artista/carregar' as never)} />
-                <Ghost title={t('Gerir as minhas músicas')} onPress={() => router.push('/artista/gerir' as never)} />
-                {user ? <Ghost title={t('Ver o meu perfil de artista')} onPress={() => router.push(`/u/${user.username}` as never)} /> : null}
+                <Button label={t('Carregar uma música')} onPress={() => router.push('/artista/carregar' as never)} block style={ast.primary} />
+                <Button label={t('Gerir as minhas músicas')} kind="secondary" size="sm" onPress={() => router.push('/artista/gerir' as never)} style={ast.ghost} />
+                {user ? <Button label={t('Ver o meu perfil de artista')} kind="secondary" size="sm" onPress={() => router.push(`/u/${user.username}` as never)} style={ast.ghost} /> : null}
               </>
             ) : null}
 
@@ -66,7 +69,7 @@ export default function SouArtista() {
               <ApplyForm me={q.data} onDone={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ['artist-me'] }); }} />
             ) : null}
 
-            <View style={[ast.card, { backgroundColor: '#fafafa' }]}>
+            <View style={[ast.card, { backgroundColor: colors.zinc50 }]}>
               <Text style={ast.cardTitle}>{t('Como funciona')}</Text>
               <Text style={ast.cardSub}>
                 {t('1. Pedes aqui, com o teu nome artístico, os estilos, as tuas ligações (redes e streaming) e quem tem os direitos das músicas.\n2. A equipa do Txillapp confirma o pedido. O teu perfil passa a ter a etiqueta «Artista».\n3. Carregas as tuas músicas, escolhes o trecho (o refrão, até 60 s) e aceitas a Licença de uso de música no Txillapp.\n4. Depois de revistas, aparecem nos «Artistas de Moçambique» e a malta usa-as nos mimos e nas tchekas, com «♪ Título · Artista» e a ligação ao teu perfil.')}
@@ -170,7 +173,7 @@ function ApplyForm({ me, onDone }: { me: ArtistMe; onDone: () => void }) {
       </Field>
       <Check on={sure} onChange={setSure}>{t('Confirmo que a informação é verdadeira e que posso autorizar o uso destas músicas.')}</Check>
       {err ? <Text style={ast.err}>{err}</Text> : null}
-      <Primary title={busy ? t('A enviar…') : t('Enviar o pedido')} disabled={!ready || busy} onPress={() => void send()} />
+      <Button label={t('Enviar o pedido')} loading={busy} disabled={!ready} onPress={() => void send()} block style={ast.primary} />
     </View>
   );
 }
