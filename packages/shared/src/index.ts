@@ -85,3 +85,4 @@ export interface AuthResponse {
 }
 
 export * from './fonts';
+export * from './i18n';
