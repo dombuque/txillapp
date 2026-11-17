@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeSc
 import { useReducedMotion } from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { gifsApi } from '@/lib/api.gifs';
-import { GIF_DEBOUNCE_MS, columnsFor, gifColumns, gifLabel, gifQuery, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
+import { GIF_DEBOUNCE_MS, GIF_HIDDEN_TEXT, columnsFor, gifColumns, gifLabel, gifQuery, gifSize, mergeGifs, type ChatGif, type GifItem } from '@/lib/gifs';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 
@@ -25,6 +25,19 @@ export function GifView({ gif, maxW = 220, maxH = 220 }: { gif: ChatGif; maxW?: 
   return (
     <View style={[st.view, size]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
       <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={gif.id} accessibilityIgnoresInvertColors />
+    </View>
+  );
+}
+
+/**
+ * «GIF escondido»: o cartão discreto no lugar de um GIF que o servidor não mandou (`gifHidden`: quem vê é menor de 18 anos
+ * ou não tem data de nascimento e o GIF é acima de «g» ou sem classificação). Não se abre. Usado nos comentários.
+ */
+export function GifHiddenCard() {
+  return (
+    <View style={st.hidden} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+      <Icon name="eye-off" size={15} color={colors.zinc500} />
+      <Text style={st.hiddenText}>{GIF_HIDDEN_TEXT}</Text>
     </View>
   );
 }
@@ -137,6 +150,8 @@ export function GifPanel({ onPick, height = 300 }: { onPick: (g: GifItem) => voi
 }
 
 const st = StyleSheet.create({
+  hidden: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.zinc100, borderWidth: 1, borderColor: colors.zinc200 },
+  hiddenText: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.zinc500 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 8, marginTop: 8, height: 44, borderRadius: 22, backgroundColor: colors.white, paddingLeft: 14, paddingRight: 4, borderWidth: 1, borderColor: colors.zinc200 },
   input: { flex: 1, minWidth: 0, height: 44, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' } as object,
   clear: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },

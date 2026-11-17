@@ -24,7 +24,7 @@ import { confirm } from '@/lib/confirm';
 import { useDesktop } from '@/lib/desktop';
 import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
-import { GifView, useGifsConfig } from './GifPanel';
+import { GifHiddenCard, GifView, useGifsConfig } from './GifPanel';
 import { gifPayload, validGif } from '@/lib/gifs';
 import { InlineBadge, NameWithBadge } from './NameWithBadge';
 import { useRouter } from 'expo-router';
@@ -174,7 +174,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         ) : (
           stickerOf(text.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(text.body)!} size={96} /></View> : text.body ? <RichText text={text.body} style={styles.body} /> : null
         )}
-        {validGif(c.gif) && <View style={{ marginTop: 6 }}><GifView gif={c.gif} /></View>}
+        {c.gifHidden ? <View style={{ marginTop: 6 }}><GifHiddenCard /></View> : validGif(c.gif) && <View style={{ marginTop: 6 }}><GifView gif={c.gif} /></View>}
         {ask && !editing && (
           <View style={styles.ask} accessibilityRole="summary">
             <View style={styles.askIcon}><Icon name="gift" size={18} color="#b45309" /></View>

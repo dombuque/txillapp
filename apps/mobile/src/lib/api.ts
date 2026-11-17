@@ -100,6 +100,8 @@ export interface Comment {
   body: string;
   /** GIF do GIPHY no comentário (com ou sem texto). Servidores antigos não mandam. */
   gif?: import('./gifs').ChatGif | null;
+  /** O servidor não mandou o GIF (quem vê é menor e o GIF é acima de «g» ou sem classificação): mostra-se «GIF escondido». */
+  gifHidden?: boolean;
   createdAt: string;
   author: Author;
   cheers: number;
