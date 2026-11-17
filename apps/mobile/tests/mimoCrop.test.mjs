@@ -142,7 +142,7 @@ test('o editor do mimo: sem o recorte do sistema, com zoom, botão honesto e o r
   assert.match(s, /mediaTypes: \['images', 'videos'\], quality: 0\.85, videoMaxDuration: 30 \}/);
   assert.match(s, /<MimoPhoto uri=\{asset\.uri\} width=\{frame\.w\} height=\{frame\.h\} view=\{view\} onView=\{setView\}/);
   assert.match(s, /setView\(whole \? fillView\(img, fsize\) : WHOLE\)/);
-  assert.match(s, /whole \? 'Preencher o ecrã' : 'Mostrar a foto inteira'/);
+  assert.match(s, /whole \? t\('Preencher o ecrã'\) : t\('Mostrar a foto inteira'\)/);
   assert.match(s, /const crop = !a\.video && img \? mimoCrop\(view, img, fsize\) : null;/);
   assert.match(s, /crop \? await cropRegion\(a\.uri, crop, crop\.outW, crop\.outH\) : await shrinkPhoto\(a\.uri\)/);
   // Os stickers vivem na moldura (as posições relativas são as do cartão do visor).

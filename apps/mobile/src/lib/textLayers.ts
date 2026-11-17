@@ -17,6 +17,7 @@
  * Sem imports: o Node corre este ficheiro diretamente nos testes (tests/textFonts.test.mjs).
  */
 
+import { t } from '@/lib/i18n';
 export const TEXT_FONT_IDS = ['classica', 'cartaz', 'grito', 'praia', 'marcador', 'elegante', 'maquina', 'retro', 'mao', 'futuro'] as const;
 export type TextFontId = (typeof TEXT_FONT_IDS)[number];
 export const DEFAULT_TEXT_FONT: TextFontId = 'classica';
@@ -61,8 +62,8 @@ export const TEXT_LAYER_COLORS = ['#ffffff', '#111111', '#d6334f', '#ff8a5c', '#
 export const TEXT_BGS: readonly TextBg[] = ['none', 'solid', 'soft'];
 export const nextBg = (bg: TextBg): TextBg => TEXT_BGS[(TEXT_BGS.indexOf(bg) + 1) % TEXT_BGS.length];
 export const nextAlign = (a: TextAlign): TextAlign => (a === 'center' ? 'left' : a === 'left' ? 'right' : 'center');
-export const BG_LABEL: Record<TextBg, string> = { none: 'Sem fundo', solid: 'Fundo cheio', soft: 'Fundo suave' };
-export const ALIGN_LABEL: Record<TextAlign, string> = { left: 'Alinhado à esquerda', center: 'Centrado', right: 'Alinhado à direita' };
+export const BG_LABEL: Record<TextBg, string> = { get none() { return t('Sem fundo'); }, get solid() { return t('Fundo cheio'); }, get soft() { return t('Fundo suave'); } };
+export const ALIGN_LABEL: Record<TextAlign, string> = { left: 'Alinhado à esquerda', get center() { return t('Centrado'); }, right: 'Alinhado à direita' };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);

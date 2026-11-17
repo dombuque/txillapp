@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** As publicações que guardaste (só tu as vês). */
 export default function Saved() {
@@ -26,7 +27,7 @@ export default function Saved() {
   const loadMore = () => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); };
   const pull = usePullToRefresh(() => q.refetch());
   return (
-    <StackPage title="Guardados">
+    <StackPage title={t('Guardados')}>
       <PullView pull={pull}>
       <FlatList
         data={items}
@@ -36,8 +37,8 @@ export default function Saved() {
         onScroll={pull.onScroll}
         scrollEventThrottle={16}
         refreshControl={pull.control}
-        ListHeaderComponent={<Text style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só tu vês os teus guardados.</Text>}
-        ListEmptyComponent={q.isLoading ? <PageLoader /> : q.isError ? <ErrorState what="os guardados" onRetry={() => void q.refetch()} /> : <EmptyState icon="bookmark" title="Ainda não guardaste nada" text="Toca no marcador de uma publicação para a guardares aqui." />}
+        ListHeaderComponent={<Text style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 14, color: colors.zinc600 }}>{t('Só tu vês os teus guardados.')}</Text>}
+        ListEmptyComponent={q.isLoading ? <PageLoader /> : q.isError ? <ErrorState what={t('os guardados')} onRetry={() => void q.refetch()} /> : <EmptyState icon="bookmark" title={t('Ainda não guardaste nada')} text={t('Toca no marcador de uma publicação para a guardares aqui.')} />}
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).
         ListFooterComponent={q.hasNextPage && items.length > 0 ? <LoadMore onLoad={loadMore} loading={q.isFetchingNextPage} /> : <View style={{ height: 32 }} />}
         onViewableItemsChanged={onPostsViewable}

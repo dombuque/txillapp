@@ -11,8 +11,8 @@ test('enquanto a resposta está pendente: «SuperTxill está a pensar…» com a
   const panel = read('components/SuperTxillPanel.tsx');
   // Só antes do primeiro bocado de texto (depois a bolha cresce: superTxillLive.test.mjs).
   assert.match(panel, /\{chat\.live === 'thinking' && <Thinking \/>\}/);
-  assert.match(panel, /SuperTxill está a pensar…<\/Text>/);
-  assert.match(panel, /accessibilityLiveRegion="polite" accessibilityLabel="SuperTxill está a pensar…"/);
+  assert.match(panel, /SuperTxill está a pensar…'\)\}<\/Text>/);
+  assert.match(panel, /accessibilityLiveRegion="polite" accessibilityLabel=\{t\('SuperTxill está a pensar…'\)\}/);
   assert.match(panel, /Animated\.loop\(Animated\.timing\(a, \{ toValue: 1, duration: 1400, easing: Easing\.inOut\(Easing\.ease\)/);
   // Volta a perguntar ao servidor só enquanto há resposta a caminho.
   assert.match(panel, /refetchInterval: \(query\) => \(query\.state\.data\?\.pending \? 1500 : false\)/);
@@ -24,8 +24,8 @@ test('enquanto a resposta está pendente: «SuperTxill está a pensar…» com a
 
 test('a conversa e a Malta para ti são separadores; o perfil abre logo a Malta para ti', () => {
   const panel = read('components/SuperTxillPanel.tsx');
-  assert.match(panel, /\{ id: 'conversa', label: 'Conversa' \}/);
-  assert.match(panel, /\{ id: 'malta', label: 'Malta para ti' \}/);
+  assert.match(panel, /\{ id: 'conversa', get label\(\) \{ return t\('Conversa'\); \} \}/);
+  assert.match(panel, /\{ id: 'malta', get label\(\) \{ return t\('Malta para ti'\); \} \}/);
   assert.match(panel, /accessibilityRole="tab" accessibilityState=\{\{ selected: tab === t\.id \}\}/);
   const route = read('app/supertxill.tsx');
   assert.match(route, /initialTab=\{tab === 'malta' \? 'malta' : 'conversa'\}/);

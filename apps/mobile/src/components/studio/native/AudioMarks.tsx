@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { SFX } from '@/lib/studio/audioDsp';
 import type { StudioMix } from '@/lib/studio/audioMix';
 import { fmtS } from '@/lib/tchekaRules';
+import { t } from '@/lib/i18n';
 
 /** As marcas do som na barra do tempo (a voz-off numa faixa e os efeitos sonoros em losangos), como no site (AudioPanel). */
 export function AudioMarks({ mix, total }: { mix: StudioMix; total: number }) {
@@ -10,8 +11,8 @@ export function AudioMarks({ mix, total }: { mix: StudioMix; total: number }) {
   const v = mix.voice;
   return (
     <>
-      {v ? <View style={[st.voiceBar, { left: pct(v.at), width: pct(Math.min(v.duration, total - v.at)) }]} accessibilityLabel={`Voz-off dos ${fmtS(v.at)} aos ${fmtS(v.at + v.duration)} s`} /> : null}
-      {mix.sfx.map((s) => <View key={s.key} style={[st.sfxMark, { left: pct(s.at) }]} accessibilityLabel={`Efeito ${SFX.find((x) => x.id === s.id)?.name} aos ${fmtS(s.at)} s`} />)}
+      {v ? <View style={[st.voiceBar, { left: pct(v.at), width: pct(Math.min(v.duration, total - v.at)) }]} accessibilityLabel={t('Voz-off dos {s} aos {s2} s', { s: fmtS(v.at), s2: fmtS(v.at + v.duration) })} /> : null}
+      {mix.sfx.map((s) => <View key={s.key} style={[st.sfxMark, { left: pct(s.at) }]} accessibilityLabel={t('Efeito {name} aos {s} s', { name: String(SFX.find((x) => x.id === s.id)?.name), s: fmtS(s.at) })} />)}
     </>
   );
 }

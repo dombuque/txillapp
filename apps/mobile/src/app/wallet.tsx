@@ -21,8 +21,9 @@ import { useAuth } from '@/lib/auth';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { vibesWord } from '@/lib/vibes';
+import { intlLocale, t } from '@/lib/i18n';
 
-const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Vibes oferecidas', gift: 'Presente', invite: 'Convite', topup: 'Vibes recarregadas' };
+const labels: Record<string, string> = { get welcome_bonus() { return t('Boas-vindas, malta!'); }, get transfer() { return t('Vibes oferecidas'); }, get gift() { return t('Presente'); }, get invite() { return t('Convite'); }, topup: 'Vibes recarregadas' };
 const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo', txillada_ticket: 'lock', txillada_gift: 'gift', txillada_refund: 'undo' };
 
 type Mov = WalletView['history'][number] & WalletTxExtra;
@@ -35,15 +36,15 @@ function describe(h: Mov): { label: string; to: string | null; who?: Badged | nu
     case 'venue_payment': {
       // Positivo: eu recebi em nome de um local (lado do local); negativo: paguei a um local.
       const payer = h.from ?? who;
-      if (h.amount > 0) return { label: payer ? `Recebido de @${payer.username}` : 'Pagamento recebido', to: venueTo ?? (payer ? `/u/${payer.username}` : null), who: payer };
-      return { label: h.venue ? `Pagaste ${aoLocal(h.venue.kind)} ${h.venue.name}` : 'Pagamento a um local', to: venueTo };
+      if (h.amount > 0) return { label: payer ? t('Recebido de @{username}', { username: payer.username }) : t('Pagamento recebido'), to: venueTo ?? (payer ? `/u/${payer.username}` : null), who: payer };
+      return { label: h.venue ? t('Pagaste {aoLocal} {name}', { aoLocal: aoLocal(h.venue.kind), name: h.venue.name }) : t('Pagamento a um local'), to: venueTo };
     }
     case 'group_contribution':
-      return { label: h.group ? `Contribuíste para o cofre de ${h.group.name}` : 'Contribuíste para um cofre', to: h.group ? `/messages/g/${h.group.id}` : null };
+      return { label: h.group ? t('Contribuíste para o cofre de {name}', { name: h.group.name }) : t('Contribuíste para um cofre'), to: h.group ? `/messages/g/${h.group.id}` : null };
     case 'group_refund':
-      return { label: h.group ? `Devolução do cofre de ${h.group.name}` : 'Devolução de um cofre', to: h.group ? `/messages/g/${h.group.id}` : null };
+      return { label: h.group ? t('Devolução do cofre de {name}', { name: h.group.name }) : t('Devolução de um cofre'), to: h.group ? `/messages/g/${h.group.id}` : null };
     default:
-      return { label: labels[h.type] ? `${labels[h.type]}${who ? ` · ${who.displayName}` : ''}` : (h.label ?? 'Movimento'), to: null, who: labels[h.type] ? who : null };
+      return { label: labels[h.type] ? `${labels[h.type]}${who ? ` · ${who.displayName}` : ''}` : (h.label ?? t('Movimento')), to: null, who: labels[h.type] ? who : null };
   }
 }
 
@@ -63,13 +64,13 @@ function PickPerson({ me, onPick, onClose }: { me: string; onPick: (p: { usernam
   });
   const people = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
-    <Sheet title="A quem queres oferecer vibes?" onClose={onClose}>
-      <SearchField value={text} onChangeText={setText} placeholder="Procurar em quem sigo" style={st.search} />
+    <Sheet title={t('A quem queres oferecer vibes?')} onClose={onClose}>
+      <SearchField value={text} onChangeText={setText} placeholder={t('Procurar em quem sigo')} style={st.search} />
       <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
         {q.isLoading && <PageLoader style={{ paddingTop: 24 }} />}
-        {q.isError && <ErrorState what="quem segues" onRetry={() => void q.refetch()} style={{ marginTop: 16, marginBottom: 16 }} />}
+        {q.isError && <ErrorState what={t('quem segues')} onRetry={() => void q.refetch()} style={{ marginTop: 16, marginBottom: 16 }} />}
         {q.isSuccess && people.length === 0 && (
-          <EmptyState icon={term ? 'search' : 'user-plus'} title={term ? 'Ninguém com esse nome' : 'Ainda não segues ninguém'} text={term ? undefined : 'Só se oferecem vibes a quem segues.'} style={{ marginTop: 16, marginBottom: 16 }} />
+          <EmptyState icon={term ? 'search' : 'user-plus'} title={term ? t('Ninguém com esse nome') : t('Ainda não segues ninguém')} text={term ? undefined : t('Só se oferecem vibes a quem segues.')} style={{ marginTop: 16, marginBottom: 16 }} />
         )}
         {people.map((x) => (
           <Pressable key={x.username} onPress={() => onPick(x)} style={st.pick} accessibilityRole="button">
@@ -94,9 +95,9 @@ export default function Wallet() {
   const [to, setTo] = useState<{ username: string; displayName: string } | null>(preset.to ? { username: preset.to, displayName: preset.name ?? `@${preset.to}` } : null);
 
   return (
-    <StackPage title="Carteira">
+    <StackPage title={t('Carteira')}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        {isError && <ErrorState what="a carteira" onRetry={() => void refetch()} />}
+        {isError && <ErrorState what={t('a carteira')} onRetry={() => void refetch()} />}
         {isLoading && (
           <>
             <View style={{ height: 160, borderRadius: 28, backgroundColor: colors.zinc100 }} />
@@ -106,20 +107,20 @@ export default function Wallet() {
         {data && (
           <>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.balance}>
-              <Text style={{ color: '#fff', fontWeight: '300', fontSize: 16 }}>Tens</Text>
+              <Text style={{ color: '#fff', fontWeight: '300', fontSize: 16 }}>{t('Tens')}</Text>
               <Text style={{ color: '#fff', fontSize: 48, fontWeight: '800', letterSpacing: -1 }}>
-                {data.balance.toLocaleString('pt-PT')} <Text style={{ fontSize: 24, fontWeight: '700' }}>{vibesWord(data.balance)}</Text>
+                {data.balance.toLocaleString(intlLocale())} <Text style={{ fontSize: 24, fontWeight: '700' }}>{vibesWord(data.balance)}</Text>
               </Text>
             </LinearGradient>
 
-            <Button label="Oferecer vibes" icon="gift" onPress={() => setPicking(true)} style={st.cta} />
-            <Button label="Ver os meus convites" icon="user-plus" kind="secondary" onPress={() => router.push('/invites' as never)} style={{ marginTop: 12 }} />
+            <Button label={t('Oferecer vibes')} icon="gift" onPress={() => setPicking(true)} style={st.cta} />
+            <Button label={t('Ver os meus convites')} icon="user-plus" kind="secondary" onPress={() => router.push('/invites' as never)} style={{ marginTop: 12 }} />
 
             {user ? <GeleiraShelf username={user.username} isMe flush /> : null}
 
             <View style={[st.card, cardShadow]}>
-              <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>Movimentos</Text>
-              {data.history.length === 0 && <Text style={{ color: colors.zinc600, fontSize: 16 }}>Ainda sem movimentos. Que tal brindar alguém?</Text>}
+              <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>{t('Movimentos')}</Text>
+              {data.history.length === 0 && <Text style={{ color: colors.zinc600, fontSize: 16 }}>{t('Ainda sem movimentos. Que tal brindar alguém?')}</Text>}
               {(data.history as Mov[]).map((h, i) => {
                 const { label, to, who } = describe(h);
                 return (

@@ -9,6 +9,7 @@
  * No telemóvel nada disto se liga (useDesktop e/ou `(hover: hover) and (pointer: fine)`).
  */
 
+import { t } from '@/lib/i18n';
 export type ShortcutAction = 'search' | 'new' | 'home' | 'messages' | 'profile' | 'notifications' | 'help';
 export interface KeyLike { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean }
 export interface ShortcutCtx { typing: boolean; overlay: boolean; path: string }
@@ -22,18 +23,18 @@ export const ROUTE_OF: Record<Exclude<ShortcutAction, 'help'>, string> = {
 
 /** A lista mostrada na ajuda («?»). */
 export const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ['/'], label: 'Pesquisar' },
-  { keys: ['Ctrl', 'K'], label: 'Pesquisar (nas Mensagens: procurar conversas)' },
-  { keys: ['n'], label: 'Nova publicação' },
-  { keys: ['g', 'h'], label: 'Ir para o Início' },
-  { keys: ['g', 'm'], label: 'Ir para as Mensagens' },
-  { keys: ['g', 'p'], label: 'Ir para o Perfil' },
-  { keys: ['g', 'n'], label: 'Ir para as Notificações' },
-  { keys: ['←', '→'], label: 'Fotos, mimos e Zás: anterior e seguinte' },
-  { keys: ['↑', '↓'], label: 'Tchekas: anterior e seguinte' },
-  { keys: ['Espaço'], label: 'Pausar o mimo ou a tcheka' },
-  { keys: ['Esc'], label: 'Fechar a folha, o menu ou o visor' },
-  { keys: ['?'], label: 'Mostrar estes atalhos' },
+  { keys: ['/'], get label() { return t('Pesquisar'); } },
+  { get keys() { return [t('Ctrl'), 'K']; }, get label() { return t('Pesquisar (nas Mensagens: procurar conversas)'); } },
+  { keys: ['n'], get label() { return t('Nova publicação'); } },
+  { keys: ['g', 'h'], get label() { return t('Ir para o Início'); } },
+  { keys: ['g', 'm'], get label() { return t('Ir para as Mensagens'); } },
+  { keys: ['g', 'p'], get label() { return t('Ir para o Perfil'); } },
+  { keys: ['g', 'n'], get label() { return t('Ir para as Notificações'); } },
+  { keys: ['←', '→'], get label() { return t('Fotos, mimos e Zás: anterior e seguinte'); } },
+  { keys: ['↑', '↓'], get label() { return t('Tchekas: anterior e seguinte'); } },
+  { get keys() { return [t('Espaço')]; }, get label() { return t('Pausar o mimo ou a tcheka'); } },
+  { keys: ['Esc'], get label() { return t('Fechar a folha, o menu ou o visor'); } },
+  { keys: ['?'], get label() { return t('Mostrar estes atalhos'); } },
 ];
 
 export const inMessages = (path: string) => path === '/messages' || path.startsWith('/messages/');

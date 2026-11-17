@@ -7,6 +7,7 @@ import { Icon } from '../Icon';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { TasteBubble } from '../TasteBubble';
+import { t } from '@/lib/i18n';
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
@@ -15,7 +16,7 @@ const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCas
  * vêm do servidor já sem álcool quando eu (ou alguém de `to`) tenho menos de 18 anos. Usado no «Paga-me uma», no «Fico a
  * dever-te uma» e no «Eu entro» da rodada.
  */
-export function DrinkSheet({ title = 'Que bebida?', to = [], selected, onPick, onClose }: { title?: string; to?: string[]; selected?: string | null; onPick: (d: DrinkChoice) => void; onClose: () => void }) {
+export function DrinkSheet({ title = t('Que bebida?'), to = [], selected, onPick, onClose }: { title?: string; to?: string[]; selected?: string | null; onPick: (d: DrinkChoice) => void; onClose: () => void }) {
   const q = useQuery({ queryKey: geladaKeys.drinks(to), queryFn: () => geladaApi.drinks(to), staleTime: 60_000 });
   const [text, setText] = useState('');
   const list = useMemo(() => {
@@ -34,7 +35,7 @@ export function DrinkSheet({ title = 'Que bebida?', to = [], selected, onPick, o
         style={({ pressed }) => [st.row, on && st.rowOn, pressed && { backgroundColor: colors.zinc100 }]}
         accessibilityRole="radio"
         accessibilityState={{ checked: on }}
-        accessibilityLabel={`${d.name}${d.favorite ? ', favorita' : ''}`}
+        accessibilityLabel={`${d.name}${d.favorite ? t(', favorita') : ''}`}
       >
         <TasteBubble item={{ slug: d.slug, kind: 'bebida', category: d.category }} size={40} />
         <Text style={st.name} numberOfLines={1}>{d.name}</Text>
@@ -48,18 +49,18 @@ export function DrinkSheet({ title = 'Que bebida?', to = [], selected, onPick, o
       <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={text} onChangeText={setText} placeholder="Procurar bebida…" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="Procurar bebida" maxLength={40} />
+          <TextInput value={text} onChangeText={setText} placeholder={t('Procurar bebida…')} placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel={t('Procurar bebida')} maxLength={40} />
         </View>
-        {q.data?.soft ? <Text style={st.note}>Só refrescos e sumos: há menores de 18 no pedido.</Text> : null}
+        {q.data?.soft ? <Text style={st.note}>{t('Só refrescos e sumos: há menores de 18 no pedido.')}</Text> : null}
       </View>
       {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 24 }} />}
-      {q.isError && <Text style={st.msg} accessibilityRole="alert">Não consegui abrir as bebidas. Tenta outra vez.</Text>}
+      {q.isError && <Text style={st.msg} accessibilityRole="alert">{t('Não consegui abrir as bebidas. Tenta outra vez.')}</Text>}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-        {mine.length > 0 && <Text style={st.section}>Da tua geleira</Text>}
+        {mine.length > 0 && <Text style={st.section}>{t('Da tua geleira')}</Text>}
         {mine.map(row)}
-        {rest.length > 0 && <Text style={st.section}>{mine.length ? 'Outras bebidas' : 'Bebidas'}</Text>}
+        {rest.length > 0 && <Text style={st.section}>{mine.length ? t('Outras bebidas') : t('Bebidas')}</Text>}
         {rest.map(row)}
-        {q.isSuccess && list.length === 0 && <Text style={st.msg}>Nenhuma bebida com esse nome.</Text>}
+        {q.isSuccess && list.length === 0 && <Text style={st.msg}>{t('Nenhuma bebida com esse nome.')}</Text>}
       </ScrollView>
     </Sheet>
   );

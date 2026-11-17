@@ -6,6 +6,7 @@
  * - 'web': o site / PWA.
  * Vem de EXPO_PUBLIC_CHANNEL no build (ex.: EXPO_PUBLIC_CHANNEL=play). Sem ele: iPhone = 'appstore', Android = 'beta'.
  */
+import { t } from '@/lib/i18n';
 export type Channel = 'beta' | 'play' | 'appstore' | 'web';
 
 export function channelFor(os: string, env: string | undefined): Channel {
@@ -26,5 +27,5 @@ export function selfUpdates(channel: Channel): boolean {
 
 /** Como o canal aparece em Definições → Ajuda → Versão (para confirmar que o .aab do Play foi feito com EXPO_PUBLIC_CHANNEL=play). */
 export function channelLabel(channel: Channel): string | null {
-  return channel === 'play' ? 'Google Play' : channel === 'appstore' ? 'App Store' : channel === 'beta' ? 'beta' : null;
+  return channel === 'play' ? t('Google Play') : channel === 'appstore' ? t('App Store') : channel === 'beta' ? 'beta' : null;
 }

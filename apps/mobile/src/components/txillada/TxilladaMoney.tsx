@@ -10,6 +10,7 @@ import { colors, dark as D } from '@/lib/theme';
 import { VIB, formatVibes } from '@/lib/vibes';
 import { GIFT_MAX, GIFT_PRESETS, fmtTxills, giftError, goalProgress, parseAmount, txillsLabel, type TxilladaDto, type TxilladaGiver } from '@/lib/txillada';
 import { GlassButton, LiveBadge } from './TxilladaParts';
+import { t } from '@/lib/i18n';
 
 /**
  * O dinheiro da Txillada (0167, docs/txillada-contrato.md): o cartão de uma Txillada privada antes de pagar (`LockedView`),
@@ -50,7 +51,7 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
     <View style={[lk.screen, { paddingTop: top + 12, paddingBottom: bottom + 16 }]}>
       <View style={lk.bar}>
         <View style={{ flex: 1 }} />
-        <GlassButton icon="x" label="Sair" onPress={onBack} />
+        <GlassButton icon="x" label={t('Sair')} onPress={onBack} />
       </View>
       <View style={lk.body}>
         <View style={lk.ring}>
@@ -61,18 +62,18 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
         {dto.title ? <Text style={lk.title} numberOfLines={2}>{dto.title}</Text> : null}
         <View style={lk.lockPill}>
           <Icon name="lock" size={15} color="#fff" strokeWidth={2.3} />
-          <Text style={lk.lockText}>Txillada privada</Text>
+          <Text style={lk.lockText}>{t('Txillada privada')}</Text>
         </View>
         <Text style={lk.price}>{txillsLabel(price)}</Text>
-        <Text style={lk.sub}>Pagas uma vez e entras. Se saíres, voltas a entrar sem pagar outra vez.</Text>
+        <Text style={lk.sub}>{t('Pagas uma vez e entras. Se saíres, voltas a entrar sem pagar outra vez.')}</Text>
 
         {err ? (
           <View style={lk.err} accessibilityRole="alert">
-            <Text style={lk.errText}>{err.insufficient ? `${err.error} As vibes estão na tua carteira.` : err.error}</Text>
+            <Text style={lk.errText}>{err.insufficient ? t('{error} As vibes estão na tua carteira.', { error: err.error }) : err.error}</Text>
             {err.insufficient ? (
               <Pressable onPress={onWallet} style={({ pressed }) => [lk.walletBtn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
                 <Icon name="wallet" size={16} color={colors.zinc900} strokeWidth={2.2} />
-                <Text style={lk.walletText}>Ver a carteira</Text>
+                <Text style={lk.walletText}>{t('Ver a carteira')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -81,23 +82,23 @@ export function LockedView({ dto, onPay, onWallet, onBack, top, bottom }: {
         {!confirm ? (
           <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [lk.cta, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
             <Icon name="lock" size={18} color="#fff" strokeWidth={2.3} />
-            <Text style={lk.ctaText}>Entrar por {formatVibes(price, { short: true })}</Text>
+            <Text style={lk.ctaText}>{t('Entrar por {vibes}', { vibes: formatVibes(price, { short: true }) })}</Text>
           </Pressable>
         ) : (
           <View style={lk.confirm}>
-            <Text style={lk.confirmTitle}>Pagar {txillsLabel(price)} a @{dto.host.username}?</Text>
-            <Text style={lk.confirmSub}>{balance == null ? 'A ver o teu saldo...' : short ? `Tens ${txillsLabel(balance)}: não chega para esta entrada.` : `Tens ${txillsLabel(balance)}. Ficas com ${txillsLabel(balance - price)}.`}</Text>
+            <Text style={lk.confirmTitle}>{t('Pagar {txillsLabel} a @{username}?', { txillsLabel: txillsLabel(price), username: dto.host.username })}</Text>
+            <Text style={lk.confirmSub}>{balance == null ? t('A ver o teu saldo...') : short ? t('Tens {txillsLabel}: não chega para esta entrada.', { txillsLabel: txillsLabel(balance) }) : t('Tens {txillsLabel}. Ficas com {txillsLabel2}.', { txillsLabel: txillsLabel(balance), txillsLabel2: txillsLabel(balance - price) })}</Text>
             <View style={lk.confirmRow}>
               <Pressable onPress={() => { setConfirm(false); setErr(null); }} style={({ pressed }) => [lk.cancel, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-                <Text style={lk.cancelText}>Cancelar</Text>
+                <Text style={lk.cancelText}>{t('Cancelar')}</Text>
               </Pressable>
               {short ? (
                 <Pressable onPress={onWallet} style={({ pressed }) => [lk.pay, pressed && { opacity: 0.9 }]} accessibilityRole="button">
-                  <Text style={lk.payText}>Ver a carteira</Text>
+                  <Text style={lk.payText}>{t('Ver a carteira')}</Text>
                 </Pressable>
               ) : (
-                <Pressable onPress={() => void pay()} disabled={busy} style={({ pressed }) => [lk.pay, busy && { opacity: 0.7 }, pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`Confirmar: pagar ${txillsLabel(price)}`}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={lk.payText}>Pagar e entrar</Text>}
+                <Pressable onPress={() => void pay()} disabled={busy} style={({ pressed }) => [lk.pay, busy && { opacity: 0.7 }, pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={t('Confirmar: pagar {txillsLabel}', { txillsLabel: txillsLabel(price) })}>
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={lk.payText}>{t('Pagar e entrar')}</Text>}
                 </Pressable>
               )}
             </View>
@@ -115,15 +116,15 @@ export function GoalBar({ raised, goal, purpose, onGive }: { raised: number; goa
   const p = goalProgress(raised, goal);
   if (!p) return null;
   return (
-    <View style={gb.wrap} accessibilityRole="progressbar" accessibilityLabel={`Angariação${purpose ? `: ${purpose}` : ''}. ${p.label}`} accessibilityValue={{ min: 0, max: 100, now: Math.round(p.pct * 100) }}>
+    <View style={gb.wrap} accessibilityRole="progressbar" accessibilityLabel={t('Angariação{value}. {label}', { value: purpose ? `: ${purpose}` : '', label: p.label })} accessibilityValue={{ min: 0, max: 100, now: Math.round(p.pct * 100) }}>
       <View style={gb.line}>
         <Icon name="gift" size={13} color={colors.brandWarm} strokeWidth={2.3} />
-        <Text style={gb.purpose} numberOfLines={1}>{purpose || 'Angariação'}</Text>
+        <Text style={gb.purpose} numberOfLines={1}>{purpose || t('Angariação')}</Text>
         <Text style={gb.label}>{p.label}</Text>
         {onGive ? (
-          <Pressable onPress={onGive} hitSlop={8} style={({ pressed }) => [gb.give, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel="Ajudar a chegar à meta: oferecer vibes">
+          <Pressable onPress={onGive} hitSlop={8} style={({ pressed }) => [gb.give, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={t('Ajudar a chegar à meta: oferecer vibes')}>
             <Icon name="gift" size={12} color="#fff" strokeWidth={2.4} />
-            <Text style={gb.giveText}>Ajudar</Text>
+            <Text style={gb.giveText}>{t('Ajudar')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -138,7 +139,7 @@ export function GoalBar({ raised, goal, purpose, onGive }: { raised: number; goa
 export function TopGivers({ items }: { items: readonly TxilladaGiver[] }) {
   if (!items.length) return null;
   return (
-    <View style={tg.row} accessibilityLabel={`Quem mais ofereceu: ${items.map((g) => `${g.username}, ${txillsLabel(g.total)}`).join('; ')}`}>
+    <View style={tg.row} accessibilityLabel={t('Quem mais ofereceu: {map}', { map: items.map((g) => `${g.username}, ${txillsLabel(g.total)}`).join('; ') })}>
       {items.slice(0, 3).map((g, i) => (
         <View key={g.username} style={[tg.chip, i === 0 && tg.first]}>
           <Avatar name={g.displayName} username={g.avatarUrl ? g.username : undefined} size={18} />
@@ -191,8 +192,8 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
 
   return (
     <View style={gs.wrap}>
-      <Text style={gs.lead}>{goal != null ? `Ajuda @${host} a chegar à meta.` : `Oferece vibes a @${host}.`} Toca num valor e já está.</Text>
-      <View style={gs.presets} accessibilityRole="toolbar" accessibilityLabel="Oferecer vibes">
+      <Text style={gs.lead}>{goal != null ? t('Ajuda @{host} a chegar à meta.', { host }) : t('Oferece vibes a @{host}.', { host })} {t('Toca num valor e já está.')}</Text>
+      <View style={gs.presets} accessibilityRole="toolbar" accessibilityLabel={t('Oferecer vibes')}>
         {GIFT_PRESETS.map((v) => {
           const sending = busy === v;
           return (
@@ -202,7 +203,7 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
               disabled={busy != null}
               style={({ pressed }) => [gs.preset, pressed && gs.presetOn, pressed && { transform: [{ scale: 0.95 }] }, busy != null && !sending && { opacity: 0.55 }]}
               accessibilityRole="button"
-              accessibilityLabel={`Oferecer ${txillsLabel(v)} a @${host}`}
+              accessibilityLabel={t('Oferecer {txillsLabel} a @{host}', { txillsLabel: txillsLabel(v), host })}
             >
               {({ pressed }) => sending ? <ActivityIndicator color={colors.brand} /> : (
                 <>
@@ -219,7 +220,7 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
         <View style={gs.done} accessibilityRole="alert" accessibilityLiveRegion="polite">
           <Icon name="check" size={16} color={DONE} strokeWidth={2.6} />
           <Text style={gs.doneText} numberOfLines={2}>
-            {given.total === given.last ? `Ofereceste ${txillsLabel(given.last)} a @${host}.` : `Ofereceste ${txillsLabel(given.last)} (${txillsLabel(given.total)} agora) a @${host}.`} Toca de novo para dar mais.
+            {given.total === given.last ? t('Ofereceste {txillsLabel} a @{host}.', { txillsLabel: txillsLabel(given.last), host }) : t('Ofereceste {txillsLabel} ({txillsLabel2} agora) a @{host}.', { txillsLabel: txillsLabel(given.last), txillsLabel2: txillsLabel(given.total), host })} {t('Toca de novo para dar mais.')}
           </Text>
         </View>
       ) : null}
@@ -230,36 +231,36 @@ export function GiftSheet({ host, goal, onSend, onWallet, onDone }: {
             onChangeText={(t) => { setCustom(t.replace(/[^\d]/g, '').slice(0, 4)); setErr(null); }}
             keyboardType="number-pad"
             inputMode="numeric"
-            placeholder="Outro valor"
+            placeholder={t('Outro valor')}
             placeholderTextColor={D.sub}
             style={gs.customInput}
             maxLength={4}
             returnKeyType="send"
             onSubmitEditing={() => void give(customAmount, 'custom')}
-            accessibilityLabel={`Outro valor em vibes, até ${GIFT_MAX}`}
+            accessibilityLabel={t('Outro valor em vibes, até {giftMax}', { giftMax: GIFT_MAX })}
           />
           <Text style={gs.customUnit}>{VIB}</Text>
         </View>
         {custom ? (
           <Button
-            label="Oferecer"
+            label={t('Oferecer')}
             size="md"
             dark
             loading={busy === 'custom'}
             disabled={busy != null || customAmount == null}
             onPress={() => void give(customAmount, 'custom')}
-            accessibilityLabel={customAmount != null ? `Oferecer ${txillsLabel(customAmount)}` : 'Oferecer'}
+            accessibilityLabel={customAmount != null ? t('Oferecer {txillsLabel}', { txillsLabel: txillsLabel(customAmount) }) : t('Oferecer')}
           />
         ) : null}
       </View>
-      <Text style={gs.balance}>{balance == null ? ' ' : `Tens ${txillsLabel(balance)} na carteira.`}</Text>
+      <Text style={gs.balance}>{balance == null ? ' ' : t('Tens {txillsLabel} na carteira.', { txillsLabel: txillsLabel(balance) })}</Text>
       {err ? (
         <View style={gs.err} accessibilityRole="alert">
           <Text style={gs.errText}>{err.text}</Text>
           {err.insufficient ? (
             <Pressable onPress={onWallet} style={({ pressed }) => [gs.walletBtn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
               <Icon name="wallet" size={15} color={colors.brand} strokeWidth={2.2} />
-              <Text style={gs.walletText}>Ver a carteira</Text>
+              <Text style={gs.walletText}>{t('Ver a carteira')}</Text>
             </Pressable>
           ) : null}
         </View>

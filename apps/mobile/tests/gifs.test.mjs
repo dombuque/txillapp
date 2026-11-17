@@ -3,6 +3,7 @@
 // "Powered by GIPHY" e só aparece quando o servidor diz que os GIFs estão ligados.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -91,7 +92,7 @@ test('gifLabel e gifQuery', () => {
 test('o painel: "Powered by GIPHY", só com os GIFs ligados, toques ≥ 44 e GIFs com o título no leitor de ecrã', () => {
   const panel = read('components/GifPanel.tsx');
   assert.match(panel, /Powered by GIPHY/);
-  assert.match(panel, /accessibilityLabel=\{`Enviar \$\{gifLabel\(item\.title\)\}`\}/);
+  assert.match(panel, /accessibilityLabel=\{t\('Enviar \{gifLabel\}', \{ gifLabel: gifLabel\(item\.title\) \}\)\}/);
   assert.match(panel, /height: Math\.max\(h, 44\)/);
   assert.match(panel, /autoplay=\{!reduce\}/);
   const stickers = read('components/StickerPanel.tsx');
@@ -102,7 +103,7 @@ test('o painel: "Powered by GIPHY", só com os GIFs ligados, toques ≥ 44 e GIF
 });
 
 test('GIF escondido a menores: a lista diz «GIF escondido» e a bolha mostra o cartão no lugar do GIF', () => {
-  assert.equal(g.GIF_HIDDEN_TEXT, 'GIF escondido');
+  assert.equal(g.GIF_HIDDEN_TEXT(), 'GIF escondido');
   assert.equal(g.gifPreviewText({}), 'GIF');
   assert.equal(g.gifPreviewText({ gifHidden: false }), 'GIF');
   assert.equal(g.gifPreviewText({ gifHidden: true }), 'GIF escondido');

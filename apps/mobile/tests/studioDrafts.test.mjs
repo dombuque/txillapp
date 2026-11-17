@@ -2,6 +2,7 @@
 // saem, no máximo 10 rascunhos), o debounce, os textos da lista e a ligação no estúdio e no ecrã de criar.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -139,8 +140,8 @@ test('ligação: nada se guarda sozinho; ao sair «Guardar rascunho» ou «Apaga
     const studio = read('components', f);
     assert.doesNotMatch(studio, /debounce\(|saver/, `${f}: sem gravação automática`);
     assert.match(studio, /Sair do estúdio\?/, f);
-    assert.match(studio, /text: 'Apagar', style: 'destructive', onPress: \(\) => \{ dropDraftNow\(\); onClose\(\); \}/, f);
-    assert.match(studio, /text: 'Guardar rascunho', onPress: \(\) => \{ keepDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /text: t\('Apagar'\), style: 'destructive', onPress: \(\) => \{ dropDraftNow\(\); onClose\(\); \}/, f);
+    assert.match(studio, /text: t\('Guardar rascunho'\), onPress: \(\) => \{ keepDraftNow\(\); onClose\(\); \}/, f);
     assert.match(studio, /if \(!items\.length\) \{ dropDraftNow\(\); onClose\(\); return; \}/, f);
     // A única gravação é a do botão.
     assert.equal(studio.match(/\(\)\.save\(/g)?.length, 1, `${f}: uma só gravação`);

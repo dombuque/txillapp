@@ -2,6 +2,7 @@
 // webrtc.ts e webrtc.web.ts, o botão no CallOverlay e os módulos nativos (modules/call-service: Kotlin e Swift).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -147,9 +148,9 @@ test('ligações: fim da chamada repõe o áudio; avisos de rota; botão ao lado
   const ov = read('src', 'components', 'calls', 'CallOverlay.tsx');
   assert.doesNotMatch(ov, /speakerSelectable/);
   // Em chamada: microfone, (câmara), altifalante, desligar.
-  assert.match(ov, /<Ctrl label=\{c\.micOn \? 'Desligar o microfone'[\s\S]*?<SpeakerButton c=\{c\} \/>\n        <Pressable onPress=\{hangUp\}/);
+  assert.match(ov, /<Ctrl label=\{c\.micOn \? t\('Desligar o microfone'\)[\s\S]*?<SpeakerButton c=\{c\} \/>\n        <Pressable onPress=\{hangUp\}/);
   // A chamar: microfone | cancelar | altifalante (ou o lugar vazio).
-  assert.match(ov, /<BigBtn bg=\{RED\} label="Cancelar" onPress=\{hangUp\}>[\s\S]*?<SpeakerButton c=\{c\} spacer \/>/);
+  assert.match(ov, /<BigBtn bg=\{RED\} label=\{t\('Cancelar'\)\} onPress=\{hangUp\}>[\s\S]*?<SpeakerButton c=\{c\} spacer \/>/);
   assert.match(ov, /<Ctrl label=\{speakerLabel\(lit\)\}[^>]*off=\{lit\} onPress=\{toggleSpeaker\}>/);
   assert.match(ov, /if \(mode === 'none'\) return spacer \? <View style=\{\{ width: 56 \}\} \/> : null;/);
 });

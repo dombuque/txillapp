@@ -8,6 +8,7 @@
 // - as ondas: transparentes, sem apanhar toques, por baixo dos stickers e dos controlos, e a pastilha do mimo à esquerda.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -106,7 +107,7 @@ test('«Usar este som» só quando a publicação traz `sound`', () => {
   assert.equal(m.soundHref({ sound: { id: '../../x' } }), null);
   assert.equal(m.soundHref({ sound: { id: 42 } }), null);
   const pm = read('components', 'PostMusic.tsx');
-  assert.match(pm, /\{soundTo \? \(\n\s+<Pressable onPress=\{\(\) => router\.push\(soundTo as never\)\}[^\n]*accessibilityLabel="Usar este som">/);
+  assert.match(pm, /\{soundTo \? \(\n\s+<Pressable onPress=\{\(\) => router\.push\(soundTo as never\)\}[^\n]*accessibilityLabel=\{t\('Usar este som'\)\}>/);
 });
 
 test('artista local: o nome leva ao perfil e leva a etiqueta «Artista»; os outros não', () => {
@@ -120,7 +121,7 @@ test('artista local: o nome leva ao perfil e leva a etiqueta «Artista»; os out
   assert.equal(m.trackArtist(track({ artist: '' })).name, 'Autor desconhecido');
   const pm = read('components', 'PostMusic.tsx');
   assert.match(pm, /\{artist\.href \? \(\n\s+<Pressable onPress=\{\(\) => router\.push\(artist\.href as never\)\}/);
-  assert.match(pm, /\{artist\.local \? \(\n\s+<View style=\{\[s\.tag[^\n]*accessibilityLabel="Artista">/);
+  assert.match(pm, /\{artist\.local \? \(\n\s+<View style=\{\[s\.tag[^\n]*accessibilityLabel=\{t\('Artista'\)\}>/);
 });
 
 test('acessibilidade: «Música: Título, de Artista. Toca para silenciar ou ligar o som»', () => {

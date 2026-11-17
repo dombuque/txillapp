@@ -1,4 +1,5 @@
 import type { AlertButton } from './alertHost';
+import { t } from '@/lib/i18n';
 
 export type ConfirmOptions = {
   title: string;
@@ -14,7 +15,7 @@ export type ConfirmOptions = {
 /** Os dois botões da caixa: primeiro o que não faz nada, depois o que confirma. `done(true)` só no que confirma. */
 export function confirmButtons(o: ConfirmOptions, done: (ok: boolean) => void): AlertButton[] {
   return [
-    { text: o.cancel ?? 'Cancelar', style: 'cancel', onPress: () => done(false) },
-    { text: o.confirm ?? 'Confirmar', style: o.danger ? 'destructive' : 'default', onPress: () => done(true) },
+    { text: o.cancel ?? t('Cancelar'), style: 'cancel', onPress: () => done(false) },
+    { text: o.confirm ?? t('Confirmar'), style: o.danger ? 'destructive' : 'default', onPress: () => done(true) },
   ];
 }

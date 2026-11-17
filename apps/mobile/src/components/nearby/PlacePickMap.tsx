@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { LEAFLET_CSS } from './leafletCss';
 import { LEAFLET_JS, RUNTIME_JS } from './leafletInline';
 import { PickPin } from './PickPin';
+import { mapLabels } from './mapLabels';
 import type { PlacePickMapProps } from './types';
 
 // Como no NearbyMap: P = {} para o TS estrito.
@@ -13,7 +14,7 @@ const noClose = (s: string) => s.replace(/<\/(script|style)/gi, '<\\/$1');
 /** As páginas do mapa de "Marcar no mapa" (uma por combinação de opções): Leaflet e o mapRuntime dentro da app; fala com a app por postMessage. */
 const PAGES = new Map<string, string>();
 const page = (opts: { zoomControl: boolean; zone: boolean; still: boolean; zoom?: number }) => {
-  const key = JSON.stringify(opts);
+  const key = JSON.stringify({ ...opts, labels: mapLabels() });
   let html = PAGES.get(key);
   if (!html) {
     html = `<!doctype html><html><head><meta charset="utf-8">

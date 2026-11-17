@@ -7,6 +7,7 @@ import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
 import { Icon } from '../Icon';
 import { stampTxillapp, type Shot } from '../TxCamera';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 1080;
@@ -180,19 +181,19 @@ export function RemixRecorder({ original, title, overlay, onDone, onClose }: { o
 
   const recording = phase === 'recording';
   const canRecord = ready && origReady && phase === 'idle' && !problem;
-  const msg = problem === 'denied' ? 'O Txillapp não tem acesso à câmara. Dá permissão no browser e volta a tentar.'
-    : problem === 'nocamera' ? 'Não encontrei uma câmara neste aparelho.'
-    : problem === 'video' ? 'Não consegui carregar a tcheka original.'
-    : problem === 'unsupported' ? 'Este browser não consegue gravar vídeo. Experimenta o Chrome ou o Safari mais recentes.' : '';
+  const msg = problem === 'denied' ? t('O Txillapp não tem acesso à câmara. Dá permissão no browser e volta a tentar.')
+    : problem === 'nocamera' ? t('Não encontrei uma câmara neste aparelho.')
+    : problem === 'video' ? t('Não consegui carregar a tcheka original.')
+    : problem === 'unsupported' ? t('Este browser não consegue gravar vídeo. Experimenta o Chrome ou o Safari mais recentes.') : '';
   const tile = (child: ReactNode, key: string, label: string) => (
     <View key={key} style={original ? st.tileHalf : st.tileFull} accessibilityLabel={label}>{child}</View>
   );
   return (
     <View style={[st.root, { paddingTop: Math.max(insets.top, 10), paddingBottom: Math.max(insets.bottom, 14) }]} accessibilityViewIsModal>
       <View style={st.top}>
-        <Pressable onPress={onClose} disabled={recording} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onClose} disabled={recording} style={st.round} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title} numberOfLines={1}>{title}</Text>
-        <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} disabled={recording} style={[st.round, recording && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar a câmara"><Icon name="cam-flip" size={24} color="#fff" /></Pressable>
+        <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} disabled={recording} style={[st.round, recording && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={t('Virar a câmara')}><Icon name="cam-flip" size={24} color="#fff" /></Pressable>
       </View>
 
       <View style={st.stage}>
@@ -200,9 +201,9 @@ export function RemixRecorder({ original, title, overlay, onDone, onClose }: { o
           {tile(
             <>
               {dom('video', { ref: cam, playsInline: true, muted: true, autoPlay: true, style: { width: '100%', height: '100%', objectFit: 'cover', transform: facing === 'user' ? 'scaleX(-1)' : undefined, background: '#111' } })}
-              {!ready && !problem ? <View style={st.center} pointerEvents="none"><Text style={st.hint}>A ligar a câmara…</Text></View> : null}
+              {!ready && !problem ? <View style={st.center} pointerEvents="none"><Text style={st.hint}>{t('A ligar a câmara…')}</Text></View> : null}
             </>,
-            'cam', 'A tua câmara',
+            'cam', t('A tua câmara'),
           )}
           {original ? tile(
             <>
@@ -210,9 +211,9 @@ export function RemixRecorder({ original, title, overlay, onDone, onClose }: { o
                 ref: orig, src: origSrc, playsInline: true, preload: 'auto', crossOrigin: 'anonymous', poster: original.posterUrl ?? undefined,
                 onLoadedData: () => setOrigReady(true), onError: () => setProblem('video'),
                 style: { width: '100%', height: '100%', objectFit: 'cover', background: '#111' },
-              }) : <View style={st.center}><Text style={st.hint}>A carregar a tcheka…</Text></View>}
+              }) : <View style={st.center}><Text style={st.hint}>{t('A carregar a tcheka…')}</Text></View>}
             </>,
-            'orig', 'A tcheka original',
+            'orig', t('A tcheka original'),
           ) : null}
           {overlay ? <View style={StyleSheet.absoluteFill} pointerEvents="none">{overlay}</View> : null}
         </View>
@@ -223,22 +224,22 @@ export function RemixRecorder({ original, title, overlay, onDone, onClose }: { o
 
       {msg ? <Text style={st.err} accessibilityRole="alert">{msg}</Text> : null}
       <View style={st.controls}>
-        <Pressable onPress={() => setMic((m) => !m)} disabled={recording} style={[st.pill, !mic && st.pillOff, recording && { opacity: 0.5 }]} accessibilityRole="switch" accessibilityState={{ checked: mic }} accessibilityLabel="Microfone">
+        <Pressable onPress={() => setMic((m) => !m)} disabled={recording} style={[st.pill, !mic && st.pillOff, recording && { opacity: 0.5 }]} accessibilityRole="switch" accessibilityState={{ checked: mic }} accessibilityLabel={t('Microfone')}>
           <Icon name="mic" size={18} color={mic ? colors.zinc900 : '#fff'} />
-          <Text style={[st.pillText, mic && { color: colors.zinc900 }]}>{mic ? 'Microfone ligado' : 'Sem microfone'}</Text>
+          <Text style={[st.pillText, mic && { color: colors.zinc900 }]}>{mic ? t('Microfone ligado') : t('Sem microfone')}</Text>
         </Pressable>
         <Pressable
           onPress={() => (recording ? stopRef.current?.() : void record())}
           disabled={!recording && !canRecord}
           style={[st.shutter, !recording && !canRecord && { opacity: 0.45 }]}
           accessibilityRole="button"
-          accessibilityLabel={recording ? 'Parar de gravar' : 'Gravar'}
+          accessibilityLabel={recording ? t('Parar de gravar') : t('Gravar')}
         >
           <View style={recording ? st.stopSq : st.recDot} />
         </Pressable>
-        <Text style={st.time} accessibilityLiveRegion="polite">{phase === 'saving' ? 'A guardar…' : `${Math.floor(elapsed / 1000)} / ${Math.round(limit / 1000)} s`}</Text>
+        <Text style={st.time} accessibilityLiveRegion="polite">{phase === 'saving' ? t('A guardar…') : `${Math.floor(elapsed / 1000)} / ${Math.round(limit / 1000)} s`}</Text>
       </View>
-      {original ? <Text style={st.tip}>Grava ao mesmo tempo que a tcheka toca. Com auscultadores fica sem eco.</Text> : null}
+      {original ? <Text style={st.tip}>{t('Grava ao mesmo tempo que a tcheka toca. Com auscultadores fica sem eco.')}</Text> : null}
     </View>
   );
 }

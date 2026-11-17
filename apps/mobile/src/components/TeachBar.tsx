@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { feedApi } from '@/lib/api.feed';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { t } from '@/lib/i18n';
 
 /**
  * "Interessado / Não interessado": ensina o algoritmo (só aparece em publicações de quem não segues).
@@ -26,7 +27,7 @@ export function TeachBar({ postId, onNo }: { postId: string; onNo?: () => void }
   if (done) {
     return (
       <View style={[st.btn, { marginTop: 4, marginBottom: 12, flex: 0, height: 44 }]} accessibilityRole="alert">
-        <Text style={st.text}>{done === 'yes' ? 'Boa! Vamos mostrar mais disto.' : 'Ok, vamos mostrar menos disto.'}</Text>
+        <Text style={st.text}>{done === 'yes' ? t('Boa! Vamos mostrar mais disto.') : t('Ok, vamos mostrar menos disto.')}</Text>
       </View>
     );
   }
@@ -34,11 +35,11 @@ export function TeachBar({ postId, onNo }: { postId: string; onNo?: () => void }
     <View style={{ marginTop: 4, marginBottom: 12, flexDirection: 'row', gap: 8 }}>
       <Pressable onPress={() => void pick(-1)} style={({ pressed }) => [st.btn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button">
         <Icon name="x" size={16} strokeWidth={2.6} color={colors.zinc800} />
-        <Text style={st.text}>Não interessado</Text>
+        <Text style={st.text}>{t('Não interessado')}</Text>
       </Pressable>
       <Pressable onPress={() => void pick(1)} style={({ pressed }) => [st.btn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button">
         <Icon name="check" size={16} strokeWidth={2.6} color={colors.zinc800} />
-        <Text style={st.text}>Interessado</Text>
+        <Text style={st.text}>{t('Interessado')}</Text>
       </Pressable>
     </View>
   );

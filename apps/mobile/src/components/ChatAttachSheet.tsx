@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
+import { t } from '@/lib/i18n';
 
 const nativeDriver = Platform.OS !== 'web';
 /** Distância entre o menu e a barra de escrever. */
@@ -69,7 +70,7 @@ export function ChatAttachMenu({
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [st.item, (pressed || hovered) && { backgroundColor: colors.zinc100 }]}
       accessibilityRole="menuitem"
       accessibilityState={on === undefined ? undefined : { checked: on }}
-      accessibilityLabel={on === undefined ? (a11y ?? label) : `${label}, ${on ? 'ligado' : 'desligado'}. A próxima foto, vídeo ou voz só se abre uma vez.`}
+      accessibilityLabel={on === undefined ? (a11y ?? label) : t('{label}, {value}. A próxima foto, vídeo ou voz só se abre uma vez.', { label, value: on ? t('ligado') : t('desligado') })}
     >
       <Icon name={icon} size={21} color={on ? colors.brand : colors.zinc700} />
       <Text style={st.label} numberOfLines={1}>{label}</Text>
@@ -88,18 +89,18 @@ export function ChatAttachMenu({
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar o menu" />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Fechar o menu')} />
       {box && (
         <View pointerEvents="box-none" style={[st.zone, { height: box.top - GAP, paddingTop: insets.top + 8, right: box.right }]}>
-          <Animated.View style={[st.card, { maxHeight: room, opacity: v, transform: [{ translateY: rise }, { scale }] }]} accessibilityRole="menu" accessibilityLabel="Partilhar" accessibilityViewIsModal>
+          <Animated.View style={[st.card, { maxHeight: room, opacity: v, transform: [{ translateY: rise }, { scale }] }]} accessibilityRole="menu" accessibilityLabel={t('Partilhar')} accessibilityViewIsModal>
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={st.list}>
-              {item('camera', 'Câmara', onCamera, 'Tirar foto ou vídeo com a câmara')}
-              {item('image', 'Foto e vídeo', onLibrary, 'Enviar foto ou vídeo da galeria')}
-              {item('map-pin', 'Localização', onPlace, 'Localização: escolher o que enviar')}
-              {canGift ? item('gift', 'Presente', onGift, `Oferecer vibes${firstName ? ` a ${firstName}` : ''}`) : null}
-              {onGelada ? item('ask-drink', 'Pede uma gelada', onGelada, `Pede uma gelada${firstName ? ` a ${firstName}` : ''}: «Paga-me uma»`) : null}
-              {onMixar ? item('mixar', 'Mixar', onMixar, `Mixar${firstName ? ` com ${firstName}` : ''}: um feed a dois`) : null}
-              {item('once', 'Ver uma vez', onToggleOnce, undefined, once)}
+              {item('camera', t('Câmara'), onCamera, t('Tirar foto ou vídeo com a câmara'))}
+              {item('image', t('Foto e vídeo'), onLibrary, t('Enviar foto ou vídeo da galeria'))}
+              {item('map-pin', t('Localização'), onPlace, t('Localização: escolher o que enviar'))}
+              {canGift ? item('gift', t('Presente'), onGift, t('Oferecer vibes{value}', { value: firstName ? ` a ${firstName}` : '' })) : null}
+              {onGelada ? item('ask-drink', t('Pede uma gelada'), onGelada, t('Pede uma gelada{value}: «Paga-me uma»', { value: firstName ? ` a ${firstName}` : '' })) : null}
+              {onMixar ? item('mixar', 'Mixar', onMixar, t('Mixar{value}: um feed a dois', { value: firstName ? ` com ${firstName}` : '' })) : null}
+              {item('once', t('Ver uma vez'), onToggleOnce, undefined, once)}
             </ScrollView>
           </Animated.View>
         </View>

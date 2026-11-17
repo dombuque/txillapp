@@ -7,6 +7,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { composeApi, type NearbyPlaces } from '@/lib/api.compose';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const kindIcon: Record<string, IconName> = { praia: 'waves', bar: 'cheers', restaurante: 'utensils', lazer: 'trees', turismo: 'camera', local: 'map-pin' };
 
@@ -28,17 +29,17 @@ function useDebounced<T>(value: T, ms: number) {
 async function whereAmI(): Promise<{ lat: number; lng: number }> {
   if (Platform.OS === 'web') {
     const g = typeof navigator !== 'undefined' ? navigator.geolocation : undefined;
-    if (!g) throw new Error('Este dispositivo não sabe dizer onde estás. Escreve à mão.');
+    if (!g) throw new Error(t('Este dispositivo não sabe dizer onde estás. Escreve à mão.'));
     return new Promise((ok, no) =>
       g.getCurrentPosition(
         (p) => ok({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        (e) => no(new Error(e.code === e.PERMISSION_DENIED ? 'Sem permissão de localização. Ativa-a no browser ou escreve à mão.' : 'Não consegui apanhar o teu sinal. Tenta outra vez ou escreve à mão.')),
+        (e) => no(new Error(e.code === e.PERMISSION_DENIED ? t('Sem permissão de localização. Ativa-a no browser ou escreve à mão.') : t('Não consegui apanhar o teu sinal. Tenta outra vez ou escreve à mão.'))),
         { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
       ),
     );
   }
   const perm = await Location.requestForegroundPermissionsAsync();
-  if (!perm.granted) throw new Error('Sem permissão de localização. Ativa-a nas definições ou escreve à mão.');
+  if (!perm.granted) throw new Error(t('Sem permissão de localização. Ativa-a nas definições ou escreve à mão.'));
   const p = await currentDevicePosition(false);
   return { lat: p.lat, lng: p.lng };
 }
@@ -104,12 +105,12 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
       } catch {
         if (!alive.current) return;
         setStatus('error');
-        setMsg('Não consegui procurar sítios agora. Escreve à mão.');
+        setMsg(t('Não consegui procurar sítios agora. Escreve à mão.'));
       }
     } catch (e) {
       if (!alive.current) return;
       setStatus('error');
-      setMsg((e as Error).message || 'Não consegui apanhar o teu sinal. Tenta outra vez ou escreve à mão.');
+      setMsg((e as Error).message || t('Não consegui apanhar o teu sinal. Tenta outra vez ou escreve à mão.'));
     }
   }
   useEffect(() => { void locate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -153,7 +154,7 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
   const fullName = (o: Option) => (o.sub ? `${o.label}, ${o.sub.split(', ')[0]}` : o.label);
 
   return (
-    <Sheet title="Onde estás?" onClose={onClose} full>
+    <Sheet title={t('Onde estás?')} onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, minHeight: 260 }} showsVerticalScrollIndicator={false}>
         <View style={styles.searchWrap}>
           <View style={styles.searchIcon} pointerEvents="none"><Icon name="search" size={20} strokeWidth={2.2} color={colors.zinc500} /></View>
@@ -165,19 +166,19 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
             returnKeyType="done"
             onSubmitEditing={() => text && pick(text)}
             autoCorrect={false}
-            placeholder="Procura um sítio…"
+            placeholder={t('Procura um sítio…')}
             placeholderTextColor={colors.zinc500}
-            accessibilityLabel="Local"
+            accessibilityLabel={t('Local')}
             style={styles.search}
           />
           {typed ? (
-            <Pressable onPress={() => setTyped('')} style={styles.clear} accessibilityLabel="Limpar"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+            <Pressable onPress={() => setTyped('')} style={styles.clear} accessibilityLabel={t('Limpar')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           ) : null}
         </View>
 
         {!searching && (hot.data?.length ?? 0) > 0 ? (
           <View style={{ marginTop: 16 }}>
-            <Text style={styles.label}>A bater agora</Text>
+            <Text style={styles.label}>{t('A bater agora')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }} keyboardShouldPersistTaps="handled">
               {hot.data!.map((h) => (
                 <Pressable key={h.name} onPress={() => pick(h.name)} style={({ pressed }) => [styles.hot, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
@@ -192,16 +193,16 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
 
         {searching ? (
           <View style={{ marginTop: 8 }} accessibilityLiveRegion="polite">
-            <Row o={{ label: `Usar «${text}»`, sub: 'Escrever à mão', icon: 'pencil' }} onPick={() => pick(text)} />
+            <Row o={{ label: t('Usar «{text}»', { text }), sub: t('Escrever à mão'), icon: 'pencil' }} onPick={() => pick(text)} />
             {found.isFetching && suggestions.length === 0 ? <Skeleton /> : null}
             {suggestions.map((o, i) => <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(fullName(o))} />)}
-            {!found.isFetching && debounced === text && suggestions.length === 0 ? <Text style={styles.empty}>Nada com esse nome. Podes usar o que escreveste.</Text> : null}
+            {!found.isFetching && debounced === text && suggestions.length === 0 ? <Text style={styles.empty}>{t('Nada com esse nome. Podes usar o que escreveste.')}</Text> : null}
           </View>
         ) : (
           <>
             {photoOpts.length > 0 ? (
               <>
-                <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>Onde a foto foi tirada</Text>
+                <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('Onde a foto foi tirada')}</Text>
                 {photoOpts.map((o, i) => (
                   <Row key={`f-${o.label}-${i}`} o={o} onPick={() => pick(o.sub && o.icon !== 'camera' ? `${o.label}, ${o.sub}` : o.label, o.geo)} />
                 ))}
@@ -209,20 +210,20 @@ export function PlaceSheet({ value, onChange, onClose, photoAt }: {
             ) : null}
             {status === 'locating' || status === 'searching' ? (
               <>
-                <Text style={[styles.label, { marginTop: 16 }]}>{status === 'locating' ? 'A apanhar o teu sinal…' : 'A ver o que há por perto…'}</Text>
+                <Text style={[styles.label, { marginTop: 16 }]}>{status === 'locating' ? t('A apanhar o teu sinal…') : t('A ver o que há por perto…')}</Text>
                 <Skeleton />
               </>
             ) : null}
             {status === 'error' ? (
               <View style={{ paddingVertical: 24, alignItems: 'center' }} accessibilityRole="alert">
                 <Text style={styles.msg}>{msg}</Text>
-                <Pressable onPress={() => void locate()} style={styles.again}><Text style={styles.againText}>Tentar outra vez</Text></Pressable>
+                <Pressable onPress={() => void locate()} style={styles.again}><Text style={styles.againText}>{t('Tentar outra vez')}</Text></Pressable>
               </View>
             ) : null}
-            {status === 'ready' && nearby.length === 0 ? <Text style={[styles.msg, { paddingVertical: 24, textAlign: 'center' }]}>Não encontrei nada por perto. Escreve o sítio acima.</Text> : null}
+            {status === 'ready' && nearby.length === 0 ? <Text style={[styles.msg, { paddingVertical: 24, textAlign: 'center' }]}>{t('Não encontrei nada por perto. Escreve o sítio acima.')}</Text> : null}
             {status === 'ready' && nearby.length > 0 ? (
               <>
-                <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>Perto de ti</Text>
+                <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('Perto de ti')}</Text>
                 {nearby.map((o, i) => (
                   <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(data?.area && o.label !== data.area && o.sub?.includes('·') ? `${o.label}, ${data.area}` : o.label, o.geo)} />
                 ))}

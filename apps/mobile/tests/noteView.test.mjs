@@ -5,6 +5,7 @@
 //   com pergunta.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -101,7 +102,7 @@ test('NoteView: o Brindar fica fora da pílula, otimista e com a animação, âm
 test('NoteView: enviado, fecha e mostra «Enviada a @x» com «Ver» (na conversa só fecha e põe em dia)', () => {
   const b = body('NoteView');
   assert.match(b, /await notesApi\.reply\(note\.username, said, gif\);\s*onClose\(\);/);
-  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: 'Ver', onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
+  assert.match(b, /if \(inChat\) void qc\.invalidateQueries\(\{ queryKey: \['chat-thread', note\.username\] \}\);\s*else showToast\(noteSentText\(note\.username\), \{ label: t\('Ver'\), onPress: \(\) => router\.push\(`\/messages\/\$\{note\.username\}` as never\) \}\);/);
   assert.equal(b.split('router.push').length - 1, 1, 'já não salta logo para a conversa: só o «Ver» do aviso a abre');
 });
 
@@ -122,15 +123,15 @@ test('NoteView na conversa: leva a cor, o local, o GIF, o selo e o online', () =
 test('NoteEditor: ecrã inteiro com ×, bolha onde se escreve, paleta, música, local, GIF, público e Partilhar', () => {
   const b = body('NoteEditor');
   assert.match(b, /<Modal visible transparent/);
-  assert.match(b, /accessibilityLabel="Fechar"/);
-  assert.match(b, /<TextInput[\s\S]*multiline\s*autoFocus[\s\S]*placeholder=\{NOTE_PLACEHOLDER\}/);
-  assert.match(src, /const NOTE_PLACEHOLDER = 'O que se passa\?';/);
-  assert.match(b, /accessibilityLabel="Limpar o texto"/, 'o × pequeno da bolha limpa o texto');
-  assert.match(b, /showToast\('Nota partilhada'\)/);
-  assert.match(b, /accessibilityLabel="Cor da bolha"/);
+  assert.match(b, /accessibilityLabel=\{t\('Fechar'\)\}/);
+  assert.match(b, /<TextInput[\s\S]*multiline\s*autoFocus[\s\S]*placeholder=\{NOTE_PLACEHOLDER\(\)\}/);
+  assert.match(src, /const NOTE_PLACEHOLDER = \(\) => t\('O que se passa\?'\);/);
+  assert.match(b, /accessibilityLabel=\{t\('Limpar o texto'\)\}/, 'o × pequeno da bolha limpa o texto');
+  assert.match(b, /showToast\(t\('Nota partilhada'\)\)/);
+  assert.match(b, /accessibilityLabel=\{t\('Cor da bolha'\)\}/);
   assert.match(b, /\[null, \.\.\.NOTE_COLORS\]/);
-  assert.match(b, /<OptionPill a11y="Música"/);
-  assert.match(b, /<OptionPill a11y="Local"/);
+  assert.match(b, /<OptionPill a11y=\{t\('Música'\)\}/);
+  assert.match(b, /<OptionPill a11y=\{t\('Local'\)\}/);
   assert.match(b, /<OptionPill a11y="GIF"/);
   assert.match(b, /<MusicPicker /);
   assert.match(b, /<PlaceSheet/);
@@ -138,13 +139,13 @@ test('NoteEditor: ecrã inteiro com ×, bolha onde se escreve, paleta, música, 
   assert.match(b, /noteAudienceLabel\(audience\)/);
   assert.match(b, /const canShare = !busy && noteHasContent\(\{ body, music, gif, place \}\);/);
   assert.match(b, /notesApi\.set\(\{ body: body\.trim\(\), music, color, place, gif, audience \}\)/);
-  assert.match(b, />Partilhar</);
+  assert.match(b, />\{t\('Partilhar'\)\}</);
 });
 
 test('NoteEditor: a nota publicada abre com o que tem e apaga-se só depois de confirmar', () => {
   const b = body('NoteEditor');
-  assert.match(b, /if \(await confirm\(\{ title: 'Apagar a nota\?'[^}]*danger: true \}\)\) \{\s*void run\(\(\) => notesApi\.remove\(\)\);/);
-  assert.match(b, />Apagar</);
+  assert.match(b, /if \(await confirm\(\{ title: t\('Apagar a nota\?'\)[^}]*danger: true \}\)\) \{\s*void run\(\(\) => notesApi\.remove\(\)\);/);
+  assert.match(b, />\{t\('Apagar'\)\}</);
 });
 
 test('GIF: fica no lugar da foto (quadrado arredondado) na fila, na nota aberta e no editor; só com GIF não há bolha', () => {
@@ -164,8 +165,8 @@ test('GIF: fica no lugar da foto (quadrado arredondado) na fila, na nota aberta 
   const ed = body('NoteEditor');
   assert.match(ed, /<NoteFace [^>]*gif=\{gif\} size=\{108\} \/>/);
   assert.match(ed, /setPanel\('gifMenu'\)/);
-  assert.match(ed, /title="Trocar o GIF" onPress=\{\(\) => setPanel\('gif'\)\}/);
-  assert.match(ed, /title="Tirar o GIF" danger onPress=\{\(\) => \{ setGif\(null\); back\(\); \}\}/);
+  assert.match(ed, /title=\{t\('Trocar o GIF'\)\} onPress=\{\(\) => setPanel\('gif'\)\}/);
+  assert.match(ed, /title=\{t\('Tirar o GIF'\)\} danger onPress=\{\(\) => \{ setGif\(null\); back\(\); \}\}/);
 });
 
 test('Fila e balão da conversa mostram a cor, o local e o GIF', () => {
@@ -191,7 +192,7 @@ test('Público: «Seguidores» (quem me segue) ou «Amigos próximos», no botã
   const ed = body('NoteEditor');
   assert.match(ed, /<Text style=\{styles\.audText\}>\{noteAudienceLabel\(view\.audience\)\}<\/Text>/, 'a etiqueta da minha nota');
   assert.match(ed, /title=\{noteAudienceLabel\(a\)\}/, 'a folha de escolha do público');
-  assert.match(ed, /'Os teus seguidores\.'/);
+  assert.match(ed, /t\('Os teus seguidores\.'\)/);
   assert.doesNotMatch(src, /'Amigos'|Partilhar com amigos/);
 });
 
@@ -204,14 +205,14 @@ test('Local da nota: só o nome do sítio, nunca a posição', () => {
 test('Denunciar a nota: «⋯» no cabeçalho (nunca na minha), menu com «Denunciar», uma folha de cada vez', () => {
   const b = body('NoteView');
   assert.match(b, /const mine = !!user && user\.username\.toLowerCase\(\) === note\.username\.toLowerCase\(\);/);
-  assert.match(b, /\{mine \? null : \(\s*<Pressable onPress=\{\(\) => setStep\('more'\)\}[^>]*accessibilityLabel="Mais opções da nota"[\s\S]*?<Icon name="more"/);
+  assert.match(b, /\{mine \? null : \(\s*<Pressable onPress=\{\(\) => setStep\('more'\)\}[^>]*accessibilityLabel=\{t\('Mais opções da nota'\)\}[\s\S]*?<Icon name="more"/);
   assert.match(b, /if \(step === 'more'\) return <NoteMoreSheet [^>]*onReport=\{\(\) => setStep\('report'\)\} onClose=\{\(\) => setStep\('view'\)\} \/>;/, 'o menu fica no lugar da nota');
   assert.match(b, /<ReportSheet\s+type="note"\s+id=\{note\.username\}/);
   assert.match(b, /reported\.current = true;\s*void qc\.invalidateQueries\(\{ queryKey: \['notes'\] \}\);/, 'denunciada, sai logo da fila');
   assert.match(b, /onClose=\{\(\) => \(reported\.current \? onClose\(\) : setStep\('view'\)\)\}/, 'sem denúncia, volta à nota');
-  assert.match(body('NoteMoreSheet'), /<ActionRow icon="flag" title="Denunciar"[^>]*danger onPress=\{onReport\} \/>/);
+  assert.match(body('NoteMoreSheet'), /<ActionRow icon="flag" title=\{t\('Denunciar'\)\}[^>]*danger onPress=\{onReport\} \/>/);
   const rs = readFileSync(path.join(ROOT, 'src', 'components', 'ReportSheet.tsx'), 'utf8');
-  assert.match(rs, /note: 'esta nota'/);
+  assert.match(rs, /get note\(\) \{ return t\('esta nota'\); \}/);
   assert.match(rs, /else if \(type === 'note'\) await notesApi\.report\(id, reason, note\.trim\(\) \|\| undefined\);/);
   const api = readFileSync(path.join(ROOT, 'src', 'lib', 'api.notes.ts'), 'utf8');
   assert.match(api, /report: \(username: string, reason: ReportReason, note\?: string\): Promise<void> => raw\(`\/notes\/\$\{encodeURIComponent\(username\)\}\/report`, post\(\{ reason, note \}\)\)/);

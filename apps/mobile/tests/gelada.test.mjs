@@ -2,6 +2,7 @@
 // escondida, os estados dos pedidos e do livro, o título do post e a ordem dos amigos.
 // Correr em apps/mobile:  node --test tests/gelada.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -98,7 +99,7 @@ test('ligações: o ecrã do livro existe e a folha do pedido tem a assinatura c
   assert.match(read('components', 'gelada', 'AskSheet.tsx'), /export function AskSheet\(\{ to, itemId, lockTo = false, defaultChannel = 'chat', onClose \}/);
   assert.match(read('components', 'GeleiraShelf.tsx'), /GeladaSection/);
   assert.match(read('components', 'ProfileView.tsx'), /setSheet\('gelada'\)[\s\S]*?<Icon name="ask-drink"/);
-  assert.match(read('components', 'ProfileView.tsx'), /sheet === 'menu'[\s\S]*?title="Partilhar o perfil"[^\n]*onPress=\{\(\) => setSheet\('qr'\)\}/);
+  assert.match(read('components', 'ProfileView.tsx'), /sheet === 'menu'[\s\S]*?title=\{t\('Partilhar o perfil'\)\}[^\n]*onPress=\{\(\) => setSheet\('qr'\)\}/);
 });
 
 test('avisos da gelada na lista: sem álcool no texto quando é refresco, e para onde levam', () => {
@@ -146,7 +147,7 @@ test('«Já paguei» no local: distância, etiqueta «no Bar X», o raio de 150 
   const book = read('app', 'geladas.tsx');
   assert.match(book, /<PaidSheet debt=\{claiming\}/);
   assert.match(book, /venueSlug: place\.slug/);
-  assert.match(book, /<Icon name="check"[^>]*\/><Text style=\{st\.thereText\}>estiveram lá/);
+  assert.match(book, /<Icon name="check"[^>]*\/><Text style=\{st\.thereText\}>\{t\('estiveram lá'\)\}/);
   assert.match(book, /place: d\.venue\?\.name/, '«Publicar o momento» leva o local');
   const sheet = read('components', 'gelada', 'PaidSheet.tsx');
   assert.match(sheet, /locaisApi\.discover\(coarse\)/, 'perto: só a posição arredondada vai ao servidor');
@@ -158,8 +159,12 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
   const limit = 'Já pediste 3 geladas ao @ana hoje. Amanhã há mais 🍻';
   assert.equal(g.geladaErrorText({ status: 429, message: limit }, f), limit);
   assert.equal(g.geladaErrorText({ status: 403, message: 'O @rui não aceita pedidos públicos: manda-lhe no chat.' }, f), 'O @rui não aceita pedidos públicos: manda-lhe no chat.');
-  assert.match(g.geladaErrorText({ status: 429, message: 'ThrottlerException: Too Many Requests' }, f), /^Foram muitos pedidos seguidos/);
-  for (const message of ['Erro inesperado', 'Forbidden', 'Internal server error', 'Dados inválidos', 'Bad Request', '']) assert.equal(g.geladaErrorText({ status: 500, message }, f), f);
+  // As genéricas reconhecem-se pelo `code` da API (o texto vem no idioma da pessoa), não pelo texto.
+  assert.match(g.geladaErrorText({ status: 429, code: 'too_many_requests', message: 'ThrottlerException: Too Many Requests' }, f), /^Foram muitos pedidos seguidos/);
+  for (const [status, code, message] of [[403, 'generic', 'Forbidden'], [404, 'generic', 'Not Found'], [400, 'invalid_input', 'Dados inválidos'], [400, 'invalid_input', 'Invalid data'], [500, 'unexpected', 'Erro inesperado']]) assert.equal(g.geladaErrorText({ status, code, message }, f), f);
+  // O code também pode vir no resto da resposta (ApiError.extra).
+  assert.equal(g.geladaErrorText({ status: 403, message: 'Forbidden', extra: { code: 'generic' } }, f), f);
+  for (const message of ['Erro inesperado', 'Internal server error', '']) assert.equal(g.geladaErrorText({ status: 500, message }, f), f);
   assert.match(g.geladaErrorText(new TypeError('Failed to fetch'), f), /sem rede/);
   assert.equal(g.geladaErrorText(new Error('Não consegui carregar a foto.'), f), 'Não consegui carregar a foto.');
   assert.equal(g.geladaErrorText(null, f), f);
@@ -167,14 +172,14 @@ test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em i
   // Todos os caminhos (chat, post, rodada, livro) mostram a frase do servidor por aqui, nunca um erro genérico.
   for (const file of [['components', 'gelada', 'AskSheet.tsx'], ['components', 'gelada', 'GeladaCard.tsx'], ['components', 'gelada', 'GeladaPostCard.tsx'], ['components', 'gelada', 'RoundCard.tsx'], ['app', 'geladas.tsx'], ['app', 'messages', 'g', '[id].tsx']]) {
     const src = read(...file);
-    assert.match(src, /geladaErrorText\(e, '/, file.join('/'));
+    assert.match(src, /geladaErrorText\(e, (t\()?'/, file.join('/'));
     assert.doesNotMatch(src, /e instanceof ApiError && e\.message \? e\.message/, file.join('/'));
   }
 });
 
 test('publicar com um hit: o botão «Adicionar um hit» só no pedido publicado, e a música vai no pedido', () => {
   const ask = read('components', 'gelada', 'AskSheet.tsx');
-  assert.match(ask, /channel === 'post' && \(hit \?[\s\S]*?>Adicionar um hit<\/Text>/);
+  assert.match(ask, /channel === 'post' && \(hit \?[\s\S]*?>\{t\('Adicionar um hit'\)\}<\/Text>/);
   assert.match(ask, /music: channel === 'post' \? hit : null/);
   assert.match(read('lib', 'api.gelada.ts'), /music: b\.channel === 'post' && b\.music \? musicPayload\(b\.music\) : undefined/);
 });

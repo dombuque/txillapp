@@ -12,6 +12,7 @@ import { Icon, type IconName } from './Icon';
 import { Sheet } from './Sheet';
 import { TextBox, TextLayerView, useTextLayer } from './TextLayers';
 import type { TextLayer } from '@/lib/textLayers';
+import { t } from '@/lib/i18n';
 
 /** Duração de um ciclo de cada animação (ms). */
 const DUR: Record<StickerAnim, number> = { none: 0, pulse: 700, bounce: 520, wiggle: 600, spin: 6000, swing: 1400, float: 1600, shake: 160, flicker: 260, twinkle: 900, pop: 800 };
@@ -214,7 +215,7 @@ export function StickerCanvas({ stickers, onChange, width, height, selected, onS
       {stickers.map((p, i) => {
         if (i === hidden) return null;
         if (isTextLayer(p)) {
-          return <PlacedText key={`t-${i}`} item={p} {...common(i)} selected={selected === i} onTap={onEdit ? () => onEdit(i) : undefined} label={`Texto «${p.text}»: toca para reescrever, arrasta para mover, pinça para mudar o tamanho`} />;
+          return <PlacedText key={`t-${i}`} item={p} {...common(i)} selected={selected === i} onTap={onEdit ? () => onEdit(i) : undefined} label={t('Texto «{text}»: toca para reescrever, arrasta para mover, pinça para mudar o tamanho', { text: p.text })} />;
         }
         const def = stickerById(p.id);
         if (!def) return null;
@@ -224,7 +225,7 @@ export function StickerCanvas({ stickers, onChange, width, height, selected, onS
             key={`${p.id}-${i}`}
             item={p}
             {...common(i)}
-            label={`Sticker ${def.text}: arrasta para mover, pinça para mudar o tamanho`}
+            label={t('Sticker {text}: arrasta para mover, pinça para mudar o tamanho', { text: def.text })}
             style={{ position: 'absolute', left: p.x * width - w / 2, top: p.y * height - h / 2, width: w, height: h, transform: [{ rotate: `${p.r}deg` }] }}
           >
             <StickerArt def={def} size={w} onMedia />
@@ -254,11 +255,11 @@ export function StickerToolbar<T extends MimoLayer>({ item, onChange, onDelete, 
   );
   return (
     <View style={st.toolbar}>
-      {btn('Mais pequeno', () => onChange({ ...item, s: clamp(item.s / 1.15, lo, hi) }), undefined, '−')}
-      {btn('Maior', () => onChange({ ...item, s: clamp(item.s * 1.15, lo, hi) }), undefined, '+')}
-      {btn('Rodar', () => onChange({ ...item, r: (item.r + 15) % 360 }), 'repeat')}
-      {btn('Apagar', onDelete, 'trash')}
-      {btn('Pronto', onDone, 'check')}
+      {btn(t('Mais pequeno'), () => onChange({ ...item, s: clamp(item.s / 1.15, lo, hi) }), undefined, '−')}
+      {btn(t('Maior'), () => onChange({ ...item, s: clamp(item.s * 1.15, lo, hi) }), undefined, '+')}
+      {btn(t('Rodar'), () => onChange({ ...item, r: (item.r + 15) % 360 }), 'repeat')}
+      {btn(t('Apagar'), onDelete, 'trash')}
+      {btn(t('Pronto'), onDone, 'check')}
     </View>
   );
 }
@@ -273,11 +274,11 @@ export function StickerPicker({ onPick, onClose }: { onPick: (id: string) => voi
     return STICKERS.filter((s) => s.cat === cat);
   }, [cat, q]);
   return (
-    <Sheet title="Stickers" onClose={onClose}>
+    <Sheet title={t('Stickers')} onClose={onClose}>
       <View style={st.searchRow}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={q} onChangeText={setQ} placeholder="Procurar um sticker" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar um sticker" autoCapitalize="none" autoCorrect={false} style={st.input} />
+          <TextInput value={q} onChangeText={setQ} placeholder={t('Procurar um sticker')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Procurar um sticker')} autoCapitalize="none" autoCorrect={false} style={st.input} />
         </View>
       </View>
       {!q.trim() && (
@@ -295,9 +296,9 @@ export function StickerPicker({ onPick, onClose }: { onPick: (id: string) => voi
         keyExtractor={(s) => s.id}
         style={{ maxHeight: 300 }}
         contentContainerStyle={{ padding: 8 }}
-        ListEmptyComponent={<Text style={st.none}>Nenhum sticker com esse nome</Text>}
+        ListEmptyComponent={<Text style={st.none}>{t('Nenhum sticker com esse nome')}</Text>}
         renderItem={({ item }) => (
-          <Pressable onPress={() => onPick(item.id)} style={({ pressed }) => [st.cell, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={`Sticker ${item.text}`}>
+          <Pressable onPress={() => onPick(item.id)} style={({ pressed }) => [st.cell, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={t('Sticker {text}', { text: item.text })}>
             <StickerArt def={item} size={64} />
           </Pressable>
         )}

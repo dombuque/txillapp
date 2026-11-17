@@ -4,6 +4,7 @@
  */
 
 /** As cores da bolha (a mesma lista fechada da API, apps/api/src/chat/notes.service.ts `NOTE_COLORS`). Sem cor = branca. */
+import { t } from '@/lib/i18n';
 export const NOTE_COLORS = ['coral', 'ambar', 'verde', 'ceu', 'noite'] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
@@ -11,15 +12,15 @@ export type NoteColor = (typeof NOTE_COLORS)[number];
 export interface NoteTone { bg: string; text: string; sub: string; border: string; label: string }
 
 /** A bolha branca de sempre. */
-export const NOTE_WHITE: NoteTone = { bg: '#ffffff', text: '#27272a', sub: '#71717a', border: '#f4f4f5', label: 'Branca' };
+export const NOTE_WHITE: NoteTone = { bg: '#ffffff', text: '#27272a', sub: '#71717a', border: '#f4f4f5', get label() { return t('Branca'); } };
 
 /** As cores do tema da app: o coral da marca, o âmbar dos brindes, o verde do online, o azul do céu e a noite. */
 export const NOTE_TONES: Record<NoteColor, NoteTone> = {
-  coral: { bg: '#d6334f', text: '#ffffff', sub: 'rgba(255,255,255,0.85)', border: '#d6334f', label: 'Coral' },
-  ambar: { bg: '#fef3c7', text: '#92400e', sub: '#b45309', border: '#fde68a', label: 'Âmbar' },
-  verde: { bg: '#dcfce7', text: '#166534', sub: '#15803d', border: '#bbf7d0', label: 'Verde' },
-  ceu: { bg: '#e0f2fe', text: '#075985', sub: '#0369a1', border: '#bae6fd', label: 'Céu' },
-  noite: { bg: '#18181b', text: '#ffffff', sub: '#a1a1aa', border: '#18181b', label: 'Noite' },
+  coral: { bg: '#d6334f', text: '#ffffff', sub: 'rgba(255,255,255,0.85)', border: '#d6334f', get label() { return t('Coral'); } },
+  ambar: { bg: '#fef3c7', text: '#92400e', sub: '#b45309', border: '#fde68a', get label() { return t('Âmbar'); } },
+  verde: { bg: '#dcfce7', text: '#166534', sub: '#15803d', border: '#bbf7d0', get label() { return t('Verde'); } },
+  ceu: { bg: '#e0f2fe', text: '#075985', sub: '#0369a1', border: '#bae6fd', get label() { return t('Céu'); } },
+  noite: { bg: '#18181b', text: '#ffffff', sub: '#a1a1aa', border: '#18181b', get label() { return t('Noite'); } },
 };
 
 /** As cores da bolha de uma nota (uma cor desconhecida, de um servidor mais novo, fica branca). */
@@ -48,7 +49,7 @@ export function noteLayout(n: { music?: unknown }): 'music' | 'text' {
 
 /** O texto do campo de responder: «Responder à nota…» com música, «Responder a @nome» sem ela. */
 export function noteReplyPlaceholder(n: { username: string; music?: unknown }): string {
-  return n.music ? 'Responder à nota…' : `Responder a @${n.username}`;
+  return n.music ? t('Responder à nota…') : `Responder a @${n.username}`;
 }
 
 /** O aviso depois de responder (com o botão «Ver», que abre a conversa). */
@@ -60,9 +61,9 @@ export function noteSentText(username: string): string {
 export function noteAgo(iso: string, now = Date.now()): string {
   const s = (now - new Date(iso).getTime()) / 1000;
   if (!Number.isFinite(s) || s < 60) return 'agora';
-  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
-  return `há ${Math.floor(s / 86400)} d`;
+  if (s < 3600) return t('há {n} min', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('há {n} h', { n: Math.floor(s / 3600) });
+  return t('há {n} d', { n: Math.floor(s / 86400) });
 }
 
 /** Quem vê a nota: 'mutual' = quem me segue (os meus seguidores); 'close_friends' = a minha lista de amigos próximos. */
@@ -70,5 +71,5 @@ export type NoteAudience = 'mutual' | 'close_friends';
 
 /** O nome do público (o botão em baixo no editor, a folha de escolha e a etiqueta da minha nota). */
 export function noteAudienceLabel(a: NoteAudience): string {
-  return a === 'close_friends' ? 'Amigos próximos' : 'Seguidores';
+  return a === 'close_friends' ? t('Amigos próximos') : t('Seguidores');
 }

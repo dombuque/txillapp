@@ -8,6 +8,7 @@ import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
 import { fmtTxills, txillsLabel, viewersLabel } from '@/lib/txillada';
 import { formatVibes } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 /** O coral do «AO VIVO» (a cor da marca) e o tom mais claro do gradiente da roda. */
 export const LIVE = colors.brand;
@@ -30,10 +31,10 @@ export function LiveBadge({ time, small = false }: { time?: string; small?: bool
   const p = usePulse();
   const pulse = useAnimatedStyle(() => ({ opacity: 0.55 + 0.45 * (1 - p.value) }));
   return (
-    <View style={[st.badgeRow]} accessibilityRole="text" accessibilityLabel={time ? `Ao vivo, ${time}` : 'Ao vivo'}>
+    <View style={[st.badgeRow]} accessibilityRole="text" accessibilityLabel={time ? t('Ao vivo, {time}', { time }) : t('Ao vivo')}>
       <View style={[st.badge, small && st.badgeSmall]}>
         <Animated.View style={pulse}><Icon name="txillada" size={small ? 11 : 14} color="#fff" strokeWidth={2.4} /></Animated.View>
-        <Text style={[st.badgeText, small && { fontSize: 9.5 }]}>AO VIVO</Text>
+        <Text style={[st.badgeText, small && { fontSize: 9.5 }]}>{t('AO VIVO')}</Text>
       </View>
       {time ? <View style={st.time}><Text style={st.timeText}>{time}</Text></View> : null}
     </View>
@@ -71,22 +72,22 @@ export function LiveRing({ children, price }: { children: React.ReactNode; price
         <Circle cx={36} cy={36} r={33} fill="none" strokeWidth={3.5} stroke="url(#lr)" />
       </Svg>
       <View style={st.ringInner}>{children}</View>
-      <View style={st.ringBadge} pointerEvents="none" accessibilityLabel={price ? `Ao vivo, privada: ${txillsLabel(price)}` : undefined}>
+      <View style={st.ringBadge} pointerEvents="none" accessibilityLabel={price ? t('Ao vivo, privada: {txillsLabel}', { txillsLabel: txillsLabel(price) }) : undefined}>
         <Icon name={price ? 'lock' : 'txillada'} size={9} color="#fff" strokeWidth={2.6} />
-        <Text style={st.ringBadgeText}>{price ? formatVibes(price, { short: true }) : 'AO VIVO'}</Text>
+        <Text style={st.ringBadgeText}>{price ? formatVibes(price, { short: true }) : t('AO VIVO')}</Text>
       </View>
     </View>
   );
 }
 
 /** «A Txillada acabou» (a Txillada não se grava: acabada, já não se pode ver), com voltar. */
-export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas não ficam gravadas: só se veem ao vivo.', onBack }: { title?: string; sub?: string; onBack: () => void }) {
+export function EndedView({ title = t('A Txillada acabou'), sub = t('As Txilladas não ficam gravadas: só se veem ao vivo.'), onBack }: { title?: string; sub?: string; onBack: () => void }) {
   return (
     <View style={st.center}>
       <View style={st.endIcon}><Icon name="txillada" size={32} color="#fff" /></View>
       <Text style={st.endTitle} accessibilityRole="header">{title}</Text>
       <Text style={st.endSub}>{sub}</Text>
-      <Button label="Voltar" onPress={onBack} style={st.cta} />
+      <Button label={t('Voltar')} onPress={onBack} style={st.cta} />
     </View>
   );
 }
@@ -98,18 +99,18 @@ export function EndedView({ title = 'A Txillada acabou', sub = 'As Txilladas nã
  */
 export function HostSummary({ duration, peak, cheers, comments, raised = 0, tickets = null, cut, onDone, reopen }: { duration: string; peak: number; cheers: number; comments: number; raised?: number; tickets?: number | null; cut?: boolean; onDone: () => void; reopen?: { goal: number; raised: number; until: string | null; busy: boolean; onPress: () => void } | null }) {
   const items: { label: string; value: string }[] = [
-    { label: 'Duração', value: duration },
-    { label: 'Pico de espectadores', value: String(peak) },
-    { label: 'Brindes', value: String(cheers) },
-    { label: 'Comentários', value: String(comments) },
+    { label: t('Duração'), value: duration },
+    { label: t('Pico de espectadores'), value: String(peak) },
+    { label: t('Brindes'), value: String(cheers) },
+    { label: t('Comentários'), value: String(comments) },
     // Txillada privada e Angariação (0167): as entradas pagas e os Txills oferecidos (já estão na carteira).
-    ...(tickets != null ? [{ label: cut ? 'Entradas (devolvidas)' : 'Entradas pagas', value: String(tickets) }] : []),
-    ...(raised > 0 ? [{ label: 'Vibes oferecidas', value: fmtTxills(raised) }] : []),
+    ...(tickets != null ? [{ label: cut ? t('Entradas (devolvidas)') : t('Entradas pagas'), value: String(tickets) }] : []),
+    ...(raised > 0 ? [{ label: t('Vibes oferecidas'), value: fmtTxills(raised) }] : []),
   ];
   return (
     <View style={st.center}>
-      <Text style={st.endTitle} accessibilityRole="header">A Txillada acabou e não fica gravada</Text>
-      {cut ? <Text style={st.endSub}>A equipa do Txillapp terminou esta Txillada por não cumprir as regras da comunidade.</Text> : <Text style={st.endSub}>Obrigado por teres aberto a Txillada. Aqui fica como correu.</Text>}
+      <Text style={st.endTitle} accessibilityRole="header">{t('A Txillada acabou e não fica gravada')}</Text>
+      {cut ? <Text style={st.endSub}>{t('A equipa do Txillapp terminou esta Txillada por não cumprir as regras da comunidade.')}</Text> : <Text style={st.endSub}>{t('Obrigado por teres aberto a Txillada. Aqui fica como correu.')}</Text>}
       <View style={st.grid}>
         {items.map((i) => (
           <View key={i.label} style={st.cell}>
@@ -121,10 +122,10 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
       {reopen && !cut ? (
         <View style={st.reopen}>
           <Text style={st.endSub}>{reopenText(reopen.raised, reopen.goal, reopen.until)}</Text>
-          <Button label="Reabrir a Angariação" onPress={reopen.onPress} loading={reopen.busy} style={st.cta} testID="txillada-reopen" />
+          <Button label={t('Reabrir a Angariação')} onPress={reopen.onPress} loading={reopen.busy} style={st.cta} testID="txillada-reopen" />
         </View>
       ) : null}
-      <Button label="Feito" kind={reopen && !cut ? 'secondary' : 'primary'} dark onPress={onDone} style={st.cta} />
+      <Button label={t('Feito')} kind={reopen && !cut ? 'secondary' : 'primary'} dark onPress={onDone} style={st.cta} />
     </View>
   );
 }
@@ -132,15 +133,15 @@ export function HostSummary({ duration, peak, cheers, comments, raised = 0, tick
 /** «Faltam N vibes para a meta. Podes reabrir até às 21:40 de amanhã.» */
 export function reopenText(raised: number, goal: number, until: string | null, now = Date.now()): string {
   const left = Math.max(0, Math.round(goal - raised));
-  const t = until ? Date.parse(until) : NaN;
+  const tv = until ? Date.parse(until) : NaN;
   let when = '';
-  if (Number.isFinite(t) && t > now) {
-    const d = new Date(t);
+  if (Number.isFinite(tv) && tv > now) {
+    const d = new Date(tv);
     const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     const sameDay = new Date(now).toDateString() === d.toDateString();
-    when = ` Podes reabrir até às ${hm}${sameDay ? '' : ' de amanhã'}.`;
+    when = (' ' + t('Podes reabrir até às {hm}{value}.', { hm, value: sameDay ? '' : (' ' + t('de amanhã')) }));
   }
-  return `${left === 1 ? 'Falta' : 'Faltam'} ${formatVibes(left)} para a meta.${when}`;
+  return t('{value} {vibes} para a meta.{when}', { value: left === 1 ? t('Falta') : t('Faltam'), vibes: formatVibes(left), when });
 }
 
 /** Um botão redondo de vidro escuro (os mesmos dos visores). */

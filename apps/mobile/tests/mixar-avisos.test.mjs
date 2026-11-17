@@ -56,7 +56,7 @@ test('a linha do Mixar nas Mensagens só aparece com novidades, com a bolinha, p
   const entry = read('components/mixar/MixarEntry.tsx');
   assert.match(entry, /const fresh = mixarsWithDot\(q\.data\?\.items, seen\);\s*if \(!fresh\.length\) return null;/);
   assert.match(entry, /const e = inboxEntry\(fresh\)/);
-  assert.match(entry, /<MixarDot inline label="Há novidades" \/>/);
+  assert.match(entry, /<MixarDot inline label=\{t\('Há novidades'\)\} \/>/);
   // A dica de antes («Junta os teus gostos…») já não aparece.
   assert.doesNotMatch(entry, /st\.hint/);
   const inbox = read('app/(tabs)/messages.tsx');
@@ -99,7 +99,7 @@ test('os avisos na lista: textos, o nome do Mixar por baixo e para onde levam', 
 test('definições: uma opção «Mixar» (as mensagens já não falam do Mixar)', () => {
   const idx = read('lib/settingsIndex.ts');
   assert.match(idx, /mixar: \['Mixar', '[^']+'\]/);
-  assert.doesNotMatch(idx.match(/messages: \['Mensagens', '([^']+)'\]/)[1], /Mixar/);
+  assert.doesNotMatch(idx.match(/messages\(\) \{ return \[t\('Mensagens'\), t\('([^']+)'\)\]/)[1], /Mixar/);
   assert.match(read('components/settings/device.tsx'), /c === 'mixar' \? 'mixar'/);
 });
 
@@ -117,8 +117,8 @@ test('sugestões: «Faz um Mixar com Lina», o match, e sem quem já tem Mixar c
   assert.match(card, /<NameWithBadge name=\{suggestionTitle\(s\.displayName\)\} who=\{s\}/);
   assert.match(card, /mixar\.run\(s\.username, s\.displayName\)/);
   assert.match(card, /mixarAvisosApi\.dismiss\(s\.username\)/);
-  assert.match(card, />Convidar</);
-  assert.match(card, />Agora não</);
+  assert.match(card, />\{t\('Convidar'\)\}</);
+  assert.match(card, />\{t\('Agora não'\)\}</);
   assert.match(read('app/mixar/index.tsx'), /<MixarSuggestions \/>/);
 });
 

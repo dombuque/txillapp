@@ -277,7 +277,7 @@ test('fixar e denunciar um comentário: as rotas do contrato, o menu e a pílula
   assert.match(screen, /type="txillada_comment" id=\{reporting\.id\} txilladaId=\{dto\.id\}/);
   assert.match(screen, /onReported=\{\(\) => tx\.hideComment\(reporting\)\}/);
   const pill = read('src/components/txillada/PinnedComment.tsx');
-  assert.match(pill, /<PinIcon [^>]*\/>\s*<Text style=\{st\.tagText\}>Fixado<\/Text>/);
+  assert.match(pill, /<PinIcon [^>]*\/>\s*<Text style=\{st\.tagText\}>\{t\('Fixado'\)\}<\/Text>/);
   assert.match(pill, /<NameWithBadge name=\{c\.author\.username\} who=\{c\.author\}/);
   const menu = read('src/components/txillada/CommentMenu.tsx');
   assert.match(menu, /<NameWithBadge name=\{c\.author\.username\} who=\{c\.author\}/);

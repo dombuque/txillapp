@@ -3,6 +3,7 @@ import { track } from './analytics';
 import { fetchAuthed } from './api';
 import { saveToGallery } from './saveToGallery';
 import { downloadName, downloadPath, downloadTarget, quickRefusal, refusalMessage, type DownloadablePost } from './tchekaDownload';
+import { t } from '@/lib/i18n';
 
 /**
  * Guarda a tcheka com a assinatura e o cartão do fim (lib/tchekaDownload). No telemóvel: na galeria (pede acesso às fotos);
@@ -10,21 +11,21 @@ import { downloadName, downloadPath, downloadTarget, quickRefusal, refusalMessag
  * Se a API recusar (quem publicou não deixa guardar), mostra a mensagem dela.
  */
 export async function saveTcheka(post: DownloadablePost): Promise<boolean> {
-  const t = downloadTarget(post);
-  if (!t) return false;
+  const tv = downloadTarget(post);
+  if (!tv) return false;
   try {
-    const r = await saveToGallery(downloadPath(t), downloadName(t));
+    const r = await saveToGallery(downloadPath(tv), downloadName(tv));
     if (r === 'denied') {
-      Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar a tcheka.');
+      Alert.alert(t('Sem acesso à galeria'), t('Dá acesso às fotos nas definições do telemóvel para guardar a tcheka.'));
       return false;
     }
     track('share', { target: 'download' });
-    if (Platform.OS !== 'web') Alert.alert('Guardado', 'A tcheka está na tua galeria, com a assinatura do Txillapp.');
+    if (Platform.OS !== 'web') Alert.alert(t('Guardado'), t('A tcheka está na tua galeria, com a assinatura do Txillapp.'));
     return true;
   } catch (e) {
     const refused = Platform.OS === 'web' ? null : quickRefusal(e);
-    if (refused) Alert.alert('Não dá para guardar', await refusalText(t, refused));
-    else Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+    if (refused) Alert.alert(t('Não dá para guardar'), await refusalText(tv, refused));
+    else Alert.alert(t('Não consegui guardar'), (e as Error).message || t('Tenta outra vez.'));
     return false;
   }
 }

@@ -4,6 +4,7 @@
  * PWA do telemóvel nada disto corre.
  */
 
+import { t } from '@/lib/i18n';
 export interface KeyLike {
   key: string;
   shiftKey?: boolean;
@@ -90,16 +91,16 @@ export function lastMine<T extends { id: string; fromMe: boolean; kind: string; 
 
 /** A ajuda dos atalhos ("?"): as teclas e o que fazem. `mac` troca Ctrl por ⌘. */
 export function shortcutHelp(mac: boolean): { keys: string[]; label: string }[] {
-  const mod = mac ? '⌘' : 'Ctrl';
+  const mod = mac ? '⌘' : t('Ctrl');
   return [
-    { keys: [mod, 'K'], label: 'Procurar conversas' },
-    { keys: ['Alt', '↑'], label: 'Conversa anterior' },
-    { keys: ['Alt', '↓'], label: 'Conversa seguinte' },
-    { keys: ['Enter'], label: 'Enviar a mensagem' },
-    { keys: ['Shift', 'Enter'], label: 'Mudar de linha' },
-    { keys: ['↑'], label: 'Editar a tua última mensagem (com a caixa vazia)' },
-    { keys: ['Esc'], label: 'Fechar, cancelar a resposta ou a edição, sair da pesquisa' },
-    { keys: ['?'], label: 'Mostrar estes atalhos' },
+    { keys: [mod, 'K'], label: t('Procurar conversas') },
+    { keys: [t('Alt'), '↑'], label: t('Conversa anterior') },
+    { keys: [t('Alt'), '↓'], label: t('Conversa seguinte') },
+    { keys: ['Enter'], label: t('Enviar a mensagem') },
+    { keys: [t('Shift'), 'Enter'], label: t('Mudar de linha') },
+    { keys: ['↑'], label: t('Editar a tua última mensagem (com a caixa vazia)') },
+    { keys: ['Esc'], label: t('Fechar, cancelar a resposta ou a edição, sair da pesquisa') },
+    { keys: ['?'], label: t('Mostrar estes atalhos') },
   ];
 }
 

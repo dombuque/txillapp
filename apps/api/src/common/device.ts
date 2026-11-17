@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders } from 'http';
+import { msg } from '../i18n/i18n';
 
 /**
  * Aparelhos com sessão iniciada: um nome legível a partir do user agent ("iPhone · Safari (app instalada)",
@@ -64,7 +65,7 @@ function browserOf(ua: string): string {
 /** O nome legível de um aparelho, a partir do user agent guardado na sessão. */
 export function describeDevice(raw?: string | null): DeviceInfo {
   const ua = (raw ?? '').trim();
-  if (!ua) return { label: 'Aparelho desconhecido', kind: 'unknown', mobile: false };
+  if (!ua) return { label: msg('Aparelho desconhecido'), kind: 'unknown', mobile: false };
 
   // App nativa: com a marca (versões novas) ou pelo user agent da biblioteca de rede (versões antigas da app).
   const app = /^TxillappApp(?:\/([\d.]+))?(?: \((android|ios|ipad)\))?/.exec(ua);

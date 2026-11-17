@@ -7,6 +7,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
 import { mixarControloApi, mixarControloKeys, type MixarPrivateTopics } from '@/lib/api.mixarControlo';
 import { privateCountLabel, togglePrivate } from '@/lib/mixarControlo';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /**
  * Definições › Privacidade › «Temas privados no Mixar» (0172): os temas que nunca aparecem nos meus Mixar, nem na
@@ -32,20 +33,20 @@ export default function MixarPrivateTopicsScreen() {
       void qc.invalidateQueries({ queryKey: ['mixar'] });
     } catch {
       qc.setQueryData(key, before);
-      setErr('Não consegui guardar. Tenta outra vez.');
+      setErr(t('Não consegui guardar. Tenta outra vez.'));
     }
   }
 
   return (
-    <SettingsPage title="Temas privados no Mixar">
-      <SettingsSection note="Os temas que escolheres nunca aparecem nos teus Mixar: não contam para a compatibilidade, não entram nos temas em comum nem nas razões («Porque gostas de…») e ficam fora do resumo da semana e da imagem que se partilha. Vale para todos os teus Mixar e a outra pessoa não sabe quais são. O teu feed normal não muda.">
-        <Text style={st.count}>Privados: {privateCountLabel(chosen.length)}</Text>
+    <SettingsPage title={t('Temas privados no Mixar')}>
+      <SettingsSection note={t('Os temas que escolheres nunca aparecem nos teus Mixar: não contam para a compatibilidade, não entram nos temas em comum nem nas razões («Porque gostas de…») e ficam fora do resumo da semana e da imagem que se partilha. Vale para todos os teus Mixar e a outra pessoa não sabe quais são. O teu feed normal não muda.')}>
+        <Text style={st.count}>{t('Privados: {privateCountLabel}', { privateCountLabel: privateCountLabel(chosen.length) })}</Text>
       </SettingsSection>
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       {q.isPending ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-      {q.isError ? <Text style={st.err}>Não consegui abrir os temas. Tenta outra vez daqui a pouco.</Text> : null}
+      {q.isError ? <Text style={st.err}>{t('Não consegui abrir os temas. Tenta outra vez daqui a pouco.')}</Text> : null}
       {q.data ? (
-        <SettingsSection title="Temas">
+        <SettingsSection title={t('Temas')}>
           {q.data.all.map((t) => (
             <SettingRow key={t.topic} icon={chosen.includes(t.topic) ? 'lock' : 'tag'} title={t.label} toggle={{ on: chosen.includes(t.topic), onChange: (v) => void toggle(t.topic, v) }} />
           ))}

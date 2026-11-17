@@ -184,7 +184,7 @@ export class ArtistsService implements LocalMusicSource, OnModuleInit {
   async apply(userId: string, b: ApplyInput) {
     const cur = (await this.pool.query('SELECT status, proof_media_id FROM content.artist_profiles WHERE user_id = $1', [userId])).rows[0];
     if (cur?.status === 'approved') throw new ConflictException('Esta conta já é de artista');
-    if (cur?.status === 'revoked') throw new ForbiddenException('A equipa tirou o estatuto de artista a esta conta. Escreve para ' + RIGHTS_CONTACT);
+    if (cur?.status === 'revoked') throw new ForbiddenException(`A equipa tirou o estatuto de artista a esta conta. Escreve para ${RIGHTS_CONTACT}`);
     if (b.rightsKind === 'label' && !b.labelName?.trim()) throw new BadRequestException('Diz o nome da editora');
     if (b.proofMediaId) {
       const ok = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'image/%'`, [b.proofMediaId, userId]);

@@ -5,6 +5,7 @@
  */
 
 /** O "@par" que está a ser escrito: `start` é o @, `end` o fim da palavra, `query` o que já se escreveu até ao cursor. */
+import { t } from '@/lib/i18n';
 export interface MentionToken {
   start: number;
   end: number;
@@ -59,17 +60,17 @@ export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proxi
 /** A razão discreta por baixo do nome. */
 export function reasonLabel(reason?: MentionReason | null): string | null {
   switch (reason) {
-    case 'conversa': return 'Conversam';
-    case 'segues-te': return 'Seguem-se';
-    case 'segue-te': return 'Segue-te';
-    case 'amigo-proximo': return 'Amigo próximo';
-    case 'neste-post': return 'Neste post';
-    case 'no-grupo': return 'No grupo';
+    case 'conversa': return t('Conversam');
+    case 'segues-te': return t('Seguem-se');
+    case 'segue-te': return t('Segue-te');
+    case 'amigo-proximo': return t('Amigo próximo');
+    case 'neste-post': return t('Neste post');
+    case 'no-grupo': return t('No grupo');
     // Na Txillada.
-    case 'anfitriao': return 'Anfitrião';
+    case 'anfitriao': return t('Anfitrião');
     case 'a-transmitir': return 'A transmitir';
     case 'a-ver': return 'A ver';
-    case 'comentou': return 'Comentou';
+    case 'comentou': return t('Comentou');
     default: return null;
   }
 }

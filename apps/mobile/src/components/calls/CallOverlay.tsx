@@ -20,11 +20,12 @@ import { useDesktop } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 import { CallIcon } from './CallIcons';
 import { TxFrame } from './TxFrame';
+import { t } from '@/lib/i18n';
 
 const GREEN = '#22c55e';
 const RED = '#ef4444';
 const native = Platform.OS !== 'web';
-const QUICK = ['Estou ocupado, já te ligo', 'Estou numa reunião, ligo depois', 'Não posso falar agora, manda mensagem'];
+const QUICK = () => [t('Estou ocupado, já te ligo'), t('Estou numa reunião, ligo depois'), t('Não posso falar agora, manda mensagem')];
 
 /**
  * O ecrã da chamada, por cima de tudo (a tocar, a chamar, em chamada e o fim). Vive no layout raiz: aparece em qualquer ecrã
@@ -112,7 +113,7 @@ function PairAvatars({ peer }: { peer: CallPeer | null }) {
   const size = 112;
   const ring = { borderRadius: size / 2, borderWidth: 3, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'rgba(255,255,255,0.15)' };
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', height: size }} accessibilityLabel={`Em chamada com ${peer?.displayName ?? ''}`}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', height: size }} accessibilityLabel={t('Em chamada com {displayName}', { displayName: peer?.displayName ?? '' })}>
       <View style={[ring, { zIndex: 1 }]}><Avatar name={me?.displayName ?? '?'} username={me?.username} size={size - 6} /></View>
       <View style={[ring, { marginLeft: -size * 0.22 }]}><Avatar name={peer?.displayName ?? '?'} username={peer?.hasAvatar ? peer.username : undefined} size={size - 6} /></View>
     </View>
@@ -143,7 +144,7 @@ function Kind({ video, text }: { video: boolean; text?: string }) {
   return (
     <View style={st.kind}>
       {video ? <Icon name="video" size={16} color="rgba(255,255,255,0.9)" /> : <CallIcon name="handset" size={15} color="rgba(255,255,255,0.9)" />}
-      <Text style={st.kindText}>{text ?? (video ? 'Videochamada' : 'Chamada de voz')}</Text>
+      <Text style={st.kindText}>{text ?? (video ? t('Videochamada') : t('Chamada de voz'))}</Text>
     </View>
   );
 }
@@ -201,7 +202,7 @@ function SpeakerButton({ c, spacer }: { c: CallState; spacer?: boolean }) {
     const lit = speakerLit(c.speaker, c.audioRoute);
     const headset = c.audioRoute === 'bluetooth' || c.audioRoute === 'wired';
     return (
-      <Ctrl label={speakerLabel(lit)} hint={headset ? (c.audioRoute === 'bluetooth' ? 'O som está no aparelho Bluetooth' : 'O som está nos auscultadores') : undefined} off={lit} onPress={toggleSpeaker}>
+      <Ctrl label={speakerLabel(lit)} hint={headset ? (c.audioRoute === 'bluetooth' ? t('O som está no aparelho Bluetooth') : t('O som está nos auscultadores')) : undefined} off={lit} onPress={toggleSpeaker}>
         {(col) => <Icon name="volume" size={24} color={col} />}
       </Ctrl>
     );
@@ -213,13 +214,13 @@ function SpeakerButton({ c, spacer }: { c: CallState; spacer?: boolean }) {
   };
   return (
     <>
-      <Ctrl label="Saída do som" hint={outputs.find((o) => o.id === selected)?.label} off={open} onPress={() => setOpen(true)}>
+      <Ctrl label={t('Saída do som')} hint={outputs.find((o) => o.id === selected)?.label} off={open} onPress={() => setOpen(true)}>
         {(col) => <Icon name="volume" size={24} color={col} />}
       </Ctrl>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={st.sinkBackdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Fechar">
+        <Pressable style={st.sinkBackdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel={t('Fechar')}>
           <Pressable style={st.sinkSheet} onPress={() => undefined}>
-            <Text style={st.repliesTitle}>Saída do som</Text>
+            <Text style={st.repliesTitle}>{t('Saída do som')}</Text>
             {outputs.map((o) => (
               <Pressable key={o.id} onPress={() => pick(o.id)} style={({ pressed }) => [st.reply, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="radio" accessibilityState={{ selected: o.id === selected }}>
                 <Text style={[st.replyText, { flex: 1 }]} numberOfLines={1}>{o.label}</Text>
@@ -253,48 +254,48 @@ function Incoming({ c }: { c: CallState }) {
       {replies ? (
         <View style={[st.replies, { paddingBottom: pad.bottom }]}>
           <View style={st.repliesHead}>
-            <Text style={st.repliesTitle}>Responder com mensagem</Text>
-            <Pressable onPress={() => { setReplies(false); setWriting(false); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={20} color={colors.zinc700} /></Pressable>
+            <Text style={st.repliesTitle}>{t('Responder com mensagem')}</Text>
+            <Pressable onPress={() => { setReplies(false); setWriting(false); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={20} color={colors.zinc700} /></Pressable>
           </View>
           {writing ? (
             <View style={st.writeRow}>
-              <TextInput autoFocus value={text} onChangeText={setText} placeholder="Escreve a tua mensagem…" placeholderTextColor={colors.zinc500} style={st.writeInput} maxLength={300} onSubmitEditing={() => text.trim() && declineCall(text)} returnKeyType="send" accessibilityLabel="Mensagem" />
-              <SendButton label="Enviar e recusar" onPress={() => { if (text.trim()) declineCall(text); }} disabled={!text.trim()} />
+              <TextInput autoFocus value={text} onChangeText={setText} placeholder={t('Escreve a tua mensagem…')} placeholderTextColor={colors.zinc500} style={st.writeInput} maxLength={300} onSubmitEditing={() => text.trim() && declineCall(text)} returnKeyType="send" accessibilityLabel={t('Mensagem')} />
+              <SendButton label={t('Enviar e recusar')} onPress={() => { if (text.trim()) declineCall(text); }} disabled={!text.trim()} />
             </View>
           ) : (
             <>
-              {QUICK.map((q) => (
+              {QUICK().map((q) => (
                 <Pressable key={q} onPress={() => declineCall(q)} style={({ pressed }) => [st.reply, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                   <Text style={st.replyText}>{q}</Text>
                 </Pressable>
               ))}
               <Pressable onPress={() => setWriting(true)} style={({ pressed }) => [st.reply, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                 <Icon name="pencil" size={18} color={colors.zinc700} />
-                <Text style={[st.replyText, { color: colors.zinc700 }]}>Escrever…</Text>
+                <Text style={[st.replyText, { color: colors.zinc700 }]}>{t('Escrever…')}</Text>
               </Pressable>
             </>
           )}
         </View>
       ) : (
         <View style={{ paddingBottom: pad.bottom, alignItems: 'center', gap: 22 }}>
-          <Pressable onPress={() => setReplies(true)} style={({ pressed }) => [st.msgBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel="Recusar com mensagem">
+          <Pressable onPress={() => setReplies(true)} style={({ pressed }) => [st.msgBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel={t('Recusar com mensagem')}>
             <Icon name="comment" size={20} color="#fff" />
-            <Text style={st.msgText}>Mensagem</Text>
+            <Text style={st.msgText}>{t('Mensagem')}</Text>
           </Pressable>
           <View style={st.answerRow}>
-            <BigBtn bg={RED} label="Recusar" onPress={() => declineCall()}><CallIcon name="hangup" size={30} color="#fff" strokeWidth={2.1} /></BigBtn>
+            <BigBtn bg={RED} label={t('Recusar')} onPress={() => declineCall()}><CallIcon name="hangup" size={30} color="#fff" strokeWidth={2.1} /></BigBtn>
             <View style={{ alignItems: 'center', gap: 8, marginBottom: 26 }}>
-              <View style={st.toggle} accessibilityRole="radiogroup" accessibilityLabel="Atender com">
-                <Pressable onPress={() => setWithVideo(false)} style={[st.toggleSeg, !withVideo && st.toggleOn]} accessibilityRole="radio" accessibilityState={{ selected: !withVideo }} accessibilityLabel="Atender com voz">
+              <View style={st.toggle} accessibilityRole="radiogroup" accessibilityLabel={t('Atender com')}>
+                <Pressable onPress={() => setWithVideo(false)} style={[st.toggleSeg, !withVideo && st.toggleOn]} accessibilityRole="radio" accessibilityState={{ selected: !withVideo }} accessibilityLabel={t('Atender com voz')}>
                   <CallIcon name="handset" size={16} color={!withVideo ? colors.zinc900 : '#fff'} />
                 </Pressable>
-                <Pressable onPress={() => setWithVideo(true)} style={[st.toggleSeg, withVideo && st.toggleOn]} accessibilityRole="radio" accessibilityState={{ selected: withVideo }} accessibilityLabel="Atender com vídeo">
+                <Pressable onPress={() => setWithVideo(true)} style={[st.toggleSeg, withVideo && st.toggleOn]} accessibilityRole="radio" accessibilityState={{ selected: withVideo }} accessibilityLabel={t('Atender com vídeo')}>
                   <Icon name="video" size={17} color={withVideo ? colors.zinc900 : '#fff'} />
                 </Pressable>
               </View>
-              <Text style={st.toggleText}>{withVideo ? 'com vídeo' : 'só voz'}</Text>
+              <Text style={st.toggleText}>{withVideo ? t('com vídeo') : t('só voz')}</Text>
             </View>
-            <BigBtn bg={GREEN} label="Atender" onPress={() => void acceptCall(withVideo)}>
+            <BigBtn bg={GREEN} label={t('Atender')} onPress={() => void acceptCall(withVideo)}>
               {withVideo ? <Icon name="video" size={30} color="#fff" strokeWidth={2} /> : <CallIcon name="handset" size={29} color="#fff" strokeWidth={2.1} />}
             </BigBtn>
           </View>
@@ -319,8 +320,8 @@ function Outgoing({ c }: { c: CallState }) {
         {unreachableText(c) ? <Text style={st.reach} numberOfLines={2}>{unreachableText(c)}</Text> : null}
       </View>
       <View style={[st.bar, { paddingBottom: pad.bottom }]}>
-        <View style={{ marginTop: 7 }}><Ctrl label={c.micOn ? 'Desligar o microfone' : 'Ligar o microfone'} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl></View>
-        <BigBtn bg={RED} label="Cancelar" onPress={hangUp}><CallIcon name="hangup" size={30} color="#fff" strokeWidth={2.1} /></BigBtn>
+        <View style={{ marginTop: 7 }}><Ctrl label={c.micOn ? t('Desligar o microfone') : t('Ligar o microfone')} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl></View>
+        <BigBtn bg={RED} label={t('Cancelar')} onPress={hangUp}><CallIcon name="hangup" size={30} color="#fff" strokeWidth={2.1} /></BigBtn>
         <View style={{ marginTop: 7 }}><SpeakerButton c={c} spacer /></View>
       </View>
     </View>
@@ -331,15 +332,15 @@ function Outgoing({ c }: { c: CallState }) {
 
 function Header({ c }: { c: CallState }) {
   const pad = usePad();
-  const t = useElapsed(c.startedAt);
+  const tv = useElapsed(c.startedAt);
   return (
     <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']} style={[st.header, { paddingTop: pad.top }]} pointerEvents="box-none">
-      <Pressable onPress={minimiseCall} style={st.headBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Minimizar a chamada">
+      <Pressable onPress={minimiseCall} style={st.headBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Minimizar a chamada')}>
         <CallIcon name="chevron-down" size={26} color="#fff" strokeWidth={2.2} />
       </Pressable>
       <View style={{ flex: 1, alignItems: 'center' }}>
         <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={st.headName} center />
-        <Text style={st.headTime}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
+        <Text style={st.headTime}>{c.phase === 'active' ? fmtDuration(tv) : t('A ligar…')}</Text>
       </View>
       <View style={{ width: 44 }} />
     </LinearGradient>
@@ -352,7 +353,7 @@ function PeerMuted({ c }: { c: CallState }) {
   return (
     <View style={st.muted} accessibilityLiveRegion="polite">
       <CallIcon name="mic-off" size={15} color="#fff" />
-      <Text style={st.mutedText}>{first ? `${first} · microfone desligado` : 'Microfone desligado'}</Text>
+      <Text style={st.mutedText}>{first ? t('{first} · microfone desligado', { first }) : t('Microfone desligado')}</Text>
     </View>
   );
 }
@@ -363,15 +364,15 @@ function Controls({ c, camera }: { c: CallState; camera: boolean }) {
     <View style={[st.controlsWrap, { paddingBottom: pad.bottom }]} pointerEvents="box-none">
       {c.error ? <Text style={st.err}>{c.error}</Text> : null}
       <View style={st.controls}>
-        <Ctrl label={c.micOn ? 'Desligar o microfone' : 'Ligar o microfone'} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl>
+        <Ctrl label={c.micOn ? t('Desligar o microfone') : t('Ligar o microfone')} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl>
         {camera ? (
-          <Ctrl label={c.camOn ? 'Desligar a câmara' : 'Ligar a câmara'} off={!c.camOn} onPress={() => void toggleCamera()}>{(col) => c.camOn ? <Icon name="video" size={24} color={col} /> : <CallIcon name="video-off" size={24} color={col} />}</Ctrl>
+          <Ctrl label={c.camOn ? t('Desligar a câmara') : t('Ligar a câmara')} off={!c.camOn} onPress={() => void toggleCamera()}>{(col) => c.camOn ? <Icon name="video" size={24} color={col} /> : <CallIcon name="video-off" size={24} color={col} />}</Ctrl>
         ) : null}
         {camera && c.camOn && c.canFlip ? (
-          <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="cam-flip" size={24} color={col} />}</Ctrl>
+          <Ctrl label={t('Virar a câmara')} onPress={() => void flipCamera()}>{(col) => <Icon name="cam-flip" size={24} color={col} />}</Ctrl>
         ) : null}
         <SpeakerButton c={c} />
-        <Pressable onPress={hangUp} style={({ pressed }) => [st.ctrl, { backgroundColor: RED }, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Desligar">
+        <Pressable onPress={hangUp} style={({ pressed }) => [st.ctrl, { backgroundColor: RED }, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={t('Desligar')}>
           <CallIcon name="hangup" size={26} color="#fff" strokeWidth={2.1} />
         </Pressable>
       </View>
@@ -381,19 +382,19 @@ function Controls({ c, camera }: { c: CallState; camera: boolean }) {
 
 function VoiceCall({ c }: { c: CallState }) {
   const pad = usePad();
-  const t = useElapsed(c.startedAt);
+  const tv2 = useElapsed(c.startedAt);
   return (
     <View style={{ flex: 1 }}>
       <Backdrop peer={c.peer} />
       <View style={[st.topRow, { paddingTop: pad.top }]}>
-        <Pressable onPress={minimiseCall} style={st.headBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Minimizar a chamada">
+        <Pressable onPress={minimiseCall} style={st.headBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Minimizar a chamada')}>
           <CallIcon name="chevron-down" size={26} color="#fff" strokeWidth={2.2} />
         </Pressable>
       </View>
       <View style={[st.center, { paddingTop: 24 }]}>
         {c.phase === 'active' ? <PairAvatars peer={c.peer} /> : <PulseAvatar peer={c.peer} size={136} pulse={c.phase === 'connecting'} />}
         <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
-        <Text style={st.timer}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
+        <Text style={st.timer}>{c.phase === 'active' ? fmtDuration(tv2) : t('A ligar…')}</Text>
         <PeerMuted c={c} />
       </View>
       {/* Na chamada de voz também se liga a câmara: passa a videochamada (o WebRTC renegoceia e o outro lado vê o vídeo). */}
@@ -421,7 +422,7 @@ function VideoCall({ c }: { c: CallState }) {
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
         <Backdrop peer={c.peer} />
         <Avatar name={c.peer?.displayName ?? '?'} username={c.peer?.hasAvatar ? c.peer.username : undefined} size={small ? 56 : 120} />
-        {!small ? <Text style={[st.timer, { marginTop: 14 }]}>{c.remote ? 'Câmara desligada' : 'A ligar…'}</Text> : null}
+        {!small ? <Text style={[st.timer, { marginTop: 14 }]}>{c.remote ? t('Câmara desligada') : t('A ligar…')}</Text> : null}
       </View>
     );
   const localView = (small: boolean) =>
@@ -490,7 +491,7 @@ function Pip({ box, top, bottom, onTap, children }: { box: { w: number; h: numbe
   ).current;
 
   return (
-    <Animated.View {...pan.panHandlers} style={[st.pip, { transform: pos.getTranslateTransform() }]} accessibilityRole="button" accessibilityLabel="Trocar os vídeos" accessibilityHint="Arrasta para mudar de canto">
+    <Animated.View {...pan.panHandlers} style={[st.pip, { transform: pos.getTranslateTransform() }]} accessibilityRole="button" accessibilityLabel={t('Trocar os vídeos')} accessibilityHint={t('Arrasta para mudar de canto')}>
       {children}
     </Animated.View>
   );
@@ -500,20 +501,20 @@ function Pip({ box, top, bottom, onTap, children }: { box: { w: number; h: numbe
 
 function endText(c: CallState, ms: number): string {
   switch (c.endReason) {
-    case 'declined': return 'Chamada recusada';
-    case 'busy': return 'Está noutra chamada';
-    case 'no-answer': return 'Sem resposta';
-    case 'cancelled': return 'Chamada cancelada';
-    case 'blocked': return c.error ?? 'Não podes ligar a esta pessoa';
-    case 'failed': return c.error ?? 'A ligação caiu';
-    default: return c.startedAt ? `Chamada terminada · ${fmtDuration(ms)}` : 'Chamada terminada';
+    case 'declined': return t('Chamada recusada');
+    case 'busy': return t('Está noutra chamada');
+    case 'no-answer': return t('Sem resposta');
+    case 'cancelled': return t('Chamada cancelada');
+    case 'blocked': return c.error ?? t('Não podes ligar a esta pessoa');
+    case 'failed': return c.error ?? t('A ligação caiu');
+    default: return c.startedAt ? t('Chamada terminada · {duration}', { duration: fmtDuration(ms) }) : t('Chamada terminada');
   }
 }
 
 function Ended({ c }: { c: CallState }) {
   const ms = useElapsed(c.startedAt, c.endedAt);
   return (
-    <Pressable style={{ flex: 1 }} onPress={dismissEnded} accessibilityRole="button" accessibilityLabel="Fechar">
+    <Pressable style={{ flex: 1 }} onPress={dismissEnded} accessibilityRole="button" accessibilityLabel={t('Fechar')}>
       <Backdrop peer={c.peer} />
       <View style={[st.center, { justifyContent: 'center', flex: 1 }]}>
         <PulseAvatar peer={c.peer} size={104} />
@@ -529,11 +530,11 @@ function Ended({ c }: { c: CallState }) {
 
 function MiniCall({ c }: { c: CallState }) {
   const insets = useSafeAreaInsets();
-  const t = useElapsed(c.startedAt);
-  const label = c.phase === 'incoming' ? 'A tocar' : c.phase === 'outgoing' ? outgoingLabel(c) : c.phase === 'active' ? fmtDuration(t) : 'A ligar…';
+  const tv3 = useElapsed(c.startedAt);
+  const label = c.phase === 'incoming' ? 'A tocar' : c.phase === 'outgoing' ? outgoingLabel(c) : c.phase === 'active' ? fmtDuration(tv3) : 'A ligar…';
   return (
     <View style={[st.miniWrap, { top: Math.max(insets.top, 8) + 4 }]} pointerEvents="box-none">
-      <Pressable onPress={expandCall} style={({ pressed }) => [st.mini, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Voltar à chamada">
+      <Pressable onPress={expandCall} style={({ pressed }) => [st.mini, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={t('Voltar à chamada')}>
         {c.video ? <Icon name="video" size={16} color="#fff" /> : <CallIcon name="handset" size={15} color="#fff" />}
         <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={st.miniText} containerStyle={{ flexShrink: 1 }}><Text style={[st.miniText, { flexShrink: 0 }]}>· {label}</Text></NameWithBadge>
         {c.micOn ? null : <CallIcon name="mic-off" size={15} color="#fff" />}

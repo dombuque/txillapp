@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { ProductKind, StoreAdapter, StoreProduct, StorePurchase } from './core';
+import { t } from '@/lib/i18n';
 
 /**
  * A loja no telemóvel (iOS: StoreKit 2; Android: Google Play Billing), pelo expo-iap. A biblioteca só se carrega quando
@@ -33,7 +34,7 @@ export const nativeStore: StoreAdapter = {
   async connect() {
     const m = await sdk();
     const ok = await m.initConnection();
-    if (!ok) throw Object.assign(new Error('A loja não respondeu'), { code: 'init-connection' });
+    if (!ok) throw Object.assign(new Error(t('A loja não respondeu')), { code: 'init-connection' });
   },
   async products(ids: string[], kind: ProductKind): Promise<StoreProduct[]> {
     const m = await sdk();

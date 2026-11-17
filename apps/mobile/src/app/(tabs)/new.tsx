@@ -54,6 +54,7 @@ import { timeAgo } from '@/lib/time';
 import { FontChips } from '@/components/FontChips';
 import { DEFAULT_TEXT_FONT, fontToSend, normTextFont, postFontSize, type TextFontId } from '@/lib/textLayers';
 import { useTextFontStyle } from '@/lib/useTextFonts';
+import { t } from '@/lib/i18n';
 
 const MAX_PHOTOS = 10;
 /** Numa tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
@@ -161,7 +162,7 @@ function probeDuration(uri: string): Promise<number> {
   });
 }
 
-const ASKS = ['Qual é a vibe, {n}?', 'O que se passa, {n}?', 'Conta lá, {n}, o que andas a aprontar?', 'Onde é que a malta está hoje, {n}?', 'Qual é o plano, {n}?', 'Largaste o quê hoje, {n}?', 'Tens fofoca boa, {n}?', 'Bora, {n}, solta a vibe!', 'Que bom plano é esse, {n}?'];
+const ASKS = () => [t('Qual é a vibe, {n}?'), t('O que se passa, {n}?'), t('Conta lá, {n}, o que andas a aprontar?'), t('Onde é que a malta está hoje, {n}?'), t('Qual é o plano, {n}?'), t('Largaste o quê hoje, {n}?'), t('Tens fofoca boa, {n}?'), t('Bora, {n}, solta a vibe!'), t('Que bom plano é esse, {n}?')];
 
 /**
  * Nova publicação como no site: a câmara (na web, ao vivo; no nativo, câmara/galeria/vídeo/texto) e depois o cartão para escrever,
@@ -201,7 +202,7 @@ export default function Compose() {
   const [focused, setFocused] = useState(true);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   // A ordem dos modos segue o que a pessoa mais usa (conta-se cada vez que avança num modo; fica no aparelho).
-  const KINDS_BASE = [{ id: 'post', label: 'Publicação' }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
+  const KINDS_BASE = [{ id: 'post', label: t('Publicação') }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
   const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
   // O Zás fica sempre em último (nunca é a primeira coisa da câmara); os outros seguem o uso.
   // A TXILLADA (o live) vem no fim, depois do Zás, e só quando o servidor a liga (GET /txilladas/config).
@@ -257,7 +258,7 @@ export default function Compose() {
   useEffect(() => {
     if (kindParam === 'tcheka' || somParam || duetoParam) { setKindSel('tcheka'); setStep('choose'); }
     if (somParam) {
-      void soundsApi.get(String(somParam)).then((s) => { setSound(s); setMusic(soundTrack(s)); }).catch(() => setErr('Não consegui abrir este som'));
+      void soundsApi.get(String(somParam)).then((s) => { setSound(s); setMusic(soundTrack(s)); }).catch(() => setErr(t('Não consegui abrir este som')));
     }
     if (duetoParam) {
       void api.getPost(String(duetoParam)).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
@@ -274,7 +275,7 @@ export default function Compose() {
   const draftKey = useRef(draft || newDraftKey(user?.username ?? 'eu'));
   const settled = useRef(false);
   const first = user?.displayName.split(' ')[0] ?? '';
-  const [ask] = useState(() => ASKS[Math.floor(Math.random() * ASKS.length)].replace('{n}', first));
+  const [ask] = useState(() => ASKS()[Math.floor(Math.random() * ASKS().length)].replace('{n}', first));
 
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
@@ -363,15 +364,15 @@ export default function Compose() {
     const cap = toStudio ? MAX_CLIPS : MAX_PHOTOS;
     for (const f of files) {
       if (f.type.startsWith('video/')) {
-        if (count >= cap) { problem = toStudio ? `Máximo de ${MAX_CLIPS} fotos e vídeos por tcheka` : `Máximo de ${MAX_PHOTOS} fotos e vídeos por publicação`; continue; }
-        if (f.size > 100 * 1024 * 1024) { problem = 'Vídeo pesado demais! Máximo 100 MB'; continue; }
+        if (count >= cap) { problem = toStudio ? t('Máximo de {maxClips} fotos e vídeos por tcheka', { maxClips: MAX_CLIPS }) : t('Máximo de {maxPhotos} fotos e vídeos por publicação', { maxPhotos: MAX_PHOTOS }); continue; }
+        if (f.size > 100 * 1024 * 1024) { problem = t('Vídeo pesado demais! Máximo 100 MB'); continue; }
         const uri = URL.createObjectURL(f);
         const ms = await probeDuration(uri);
-        if (ms > 60_500) { URL.revokeObjectURL(uri); problem = 'O vídeo tem de ter até 60 segundos'; continue; }
+        if (ms > 60_500) { URL.revokeObjectURL(uri); problem = t('O vídeo tem de ter até 60 segundos'); continue; }
         next.push({ uri, video: true, mime: videoMime(f.type), durationMs: ms || undefined, tags: [] });
         count += 1;
       } else if (count >= cap) {
-        problem = toStudio ? `Máximo de ${MAX_CLIPS} fotos e vídeos por tcheka` : `Máximo de ${MAX_PHOTOS} fotos por publicação`;
+        problem = toStudio ? t('Máximo de {maxClips} fotos e vídeos por tcheka', { maxClips: MAX_CLIPS }) : t('Máximo de {maxPhotos} fotos por publicação', { maxPhotos: MAX_PHOTOS });
         break;
       } else {
         // Onde foi tirada (lido antes de converter, que apaga os metadados).
@@ -380,7 +381,7 @@ export default function Compose() {
         let file: File = f;
         if (!IMAGE_TYPES.includes(f.type) || f.size > MAX_BYTES) {
           const conv = await toJpeg(f);
-          if (!conv) { problem = `Não consegui ler a foto ${f.name || ''} (${f.type || 'tipo desconhecido'}, ${(f.size / 1048576).toFixed(1)} MB). Tenta exportá-la como JPEG.`; continue; }
+          if (!conv) { problem = t('Não consegui ler a foto {name} ({type}, {n} MB). Tenta exportá-la como JPEG.', { name: f.name || '', type: f.type || t('tipo desconhecido'), n: (f.size / 1048576).toFixed(1) }); continue; }
           file = conv;
         }
         next.push({ uri: URL.createObjectURL(file), video: false, mime: file.type, tags: [] });
@@ -454,7 +455,7 @@ export default function Compose() {
     try {
       if (source === 'camera') {
         const p = await ImagePicker.requestCameraPermissionsAsync();
-        if (!p.granted) return setErr('Sem permissão para a câmara. Ativa-a nas definições.');
+        if (!p.granted) return setErr(t('Sem permissão para a câmara. Ativa-a nas definições.'));
       }
       const opts: ImagePicker.ImagePickerOptions = {
         mediaTypes: kind === 'video' ? ['videos'] : source === 'library' ? ['images', 'videos'] : ['images'],
@@ -470,12 +471,12 @@ export default function Compose() {
       const next = r.assets.map((a): Asset => ({ uri: a.uri, video: a.type === 'video', mime: a.type === 'video' ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined, tags: [] }));
       // Vídeos com mais de 60 s ficam de fora (o servidor recusa-os).
       const ok = next.filter((a) => !a.video || !a.durationMs || a.durationMs <= 60_500);
-      if (ok.length < next.length) setErr('Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.');
+      if (ok.length < next.length) setErr(t('Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.'));
       if (!ok.length) return;
       void appendAssets(ok, postFlow());
       setStep('write');
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui abrir a câmara');
+      setErr((e as Error).message || t('Não consegui abrir a câmara'));
     }
   }
 
@@ -550,7 +551,7 @@ export default function Compose() {
     setStudioOffer(null);
     const got = await studioDrafts().load(d.id).catch(() => null);
     const clips = got ? normalizeClips(got.clips) : [];
-    if (!got || !clips.length) { Object.values(got?.media ?? {}).forEach((u) => { if (u.startsWith('blob:')) URL.revokeObjectURL(u); }); setErr('Não consegui abrir o rascunho'); return; }
+    if (!got || !clips.length) { Object.values(got?.media ?? {}).forEach((u) => { if (u.startsWith('blob:')) URL.revokeObjectURL(u); }); setErr(t('Não consegui abrir o rascunho')); return; }
     const ctx = got.draft.context ?? {};
     if (typeof ctx.soundId === 'string') void soundsApi.get(ctx.soundId).then(setSound).catch(() => undefined);
     if (typeof ctx.dueto === 'string') void api.getPost(ctx.dueto).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
@@ -593,7 +594,7 @@ export default function Compose() {
       {web ? (
         <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} aspect={4 / 5} />
       ) : (
-        <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle="Nova publicação" onClose={() => setCameraOpen(false)} aspect={4 / 5} />
+        <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle={t('Nova publicação')} onClose={() => setCameraOpen(false)} aspect={4 / 5} />
       )}
     </View>
   );
@@ -643,7 +644,7 @@ export default function Compose() {
           onClose={() => router.replace('/')}
           onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') { if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId(); setStudio(true); } else setStep('write'); }}
           onText={() => setStep('write')}
-          doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
+          doneLabel={kindSel === 'tcheka' ? t('Montar') : t('Seguinte')}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
           keepClean={kindSel === 'tcheka'}
           segmented={kindSel === 'tcheka' ? {
@@ -669,7 +670,7 @@ export default function Compose() {
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
         {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
         {studioOffer && kindSel === 'tcheka' ? (
-          <Sheet title="Continuar o rascunho?" dark onClose={() => setStudioOffer(null)}>
+          <Sheet title={t('Continuar o rascunho?')} dark onClose={() => setStudioOffer(null)}>
             <StudioDrafts drafts={studioOffer} onContinue={(d) => void continueStudioDraft(d)} onDelete={(id) => void dropStudioDraft(id)} onNew={() => setStudioOffer(null)} />
           </Sheet>
         ) : null}
@@ -690,7 +691,7 @@ export default function Compose() {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <GalleryPicker
-            title="Nova publicação"
+            title={t('Nova publicação')}
             preview
             multi
             kinds={kinds}
@@ -714,7 +715,7 @@ export default function Compose() {
           onShot={shot}
           multi={kindSel === 'post' || kindSel === 'tcheka'}
           onPickMany={pickMany}
-          galleryTitle={kindSel === 'mimo' ? 'Adicionar ao mimo' : kindSel === 'tcheka' ? 'Nova tcheka' : 'Nova publicação'}
+          galleryTitle={kindSel === 'mimo' ? t('Adicionar ao mimo') : kindSel === 'tcheka' ? t('Nova tcheka') : t('Nova publicação')}
           onClose={() => router.replace('/')}
           onText={() => setStep('write')}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
@@ -724,7 +725,7 @@ export default function Compose() {
           // Numa tcheka: os clipes juntam-se (fotos sem a assinatura: o estúdio assina o vídeo) e «Montar» abre o estúdio.
           unsigned={kindSel === 'tcheka'}
           count={kindSel === 'tcheka' ? assets.length : 0}
-          doneLabel="Montar"
+          doneLabel={t('Montar')}
           onDone={kindSel === 'tcheka' ? () => { bumpKind('tcheka'); if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId(); setStudio(true); } : undefined}
         />
         {kindSel === 'tcheka' && assets.length >= 2 && !assets.some((a) => a.studio) ? (
@@ -733,7 +734,7 @@ export default function Compose() {
           </View>
         ) : null}
         {studioOffer && kindSel === 'tcheka' ? (
-          <Sheet title="Continuar o rascunho?" dark onClose={() => setStudioOffer(null)}>
+          <Sheet title={t('Continuar o rascunho?')} dark onClose={() => setStudioOffer(null)}>
             <StudioDrafts drafts={studioOffer} onContinue={(d) => void continueStudioDraft(d)} onDelete={(id) => void dropStudioDraft(id)} onNew={() => setStudioOffer(null)} />
           </Sheet>
         ) : null}
@@ -746,23 +747,23 @@ export default function Compose() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
         <View style={styles.top}>
-          <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
-          <Text style={styles.title}>Nova publicação</Text>
+          <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel={t('Cancelar')}><Icon name="x" size={24} strokeWidth={2} /></Pressable>
+          <Text style={styles.title}>{t('Nova publicação')}</Text>
           <View style={{ width: 44 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-          <Text style={styles.hello}>O que vais partilhar, {first}?</Text>
-          <Text style={styles.helloSub}>Escolhe um para começar. Podes sempre juntar mais depois.</Text>
+          <Text style={styles.hello}>{t('O que vais partilhar, {first}?', { first })}</Text>
+          <Text style={styles.helloSub}>{t('Escolhe um para começar. Podes sempre juntar mais depois.')}</Text>
           <View style={styles.grid}>
-            <Tile icon="camera" title="Tirar foto" sub="Câmara" tone={[colors.brand, '#ff8a5b']} onPress={() => void add('camera', 'photo')} />
-            <Tile icon="image" title="Galeria" sub="Fotos e vídeos, até 10" tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
-            <Tile icon="video" title="Vídeo" sub="Até 60 s" tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
-            <Tile icon="pencil" title="Só texto" sub="Uma ideia, um desabafo" tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
+            <Tile icon="camera" title={t('Tirar foto')} sub={t('Câmara')} tone={[colors.brand, '#ff8a5b']} onPress={() => void add('camera', 'photo')} />
+            <Tile icon="image" title={t('Galeria')} sub={t('Fotos e vídeos, até 10')} tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
+            <Tile icon="video" title={t('Vídeo')} sub={t('Até 60 s')} tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
+            <Tile icon="pencil" title={t('Só texto')} sub={t('Uma ideia, um desabafo')} tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
           </View>
           {drafts.length > 0 ? (
             <Pressable onPress={() => router.push('/drafts' as never)} style={styles.draftsLink} accessibilityRole="button">
               <Icon name="file-text" size={18} color={colors.zinc800} />
-              <Text style={styles.draftsText}>Rascunhos</Text>
+              <Text style={styles.draftsText}>{t('Rascunhos')}</Text>
             </Pressable>
           ) : null}
           {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
@@ -775,34 +776,34 @@ export default function Compose() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior="padding">
       <View style={styles.top}>
-        <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
-        <Text style={styles.title}>{assets.length === 1 && video ? 'Nova tcheka' : 'Nova publicação'}</Text>
+        <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel={t('Cancelar')}><Icon name="x" size={24} strokeWidth={2} /></Pressable>
+        <Text style={styles.title}>{assets.length === 1 && video ? t('Nova tcheka') : t('Nova publicação')}</Text>
         <Pressable onPress={() => void submit()} disabled={!canPost} style={[styles.publish, !canPost && { backgroundColor: 'rgba(214,51,79,0.4)' }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={styles.publishText}>Publicar</Text>}
+          {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={styles.publishText}>{t('Publicar')}</Text>}
         </Pressable>
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }} showsVerticalScrollIndicator={false}>
         {!restored && drafts.length > 0 ? (
           <Pressable onPress={() => setDraftsOpen(true)} style={styles.draftsBar} accessibilityRole="button">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="file-text" size={18} color={colors.zinc800} /><Text style={styles.draftsText}>Rascunhos</Text></View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="file-text" size={18} color={colors.zinc800} /><Text style={styles.draftsText}>{t('Rascunhos')}</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{drafts.length}</Text></View>
           </Pressable>
         ) : null}
         {restored ? (
           <View style={styles.restored}>
-            <Text style={{ fontWeight: '600', color: colors.zinc800, fontSize: 14 }}>Rascunho recuperado</Text>
-            <Pressable onPress={() => { void clearDraft(draftKey.current); reset(); setStep('write'); refreshDrafts(); }} accessibilityRole="button"><Text style={{ fontWeight: '700', color: colors.brand, fontSize: 14 }}>Descartar</Text></Pressable>
+            <Text style={{ fontWeight: '600', color: colors.zinc800, fontSize: 14 }}>{t('Rascunho recuperado')}</Text>
+            <Pressable onPress={() => { void clearDraft(draftKey.current); reset(); setStep('write'); refreshDrafts(); }} accessibilityRole="button"><Text style={{ fontWeight: '700', color: colors.brand, fontSize: 14 }}>{t('Descartar')}</Text></Pressable>
           </View>
         ) : null}
 
         <View style={styles.card}>
           {(myPages.data ?? []).some((p) => p.canPost) ? (
             // Tenho páginas de locais: escolho se publico como eu ou como a página.
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Publicar como">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={t('Publicar como')}>
               <Pressable onPress={() => setAsVenue(null)} accessibilityRole="radio" accessibilityState={{ selected: !pageSel }} style={[styles.asChip, !pageSel && styles.asChipOn]}>
                 <Avatar name={user?.displayName ?? '?'} username={user?.username} size={22} />
-                <Text style={[styles.asText, !pageSel && { color: '#fff' }]}>Eu</Text>
+                <Text style={[styles.asText, !pageSel && { color: '#fff' }]}>{t('Eu')}</Text>
               </Pressable>
               {(myPages.data ?? []).filter((p) => p.canPost).map((p) => (
                 <Pressable key={p.slug} onPress={() => setAsVenue(p.slug)} accessibilityRole="radio" accessibilityState={{ selected: pageSel?.slug === p.slug }} style={[styles.asChip, pageSel?.slug === p.slug && styles.asChipOn]}>
@@ -817,14 +818,14 @@ export default function Compose() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.name} numberOfLines={1}>{pageSel ? pageSel.name : user?.displayName}</Text>
               {pageSel ? (
-                <Text style={styles.handle} numberOfLines={1}>Publicar como a página · o sítio fica o próprio local</Text>
+                <Text style={styles.handle} numberOfLines={1}>{t('Publicar como a página · o sítio fica o próprio local')}</Text>
               ) : place ? (
                 <View style={styles.placePill}>
                   <Pressable onPress={() => setPlaceOpen(true)} style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }} accessibilityRole="button">
                     <Icon name="map-pin" size={16} color={colors.brand} />
                     <Text style={styles.placeText} numberOfLines={1}>{place}</Text>
                   </Pressable>
-                  <Pressable onPress={() => { setPlace(''); setPlaceGeo(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar o local"><Text style={styles.placeX}>×</Text></Pressable>
+                  <Pressable onPress={() => { setPlace(''); setPlaceGeo(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar o local')}><Text style={styles.placeX}>×</Text></Pressable>
                 </View>
               ) : (
                 <Text style={styles.handle}>@{user?.username}</Text>
@@ -834,17 +835,17 @@ export default function Compose() {
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
             <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
-            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={[styles.input, textOnly && textFont !== DEFAULT_TEXT_FONT ? [postFontSize(textFont, 20), textFace] : null]} accessibilityLabel="Texto da publicação" />
-            {textOnly ? <FontChips value={textFont} onChange={setTextFont} label="Letra da publicação" style={{ marginHorizontal: -20, marginBottom: 10 }} /> : null}
+            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={[styles.input, textOnly && textFont !== DEFAULT_TEXT_FONT ? [postFontSize(textFont, 20), textFace] : null]} accessibilityLabel={t('Texto da publicação')} />
+            {textOnly ? <FontChips value={textFont} onChange={setTextFont} label={t('Letra da publicação')} style={{ marginHorizontal: -20, marginBottom: 10 }} /> : null}
             {music ? (
               <View>
                 <TrackCard track={music} />
-                <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
+                <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>
               </View>
             ) : (
               <Pressable onPress={() => setPickMusic(true)} style={styles.musicBtn} accessibilityRole="button">
                 <Icon name="music" size={16} color={colors.zinc800} />
-                <Text style={styles.musicText}>Adicionar música</Text>
+                <Text style={styles.musicText}>{t('Adicionar música')}</Text>
               </Pressable>
             )}
             {left < 200 ? <Text style={[styles.left, left < 50 && { color: colors.brand, fontWeight: '600' }]} accessibilityLiveRegion="polite">{left}</Text> : null}
@@ -855,10 +856,10 @@ export default function Compose() {
               {web ? createElement('video', { src: video.uri, controls: true, playsInline: true, preload: 'metadata', style: { width: '100%', maxHeight: 320, objectFit: 'contain', display: 'block' } }) : (
                 <View style={{ height: 220, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="play" size={48} color="#fff" solid />
-                  <Text style={{ color: '#fff', marginTop: 8, fontWeight: '600' }}>Vídeo{video.durationMs ? ` · ${Math.round(video.durationMs / 1000)} s` : ''}</Text>
+                  <Text style={{ color: '#fff', marginTop: 8, fontWeight: '600' }}>{t('Vídeo')}{video.durationMs ? ` · ${Math.round(video.durationMs / 1000)} s` : ''}</Text>
                 </View>
               )}
-              <Pressable onPress={() => removeAsset(video.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel="Tirar o vídeo"><Icon name="x" size={18} color="#fff" /></Pressable>
+              <Pressable onPress={() => removeAsset(video.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={t('Tirar o vídeo')}><Icon name="x" size={18} color="#fff" /></Pressable>
             </View>
           ) : null}
 
@@ -875,24 +876,24 @@ export default function Compose() {
                 return (
                   <View key={a.uri} style={[styles.thumb, size]}>
                     {a.video ? (
-                      <Pressable onPress={() => setPlaying(a.uri)} style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]} accessibilityRole="button" accessibilityLabel={`Ver o vídeo ${i + 1}`}>
+                      <Pressable onPress={() => setPlaying(a.uri)} style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]} accessibilityRole="button" accessibilityLabel={t('Ver o vídeo {n}', { n: i + 1 })}>
                         {web ? createElement('video', { src: `${a.uri}#t=0.1`, muted: true, playsInline: true, preload: 'metadata', style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' } }) : null}
                         <View style={styles.playDot}><Icon name="play" size={22} color="#fff" solid /></View>
                         {a.durationMs ? <View style={styles.dur}><Icon name="video" size={12} color="#fff" /><Text style={styles.coverText}>{Math.round(a.durationMs / 1000)} s</Text></View> : null}
                       </Pressable>
                     ) : (
                       <>
-                        <Pressable onPress={() => setViewing(photoIndex)} style={StyleSheet.absoluteFill} accessibilityRole="imagebutton" accessibilityLabel={`Ver a foto ${i + 1}`}>
+                        <Pressable onPress={() => setViewing(photoIndex)} style={StyleSheet.absoluteFill} accessibilityRole="imagebutton" accessibilityLabel={t('Ver a foto {n}', { n: i + 1 })}>
                           <Image source={{ uri: a.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
                         </Pressable>
-                        <Pressable onPress={() => setTagging(i)} style={styles.tagBtn} accessibilityRole="button" accessibilityLabel={`Identificar pessoas na foto ${i + 1}`}>
+                        <Pressable onPress={() => setTagging(i)} style={styles.tagBtn} accessibilityRole="button" accessibilityLabel={t('Identificar pessoas na foto {n}', { n: i + 1 })}>
                           <Icon name="users" size={16} color="#fff" />
-                          <Text style={styles.tagBtnText}>{a.tags.length ? a.tags.length : 'Identificar'}</Text>
+                          <Text style={styles.tagBtnText}>{a.tags.length ? a.tags.length : t('Identificar')}</Text>
                         </Pressable>
                       </>
                     )}
-                    {i === 0 && n > 1 ? <View style={styles.cover}><Text style={styles.coverText}>Capa</Text></View> : null}
-                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? `Tirar o vídeo ${i + 1}` : `Tirar a foto ${i + 1}`}><Icon name="x" size={18} color="#fff" /></Pressable>
+                    {i === 0 && n > 1 ? <View style={styles.cover}><Text style={styles.coverText}>{t('Capa')}</Text></View> : null}
+                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? t('Tirar o vídeo {n}', { n: i + 1 }) : t('Tirar a foto {n}', { n: i + 1 })}><Icon name="x" size={18} color="#fff" /></Pressable>
                   </View>
                 );
               })}
@@ -901,7 +902,7 @@ export default function Compose() {
           {preparing > 0 ? (
             <View style={styles.preparing} accessibilityLiveRegion="polite">
               <ActivityIndicator color={colors.zinc500} size="small" />
-              <Text style={styles.preparingText}>A preparar as fotos…</Text>
+              <Text style={styles.preparingText}>{t('A preparar as fotos…')}</Text>
             </View>
           ) : null}
           {playing ? <VideoPreview uri={playing} onClose={() => setPlaying(null)} /> : null}
@@ -909,20 +910,20 @@ export default function Compose() {
           <View style={styles.chips}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable onPress={pickPhoto} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
-                <Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Foto</Text>
+                <Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Foto')}</Text>
               </Pressable>
               <Pressable onPress={pickVideo} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
-                <Icon name="video" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Vídeo</Text>
+                <Icon name="video" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Vídeo')}</Text>
               </Pressable>
               <Pressable onPress={() => setPlaceOpen(true)} style={styles.chip} accessibilityRole="button">
-                <Icon name="map-pin" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Local</Text>
+                <Icon name="map-pin" size={20} color={colors.zinc800} /><Text style={styles.chipText}>{t('Local')}</Text>
               </Pressable>
             </View>
             {assets.length > 0 ? <Text style={styles.count}>{assets.length}/{MAX_PHOTOS}</Text> : null}
           </View>
         </View>
 
-        {tchekaRules?.hint ? <Text style={styles.errLine} accessibilityRole="alert">Para publicar a tcheka: {tchekaRules.hint}</Text> : null}
+        {tchekaRules?.hint ? <Text style={styles.errLine} accessibilityRole="alert">{t('Para publicar a tcheka: {hint}', { hint: tchekaRules.hint })}</Text> : null}
         <Text style={styles.errLine} accessibilityRole="alert">{err}</Text>
         {progress ? <Text style={styles.progress} accessibilityRole="summary">{progress}</Text> : null}
       </ScrollView>
@@ -935,20 +936,20 @@ export default function Compose() {
         <PhotoTagger src={assets[tagging].uri} tags={assets[tagging].tags} onDone={(tags) => { setAssets((cur) => cur.map((a, n) => (n === tagging ? { ...a, tags } : a))); setTagging(null); }} />
       ) : null}
       {sourceOpen ? (
-        <Sheet title="Adicionar foto" onClose={() => setSourceOpen(false)}>
+        <Sheet title={t('Adicionar foto')} onClose={() => setSourceOpen(false)}>
           <View style={{ paddingHorizontal: 24, gap: 8 }}>
-            <Pressable onPress={() => { setSourceOpen(false); void add('camera', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>Tirar foto</Text></Pressable>
-            <Pressable onPress={() => { setSourceOpen(false); void add('library', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="image" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>Escolher da galeria</Text></Pressable>
+            <Pressable onPress={() => { setSourceOpen(false); void add('camera', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>{t('Tirar foto')}</Text></Pressable>
+            <Pressable onPress={() => { setSourceOpen(false); void add('library', 'photo'); }} style={styles.sheetBtn} accessibilityRole="button"><Icon name="image" size={20} color={colors.zinc800} /><Text style={styles.sheetBtnText}>{t('Escolher da galeria')}</Text></Pressable>
           </View>
         </Sheet>
       ) : null}
       {leaveOpen ? (
-        <Sheet title="Sair sem publicar?" onClose={() => setLeaveOpen(false)}>
+        <Sheet title={t('Sair sem publicar?')} onClose={() => setLeaveOpen(false)}>
           <View style={{ paddingHorizontal: 24 }}>
-            <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>Podes guardar isto como rascunho e continuar mais tarde</Text>
-            <Pressable onPress={() => void keepDraft()} style={styles.primary} accessibilityRole="button"><Text style={styles.primaryText}>Guardar rascunho</Text></Pressable>
-            <Pressable onPress={() => void discard()} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.red600, fontWeight: '700' }]}>Descartar</Text></Pressable>
-            <Pressable onPress={() => setLeaveOpen(false)} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.zinc700 }]}>Continuar a editar</Text></Pressable>
+            <Text style={{ marginBottom: 16, fontSize: 16, color: colors.zinc600 }}>{t('Podes guardar isto como rascunho e continuar mais tarde')}</Text>
+            <Pressable onPress={() => void keepDraft()} style={styles.primary} accessibilityRole="button"><Text style={styles.primaryText}>{t('Guardar rascunho')}</Text></Pressable>
+            <Pressable onPress={() => void discard()} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.red600, fontWeight: '700' }]}>{t('Descartar')}</Text></Pressable>
+            <Pressable onPress={() => setLeaveOpen(false)} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.zinc700 }]}>{t('Continuar a editar')}</Text></Pressable>
           </View>
         </Sheet>
       ) : null}
@@ -956,9 +957,9 @@ export default function Compose() {
         <PhotoViewer photos={photos.map((a) => ({ url: a.uri, tags: a.tags }))} start={viewing} author={{ displayName: user?.displayName ?? '', username: user?.username ?? '' }} onClose={() => setViewing(null)} />
       ) : null}
       {draftsOpen ? (
-        <Sheet title="Rascunhos" onClose={() => setDraftsOpen(false)}>
+        <Sheet title={t('Rascunhos')} onClose={() => setDraftsOpen(false)}>
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}>
-            {drafts.length === 0 ? <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600, fontSize: 16 }}>Sem rascunhos.</Text> : null}
+            {drafts.length === 0 ? <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600, fontSize: 16 }}>{t('Sem rascunhos.')}</Text> : null}
             {drafts.map((d) => {
               const n = d.photos.length;
               return (
@@ -966,11 +967,11 @@ export default function Compose() {
                   <Pressable onPress={() => void openDraft(d)} style={({ pressed }) => [styles.draftOpen, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                     {d.photos[0] ? <Image source={{ uri: d.photos[0].uri }} style={styles.draftThumb} contentFit="cover" /> : <View style={[styles.draftThumb, { backgroundColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' }]}><Icon name="file-text" size={22} color={colors.zinc500} /></View>}
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc800 }} numberOfLines={2}>{d.body.trim() || (n ? `${n} fotos` : 'Sem texto')}</Text>
-                      <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(new Date(d.savedAt).toISOString())}{n > 0 && d.body.trim() ? ` · ${n} fotos` : ''}</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc800 }} numberOfLines={2}>{d.body.trim() || (n ? t('{n} fotos', { n }) : t('Sem texto'))}</Text>
+                      <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(new Date(d.savedAt).toISOString())}{n > 0 && d.body.trim() ? (' ' + t('· {n} fotos', { n })) : ''}</Text>
                     </View>
                   </Pressable>
-                  <Pressable onPress={() => void dropDraft(d.key)} style={styles.draftTrash} accessibilityRole="button" accessibilityLabel="Apagar rascunho"><Icon name="trash" size={20} color={colors.red600} /></Pressable>
+                  <Pressable onPress={() => void dropDraft(d.key)} style={styles.draftTrash} accessibilityRole="button" accessibilityLabel={t('Apagar rascunho')}><Icon name="trash" size={20} color={colors.red600} /></Pressable>
                 </View>
               );
             })}

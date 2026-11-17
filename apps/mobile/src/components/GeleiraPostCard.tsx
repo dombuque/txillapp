@@ -15,6 +15,7 @@ import { CheersPour } from './CheersPour';
 import { FridgeArt, LEVEL_LABEL } from './FridgeArt';
 import { Icon } from './Icon';
 import { TasteBubble } from './TasteBubble';
+import { t } from '@/lib/i18n';
 
 /**
  * A geleira partilhada num post (0143): o frigorífico aberto com as prateleiras, como o FridgeArt da geleira do perfil, com
@@ -139,7 +140,7 @@ export function GeleiraPostCard({ post, me, detail = false, onOpen, preview = fa
     } catch (e) {
       setG(before);
       patch({ geleira: before });
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui brindar agora. Tenta outra vez.');
+      Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Não consegui brindar agora. Tenta outra vez.'));
     } finally {
       busy.current.delete(item.id);
     }
@@ -147,15 +148,15 @@ export function GeleiraPostCard({ post, me, detail = false, onOpen, preview = fa
 
   let lastKind = '';
   return (
-    <View style={st.wrap} accessibilityLabel={`Geleira de ${owner.displayName}, ${tastesCount(g.total)}`}>
+    <View style={st.wrap} accessibilityLabel={t('Geleira de {displayName}, {tastesCount}', { displayName: owner.displayName, tastesCount: tastesCount(g.total) })}>
       <LinearGradient colors={['#f0f9ff', '#ffffff', '#fdf2f8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <View style={st.head}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.over}>A GELEIRA DE</Text>
+          <Text style={st.over}>{t('A GELEIRA DE')}</Text>
           <Text style={st.title} numberOfLines={1}>{owner.displayName}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <View style={st.level}><Text style={st.levelText} numberOfLines={1}>{LEVEL_LABEL[g.level] ?? ''}</Text></View>
+          <View style={st.level}><Text style={st.levelText} numberOfLines={1}>{LEVEL_LABEL()[g.level] ?? ''}</Text></View>
           <Text style={st.total}>{tastesCount(g.total)}</Text>
         </View>
       </View>
@@ -194,11 +195,11 @@ export function GeleiraPostCard({ post, me, detail = false, onOpen, preview = fa
       </View>
       <CheersPour n={burst} size={150} />
 
-      {preview ? (more > 0 ? <Text style={[st.moreText, { marginTop: 8 }]}>e mais {more}: veem-se todos ao abrir o post</Text> : null) : (
+      {preview ? (more > 0 ? <Text style={[st.moreText, { marginTop: 8 }]}>{t('e mais {more}: veem-se todos ao abrir o post', { more })}</Text> : null) : (
       <View style={st.foot2}>
         {more > 0 && !detail ? (
           <Pressable onPress={onOpen} hitSlop={6} style={({ pressed }) => [st.more, pressed && { opacity: 0.7 }]} accessibilityRole="button">
-            <Text style={st.moreText}>e mais {more}</Text>
+            <Text style={st.moreText}>{t('e mais {more}', { more })}</Text>
           </Pressable>
         ) : null}
         <Pressable
@@ -206,14 +207,14 @@ export function GeleiraPostCard({ post, me, detail = false, onOpen, preview = fa
           hitSlop={6}
           style={({ pressed }) => [st.link, pressed && { opacity: 0.7 }]}
           accessibilityRole="link"
-          accessibilityHint="Abre a geleira de agora, no perfil"
+          accessibilityHint={t('Abre a geleira de agora, no perfil')}
         >
-          <Text style={st.linkText} numberOfLines={1}>{mine ? 'Ver a minha geleira' : `Ver a geleira de @${owner.username}`}</Text>
+          <Text style={st.linkText} numberOfLines={1}>{mine ? t('Ver a minha geleira') : t('Ver a geleira de @{username}', { username: owner.username })}</Text>
           <Icon name="chevron-right" size={16} color={SKY700} />
         </Pressable>
       </View>
       )}
-      {!mine ? <Text style={st.hint}>Toca num gosto para lhe brindar · o brinde fica na geleira de {owner.displayName.split(' ')[0]}</Text> : null}
+      {!mine ? <Text style={st.hint}>{t('Toca num gosto para lhe brindar · o brinde fica na geleira de {split}', { split: owner.displayName.split(' ')[0] })}</Text> : null}
     </View>
   );
 }
@@ -223,11 +224,11 @@ export function GeleiraMini({ geleira, name, ink = colors.zinc900 }: { geleira: 
   const first = geleira.items.slice(0, 5);
   const more = Math.max(0, geleira.total - first.length);
   return (
-    <View style={st.mini} accessibilityLabel={`Geleira de ${name}, ${tastesCount(geleira.total)}`}>
+    <View style={st.mini} accessibilityLabel={t('Geleira de {name}, {tastesCount}', { name, tastesCount: tastesCount(geleira.total) })}>
       <LinearGradient colors={['#f0f9ff', '#fdf2f8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <FridgeArt count={geleira.items.length} level={geleira.level} open size={40} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[st.miniTitle, { color: ink === '#fff' ? colors.zinc900 : ink }]} numberOfLines={1}>Geleira de {name}</Text>
+        <Text style={[st.miniTitle, { color: ink === '#fff' ? colors.zinc900 : ink }]} numberOfLines={1}>{t('Geleira de {name}', { name })}</Text>
         <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center' }}>
           {first.map((i, k) => (
             <View key={i.id} style={{ marginLeft: k ? -6 : 0 }}>

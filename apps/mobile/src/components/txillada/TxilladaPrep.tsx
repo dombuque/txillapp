@@ -25,6 +25,7 @@ import { handOff, usePreview } from '@/lib/txilladaRoom';
 import { GlassButton, LiveBadge } from './TxilladaParts';
 import { ScheduleSheet, type ScheduleForm } from './TxilladaSchedule';
 import { TxilladaVideo } from './TxilladaVideo';
+import { t } from '@/lib/i18n';
 
 /**
  * Preparar uma Txillada (Criar → TXILLADA): a câmara à vista no cartão 9:16, o título (até 80 letras), o tipo (0167:
@@ -172,7 +173,7 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
   async function start() {
     const bad = formError();
     if (bad) { setMsg(bad); return; }
-    if (!preview.tracks) { setMsg(preview.error ?? 'A câmara ainda está a abrir.'); return; }
+    if (!preview.tracks) { setMsg(preview.error ?? t('A câmara ainda está a abrir.')); return; }
     setBusy(true);
     setMsg(null);
     try {
@@ -218,14 +219,14 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
           <View style={[StyleSheet.absoluteFill, st.center, { paddingHorizontal: 24 }]}>
             <Icon name="camera" size={34} color="#fff" />
             <Text style={st.problem}>{preview.error}</Text>
-            <Pressable onPress={preview.retry} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+            <Pressable onPress={preview.retry} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         ) : null}
 
         <LinearGradient colors={['rgba(0,0,0,0.55)', 'transparent']} style={st.top} pointerEvents="box-none">
-          <GlassButton icon="x" label="Fechar" onPress={onClose} />
+          <GlassButton icon="x" label={t('Fechar')} onPress={onClose} />
           <View style={{ flex: 1, alignItems: 'center' }} pointerEvents="none"><Text style={st.heading}>Txillada</Text></View>
-          <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void preview.flip()} />
+          <GlassButton icon="cam-flip" label={t('Virar a câmara')} onPress={() => void preview.flip()} />
         </LinearGradient>
 
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.8)']} locations={[0, 0.18, 1]} style={[st.bottom, { bottom: panel.bottom, maxHeight: panel.maxHeight }]} pointerEvents="box-none">
@@ -240,25 +241,25 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
             onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
             onLayout={(e) => { viewH.current = e.nativeEvent.layout.height; }}
           >
-          <View style={st.badgeLine} pointerEvents="none"><LiveBadge small /><Text style={st.badgeHint} numberOfLines={1}>Ao vivo, sem gravar</Text></View>
+          <View style={st.badgeLine} pointerEvents="none"><LiveBadge small /><Text style={st.badgeHint} numberOfLines={1}>{t('Ao vivo, sem gravar')}</Text></View>
           <View style={st.field} onLayout={row('title')}>
             <TextInput
               value={title}
               onChangeText={(t) => { setTitle(t.slice(0, TITLE_MAX)); clear(); }}
               maxLength={TITLE_MAX}
-              placeholder="Título (opcional)"
+              placeholder={t('Título (opcional)')}
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={st.input}
               returnKeyType="done"
               onFocus={onFocus('title')}
               onBlur={onBlur}
-              accessibilityLabel="Título da Txillada"
+              accessibilityLabel={t('Título da Txillada')}
             />
             <Text style={st.count}>{TITLE_MAX - title.length}</Text>
           </View>
 
           {/* O tipo: Pública, Para amigos, Privada (paga). Fica fixo depois de começar. */}
-          <View style={st.kindRow} accessibilityRole="radiogroup" accessibilityLabel="Tipo de Txillada">
+          <View style={st.kindRow} accessibilityRole="radiogroup" accessibilityLabel={t('Tipo de Txillada')}>
             {KINDS.map((k) => {
               const on = txKind === k.id;
               return (
@@ -277,12 +278,12 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
             })}
           </View>
           {txKind === 'friends' ? (
-            <Toggle label="Só amigos próximos" sub="A tua lista dos mimos" icon="star" on={closeOnly} onChange={(v) => { setCloseOnly(v); clear(); }} />
+            <Toggle label={t('Só amigos próximos')} sub={t('A tua lista dos mimos')} icon="star" on={closeOnly} onChange={(v) => { setCloseOnly(v); clear(); }} />
           ) : null}
           {txKind === 'paid' ? (
             <View style={st.priceRow} onLayout={row('price')}>
               <Icon name="lock" size={16} color="#fff" strokeWidth={2.2} />
-              <Text style={st.priceLabel}>Entrada</Text>
+              <Text style={st.priceLabel}>{t('Entrada')}</Text>
               <View style={st.amount}>
                 <TextInput
                   value={price}
@@ -295,16 +296,16 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
                   maxLength={4}
                   onFocus={onFocus('price')}
                   onBlur={onBlur}
-                  accessibilityLabel={`Preço da entrada em vibes, de ${PRICE_MIN} a ${PRICE_MAX}`}
+                  accessibilityLabel={t('Preço da entrada em vibes, de {priceMin} a {priceMax}', { priceMin: PRICE_MIN, priceMax: PRICE_MAX })}
                 />
                 <Text style={st.amountUnit}>vib</Text>
               </View>
             </View>
           ) : null}
-          <Text style={st.hint}>{txKind === 'paid' ? `${hint}. Tu e quem convidares para transmitir entram sem pagar.` : hint}</Text>
+          <Text style={st.hint}>{txKind === 'paid' ? t('{hint}. Tu e quem convidares para transmitir entram sem pagar.', { hint }) : hint}</Text>
 
           {/* A Angariação: uma meta em Txills e para quê; quem vê oferece Txills e a barra enche-se. */}
-          <Toggle label="Angariação" sub="Uma meta em vibes que quem vê ajuda a encher" icon="gift" on={fund} onChange={(v) => { setFund(v); clear(); }} />
+          <Toggle label={t('Angariação')} sub={t('Uma meta em vibes que quem vê ajuda a encher')} icon="gift" on={fund} onChange={(v) => { setFund(v); clear(); }} />
           {fund ? (
             <View style={st.fundRow} onLayout={row('fund')}>
               <View style={[st.amount, { width: narrow ? 108 : 128, minWidth: 0 }]}>
@@ -313,13 +314,13 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
                   onChangeText={(t) => { setGoal(t.replace(/[^\d]/g, '').slice(0, 7)); clear(); }}
                   keyboardType="number-pad"
                   inputMode="numeric"
-                  placeholder="Meta"
+                  placeholder={t('Meta')}
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   style={st.amountInput}
                   maxLength={7}
                   onFocus={onFocus('fund')}
                   onBlur={onBlur}
-                  accessibilityLabel="Meta da angariação em vibes"
+                  accessibilityLabel={t('Meta da angariação em vibes')}
                 />
                 <Text style={st.amountUnit}>vib</Text>
               </View>
@@ -327,12 +328,12 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
                 value={purpose}
                 onChangeText={(t) => { setPurpose(t.slice(0, PURPOSE_MAX)); clear(); }}
                 maxLength={PURPOSE_MAX}
-                placeholder="Para quê? (opcional)"
+                placeholder={t('Para quê? (opcional)')}
                 placeholderTextColor="rgba(255,255,255,0.55)"
                 style={st.purpose}
                 onFocus={onFocus('fund')}
                 onBlur={onBlur}
-                accessibilityLabel="Para que é a angariação"
+                accessibilityLabel={t('Para que é a angariação')}
               />
             </View>
           ) : null}
@@ -341,11 +342,11 @@ export function TxilladaPrep({ active, onClose, kinds, kind, onKind }: { active:
           {/* «Começar» agora, ou «Agendar» para outro dia e hora (ao lado). */}
           <View style={st.goRow}>
             <Pressable onPress={() => void start()} disabled={busy} style={({ pressed }) => [st.go, { flex: 1 }, (busy || !preview.tracks) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
-              {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="txillada" size={22} color="#fff" strokeWidth={2.1} /><Text style={[st.goText, narrow && { fontSize: 16 }]} numberOfLines={1}>{narrow ? 'Começar' : 'Começar Txillada'}</Text></>}
+              {busy ? <ActivityIndicator color="#fff" /> : <><Icon name="txillada" size={22} color="#fff" strokeWidth={2.1} /><Text style={[st.goText, narrow && { fontSize: 16 }]} numberOfLines={1}>{narrow ? t('Começar') : t('Começar Txillada')}</Text></>}
             </Pressable>
-            <Pressable onPress={schedule} disabled={busy} style={({ pressed }) => [st.later, pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel="Agendar a Txillada para outro dia e hora">
+            <Pressable onPress={schedule} disabled={busy} style={({ pressed }) => [st.later, pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={t('Agendar a Txillada para outro dia e hora')}>
               <Icon name="calendar" size={19} color="#fff" strokeWidth={2.1} />
-              <Text style={st.laterText}>Agendar</Text>
+              <Text style={st.laterText}>{t('Agendar')}</Text>
             </Pressable>
           </View>
           </ScrollView>

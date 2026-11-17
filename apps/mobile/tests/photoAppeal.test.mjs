@@ -1,6 +1,7 @@
 // «Pedir revisão» de uma foto recusada pela verificação automática (src/lib/photoAppeal.ts, publishQueue e PublishBanner).
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,7 +55,7 @@ test('a faixa e a fila: «Pedir revisão» manda o rascunho (publicação, mimo 
   assert.ok(read('components', 'Instants.tsx').includes("kind: 'instant', payload: { mediaId, caption: text, audience: who"), 'o Zás leva a legenda (e a letra dela) no rascunho');
   const b = read('components', 'PublishBanner.tsx');
   assert.match(b, /Pedir revisão/);
-  assert.ok(b.includes("? 'Fechar' : 'Descartar'"));
+  assert.ok(b.includes("? t('Fechar') : t('Descartar')"));
   // O ApiError leva o resto da resposta (assetId) no envio (XHR) e nos pedidos normais.
   const api = read('lib', 'api.ts');
   assert.match(api, /public extra\?: Record<string, unknown>/);

@@ -3,6 +3,7 @@ import { newClientId, pendingOnline, pendingWaiting, replyOf, sendPending, shoul
 import { chatMediaSize, keepChatMedia } from './chatMediaStore';
 import { sendChatRequest } from './chatOutbox';
 import { confirm } from './confirm';
+import { t } from '@/lib/i18n';
 
 /**
  * Enviar uma mensagem de voz, foto ou vídeo numa conversa (`u:<username>`) ou num TxillGroup (`g:<id>`). Com rede vai já,
@@ -26,7 +27,7 @@ export interface ChatMediaItem {
 }
 
 /** O aviso quando não deu para guardar o ficheiro sem rede. */
-export const KEEP_FAILED_TEXT = 'Sem rede, e não consegui guardar o ficheiro neste aparelho. Tenta outra vez quando a rede voltar.';
+export const KEEP_FAILED_TEXT = () => t('Sem rede, e não consegui guardar o ficheiro neste aparelho. Tenta outra vez quando a rede voltar.');
 
 export function bigLabel(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -55,9 +56,9 @@ export async function sendChatMedia(conv: string, item: ChatMediaItem, onSent: (
     const size = await chatMediaSize(item.uri);
     if (size && size > BIG_BYTES) {
       const ok = await confirm({
-        title: 'Guardar para enviar depois?',
-        message: `Estás sem rede. Este ${item.kind === 'video' ? 'vídeo' : 'ficheiro'} tem ${bigLabel(size)}: fica guardado neste aparelho e vai sozinho quando houver rede.`,
-        confirm: 'Tentar quando houver rede',
+        title: t('Guardar para enviar depois?'),
+        message: t('Estás sem rede. Este {value} tem {bigLabel}: fica guardado neste aparelho e vai sozinho quando houver rede.', { value: item.kind === 'video' ? t('vídeo') : 'ficheiro', bigLabel: bigLabel(size) }),
+        confirm: t('Tentar quando houver rede'),
       });
       if (!ok) return 'cancelled';
     }
@@ -66,7 +67,7 @@ export async function sendChatMedia(conv: string, item: ChatMediaItem, onSent: (
   try {
     kept = await keepChatMedia(item.uri, item.mime);
   } catch {
-    throw new Error(KEEP_FAILED_TEXT);
+    throw new Error(KEEP_FAILED_TEXT());
   }
   void sendPending(conv, { kind: item.kind, body: item.body ?? '', replyTo: replyOf(item.reply), media: { ref: kept.ref, ...media }, localUri: kept.uri }, { onSent, clientId, mediaId });
   return 'queued';

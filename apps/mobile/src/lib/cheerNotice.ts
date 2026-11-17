@@ -2,6 +2,7 @@
 // O servidor já junta os brindes (uma linha por publicação ou comentário a cada 24 h) e manda a contagem e os dois últimos.
 // Sem dependências (os testes correm em Node: tests/cheerNotice.test.mjs).
 
+import { t } from '@/lib/i18n';
 export interface CheerActor { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 /** `story_comment` (0161): um comentário num mimo, com `storyId`, `storyAuthor` (o @ de quem publicou o mimo) e `mediaId`. */
 export interface CheerData { target?: 'post' | 'comment' | 'story_comment'; postId?: string; commentId?: string; tcheka?: boolean; storyId?: string; storyAuthor?: string; mediaId?: string }
@@ -9,8 +10,10 @@ export interface CheerInfo { count?: number; actors?: CheerActor[] }
 
 /** "brindou a tua publicação" / "brindaram o teu comentário" / "brindou a tua tcheka" / "brindou o teu comentário no mimo". */
 export function cheerVerb(data: CheerData, many: boolean): string {
-  const what = data.target === 'story_comment' ? 'o teu comentário no mimo' : data.target === 'comment' ? 'o teu comentário' : data.tcheka ? 'a tua tcheka' : 'a tua publicação';
-  return `${many ? 'brindaram' : 'brindou'} ${what}`;
+  if (data.target === 'story_comment') return many ? t('brindaram o teu comentário no mimo') : t('brindou o teu comentário no mimo');
+  if (data.target === 'comment') return many ? t('brindaram o teu comentário') : t('brindou o teu comentário');
+  if (data.tcheka) return many ? t('brindaram a tua tcheka') : t('brindou a tua tcheka');
+  return many ? t('brindaram a tua publicação') : t('brindou a tua publicação');
 }
 
 const MEDIA_ID = /^[0-9a-f-]{36}$/i;

@@ -17,6 +17,7 @@ import { liveState } from '@/lib/superTxillLive';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
+import { t } from '@/lib/i18n';
 
 /** O símbolo do SuperTxill: o balão com cara e o brilho no canto (ícone `supertxill`), diferente do raio do Zás. */
 export function Bolt({ size = 20, color = colors.brand }: { size?: number; color?: string }) {
@@ -59,14 +60,14 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
       <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576 }}>
           <View style={[s.header, { paddingTop: Math.max(12, insets.top) }]}>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Voltar" style={s.back}><Icon name="chevron-left" size={26} /></Pressable>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Voltar')} style={s.back}><Icon name="chevron-left" size={26} /></Pressable>
             <BotAvatar size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.title}>SuperTxill</Text>
-              <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.live === 'writing' ? 'está a escrever…' : tab === 'conversa' && chat.pending ? 'está a pensar…' : 'Escolhido para ti, com o que se passa no Txillapp'}</Text>
+              <Text style={s.sub} numberOfLines={1}>{tab === 'conversa' && chat.live === 'writing' ? t('está a escrever…') : tab === 'conversa' && chat.pending ? t('está a pensar…') : t('Escolhido para ti, com o que se passa no Txillapp')}</Text>
             </View>
             {tab === 'conversa' && chat.messages.length > 0 && (
-              <Pressable onPress={() => void confirm({ title: 'Apagar a conversa?', message: 'As mensagens com o SuperTxill saem da tua conta e não voltam.', confirm: 'Apagar', danger: true }).then((ok) => { if (ok) chat.clear(); })} accessibilityRole="button" accessibilityLabel="Apagar a conversa" style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
+              <Pressable onPress={() => void confirm({ title: t('Apagar a conversa?'), message: t('As mensagens com o SuperTxill saem da tua conta e não voltam.'), confirm: t('Apagar'), danger: true }).then((ok) => { if (ok) chat.clear(); })} accessibilityRole="button" accessibilityLabel={t('Apagar a conversa')} style={s.back}><Icon name="trash" size={20} color={colors.zinc500} /></Pressable>
             )}
           </View>
 
@@ -89,16 +90,16 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
               <TextInput
                 value={text}
                 onChangeText={setText}
-                placeholder="Procurar malta pelo nome ou @"
+                placeholder={t('Procurar malta pelo nome ou @')}
                 placeholderTextColor={colors.zinc500}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
                 style={s.findInput}
-                accessibilityLabel="Procurar malta"
+                accessibilityLabel={t('Procurar malta')}
               />
               {text ? (
-                <Pressable onPress={() => setText('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+                <Pressable onPress={() => setText('')} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
               ) : null}
             </View>
           </View>
@@ -106,10 +107,10 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: Math.max(24, insets.bottom + 16) }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {finding ? (
               <>
-                <Text style={s.h2}>Pessoas</Text>
+                <Text style={s.h2}>{t('Pessoas')}</Text>
                 {found.isPending && <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />}
-                {found.isError && !found.data && <Text accessibilityRole="alert" style={s.note}>Não consegui procurar agora. Tenta outra vez.</Text>}
-                {found.isSuccess && people.length === 0 && <Text style={[s.note, { color: colors.zinc600, fontSize: 15 }]}>Ninguém com esse nome por aqui.</Text>}
+                {found.isError && !found.data && <Text accessibilityRole="alert" style={s.note}>{t('Não consegui procurar agora. Tenta outra vez.')}</Text>}
+                {found.isSuccess && people.length === 0 && <Text style={[s.note, { color: colors.zinc600, fontSize: 15 }]}>{t('Ninguém com esse nome por aqui.')}</Text>}
                 <View style={{ marginTop: 8 }}>
                   {people.map((p) => (
                     <View key={p.username} style={s.row}>
@@ -119,7 +120,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
                           <NameWithBadge name={p.displayName} who={p} style={s.name} gap={4}>
                             {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
                           </NameWithBadge>
-                          <Text style={s.reason} numberOfLines={1}>@{p.username}{p.followsYou ? ' · Segue-te' : ''}</Text>
+                          <Text style={s.reason} numberOfLines={1}>@{p.username}{p.followsYou ? (' ' + t('· Segue-te')) : ''}</Text>
                         </View>
                       </Pressable>
                       <View style={{ width: 104 }}>
@@ -131,10 +132,10 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
               </>
             ) : (
             <>
-            <Text style={s.h2}>Malta para ti</Text>
+            <Text style={s.h2}>{t('Malta para ti')}</Text>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />}
-            {q.isError && <Text accessibilityRole="alert" style={s.note}>Não consegui ver agora. Tenta daqui a pouco.</Text>}
-            {q.isSuccess && list.length === 0 && <Text style={[s.note, { color: colors.zinc600, fontSize: 15 }]}>Ainda não tenho malta para te mostrar. Segue algumas pessoas e põe gostos na tua geleira, e eu aprendo contigo.</Text>}
+            {q.isError && <Text accessibilityRole="alert" style={s.note}>{t('Não consegui ver agora. Tenta daqui a pouco.')}</Text>}
+            {q.isSuccess && list.length === 0 && <Text style={[s.note, { color: colors.zinc600, fontSize: 15 }]}>{t('Ainda não tenho malta para te mostrar. Segue algumas pessoas e põe gostos na tua geleira, e eu aprendo contigo.')}</Text>}
             <View style={{ marginTop: 8 }}>
               {list.map((p) => (
                 <View key={p.username} style={s.row}>
@@ -155,7 +156,7 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
             </View>
             </>
             )}
-            <Text style={s.box}>Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas.</Text>
+            <Text style={s.box}>{t('Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas.')}</Text>
           </ScrollView>
           </>
           )}
@@ -167,10 +168,10 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
 
 export type SuperTxillTab = 'conversa' | 'malta';
 const TABS: { id: SuperTxillTab; label: string }[] = [
-  { id: 'conversa', label: 'Conversa' },
-  { id: 'malta', label: 'Malta para ti' },
+  { id: 'conversa', get label() { return t('Conversa'); } },
+  { id: 'malta', get label() { return t('Malta para ti'); } },
 ];
-const IDEAS = ['Estou animado hoje: onde anda a malta?', 'Que eventos há hoje perto de mim?', 'Há alguma Txillada a decorrer?', 'Dá-me uma legenda para uma foto na praia'];
+const IDEAS = () => [t('Estou animado hoje: onde anda a malta?'), t('Que eventos há hoje perto de mim?'), t('Há alguma Txillada a decorrer?'), t('Dá-me uma legenda para uma foto na praia')];
 
 /**
  * A conversa com o SuperTxill: a pergunta fica guardada e a resposta chega em segundo plano (pode demorar, o modelo corre no
@@ -183,16 +184,16 @@ export function useSuperTxillThread() {
   const [error, setError] = useState('');
   const messages = q.data?.messages ?? [];
   const ask = async (text: string) => {
-    const t = text.trim();
-    if (!t || sending) return false;
+    const txt = text.trim();
+    if (!txt || sending) return false;
     setSending(true);
     setError('');
     try {
-      await aiApi.ask(t);
+      await aiApi.ask(txt);
       await qc.invalidateQueries({ queryKey: ['supertxill'] });
       return true;
     } catch (e) {
-      setError((e as Error).message || 'Não consegui enviar. Tenta outra vez.');
+      setError((e as Error).message || t('Não consegui enviar. Tenta outra vez.'));
       return false;
     } finally {
       setSending(false);
@@ -232,10 +233,10 @@ function Dots() {
 /** «SuperTxill está a pensar…»: antes de chegar o primeiro bocado de texto. */
 export function Thinking() {
   return (
-    <View style={s.thinkRow} accessibilityLiveRegion="polite" accessibilityLabel="SuperTxill está a pensar…">
+    <View style={s.thinkRow} accessibilityLiveRegion="polite" accessibilityLabel={t('SuperTxill está a pensar…')}>
       <BotAvatar size={28} />
       <View style={s.thinkBubble}>
-        <Text style={s.thinkText}>SuperTxill está a pensar…</Text>
+        <Text style={s.thinkText}>{t('SuperTxill está a pensar…')}</Text>
         <Dots />
       </View>
     </View>
@@ -248,7 +249,7 @@ function Writing({ body }: { body: string }) {
     <View style={{ flexDirection: 'row', justifyContent: 'flex-start' }} accessibilityLiveRegion="polite">
       <View style={[s.writeBubble, s.theirs]}>
         <Text style={s.writeText}>{body}</Text>
-        <View style={s.writeDots} accessibilityLabel="SuperTxill está a escrever…"><Dots /></View>
+        <View style={s.writeDots} accessibilityLabel={t('SuperTxill está a escrever…')}><Dots /></View>
       </View>
     </View>
   );
@@ -263,14 +264,14 @@ function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16, gap: 8 }} onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        {chat.failed && <Text accessibilityRole="alert" style={s.note}>Não consegui abrir a conversa. Tenta daqui a pouco.</Text>}
+        {chat.failed && <Text accessibilityRole="alert" style={s.note}>{t('Não consegui abrir a conversa. Tenta daqui a pouco.')}</Text>}
         {chat.loaded && chat.messages.length === 0 && !chat.pending && (
           <View style={{ alignItems: 'center', marginTop: 16 }}>
             <BotAvatar size={64} />
-            <Text style={s.hello}>Fala, malta!</Text>
-            <Text style={s.helloSub}>Diz-me como te sentes e eu vejo onde anda a tua malta, o que há perto ou que Txilladas estão a dar. Também te ajudo com legendas e com a app.</Text>
+            <Text style={s.hello}>{t('Fala, malta!')}</Text>
+            <Text style={s.helloSub}>{t('Diz-me como te sentes e eu vejo onde anda a tua malta, o que há perto ou que Txilladas estão a dar. Também te ajudo com legendas e com a app.')}</Text>
             <View style={s.ideas}>
-              {IDEAS.map((i) => (
+              {IDEAS().map((i) => (
                 <Pressable key={i} onPress={() => void send(i)} accessibilityRole="button" style={s.idea}><Text style={s.ideaText}>{i}</Text></Pressable>
               ))}
             </View>
@@ -293,13 +294,13 @@ function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Pergunta ao SuperTxill…"
+            placeholder={t('Pergunta ao SuperTxill…')}
             placeholderTextColor={colors.zinc500}
             multiline
             numberOfLines={1}
             maxLength={1000}
             style={s.input}
-            accessibilityLabel="Pergunta ao SuperTxill"
+            accessibilityLabel={t('Pergunta ao SuperTxill')}
             onKeyPress={(e) => {
               const k = e.nativeEvent as unknown as { key: string; shiftKey?: boolean };
               if (Platform.OS === 'web' && k.key === 'Enter' && !k.shiftKey) {
@@ -310,7 +311,7 @@ function Conversa({ chat, bottom }: { chat: Chat; bottom: number }) {
           />
           <SendButton onPress={() => void send(text)} disabled={!text.trim() || chat.pending} />
         </View>
-        <Text style={s.fine}>O SuperTxill corre no servidor do Txillapp e só vê o que tu já podes ver na app. Pode errar.</Text>
+        <Text style={s.fine}>{t('O SuperTxill corre no servidor do Txillapp e só vê o que tu já podes ver na app. Pode errar.')}</Text>
       </View>
     </KeyboardAvoidingView>
   );

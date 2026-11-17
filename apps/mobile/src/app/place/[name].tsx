@@ -15,6 +15,7 @@ import { locaisApi } from '@/lib/api.locais';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Publicações de um sítio: "Neste sítio" (o mesmo nome) e "Perto" (até 10 km). */
 export default function PlaceScreen() {
@@ -48,15 +49,15 @@ export default function PlaceScreen() {
         <Pressable onPress={() => router.push({ pathname: '/v/[slug]', params: { slug: vd.slug } })} style={st.venue} accessibilityRole="link">
           <Icon name="check-circle" size={22} color="#fff" />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Página do local{vd.verified ? ' · Verificado' : ''}</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{t('Página do local')}{vd.verified ? (' ' + t('· Verificado')) : ''}</Text>
             <Text style={{ fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.7)' }}>{vd.checkins} check-ins</Text>
           </View>
           <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
         </Pressable>
       )}
       {/* «Perto» sem posições: fica em «Neste sítio» (e a frase por baixo explica porquê). */}
-      <SegmentedTabs tabs={[{ value: 'at', label: 'Neste sítio' }, { value: 'near', label: 'Perto' }]} value={mode} onChange={(k) => { if (k === 'near' && first && !first.hasNear) return; setMode(k); }} style={{ marginVertical: 16 }} />
-      {first && !first.hasNear && <Text style={{ marginBottom: 12, fontSize: 14, lineHeight: 20, color: colors.zinc500 }}>Ainda não há publicações com a posição deste sítio, por isso não dá para ver o que há por perto.</Text>}
+      <SegmentedTabs tabs={[{ value: 'at', label: t('Neste sítio') }, { value: 'near', label: t('Perto') }]} value={mode} onChange={(k) => { if (k === 'near' && first && !first.hasNear) return; setMode(k); }} style={{ marginVertical: 16 }} />
+      {first && !first.hasNear && <Text style={{ marginBottom: 12, fontSize: 14, lineHeight: 20, color: colors.zinc500 }}>{t('Ainda não há publicações com a posição deste sítio, por isso não dá para ver o que há por perto.')}</Text>}
     </View>
   );
 
@@ -74,9 +75,9 @@ export default function PlaceScreen() {
         refreshControl={pull.control}
         ListEmptyComponent={
           q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? (
-            <ErrorState what="este sítio" onRetry={() => void q.refetch()} />
+            <ErrorState what={t('este sítio')} onRetry={() => void q.refetch()} />
           ) : (
-            <Empty icon="map-pin" title={mode === 'at' ? 'Ainda ninguém publicou aqui' : 'Nada por perto, por agora'} />
+            <Empty icon="map-pin" title={mode === 'at' ? t('Ainda ninguém publicou aqui') : t('Nada por perto, por agora')} />
           )
         }
         // Carrega sozinha ao chegar ao fim (também no PWA do iPhone, com o LoadMore).

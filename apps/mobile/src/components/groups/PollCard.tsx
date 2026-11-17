@@ -7,6 +7,7 @@ import { Sheet } from '@/components/Sheet';
 import { groupKeys, groupsApi, type GroupPlan, type Poll } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
 import { ConfirmSheet, ErrText, Field, Pill } from './GroupParts';
+import { t } from '@/lib/i18n';
 
 /** O TxillGroup aberto: a bolha da sondagem no chat precisa de saber de que grupo é e se sou admin. */
 export interface GroupCtxValue { id: string; me: string; admin: boolean }
@@ -76,13 +77,13 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
   return (
     <View style={{ gap: 8 }}>
       <Text style={[st.q, compact && { fontSize: 15 }]}>{poll.question}</Text>
-      <Text style={st.meta}>{poll.closed ? 'Fechada' : poll.multiple ? 'Podes escolher várias' : 'Escolhe uma'} · {voters === 1 ? '1 pessoa votou' : `${voters} pessoas votaram`}</Text>
+      <Text style={st.meta}>{poll.closed ? t('Fechada') : poll.multiple ? t('Podes escolher várias') : t('Escolhe uma')} · {t('{count} pessoa votou', { count: voters, other: '{count} pessoas votaram' })}</Text>
       {poll.options.map((o) => {
         const mine = poll.myVotes.includes(o.id);
         const pct = total ? Math.round((o.votes / total) * 100) : 0;
         const win = poll.closed && o.votes === top && top > 0;
         return (
-          <Pressable key={o.id} {...hold} onPress={() => void vote(o.id)} disabled={poll.closed} style={({ pressed }) => [st.opt, mine && { borderColor: colors.brand }, pressed && { opacity: 0.8 }]} accessibilityRole={poll.multiple ? 'checkbox' : 'radio'} accessibilityState={{ checked: mine, disabled: poll.closed }} accessibilityLabel={`${o.text}, ${o.votes} votos`}>
+          <Pressable key={o.id} {...hold} onPress={() => void vote(o.id)} disabled={poll.closed} style={({ pressed }) => [st.opt, mine && { borderColor: colors.brand }, pressed && { opacity: 0.8 }]} accessibilityRole={poll.multiple ? 'checkbox' : 'radio'} accessibilityState={{ checked: mine, disabled: poll.closed }} accessibilityLabel={t('{text}, {votes} votos', { text: o.text, votes: o.votes })}>
             {showResults && <View style={[st.bar, { width: `${pct}%` }, (mine || win) && { backgroundColor: 'rgba(214,51,79,0.16)' }]} />}
             <View style={[st.tick, poll.multiple && { borderRadius: 6 }, mine && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{mine && <Icon name="check" size={12} strokeWidth={3} color="#fff" />}</View>
             <Text style={[st.optText, win && { fontWeight: '800' }]} numberOfLines={2}>{o.text}</Text>
@@ -93,14 +94,14 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
       <ErrText text={err} />
       {!poll.closed && (admin || poll.createdBy === me) && (
         <Pressable {...hold} onPress={() => { setErr(''); setAsking(true); }} disabled={busy} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} accessibilityRole="button">
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>Fechar a sondagem</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>{t('Fechar a sondagem')}</Text>
         </Pressable>
       )}
       {asking && (
         <ConfirmSheet
-          title="Fechar a sondagem?"
-          lines={['Ninguém mais pode votar e os resultados ficam como estão. Depois de fechada, não volta a abrir.']}
-          confirmLabel="Fechar a sondagem"
+          title={t('Fechar a sondagem?')}
+          lines={[t('Ninguém mais pode votar e os resultados ficam como estão. Depois de fechada, não volta a abrir.')]}
+          confirmLabel={t('Fechar a sondagem')}
           onConfirm={close}
           onClose={() => setAsking(false)}
         />
@@ -121,11 +122,11 @@ export function PollBubble({ pollId, initial }: { pollId: string; initial?: Poll
     <View style={st.bubble}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Icon name="trending" size={14} color={colors.brand} />
-        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.5 }}>SONDAGEM</Text>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.5 }}>{t('SONDAGEM')}</Text>
       </View>
-      {!ctx ? <Text style={st.meta}>Abre o TxillGroup para votar.</Text>
+      {!ctx ? <Text style={st.meta}>{t('Abre o TxillGroup para votar.')}</Text>
         : poll ? <PollView poll={poll} groupId={ctx.id} me={ctx.me} admin={ctx.admin} compact />
-        : <Text style={st.meta}>{plan.isLoading ? 'A carregar…' : 'Esta sondagem já não existe.'}</Text>}
+        : <Text style={st.meta}>{plan.isLoading ? t('A carregar…') : t('Esta sondagem já não existe.')}</Text>}
     </View>
   );
 }
@@ -140,9 +141,9 @@ export function NewPollSheet({ groupId, onClose }: { groupId: string; onClose: (
   const [err, setErr] = useState('');
   const filled = options.map((o) => o.trim()).filter(Boolean);
   async function save() {
-    if (question.trim().length < 2) return setErr('Escreve a pergunta.');
-    if (filled.length < 2) return setErr('Precisas de pelo menos duas opções.');
-    if (new Set(filled.map((o) => o.toLowerCase())).size !== filled.length) return setErr('Há opções repetidas.');
+    if (question.trim().length < 2) return setErr(t('Escreve a pergunta.'));
+    if (filled.length < 2) return setErr(t('Precisas de pelo menos duas opções.'));
+    if (new Set(filled.map((o) => o.toLowerCase())).size !== filled.length) return setErr(t('Há opções repetidas.'));
     setBusy(true);
     setErr('');
     try {
@@ -156,22 +157,22 @@ export function NewPollSheet({ groupId, onClose }: { groupId: string; onClose: (
     }
   }
   return (
-    <Sheet title="Nova sondagem" onClose={onClose}>
+    <Sheet title={t('Nova sondagem')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 10 }}>
-        <Field value={question} onChangeText={setQuestion} maxLength={140} autoFocus placeholder="Pergunta · ex.: Onde ficamos?" accessibilityLabel="Pergunta" />
+        <Field value={question} onChangeText={setQuestion} maxLength={140} autoFocus placeholder={t('Pergunta · ex.: Onde ficamos?')} accessibilityLabel={t('Pergunta')} />
         {options.map((o, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Field value={o} onChangeText={(t) => setOptions((l) => l.map((x, k) => (k === i ? t : x)))} maxLength={60} placeholder={`Opção ${i + 1}`} accessibilityLabel={`Opção ${i + 1}`} style={{ flex: 1 }} />
-            {options.length > 2 && <Pressable onPress={() => setOptions((l) => l.filter((_, k) => k !== i))} style={st.rm} accessibilityRole="button" accessibilityLabel={`Tirar a opção ${i + 1}`}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>}
+            <Field value={o} onChangeText={(t) => setOptions((l) => l.map((x, k) => (k === i ? t : x)))} maxLength={60} placeholder={t('Opção {n}', { n: i + 1 })} accessibilityLabel={t('Opção {n}', { n: i + 1 })} style={{ flex: 1 }} />
+            {options.length > 2 && <Pressable onPress={() => setOptions((l) => l.filter((_, k) => k !== i))} style={st.rm} accessibilityRole="button" accessibilityLabel={t('Tirar a opção {n}', { n: i + 1 })}><Icon name="x" size={16} color={colors.zinc600} /></Pressable>}
           </View>
         ))}
-        {options.length < 6 && <Pill label="Mais uma opção" icon="plus" kind="soft" small onPress={() => setOptions((l) => [...l, ''])} style={{ alignSelf: 'flex-start' }} />}
+        {options.length < 6 && <Pill label={t('Mais uma opção')} icon="plus" kind="soft" small onPress={() => setOptions((l) => [...l, ''])} style={{ alignSelf: 'flex-start' }} />}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 }}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc800 }}>Várias respostas</Text>
-          <Switch value={multiple} onValueChange={setMultiple} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel="Várias respostas" />
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc800 }}>{t('Várias respostas')}</Text>
+          <Switch value={multiple} onValueChange={setMultiple} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" accessibilityLabel={t('Várias respostas')} />
         </View>
         <ErrText text={err} />
-        <Pill label="Lançar sondagem" busy={busy} onPress={() => void save()} />
+        <Pill label={t('Lançar sondagem')} busy={busy} onPress={() => void save()} />
       </View>
     </Sheet>
   );

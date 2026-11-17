@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { api, onNeedVerify } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Abrir a caixa de correio certa (Gmail, Outlook, Yahoo) pelo domínio do e-mail; senão, a app de e-mail do telemóvel. */
 function inboxUrl(email: string): string | null {
@@ -34,14 +35,14 @@ export function ActivateSheet() {
   const status = useQuery({ queryKey: ['email-status'], queryFn: api.emailStatus, enabled: open && !!user, staleTime: 0 });
   const resend = useMutation({
     mutationFn: api.resendVerification,
-    onSuccess: (r) => setNote(r.sent ? 'Link novo enviado. Vê também a pasta de spam ou promoções.' : 'Não consegui enviar agora. Tenta daqui a pouco.'),
-    onError: () => setNote('Já pediste vários links. Espera um bocado e tenta outra vez.'),
+    onSuccess: (r) => setNote(r.sent ? t('Link novo enviado. Vê também a pasta de spam ou promoções.') : t('Não consegui enviar agora. Tenta daqui a pouco.')),
+    onError: () => setNote(t('Já pediste vários links. Espera um bocado e tenta outra vez.')),
   });
   const change = useMutation({
     mutationFn: (e: string) => api.changeEmail(e),
     onSuccess: (r) => {
       setEditing(false);
-      setNote(`E-mail corrigido. Enviámos o link para ${r.email}.`);
+      setNote(t('E-mail corrigido. Enviámos o link para {email}.', { email: r.email }));
       void qc.invalidateQueries({ queryKey: ['email-status'] });
     },
     onError: (e: Error) => setNote(e.message),
@@ -51,7 +52,7 @@ export function ActivateSheet() {
     onSuccess: (r) => {
       qc.setQueryData(['email-status'], r);
       if (r.verified) setOpen(false);
-      else setNote('Ainda não vimos a ativação. Abre o link do e-mail e volta aqui.');
+      else setNote(t('Ainda não vimos a ativação. Abre o link do e-mail e volta aqui.'));
     },
   });
   if (!open || !user) return null;
@@ -60,29 +61,29 @@ export function ActivateSheet() {
   const inbox = email ? inboxUrl(email) : null;
 
   return (
-    <Sheet title="Ativa a tua conta" onClose={() => setOpen(false)}>
+    <Sheet title={t('Ativa a tua conta')} onClose={() => setOpen(false)}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
         <View style={st.hero}>
           <View style={st.heroIcon}><Icon name="mail" size={26} color={colors.brand} /></View>
-          <Text style={st.lead}>Para publicar, comentar, conversar e oferecer vibes, falta só confirmares o teu e-mail. É um toque no link que te mandámos.</Text>
+          <Text style={st.lead}>{t('Para publicar, comentar, conversar e oferecer vibes, falta só confirmares o teu e-mail. É um toque no link que te mandámos.')}</Text>
         </View>
 
         {editing ? (
           <View style={{ gap: 10 }}>
-            <TextInput value={draft} onChangeText={setDraft} autoFocus autoCapitalize="none" autoCorrect={false} keyboardType="email-address" inputMode="email" placeholder="o.teu@email.com" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="E-mail certo" onSubmitEditing={() => draft.trim() && change.mutate(draft.trim())} />
+            <TextInput value={draft} onChangeText={setDraft} autoFocus autoCapitalize="none" autoCorrect={false} keyboardType="email-address" inputMode="email" placeholder="o.teu@email.com" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel={t('E-mail certo')} onSubmitEditing={() => draft.trim() && change.mutate(draft.trim())} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Button label="Cancelar" kind="secondary" onPress={() => setEditing(false)} style={st.half} />
-              <Button label="Guardar e enviar" onPress={() => draft.trim() && change.mutate(draft.trim())} loading={change.isPending} disabled={!draft.trim()} style={st.half} />
+              <Button label={t('Cancelar')} kind="secondary" onPress={() => setEditing(false)} style={st.half} />
+              <Button label={t('Guardar e enviar')} onPress={() => draft.trim() && change.mutate(draft.trim())} loading={change.isPending} disabled={!draft.trim()} style={st.half} />
             </View>
           </View>
         ) : (
           <View style={st.emailBox}>
             <View style={{ flex: 1 }}>
-              <Text style={st.emailLabel}>Enviámos para</Text>
+              <Text style={st.emailLabel}>{t('Enviámos para')}</Text>
               <Text style={st.email} numberOfLines={1}>{email || '…'}</Text>
             </View>
-            <Pressable onPress={() => { setDraft(email); setEditing(true); setNote(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Corrigir o e-mail">
-              <Text style={st.link}>Está errado?</Text>
+            <Pressable onPress={() => { setDraft(email); setEditing(true); setNote(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Corrigir o e-mail')}>
+              <Text style={st.link}>{t('Está errado?')}</Text>
             </Pressable>
           </View>
         )}
@@ -92,11 +93,11 @@ export function ActivateSheet() {
         {!editing ? (
           <>
             {inbox ? (
-              <Button label="Abrir o meu e-mail" onPress={() => void Linking.openURL(inbox).catch(() => undefined)} block />
+              <Button label={t('Abrir o meu e-mail')} onPress={() => void Linking.openURL(inbox).catch(() => undefined)} block />
             ) : null}
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Button label="Reenviar link" kind="secondary" onPress={() => resend.mutate()} loading={resend.isPending} style={st.half} />
-              <Button label="Já ativei" kind="secondary" onPress={() => check.mutate()} loading={check.isPending} style={st.half} />
+              <Button label={t('Reenviar link')} kind="secondary" onPress={() => resend.mutate()} loading={resend.isPending} style={st.half} />
+              <Button label={t('Já ativei')} kind="secondary" onPress={() => check.mutate()} loading={check.isPending} style={st.half} />
             </View>
           </>
         ) : null}

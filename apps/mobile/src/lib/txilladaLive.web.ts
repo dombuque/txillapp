@@ -3,6 +3,7 @@
  * txilladaLive.ts (com o @livekit/react-native). O livekit-client só é descarregado quando se entra numa Txillada.
  */
 
+import { t } from '@/lib/i18n';
 type LK = typeof import('livekit-client');
 
 let loaded: Promise<LK> | null = null;
@@ -11,7 +12,7 @@ export function loadLiveKit(): Promise<LK> {
   loaded ??= import('livekit-client').catch((e) => {
     loaded = null;
     console.warn('[txillada] livekit', e);
-    throw new Error('Não consegui abrir a Txillada. Recarrega a página e tenta outra vez.');
+    throw new Error(t('Não consegui abrir a Txillada. Recarrega a página e tenta outra vez.'));
   });
   return loaded;
 }
@@ -21,21 +22,21 @@ export function nativeVideoView(): null {
   return null;
 }
 
-const CAM_DENIED = 'Sem acesso à câmara e ao microfone. Dá permissão ao Txillapp no browser (o cadeado ao lado do endereço) para abrires uma Txillada.';
+const CAM_DENIED = () => t('Sem acesso à câmara e ao microfone. Dá permissão ao Txillapp no browser (o cadeado ao lado do endereço) para abrires uma Txillada.');
 
 /** No browser a permissão é pedida no getUserMedia. */
 export async function askBroadcast(): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) throw new Error('Este browser não deixa transmitir. Experimenta o Chrome, o Safari ou a app do Txillapp.');
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) throw new Error(t('Este browser não deixa transmitir. Experimenta o Chrome, o Safari ou a app do Txillapp.'));
 }
 
 export function mediaError(e: unknown): Error {
   const n = (e as { name?: string })?.name ?? '';
   const msg = (e as { message?: string })?.message ?? '';
-  if (msg === CAM_DENIED) return e as Error;
-  if (n === 'NotAllowedError' || n === 'SecurityError' || /permission/i.test(msg)) return new Error(CAM_DENIED);
-  if (n === 'NotReadableError' || /busy|in use|could not start/i.test(msg)) return new Error('A câmara ou o microfone estão ocupados noutra janela ou app.');
-  if (n === 'NotFoundError' || n === 'OverconstrainedError') return new Error('Não encontrei câmara ou microfone neste aparelho.');
-  return new Error(`Não consegui abrir a câmara${msg ? ` (${msg})` : ''}.`);
+  if (msg === CAM_DENIED()) return e as Error;
+  if (n === 'NotAllowedError' || n === 'SecurityError' || /permission/i.test(msg)) return new Error(CAM_DENIED());
+  if (n === 'NotReadableError' || /busy|in use|could not start/i.test(msg)) return new Error(t('A câmara ou o microfone estão ocupados noutra janela ou app.'));
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return new Error(t('Não encontrei câmara ou microfone neste aparelho.'));
+  return new Error(t('Não consegui abrir a câmara{value}.', { value: msg ? ` (${msg})` : '' }));
 }
 
 /** No browser não há sessão de áudio para configurar. */

@@ -2,6 +2,7 @@
  * Gerador de QR (modo byte, correção M, versão automática 1-40) em TypeScript puro, sem dependências.
  * Segue o algoritmo da norma ISO 18004 (o mesmo que a biblioteca "qrcode" usa no site). Devolve a matriz de módulos.
  */
+import { t } from '@/lib/i18n';
 const ECC_PER_BLOCK = [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28];
 const BLOCKS = [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49];
 
@@ -68,7 +69,7 @@ export function qrMatrix(text: string): boolean[][] {
     const need = 4 + (ver <= 9 ? 8 : 16) + bytes.length * 8;
     if (need <= dataCodewords(ver) * 8) break;
   }
-  if (ver > 40) throw new Error('Texto demasiado grande para o QR');
+  if (ver > 40) throw new Error(t('Texto demasiado grande para o QR'));
 
   // Bits de dados.
   const bits: number[] = [];

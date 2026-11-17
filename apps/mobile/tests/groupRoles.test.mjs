@@ -2,6 +2,7 @@
 // (accessChange em src/lib/groupAccess.ts).
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,7 +46,7 @@ test('adminCount e stepDownNote: o último administrador é avisado; com dois, n
   assert.match(gr.stepDownNote(gr.adminCount(members)), /único administrador/);
   assert.equal(gr.stepDownNote(2), null);
   assert.equal(gr.adminCount([]), 0);
-  assert.equal(gr.LAST_ADMIN_MESSAGE, 'O grupo precisa de pelo menos um administrador');
+  assert.equal(gr.LAST_ADMIN_MESSAGE(), 'O grupo precisa de pelo menos um administrador');
 });
 
 test('roleBadge, withRole e roleDoneText', () => {

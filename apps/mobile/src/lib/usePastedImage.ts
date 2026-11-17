@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Platform } from 'react-native';
 import { createPasteGate, imageFromTransfer, pastedImageProblem, transferHasFiles, type TransferLike } from './pasteImage';
+import { t } from '@/lib/i18n';
 
 /** A imagem colada à espera de "Enviar" ou "Cancelar": um URL de objeto (blob:) e o tipo. */
 export interface PastedImage { uri: string; type: string }
@@ -69,7 +70,7 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
       // Um ficheiro que não é imagem: não o deixar abrir por cima da app.
       if (transferHasFiles(dt)) {
         e.preventDefault();
-        cbs.current.onProblem('Só dá para largar aqui imagens (JPEG, PNG ou WebP).');
+        cbs.current.onProblem(t('Só dá para largar aqui imagens (JPEG, PNG ou WebP).'));
       }
     };
     dropRef.current = dropped;

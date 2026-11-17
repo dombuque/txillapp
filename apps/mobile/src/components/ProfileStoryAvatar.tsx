@@ -12,6 +12,7 @@ import { Avatar, avatarUri, useAvatarVersion } from './Avatar';
 import { Ring } from './StoryRing';
 import { LiveRing } from './txillada/TxilladaParts';
 import { useTxilladaEnabled } from '@/lib/api.txillada';
+import { t } from '@/lib/i18n';
 
 /**
  * Foto do perfil com story: anel a cores/cinzento/verde e, ao tocar, abre o story (o servidor só devolve se eu puder ver).
@@ -44,7 +45,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
             placeholderUri={avatarUri(username, avatarV)}
             size={big}
             onClose={close}
-            accessibilityLabel={`Foto de ${avatarName}`}
+            accessibilityLabel={t('Foto de {avatarName}', { avatarName })}
           />
         ) : null}
       </View>
@@ -60,7 +61,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
           onLongPress={longPress}
           delayLongPress={400}
           accessibilityRole="button"
-          accessibilityLabel={`${avatarName} está ao vivo: ver a Txillada`}
+          accessibilityLabel={t('{avatarName} está ao vivo: ver a Txillada', { avatarName })}
           style={{ width: box, height: box }}
         >
           <View style={{ position: 'absolute', left: (box - 72) / 2, top: (box - 72) / 2, width: 72, height: 72, transform: [{ scale: box / 72 }] }}>
@@ -75,7 +76,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   if (list.length === 0) {
     return (
       <>
-        <Pressable onLongPress={longPress} delayLongPress={400} disabled={!hasAvatar} accessibilityLabel={`Foto de ${avatarName}`}>
+        <Pressable onLongPress={longPress} delayLongPress={400} disabled={!hasAvatar} accessibilityLabel={t('Foto de {avatarName}', { avatarName })}>
           <Avatar name={avatarName} username={hasAvatar ? username : undefined} size={size} />
         </Pressable>
         {preview}
@@ -92,7 +93,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
         onLongPress={longPress}
         delayLongPress={400}
         accessibilityRole="button"
-        accessibilityLabel={`Ver mimo de ${avatarName}`}
+        accessibilityLabel={t('Ver mimo de {avatarName}', { avatarName })}
         style={{ width: box, height: box }}
       >
         {/* O anel mede 72px; amplia-se para acompanhar a foto grande do perfil. */}

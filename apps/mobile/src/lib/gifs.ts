@@ -5,6 +5,7 @@
 // scripts/marca/anim-logo.mjs). Lista fechada de ids, como na API (apps/api/src/gifs/gif.ts TXILLAPP_GIFS); classificação 'g'.
 
 /** Um GIF na grelha (o que o servidor manda). `rating`: a classificação do GIPHY ('g', 'pg', 'pg-13', 'r'), se vier. */
+import { t } from '@/lib/i18n';
 export interface GifItem { id: string; title: string; w: number; h: number; preview: string; full: string; still?: string; mp4?: string; rating?: string; /** 'txillapp': o GIF do Txillapp. */ source?: GifSource }
 export interface GifPage { items: GifItem[]; next: number | null; enabled?: false }
 /**
@@ -17,11 +18,11 @@ export interface ChatGif { id: string; w: number; h: number; url: string; still?
  * O cartão no lugar de um GIF que não se mostra: o servidor não manda o GIF (`gifHidden`) a quem é menor de 18 anos ou
  * não tem data de nascimento quando a classificação do GIPHY é acima de «g» ou desconhecida (as mensagens antigas).
  */
-export const GIF_HIDDEN_TEXT = 'GIF escondido';
+export const GIF_HIDDEN_TEXT = () => t('GIF escondido');
 
 /** O texto de uma mensagem GIF na lista de conversas: «GIF» ou, se o servidor o escondeu, «GIF escondido». */
 export function gifPreviewText(m: { gifHidden?: boolean }): string {
-  return m.gifHidden ? GIF_HIDDEN_TEXT : 'GIF';
+  return m.gifHidden ? GIF_HIDDEN_TEXT() : 'GIF';
 }
 
 /** Os anfitriões de média do GIPHY (o servidor recusa os outros). */

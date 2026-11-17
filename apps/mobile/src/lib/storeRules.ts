@@ -1,4 +1,5 @@
 import type { Channel } from './channel';
+import { t } from '@/lib/i18n';
 
 /**
  * Regras que mudam com a loja (App Store Review Guidelines e Google Play). Funções puras, sem React Native, para se
@@ -30,11 +31,11 @@ export function onboardingSteps(channel: Channel): OnboardingStep[] {
  * não há «Agora não»: quem decide é a pessoa, no pedido do sistema, que tem sempre «Não permitir».
  */
 export function prePromptButtons(channel: Channel): { primary: string; later: string | null } {
-  return channel === 'appstore' ? { primary: 'Continuar', later: null } : { primary: 'Permitir', later: 'Agora não' };
+  return channel === 'appstore' ? { primary: t('Continuar'), later: null } : { primary: t('Permitir'), later: t('Agora não') };
 }
 
 /** Botão de um ecrã sem licença que leva ao pedido do sistema (câmara, galeria…). No iPhone: «Continuar». */
-export const askButtonLabel = (os: string, other: string): string => (os === 'ios' ? 'Continuar' : other);
+export const askButtonLabel = (os: string, other: string): string => (os === 'ios' ? t('Continuar') : other);
 
 /**
  * «Entrar com Google». Regra 4.8 da App Store: com um login de terceiros no iPhone tem de haver também o Iniciar sessão
@@ -120,7 +121,7 @@ export function hiddenSettingsFor(rules: PurchaseRules): string[] {
 
 /** A linha do grupo «Vibes e pagamentos» no início das Definições. */
 export function paymentsSubtitleFor(rules: PurchaseRules, base: string): string {
-  return rules.buyTxills ? base : 'Carteira e presentes';
+  return rules.buyTxills ? base : t('Carteira e presentes');
 }
 
 /**

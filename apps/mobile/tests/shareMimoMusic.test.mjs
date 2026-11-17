@@ -6,7 +6,7 @@ const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8'
 
 test('partilhar uma publicação no mimo também deixa escolher música', () => {
   const sheet = read('components/ShareSheet.tsx');
-  assert.match(sheet, /accessibilityLabel=\{music \? 'Mudar a música' : 'Adicionar música'\}/);
+  assert.match(sheet, /accessibilityLabel=\{music \? t\('Mudar a música'\) : t\('Adicionar música'\)\}/);
   assert.match(sheet, /<MusicPicker hint=\{caption \|\| post\.body\} allowLocal/);
   assert.match(sheet, /extraApi\.shareToStory\(post\.id, preview, caption\.trim\(\), stickers, music\)/);
   const api = read('lib/api.extra.ts');

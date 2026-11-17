@@ -12,6 +12,7 @@ import { abs, sized } from '@/lib/config';
 import { devicePosition, locationPermission, type LatLng } from '@/lib/devicePosition';
 import { debtLine, distanceLabel, venuesByDistance, venueTag } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** O local escolhido no «Já paguei». `near`: estou dentro do raio (o servidor confirma com a posição). */
 export interface PaidPlace { slug: string; name: string; kind: string; near: boolean }
@@ -30,7 +31,7 @@ export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClos
   const [place, setPlace] = useState<PaidPlace | null>(null);
   const [at, setAt] = useState<LatLng | null>(null);
   const [picking, setPicking] = useState(false);
-  const who = debt.creditor.username ? `@${debt.creditor.username}` : 'a outra pessoa';
+  const who = debt.creditor.username ? `@${debt.creditor.username}` : t('a outra pessoa');
 
   if (picking) {
     return (
@@ -44,9 +45,9 @@ export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClos
   }
   const claim = (photo: boolean) => onClaim({ photo, place, at: place ? at : null });
   return (
-    <Sheet title="Já pagaste?" onClose={onClose}>
+    <Sheet title={t('Já pagaste?')} onClose={onClose}>
       <View style={st.body}>
-        <Text style={st.text}>{debtLine(debt)}. Fica como paga quando {who} confirmar.</Text>
+        <Text style={st.text}>{t('{debtLine}. Fica como paga quando {who} confirmar.', { debtLine: debtLine(debt), who })}</Text>
         {place ? (
           <View style={st.placeOn}>
             <Icon name="map-pin" size={20} color={colors.brand} />
@@ -55,14 +56,14 @@ export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClos
               {place.near ? (
                 <View style={st.thereRow}>
                   <Icon name="check" size={13} strokeWidth={2.6} color={GREEN} />
-                  <Text style={st.there}>Estás aqui: vai com o selo «estiveram lá»</Text>
+                  <Text style={st.there}>{t('Estás aqui: vai com o selo «estiveram lá»')}</Text>
                 </View>
-              ) : <Text style={st.sub}>Só tu e {who} veem o local.</Text>}
+              ) : <Text style={st.sub}>{t('Só tu e {who} veem o local.', { who })}</Text>}
             </View>
-            <Pressable onPress={() => setPicking(true)} hitSlop={8} style={st.link} accessibilityRole="button" accessibilityLabel="Mudar o local">
-              <Text style={st.linkText}>Mudar</Text>
+            <Pressable onPress={() => setPicking(true)} hitSlop={8} style={st.link} accessibilityRole="button" accessibilityLabel={t('Mudar o local')}>
+              <Text style={st.linkText}>{t('Mudar')}</Text>
             </Pressable>
-            <Pressable onPress={() => setPlace(null)} hitSlop={8} style={st.link} accessibilityRole="button" accessibilityLabel="Tirar o local">
+            <Pressable onPress={() => setPlace(null)} hitSlop={8} style={st.link} accessibilityRole="button" accessibilityLabel={t('Tirar o local')}>
               <Icon name="x" size={18} color={colors.zinc600} />
             </Pressable>
           </View>
@@ -70,14 +71,14 @@ export function PaidSheet({ debt, onClose, onClaim }: { debt: GeladaDebt; onClos
           <Pressable onPress={() => setPicking(true)} style={({ pressed }) => [st.placeOff, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
             <Icon name="map-pin" size={20} color={colors.zinc700} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.placeName}>Onde foi? <Text style={st.optional}>(opcional)</Text></Text>
-              <Text style={st.sub}>Junta o local. Só tu e {who} o veem.</Text>
+              <Text style={st.placeName}>{t('Onde foi?')} <Text style={st.optional}>{t('(opcional)')}</Text></Text>
+              <Text style={st.sub}>{t('Junta o local. Só tu e {who} o veem.', { who })}</Text>
             </View>
             <Icon name="chevron-right" size={18} color={colors.zinc500} />
           </Pressable>
         )}
-        <Btn icon="check" label="Já paguei" onPress={() => claim(false)} primary />
-        <Btn icon="camera" label="Já paguei, com uma foto" onPress={() => claim(true)} />
+        <Btn icon="check" label={t('Já paguei')} onPress={() => claim(false)} primary />
+        <Btn icon="camera" label={t('Já paguei, com uma foto')} onPress={() => claim(true)} />
       </View>
     </Sheet>
   );
@@ -117,31 +118,31 @@ function PlacePicker({ at, onAt, onPick, onBack }: { at: LatLng | null; onAt: (p
   const loading = searching ? found.isLoading : near.isLoading && !!coarse;
 
   return (
-    <Sheet title="Onde foi a gelada?" onClose={onBack} full>
+    <Sheet title={t('Onde foi a gelada?')} onClose={onBack} full>
       <View style={{ flex: 1, paddingHorizontal: 16, gap: 10 }}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={q} onChangeText={setQ} placeholder="Procurar um local pelo nome" placeholderTextColor={colors.zinc500} style={st.searchInput} accessibilityLabel="Procurar um local pelo nome" autoCorrect={false} />
+          <TextInput value={q} onChangeText={setQ} placeholder={t('Procurar um local pelo nome')} placeholderTextColor={colors.zinc500} style={st.searchInput} accessibilityLabel={t('Procurar um local pelo nome')} autoCorrect={false} />
           {q ? (
-            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
               <Icon name="x" size={16} color={colors.zinc500} />
             </Pressable>
           ) : null}
         </View>
-        <Text style={st.fine}>Não é um check-in: é só a etiqueta na gelada, que só vocês os dois veem (e quem vir o momento, se o publicarem).</Text>
+        <Text style={st.fine}>{t('Não é um check-in: é só a etiqueta na gelada, que só vocês os dois veem (e quem vir o momento, se o publicarem).')}</Text>
         {!searching && where === 'ask' && (
           <Pressable onPress={() => void locate(true)} style={({ pressed }) => [st.locate, pressed && { opacity: 0.85 }]} accessibilityRole="button">
             <Icon name="locate" size={20} color={colors.brand} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.placeName}>Ver os locais perto de ti</Text>
-              <Text style={st.sub}>A tua posição só serve para mostrar os locais e ver se estás lá. Não fica guardada.</Text>
+              <Text style={st.placeName}>{t('Ver os locais perto de ti')}</Text>
+              <Text style={st.sub}>{t('A tua posição só serve para mostrar os locais e ver se estás lá. Não fica guardada.')}</Text>
             </View>
           </Pressable>
         )}
-        {!searching && (where === 'checking' || where === 'locating') && <Text style={st.status}>A ver onde estás…</Text>}
-        {!searching && where === 'blocked' && <Text style={st.status}>Sem acesso à localização: procura o local pelo nome.</Text>}
-        {!searching && where === 'none' && <Text style={st.status}>Não consegui ver onde estás. Procura o local pelo nome.</Text>}
-        {!searching && where === 'ready' && <Text style={st.section}>Perto de ti</Text>}
+        {!searching && (where === 'checking' || where === 'locating') && <Text style={st.status}>{t('A ver onde estás…')}</Text>}
+        {!searching && where === 'blocked' && <Text style={st.status}>{t('Sem acesso à localização: procura o local pelo nome.')}</Text>}
+        {!searching && where === 'none' && <Text style={st.status}>{t('Não consegui ver onde estás. Procura o local pelo nome.')}</Text>}
+        {!searching && where === 'ready' && <Text style={st.section}>{t('Perto de ti')}</Text>}
         {loading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 16 }} />}
         <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
           {rows.map((v) => (
@@ -150,20 +151,20 @@ function PlacePicker({ at, onAt, onPick, onBack }: { at: LatLng | null; onAt: (p
               onPress={() => onPick({ slug: v.slug, name: v.name, kind: v.kind, near: v.near })}
               style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]}
               accessibilityRole="button"
-              accessibilityLabel={`${v.name}${v.meters != null ? `, ${distanceLabel(v.meters)}` : ''}${v.near ? ', estás aqui' : ''}`}
+              accessibilityLabel={`${v.name}${v.meters != null ? `, ${distanceLabel(v.meters)}` : ''}${v.near ? t(', estás aqui') : ''}`}
             >
               {v.avatarUrl ? <Image source={{ uri: sized(abs(v.avatarUrl) ?? v.avatarUrl, 120) }} style={st.avatar} /> : <View style={[st.avatar, st.avatarIcon]}><Icon name="store" size={20} color={colors.zinc600} /></View>}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={st.placeName} numberOfLines={1}>{v.name}</Text>
                 <Text style={st.sub} numberOfLines={1}>{[v.meters != null ? distanceLabel(v.meters) : null, v.city].filter(Boolean).join(' · ') || `@${v.slug}`}</Text>
               </View>
-              {v.near ? <View style={st.hereBadge}><Text style={st.hereText}>Estás aqui</Text></View> : null}
+              {v.near ? <View style={st.hereBadge}><Text style={st.hereText}>{t('Estás aqui')}</Text></View> : null}
             </Pressable>
           ))}
           {!loading && rows.length === 0 && (searching || where === 'ready') ? (
-            <Text style={st.status}>{searching ? 'Nenhum local com esse nome.' : 'Nenhum local no mapa perto de ti. Procura pelo nome.'}</Text>
+            <Text style={st.status}>{searching ? t('Nenhum local com esse nome.') : t('Nenhum local no mapa perto de ti. Procura pelo nome.')}</Text>
           ) : null}
-          {!searching && term.length === 1 ? <Text style={st.status}>Escreve pelo menos duas letras.</Text> : null}
+          {!searching && term.length === 1 ? <Text style={st.status}>{t('Escreve pelo menos duas letras.')}</Text> : null}
         </ScrollView>
       </View>
     </Sheet>

@@ -42,24 +42,24 @@ test('filtros: a fila esbate nas pontas só onde ainda há mais (nada cortado a 
 });
 
 test('zona: o sítio e a distância numa pastilha à parte; toca para mudar', () => {
-  assert.match(perto, /<Text style=\{st\.zoneText\} numberOfLines=\{1\}>\{locating \? 'A ver onde estás…' : place\.label\}<\/Text>/);
-  assert.match(perto, /accessibilityLabel=\{`Zona: \$\{place\.label\}, até \$\{liveRadius\} km\. Mudar o sítio ou a distância`\}/);
+  assert.match(perto, /<Text style=\{st\.zoneText\} numberOfLines=\{1\}>\{locating \? t\('A ver onde estás…'\) : place\.label\}<\/Text>/);
+  assert.match(perto, /accessibilityLabel=\{t\('Zona: \{label\}, até \{liveRadius\} km\. Mudar o sítio ou a distância', \{ label: place\.label, liveRadius \}\)\}/);
 });
 
 test('Visível / Invisível: bolinha de estado, nome e o que o toque faz', () => {
   assert.match(perto, /backgroundColor: visible \? colors\.green600 : colors\.zinc300/);
-  assert.match(perto, /accessibilityHint=\{visible \? 'Toca para ficares invisível já' : 'Toca para escolher quem te vê'\}/);
+  assert.match(perto, /accessibilityHint=\{visible \? t\('Toca para ficares invisível já'\) : t\('Toca para escolher quem te vê'\)\}/);
   // A lógica de sempre: visível fica invisível logo; invisível abre as opções.
   assert.match(perto, /onPress=\{\(\) => \(visible \? setVis\.mutate\('off'\) : setVisSheet\(true\)\)\}/);
 });
 
 test('cartão de invisível: o que a malta vê, o que vês tu, a garantia do bairro e a ação', () => {
   const card = fnBody(perto, 'VisibilityCard');
-  assert.match(card, />Estás invisível</);
+  assert.match(card, />\{t\('Estás invisível'\)\}</);
   assert.match(card, /A malta não te vê no mapa\. Tu vês tudo na mesma\./);
   assert.match(card, /Só o bairro, nunca o sítio exato/);
   assert.match(card, /onPress=\{onOpen\}[\s\S]*Aparecer à malta/);
-  assert.match(card, /onPress=\{onLater\}[\s\S]*accessibilityLabel="Agora não"/);
+  assert.match(card, /onPress=\{onLater\}[\s\S]*accessibilityLabel=\{t\('Agora não'\)\}/);
   // Os mesmos casos de antes: só invisível, com idade para aparecer, sem ter fechado e em Tudo ou A malta.
   assert.match(perto, /visibility === 'off' && canEnable && !hideCard && \(filter === 'all' \|\| filter === 'people'\) \?/);
 });
@@ -80,7 +80,7 @@ test('vazio: desenho, título, frase curta, o botão que resolve e mais caminhos
 test('a carregar: esqueleto com a forma das linhas (e anunciado ao leitor de ecrã), não uma roda sozinha', () => {
   assert.match(perto, /const listEmpty = q\.isLoading \? \(\s*<SkeletonList \/>/);
   const sk = fnBody(perto, 'SkeletonList');
-  assert.match(sk, /accessibilityRole="progressbar" accessibilityLabel="A procurar o que há à tua volta"/);
+  assert.match(sk, /accessibilityRole="progressbar" accessibilityLabel=\{t\('A procurar o que há à tua volta'\)\}/);
   assert.match(sk, /Animated\.loop/);
   assert.match(sk, /return \(\) => loop\.stop\(\);/);
 });
@@ -91,19 +91,19 @@ test('linhas: selo de verificado no nome, distância numa pastilha, anel na pess
   assert.match(row, /st\.kmPill/);
   const thumb = fnBody(perto, 'Thumb');
   assert.match(thumb, /colors=\{\[colors\.brand, colors\.brandWarm\]\}/);
-  assert.match(thumb, /st\.calTop[\s\S]*MONTHS\[d!\.getMonth\(\)\]/);
+  assert.match(thumb, /st\.calTop[\s\S]*MONTHS\(\)\[d!\.getMonth\(\)\]/);
   assert.match(thumb, /VENUE_ICON\[item\.category \?\? ''\] \?\? 'map-pin'/);
   // O tipo do local vai também para o mapa (o pino com o mesmo ícone).
   assert.match(perto, /category: i\.category \?\? null, boosted: !!i\.boost/);
   assert.match(perto, /boost: v\.boosted \?\? null, category: v\.kind,/);
   // Pessoas: "Por perto há 12 min" (a posição é sempre aproximada).
-  assert.match(perto, /sub: `Por perto \$\{agoText\(u\.ago\)\}`/);
+  assert.match(perto, /sub: t\('Por perto \{agoText\}', \{ agoText: agoText\(u\.ago\) \}\)/);
 });
 
 test('cabeçalho da lista: quantos há e de que tipo (ícone e número) numa linha só', () => {
   const head = fnBody(perto, 'ListHead');
   assert.match(head, /KIND_ORDER\.filter\(\(k\) => by\.has\(k\)\)/);
-  assert.match(head, /accessibilityLabel=\{n \? `\$\{n\} à tua volta\. \$\{parts\.join\(', '\)\}\. \$\{sub\}` : `À tua volta\. \$\{sub\}`\}/);
+  assert.match(head, /accessibilityLabel=\{n \? t\('\{n\} à tua volta\. \{parts\}\. \{sub\}', \{ n, parts: parts\.join\(', '\), sub \}\) : t\('À tua volta\. \{sub\}', \{ sub \}\)\}/);
 });
 
 test('computador: mapa à esquerda e a lista numa coluna de 400 px à direita', () => {

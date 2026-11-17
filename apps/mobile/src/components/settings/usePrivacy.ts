@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, type PrivacySettings } from '@/lib/api';
 import { showToast } from '@/lib/toast';
+import { t } from '@/lib/i18n';
 
 /**
  * As definições de privacidade (a mesma consulta `['privacy']` que o resto da app usa, ex.: as estatísticas de uso).
@@ -19,7 +20,7 @@ export function usePrivacy() {
     } catch (e) {
       // Volta atrás e diz porquê (antes o interruptor voltava sozinho, sem uma palavra).
       qc.setQueryData(['privacy'], prev);
-      showToast(e instanceof ApiError && e.message ? e.message : (e as Error)?.message || 'Não consegui mudar isto agora. Tenta outra vez.');
+      showToast(e instanceof ApiError && e.message ? e.message : (e as Error)?.message || t('Não consegui mudar isto agora. Tenta outra vez.'));
     }
   }
   return { p, save };

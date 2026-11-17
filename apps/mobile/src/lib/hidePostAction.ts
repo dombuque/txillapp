@@ -4,6 +4,7 @@ import { ApiError, api, type Post } from './api';
 import { HIDE_LIST_KEYS, dropPost, hideErrorText, hideToastText } from './hidePost';
 import { mergePost } from './postPatch';
 import { showToast } from './toast';
+import { t } from '@/lib/i18n';
 
 /**
  * Ocultar (`hidden = true`) ou voltar a mostrar uma publicação minha (0169). Ao ocultar sai logo das listas em memória (o feed,
@@ -16,7 +17,7 @@ export async function setPostHidden(qc: QueryClient, post: Pick<Post, 'id'>, hid
     fresh = await (hidden ? api.hidePost(post.id) : api.unhidePost(post.id));
   } catch (e) {
     const status = e instanceof ApiError ? e.status : null;
-    Alert.alert(hidden ? 'Não deu para ocultar' : 'Não deu para mostrar', hideErrorText(status, e instanceof ApiError ? e.message : null));
+    Alert.alert(hidden ? t('Não deu para ocultar') : t('Não deu para mostrar'), hideErrorText(status, e instanceof ApiError ? e.message : null));
     return false;
   }
   for (const q of qc.getQueryCache().getAll()) {
@@ -30,6 +31,6 @@ export async function setPostHidden(qc: QueryClient, post: Pick<Post, 'id'>, hid
     if (next !== d) qc.setQueryData(q.queryKey, next);
   }
   for (const k of [...HIDE_LIST_KEYS, 'profile']) void qc.invalidateQueries({ queryKey: [k] });
-  showToast(hideToastText(hidden, repost), { label: 'Desfazer', onPress: () => void setPostHidden(qc, post, !hidden, repost) });
+  showToast(hideToastText(hidden, repost), { label: t('Desfazer'), onPress: () => void setPostHidden(qc, post, !hidden, repost) });
   return true;
 }

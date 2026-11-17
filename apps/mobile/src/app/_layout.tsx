@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BrandLoader } from '@/components/PontoLoader';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -35,6 +35,7 @@ import { useIapRuntime } from '@/lib/iap';
 import { colors } from '@/lib/theme';
 import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
+import { onLanguageChange, t } from '@/lib/i18n';
 
 void SplashScreen.preventAutoHideAsync();
 // As caixas de confirmação (Alert.alert) abrem a caixa da app em todo o lado (AlertHost): igual no APK e no site.
@@ -71,6 +72,8 @@ function useBootDone() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.getElementById('tx-boot')?.remove();
+    // Noutro idioma que não o português, o boot.js escondeu o HTML pré-gerado (em português) até a app montar.
+    document.getElementById('tx-lang-hide')?.remove();
     try { window.sessionStorage.removeItem('tx_reload'); } catch { /* nada */ }
   }, []);
 }
@@ -80,8 +83,8 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
   useEffect(() => reportRenderError(error), [error]);
   return (
     <View style={styles.center}>
-      <ErrorState title="Ups, algo correu mal" text="Já tomámos nota. Tenta outra vez." onRetry={() => void retry()} style={styles.state} />
-      {Platform.OS === 'web' ? <Button label="Recarregar a página" kind="ghost" size="md" onPress={() => window.location.reload()} /> : null}
+      <ErrorState title={t('Ups, algo correu mal')} text={t('Já tomámos nota. Tenta outra vez.')} onRetry={() => void retry()} style={styles.state} />
+      {Platform.OS === 'web' ? <Button label={t('Recarregar a página')} kind="ghost" size="md" onPress={() => window.location.reload()} /> : null}
       {__DEV__ ? <Text style={[styles.sub, { marginTop: 16, fontSize: 12 }]}>{error.message}</Text> : null}
     </View>
   );
@@ -164,7 +167,7 @@ function Gate() {
   if (offline && !isPublicSegment(segments[0])) {
     return (
       <View style={styles.center}>
-        <ErrorState title="Sem ligação" text="Não consegui ligar ao Txillapp. Verifica a ligação e tenta outra vez." onRetry={retry} style={styles.state} />
+        <ErrorState title={t('Sem ligação')} text={t('Não consegui ligar ao Txillapp. Verifica a ligação e tenta outra vez.')} onRetry={retry} style={styles.state} />
       </View>
     );
   }
@@ -237,8 +240,11 @@ function Gate() {
 }
 
 export default function RootLayout() {
+  // Mudar de idioma no telemóvel (Definições, Idiomas): a app volta a montar-se toda, já no idioma novo (lib/i18n).
+  const [langKey, setLangKey] = useState(0);
+  useEffect(() => onLanguageChange(() => setLangKey((k) => k + 1)), []);
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView key={langKey} style={{ flex: 1 }}>
       <SafeAreaProvider>
         <WebTopInset>
         <QueryClientProvider client={queryClient}>

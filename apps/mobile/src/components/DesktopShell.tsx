@@ -18,6 +18,7 @@ import { Icon, type IconName } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Wordmark } from './Wordmark';
 import { DesktopShortcuts } from './DesktopShortcuts';
+import { t } from '@/lib/i18n';
 
 const badge = (n: number) => (n > 9 ? '9+' : String(n));
 type HoverState = { pressed: boolean; hovered?: boolean };
@@ -64,15 +65,15 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
   const unread = useQuery({ queryKey: ['unread'], queryFn: api.unreadCount, refetchInterval: 30_000, staleTime: 10_000 });
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const items: { key: string; label: string; icon?: IconName; to: string; active: boolean; count?: number }[] = [
-    { key: 'home', label: 'Início', icon: 'home', to: '/', active: path === '/' },
-    { key: 'search', label: 'Pesquisar', icon: 'search', to: '/search', active: path === '/search' },
+    { key: 'home', label: t('Início'), icon: 'home', to: '/', active: path === '/' },
+    { key: 'search', label: t('Pesquisar'), icon: 'search', to: '/search', active: path === '/search' },
     { key: 'reels', label: 'Tchekas', icon: 'film', to: '/reels', active: path.startsWith('/reels') || path.startsWith('/r/') },
-    { key: 'perto', label: 'À tua volta', icon: 'map-pin', to: '/perto', active: path === '/perto' || path.startsWith('/evento') },
-    { key: 'messages', label: 'Mensagens', icon: 'messages', to: '/messages', active: path.startsWith('/messages'), count: chats.data?.conversations ?? 0 },
-    { key: 'bell', label: 'Notificações', icon: 'bell', to: '/notifications', active: path === '/notifications', count: unread.data?.count ?? 0 },
-    { key: 'new', label: 'Criar', icon: 'square-plus', to: '/new', active: path === '/new' },
+    { key: 'perto', label: t('À tua volta'), icon: 'map-pin', to: '/perto', active: path === '/perto' || path.startsWith('/evento') },
+    { key: 'messages', label: t('Mensagens'), icon: 'messages', to: '/messages', active: path.startsWith('/messages'), count: chats.data?.conversations ?? 0 },
+    { key: 'bell', label: t('Notificações'), icon: 'bell', to: '/notifications', active: path === '/notifications', count: unread.data?.count ?? 0 },
+    { key: 'new', label: t('Criar'), icon: 'square-plus', to: '/new', active: path === '/new' },
     { key: 'zas', label: 'Zás', icon: 'bolt', to: '/new?kind=zas', active: false },
-    { key: 'profile', label: 'Perfil', to: '/profile', active: path === '/profile' || (!!user && path === `/u/${user.username}`) },
+    { key: 'profile', label: t('Perfil'), to: '/profile', active: path === '/profile' || (!!user && path === `/u/${user.username}`) },
   ];
   function go(it: (typeof items)[number]) {
     // Já no Início, nas Mensagens ou no Perfil: volta ao topo (no Início também atualiza), como a barra de baixo do telemóvel.
@@ -81,8 +82,8 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
     router.navigate((it.key === 'zas' ? `/new?kind=zas&t=${Date.now()}` : it.to) as never);
   }
   return (
-    <View style={[st.side, { width: labels ? 244 : 76 }]} role="navigation" accessibilityLabel="Navegação principal">
-      <Pressable onPress={() => router.navigate('/' as never)} style={[st.brand, !labels && { alignItems: 'center', paddingHorizontal: 0 }]} accessibilityRole="link" accessibilityLabel="Txillapp, ir para o Início">
+    <View style={[st.side, { width: labels ? 244 : 76 }]} role="navigation" accessibilityLabel={t('Navegação principal')}>
+      <Pressable onPress={() => router.navigate('/' as never)} style={[st.brand, !labels && { alignItems: 'center', paddingHorizontal: 0 }]} accessibilityRole="link" accessibilityLabel={t('Txillapp, ir para o Início')}>
         {labels ? <Wordmark height={30} /> : <Image source={{ uri: '/icon-192.png' }} style={{ width: 34, height: 34, borderRadius: 10 }} contentFit="cover" />}
       </Pressable>
       <View style={{ gap: 4 }}>
@@ -92,7 +93,7 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
             onPress={() => go(it)}
             style={(s) => [st.item, !labels && st.itemIcon, (s as HoverState).hovered && st.itemHover, (s as HoverState).pressed && { transform: [{ scale: 0.97 }] }]}
             accessibilityRole="link"
-            accessibilityLabel={it.count ? `${it.label} (${it.count} por ler)` : it.label}
+            accessibilityLabel={it.count ? t('{label} ({total} por ler)', { label: it.label, total: it.count }) : it.label}
             accessibilityState={{ selected: it.active }}
           >
             <View>
@@ -115,11 +116,11 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
         onPress={() => router.navigate('/settings' as never)}
         style={(s) => [st.item, !labels && st.itemIcon, (s as HoverState).hovered && st.itemHover, { marginBottom: 20 }]}
         accessibilityRole="link"
-        accessibilityLabel="Mais: definições, guardados, carteira e sair"
+        accessibilityLabel={t('Mais: definições, guardados, carteira e sair')}
         accessibilityState={{ selected: inSettings }}
       >
         <Icon name="menu" size={27} color={colors.zinc900} strokeWidth={inSettings ? 2.4 : 1.9} />
-        {labels ? <Text style={[st.label, inSettings && { fontWeight: '800' }]}>Mais</Text> : null}
+        {labels ? <Text style={[st.label, inSettings && { fontWeight: '800' }]}>{t('Mais')}</Text> : null}
       </Pressable>
     </View>
   );
@@ -131,28 +132,28 @@ function RightRail() {
   const { user } = useAuth();
   const sugg = useQuery({ queryKey: ['suggestions'], queryFn: feedApi.suggestions, staleTime: 60_000 });
   const people = (sugg.data ?? []).slice(0, 6);
-  const links: [string, string][] = [['Sobre', '/about'], ['Ajuda', '/help'], ['Termos', '/terms'], ['Privacidade', '/privacy'], ['Idioma', '/language']];
+  const links: [string, string][] = [[t('Sobre'), '/about'], [t('Ajuda'), '/help'], [t('Termos'), '/terms'], [t('Privacidade'), '/privacy'], [t('Idiomas'), '/language']];
   return (
     <ScrollView style={st.rail} contentContainerStyle={{ paddingTop: 36, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
       {user ? (
-        <Pressable onPress={() => router.navigate('/profile' as never)} style={(h) => [st.meRow, (h as HoverState).hovered && st.rowHover]} accessibilityRole="link" accessibilityLabel="O teu perfil">
+        <Pressable onPress={() => router.navigate('/profile' as never)} style={(h) => [st.meRow, (h as HoverState).hovered && st.rowHover]} accessibilityRole="link" accessibilityLabel={t('O teu perfil')}>
           <Avatar name={user.displayName} username={user.username} size={48} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={st.meName} numberOfLines={1}>{user.displayName}</Text>
             <Text style={st.meHandle} numberOfLines={1}>@{user.username}</Text>
           </View>
-          <Text style={st.link}>Ver perfil</Text>
+          <Text style={st.link}>{t('Ver perfil')}</Text>
         </Pressable>
       ) : null}
       {people.length > 0 ? (
         <>
           <View style={st.railHead}>
-            <Text style={st.railTitle}>Sugestões para ti</Text>
-            <Pressable onPress={() => router.navigate('/search' as never)} accessibilityRole="link"><Text style={st.seeAll}>Ver mais</Text></Pressable>
+            <Text style={st.railTitle}>{t('Sugestões para ti')}</Text>
+            <Pressable onPress={() => router.navigate('/search' as never)} accessibilityRole="link"><Text style={st.seeAll}>{t('Ver mais')}</Text></Pressable>
           </View>
           {people.map((p) => (
             <View key={p.username} style={st.person}>
-              <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={(h) => [st.personLink, (h as HoverState).hovered && { opacity: 0.75 }]} accessibilityRole="link" accessibilityLabel={`Perfil de ${p.displayName}`}>
+              <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={(h) => [st.personLink, (h as HoverState).hovered && { opacity: 0.75 }]} accessibilityRole="link" accessibilityLabel={t('Perfil de {displayName}', { displayName: p.displayName })}>
                 <Avatar name={p.displayName} username={p.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <NameWithBadge name={p.displayName} who={p} style={st.pName} gap={4} />
@@ -171,7 +172,7 @@ function RightRail() {
           <Pressable key={to} onPress={() => router.push(to as never)} accessibilityRole="link">{(h) => <Text style={[st.footLink, (h as HoverState).hovered && { textDecorationLine: 'underline' }]}>{label}</Text>}</Pressable>
         ))}
       </View>
-      <Text style={st.copy}>© {new Date().getFullYear()} Txillapp</Text>
+      <Text style={st.copy}>{t('© {fullYear} Txillapp', { fullYear: new Date().getFullYear() })}</Text>
     </ScrollView>
   );
 }
@@ -182,9 +183,9 @@ function MessagesEmpty() {
   return (
     <View style={st.empty}>
       <View style={st.emptyIcon}><Icon name="messages" size={40} color={colors.zinc900} /></View>
-      <Text style={st.emptyTitle}>As tuas mensagens</Text>
-      <Text style={st.emptySub}>Escolhe uma conversa à esquerda ou começa uma nova com a malta.</Text>
-      <Pressable onPress={() => router.push('/messages/new' as never)} style={st.emptyBtn} accessibilityRole="button"><Text style={st.emptyBtnText}>Nova mensagem</Text></Pressable>
+      <Text style={st.emptyTitle}>{t('As tuas mensagens')}</Text>
+      <Text style={st.emptySub}>{t('Escolhe uma conversa à esquerda ou começa uma nova com a malta.')}</Text>
+      <Pressable onPress={() => router.push('/messages/new' as never)} style={st.emptyBtn} accessibilityRole="button"><Text style={st.emptyBtnText}>{t('Nova mensagem')}</Text></Pressable>
     </View>
   );
 }

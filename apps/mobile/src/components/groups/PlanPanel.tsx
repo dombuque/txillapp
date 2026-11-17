@@ -13,11 +13,12 @@ import { countdown, dateRange, groupKeys, groupsApi, mzn, parseMzn, type Checkli
 import { colors } from '@/lib/theme';
 import { AvatarStack, ConfirmSheet, DateRangeSheet, ErrText, Field, MemberPickSheet, Pill, Section, VenuePickerSheet, type MiniPerson } from './GroupParts';
 import { NewPollSheet, PollView, usePlan } from './PollCard';
+import { t } from '@/lib/i18n';
 
 const RSVP: { id: Rsvp; label: string; icon: IconName }[] = [
-  { id: 'going', label: 'Vou', icon: 'check' },
-  { id: 'maybe', label: 'Talvez', icon: 'clock' },
-  { id: 'not_going', label: 'Não vou', icon: 'x' },
+  { id: 'going', get label() { return t('Vou'); }, icon: 'check' },
+  { id: 'maybe', get label() { return t('Talvez'); }, icon: 'clock' },
+  { id: 'not_going', get label() { return t('Não vou'); }, icon: 'x' },
 ];
 
 /**
@@ -36,13 +37,13 @@ export function PlanPanel({ groupId, me, admin, members }: { groupId: string; me
   if (!q.data) {
     return (
       <View style={st.center}>
-        <Text style={st.muted}>{(q.error as Error | null)?.message || 'Não consegui abrir o Plano.'}</Text>
-        <Pill label="Tentar outra vez" kind="soft" small onPress={() => void q.refetch()} style={{ marginTop: 12 }} />
+        <Text style={st.muted}>{(q.error as Error | null)?.message || t('Não consegui abrir o Plano.')}</Text>
+        <Pill label={t('Tentar outra vez')} kind="soft" small onPress={() => void q.refetch()} style={{ marginTop: 12 }} />
       </View>
     );
   }
   const plan = q.data;
-  const name = (u: string) => members.find((m) => m.username === u)?.displayName.split(' ')[0] ?? (u === me ? 'Tu' : `@${u}`);
+  const name = (u: string) => members.find((m) => m.username === u)?.displayName.split(' ')[0] ?? (u === me ? t('Tu') : `@${u}`);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.zinc50 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
       <WhereWhen groupId={groupId} plan={plan} admin={admin} onChanged={refresh} />
@@ -73,9 +74,9 @@ function WhereWhen({ groupId, plan, admin, onChanged }: { groupId: string; plan:
   }
   const empty = !plan.destination && !plan.venue && !when;
   return (
-    <Section title="Onde e quando" icon="map-pin" action={admin ? <Pill label="Editar" kind="soft" small icon="pencil" onPress={() => setEditing(true)} /> : undefined}>
+    <Section title={t('Onde e quando')} icon="map-pin" action={admin ? <Pill label={t('Editar')} kind="soft" small icon="pencil" onPress={() => setEditing(true)} /> : undefined}>
       {empty ? (
-        <Text style={st.muted}>{admin ? 'Ainda sem destino nem datas. Toca em Editar e põe a malta a sonhar.' : 'Ainda sem destino nem datas. Quem administra trata disso.'}</Text>
+        <Text style={st.muted}>{admin ? t('Ainda sem destino nem datas. Toca em Editar e põe a malta a sonhar.') : t('Ainda sem destino nem datas. Quem administra trata disso.')}</Text>
       ) : (
         <View style={{ gap: 10 }}>
           {plan.destination ? <Text style={st.dest}>{plan.destination}</Text> : null}
@@ -102,7 +103,7 @@ function VenueRow({ venue, onPress, right }: { venue: VenueRef | VenueHit; onPre
       {venue.avatarUrl ? <Image source={{ uri: sized(abs(venue.avatarUrl) ?? venue.avatarUrl, 120) }} style={{ width: 40, height: 40, borderRadius: 12 }} /> : <View style={st.venueIcon}><Icon name="store" size={18} color={colors.zinc600} /></View>}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{venue.name}</Text>
-        <Text style={st.muted} numberOfLines={1}>{onPress ? 'Ver a página do local' : `@${venue.slug}`}</Text>
+        <Text style={st.muted} numberOfLines={1}>{onPress ? t('Ver a página do local') : `@${venue.slug}`}</Text>
       </View>
       {right ?? (onPress ? <Icon name="chevron-right" size={18} color={colors.zinc500} /> : null)}
     </Pressable>
@@ -129,20 +130,20 @@ function PlanEditSheet({ groupId, plan, onClose, onSaved }: { groupId: string; p
       setBusy(false);
     }
   }
-  if (picking === 'venue') return <VenuePickerSheet title="Ligar a um local" onPick={(v) => { setVenue(v); if (!destination.trim()) setDestination((v.city ? `${v.name}, ${v.city}` : v.name).slice(0, 80)); }} onClose={() => setPicking(null)} />;
+  if (picking === 'venue') return <VenuePickerSheet title={t('Ligar a um local')} onPick={(v) => { setVenue(v); if (!destination.trim()) setDestination((v.city ? `${v.name}, ${v.city}` : v.name).slice(0, 80)); }} onClose={() => setPicking(null)} />;
   if (picking === 'dates') return <DateRangeSheet start={start} end={end} onSave={(a, b) => { setStart(a); setEnd(b); }} onClose={() => setPicking(null)} />;
   return (
-    <Sheet title="Onde e quando" onClose={onClose}>
+    <Sheet title={t('Onde e quando')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <Field value={destination} onChangeText={setDestination} maxLength={80} placeholder="Destino · ex.: Tofo, Bilene, Ponta do Ouro" accessibilityLabel="Destino" />
+        <Field value={destination} onChangeText={setDestination} maxLength={80} placeholder={t('Destino · ex.: Tofo, Bilene, Ponta do Ouro')} accessibilityLabel={t('Destino')} />
         {venue ? (
-          <VenueRow venue={venue} right={<Pressable onPress={() => setVenue(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar o local"><Icon name="x" size={18} color={colors.zinc600} /></Pressable>} />
+          <VenueRow venue={venue} right={<Pressable onPress={() => setVenue(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar o local')}><Icon name="x" size={18} color={colors.zinc600} /></Pressable>} />
         ) : (
-          <Pill label="Ligar a um local do Txillapp" icon="store" kind="soft" onPress={() => setPicking('venue')} />
+          <Pill label={t('Ligar a um local do Txillapp')} icon="store" kind="soft" onPress={() => setPicking('venue')} />
         )}
-        <Pill label={dateRange(start, end) ?? 'Escolher as datas'} icon="calendar" kind="soft" onPress={() => setPicking('dates')} />
+        <Pill label={dateRange(start, end) ?? t('Escolher as datas')} icon="calendar" kind="soft" onPress={() => setPicking('dates')} />
         <ErrText text={err} />
-        <Pill label="Guardar" busy={busy} onPress={() => void save()} />
+        <Pill label={t('Guardar')} busy={busy} onPress={() => void save()} />
       </View>
     </Sheet>
   );
@@ -165,7 +166,7 @@ function WhoComes({ groupId, plan, me, onChanged }: { groupId: string; plan: Gro
     }
   }
   return (
-    <Section title="Quem vem" icon="users">
+    <Section title={t('Quem vem')} icon="users">
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {RSVP.map((r) => {
           const on = mine === r.id;
@@ -189,7 +190,7 @@ function WhoComes({ groupId, plan, me, onChanged }: { groupId: string; plan: Gro
             </View>
           );
         })}
-        {!plan.rsvps.length && <Text style={st.muted}>Ninguém respondeu ainda. Sê o primeiro.</Text>}
+        {!plan.rsvps.length && <Text style={st.muted}>{t('Ninguém respondeu ainda. Sê o primeiro.')}</Text>}
       </View>
     </Section>
   );
@@ -202,13 +203,13 @@ function Polls({ groupId, plan, me, admin }: { groupId: string; plan: GroupPlan;
   const open = plan.polls.filter((p) => !p.closed);
   const closed = plan.polls.filter((p) => p.closed);
   return (
-    <Section title="Sondagens" icon="trending" action={<Pill label="Nova" icon="plus" kind="soft" small onPress={() => setCreating(true)} />}>
-      {!plan.polls.length && <Text style={st.muted}>Onde ficamos? Que dia saímos? Lança uma sondagem e a malta decide.</Text>}
+    <Section title={t('Sondagens')} icon="trending" action={<Pill label={t('Nova')} icon="plus" kind="soft" small onPress={() => setCreating(true)} />}>
+      {!plan.polls.length && <Text style={st.muted}>{t('Onde ficamos? Que dia saímos? Lança uma sondagem e a malta decide.')}</Text>}
       <View style={{ gap: 18 }}>
         {open.map((p) => <PollView key={p.id} poll={p} groupId={groupId} me={me} admin={admin} />)}
         {closed.length > 0 && (
           <Pressable onPress={() => setShowClosed(!showClosed)} accessibilityRole="button">
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>{showClosed ? 'Esconder as fechadas' : `Ver as fechadas · ${closed.length}`}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>{showClosed ? t('Esconder as fechadas') : t('Ver as fechadas · {n}', { n: closed.length })}</Text>
           </Pressable>
         )}
         {showClosed && closed.map((p) => <PollView key={p.id} poll={p} groupId={groupId} me={me} admin={admin} />)}
@@ -249,7 +250,7 @@ function Checklist({ groupId, items, me, admin, members, name, onChanged }: { gr
   const person = (u: string | null | undefined) => (u ? members.find((m) => m.username === u) : undefined);
   const doneCount = items.filter((i) => i.done).length;
   return (
-    <Section title="Lista" icon="check-circle" action={items.length ? <Text style={st.muted}>{doneCount} de {items.length}</Text> : undefined}>
+    <Section title={t('Lista')} icon="check-circle" action={items.length ? <Text style={st.muted}>{t('{doneCount} de {n}', { doneCount, n: items.length })}</Text> : undefined}>
       {items.map((it) => {
         const who = it.assignee ? person(it.assignee.username) ?? { username: it.assignee.username, displayName: it.assignee.displayName, hasAvatar: !!it.assignee.hasAvatar } : undefined;
         return (
@@ -258,29 +259,29 @@ function Checklist({ groupId, items, me, admin, members, name, onChanged }: { gr
               {it.done && <Icon name="check" size={14} strokeWidth={3} color="#fff" />}
             </Pressable>
             <Text style={[st.itemText, it.done && { color: colors.zinc500, textDecorationLine: 'line-through' }]}>{it.text}</Text>
-            <Pressable onPress={() => setAssignFor(it)} style={st.assign} accessibilityRole="button" accessibilityLabel={who ? `Responsável: ${who.displayName}. Mudar` : 'Escolher quem trata'}>
+            <Pressable onPress={() => setAssignFor(it)} style={st.assign} accessibilityRole="button" accessibilityLabel={who ? t('Responsável: {displayName}. Mudar', { displayName: who.displayName }) : t('Escolher quem trata')}>
               {who ? <Avatar name={who.displayName} username={who.hasAvatar ? who.username : undefined} size={26} /> : <Icon name="user-plus" size={16} color={colors.zinc500} />}
             </Pressable>
             {(admin || !it.createdBy || it.createdBy === me) && (
-              <Pressable onPress={() => void run(() => groupsApi.deleteItem(groupId, it.id))} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={`Apagar ${it.text}`}>
+              <Pressable onPress={() => void run(() => groupsApi.deleteItem(groupId, it.id))} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={t('Apagar {text}', { text: it.text })}>
                 <Icon name="trash" size={16} color={colors.zinc500} />
               </Pressable>
             )}
           </View>
         );
       })}
-      {!items.length && <Text style={[st.muted, { marginBottom: 10 }]}>Carvão, gelo, colunas, protetor solar… Quem leva o quê?</Text>}
+      {!items.length && <Text style={[st.muted, { marginBottom: 10 }]}>{t('Carvão, gelo, colunas, protetor solar… Quem leva o quê?')}</Text>}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-        <Field value={text} onChangeText={setText} maxLength={120} placeholder="Juntar à lista" accessibilityLabel="Nova coisa na lista" onSubmitEditing={() => void add()} returnKeyType="done" style={{ flex: 1 }} />
-        <Pressable onPress={() => setAssignFor('new')} style={[st.assign, { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={assignee ? `Para ${name(assignee)}` : 'Escolher quem trata'}>
+        <Field value={text} onChangeText={setText} maxLength={120} placeholder={t('Juntar à lista')} accessibilityLabel={t('Nova coisa na lista')} onSubmitEditing={() => void add()} returnKeyType="done" style={{ flex: 1 }} />
+        <Pressable onPress={() => setAssignFor('new')} style={[st.assign, { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={assignee ? t('Para {name}', { name: name(assignee) }) : t('Escolher quem trata')}>
           {assignee && person(assignee) ? <Avatar name={person(assignee)!.displayName} username={person(assignee)!.hasAvatar ? assignee : undefined} size={30} /> : <Icon name="user-plus" size={18} color={colors.zinc700} />}
         </Pressable>
-        <Pressable onPress={() => void add()} disabled={!text.trim()} style={[st.addBtn, !text.trim() && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Juntar"><Icon name="plus" size={20} color="#fff" /></Pressable>
+        <Pressable onPress={() => void add()} disabled={!text.trim()} style={[st.addBtn, !text.trim() && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={t('Juntar')}><Icon name="plus" size={20} color="#fff" /></Pressable>
       </View>
       <ErrText text={err} />
       {assignFor && (
         <MemberPickSheet
-          title="Quem trata disto?"
+          title={t('Quem trata disto?')}
           people={members}
           allowNone
           selected={assignFor === 'new' ? (assignee ? [assignee] : []) : assignFor.assignee ? [assignFor.assignee.username] : []}
@@ -313,21 +314,21 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
     }
   }
   return (
-    <Section title="Despesas" icon="wallet" action={<Pill label="Juntar" icon="plus" kind="soft" small onPress={() => setAdding(true)} />}>
+    <Section title={t('Despesas')} icon="wallet" action={<Pill label={t('Juntar')} icon="plus" kind="soft" small onPress={() => setAdding(true)} />}>
       {!items.length ? (
-        <Text style={st.muted}>Quem pagou a gasolina? E a casa? Junta aqui e o Txillapp faz as contas.</Text>
+        <Text style={st.muted}>{t('Quem pagou a gasolina? E a casa? Junta aqui e o Txillapp faz as contas.')}</Text>
       ) : (
         <View style={{ gap: 2 }}>
-          <Text style={st.total}>{mzn(total)} <Text style={st.muted}>no total</Text></Text>
+          <Text style={st.total}>{mzn(total)} <Text style={st.muted}>{t('no total')}</Text></Text>
           {items.map((e) => (
             <View key={e.id} style={st.exp}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={st.expDesc} numberOfLines={1}>{e.description}</Text>
-                <Text style={st.muted} numberOfLines={1}>{e.paidBy.username === me ? 'Pagaste tu' : `Pagou ${e.paidBy.displayName.split(' ')[0]}`} · dividido por {e.splitAmong.length}</Text>
+                <Text style={st.muted} numberOfLines={1}>{e.paidBy.username === me ? t('Pagaste tu') : t('Pagou {split}', { split: e.paidBy.displayName.split(' ')[0] })} {t('· dividido por {n}', { n: e.splitAmong.length })}</Text>
               </View>
               <Text style={st.expAmount}>{mzn(e.amountMzn)}</Text>
               {(e.canDelete ?? (admin || e.createdBy === me)) && (
-                <Pressable onPress={() => setDeleting(e)} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={`Apagar ${e.description}`}><Icon name="trash" size={16} color={colors.zinc500} /></Pressable>
+                <Pressable onPress={() => setDeleting(e)} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={t('Apagar {description}', { description: e.description })}><Icon name="trash" size={16} color={colors.zinc500} /></Pressable>
               )}
             </View>
           ))}
@@ -335,36 +336,36 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
       )}
       {balances.some((b) => b.net !== 0) && (
         <View style={{ marginTop: 14 }}>
-          <Text style={st.sub}>Saldos</Text>
+          <Text style={st.sub}>{t('Saldos')}</Text>
           {balances.filter((b) => b.net !== 0).map((b) => (
             <View key={b.username} style={st.bal}>
               <NameWithBadge name={b.username === me ? 'Tu' : b.displayName} who={b.username === me ? null : b} style={[st.balName, { flex: undefined }]} containerStyle={{ flex: 1 }} />
-              <Text style={[st.balNet, { color: b.net > 0 ? colors.green700 : colors.red600 }]}>{b.net > 0 ? `recebe ${mzn(b.net)}` : `deve ${mzn(-b.net)}`}</Text>
+              <Text style={[st.balNet, { color: b.net > 0 ? colors.green700 : colors.red600 }]}>{b.net > 0 ? t('recebe {mzn}', { mzn: mzn(b.net) }) : t('deve {mzn}', { mzn: mzn(-b.net) })}</Text>
             </View>
           ))}
         </View>
       )}
       {settlements.length > 0 && (
         <View style={{ marginTop: 14 }}>
-          <Text style={st.sub}>Quem paga a quem</Text>
+          <Text style={st.sub}>{t('Quem paga a quem')}</Text>
           {settlements.map((s, i) => (
             <View key={i} style={[st.settle, (s.from === me || s.to === me) && { backgroundColor: colors.rose50 }]}>
-              <Text style={st.settleWho} numberOfLines={1}>{s.from === me ? 'Tu' : name(s.from)}</Text>
+              <Text style={st.settleWho} numberOfLines={1}>{s.from === me ? t('Tu') : name(s.from)}</Text>
               <Icon name="chevron-right" size={16} color={colors.zinc500} />
-              <Text style={[st.settleWho, { flex: 1 }]} numberOfLines={1}>{s.to === me ? 'ti' : name(s.to)}</Text>
+              <Text style={[st.settleWho, { flex: 1 }]} numberOfLines={1}>{s.to === me ? t('ti') : name(s.to)}</Text>
               <Text style={st.expAmount}>{mzn(s.amount)}</Text>
             </View>
           ))}
         </View>
       )}
-      {items.length > 0 && !settlements.length && !balances.some((b) => b.net !== 0) && <Text style={[st.muted, { marginTop: 10 }]}>Contas certas. Ninguém deve nada a ninguém.</Text>}
+      {items.length > 0 && !settlements.length && !balances.some((b) => b.net !== 0) && <Text style={[st.muted, { marginTop: 10 }]}>{t('Contas certas. Ninguém deve nada a ninguém.')}</Text>}
       <ErrText text={err} />
       {adding && <ExpenseSheet groupId={groupId} me={me} members={members} onClose={() => setAdding(false)} onSaved={onChanged} />}
       {deleting && (
         <ConfirmSheet
-          title="Apagar a despesa?"
-          lines={[`«${deleting.description}» (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
-          confirmLabel="Apagar"
+          title={t('Apagar a despesa?')}
+          lines={[t('«{description}» ({mzn}) sai das contas e os saldos de toda a malta são refeitos.', { description: deleting.description, mzn: mzn(deleting.amountMzn) })]}
+          confirmLabel={t('Apagar')}
           danger
           onConfirm={() => remove(deleting)}
           onClose={() => setDeleting(null)}
@@ -383,11 +384,11 @@ function ExpenseSheet({ groupId, me, members, onClose, onSaved }: { groupId: str
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const cents = parseMzn(amount);
-  const who = (u: string) => (u === me ? 'Tu' : members.find((m) => m.username === u)?.displayName ?? `@${u}`);
+  const who = (u: string) => (u === me ? t('Tu') : members.find((m) => m.username === u)?.displayName ?? `@${u}`);
   async function save() {
-    if (!description.trim()) return setErr('Escreve o que foi.');
-    if (!cents) return setErr('Põe um valor válido em meticais.');
-    if (!split.length) return setErr('Escolhe entre quem se divide.');
+    if (!description.trim()) return setErr(t('Escreve o que foi.'));
+    if (!cents) return setErr(t('Põe um valor válido em meticais.'));
+    if (!split.length) return setErr(t('Escolhe entre quem se divide.'));
     setBusy(true);
     setErr('');
     try {
@@ -399,29 +400,29 @@ function ExpenseSheet({ groupId, me, members, onClose, onSaved }: { groupId: str
       setBusy(false);
     }
   }
-  if (picking === 'paid') return <MemberPickSheet title="Quem pagou?" people={members} selected={[paidBy]} onDone={(l) => l[0] && setPaidBy(l[0])} onClose={() => setPicking(null)} />;
-  if (picking === 'split') return <MemberPickSheet title="Dividir entre" people={members} selected={split} multiple onDone={setSplit} onClose={() => setPicking(null)} />;
+  if (picking === 'paid') return <MemberPickSheet title={t('Quem pagou?')} people={members} selected={[paidBy]} onDone={(l) => l[0] && setPaidBy(l[0])} onClose={() => setPicking(null)} />;
+  if (picking === 'split') return <MemberPickSheet title={t('Dividir entre')} people={members} selected={split} multiple onDone={setSplit} onClose={() => setPicking(null)} />;
   return (
-    <Sheet title="Nova despesa" onClose={onClose}>
+    <Sheet title={t('Nova despesa')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <Field value={description} onChangeText={setDescription} maxLength={80} autoFocus placeholder="O que foi · ex.: Gasolina para o Tofo" accessibilityLabel="Descrição da despesa" />
+        <Field value={description} onChangeText={setDescription} maxLength={80} autoFocus placeholder={t('O que foi · ex.: Gasolina para o Tofo')} accessibilityLabel={t('Descrição da despesa')} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Field value={amount} onChangeText={(t) => setAmount(t.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad" placeholder="0" accessibilityLabel="Valor em meticais" style={{ flex: 1, fontSize: 22, fontWeight: '800' }} />
-          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc700 }}>MT</Text>
+          <Field value={amount} onChangeText={(t) => setAmount(t.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad" placeholder="0" accessibilityLabel={t('Valor em meticais')} style={{ flex: 1, fontSize: 22, fontWeight: '800' }} />
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc700 }}>{t('MT')}</Text>
         </View>
         <Pressable onPress={() => setPicking('paid')} style={st.pickRow} accessibilityRole="button">
-          <Text style={st.pickLabel}>Quem pagou</Text>
+          <Text style={st.pickLabel}>{t('Quem pagou')}</Text>
           <Text style={st.pickValue} numberOfLines={1}>{who(paidBy)}</Text>
           <Icon name="chevron-right" size={16} color={colors.zinc500} />
         </Pressable>
         <Pressable onPress={() => setPicking('split')} style={st.pickRow} accessibilityRole="button">
-          <Text style={st.pickLabel}>Dividir entre</Text>
-          <Text style={st.pickValue} numberOfLines={1}>{split.length === members.length ? 'Toda a malta' : `${split.length} pessoas`}{cents && split.length ? ` · ${mzn(cents / split.length)} cada` : ''}
+          <Text style={st.pickLabel}>{t('Dividir entre')}</Text>
+          <Text style={st.pickValue} numberOfLines={1}>{split.length === members.length ? t('Toda a malta') : t('{n} pessoas', { n: split.length })}{cents && split.length ? (' ' + t('· {mzn} cada', { mzn: mzn(cents / split.length) })) : ''}
 </Text>
           <Icon name="chevron-right" size={16} color={colors.zinc500} />
         </Pressable>
         <ErrText text={err} />
-        <Pill label="Guardar despesa" busy={busy} onPress={() => void save()} />
+        <Pill label={t('Guardar despesa')} busy={busy} onPress={() => void save()} />
       </View>
     </Sheet>
   );

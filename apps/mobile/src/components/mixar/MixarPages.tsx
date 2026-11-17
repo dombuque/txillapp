@@ -15,6 +15,7 @@ import type { Badged } from '@/lib/api';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
 import { GroupAvatars, MIXAR_GRADIENT, PairAvatars, TopicChips } from './MixarBits';
+import { t } from '@/lib/i18n';
 
 const isWeb = Platform.OS === 'web';
 /** Uma pessoa do Mixar (o nome curto); no Mixar a dois traz o selo de verificado. */
@@ -27,42 +28,42 @@ const snap = isWeb ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as 
 export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, onPrivate }: { mixar: Mixar; me: Who; them: Who; onClose: () => void; onLeave?: () => void; onTopics?: () => void; onPrivate?: () => void }) {
   const p = matchPercent(mixar.match);
   return (
-    <Sheet title="Descoberta de interesses" onClose={onClose}>
+    <Sheet title={t('Descoberta de interesses')} onClose={onClose}>
       <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 12 }}>
         <View style={{ alignItems: 'center', marginBottom: 18 }}>
           {mixar.group ? <GroupAvatars people={mixar.group.people} size={52} max={5} /> : <PairAvatars me={me} them={them} size={56} />}
           {mixar.group ? <Text style={[ds.name, { textAlign: 'center' }]} numberOfLines={2}>{mixar.group.groupName}</Text> : <NameWithBadge name={mixar.name} who={mixar.partner} style={ds.name} center numberOfLines={2} />}
           {mixar.group ? <GroupPeople people={mixar.group.people} /> : null}
-          <View style={ds.meter} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: p }} accessibilityLabel={`${p}% de match`}>
+          <View style={ds.meter} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: p }} accessibilityLabel={t('{p}% de match', { p })}>
             <LinearGradient colors={MIXAR_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[ds.meterFill, { width: `${Math.max(4, p)}%` }]} />
           </View>
-          <Text style={ds.match}><Text style={{ color: colors.brand }}>{p}%</Text> de match · {matchLine(p)}</Text>
+          <Text style={ds.match}><Text style={{ color: colors.brand }}>{p}%</Text> {t('de match · {matchLine}', { matchLine: matchLine(p) })}</Text>
         </View>
 
-        <Section title={mixar.group ? 'Do gosto de todos' : 'Em comum'} empty="Ainda a descobrir: reajam e vejam juntos para o Mixar aprender.">
+        <Section title={mixar.group ? t('Do gosto de todos') : t('Em comum')} empty={t('Ainda a descobrir: reajam e vejam juntos para o Mixar aprender.')}>
           {mixar.common.length ? <TopicChips topics={mixar.common} accent /> : null}
         </Section>
         <View style={{ flexDirection: 'row', gap: 16 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Section title="Só teu" empty="Nada só teu, por agora.">{mixar.onlyMe.length ? <TopicChips topics={mixar.onlyMe} /> : null}</Section>
+            <Section title={t('Só teu')} empty={t('Nada só teu, por agora.')}>{mixar.onlyMe.length ? <TopicChips topics={mixar.onlyMe} /> : null}</Section>
           </View>
           {mixar.group ? null : (
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Section title={`Só de ${them.name}`} empty="Nada só dele ou dela, por agora.">{mixar.onlyThem.length ? <TopicChips topics={mixar.onlyThem} /> : null}</Section>
+              <Section title={t('Só de {name}', { name: them.name })} empty={t('Nada só dele ou dela, por agora.')}>{mixar.onlyThem.length ? <TopicChips topics={mixar.onlyThem} /> : null}</Section>
             </View>
           )}
         </View>
 
         <View style={ds.stats}>
-          <Stat icon="flame" value={daysLabel(mixar.streak)} label="Série no Mixa Challenge" />
-          <Stat icon="party" value={timesLabel(mixar.matches)} label={mixar.group ? 'Escolheram todos o mesmo' : 'Escolheram o mesmo'} />
+          <Stat icon="flame" value={daysLabel(mixar.streak)} label={t('Série no Mixa Challenge')} />
+          <Stat icon="party" value={timesLabel(mixar.matches)} label={mixar.group ? t('Escolheram todos o mesmo') : t('Escolheram o mesmo')} />
         </View>
         {/* Controlo (0172): afinar os temas deste Mixar e os temas privados (components/mixar/MixarControloSheets). */}
         {onTopics || onPrivate ? <ControlLinks onTopics={onTopics} onPrivate={onPrivate} /> : null}
         {onLeave ? (
           <Pressable onPress={onLeave} style={({ pressed }) => [ds.leave, pressed && { opacity: 0.6 }]} accessibilityRole="button">
             <Icon name="logout" size={16} color={colors.red600} />
-            <Text style={ds.leaveText}>{mixar.group ? 'Sair do Mixar do grupo' : 'Sair do Mixar'}</Text>
+            <Text style={ds.leaveText}>{mixar.group ? t('Sair do Mixar do grupo') : t('Sair do Mixar')}</Text>
           </Pressable>
         ) : null}
       </ScrollView>
@@ -73,7 +74,7 @@ export function DiscoverySheet({ mixar, me, them, onClose, onLeave, onTopics, on
 /** No grupo: quem está no Mixar, com o selo de verificado. */
 function GroupPeople({ people }: { people: NonNullable<Mixar['group']>['people'] }) {
   return (
-    <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, maxWidth: 320 }} accessibilityLabel="Quem está no Mixar do grupo">
+    <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, maxWidth: 320 }} accessibilityLabel={t('Quem está no Mixar do grupo')}>
       {people.map((p) => (
         <View key={p.username} style={ds.person}>
           <NameWithBadge name={p.displayName} who={p} style={ds.personText} gap={3} />
@@ -89,14 +90,14 @@ function ControlLinks({ onTopics, onPrivate }: { onTopics?: () => void; onPrivat
       {onTopics ? (
         <Pressable onPress={onTopics} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Icon name="sliders" size={18} color={colors.zinc800} />
-          <Text style={ds.linkText}>Afinar os temas do Mixar</Text>
+          <Text style={ds.linkText}>{t('Afinar os temas do Mixar')}</Text>
           <Icon name="chevron-right" size={16} color="#a1a1aa" />
         </Pressable>
       ) : null}
       {onPrivate ? (
         <Pressable onPress={onPrivate} style={({ pressed }) => [ds.link, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Icon name="lock" size={18} color={colors.zinc800} />
-          <Text style={ds.linkText}>Temas privados</Text>
+          <Text style={ds.linkText}>{t('Temas privados')}</Text>
           <Icon name="chevron-right" size={16} color="#a1a1aa" />
         </Pressable>
       ) : null}
@@ -179,7 +180,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
       <ScrollView contentContainerStyle={[cs.wrap, { paddingTop: topInset + 12, minHeight: height }]} showsVerticalScrollIndicator={false}>
         <View style={cs.kickerRow}>
           <Icon name="sparkles" size={16} color="#ffb4a2" strokeWidth={2.2} />
-          <Text style={cs.kicker}>MIXA CHALLENGE</Text>
+          <Text style={cs.kicker}>{t('MIXA CHALLENGE')}</Text>
         </View>
         <Text style={cs.question} accessibilityRole="header">{challengeQuestion(c)}</Text>
         <Text style={[cs.line, v.phase === 'result' && v.match && { color: '#fde68a', fontWeight: '800' }]} accessibilityLiveRegion="polite">{v.line}</Text>
@@ -198,7 +199,7 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
                 style={({ pressed }) => [cs.opt, { width: tile.width, height: tile.height }, (sel || badge === 'mine' || badge === 'both') && cs.optMine, badge === 'theirs' && cs.optTheirs, lost && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]}
                 accessibilityRole={picking ? 'radio' : 'button'}
                 accessibilityState={picking ? { selected: sel } : undefined}
-                accessibilityLabel={`${p.author.displayName}${p.body ? `: ${p.body.slice(0, 60)}` : ''}${badge === 'both' ? '. Os dois escolheram esta' : badge === 'mine' ? '. A tua escolha' : badge === 'theirs' ? `. ${them.name} escolheu esta` : ''}${n != null ? `. ${pickedLabel(n)}` : ''}`}
+                accessibilityLabel={`${p.author.displayName}${p.body ? `: ${p.body.slice(0, 60)}` : ''}${badge === 'both' ? t('. Os dois escolheram esta') : badge === 'mine' ? t('. A tua escolha') : badge === 'theirs' ? t('. {name} escolheu esta', { name: them.name }) : ''}${n != null ? `. ${pickedLabel(n)}` : ''}`}
               >
                 {thumbOf(p) ? <Image source={{ uri: thumbOf(p) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: '#333' }]} />}
                 {p.media[0]?.kind === 'video' ? <View style={cs.play}><Icon name="play" size={14} color="#fff" solid /></View> : null}
@@ -218,15 +219,15 @@ export function ChallengePage({ c, height, me, them, busy, onPick, onOpen, topIn
 
         {picking ? (
           <Pressable onPress={() => chosen && onPick(chosen)} disabled={!chosen || busy} style={({ pressed }) => [cs.cta, (!chosen || busy) && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button" accessibilityState={{ disabled: !chosen || busy }}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={cs.ctaText}>{chosen ? 'Escolher esta' : 'Toca numa para escolher'}</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={cs.ctaText}>{chosen ? t('Escolher esta') : t('Toca numa para escolher')}</Text>}
           </Pressable>
         ) : v.phase === 'waiting' ? (
-          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>{grp ? 'Avisamos quando todos escolherem.' : <>Avisamos quando {them.name}<InlineBadge who={them} fontSize={14} /> escolher.</>}</Text></View>
+          <View style={cs.wait}><ActivityIndicator color="#fff" /><Text style={cs.waitText}>{grp ? t('Avisamos quando todos escolherem.') : <>{t('Avisamos quando {name}', { name: them.name })}<InlineBadge who={them} fontSize={14} /> {t('escolher.')}</>}</Text></View>
         ) : null}
 
         <View style={cs.more}>
           <Icon name="arrow-up" size={16} color="rgba(255,255,255,0.7)" />
-          <Text style={cs.moreText}>Desliza para a seleção de hoje</Text>
+          <Text style={cs.moreText}>{t('Desliza para a seleção de hoje')}</Text>
         </View>
       </ScrollView>
     </View>
@@ -267,16 +268,16 @@ export function EndPage({ height, me, them, empty, onDiscover, onBack, children 
     <View style={[{ height, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#0b0b0c' }, snap]}>
       <LinearGradient colors={['rgba(214,51,79,0.28)', 'rgba(0,0,0,0)']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.7 }} style={StyleSheet.absoluteFill} />
       <PairAvatars me={me} them={them} size={64} ring="#0b0b0c" />
-      <Text style={es.title}>{empty ? 'A seleção de hoje ainda vem a caminho' : e.title}</Text>
-      <Text style={es.line}>{empty ? 'Reajam, vejam até ao fim e mandem uns aos outros: o Mixar aprende com os dois.' : e.line}</Text>
-      <View style={es.clock}><Icon name="clock" size={16} color="#fff" /><Text style={es.clockText}>Nova seleção às 05:00</Text></View>
+      <Text style={es.title}>{empty ? t('A seleção de hoje ainda vem a caminho') : e.title}</Text>
+      <Text style={es.line}>{empty ? t('Reajam, vejam até ao fim e mandem uns aos outros: o Mixar aprende com os dois.') : e.line}</Text>
+      <View style={es.clock}><Icon name="clock" size={16} color="#fff" /><Text style={es.clockText}>{t('Nova seleção às 05:00')}</Text></View>
       {children}
       <Pressable onPress={onDiscover} style={({ pressed }) => [es.btn, pressed && { transform: [{ scale: 0.97 }] }]} accessibilityRole="button">
         <Icon name="sparkles" size={18} color="#fff" />
-        <Text style={es.btnText}>O que temos em comum</Text>
+        <Text style={es.btnText}>{t('O que temos em comum')}</Text>
       </Pressable>
       <Pressable onPress={onBack} style={({ pressed }) => [es.link, pressed && { opacity: 0.6 }]} accessibilityRole="button">
-        <Text style={es.linkText}>Voltar às mensagens</Text>
+        <Text style={es.linkText}>{t('Voltar às mensagens')}</Text>
       </Pressable>
     </View>
   );

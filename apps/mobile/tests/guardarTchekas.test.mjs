@@ -3,6 +3,7 @@
 // Definições → Conteúdo (desligada e bloqueada numa conta privada ou de menor) e a pesquisa das Definições.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -35,11 +36,11 @@ test('num repost vale o original: a API manda o canDownload do original no repos
 test('a recusa da API: a mensagem dela; sem corpo, uma frase de reserva', () => {
   assert.equal(dl.refusalMessage(403, { statusCode: 403, message: 'Quem publicou não deixa guardar as suas tchekas.' }), 'Quem publicou não deixa guardar as suas tchekas.');
   assert.equal(dl.refusalMessage(400, { message: ['primeira', 'segunda'] }), 'primeira');
-  assert.equal(dl.refusalMessage(403, null), dl.DOWNLOAD_BLOCKED);
-  assert.equal(dl.refusalMessage(403, { message: '  ' }), dl.DOWNLOAD_BLOCKED);
+  assert.equal(dl.refusalMessage(403, null), dl.DOWNLOAD_BLOCKED());
+  assert.equal(dl.refusalMessage(403, { message: '  ' }), dl.DOWNLOAD_BLOCKED());
   assert.match(dl.refusalMessage(404, null), /já não está disponível/);
   assert.match(dl.refusalMessage(500, 'html'), /Tenta outra vez/);
-  assert.equal(dl.DOWNLOAD_BLOCKED, 'Quem publicou não deixa guardar as suas tchekas.');
+  assert.equal(dl.DOWNLOAD_BLOCKED(), 'Quem publicou não deixa guardar as suas tchekas.');
 });
 
 test('no telemóvel: as recusas rápidas lêem-se do erro do descarregamento (Android e iOS); o resto não', () => {
@@ -60,7 +61,7 @@ test('guardar mostra a mensagem da API: no telemóvel pede-a outra vez; no site 
   assert.match(save, /Não dá para guardar/);
   const web = read('lib', 'saveToGallery.web.ts');
   assert.match(web, /await res\.json\(\)\.catch/);
-  assert.match(web, /throw new Error\(typeof msg === 'string' && msg\.trim\(\) \? msg : 'Não consegui preparar o ficheiro'\)/);
+  assert.match(web, /throw new Error\(typeof msg === 'string' && msg\.trim\(\) \? msg : t\('Não consegui preparar o ficheiro'\)\)/);
 });
 
 test('a definição: ligada por omissão; numa conta privada ou de menor desligada, bloqueada e com a razão', () => {
@@ -83,7 +84,7 @@ test('a definição: ligada por omissão; numa conta privada ou de menor desliga
 
 test('Definições → Conteúdo: a linha com o interruptor, a âncora e o cliente da API', () => {
   const screen = read('app', 'settings', 'conteudo.tsx');
-  assert.match(screen, /anchor="allowDownloads" icon="download" title="Deixar guardar as minhas tchekas"/);
+  assert.match(screen, /anchor="allowDownloads" icon="download" title=\{t\('Deixar guardar as minhas tchekas'\)\}/);
   assert.match(screen, /toggle=\{\{ on: dlRow\.on, disabled: dlRow\.disabled, onChange: \(v\) => void setDownloads\(v\) \}\}/);
   assert.match(screen, /queryFn: settingsApi\.downloadSettings/);
   const api = read('lib', 'api.settings.ts');

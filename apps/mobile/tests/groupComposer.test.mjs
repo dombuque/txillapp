@@ -21,8 +21,8 @@ test('usa os mesmos botões da barra das conversas a dois', () => {
   assert.match(c, /import \{ SendButton \} from '\.\/ui\/SendButton';/);
   assert.match(c, /export \{ SendButton \};/);
   assert.match(g, /import \{ Pop, RecDot, SendButton, Tool \} from '\.\/ChatComposer';/);
-  assert.match(g, /<SendButton label="Enviar"/);
-  assert.match(g, /<SendButton label="Enviar a mensagem de voz"/);
+  assert.match(g, /<SendButton label=\{t\('Enviar'\)\}/);
+  assert.match(g, /<SendButton label=\{t\('Enviar a mensagem de voz'\)\}/);
   assert.doesNotMatch(g, /const Bar = /, 'sem componentes criados dentro do render');
   assert.doesNotMatch(g, /width: 32, height: 32/, 'nada de botões de 32 pt');
 });
@@ -45,6 +45,6 @@ test('abrir os stickers fecha o teclado (como nas conversas a dois)', () => {
 
 test('as duas barras dizem "A enviar…" enquanto a foto, o vídeo ou a voz sobem', () => {
   for (const f of ['src/components/ChatComposer.tsx', 'src/components/GroupComposer.tsx']) {
-    assert.match(read(f), /: busy \? <Text style=\{(st|styles)\.busy\} accessibilityLiveRegion="polite">\{progress \? sendingLabel\(progress\.done, progress\.total\) : 'A enviar…'\}<\/Text> : null\}/, f);
+    assert.match(read(f), /: busy \? <Text style=\{(st|styles)\.busy\} accessibilityLiveRegion="polite">\{progress \? sendingLabel\(progress\.done, progress\.total\) : t\('A enviar…'\)\}<\/Text> : null\}/, f);
   }
 });

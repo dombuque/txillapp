@@ -5,6 +5,7 @@ import type { MixarItem, MixarReactionId } from '@/lib/api.mixar';
 import { mixarSocialApi, mixarSocialKeys, type MixarItemSocial } from '@/lib/api.mixarSocial';
 import { applyPresence, autoSaves, moreErrorText, moreResult, PRESENCE_EVERY_MS, SAVED_TOAST, theirChanges, type Presence } from '@/lib/mixarSocial';
 import { onMixarLive } from '@/lib/realtime';
+import { t } from '@/lib/i18n';
 
 const NOBODY: Presence = { here: false, postId: null };
 
@@ -61,7 +62,7 @@ export function useMixarSocial({ id, enabled, items, activePostId, presenceOn, s
       void qc.invalidateQueries({ queryKey: mixarSocialKeys.saved(id) });
     } catch {
       patchSocial(postId, (s) => ({ ...s, saved: was }));
-      sayRef.current('Não consegui guardar. Tenta outra vez.');
+      sayRef.current(t('Não consegui guardar. Tenta outra vez.'));
     }
   }, [socialOf, patchSocial, id, qc]);
   /** Depois de eu reagir: se os dois reagiram sem «nah», o item entrou sozinho nos Guardados. */

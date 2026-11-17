@@ -3,6 +3,8 @@
  * servidor (apps/api/src/gelada/gelada-cards.ts): o álcool nunca aparece a quem tem menos de 18 anos.
  */
 
+import { t } from '@/lib/i18n';
+import { GENERIC_ERROR_CODES } from '@/lib/apiErrors';
 export interface DrinkLike { slug: string; name: string; category: string; alcoholic: boolean; masked?: boolean }
 export interface PersonLike { username: string; displayName: string }
 export type StatusLike = 'pending' | 'accepted' | 'declined' | 'owed' | 'untagged';
@@ -18,15 +20,15 @@ export function drinkEmoji(d: DrinkLike): string {
 
 /** «uma 2M» / «um refresco» / «uma bebida». */
 export function drinkPhrase(d: DrinkLike): string {
-  if (d.masked) return 'uma bebida';
-  return d.alcoholic ? `uma ${d.name}` : 'um refresco';
+  if (d.masked) return t('uma bebida');
+  return d.alcoholic ? t('uma {name}', { name: d.name }) : t('um refresco');
 }
 
 /** O nome a mostrar por baixo do desenho (o refresco diz qual é; a escondida não diz nada). */
-export const drinkLabel = (d: DrinkLike) => (d.masked ? 'Uma bebida' : d.name);
+export const drinkLabel = (d: DrinkLike) => (d.masked ? t('Uma bebida') : d.name);
 
 /** Uma pessoa no texto: @utilizador (ou «Conta eliminada»). */
-export const handleOf = (p: PersonLike | null | undefined) => (!p || !p.username ? 'Conta eliminada' : `@${p.username}`);
+export const handleOf = (p: PersonLike | null | undefined) => (!p || !p.username ? t('Conta eliminada') : `@${p.username}`);
 
 /**
  * O título do cartão no chat, para quem o vê: quem recebe lê «@ana pede-te uma 2M 🍺»; quem pediu lê «Pediste a @rui uma
@@ -42,57 +44,57 @@ export function cardTitle(r: { mine: boolean; requester: PersonLike | null; reci
 export function postTitle(names: (PersonLike | null)[], d: DrinkLike): string {
   const who = names.filter((p): p is PersonLike => !!p && !!p.username).map((p) => `@${p.username}`);
   const ask = `paga-me ${drinkPhrase(d)} ${drinkEmoji(d)}`;
-  return who.length ? `${who.join(', ')}, ${ask}` : `Paga-me ${drinkPhrase(d)} ${drinkEmoji(d)}`;
+  return who.length ? `${who.join(', ')}, ${ask}` : t('Paga-me {drinkPhrase} {drinkEmoji}', { drinkPhrase: drinkPhrase(d), drinkEmoji: drinkEmoji(d) });
 }
 
 /** O estado de um pedido, como toda a gente o vê (no cartão do chat e no post). `name`: @ de quem recebeu. Sem emojis: o desenho da bebida já está no cartão. */
 export function statusLine(status: StatusLike, name: string, forMe = false): string {
-  const who = forMe ? 'Tu' : name;
+  const who = forMe ? t('Tu') : name;
   switch (status) {
-    case 'accepted': return forMe ? 'Disseste «Bora!»' : `${who} pagou`;
-    case 'owed': return forMe ? 'Ficaste a dever' : `${who} ficou a dever`;
-    case 'declined': return 'Hoje não';
-    case 'untagged': return forMe ? 'Saíste deste pedido' : `${who} saiu do pedido`;
-    default: return forMe ? 'À tua espera' : `À espera de ${who}`;
+    case 'accepted': return forMe ? t('Disseste «Bora!»') : `${who} pagou`;
+    case 'owed': return forMe ? t('Ficaste a dever') : t('{who} ficou a dever', { who });
+    case 'declined': return t('Hoje não');
+    case 'untagged': return forMe ? t('Saíste deste pedido') : t('{who} saiu do pedido', { who });
+    default: return forMe ? t('À tua espera') : t('À espera de {who}', { who });
   }
 }
 
 /** Os três botões, pela ordem: «Bora!», «Hoje não», «Fica a dever». */
 export const ANSWERS = [
-  { answer: 'accept', label: 'Bora!' },
-  { answer: 'decline', label: 'Hoje não' },
-  { answer: 'owe', label: 'Fica a dever' },
+  { answer: 'accept', get label() { return t('Bora!'); } },
+  { answer: 'decline', get label() { return t('Hoje não'); } },
+  { answer: 'owe', get label() { return t('Fica a dever'); } },
 ] as const;
 
 /** «Deves 2 · Devem-te 3» (sem nada: «Tudo em dia»). Para o livro de outra pessoa: «Deve 2 · Devem-lhe 3». */
 export function bookSummary(owe: number, owed: number, mine = true): string {
-  if (!owe && !owed) return 'Tudo em dia';
-  return mine ? `Deves ${owe} · Devem-te ${owed}` : `Deve ${owe} · Devem-lhe ${owed}`;
+  if (!owe && !owed) return t('Tudo em dia');
+  return mine ? t('Deves {owe} · Devem-te {owed}', { owe, owed }) : t('Deve {owe} · Devem-lhe {owed}', { owe, owed });
 }
 
 /** Uma linha do livro: «Deves uma 2M a @ana» / «@rui deve-te um refresco». */
 export function debtLine(d: { iOwe: boolean; owedToMe: boolean; debtor: PersonLike; creditor: PersonLike; drink: DrinkLike }): string {
   const what = drinkPhrase(d.drink);
-  if (d.iOwe) return `Deves ${what} a ${handleOf(d.creditor)}`;
-  if (d.owedToMe) return `${handleOf(d.debtor)} deve-te ${what}`;
-  return `${handleOf(d.debtor)} deve ${what} a ${handleOf(d.creditor)}`;
+  if (d.iOwe) return t('Deves {what} a {creditor}', { what, creditor: handleOf(d.creditor) });
+  if (d.owedToMe) return t('{debtor} deve-te {what}', { debtor: handleOf(d.debtor), what });
+  return t('{debtor} deve {what} a {creditor}', { debtor: handleOf(d.debtor), what, creditor: handleOf(d.creditor) });
 }
 
 /** O estado de uma dívida: por pagar, à espera de confirmação, paga ou perdoada. */
 export function debtState(d: { status: 'open' | 'paid' | 'forgiven'; claimed: boolean; iOwe: boolean }): string {
-  if (d.status === 'paid') return 'Paga';
-  if (d.status === 'forgiven') return 'Perdoada';
-  if (d.claimed) return d.iOwe ? 'À espera que confirme' : 'Diz que já pagou';
-  return 'Por pagar';
+  if (d.status === 'paid') return t('Paga');
+  if (d.status === 'forgiven') return t('Perdoada');
+  if (d.claimed) return d.iOwe ? t('À espera que confirme') : t('Diz que já pagou');
+  return t('Por pagar');
 }
 
 /** A sugestão da rodada: «Hoje paga o @rui» (sem género conhecido, «Hoje paga @rui»). */
-export const suggestLine = (p: PersonLike | null) => (p && p.username ? `Hoje paga @${p.username}?` : null);
+export const suggestLine = (p: PersonLike | null) => (p && p.username ? t('Hoje paga @{username}?', { username: p.username }) : null);
 
 /** O texto pronto para «Publicar o momento» (depois de confirmar uma gelada paga). */
 export function momentText(d: { iOwe: boolean; debtor: PersonLike; creditor: PersonLike; drink: DrinkLike }): string {
   const what = d.drink.masked || !d.drink.alcoholic ? 'o refresco' : `a ${d.drink.name}`;
-  return d.iOwe ? `Paguei ${what} que devia a ${handleOf(d.creditor)} ${drinkEmoji(d.drink)} Dívida saldada!` : `${handleOf(d.debtor)} pagou ${what} que me devia ${drinkEmoji(d.drink)} Saúde!`;
+  return d.iOwe ? t('Paguei {what} que devia a {handleOf} {drinkEmoji} Dívida saldada!', { what, handleOf: handleOf(d.creditor), drinkEmoji: drinkEmoji(d.drink) }) : t('{handleOf} pagou {what} que me devia {drinkEmoji} Saúde!', { handleOf: handleOf(d.debtor), what, drinkEmoji: drinkEmoji(d.drink) });
 }
 
 /** Os amigos para o pedido: mútuos primeiro, depois quem sigo; no post só os mútuos. */
@@ -106,17 +108,17 @@ export function pickable<T extends { mutual: boolean }>(list: T[], channel: 'cha
  * gelada_tag: pediram-me numa publicação; gelada_answer: responderam ao meu pedido publicado; gelada_paid: «Já paguei».
  */
 export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: string; step?: string; venue?: string; venueKind?: string }): string {
-  if (kind === 'gelada_tag') return d.soft ? 'pede-te um refresco numa publicação' : 'pede-te uma gelada numa publicação';
+  if (kind === 'gelada_tag') return d.soft ? t('pede-te um refresco numa publicação') : t('pede-te uma gelada numa publicação');
   if (kind === 'gelada_answer') {
-    if (d.answer === 'accept') return 'disse «Bora!» ao teu pedido';
-    if (d.answer === 'owe') return d.soft ? 'ficou a dever-te um refresco' : 'ficou a dever-te uma';
-    return 'disse «Hoje não» ao teu pedido';
+    if (d.answer === 'accept') return t('disse «Bora!» ao teu pedido');
+    if (d.answer === 'owe') return d.soft ? t('ficou a dever-te um refresco') : t('ficou a dever-te uma');
+    return t('disse «Hoje não» ao teu pedido');
   }
   if (kind === 'gelada_paid') {
-    if (d.step !== 'claimed') return 'confirmou que pagaste';
-    return d.venue ? `diz que já te pagou ${venueTag({ name: d.venue, kind: d.venueKind })}. Confirmas?` : 'diz que já te pagou. Confirmas?';
+    if (d.step !== 'claimed') return t('confirmou que pagaste');
+    return d.venue ? t('diz que já te pagou {venueTag}. Confirmas?', { venueTag: venueTag({ name: d.venue, kind: d.venueKind }) }) : t('diz que já te pagou. Confirmas?');
   }
-  return 'tem novidades para ti';
+  return t('tem novidades para ti');
 }
 
 /** Para onde leva tocar na notificação: a publicação do pedido, ou o livro das geladas. */
@@ -169,18 +171,19 @@ export function venuesByDistance<T extends { slug: string; lat: number | null; l
 
 /* ───────────── erros ───────────── */
 
-/** Mensagens que não servem para mostrar (genéricas ou em inglês): no lugar delas vai a frase do ecrã. */
-const GENERIC = /^(Erro inesperado|Dados inválidos|Forbidden|Bad Request|Not Found|Unauthorized|Conflict|Internal server error|Too Many Requests|ThrottlerException.*)$/i;
+/** Os `code` da API dos erros sem frase própria (genéricos, validação, sem mensagem): no lugar deles vai a frase do ecrã. */
+const GENERIC_CODES = GENERIC_ERROR_CODES;
 
 /**
  * O texto do erro de um pedido da gelada: a frase do servidor (já em português, com o @ da pessoa, p.ex. «Já pediste 3
  * geladas ao @ana hoje. Amanhã há mais 🍻»), menos quando é genérica ou em inglês. `fallback`: a frase do ecrã.
  */
 export function geladaErrorText(e: unknown, fallback: string): string {
-  const err = (e ?? {}) as { status?: number; message?: unknown };
+  const err = (e ?? {}) as { status?: number; message?: unknown; code?: unknown; extra?: Record<string, unknown> };
   const msg = typeof err.message === 'string' ? err.message.trim() : '';
-  if (err.status === 429 && (!msg || /throttler|too many/i.test(msg))) return 'Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez.';
-  if (!err.status && /failed to fetch|network|timeout|load failed/i.test(msg)) return 'Parece que estás sem rede. Tenta outra vez quando tiveres ligação.';
-  if (!msg || GENERIC.test(msg) || /^[A-Z][a-z]+ ?Exception/.test(msg)) return fallback;
+  const code = typeof err.code === 'string' ? err.code : typeof err.extra?.code === 'string' ? err.extra.code : undefined;
+  if (err.status === 429 && (!msg || code === 'too_many_requests')) return t('Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez.');
+  if (!err.status && /failed to fetch|network|timeout|load failed/i.test(msg)) return t('Parece que estás sem rede. Tenta outra vez quando tiveres ligação.');
+  if (!msg || (code && GENERIC_CODES.has(code)) || (err.status ?? 0) >= 500) return fallback;
   return msg;
 }

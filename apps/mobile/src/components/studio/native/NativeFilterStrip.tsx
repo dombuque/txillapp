@@ -6,6 +6,7 @@ import { FILTERS, isIdentity, resolveFx, type ClipFx } from '@/lib/studio/effect
 import { videoLook } from '@/lib/studio/nativeLook';
 import { fxc } from '../FxUi';
 import { LookLayer } from './NativeStage';
+import { t } from '@/lib/i18n';
 
 const TW = 56, TH = 84;
 
@@ -45,12 +46,12 @@ export function NativeFilterStrip({ fx, thumb, photo, onPick }: { fx: ClipFx | u
   const small = useSmall(photo && typeof thumb === 'string' ? thumb : null);
   const looks = useMemo(() => FILTERS.map((f) => resolveFx({ filter: { id: f.id, amount: 1 }, adjust: fx?.adjust })), [fx?.adjust]);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 9, paddingVertical: 4 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 9, paddingVertical: 4 }} accessibilityRole="tablist" accessibilityLabel={t('Filtros')}>
       {FILTERS.map((f, i) => {
         const on = f.id === current;
         const p = looks[i];
         return (
-          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 8, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Filtro ${f.name}: ${f.mood}`}>
+          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 8, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Filtro {name}: {mood}', { name: f.name, mood: f.mood })}>
             <View style={[{ width: TW, height: TH, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.12)', backgroundColor: f.swatch }]}>
               {small ? (
                 <Canvas style={{ width: TW - 4, height: TH - 4 }}>

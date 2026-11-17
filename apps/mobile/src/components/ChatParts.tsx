@@ -14,6 +14,7 @@ import { useDeskChat } from '@/lib/deskChat';
 import { LOVE_REACTION, applyLoveToPages, lovedByMe } from '@/lib/chatLove';
 import { DeskMenu, type DeskMenuItem } from './DeskMenu';
 import type { MenuAt, MenuMode, Msg } from './ChatBubbles';
+import { t } from '@/lib/i18n';
 
 /** Esqueleto a pulsar (como o animate-pulse do site): opacidade 1 -> 0.5 -> 1 em 2 s. */
 export function Pulse({ children, style }: { children?: ReactNode; style?: object }) {
@@ -122,7 +123,7 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
       onError('');
     } catch (e) {
       if (before !== undefined) qc.setQueryData(cacheKey, before);
-      onError(`Não consegui apagar a mensagem: ${(e as Error).message}`);
+      onError(t('Não consegui apagar a mensagem: {message}', { message: (e as Error).message }));
     }
     onDone();
     void qc.invalidateQueries({ queryKey: ['chat-list'] });
@@ -130,7 +131,7 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
   }
   async function copy() {
     onClose();
-    await Clipboard.setStringAsync(copyText(m)).catch(() => onError('Não consegui copiar o texto.'));
+    await Clipboard.setStringAsync(copyText(m)).catch(() => onError(t('Não consegui copiar o texto.')));
   }
 
   if (step === 'report') return <ReportSheet type="message" id={m.id} onReported={onDone} onClose={() => { setStep('menu'); onClose(); }} />;
@@ -141,15 +142,15 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
       <Button key={label} label={label} onPress={run} kind={tone === 'danger' ? 'danger' : 'secondary'} block style={{ marginBottom: 8 }} />
     );
     return (
-      <Sheet title="Apagar mensagem?" onClose={onClose}>
+      <Sheet title={t('Apagar mensagem?')} onClose={onClose}>
         <View style={{ paddingHorizontal: 20 }}>
           <Text style={st.askText}>
             {opts.deleteForAll
-              ? '«Apagar para todos» tira-a da conversa para toda a gente (fica o aviso «Esta mensagem foi apagada»). «Apagar para mim» tira-a só da tua conversa.'
-              : 'Sai só da tua conversa: os outros continuam a vê-la.'}
+              ? t('«Apagar para todos» tira-a da conversa para toda a gente (fica o aviso «Esta mensagem foi apagada»). «Apagar para mim» tira-a só da tua conversa.')
+              : t('Sai só da tua conversa: os outros continuam a vê-la.')}
           </Text>
-          {choices.map((c) => (c === 'all' ? btn('Apagar para todos', () => void remove('all'), 'danger') : btn('Apagar para mim', () => void remove('me'), 'danger')))}
-          {btn('Cancelar', onClose, 'plain')}
+          {choices.map((c) => (c === 'all' ? btn(t('Apagar para todos'), () => void remove('all'), 'danger') : btn(t('Apagar para mim'), () => void remove('me'), 'danger')))}
+          {btn(t('Cancelar'), onClose, 'plain')}
         </View>
       </Sheet>
     );
@@ -159,22 +160,22 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
   // Apagar e Denunciar continuam a pedir confirmação nas folhas de sempre.
   if (at && desk) {
     const items: DeskMenuItem[] = mode === 'react' ? [] : [
-      ...(opts.reply ? [{ id: 'reply', label: 'Responder', icon: 'reply' as const, onPress: () => onReply(m) }] : []),
-      ...(opts.copy ? [{ id: 'copy', label: 'Copiar', icon: 'file-text' as const, onPress: () => void copy() }] : []),
-      ...(opts.edit && onEdit ? [{ id: 'edit', label: 'Editar', icon: 'pencil' as const, onPress: () => onEdit(m) }] : []),
-      ...(opts.deleteForMe ? [{ id: 'delete', label: 'Apagar…', icon: 'trash' as const, danger: true, onPress: () => setStep('delete') }] : []),
-      ...(opts.report ? [{ id: 'report', label: 'Denunciar mensagem…', icon: 'flag' as const, onPress: () => setStep('report') }] : []),
+      ...(opts.reply ? [{ id: 'reply', label: t('Responder'), icon: 'reply' as const, onPress: () => onReply(m) }] : []),
+      ...(opts.copy ? [{ id: 'copy', label: t('Copiar'), icon: 'file-text' as const, onPress: () => void copy() }] : []),
+      ...(opts.edit && onEdit ? [{ id: 'edit', label: t('Editar'), icon: 'pencil' as const, onPress: () => onEdit(m) }] : []),
+      ...(opts.deleteForMe ? [{ id: 'delete', label: t('Apagar…'), icon: 'trash' as const, danger: true, onPress: () => setStep('delete') }] : []),
+      ...(opts.report ? [{ id: 'report', label: t('Denunciar mensagem…'), icon: 'flag' as const, onPress: () => setStep('report') }] : []),
     ];
     // Escolher uma opção corre-a e fecha o menu; as que levam a uma folha (apagar, denunciar) mantêm este componente vivo.
     const close = () => { if (keep.current) { keep.current = false; return; } onClose(); };
     return (
       <DeskMenu
         at={at}
-        label={mode === 'react' ? 'Reagir à mensagem' : 'Opções da mensagem'}
+        label={mode === 'react' ? t('Reagir à mensagem') : t('Opções da mensagem')}
         items={items.map((it) => ({ ...it, onPress: () => { if (it.id === 'delete' || it.id === 'report') keep.current = true; it.onPress(); } }))}
         onClose={close}
         header={opts.react ? (
-          <View style={[st.deskReacts, mode !== 'react' && st.deskReactsLine]} accessibilityRole="toolbar" accessibilityLabel="Reagir">
+          <View style={[st.deskReacts, mode !== 'react' && st.deskReactsLine]} accessibilityRole="toolbar" accessibilityLabel={t('Reagir')}>
             {REACTIONS.map((r) => {
               const mine = !!m.reactions?.some((x) => x.mine && x.reaction === r.id);
               return (
@@ -199,10 +200,10 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
     </Pressable>
   );
   return (
-    <Sheet title="Mensagem" onClose={onClose}>
+    <Sheet title={t('Mensagem')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
         {opts.react && (
-          <View style={st.reacts} accessibilityRole="toolbar" accessibilityLabel="Reagir">
+          <View style={st.reacts} accessibilityRole="toolbar" accessibilityLabel={t('Reagir')}>
             {REACTIONS.map((r) => {
               const mine = !!m.reactions?.some((x) => x.mine && x.reaction === r.id);
               return (
@@ -213,11 +214,11 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
             })}
           </View>
         )}
-        {opts.reply && row('reply', 'Responder', null, () => { onClose(); onReply(m); })}
-        {opts.copy && row('file-text', 'Copiar', null, () => void copy())}
-        {opts.edit && onEdit && row('pencil', 'Editar', 'Até 15 minutos depois de enviar.', () => { onClose(); onEdit(m); })}
-        {opts.deleteForMe && row('trash', 'Apagar', opts.deleteForAll ? 'Para todos ou só para ti.' : 'Só para ti.', () => setStep('delete'), true)}
-        {opts.report && row('flag', 'Denunciar mensagem', 'Avisa a moderação. A pessoa não sabe.', () => setStep('report'))}
+        {opts.reply && row('reply', t('Responder'), null, () => { onClose(); onReply(m); })}
+        {opts.copy && row('file-text', t('Copiar'), null, () => void copy())}
+        {opts.edit && onEdit && row('pencil', t('Editar'), t('Até 15 minutos depois de enviar.'), () => { onClose(); onEdit(m); })}
+        {opts.deleteForMe && row('trash', t('Apagar'), opts.deleteForAll ? t('Para todos ou só para ti.') : t('Só para ti.'), () => setStep('delete'), true)}
+        {opts.report && row('flag', t('Denunciar mensagem'), t('Avisa a moderação. A pessoa não sabe.'), () => setStep('report'))}
       </View>
     </Sheet>
   );
@@ -227,11 +228,11 @@ export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, on
 export function RequestBar({ name, bottom, onAccept, onDecline, onBlock }: { name: string; bottom: number; onAccept: () => void; onDecline: () => void; onBlock: () => void }) {
   return (
     <View style={[st.request, { paddingBottom: Math.max(bottom, 14) }]}>
-      <Text style={st.requestText}><Text style={{ fontWeight: '700' }}>Pedido de mensagem.</Text> Não segues {name}. Se aceitares, podem falar à vontade; se recusares, não és incomodado.</Text>
+      <Text style={st.requestText}><Text style={{ fontWeight: '700' }}>{t('Pedido de mensagem.')}</Text> {t('Não segues {name}. Se aceitares, podem falar à vontade; se recusares, não és incomodado.', { name })}</Text>
       <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
-        <Pressable onPress={onAccept} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={[st.btnText, { color: '#fff', fontWeight: '700' }]}>Aceitar</Text></Pressable>
-        <Pressable onPress={onDecline} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.zinc800 }]}>Recusar</Text></Pressable>
-        <Pressable onPress={onBlock} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.danger }]}>Bloquear</Text></Pressable>
+        <Pressable onPress={onAccept} style={[st.btn, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={[st.btnText, { color: '#fff', fontWeight: '700' }]}>{t('Aceitar')}</Text></Pressable>
+        <Pressable onPress={onDecline} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.zinc800 }]}>{t('Recusar')}</Text></Pressable>
+        <Pressable onPress={onBlock} style={[st.btn, { backgroundColor: colors.zinc100 }]} accessibilityRole="button"><Text style={[st.btnText, { color: colors.danger }]}>{t('Bloquear')}</Text></Pressable>
       </View>
     </View>
   );
@@ -243,9 +244,9 @@ export function NotFollowingNote({ name, left }: { name: string; left: number | 
     <View style={st.note} accessibilityRole="summary">
       <View style={{ alignItems: 'center', marginBottom: 4 }}><Icon name="info" size={16} color={colors.zinc500} /></View>
       <Text style={st.noteText}>
-        <Text style={{ fontWeight: '700', color: colors.zinc800 }}>{name} não te segue.</Text> Pode não ver nem responder à tua mensagem.
+        <Text style={{ fontWeight: '700', color: colors.zinc800 }}>{t('{name} não te segue.', { name })}</Text> {t('Pode não ver nem responder à tua mensagem.')}
       </Text>
-      {left !== null ? <Text style={st.noteText}>{left > 0 ? `Podes enviar mais ${left} ${left === 1 ? 'mensagem' : 'mensagens'} até responder.` : 'Aguarda que responda, aceite ou te siga para escreveres outra vez.'}</Text> : null}
+      {left !== null ? <Text style={st.noteText}>{left > 0 ? t('Podes enviar mais {count} mensagem até responder.', { count: left, other: 'Podes enviar mais {count} mensagens até responder.' }) : t('Aguarda que responda, aceite ou te siga para escreveres outra vez.')}</Text> : null}
     </View>
   );
 }

@@ -21,6 +21,7 @@ import { sized } from '@/lib/config';
 import { directionsByAddress, formatAddress, showsOnMap, validPoint } from '@/lib/placeField';
 import { cardShadow, colors } from '@/lib/theme';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
+import { t } from '@/lib/i18n';
 
 type Tab = 'page' | 'people' | 'about';
 
@@ -73,7 +74,7 @@ export default function VenueScreen() {
     if (!v || linkUsed.current || pagar !== '1') return;
     linkUsed.current = true;
     if (v.mine) return;
-    if (!v.acceptsTxills) { setMsg('Este local ainda não aceita pagamentos em vibes.'); return; }
+    if (!v.acceptsTxills) { setMsg(t('Este local ainda não aceita pagamentos em vibes.')); return; }
     const n = Math.floor(Number(valor));
     setPaying({ preset: Number.isFinite(n) && n >= 1 ? n : undefined });
   }, [v, pagar, valor]);
@@ -85,7 +86,7 @@ export default function VenueScreen() {
     try {
       await locaisApi.venueCheckin(slug, token);
       setUsed(true);
-      setMsg('Check-in feito! Bom proveito.');
+      setMsg(t('Check-in feito! Bom proveito.'));
       await qc.invalidateQueries({ queryKey: ['venue', slug] });
     } catch (e) {
       setMsg((e as Error).message);
@@ -112,11 +113,11 @@ export default function VenueScreen() {
         <View style={[st.reviewBox, v.reviewStatus === 'rejected' && { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
           <Icon name={v.reviewStatus === 'rejected' ? 'alert' : 'clock'} size={20} color={v.reviewStatus === 'rejected' ? colors.red600 : '#b45309'} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={st.reviewTitle}>{v.reviewStatus === 'rejected' ? 'A equipa não aprovou esta página' : 'Página em análise'}</Text>
+            <Text style={st.reviewTitle}>{v.reviewStatus === 'rejected' ? t('A equipa não aprovou esta página') : t('Página em análise')}</Text>
             <Text style={st.reviewText}>
               {v.reviewStatus === 'rejected'
-                ? `${v.reviewNote ? `Motivo: ${v.reviewNote}. ` : ''}Corrige em Gerir e a página volta a ser analisada.`
-                : 'A equipa do Txillapp está a analisar a página. Até lá só tu e os gestores a veem: aproveita para pôr o logótipo, a morada e o horário.'}
+                ? t('{value}Corrige em Gerir e a página volta a ser analisada.', { value: v.reviewNote ? (t('Motivo: {reviewNote}.', { reviewNote: v.reviewNote }) + ' ') : '' })
+                : t('A equipa do Txillapp está a analisar a página. Até lá só tu e os gestores a veem: aproveita para pôr o logótipo, a morada e o horário.')}
             </Text>
           </View>
         </View>
@@ -131,17 +132,17 @@ export default function VenueScreen() {
           <Text style={st.name} numberOfLines={2}>{v.name}</Text>
           {v.verified && <VerifiedBadge size={20} tier="verified" />}
         </View>
-        <Text style={st.sub}>{KIND_LABEL[v.kind] ?? 'Outro'}{v.city ? ` · ${v.city}` : ''}</Text>
+        <Text style={st.sub}>{KIND_LABEL[v.kind] ?? t('Outro')}{v.city ? ` · ${v.city}` : ''}</Text>
         {v.acceptsTxills ? (
-          <View style={st.txBadge} accessibilityLabel="Este local aceita pagamentos em vibes">
+          <View style={st.txBadge} accessibilityLabel={t('Este local aceita pagamentos em vibes')}>
             <Icon name="wallet" size={14} color={colors.green700} />
-            <Text style={st.txBadgeText}>Aceita vibes</Text>
+            <Text style={st.txBadgeText}>{t('Aceita vibes')}</Text>
           </View>
         ) : null}
         <View style={{ marginTop: 10, flexDirection: 'row', gap: 20 }}>
-          <Text style={st.small}><Text style={st.num}>{v.followers}</Text> {v.followers === 1 ? 'seguidor' : 'seguidores'}</Text>
+          <Text style={st.small}><Text style={st.num}>{v.followers}</Text> {v.followers === 1 ? t('seguidor') : t('seguidores')}</Text>
           <Text style={st.small}><Text style={st.num}>{v.checkins}</Text> check-ins</Text>
-          <Text style={st.small}><Text style={st.num}>{v.checkinsToday}</Text> hoje</Text>
+          <Text style={st.small}><Text style={st.num}>{v.checkinsToday}</Text> {t('hoje')}</Text>
         </View>
         {/* No separador Sobre o texto aparece inteiro lá em baixo: aqui não se repete. */}
         {v.about && tab !== 'about' ? <Text style={st.about} numberOfLines={3}>{v.about}</Text> : null}
@@ -150,16 +151,16 @@ export default function VenueScreen() {
           <View style={{ flex: 1 }}><FollowVenueButton venue={v} /></View>
           {v.mine ? (
             <Pressable onPress={() => router.push({ pathname: '/v/[slug]/gerir', params: { slug } })} style={st.manage} accessibilityRole="button">
-              <Icon name="settings" size={18} color={colors.zinc900} /><Text style={st.manageText}>Gerir</Text>
+              <Icon name="settings" size={18} color={colors.zinc900} /><Text style={st.manageText}>{t('Gerir')}</Text>
             </Pressable>
           ) : null}
           {v.mine && v.canPost ? (
-            <Pressable onPress={() => router.push({ pathname: '/new', params: { as: slug } } as never)} style={[st.manage, { backgroundColor: colors.zinc900 }]} accessibilityRole="button" accessibilityLabel="Publicar como este local">
-              <Icon name="compose" size={18} color="#fff" /><Text style={[st.manageText, { color: '#fff' }]}>Publicar</Text>
+            <Pressable onPress={() => router.push({ pathname: '/new', params: { as: slug } } as never)} style={[st.manage, { backgroundColor: colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={t('Publicar como este local')}>
+              <Icon name="compose" size={18} color="#fff" /><Text style={[st.manageText, { color: '#fff' }]}>{t('Publicar')}</Text>
             </Pressable>
           ) : null}
           {!v.mine ? (
-            <Pressable onPress={() => setReporting(true)} style={st.manage} accessibilityRole="button" accessibilityLabel="Denunciar este local">
+            <Pressable onPress={() => setReporting(true)} style={st.manage} accessibilityRole="button" accessibilityLabel={t('Denunciar este local')}>
               <Icon name="flag" size={18} color={colors.zinc900} />
             </Pressable>
           ) : null}
@@ -168,41 +169,41 @@ export default function VenueScreen() {
         {canPay ? (
           <Pressable onPress={() => setPaying({})} style={({ pressed }) => [st.cta, { backgroundColor: colors.brand }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
             <Icon name="wallet" size={20} color="#fff" />
-            <Text style={st.ctaText}>Pagar com vibes</Text>
+            <Text style={st.ctaText}>{t('Pagar com vibes')}</Text>
           </Pressable>
         ) : null}
 
         {v.invite ? (
           <View style={st.inviteBox}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>Convidaram-te para gerir esta página como {ROLE_LABEL[v.invite].toLowerCase()}.</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{t('Convidaram-te para gerir esta página como {roleLabel}.', { roleLabel: ROLE_LABEL[v.invite].toLowerCase() })}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              <Pressable onPress={() => void answer(true)} disabled={busy} style={[st.cta, { flex: 1, marginTop: 0, backgroundColor: colors.brand }]}><Text style={st.ctaText}>Aceitar</Text></Pressable>
-              <Pressable onPress={() => void answer(false)} disabled={busy} style={[st.cta, { flex: 1, marginTop: 0, backgroundColor: colors.zinc100 }]}><Text style={[st.ctaText, { color: colors.zinc800 }]}>Recusar</Text></Pressable>
+              <Pressable onPress={() => void answer(true)} disabled={busy} style={[st.cta, { flex: 1, marginTop: 0, backgroundColor: colors.brand }]}><Text style={st.ctaText}>{t('Aceitar')}</Text></Pressable>
+              <Pressable onPress={() => void answer(false)} disabled={busy} style={[st.cta, { flex: 1, marginTop: 0, backgroundColor: colors.zinc100 }]}><Text style={[st.ctaText, { color: colors.zinc800 }]}>{t('Recusar')}</Text></Pressable>
             </View>
           </View>
         ) : null}
         {/* Com a página ainda em análise (ou recusada) o aviso lá de cima já diz tudo: este só depois de aprovada. */}
-        {!v.verified && v.mine && (!v.reviewStatus || v.reviewStatus === 'approved') && <Text style={st.review}>Em análise: a equipa do Txillapp vai verificar o local e dar-lhe o selo.</Text>}
+        {!v.verified && v.mine && (!v.reviewStatus || v.reviewStatus === 'approved') && <Text style={st.review}>{t('Em análise: a equipa do Txillapp vai verificar o local e dar-lhe o selo.')}</Text>}
 
         {token && !v.checkedIn && (
           <Pressable onPress={() => void checkin()} disabled={busy} style={[st.cta, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]} accessibilityRole="button">
             <Icon name="check-circle" size={20} color="#fff" />
-            <Text style={st.ctaText}>Estou aqui: fazer check-in</Text>
+            <Text style={st.ctaText}>{t('Estou aqui: fazer check-in')}</Text>
           </Pressable>
         )}
         {v.checkedIn && (
           <View style={[st.cta, { backgroundColor: colors.zinc100 }]}>
             <Icon name="check-circle" size={20} color={colors.zinc800} />
-            <Text style={[st.ctaText, { color: colors.zinc800 }]}>Já fizeste check-in aqui</Text>
+            <Text style={[st.ctaText, { color: colors.zinc800 }]}>{t('Já fizeste check-in aqui')}</Text>
           </View>
         )}
-        {!token && !v.checkedIn && <Text style={{ marginTop: 12, fontSize: 12, color: colors.zinc500 }}>Para fazer check-in, lê o QR que está no local.</Text>}
+        {!token && !v.checkedIn && <Text style={{ marginTop: 12, fontSize: 12, color: colors.zinc500 }}>{t('Para fazer check-in, lê o QR que está no local.')}</Text>}
         {msg ? <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>{msg}</Text> : null}
       </View>
 
       {events.data?.length ? (
         <View style={{ marginTop: 16 }}>
-          <Text style={st.sectionTitle}>Próximos eventos</Text>
+          <Text style={st.sectionTitle}>{t('Próximos eventos')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
             {events.data.map((e) => (
               <Pressable key={e.id} onPress={() => router.push(`/evento/${e.id}` as never)} style={st.event} accessibilityRole="link">
@@ -219,7 +220,7 @@ export default function VenueScreen() {
       ) : null}
 
       <View style={st.tabs} accessibilityRole="tablist">
-        {([['page', 'Publicações'], ['people', 'A malta aqui'], ['about', 'Sobre']] as const).map(([id, label]) => (
+        {([['page', t('Publicações')], ['people', t('A malta aqui')], ['about', t('Sobre')]] as const).map(([id, label]) => (
           <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} style={[st.tab, tab === id && st.tabOn]}>
             <Text style={[st.tabText, tab === id && { color: '#fff' }]}>{label}</Text>
           </Pressable>
@@ -231,21 +232,21 @@ export default function VenueScreen() {
   );
 
   const emptyText = tab === 'page'
-    ? (v?.canPost ? 'A página ainda não publicou. Toca em Publicar e dá o primeiro sinal de vida.' : 'A página ainda não publicou nada.')
-    : 'Ainda ninguém publicou aqui. Sê o primeiro e põe este local nos teus posts.';
+    ? (v?.canPost ? t('A página ainda não publicou. Toca em Publicar e dá o primeiro sinal de vida.') : t('A página ainda não publicou nada.'))
+    : t('Ainda ninguém publicou aqui. Sê o primeiro e põe este local nos teus posts.');
 
   return (
-    <StackPage title={v?.name ?? 'Local'}>
+    <StackPage title={v?.name ?? t('Local')}>
       {q.isLoading ? (
         <View style={{ alignItems: 'center', paddingVertical: 64 }}><PontoLoader size={20} /></View>
       ) : q.isError ? (
         q.error instanceof ApiError && q.error.status === 404 ? (
-          <Empty icon="map-pin" title="Este local não existe" />
+          <Empty icon="map-pin" title={t('Este local não existe')} />
         ) : (
           // Sem rede ou o servidor em baixo: não dizer que o local não existe; deixar tentar outra vez.
           <View style={{ alignItems: 'center' }}>
-            <Empty icon="alert" title="Não consegui abrir este local" text="Verifica a internet e tenta outra vez." />
-            <Pressable onPress={() => void q.refetch()} style={[st.manage, { marginTop: 20, height: 44 }]} accessibilityRole="button"><Text style={st.manageText}>Tentar outra vez</Text></Pressable>
+            <Empty icon="alert" title={t('Não consegui abrir este local')} text={t('Verifica a internet e tenta outra vez.')} />
+            <Pressable onPress={() => void q.refetch()} style={[st.manage, { marginTop: 20, height: 44 }]} accessibilityRole="button"><Text style={st.manageText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         )
       ) : (
@@ -293,28 +294,28 @@ function About({ v }: { v: Venue }) {
     </Pressable>
   );
   const rows = [
-    v.address ? row('map-pin', 'Morada', formatAddress(v), maps ? () => open(maps) : undefined) : null,
-    !v.address && maps ? row('map-pin', 'Mapa', 'Abrir no mapa', () => open(maps)) : null,
-    v.hours ? row('clock', 'Horário', v.hours) : null,
-    tel ? row('phone', 'Telefone', v.phone!, () => open(`tel:${tel}`)) : null,
+    v.address ? row('map-pin', t('Morada'), formatAddress(v), maps ? () => open(maps) : undefined) : null,
+    !v.address && maps ? row('map-pin', t('Mapa'), t('Abrir no mapa'), () => open(maps)) : null,
+    v.hours ? row('clock', t('Horário'), v.hours) : null,
+    tel ? row('phone', t('Telefone'), v.phone!, () => open(`tel:${tel}`)) : null,
     wa ? row('messages', 'WhatsApp', v.whatsapp!, () => open(`https://wa.me/${wa}`)) : null,
-    v.website ? row('globe', 'Site', v.website.replace(/^https?:\/\//, ''), () => open(v.website!)) : null,
-    v.owner ? row('user', 'Página criada por', `@${v.owner.username}`) : null,
+    v.website ? row('globe', t('Site'), v.website.replace(/^https?:\/\//, ''), () => open(v.website!)) : null,
+    v.owner ? row('user', t('Página criada por'), `@${v.owner.username}`) : null,
   ].filter(Boolean);
   return (
     <View style={[st.card, { marginTop: 8 }]}>
       {route ? (
         <View style={{ gap: 10, marginBottom: 12 }}>
-          {pin ? <PlaceMiniMap lat={v.lat as number} lng={v.lng as number} label={`Mapa com o pino em ${v.name}`} /> : null}
-          {pin && !showsOnMap(v) ? <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>Só quem gere vê este mapa: o local não aparece no mapa do À tua volta.</Text> : null}
-          <Pressable onPress={() => open(route)} style={({ pressed }) => [st.route, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="link" accessibilityLabel={`Como chegar a ${v.name}`}>
+          {pin ? <PlaceMiniMap lat={v.lat as number} lng={v.lng as number} label={t('Mapa com o pino em {name}', { name: v.name })} /> : null}
+          {pin && !showsOnMap(v) ? <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>{t('Só quem gere vê este mapa: o local não aparece no mapa do À tua volta.')}</Text> : null}
+          <Pressable onPress={() => open(route)} style={({ pressed }) => [st.route, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="link" accessibilityLabel={t('Como chegar a {name}', { name: v.name })}>
             <Icon name="compass" size={18} color="#fff" />
-            <Text style={st.routeText}>Como chegar</Text>
+            <Text style={st.routeText}>{t('Como chegar')}</Text>
           </Pressable>
         </View>
       ) : null}
       {v.about ? <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc800, marginBottom: rows.length ? 12 : 0 }}>{v.about}</Text> : null}
-      {rows.length ? rows : <Text style={{ fontSize: 14, color: colors.zinc500 }}>{v.canEdit ? 'Completa o perfil em Gerir: morada, horário e contactos.' : 'A página ainda não tem morada nem contactos.'}</Text>}
+      {rows.length ? rows : <Text style={{ fontSize: 14, color: colors.zinc500 }}>{v.canEdit ? t('Completa o perfil em Gerir: morada, horário e contactos.') : t('A página ainda não tem morada nem contactos.')}</Text>}
     </View>
   );
 }

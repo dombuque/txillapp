@@ -3,6 +3,7 @@
 // rede (o refetch de 30 em 30 s, a app a voltar do fundo). E a lista vazia por falta de rede não é "Ainda sem cochichos".
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -47,12 +48,12 @@ test('o ecrã da conversa e a lista usam estas regras', () => {
   assert.match(inbox, /const failed = inboxFailed\(/);
   assert.match(inbox, /failed \? \(/);
   // O erro comum (components/ui/ErrorState): «Ups, não consegui carregar as mensagens» e «Tentar outra vez».
-  assert.match(inbox, /<ErrorState what="as mensagens"/);
+  assert.match(inbox, /<ErrorState what=\{t\('as mensagens'\)\}/);
 });
 
 test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os botões da pesquisa têm 44 de altura', () => {
   const inbox = read('src/app/(tabs)/messages.tsx');
-  assert.match(inbox, /m\.fromMe \? 'Partilhaste uma publicação' : 'Partilhou uma publicação'/);
+  assert.match(inbox, /m\.fromMe \? t\('Partilhaste uma publicação'\) : t\('Partilhou uma publicação'\)/);
   assert.match(inbox, /sBtn: \{ width: 36, height: 44,/);
 });
 

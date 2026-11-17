@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { LEAFLET_CSS } from './leafletCss';
 import { createPickMap, type PickHandle } from './mapRuntime';
 import { PickPin } from './PickPin';
+import { mapLabels } from './mapLabels';
 import type { PlacePickMapProps } from './types';
 
 /** "Marcar no mapa" no site: o Leaflet do npm num div, com o alfinete fixo ao centro por cima. `readOnly`: só mostra o sítio. */
@@ -28,7 +29,7 @@ export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, 
       document.head.appendChild(s);
     }
     const el = host.current as unknown as HTMLElement;
-    const h = createPickMap(L, el, (c) => move.current?.(c), { zoomControl, zone, still: readOnly, zoom }, () => drag.current?.());
+    const h = createPickMap(L, el, (c) => move.current?.(c), { zoomControl, zone, still: readOnly, zoom, labels: mapLabels() }, () => drag.current?.());
     handle.current = h;
     h.setCenter(last.current);
     if (meNow.current) h.setMe(meNow.current);

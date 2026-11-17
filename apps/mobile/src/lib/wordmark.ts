@@ -4,6 +4,7 @@
  * (este ficheiro não importa nada, porque os testes da API compilam-no sozinho para comparar com a de lá).
  */
 /** A caixa do logótipo (LOGO_BOX de lib/marca.ts; esta linha é escrita por scripts/marca/gerar.mjs). */
+import { t } from '@/lib/i18n';
 export const WORDMARK_BOX = { x: 197.964, y: 266.11, w: 199.348, h: 71.815 };
 
 /**
@@ -36,9 +37,9 @@ export function sealOf(u?: { verified?: boolean | null; verifiedTier?: string | 
 export const sealPaint = (tier: SealTier): 'blue' | 'coral' => (tier === 'paid' ? 'blue' : 'coral');
 /** O que o leitor de ecrã diz de cada selo. */
 export const SEAL_LABEL: Record<SealTier, string> = {
-  verified: 'Perfil verificado',
-  official: 'Conta oficial do Txillapp',
-  paid: 'Verificado com subscrição',
+  get verified() { return t('Perfil verificado'); },
+  get official() { return t('Conta oficial do Txillapp'); },
+  get paid() { return t('Verificado com subscrição'); },
 };
 
 /** O selo mede 1,05 vezes a letra do @ e fica a uma pequena folga dele (em frações da letra). */

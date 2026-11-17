@@ -2,6 +2,7 @@
 // ver, o ecrã inteiro (cover ou inteira com o fundo desfocado) e as ligações do chat que abrem a rota.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 

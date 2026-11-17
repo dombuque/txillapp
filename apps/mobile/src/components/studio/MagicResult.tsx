@@ -6,6 +6,7 @@ import { Icon } from '../Icon';
 import { waveById, type MagicClip, type MagicResult as Result } from '@/lib/studio/magic';
 import { MagicPreview } from './MagicPreview';
 import { MagicBackdrop, MagicCta, MagicRound, MagicTag, mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const fmt = (s: number) => (Math.round(s * 10) / 10).toString().replace('.', ',');
@@ -47,9 +48,9 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
     <View style={st.root}>
       <MagicBackdrop />
       <View style={[st.top, { paddingTop: topInset + 10 }]}>
-        <MagicRound onPress={onBack} a11y="Escolher outra onda"><ChevronLeft size={24} color="#fff" /></MagicRound>
+        <MagicRound onPress={onBack} a11y={t('Escolher outra onda')}><ChevronLeft size={24} color="#fff" /></MagicRound>
         <View style={{ flex: 1 }}>
-          <Text style={st.title} accessibilityRole="header" numberOfLines={1}>A tua tcheka está pronta</Text>
+          <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{t('A tua tcheka está pronta')}</Text>
           <Text style={st.sub} numberOfLines={1}>{wave.name}</Text>
         </View>
       </View>
@@ -59,24 +60,24 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
         <View style={st.stage}>
           <View style={st.frame}>
             <MagicPreview result={result} playing={playing && !busy} musicUrl={musicUrl} onClip={setNow} style={{ width: '100%' }} />
-            <Pressable onPress={() => setPlaying((p) => !p)} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'} style={StyleSheet.absoluteFill}>
+            <Pressable onPress={() => setPlaying((p) => !p)} accessibilityRole="button" accessibilityLabel={playing ? t('Pausar a pré-visualização') : t('Tocar a pré-visualização')} style={StyleSheet.absoluteFill}>
               {!playing ? <View style={st.playBig}><Play size={34} color="#fff" fill="#fff" /></View> : null}
             </Pressable>
             <View style={st.playSmall} pointerEvents="box-none">
-              <MagicRound onPress={() => setPlaying((p) => !p)} a11y={playing ? 'Pausar' : 'Tocar'} size={48}>
+              <MagicRound onPress={() => setPlaying((p) => !p)} a11y={playing ? t('Pausar') : t('Tocar')} size={48}>
                 {playing ? <Pause size={22} color="#fff" fill="#fff" /> : <Play size={22} color="#fff" fill="#fff" />}
               </MagicRound>
             </View>
           </View>
           <View style={st.side}>
             <MagicTag hot icon={<Icon name="cam-magic" size={16} color="#fff" strokeWidth={2} />} label={`${fmt(result.total)} s`} />
-            <MagicTag label={`${cuts} ${cuts === 1 ? 'corte' : 'cortes'}`} />
-            {result.music ? <MagicTag label={`${Math.round(result.music.bpm)} BPM`} /> : null}
-            <Text style={st.sideNote}>Cortes ao ritmo{result.left.length ? `. ${result.left.length} ${result.left.length === 1 ? 'ficheiro não coube' : 'ficheiros não couberam'} nos 60 s` : ''}.</Text>
+            <MagicTag label={t('{count} corte', { count: cuts, other: '{count} cortes' })} />
+            {result.music ? <MagicTag label={t('{bpm} BPM', { bpm: Math.round(result.music.bpm) })} /> : null}
+            <Text style={st.sideNote}>{t('Cortes ao ritmo')}{result.left.length ? t('. {count} ficheiro não coube nos 60 s', { count: result.left.length, other: '. {count} ficheiros não couberam nos 60 s' }) : ''}.</Text>
           </View>
         </View>
 
-        <Text style={st.section}>A história, plano a plano</Text>
+        <Text style={st.section}>{t('A história, plano a plano')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
           {result.clips.map((c, i) => {
             const isLocked = locked.includes(c.key);
@@ -92,7 +93,7 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
                     onPress={() => onToggleLock(c.key)}
                     accessibilityRole="switch"
                     accessibilityState={{ checked: isLocked }}
-                    accessibilityLabel={`${isLocked ? 'Destrancar' : 'Trancar'} o plano ${i + 1}`}
+                    accessibilityLabel={t('{value} o plano {n}', { value: isLocked ? t('Destrancar') : t('Trancar'), n: i + 1 })}
                     testID={`trancar-${i}`}
                     style={st.lockHit}
                   >
@@ -104,14 +105,14 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
             );
           })}
         </ScrollView>
-        <Text style={st.hint}>Tranca os planos de que gostas: «Outra versão» só muda os outros.</Text>
+        <Text style={st.hint}>{t('Tranca os planos de que gostas: «Outra versão» só muda os outros.')}</Text>
       </ScrollView>
 
       <View style={[st.bar, { paddingBottom: 16 + bottomInset }]}>
         {/* A lista esbate-se antes da barra (nada cortado a seco). */}
         <LinearGradient pointerEvents="none" colors={['rgba(8,8,12,0)', mg.bg]} style={{ position: 'absolute', left: 0, right: 0, top: -32, height: 32 }} />
-        <MagicCta kind="glass" label="Outra versão" onPress={onAnother} disabled={busy} icon={<Shuffle size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1.3 }} testID="outra-versao" a11y="Outra versão da montagem" />
-        <MagicCta label="Afinar" onPress={onTune} disabled={busy} icon={<SlidersHorizontal size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1 }} testID="afinar" a11y="Afinar na linha do tempo" />
+        <MagicCta kind="glass" label={t('Outra versão')} onPress={onAnother} disabled={busy} icon={<Shuffle size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1.3 }} testID="outra-versao" a11y={t('Outra versão da montagem')} />
+        <MagicCta label={t('Afinar')} onPress={onTune} disabled={busy} icon={<SlidersHorizontal size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1 }} testID="afinar" a11y={t('Afinar na linha do tempo')} />
       </View>
     </View>
   );

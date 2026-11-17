@@ -1,4 +1,5 @@
 import { fetchAuthed } from './api';
+import { t } from '@/lib/i18n';
 
 /** No browser: no telemóvel abre a folha do sistema (Guardar imagem/vídeo); no computador descarrega o ficheiro. */
 export async function saveToGallery(path: string, name: string): Promise<'saved' | 'denied'> {
@@ -7,7 +8,7 @@ export async function saveToGallery(path: string, name: string): Promise<'saved'
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { message?: unknown } | null;
     const msg = Array.isArray(body?.message) ? body.message[0] : body?.message;
-    throw new Error(typeof msg === 'string' && msg.trim() ? msg : 'Não consegui preparar o ficheiro');
+    throw new Error(typeof msg === 'string' && msg.trim() ? msg : t('Não consegui preparar o ficheiro'));
   }
   const blob = await res.blob();
   const f = new File([blob], name, { type: blob.type });

@@ -1,0 +1,9 @@
+{
+  "$comment": "Partes do monorepo com frases para traduzir (docs/idiomas.md). functions: nomes importados de um módulo «i18n» cujas chamadas têm a frase no 1.º argumento; markers: só marcam a frase; strict: um argumento não literal faz falhar o teste; out: onde fica a cópia do catálogo só com as frases desta parte; extra: um extrator a mais (CommonJS, exporta extract(root, part)), como o da API para os erros, pushes e validações (docs/idiomas-api.md).",
+  "source": "pt",
+  "parts": {
+    "app": { "src": ["apps/mobile/src"], "functions": ["t"], "markers": [], "strict": true, "out": "apps/mobile/src/locales" },
+    "web": { "src": ["apps/web/src"], "functions": ["t", "tr"], "markers": ["tk"], "strict": false, "out": "apps/web/src/locales" },
+    "api": { "src": ["apps/api/src"], "functions": ["t"], "markers": ["msg"], "strict": true, "out": "apps/api/src/locales", "extra": "scripts/i18n/extract-api.cjs" }
+  }
+}

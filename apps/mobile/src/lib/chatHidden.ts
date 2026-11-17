@@ -11,30 +11,31 @@
  */
 
 /** O ecrã das escondidas (no computador abre na coluna da direita, ao lado da lista). */
+import { t } from '@/lib/i18n';
 export const HIDDEN_PATH = '/messages/escondidas';
 
 /** O nome da entrada no "⋯" das Mensagens e o título do ecrã. */
-export const HIDDEN_TITLE = 'Conversas ocultas';
+export const HIDDEN_TITLE = () => t('Conversas ocultas');
 
 /** O texto do botão no menu de uma conversa (lista ou "⋯" dentro da conversa). */
-export const hideLabel = (hidden: boolean) => (hidden ? 'Mostrar outra vez' : 'Ocultar conversa');
+export const hideLabel = (hidden: boolean) => (hidden ? t('Mostrar outra vez') : t('Ocultar conversa'));
 
 /** A pergunta antes de esconder: o que acontece (o nome é o da pessoa ou do grupo). */
 export function hideAsk(name: string, group: boolean): { title: string; body: string; ok: string } {
-  const who = name.trim() || (group ? 'este TxillGroup' : 'esta pessoa');
+  const who = name.trim() || (group ? t('este TxillGroup') : t('esta pessoa'));
   return {
-    title: group ? 'Esconder este TxillGroup?' : 'Ocultar esta conversa?',
-    body: `${group ? `“${who}”` : `A conversa com ${who}`} sai da tua lista e do número de mensagens por ler. Encontras em Mensagens → ⋯ → ${HIDDEN_TITLE}. Mensagens novas não a trazem de volta e os avisos chegam sem pré-visualização. ${group ? 'Os outros membros não sabem.' : `${who.split(' ')[0]} não sabe.`}`,
-    ok: 'Esconder',
+    title: group ? t('Esconder este TxillGroup?') : t('Ocultar esta conversa?'),
+    body: t('{value} sai da tua lista e do número de mensagens por ler. Encontras em Mensagens → ⋯ → {hiddenTitle}. Mensagens novas não a trazem de volta e os avisos chegam sem pré-visualização. {value2}', { value: group ? `“${who}”` : t('A conversa com {who}', { who }), hiddenTitle: HIDDEN_TITLE(), value2: group ? t('Os outros membros não sabem.') : t('{split} não sabe.', { split: who.split(' ')[0] }) }),
+    ok: t('Esconder'),
   };
 }
 
 /** O que se diz logo a seguir a esconder (aviso curto). */
-export const hiddenToast = (group: boolean) => `${group ? 'TxillGroup oculto' : 'Conversa oculta'}. Está em Mensagens → ⋯ → ${HIDDEN_TITLE}.`;
+export const hiddenToast = (group: boolean) => t('{value}. Está em Mensagens → ⋯ → {hiddenTitle}.', { value: group ? t('TxillGroup oculto') : t('Conversa oculta'), hiddenTitle: HIDDEN_TITLE() });
 
 /** O texto do ecrã das escondidas (por cima da lista). */
-export const HIDDEN_NOTE = 'Só tu vês que estão ocultas. Mensagens novas não as trazem de volta e os avisos chegam sem pré-visualização.';
-export const HIDDEN_EMPTY = { title: 'Nada oculto', body: 'Para ocultar uma conversa, mantém-na premida na lista de Mensagens (ou abre o ⋯ dentro dela) e escolhe «Ocultar conversa».' };
+export const HIDDEN_NOTE = () => t('Só tu vês que estão ocultas. Mensagens novas não as trazem de volta e os avisos chegam sem pré-visualização.');
+export const HIDDEN_EMPTY = { get title() { return t('Nada oculto'); }, get body() { return t('Para ocultar uma conversa, mantém-na premida na lista de Mensagens (ou abre o ⋯ dentro dela) e escolhe «Ocultar conversa».'); } };
 
 interface HasLast { lastMessage: { at: string } }
 /** As conversas e os TxillGroups ocultos juntos, da mensagem mais recente para a mais antiga. */

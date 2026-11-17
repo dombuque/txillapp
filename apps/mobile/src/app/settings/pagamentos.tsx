@@ -1,6 +1,7 @@
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { usePurchases } from '@/lib/purchases';
+import { t } from '@/lib/i18n';
 
 /**
  * Vibes e pagamentos: a carteira (Vibes e presentes) e os pedidos de recarga. Nas versões das lojas não se recarregam
@@ -9,13 +10,13 @@ import { usePurchases } from '@/lib/purchases';
 export default function PaymentSettings() {
   const rules = usePurchases();
   return (
-    <SettingsPage title="Vibes e pagamentos">
+    <SettingsPage title={t('Vibes e pagamentos')}>
       <SettingsSection>
-        <SettingRow anchor="wallet" icon="wallet" title="Vibes e presentes" description="O teu saldo e os presentes" to="/wallet" />
-        {rules.buyTxills ? <SettingRow anchor="orders" icon="file-text" title="Pedidos e pagamentos" description="Recarregar vibes e ver os teus pedidos" to="/orders" /> : null}
+        <SettingRow anchor="wallet" icon="wallet" title={t('Vibes e presentes')} description={t('O teu saldo e os presentes')} to="/wallet" />
+        {rules.buyTxills ? <SettingRow anchor="orders" icon="file-text" title={t('Pedidos e pagamentos')} description={t('Recarregar vibes e ver os teus pedidos')} to="/orders" /> : null}
       </SettingsSection>
-      <SettingsSection title="Presentes">
-        <SettingRow icon="gift" title="Quem pode presentear-me" description="Está em Privacidade" to="/settings/privacidade?o=gifts" />
+      <SettingsSection title={t('Presentes')}>
+        <SettingRow icon="gift" title={t('Quem pode presentear-me')} description={t('Está em Privacidade')} to="/settings/privacidade?o=gifts" />
       </SettingsSection>
     </SettingsPage>
   );

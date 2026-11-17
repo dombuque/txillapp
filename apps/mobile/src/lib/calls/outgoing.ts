@@ -7,6 +7,7 @@
  * Sem react-native, para os testes (tests/callRinging.test.mjs). O session.ts usa estas regras.
  */
 import type { CallState } from './types';
+import { t } from '@/lib/i18n';
 
 /** Sem entrega há este tempo: mostra-se a linha «Sem resposta do telemóvel de X». */
 export const UNREACHABLE_MS = 15_000;
@@ -23,7 +24,7 @@ export function outgoingLabel(s: Pick<CallState, 'callId' | 'delivered'>): strin
 export function unreachableText(s: Pick<CallState, 'phase' | 'delivered' | 'unreachable' | 'peer'>): string | null {
   if (s.phase !== 'outgoing' || s.delivered || !s.unreachable) return null;
   const who = s.peer?.displayName?.trim() || (s.peer?.username ? `@${s.peer.username}` : '');
-  return who ? `Sem resposta do telemóvel de ${who}` : 'Sem resposta do telemóvel';
+  return who ? t('Sem resposta do telemóvel de {who}', { who }) : t('Sem resposta do telemóvel');
 }
 
 /** Chegou o `ringing` desta chamada: o que muda no estado (null: nada, por exemplo noutra chamada ou já atendida). */

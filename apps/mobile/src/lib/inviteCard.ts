@@ -9,7 +9,8 @@
 import { LOGO_BOX, logoSvgPaths } from '@/lib/marca';
 
 /** As frases do cartão, em calão da malta. A mesma lista do servidor (api/src/invites/card.ts). */
-export const INVITE_PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta'] as const;
+import { t } from '@/lib/i18n';
+export const INVITE_PHRASES = () => [t('Bora txilar no Txillapp, malta!'), t('A tua malta já cá está'), t('Traz a tua malta')] as const;
 /** O Gelinho (a geleira) que acompanha cada frase, em três stickers da biblioteca. */
 export const PHRASE_STICKERS = ['vem-ca', 'malta-ja', 'bue-fixe'] as const;
 
@@ -17,10 +18,10 @@ export const PHRASE_STICKERS = ['vem-ca', 'malta-ja', 'bue-fixe'] as const;
 export function phraseIndexOf(code: string): number {
   let h = 0;
   for (const ch of String(code ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return h % INVITE_PHRASES.length;
+  return h % INVITE_PHRASES().length;
 }
 /** A frase seguinte (o botão «Outra frase»). */
-export const nextPhrase = (i: number) => (((Math.trunc(i) || 0) % INVITE_PHRASES.length) + 1 + INVITE_PHRASES.length) % INVITE_PHRASES.length;
+export const nextPhrase = (i: number) => (((Math.trunc(i) || 0) % INVITE_PHRASES().length) + 1 + INVITE_PHRASES().length) % INVITE_PHRASES().length;
 
 export type CardFormat = 'post' | 'status';
 /** 4:5 para conversas e publicações; 9:16 para o Status do WhatsApp. */
@@ -52,10 +53,10 @@ export function pickCardItems<T extends GeleiraItemIn>(items: readonly T[] | nul
 
 /** O texto que vai com a imagem (e sozinho, quando só dá para mandar texto). A ligação vai sempre no fim, numa linha só sua. */
 export function inviteShareText(p: { link: string; code: string; reward: number; phrase?: number }): string {
-  const phrase = INVITE_PHRASES[((Math.trunc(p.phrase ?? 0) % INVITE_PHRASES.length) + INVITE_PHRASES.length) % INVITE_PHRASES.length];
+  const phrase = INVITE_PHRASES()[((Math.trunc(p.phrase ?? 0) % INVITE_PHRASES().length) + INVITE_PHRASES().length) % INVITE_PHRASES().length];
   const reward = Math.max(0, Math.trunc(Number(p.reward) || 0));
-  const gift = reward > 0 ? ` e ganhas ${reward} vibes logo à entrada` : '';
-  return `${phrase} Entra com o meu convite${gift}. Código: ${p.code}\n${p.link}`;
+  const gift = reward > 0 ? (' ' + t('e ganhas {reward} vibes logo à entrada', { reward })) : '';
+  return t('{phrase} Entra com o meu convite{gift}. Código: {code}\n{link}', { phrase, gift, code: p.code, link: p.link });
 }
 
 /** A ligação do WhatsApp com o texto já escrito: a app (whatsapp://) no telemóvel, wa.me no browser. */
@@ -65,10 +66,10 @@ export const whatsappUrl = (text: string, nativeApp: boolean) => `${nativeApp ? 
 export function inviteProgress(stats: { invited?: number; paid?: number } | null | undefined): string {
   const n = Math.max(0, Math.trunc(Number(stats?.invited) || 0));
   const paid = Math.min(n, Math.max(0, Math.trunc(Number(stats?.paid) || 0)));
-  if (n === 0) return 'Ainda ninguém entrou com o teu convite';
-  if (n === 1) return paid ? 'Entrou 1 e já te deu vibes' : 'Entrou 1, ainda não te deu vibes';
-  if (paid === 0) return `Entraram ${n}, ainda nenhum te deu vibes`;
-  return `Entraram ${n}, ${paid} já ${paid === 1 ? 'te deu' : 'te deram'} vibes`;
+  if (n === 0) return t('Ainda ninguém entrou com o teu convite');
+  if (n === 1) return paid ? t('Entrou 1 e já te deu vibes') : t('Entrou 1, ainda não te deu vibes');
+  if (paid === 0) return t('Entraram {n}, ainda nenhum te deu vibes', { n });
+  return t('Entraram {n}, {count} já te deu vibes', { count: paid, n, other: 'Entraram {n}, {count} já te deram vibes' });
 }
 
 /** Corta um texto em `max` letras (conta acentos e emojis como uma), com reticências. */
@@ -202,8 +203,8 @@ const estWidth = (t: string, size: number) => [...t].length * size * 0.58;
 export function cardLayout(p: CardInput): CardLayout {
   const { width: W, height: H } = CARD_SIZE[p.format] ?? CARD_SIZE.post;
   const g = GEO[p.format] ?? GEO.post;
-  const phrase = INVITE_PHRASES[((Math.trunc(p.phrase) % INVITE_PHRASES.length) + INVITE_PHRASES.length) % INVITE_PHRASES.length];
-  const name = fitText(p.displayName || 'Alguém', 24);
+  const phrase = INVITE_PHRASES()[((Math.trunc(p.phrase) % INVITE_PHRASES().length) + INVITE_PHRASES().length) % INVITE_PHRASES().length];
+  const name = fitText(p.displayName || t('Alguém'), 24);
   const items = p.items.map((t) => fitText(t, 18)).filter(Boolean).slice(0, 4);
   const texts: CardText[] = [];
   const parts: string[] = [];
@@ -229,7 +230,7 @@ export function cardLayout(p: CardInput): CardLayout {
   }
 
   texts.push({ text: name, x: W / 2, y: g.nameY, size: g.nameS, weight: 800, color: '#ffffff', align: 'center', maxWidth: W - 120 - (p.badge ? g.nameS : 0), ...(p.badge ? { badge: p.badge } : {}) });
-  texts.push({ text: 'convidou-te para o Txillapp', x: W / 2, y: g.subY, size: g.subS, weight: 400, color: '#ffffff', align: 'center', alpha: 0.92, maxWidth: W - 120 });
+  texts.push({ text: t('convidou-te para o Txillapp'), x: W / 2, y: g.subY, size: g.subS, weight: 400, color: '#ffffff', align: 'center', alpha: 0.92, maxWidth: W - 120 });
 
   // A frase num balão branco. Sem itens da geleira, o balão desce um pouco para o cartão não ficar com um buraco.
   const bubY = items.length ? g.bubY : g.bubY + Math.round(g.chipH * 0.9);
@@ -238,7 +239,7 @@ export function cardLayout(p: CardInput): CardLayout {
 
   // Os itens da geleira em pastilhas, centradas, em uma ou duas linhas.
   if (items.length) {
-    texts.push({ text: 'Na geleira', x: W / 2, y: g.labY, size: g.smallS, weight: 700, color: '#ffffff', align: 'center', alpha: 0.85 });
+    texts.push({ text: t('Na geleira'), x: W / 2, y: g.labY, size: g.smallS, weight: 700, color: '#ffffff', align: 'center', alpha: 0.85 });
     const pad = Math.round(g.chipS * 0.9);
     const gap = 16;
     const maxRow = W - 160;
@@ -272,12 +273,12 @@ export function cardLayout(p: CardInput): CardLayout {
   const textW = hasQr ? panW - g.qr - 120 : panW - 100;
   if (hasQr) parts.push(qrSvg(p.qr!, panX + panW - g.qr - 22, g.panY + (g.panH - g.qr) / 2, g.qr));
   const reward = Math.max(0, Math.trunc(Number(p.reward) || 0));
-  texts.push({ text: 'Entra com o meu código', x: left, y: g.panY + g.panH * 0.27, size: g.smallS, weight: 400, color: '#52525b', align: 'left', maxWidth: textW });
+  texts.push({ text: t('Entra com o meu código'), x: left, y: g.panY + g.panH * 0.27, size: g.smallS, weight: 400, color: '#52525b', align: 'left', maxWidth: textW });
   texts.push({ text: p.code, x: left, y: g.panY + g.panH * 0.27 + g.codeS * 1.05, size: g.codeS, weight: 800, color: BRAND, align: 'left', spacing: Math.round(g.codeS * 0.08), maxWidth: textW });
-  texts.push({ text: reward ? `+${reward} vibes para ti · txillapp.com` : 'txillapp.com', x: left, y: g.panY + g.panH * 0.84, size: g.smallS, weight: 700, color: '#3f3f46', align: 'left', maxWidth: textW });
+  texts.push({ text: reward ? t('+{reward} vibes para ti · txillapp.com', { reward }) : 'txillapp.com', x: left, y: g.panY + g.panH * 0.84, size: g.smallS, weight: 700, color: '#3f3f46', align: 'left', maxWidth: textW });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
-  const label = `Cartão de convite de ${name}: ${phrase}${items.length ? ` Na geleira: ${items.join(', ')}.` : ''} Código ${p.code}.`;
+  const label = t('Cartão de convite de {name}: {phrase}{value} Código {code}.', { name, phrase, value: items.length ? (' ' + t('Na geleira: {items}.', { items: items.join(', ') })) : '', code: p.code });
   return { width: W, height: H, svg, texts, avatar, label };
 }
 

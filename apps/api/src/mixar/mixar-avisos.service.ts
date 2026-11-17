@@ -12,6 +12,7 @@ import { PushService, type PushPayload } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
 import { dropTopics, privateTopicsOf } from './mixar-controlo';
 import { commonTopics, DAY_STARTS_HOUR, matchScore, mixarDay, type Weights } from './mixar-pick';
+import { msg, t } from '../i18n/i18n';
 
 /**
  * Os avisos da seleção do dia só saem entre as 08:00 e as 21:00 de Maputo (a seleção é gerada às 05:00: ninguém quer o
@@ -42,10 +43,10 @@ const maputoHour = (now: Date) => (now.getUTCHours() + MAPUTO_OFFSET_H) % 24;
 
 /** Os textos dos avisos (no telemóvel; a lista da app tem os seus, com o nome e o selo de quem). */
 export const MIXAR_NOTICE_TEXT = {
-  daily: 'A vossa seleção de hoje está pronta',
-  pick: (first: string) => `${first} já escolheu no Mixa Challenge, falta tu`,
-  match: 'Acertaram no mesmo',
-  differ: 'Escolheram diferente',
+  daily: msg('A vossa seleção de hoje está pronta'),
+  pick: (first: string) => t('{first} já escolheu no Mixa Challenge, falta tu', { first }),
+  match: msg('Acertaram no mesmo'),
+  differ: msg('Escolheram diferente'),
 };
 
 export type MixarSuggestion = { username: string; displayName: string; hasAvatar: boolean; match: number; common: { topic: string; label: string }[] } & Badge;

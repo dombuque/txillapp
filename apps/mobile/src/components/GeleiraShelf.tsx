@@ -22,6 +22,7 @@ import { Sheet } from './Sheet';
 import { TasteBubble } from './TasteBubble';
 import { AskSheet } from './gelada/AskSheet';
 import { GeladaSection } from './gelada/GeladaSection';
+import { t } from '@/lib/i18n';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean; cheers?: number; cheered?: boolean };
 
@@ -44,27 +45,27 @@ function Frost({ rating }: { rating: number | null }) {
  * nível do topo (depende da idade do dono). `onHowUp`: só para o dono, abre o «Como subo?».
  */
 function HowSheet({ onClose, level, top, steps, onHowUp }: { onClose: () => void; level: number; top: string; steps?: readonly number[]; onHowUp?: () => void }) {
-  const labels = [...LEVEL_LABEL.slice(0, 4), top];
+  const labels = [...LEVEL_LABEL().slice(0, 4), top];
   return (
-    <Sheet title="Como funciona a geleira" onClose={onClose}>
+    <Sheet title={t('Como funciona a geleira')} onClose={onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 24, gap: 18 }}>
         <View style={{ gap: 8 }}>
-          <Text style={st.howTitle}>Os flocos são a nota</Text>
+          <Text style={st.howTitle}>{t('Os flocos são a nota')}</Text>
           {[1, 2, 3, 4, 5].map((n) => (
             <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ flexDirection: 'row', gap: 1, width: 64 }}>{[1, 2, 3, 4, 5].map((k) => <Icon key={k} name="snowflake" size={11} strokeWidth={2.6} color={k <= n ? SKY : colors.zinc200} />)}</View>
-              <Text style={st.howText}>{ICE[n]}</Text>
+              <Text style={st.howText}>{ICE()[n]}</Text>
             </View>
           ))}
-          <Text style={[st.howText, { color: colors.zinc500 }]}>Quanto mais gelado, mais gostas. Dás a nota no editor da geleira.</Text>
+          <Text style={[st.howText, { color: colors.zinc500 }]}>{t('Quanto mais gelado, mais gostas. Dás a nota no editor da geleira.')}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={[st.heart, { position: 'relative', right: 0, top: 0 }]}><Icon name="heart" size={9} solid color="#fff" /></View>
-          <Text style={st.howText}>O coração marca os teus favoritos (até 8).</Text>
+          <Text style={st.howText}>{t('O coração marca os teus favoritos (até 8).')}</Text>
         </View>
         <View style={{ gap: 8 }}>
-          <Text style={st.howTitle}>O nível da geleira</Text>
-          <Text style={st.howText}>Mede o que se vive com a malta nos últimos 90 dias: geladas pagas, brindes de amigos, check-ins em sítios e rodadas. Os gostos contam pouco (no máximo 8 pontos). O álcool e as vibes da carteira não contam.</Text>
+          <Text style={st.howTitle}>{t('O nível da geleira')}</Text>
+          <Text style={st.howText}>{t('Mede o que se vive com a malta nos últimos 90 dias: geladas pagas, brindes de amigos, check-ins em sítios e rodadas. Os gostos contam pouco (no máximo 8 pontos). O álcool e as vibes da carteira não contam.')}</Text>
           {labels.map((l, n) => (
             <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={[st.lvDot, n === level && { backgroundColor: colors.brand }]}>{n === level && <Icon name="check" size={10} strokeWidth={3} color="#fff" />}</View>
@@ -77,7 +78,7 @@ function HowSheet({ onClose, level, top, steps, onHowUp }: { onClose: () => void
           {onHowUp ? (
             <Pressable onPress={onHowUp} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.8 }]} accessibilityRole="button">
               <Icon name="trending" size={20} color={colors.white} />
-              <Text style={[st.cheerText, { color: colors.white }]}>Como subo?</Text>
+              <Text style={[st.cheerText, { color: colors.white }]}>{t('Como subo?')}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -105,24 +106,24 @@ function HowUpSheet({ lv, onClose }: { lv: GeleiraLevel; onClose: () => void }) 
   const bar = levelBar(lv);
   const missing = d ? needsText(d.needs) : null;
   return (
-    <Sheet title="Como subo?" onClose={onClose}>
+    <Sheet title={t('Como subo?')} onClose={onClose}>
       <ScrollView style={{ maxHeight: Math.round(height * 0.78) }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, gap: 16 }}>
         <View style={st.upHead}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
             <Text style={st.upTitle} numberOfLines={1}>{lv.title}</Text>
-            <Text style={st.upPoints}>{lv.points} {lv.points === 1 ? 'ponto' : 'pontos'}</Text>
+            <Text style={st.upPoints}>{lv.points} {lv.points === 1 ? t('ponto') : t('pontos')}</Text>
           </View>
           <View
             style={st.upTrack}
             accessible
             accessibilityRole="progressbar"
-            accessibilityLabel={lv.nextTitle ? `A caminho de ${lv.nextTitle}` : 'Nível máximo'}
+            accessibilityLabel={lv.nextTitle ? t('A caminho de {nextTitle}', { nextTitle: lv.nextTitle }) : t('Nível máximo')}
             accessibilityValue={{ min: 0, max: 100, now: Math.round(bar * 100) }}
           >
             <View style={[st.upFill, { width: `${Math.round(bar * 100)}%` }]} />
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-            <Text style={[st.upSmall, { flexShrink: 1 }]}>{d?.falling ? 'A descer devagar' : missing ?? (lv.nextTitle ? 'Quase lá' : 'Estás no topo')}</Text>
+            <Text style={[st.upSmall, { flexShrink: 1 }]}>{d?.falling ? t('A descer devagar') : missing ?? (lv.nextTitle ? t('Quase lá') : t('Estás no topo'))}</Text>
             {lv.nextTitle ? <Text style={[st.upSmall, { fontWeight: '700', color: colors.zinc700 }]} numberOfLines={1}>{lv.nextTitle}</Text> : null}
           </View>
         </View>
@@ -134,12 +135,12 @@ function HowUpSheet({ lv, onClose }: { lv: GeleiraLevel; onClose: () => void }) 
         ) : null}
         {d ? (
           <View>
-            <Text style={st.howTitle}>De onde vêm os teus pontos</Text>
+            <Text style={st.howTitle}>{t('De onde vêm os teus pontos')}</Text>
             <Text style={[st.upSmall, { marginTop: 2, marginBottom: 6 }]}>
-              Últimos {d.days} dias · {d.people} {d.people === 1 ? 'pessoa diferente' : 'pessoas diferentes'} · {d.weeks} {d.weeks === 1 ? 'semana' : 'semanas'} com atividade
+              {t('Últimos {days} dias · {count} pessoa diferente · {weeks} {value} com atividade', { count: d.people, days: d.days, weeks: d.weeks, value: d.weeks === 1 ? 'semana' : 'semanas', other: 'Últimos {days} dias · {count} pessoas diferentes · {weeks} {value} com atividade' })}
             </Text>
             {levelRows(d).map((r) => (
-              <View key={r.key} style={st.upRow} accessible accessibilityLabel={`${r.label}: ${r.points} ${r.points === 1 ? 'ponto' : 'pontos'}. ${r.note}`}>
+              <View key={r.key} style={st.upRow} accessible accessibilityLabel={t('{label}: {count} ponto. {note}', { count: r.points, label: r.label, note: r.note, other: '{label}: {count} pontos. {note}' })}>
                 <View style={[st.upIcon, { backgroundColor: ROW_TINT[r.icon].bg }]}><Icon name={r.icon} size={18} strokeWidth={2} color={ROW_TINT[r.icon].fg} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={st.upLabel}>{r.label}</Text>
@@ -150,7 +151,7 @@ function HowUpSheet({ lv, onClose }: { lv: GeleiraLevel; onClose: () => void }) 
             ))}
           </View>
         ) : null}
-        <Text style={st.upRules}>{LEVEL_RULES} Só tu vês este detalhe: quem visita vê o nome do nível e a barra.</Text>
+        <Text style={st.upRules}>{t('{levelRules} Só tu vês este detalhe: quem visita vê o nome do nível e a barra.', { levelRules: LEVEL_RULES() })}</Text>
       </ScrollView>
     </Sheet>
   );
@@ -167,8 +168,8 @@ function CheerersSheet({ username, name, isMe, onClose }: { username: string; na
   return (
     <Sheet title={cheerersTitle(isMe, name)} onClose={onClose}>
       {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 24 }} />}
-      {q.isError && <Text style={st.msg} accessibilityRole="alert">Esta lista não está disponível agora.</Text>}
-      {q.isSuccess && items.length === 0 && <Text style={st.msg}>{isMe ? 'Ainda ninguém brindou. Enche a geleira e mostra-a: os brindes vêm a seguir!' : 'Ainda não há brindes para mostrar.'}</Text>}
+      {q.isError && <Text style={st.msg} accessibilityRole="alert">{t('Esta lista não está disponível agora.')}</Text>}
+      {q.isSuccess && items.length === 0 && <Text style={st.msg}>{isMe ? t('Ainda ninguém brindou. Enche a geleira e mostra-a: os brindes vêm a seguir!') : t('Ainda não há brindes para mostrar.')}</Text>}
       <ScrollView style={{ maxHeight: 420 }}>
         {items.map((p) => (
           <Pressable
@@ -180,7 +181,7 @@ function CheerersSheet({ username, name, isMe, onClose }: { username: string; na
             style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]}
             accessibilityRole="button"
             accessibilityLabel={`${p.displayName}, ${timeAgo(p.at).toLowerCase()}`}
-            accessibilityHint="Abre o perfil"
+            accessibilityHint={t('Abre o perfil')}
           >
             <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -189,7 +190,7 @@ function CheerersSheet({ username, name, isMe, onClose }: { username: string; na
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={st.handle}>{timeAgo(p.at)}</Text>
-              {p.post ? <Text style={st.viaPost}>no post da geleira</Text> : null}
+              {p.post ? <Text style={st.viaPost}>{t('no post da geleira')}</Text> : null}
             </View>
           </Pressable>
         ))}
@@ -240,7 +241,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
       qc.setQueryData<GeleiraLevel>(key, (old) => (old ? applyCheer(old, r) : old));
     } catch (e) {
       qc.setQueryData(key, cur);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : next.cheered ? 'Não consegui brindar agora. Tenta outra vez.' : 'Não consegui tirar o brinde agora. Tenta outra vez.');
+      Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : next.cheered ? t('Não consegui brindar agora. Tenta outra vez.') : t('Não consegui tirar o brinde agora. Tenta outra vez.'));
     } finally {
       busy.current = false;
       void qc.invalidateQueries({ queryKey: key });
@@ -269,7 +270,7 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
 
 /** Um gosto: bolinha de vidro com o ícone, o nome e a nota. O favorito leva um coração. */
 function Tile({ item, onPress, hint }: { item: Shown; /** Visitante: tocar brinda este gosto (o mesmo brinde que no post da geleira); numa bebida abre as ações. */ onPress?: () => void; hint?: string }) {
-  const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
+  const label = `${item.name}${item.rating ? `, ${ICE()[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
   const n = item.cheers ?? 0;
   const Box = onPress ? Pressable : View;
   const a11y = onPress
@@ -292,7 +293,7 @@ function Tile({ item, onPress, hint }: { item: Shown; /** Visitante: tocar brind
         )}
       </View>
       <Text numberOfLines={2} style={st.tileName}>{item.name}</Text>
-      {item.pending ? <Text style={{ marginTop: 4, fontSize: 10, fontWeight: '500', color: colors.zinc500 }}>à espera</Text> : <Frost rating={item.rating} />}
+      {item.pending ? <Text style={{ marginTop: 4, fontSize: 10, fontWeight: '500', color: colors.zinc500 }}>{t('à espera')}</Text> : <Frost rating={item.rating} />}
     </Box>
   );
 }
@@ -413,7 +414,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
       flip(r.cheered, r.cheers);
     } catch (e) {
       flip(was, n0);
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui brindar agora. Tenta outra vez.');
+      Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Não consegui brindar agora. Tenta outra vez.'));
     } finally {
       cheering.current.delete(i.id);
     }
@@ -421,42 +422,42 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   /** Dono: «Partilhar a minha geleira» abre o ecrã de publicar com o cartão; geleira vazia explica porque não dá. */
   function shareMine() {
     const why = shareBlockReason(items);
-    if (why) return Alert.alert('Ainda não dá para partilhar', why);
+    if (why) return Alert.alert(t('Ainda não dá para partilhar'), why);
     router.push('/partilhar-geleira' as never);
   }
-  if (q.isLoading) return <View style={[st.skel, { marginHorizontal: margin, height: compact ? 60 : 192 }]} accessibilityLabel="A carregar a geleira" />;
+  if (q.isLoading) return <View style={[st.skel, { marginHorizontal: margin, height: compact ? 60 : 192 }]} accessibilityLabel={t('A carregar a geleira')} />;
   if (!isMe && (q.isError || items.length === 0)) return null;
 
   const favorites = items.filter((i) => i.favorite).slice(0, 8);
   const total = items.filter((i) => !i.pending).length;
   const points = geleiraPoints(items);
   const level = lv.data?.level ?? geleiraLevel(points);
-  const title = lv.data ? lv.data.title : LEVEL_LABEL[level];
+  const title = lv.data ? lv.data.title : LEVEL_LABEL()[level];
   // A frase por baixo da barra (só o dono): a dica do servidor (o que falta, em coisas concretas).
-  const hint = lv.data ? (lv.data.tip ?? (lv.data.toNext === null ? `Nível máximo: ${lv.data.title.toLowerCase()}!` : null)) : nextLevelHint(points);
+  const hint = lv.data ? (lv.data.tip ?? (lv.data.toNext === null ? t('Nível máximo: {title}!', { title: lv.data.title.toLowerCase() }) : null)) : nextLevelHint(points);
   const folded = compact && !open;
   // A barra (0–1): a do servidor; sem ela, pelos pontos. Quem visita também a vê (sem o detalhe).
   const progress = levelBar(lv.data ?? { level, points });
   const showLevel = total > 0 || isMe || (lv.data?.level ?? 0) > 0;
-  const top = lv.data ? (lv.data.level >= 4 ? lv.data.title : lv.data.level === 3 && lv.data.nextTitle ? lv.data.nextTitle : 'Lenda da paulada') : 'Lenda da paulada';
+  const top = lv.data ? (lv.data.level >= 4 ? lv.data.title : lv.data.level === 3 && lv.data.nextTitle ? lv.data.nextTitle : t('Lenda da paulada')) : t('Lenda da paulada');
 
   const head = (
       <View style={st.head}>
         {compact ? (
-          <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={open ? 'Fechar a geleira' : 'Abrir a geleira'}>
+          <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={open ? t('Fechar a geleira') : t('Abrir a geleira')}>
             <FridgeArt count={total} level={level} open={!folded} invite={folded} size={folded ? 64 : 56} />
           </Pressable>
         ) : (
           <FridgeArt count={total} level={level} open={!folded} size={52} />
         )}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', lineHeight: 20, color: colors.zinc900 }}>{isMe ? 'A minha geleira' : 'Geleira'}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', lineHeight: 20, color: colors.zinc900 }}>{isMe ? t('A minha geleira') : 'Geleira'}</Text>
           <Text style={{ fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>
-            {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
+            {items.length === 0 ? t('Ainda vazia') : t('{count} gosto{value}', { count: total, value: favorites.length ? (' ' + t('· {count} favorito', { count: favorites.length, other: '· {count} favoritos' })) : '', other: '{count} gostos{value}' })}
           </Text>
           {showLevel && (
             <View style={st.tags}>
-              <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={`Nível: ${title}`} accessibilityHint="Abre como funciona a geleira">
+              <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={t('Nível: {title}', { title })} accessibilityHint={t('Abre como funciona a geleira')}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brand }}>{title}</Text>
                 <Icon name="info" size={12} strokeWidth={2.4} color={colors.brand} />
               </Pressable>
@@ -468,16 +469,16 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
                 style={st.barTrack}
                 accessible
                 accessibilityRole="progressbar"
-                accessibilityLabel={lv.data?.nextTitle ? `A caminho de ${lv.data.nextTitle}` : `Nível: ${title}`}
+                accessibilityLabel={lv.data?.nextTitle ? t('A caminho de {nextTitle}', { nextTitle: lv.data.nextTitle }) : t('Nível: {title}', { title })}
                 accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
               >
                 <View style={[st.barFill, { width: `${Math.round(progress * 100)}%` }]} />
               </View>
               {isMe && hint ? <Text style={{ fontSize: 11, lineHeight: 14, color: colors.zinc500 }} numberOfLines={3}>{hint}</Text> : null}
               {isMe && lv.data?.detail ? (
-                <Pressable onPress={() => setHowUp(true)} hitSlop={8} style={({ pressed }) => [st.howUp, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityHint="Mostra de onde vêm os teus pontos e o que falta">
+                <Pressable onPress={() => setHowUp(true)} hitSlop={8} style={({ pressed }) => [st.howUp, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityHint={t('Mostra de onde vêm os teus pontos e o que falta')}>
                   <Icon name="trending" size={13} strokeWidth={2.2} color={colors.brand} />
-                  <Text style={st.howUpText}>Como subo?</Text>
+                  <Text style={st.howUpText}>{t('Como subo?')}</Text>
                   <Icon name="chevron-right" size={13} strokeWidth={2.2} color={colors.brand} />
                 </Pressable>
               ) : null}
@@ -507,9 +508,9 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
       {howUp && lv.data && <HowUpSheet lv={lv.data} onClose={() => setHowUp(false)} />}
       {items.length === 0 && (!compact || open) ? (
         <View style={st.empty}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>Geleira vazia!</Text>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>{t('Geleira vazia!')}</Text>
           <Text style={{ marginTop: 4, maxWidth: 272, textAlign: 'center', fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>
-            {isMe ? 'Para a encher, abre Editar perfil e escolhe a tua geleira.' : 'Ainda não há nada para mostrar.'}
+            {isMe ? t('Para a encher, abre Editar perfil e escolhe a tua geleira.') : t('Ainda não há nada para mostrar.')}
           </Text>
         </View>
       ) : (
@@ -519,24 +520,24 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
           const list = items.filter((i) => i.kind === k).sort((a, b) => Number(b.favorite) - Number(a.favorite)); // os favoritos primeiro
           const canCheerHere = !isMe && typeof list[0]?.cheers === 'number'; // sem itens deste tipo, a lista vem vazia
           // Bebidas: tocar abre as ações (brindar e «Paga-me uma»); comidas: tocar brinda (nas visitas).
-          if (k === 'bebida') return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={(i) => setDrinkAct(i)} hint={isMe ? 'Abre «Paga-me uma»' : 'Abre brindar e «Paga-me uma»'} /> : null;
+          if (k === 'bebida') return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={(i) => setDrinkAct(i)} hint={isMe ? t('Abre «Paga-me uma»') : t('Abre brindar e «Paga-me uma»')} /> : null;
           return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={canCheerHere ? (i) => void cheerItem(i) : undefined} /> : null;
         })
       )}
       {!folded && items.length > 0 ? (
         <Text style={st.tapHint}>
           {isMe
-            ? items.some((i) => i.kind === 'bebida') ? 'Toca numa bebida para pedir à malta «Paga-me uma».' : null
-            : typeof items[0].cheers === 'number' ? 'Toca numa bebida para brindar ou pedir «Paga-me uma»; numa comida, brindas.' : 'Toca numa bebida para pedir «Paga-me uma».'}
+            ? items.some((i) => i.kind === 'bebida') ? t('Toca numa bebida para pedir à malta «Paga-me uma».') : null
+            : typeof items[0].cheers === 'number' ? t('Toca numa bebida para brindar ou pedir «Paga-me uma»; numa comida, brindas.') : t('Toca numa bebida para pedir «Paga-me uma».')}
         </Text>
       ) : null}
       {/* O livro das geladas (0145): «Deves 2 · Devem-te 3». Nas visitas só aparece se houver o que mostrar. */}
       {!folded ? <GeladaSection username={username} isMe={isMe} /> : null}
       {/* Partilhar a minha geleira: abre o ecrã de publicar já com o cartão da geleira. */}
       {isMe && !folded ? (
-        <Pressable onPress={shareMine} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityHint="Abre o ecrã de publicar com o cartão da geleira">
+        <Pressable onPress={shareMine} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityHint={t('Abre o ecrã de publicar com o cartão da geleira')}>
           <Icon name="share" size={20} color={colors.white} />
-          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>Partilhar a minha geleira</Text>
+          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>{t('Partilhar a minha geleira')}</Text>
         </Pressable>
       ) : null}
     </>
@@ -552,7 +553,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
     <View style={cardStyle} accessibilityLabel="Geleira">
       {inner}
       {folded ? (
-        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Abrir a geleira" accessibilityState={{ expanded: false }}>
+        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={t('Abrir a geleira')} accessibilityState={{ expanded: false }}>
           {head}
         </Pressable>
       ) : (
@@ -597,14 +598,14 @@ function DrinkActions({ item, isMe, owner, canCheer: cheerable, onCheer, onAsk, 
           <TasteBubble item={item} size={84} />
           {typeof item.cheers === 'number' && item.cheers > 0 ? <Text style={[st.handle, { marginTop: 8 }]}>{cheersCount(item.cheers)}</Text> : null}
         </View>
-        <Pressable onPress={onAsk} style={({ pressed }) => [st.cheerBtn, st.share, { marginTop: 0 }, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityHint={isMe ? 'Escolhes a quem pedir' : `Pede a ${owner}`}>
+        <Pressable onPress={onAsk} style={({ pressed }) => [st.cheerBtn, st.share, { marginTop: 0 }, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityHint={isMe ? t('Escolhes a quem pedir') : t('Pede a {owner}', { owner })}>
           <Icon name="cheers" size={20} color={colors.white} />
-          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>{isMe ? 'Paga-me uma' : `Paga-me uma · a ${owner.split(' ')[0]}`}</Text>
+          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>{isMe ? 'Paga-me uma' : t('Paga-me uma · a {split}', { split: owner.split(' ')[0] })}</Text>
         </Pressable>
         {cheerable && (
           <Pressable onPress={onCheer} style={({ pressed }) => [st.cheerBtn, item.cheered && st.cheerOn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityState={{ selected: !!item.cheered }}>
             <Icon name="cheers" size={20} color={item.cheered ? colors.amber600 : colors.zinc800} />
-            <Text style={[st.cheerText, { color: item.cheered ? AMBER_INK : colors.zinc800 }]}>{item.cheered ? 'Tirar o brinde' : 'Brindar'}</Text>
+            <Text style={[st.cheerText, { color: item.cheered ? AMBER_INK : colors.zinc800 }]}>{item.cheered ? t('Tirar o brinde') : t('Brindar')}</Text>
           </Pressable>
         )}
       </View>

@@ -30,7 +30,7 @@ test('a galeria que sai da barra fica no menu «+» (conversa a dois) e nos anex
   const g = read('src/components/GroupComposer.tsx');
   assert.match(g, /\{fit\.gallery \? <Tool w=\{fit\.toolW\} icon="image"/);
   assert.match(g, /\{!fit\.gallery && \(\s*<Pressable onPress=\{\(\) => \{ setPanel\(null\); void pick\('library'\); \}\}/);
-  assert.match(g, /<Text style=\{styles\.attachLabel\}>Galeria<\/Text>/);
+  assert.match(g, /<Text style=\{styles\.attachLabel\}>\{t\('Galeria'\)\}<\/Text>/);
   // Os quatro anexos (com a Galeria) cabem a 320 px: encolhem em vez de terem 84 fixos.
   assert.match(g, /attachItem: \{ flexBasis: 84, flexShrink: 1, minWidth: 0,/);
 });
@@ -48,7 +48,7 @@ test('o cabeçalho: botões de 40 com o toque até 44, e a 360 px ou menos o Mix
   assert.match(h, /\{actions \? <View style=\{st\.actions\}>\{actions\}<\/View> : null\}/);
   const t = read('src/app/messages/[username].tsx');
   assert.match(t, /const inMenu = headerInMenu\(useWindowDimensions\(\)\.width\);/);
-  assert.match(t, /\{!inMenu \? <HeaderButton label=\{`Videochamada a/);
-  assert.match(t, /\{ icon: 'video' as const, label: 'Videochamada', onPress: \(\) => call\(true\) \}/);
+  assert.match(t, /\{!inMenu \? <HeaderButton label=\{t\('Videochamada a \{displayName\}'/);
+  assert.match(t, /\{ icon: 'video' as const, label: t\('Videochamada'\), onPress: \(\) => call\(true\) \}/);
   assert.match(t, /\{ icon: 'mixar' as const, label: 'Mixar',/);
 });

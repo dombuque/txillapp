@@ -4,6 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } fr
 import { ApiError, api, type FollowState } from '@/lib/api';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 /** Seguir / A seguir / Pedido enviado (perfis privados). Responde já e volta atrás se falhar. */
 export function FollowButton({ username, following, requested, isPrivate, style }: { username: string; following: boolean; requested: boolean; isPrivate: boolean; style?: StyleProp<ViewStyle> }) {
@@ -14,7 +15,7 @@ export function FollowButton({ username, following, requested, isPrivate, style 
     if (busy) return;
     // Deixar de seguir uma conta privada: depois só se volta a ver com um pedido novo aceite. Pergunta antes.
     if (s.following && isPrivate) {
-      const ok = await confirm({ title: `Deixar de seguir @${username}?`, message: 'Esta conta é privada. Se mudares de ideias, tens de pedir outra vez para seguir.', confirm: 'Deixar de seguir', danger: true });
+      const ok = await confirm({ title: t('Deixar de seguir @{username}?', { username }), message: t('Esta conta é privada. Se mudares de ideias, tens de pedir outra vez para seguir.'), confirm: t('Deixar de seguir'), danger: true });
       if (!ok) return;
     }
     setBusy(true);
@@ -33,7 +34,7 @@ export function FollowButton({ username, following, requested, isPrivate, style 
     } catch (x) {
       setS(prev);
       // Conta nova em revisão (risk_limited) ou demasiados «seguir» de seguida: o servidor diz porquê.
-      if (x instanceof ApiError && (x.code === 'risk_limited' || x.status === 429)) Alert.alert('Agora não', x.code === 'risk_limited' ? x.message : 'Estás a seguir muita gente de seguida. Espera um bocado e tenta outra vez.');
+      if (x instanceof ApiError && (x.code === 'risk_limited' || x.status === 429)) Alert.alert(t('Agora não'), x.code === 'risk_limited' ? x.message : t('Estás a seguir muita gente de seguida. Espera um bocado e tenta outra vez.'));
     } finally {
       setBusy(false);
     }
@@ -41,7 +42,7 @@ export function FollowButton({ username, following, requested, isPrivate, style 
   const on = s.following || s.requested;
   return (
     <Pressable onPress={() => void toggle()} disabled={busy} style={[st.btn, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }, style]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
-      <Text style={[st.text, !on && { color: '#fff' }]}>{s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}</Text>
+      <Text style={[st.text, !on && { color: '#fff' }]}>{s.following ? t('A seguir') : s.requested ? t('Pedido enviado') : t('Seguir')}</Text>
     </Pressable>
   );
 }

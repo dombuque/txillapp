@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const open = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
 
@@ -55,7 +56,7 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
       {status === 'ok' && <Icon name="check" size={22} color="#22c55e" strokeWidth={2.4} />}
       {status === 'bad' && <Icon name="x" size={22} color={colors.danger} strokeWidth={2.4} />}
       {secure && (
-        <Pressable onPress={() => setShown((s) => !s)} hitSlop={8} accessibilityRole="button" accessibilityLabel={shown ? 'Esconder a senha' : 'Mostrar a senha'}>
+        <Pressable onPress={() => setShown((s) => !s)} hitSlop={8} accessibilityRole="button" accessibilityLabel={shown ? t('Esconder a senha') : t('Mostrar a senha')}>
           <Icon name={shown ? 'eye-off' : 'eye'} size={22} color={colors.zinc600} />
         </Pressable>
       )}
@@ -67,18 +68,18 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
 function BrandPanel() {
   const router = useRouter();
   const points = [
-    { icon: 'image', text: 'Fotos, vídeos e mimos de quem segues' },
-    { icon: 'film', text: 'Tchekas para criar e descobrir' },
-    { icon: 'comment', text: 'Chat em tempo real com a tua malta' },
-    { icon: 'shield', text: 'Tu decides quem te vê' },
+    { icon: 'image', text: t('Fotos, vídeos e mimos de quem segues') },
+    { icon: 'film', text: t('Tchekas para criar e descobrir') },
+    { icon: 'comment', text: t('Chat em tempo real com a tua malta') },
+    { icon: 'shield', text: t('Tu decides quem te vê') },
   ] as const;
   return (
     <View style={{ width: '46%', maxWidth: 640, justifyContent: 'space-between', overflow: 'hidden', backgroundColor: colors.canvas, padding: 56 }}>
       <Blob size={480} color={colors.brand} style={{ right: -150, top: -150 }} />
       <Blob size={400} color={colors.amber300} style={{ left: -170, bottom: 0 }} />
-      <Pressable onPress={() => router.push('/' as never)} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial" style={{ alignSelf: 'flex-start' }}><Wordmark height={48} /></Pressable>
+      <Pressable onPress={() => router.push('/' as never)} accessibilityRole="link" accessibilityLabel={t('Txillapp, página inicial')} style={{ alignSelf: 'flex-start' }}><Wordmark height={48} /></Pressable>
       <View>
-        <Text style={{ fontSize: 48, fontWeight: '800', lineHeight: 50, letterSpacing: -1, color: colors.zinc900 }}>Posta. Mostra.{'\n'}<Text style={{ color: colors.brand }}>Txilla.</Text></Text>
+        <Text style={{ fontSize: 48, fontWeight: '800', lineHeight: 50, letterSpacing: -1, color: colors.zinc900 }}>{t('Posta. Mostra.')}{'\n'}<Text style={{ color: colors.brand }}>{t('Txilla.')}</Text></Text>
         <View style={{ marginTop: 40, gap: 16 }}>
           {points.map((p) => (
             <View key={p.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
@@ -89,7 +90,7 @@ function BrandPanel() {
         </View>
       </View>
       <Text style={{ fontSize: 14, color: colors.zinc600 }}>
-        <Text onPress={() => router.push('/terms' as never)}>Termos</Text> · <Text onPress={() => router.push('/privacy' as never)}>Privacidade</Text> ·{' '}
+        <Text onPress={() => router.push('/terms' as never)}>{t('Termos')}</Text> · <Text onPress={() => router.push('/privacy' as never)}>{t('Privacidade')}</Text> ·{' '}
         <Text onPress={() => void Linking.openURL('mailto:suporte@txillapp.com')}>suporte@txillapp.com</Text>
       </Text>
     </View>
@@ -146,7 +147,7 @@ export default function Login() {
 
   async function submit() {
     if (busy) return;
-    if (!identifier.trim() || !password) return setError('Escreve o teu @ (ou email) e a senha');
+    if (!identifier.trim() || !password) return setError(t('Escreve o teu @ (ou email) e a senha'));
     setBusy(true);
     setError('');
     const who = identifier.trim().replace(/^@/, '');
@@ -169,9 +170,9 @@ export default function Login() {
     <Screen
       footer={
         <Text style={styles.footerText}>
-          És novo no Txillapp?{' '}
+          {t('És novo no Txillapp?')}{' '}
           <Text style={{ color: colors.brand, fontWeight: '600' }} onPress={() => router.push('/register' as never)} accessibilityRole="link">
-            Cria a tua conta
+            {t('Cria a tua conta')}
           </Text>
         </Text>
       }
@@ -179,22 +180,22 @@ export default function Login() {
       <View style={{ paddingTop: 40, display: wide ? "none" : "flex" }} accessibilityRole="header">
         <Wordmark height={44} />
       </View>
-      <Text style={styles.title}>Qual é a{'\n'}Vibe?</Text>
-      <Text style={styles.sub}>Entra e vê o que a malta anda a fazer</Text>
+      <Text style={styles.title}>{t('Qual é a\nVibe?')}</Text>
+      <Text style={styles.sub}>{t('Entra e vê o que a malta anda a fazer')}</Text>
 
       <View style={{ marginTop: 28, gap: 12 }}>
         <Field
           icon="at"
           value={identifier}
           onChangeText={setIdentifier}
-          placeholder="Utilizador ou email"
+          placeholder={t('Utilizador ou email')}
           autoCapitalize="none"
           autoComplete="username"
           keyboardType="email-address"
           returnKeyType="next"
           onSubmitEditing={() => pass.current?.focus()}
           submitBehavior="submit"
-          accessibilityLabel="Utilizador ou email"
+          accessibilityLabel={t('Utilizador ou email')}
         />
         <Field
           icon="lock"
@@ -202,18 +203,18 @@ export default function Login() {
           ref={pass}
           value={password}
           onChangeText={setPassword}
-          placeholder="Senha"
+          placeholder={t('Senha')}
           autoCapitalize="none"
           autoComplete="current-password"
           returnKeyType="go"
           onSubmitEditing={() => void submit()}
-          accessibilityLabel="Senha"
+          accessibilityLabel={t('Senha')}
         />
         <View style={styles.alert} accessibilityRole="alert">
           <Text style={styles.alertText}>{error}</Text>
         </View>
-        <Button label="Entrar" onPress={() => void submit()} loading={busy} block style={styles.cta} />
-        <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">Esqueceste a senha?</Text>
+        <Button label={t('Entrar')} onPress={() => void submit()} loading={busy} block style={styles.cta} />
+        <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">{t('Esqueceste a senha?')}</Text>
       </View>
       <GoogleButton mode="login" onError={setError} />
       <View style={{ height: 24 }} />

@@ -11,11 +11,12 @@ import { aoLocal, locaisApi, shortTx, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { formatVibes, vibesWord } from '@/lib/vibes';
+import { intlLocale, t } from '@/lib/i18n';
 
 const QUICK = [50, 100, 200, 500];
 const MAX_DIGITS = 7;
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(intlLocale());
 const two = (n: number) => String(n).padStart(2, '0');
 /** Data e hora sem depender do Intl do aparelho (o Hermes nem sempre o tem completo). */
 const quando = (d: Date) => `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}, ${two(d.getHours())}:${two(d.getMinutes())}`;
@@ -75,8 +76,8 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
   }, []);
 
   function toConfirm() {
-    if (amount < 1) return setErr('Escolhe quantas vibes queres pagar');
-    if (short) return setErr(`O teu saldo não chega. Tens ${formatVibes(balance!)}.`);
+    if (amount < 1) return setErr(t('Escolhe quantas vibes queres pagar'));
+    if (short) return setErr(t('O teu saldo não chega. Tens {vibes}.', { vibes: formatVibes(balance!) }));
     setErr('');
     // Chave nova para esta confirmação: repetir o mesmo pedido nunca paga duas vezes.
     key.current = newKey();
@@ -101,7 +102,7 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
       // O servidor respondeu com um erro (nada foi pago): a próxima tentativa leva chave nova.
       // Sem resposta (rede): mantém-se a chave, para que repetir não pague duas vezes.
       if (e instanceof ApiError) key.current = newKey();
-      setErr((e as Error).message || 'Não consegui pagar. Tenta outra vez.');
+      setErr((e as Error).message || t('Não consegui pagar. Tenta outra vez.'));
     } finally {
       inflight.current = false;
       setBusy(false);
@@ -112,21 +113,21 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
 
   if (step === 'confirm') {
     return (
-      <Sheet title="Confirmar pagamento" onClose={onClose}>
+      <Sheet title={t('Confirmar pagamento')} onClose={onClose}>
         <View style={{ paddingHorizontal: 24 }}>
           <View style={st.confirmBox}>
             <VenueLogo venue={venue} size={56} />
-            <Text style={st.confirmQ} accessibilityRole="header">Pagar {formatVibes(amount)} {ao} {venue.name}?</Text>
+            <Text style={st.confirmQ} accessibilityRole="header">{t('Pagar {vibes} {ao} {name}?', { vibes: formatVibes(amount), ao, name: venue.name })}</Text>
             {receiptNote(note.trim())}
-            {balance != null ? <Text style={st.after}>Ficas com {formatVibes(Math.max(0, balance - amount))}.</Text> : null}
+            {balance != null ? <Text style={st.after}>{t('Ficas com {vibes}.', { vibes: formatVibes(Math.max(0, balance - amount)) })}</Text> : null}
           </View>
           <Text style={st.err} accessibilityRole="alert">{err}</Text>
-          <Pressable onPress={() => void pay()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Confirmar o pagamento de ${formatVibes(amount)}`}>
+          <Pressable onPress={() => void pay()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={t('Confirmar o pagamento de {vibes}', { vibes: formatVibes(amount) })}>
             <Icon name="check-circle" size={20} color="#fff" />
-            <Text style={st.primaryText}>{busy ? 'A pagar…' : `Pagar ${formatVibes(amount)}`}</Text>
+            <Text style={st.primaryText}>{busy ? t('A pagar…') : t('Pagar {vibes}', { vibes: formatVibes(amount) })}</Text>
           </Pressable>
           <Pressable onPress={() => { setErr(''); setStep('amount'); }} disabled={busy} style={st.ghost} accessibilityRole="button">
-            <Text style={st.ghostText}>Voltar e mudar</Text>
+            <Text style={st.ghostText}>{t('Voltar e mudar')}</Text>
           </Pressable>
         </View>
       </Sheet>
@@ -134,18 +135,18 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
   }
 
   return (
-    <Sheet title={`Pagar ${ao} ${venue.name}`} onClose={onClose}>
+    <Sheet title={t('Pagar {ao} {name}', { ao, name: venue.name })} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={st.balanceRow}>
           <Icon name="wallet" size={16} color={colors.zinc600} />
-          <Text style={st.balanceText}>{balance != null ? <>Tens <Text style={{ fontWeight: '800', color: colors.zinc900 }}>{formatVibes(balance)}</Text></> : wallet.isError ? 'Não consegui ver o teu saldo' : 'A ver o teu saldo…'}</Text>
+          <Text style={st.balanceText}>{balance != null ? <>{t('Tens')} <Text style={{ fontWeight: '800', color: colors.zinc900 }}>{formatVibes(balance)}</Text></> : wallet.isError ? t('Não consegui ver o teu saldo') : t('A ver o teu saldo…')}</Text>
         </View>
 
         <View style={st.display} accessibilityLiveRegion="polite" accessibilityLabel={formatVibes(amount)}>
           <Text style={[st.big, !digits && { color: colors.zinc300 }, short && { color: colors.red600 }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(amount)}</Text>
           <Text style={st.unit}>{vibesWord(amount)}</Text>
         </View>
-        {preset ? <Text style={st.presetHint}>Valor pedido pelo local. Podes mudar se for preciso.</Text> : null}
+        {preset ? <Text style={st.presetHint}>{t('Valor pedido pelo local. Podes mudar se for preciso.')}</Text> : null}
 
         <View style={st.quick} accessibilityRole="radiogroup">
           {QUICK.map((q) => {
@@ -160,8 +161,8 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
 
         <View style={st.pad}>
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'del'].map((k) => (
-            <Pressable key={k} onPress={() => press(k)} style={({ pressed }) => [st.key, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={k === 'del' ? 'Apagar' : k === 'clear' ? 'Limpar' : k}>
-              {k === 'del' ? <Backspace /> : k === 'clear' ? <Text style={[st.keyText, { fontSize: 16 }]}>Limpar</Text> : <Text style={st.keyText}>{k}</Text>}
+            <Pressable key={k} onPress={() => press(k)} style={({ pressed }) => [st.key, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={k === 'del' ? t('Apagar') : k === 'clear' ? t('Limpar') : k}>
+              {k === 'del' ? <Backspace /> : k === 'clear' ? <Text style={[st.keyText, { fontSize: 16 }]}>{t('Limpar')}</Text> : <Text style={st.keyText}>{k}</Text>}
             </Pressable>
           ))}
         </View>
@@ -172,14 +173,14 @@ export function VenuePaySheet({ venue, preset, onClose }: { venue: Venue; preset
           onFocus={() => { noteFocused.current = true; }}
           onBlur={() => { noteFocused.current = false; }}
           maxLength={120}
-          placeholder="Nota (opcional), ex.: Duas geladas"
+          placeholder={t('Nota (opcional), ex.: Duas geladas')}
           placeholderTextColor={colors.zinc500}
           style={st.field}
-          accessibilityLabel="Nota do pagamento"
+          accessibilityLabel={t('Nota do pagamento')}
         />
-        <Text style={st.err} accessibilityRole="alert">{err || (short ? `O teu saldo não chega. Tens ${formatVibes(balance!)}.` : '')}</Text>
+        <Text style={st.err} accessibilityRole="alert">{err || (short ? t('O teu saldo não chega. Tens {vibes}.', { vibes: formatVibes(balance!) }) : '')}</Text>
         <Pressable onPress={toConfirm} disabled={amount < 1 || short} style={[st.primary, (amount < 1 || short) && { opacity: 0.5 }]} accessibilityRole="button">
-          <Text style={st.primaryText}>{amount < 1 ? 'Escolhe o valor' : `Continuar com ${formatVibes(amount)}`}</Text>
+          <Text style={st.primaryText}>{amount < 1 ? t('Escolhe o valor') : t('Continuar com {vibes}', { vibes: formatVibes(amount) })}</Text>
         </Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
@@ -200,9 +201,9 @@ function ReceiptView({ venue, r, onClose }: { venue: Venue; r: Receipt; onClose:
   return (
     <Sheet onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }}>
-        <View style={st.receipt} accessibilityLabel={`Pagamento feito: ${formatVibes(r.amount)} ${aoLocal(venue.kind)} ${venue.name}, recibo ${shortTx(r.transactionId)}`}>
+        <View style={st.receipt} accessibilityLabel={t('Pagamento feito: {vibes} {aoLocal} {name}, recibo {shortTx}', { vibes: formatVibes(r.amount), aoLocal: aoLocal(venue.kind), name: venue.name, shortTx: shortTx(r.transactionId) })}>
           <View style={st.okBadge}><Icon name="check" size={34} strokeWidth={2.6} color="#fff" /></View>
-          <Text style={st.okTitle}>Pagamento feito</Text>
+          <Text style={st.okTitle}>{t('Pagamento feito')}</Text>
           <Text style={st.receiptAmount} numberOfLines={1} adjustsFontSizeToFit>{fmt(r.amount)}</Text>
           <Text style={st.receiptUnit}>{vibesWord(r.amount)}</Text>
           <View style={st.receiptVenue}>
@@ -211,18 +212,18 @@ function ReceiptView({ venue, r, onClose }: { venue: Venue; r: Receipt; onClose:
           </View>
           {receiptNote(r.note)}
           <View style={st.lines}>
-            <Line label="Quando" value={quando(r.at)} />
-            <Line label="Recibo" value={shortTx(r.transactionId)} mono />
-            {user ? <Line label="Pago por" value={`@${user.username}`} /> : null}
-            <Line label="O teu saldo" value={formatVibes(r.balance)} />
+            <Line label={t('Quando')} value={quando(r.at)} />
+            <Line label={t('Recibo')} value={shortTx(r.transactionId)} mono />
+            {user ? <Line label={t('Pago por')} value={`@${user.username}`} /> : null}
+            <Line label={t('O teu saldo')} value={formatVibes(r.balance)} />
           </View>
           <View style={st.live}>
             <View style={st.liveDot} />
-            <Text style={st.liveText}>Agora são {two(now.getHours())}:{two(now.getMinutes())}:{two(now.getSeconds())}</Text>
+            <Text style={st.liveText}>{t('Agora são {two}:{two2}:{two3}', { two: two(now.getHours()), two2: two(now.getMinutes()), two3: two(now.getSeconds()) })}</Text>
           </View>
         </View>
-        <Text style={st.showHint}>Mostra este ecrã a quem te atende.</Text>
-        <Pressable onPress={onClose} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>Feito</Text></Pressable>
+        <Text style={st.showHint}>{t('Mostra este ecrã a quem te atende.')}</Text>
+        <Pressable onPress={onClose} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>{t('Feito')}</Text></Pressable>
         <View style={{ height: 8 }} />
       </ScrollView>
     </Sheet>
@@ -233,7 +234,7 @@ function Line({ label, value, mono }: { label: string; value: string; mono?: boo
   return (
     <View style={st.line}>
       <Text style={st.lineLabel}>{label}</Text>
-      <Text style={[st.lineValue, mono && { letterSpacing: 2, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }) }]} selectable>{value}</Text>
+      <Text style={[st.lineValue, mono && { letterSpacing: 2, fontFamily: Platform.select({ ios: t('Menlo'), android: 'monospace', default: 'monospace' }) }]} selectable>{value}</Text>
     </View>
   );
 }

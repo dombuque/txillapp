@@ -15,6 +15,7 @@ import { createOnce } from '@/lib/tapGuard';
 import { useDeskReels } from '@/lib/desktopHooks';
 import { reelMounted } from '@/lib/videoMemory';
 import { patchReels, Reel, ReelPoster } from '../(tabs)/reels';
+import { t } from '@/lib/i18n';
 
 const isWeb = Platform.OS === 'web';
 
@@ -129,18 +130,18 @@ export default function ReelPage() {
       {q.isError && isGone(q.error) && (
         <View style={st.center}>
           <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-          <Text style={st.title}>Esta tcheka não está disponível</Text>
-          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Pode ter sido apagada ou ocultada, ou a conta passou a privada.</Text>
-          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outras tchekas</Text></Pressable>
+          <Text style={st.title}>{t('Esta tcheka não está disponível')}</Text>
+          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>{t('Pode ter sido apagada ou ocultada, ou a conta passou a privada.')}</Text>
+          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>{t('Ver outras tchekas')}</Text></Pressable>
         </View>
       )}
       {q.isError && !isGone(q.error) && (
         // Sem rede (ou o servidor falhou): a tcheka pode estar lá; deixa tentar outra vez.
         <View style={st.center} accessibilityRole="alert">
           <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-          <Text style={st.title}>Ups, a tcheka não carregou</Text>
-          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Verifica a ligação e tenta outra vez.</Text>
-          <Pressable onPress={() => void q.refetch()} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Tentar outra vez</Text></Pressable>
+          <Text style={st.title}>{t('Ups, a tcheka não carregou')}</Text>
+          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>{t('Verifica a ligação e tenta outra vez.')}</Text>
+          <Pressable onPress={() => void q.refetch()} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>{t('Tentar outra vez')}</Text></Pressable>
         </View>
       )}
       {items.length > 0 && (

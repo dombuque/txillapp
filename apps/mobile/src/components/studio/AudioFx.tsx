@@ -6,6 +6,7 @@ import { peaks, type PlacedSfx } from '@/lib/studio/audioMix';
 import { fmtS } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { drawPeaks } from './AudioVoice';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const CORAL = colors.brand;
@@ -19,7 +20,7 @@ function Pad({ id, name, onPress, disabled }: { id: SfxId; name: string; onPress
   const data = useMemo(() => sfxPeaks(id), [id]);
   useEffect(() => { drawPeaks(c.current, data, 'rgba(255,255,255,0.85)', { bar: 2, gap: 1 }); }, [data]);
   return (
-    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [st.pad, pressed && st.padOn]} accessibilityRole="button" accessibilityLabel={`Pôr o efeito ${name} aqui`}>
+    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [st.pad, pressed && st.padOn]} accessibilityRole="button" accessibilityLabel={t('Pôr o efeito {name} aqui', { name })}>
       {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { c.current = el; if (el) requestAnimationFrame(() => drawPeaks(el, data, 'rgba(255,255,255,0.85)', { bar: 2, gap: 1 })); }, style: { width: '100%', height: 20, display: 'block' }, 'aria-hidden': true })}
       <Text style={st.padText} numberOfLines={1}>{name}</Text>
     </Pressable>
@@ -57,12 +58,12 @@ export function AudioFx({ voiceFx, origFx, onVoiceFx, onOrigFx, hasVoice, hasOri
   );
   return (
     <View style={{ paddingBottom: 6 }}>
-      {hasVoice ? fxRow('Efeito na voz-off', voiceFx, onVoiceFx, 'Efeito na voz-off') : null}
-      {hasOrig ? fxRow('Efeito no som original', origFx, onOrigFx, 'Efeito no som original') : null}
-      {!hasVoice && !hasOrig ? <Text style={st.note}>Os efeitos de voz aparecem com uma voz-off ou com vídeos com som.</Text> : null}
+      {hasVoice ? fxRow(t('Efeito na voz-off'), voiceFx, onVoiceFx, t('Efeito na voz-off')) : null}
+      {hasOrig ? fxRow(t('Efeito no som original'), origFx, onOrigFx, t('Efeito no som original')) : null}
+      {!hasVoice && !hasOrig ? <Text style={st.note}>{t('Os efeitos de voz aparecem com uma voz-off ou com vídeos com som.')}</Text> : null}
       <View style={st.sfxHead}>
-        <Text style={st.label}>Efeitos sonoros</Text>
-        <Text style={st.note2}>Toca para pôr aos {nowLabel}</Text>
+        <Text style={st.label}>{t('Efeitos sonoros')}</Text>
+        <Text style={st.note2}>{t('Toca para pôr aos {nowLabel}', { nowLabel })}</Text>
       </View>
       <View style={st.grid}>
         {SFX.map((s) => <Pad key={s.id} id={s.id} name={s.name} disabled={disabled || sfx.length >= MAX_SFX} onPress={() => onAddSfx(s.id)} />)}
@@ -73,7 +74,7 @@ export function AudioFx({ voiceFx, origFx, onVoiceFx, onOrigFx, hasVoice, hasOri
             <View key={s.key} style={st.cue}>
               <View style={st.cueDot} />
               <Text style={st.cueText}>{SFX.find((x) => x.id === s.id)?.name} · {fmtS(s.at)} s</Text>
-              <Pressable onPress={() => onRemoveSfx(s.key)} disabled={disabled} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar o efeito ${SFX.find((x) => x.id === s.id)?.name} dos ${fmtS(s.at)} s`}>
+              <Pressable onPress={() => onRemoveSfx(s.key)} disabled={disabled} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar o efeito {name} dos {s} s', { name: String(SFX.find((x) => x.id === s.id)?.name), s: fmtS(s.at) })}>
                 <Icon name="x" size={12} color="#fff" strokeWidth={3} />
               </Pressable>
             </View>

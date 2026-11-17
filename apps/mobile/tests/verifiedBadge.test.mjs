@@ -5,6 +5,7 @@
 // - o cartão do convite pinta o selo a seguir ao nome.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -65,9 +66,9 @@ const SCREENS = [
   ['publicações: quem brindou / repostou / presenteou', 'components/PeopleSheet.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['tchekas: quem brindou / repostou', 'app/(tabs)/reels.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\} style=\{st\.personName\}/],
   ['tchekas: autor (o @, como no TikTok)', 'app/(tabs)/reels.tsx', /<NameWithBadge name=\{`@\$\{post\.author\.username\}`\} who=\{post\.author\} style=\{st\.authorName\}/],
-  ['«X repostou»', 'components/PostCard.tsx', /<NameWithBadge name=\{post\.author\.displayName\} who=\{post\.author\} style=\{styles\.repostText\}><Text[^>]*>repostou<\/Text><\/NameWithBadge>/],
+  ['«X repostou»', 'components/PostCard.tsx', /<NameWithBadge name=\{post\.author\.displayName\} who=\{post\.author\} style=\{styles\.repostText\}><Text[^>]*>\{t\('repostou'\)\}<\/Text><\/NameWithBadge>/],
   ['identificações nas fotos (cartão)', 'components/PostCard.tsx', /<NameWithBadge name=\{`@\$\{t\.username\}`\} who=\{t\}/],
-  ['identificações nas fotos (visor)', 'components/PhotoViewer.tsx', /<NameWithBadge name=\{t\.displayName \?\? t\.username\} who=\{t\}/],
+  ['identificações nas fotos (visor)', 'components/PhotoViewer.tsx', /<NameWithBadge name=\{photoTag\.displayName \?\? photoTag\.username\} who=\{photoTag\}/],
   ['identificar pessoas ao publicar', 'components/PhotoTagger.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['menções ao escrever @', 'components/MentionSuggest.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['presente citado', 'components/QuoteThread.tsx', /who=\{g\.recipient\}/],
@@ -81,11 +82,11 @@ const SCREENS = [
   ['amigos nos contactos', 'components/FindContacts.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['seguidores e a seguir', 'app/u/[username]/connections.tsx', /<NameWithBadge name=\{x\.displayName\} who=\{x\}/],
   ['pedidos para seguir', 'components/ProfileSheets.tsx', /<NameWithBadge name=\{r\.displayName\} who=\{r\}/],
-  ['bloqueados e escondidos dos mimos', 'components/settings/sheets.tsx', /who=\{b\} action="Desbloquear"/],
+  ['bloqueados e escondidos dos mimos', 'components/settings/sheets.tsx', /who=\{b\} action=\{t\('Desbloquear'\)\}/],
   ['À tua volta', 'app/perto.tsx', /<NameWithBadge name=\{item\.title\} who=\{item\.who\}/],
   ['locais: gestores', 'app/v/[slug]/gerir.tsx', /<NameWithBadge name=\{m\.displayName\} who=\{m\}/],
   ['locais: pagamentos recebidos', 'components/VenueTxills.tsx', /<NameWithBadge name=\{`Recebido de @\$\{person\.username\}`\} who=\{person\}/],
-  ['convites: página /c/[code]', 'app/c/[code].tsx', /\{p\.displayName\}<InlineBadge who=\{p\} fontSize=\{24\} \/> convidou-te/],
+  ['convites: página /c/[code]', 'app/c/[code].tsx', /\{p\.displayName\}<InlineBadge who=\{p\} fontSize=\{24\} \/> \{t\('convidou-te/],
   ['convites: «Convite de» no registo', 'app/register.tsx', /<InlineBadge who=\{invite\}/],
   ['chamadas: ecrã', 'components/calls/CallOverlay.tsx', /<NameWithBadge name=\{c\.peer\?\.displayName \?\? ''\} who=\{c\.peer\}/],
   ['chamadas: histórico', 'app/calls.tsx', /<NameWithBadge name=\{c\.peer\.displayName\} who=\{c\.peer\}/],
@@ -172,7 +173,7 @@ test('cartão do convite: o desenho e as cores do selo são os do VerifiedBadge 
 
 test('Ajuda: «O que querem dizer as cores do selo?» (vermelho do Txillapp, azul da verificação paga)', () => {
   const help = read('app/help.tsx');
-  const m = /\{ q: 'O que querem dizer as cores do selo\?', a: '([^']+)' \}/.exec(help);
+  const m = /\{ get q\(\) \{ return t\('O que querem dizer as cores do selo\?'\); \}, get a\(\) \{ return t\('([^']+)'\); \} \}/.exec(help);
   assert.ok(m, 'a pergunta está na Ajuda');
   const a = m[1];
   assert.match(a, /vermelho[^.]*Txillapp[^.]*mérito[^.]*pedido de verificação foi aceite/);

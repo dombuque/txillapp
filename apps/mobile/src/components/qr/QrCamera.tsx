@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, StyleSheet } from 'react-native';
 import { QrCameraNote } from './QrCameraNote';
+import { t } from '@/lib/i18n';
 
 export interface QrCameraProps {
   /** Parado (a mostrar o que se leu): a câmara fica, mas não lê. */
@@ -41,16 +42,16 @@ export function QrCamera({ paused, onRead, onLive }: QrCameraProps) {
     }, [refresh]),
   );
 
-  if (!perm) return <QrCameraNote title="A abrir a câmara…" busy />;
+  if (!perm) return <QrCameraNote title={t('A abrir a câmara…')} busy />;
   if (!perm.granted) {
     if (perm.canAskAgain) {
-      return <QrCameraNote title="Ler com a câmara" sub="Aponta a câmara ao QR de outro telemóvel ou de um papel." action="Ligar a câmara" onAction={() => void request().catch(() => undefined)} />;
+      return <QrCameraNote title={t('Ler com a câmara')} sub={t('Aponta a câmara ao QR de outro telemóvel ou de um papel.')} action={t('Ligar a câmara')} onAction={() => void request().catch(() => undefined)} />;
     }
     return (
       <QrCameraNote
-        title="Sem acesso à câmara"
-        sub="Deste a câmara como recusada. Liga-a nas definições do telemóvel, ou escolhe a imagem do QR da galeria."
-        action="Abrir definições"
+        title={t('Sem acesso à câmara')}
+        sub={t('Deste a câmara como recusada. Liga-a nas definições do telemóvel, ou escolhe a imagem do QR da galeria.')}
+        action={t('Abrir definições')}
         onAction={() => void Linking.openSettings().catch(() => undefined)}
       />
     );

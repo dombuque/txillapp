@@ -2,6 +2,7 @@ import { createElement, useEffect, useRef, useState, type ReactNode } from 'reac
 import { View, type LayoutChangeEvent } from 'react-native';
 import { FRAME, insideSafe, SAFE, snapAngle, snapMove, type Overlay } from '@/lib/studio/effects';
 import type { OverlayBox } from '@/lib/studio/renderOverlays';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = FRAME.w, H = FRAME.h;
@@ -228,7 +229,7 @@ export function FxStage({ overlays, selId, boxes, onSelect, onChange, onEdit, on
           position: 'absolute', left: pct(SAFE.left), top: pct(SAFE.top), right: pct(SAFE.right), bottom: pct(SAFE.bottom), borderRadius: 10, pointerEvents: 'none',
           border: `1.5px dashed ${drag?.out ? 'rgba(255,196,0,0.95)' : 'rgba(255,255,255,0.55)'}`, boxShadow: drag ? '0 0 0 9999px rgba(0,0,0,0.28)' : 'none', transition: 'border-color 120ms',
         },
-      }, drag?.out ? dom('div', { style: { position: 'absolute', left: '50%', bottom: 8, transform: 'translateX(-50%)', whiteSpace: 'nowrap', padding: '4px 10px', borderRadius: 999, background: 'rgba(0,0,0,0.72)', border: '1px solid rgba(255,214,10,0.7)', color: '#ffd60a', fontSize: 11, fontWeight: 800, fontFamily: 'system-ui, sans-serif' } }, 'Os botões podem tapar isto') : null) : null,
+      }, drag?.out ? dom('div', { style: { position: 'absolute', left: '50%', bottom: 8, transform: 'translateX(-50%)', whiteSpace: 'nowrap', padding: '4px 10px', borderRadius: 999, background: 'rgba(0,0,0,0.72)', border: '1px solid rgba(255,214,10,0.7)', color: '#ffd60a', fontSize: 11, fontWeight: 800, fontFamily: 'system-ui, sans-serif' } }, t('Os botões podem tapar isto')) : null) : null,
       drag && drag.vx !== null ? dom('div', { key: 'gv', 'aria-hidden': true, style: { position: 'absolute', top: 0, bottom: 0, left: pct(drag.vx), width: 1.5, marginLeft: -0.75, background: '#ff5c6c', boxShadow: '0 0 8px #ff5c6c', pointerEvents: 'none' } }) : null,
       drag && drag.hy !== null ? dom('div', { key: 'gh', 'aria-hidden': true, style: { position: 'absolute', left: 0, right: 0, top: pct(drag.hy), height: 1.5, marginTop: -0.75, background: '#ff5c6c', boxShadow: '0 0 8px #ff5c6c', pointerEvents: 'none' } }) : null,
       sel && box ? dom('div', {
@@ -238,9 +239,9 @@ export function FxStage({ overlays, selId, boxes, onSelect, onChange, onEdit, on
           transform: `translate(-50%, -50%) rotate(${box.rot}deg)`, border: '1.5px solid rgba(255,255,255,0.95)', borderRadius: 10, boxShadow: '0 0 0 1px rgba(255,92,108,0.7), 0 0 16px rgba(255,92,108,0.45)', pointerEvents: 'none',
         },
       },
-      handle('del', { left: -14, top: -14 }, '×', 'Apagar', '#18181b'),
-      sel.kind === 'text' ? handle('edit', { right: -14, top: -14 }, '✎', 'Escrever', '#18181b') : null,
-      handle('rot', { right: -14, bottom: -14 }, '⤡', 'Rodar e escalar', '#d6334f')) : null) : null}
+      handle('del', { left: -14, top: -14 }, '×', t('Apagar'), '#18181b'),
+      sel.kind === 'text' ? handle('edit', { right: -14, top: -14 }, '✎', t('Escrever'), '#18181b') : null,
+      handle('rot', { right: -14, bottom: -14 }, '⤡', t('Rodar e escalar'), '#d6334f')) : null) : null}
     </View>
   );
 }

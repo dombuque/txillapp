@@ -8,6 +8,7 @@ import { createClockStore } from './native/clockStore';
 import { NativeOverlays } from './native/NativeOverlays';
 import { NativeStage, type StageSeg } from './native/NativeStage';
 import { usePreviewAudio } from './native/usePreviewAudio';
+import { t } from '@/lib/i18n';
 
 const noop = () => undefined;
 
@@ -72,7 +73,7 @@ export function MagicPreview({ result, playing, musicUrl, onClip, style }: { res
     setBox((b) => (Math.abs(b.w - width) < 0.5 && Math.abs(b.h - height) < 0.5 ? b : { w: width, h: height }));
   };
   return (
-    <View style={[st.box, style]} onLayout={onLayout} accessibilityLabel="Pré-visualização da montagem">
+    <View style={[st.box, style]} onLayout={onLayout} accessibilityLabel={t('Pré-visualização da montagem')}>
       {box.w > 0 ? (
         <>
           <NativeStage segs={segs} clock={clock} W={box.w} H={box.h} origVol={origVol} pano={result.pano} refVolume={0} />

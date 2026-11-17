@@ -9,6 +9,7 @@ import { PROFILE_TABS, PostsService, type ProfileTab } from '../posts/posts.serv
 import { SocialService } from './social.service';
 import { RiskCheck } from '../security/risk.guard';
 import { MentionSuggestService } from './mention-suggest.service';
+import { LANGS } from '../i18n/i18n';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -26,6 +27,8 @@ const updateSchema = z.object({
     .refine((v) => v === '' || /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(v), 'Escreve um link válido (por exemplo, o-teu-site.com)')
     .optional(),
   city: z.string().trim().max(40).optional(),
+  /** O idioma escolhido no ecrã «Idiomas» (pushes e e-mails saem nele); null volta a «o do telemóvel». */
+  language: z.enum(LANGS).nullable().optional(),
 });
 
 const consentSchema = z.object({ birthDate: birthDateSchema, acceptTerms: z.literal(true) });

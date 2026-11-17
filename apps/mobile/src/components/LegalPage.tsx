@@ -4,12 +4,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TERMS_UPDATED, type LegalBlock } from '@/lib/legalText';
 import { colors } from '@/lib/theme';
 import { StackPage } from './StackPage';
+import { currentLanguage, formatDate, monthNames, SOURCE_LANG, t } from '@/lib/i18n';
 
-const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 /** "2026-10" -> "outubro de 2026". */
 const updated = (v: string) => {
   const [y, m] = v.split('-');
-  return `${MONTHS[Number(m) - 1] ?? ''} de ${y}`;
+  if (currentLanguage() !== SOURCE_LANG && Number(m) >= 1 && Number(m) <= 12) return formatDate(new Date(Number(y), Number(m) - 1, 1), { month: 'long', year: 'numeric' });
+  return `${monthNames()[Number(m) - 1] ?? ''} de ${y}`;
 };
 
 /** Texto com **negrito** e __itálico__. */
@@ -33,7 +34,7 @@ export function LegalPage({ title, sections }: { title: string; sections: LegalB
     <StackPage title={title}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 64 }}>
         <Text style={st.h1}>{title}</Text>
-        <Text style={st.updated}>Última atualização: {updated(TERMS_UPDATED)}</Text>
+        <Text style={st.updated}>{t('Última atualização: {updated}', { updated: updated(TERMS_UPDATED) })}</Text>
         <View style={{ marginTop: 24, gap: 24 }}>
           {sections.map((blocks, si) => (
             <View key={si} style={{ gap: 8 }}>
@@ -57,9 +58,9 @@ export function LegalPage({ title, sections }: { title: string; sections: LegalB
           ))}
         </View>
         <Text style={st.foot}>
-          <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.replace('/terms' as never)}>Termos de Uso</Text>
+          <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.replace('/terms' as never)}>{t('Termos de Uso')}</Text>
           {' · '}
-          <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.replace('/privacy' as never)}>Política de Privacidade</Text>
+          <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.replace('/privacy' as never)}>{t('Política de Privacidade')}</Text>
         </Text>
       </ScrollView>
     </StackPage>

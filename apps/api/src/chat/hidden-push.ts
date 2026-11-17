@@ -1,4 +1,5 @@
 import type { PushPayload } from '../push/push.service';
+import { msg } from '../i18n/i18n';
 
 /**
  * Conversas escondidas (0160): o aviso no telemóvel de uma conversa (a dois ou TxillGroup) que a pessoa escondeu vai sem
@@ -9,7 +10,7 @@ import type { PushPayload } from '../push/push.service';
  * Todas as escondidas partilham a mesma etiqueta: a nova substitui a anterior. O endereço (para onde abre) fica.
  */
 export const HIDDEN_PUSH_TITLE = 'Txillapp';
-export const HIDDEN_PUSH_BODY = 'Nova mensagem';
+export const HIDDEN_PUSH_BODY = msg('Nova mensagem');
 export const HIDDEN_PUSH_TAG = 'chat:hidden';
 export const HIDDEN_PUSH_CHANNEL = 'discreto';
 

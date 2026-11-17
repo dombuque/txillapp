@@ -7,6 +7,7 @@ import { ActionRow } from '@/components/ui/ActionRow';
 import { colors, dark as D } from '@/lib/theme';
 import { commentCheersLabel, type CommentMenuItem, type TxilladaComment } from '@/lib/txillada';
 import { PinIcon } from './PinnedComment';
+import { t } from '@/lib/i18n';
 
 const ROWS: Record<CommentMenuItem, { icon: IconName | 'pin'; danger?: boolean }> = {
   reply: { icon: 'reply' },
@@ -22,12 +23,12 @@ const ROWS: Record<CommentMenuItem, { icon: IconName | 'pin'; danger?: boolean }
 export function commentMenuLabel(item: CommentMenuItem, c: TxilladaComment): string {
   switch (item) {
     case 'reply': return `Responder a @${c.author.username}`;
-    case 'cheer': return c.cheered ? 'Já brindaste' : 'Brindar';
-    case 'pin': return 'Fixar comentário';
-    case 'unpin': return 'Tirar o fixado';
-    case 'remove': return 'Apagar';
+    case 'cheer': return c.cheered ? t('Já brindaste') : t('Brindar');
+    case 'pin': return t('Fixar comentário');
+    case 'unpin': return t('Tirar o fixado');
+    case 'remove': return t('Apagar');
     case 'ban': return `Expulsar @${c.author.username}`;
-    case 'report': return 'Denunciar comentário';
+    case 'report': return t('Denunciar comentário');
   }
 }
 

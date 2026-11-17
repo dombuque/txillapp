@@ -27,6 +27,7 @@ import { MusicBakeService } from './music-bake.service';
 import { CAN_DOWNLOAD_SQL } from './post-download.service';
 import { cheeredByOf } from './cheered-by';
 import { ACTIVE_BOOST_SQL, HIDE_BOOSTED, shownPost, shownPostTo } from './hidden';
+import { msg } from '../i18n/i18n';
 
 export const MAX_PHOTOS = 10;
 
@@ -54,7 +55,9 @@ const CALM_TOPICS = ['festa', 'bebidas'];
 export const CAN_REPOST_SQL = (p = 'p', u = 'u') => `((${p}.author_id = $1 OR ${u}.allow_reposts) IS TRUE)`;
 
 /** A resposta (403) de `POST /posts/:id/repost` quando quem publicou (ou o autor do original citado) não deixa repostar. */
-export const REPOST_BLOCKED = 'Quem publicou não deixa repostar as suas publicações.';
+export const REPOST_BLOCKED = msg('Quem publicou não deixa repostar as suas publicações.');
+/** O código do 403 de quem não deixa repostar: a app compara este, não a mensagem (que vem no idioma da pessoa). */
+export const REPOST_BLOCKED_CODE = 'repost_blocked';
 
 /** Uma citação: um repost com comentário (o repost simples não tem texto; um presente é outra coisa). */
 const isQuote = (r: { kind?: unknown; body?: unknown }) => r.kind === 'repost' && !!r.body;
@@ -659,7 +662,7 @@ export class PostsService implements OnModuleInit {
     if (!o) throw new NotFoundException('Publicação não encontrada');
     // Reposta-se publicações (incluindo presentes) e citações, como no X; um repost simples já mostra o original, repostas esse.
     if (!(o.kind === 'post' || o.kind === 'gift' || (o.kind === 'repost' && o.body))) throw new BadRequestException('Um repost simples não se reposta: reposta a publicação original');
-    if (o.can_repost !== true) throw new ForbiddenException(REPOST_BLOCKED);
+    if (o.can_repost !== true) throw new ForbiddenException({ code: REPOST_BLOCKED_CODE, message: REPOST_BLOCKED });
     // Numa citação, o original citado (que vai dentro do repost) também tem de deixar.
     let below: Record<string, any> | undefined = o;
     for (let depth = 0; below && isQuote(below) && below.repost_of && depth < 8; depth++) {
@@ -670,7 +673,7 @@ export class PostsService implements OnModuleInit {
           [userId, below.repost_of],
         )
       ).rows[0];
-      if (below && below.can_repost !== true) throw new ForbiddenException(REPOST_BLOCKED);
+      if (below && below.can_repost !== true) throw new ForbiddenException({ code: REPOST_BLOCKED_CODE, message: REPOST_BLOCKED });
     }
 
     const text = body.trim().slice(0, 500);

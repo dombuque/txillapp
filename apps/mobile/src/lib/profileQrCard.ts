@@ -8,6 +8,7 @@
 import { LOGO_BOX, logoSvgPaths } from '@/lib/marca';
 
 /** A linha do @username (a mesma forma do CardText de inviteCard.ts: quem pinta encolhe a letra se passar de `maxWidth`). */
+import { t } from '@/lib/i18n';
 export interface QrCardText {
   text: string;
   x: number;
@@ -94,13 +95,13 @@ export function qrCardLayout(matrix: readonly (readonly boolean[])[], username: 
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`,
     text,
     qr,
-    label: `QR do perfil de @${name} no Txillapp`,
+    label: t('QR do perfil de @{name} no Txillapp', { name }),
   };
 }
 
 /** O texto que acompanha a imagem (sem a ligação: quem partilha junta-a). Com convite, fala do convite. */
 export function qrShareText(username: string, invite: boolean): string {
-  return invite ? `Segue-me no Txillapp (@${username}) e entra com o meu convite: ganhamos vibes os dois.` : `Segue @${username} no Txillapp, a rede da malta:`;
+  return invite ? t('Segue-me no Txillapp (@{username}) e entra com o meu convite: ganhamos vibes os dois.', { username }) : t('Segue @{username} no Txillapp, a rede da malta:', { username });
 }
 
 /** O nome do ficheiro: só letras, números, ponto, traço e sublinhado. */
@@ -120,15 +121,15 @@ export type QrShareOutcome = 'shared' | 'saved-link' | 'link' | 'downloaded' | '
 export function qrShareNote(o: QrShareOutcome): string {
   switch (o) {
     case 'saved-link':
-      return 'Imagem do QR guardada na galeria';
+      return t('Imagem do QR guardada na galeria');
     case 'downloaded':
-      return 'Imagem descarregada e ligação copiada';
+      return t('Imagem descarregada e ligação copiada');
     case 'downloaded-only':
-      return 'Imagem descarregada';
+      return t('Imagem descarregada');
     case 'copied':
-      return 'Ligação copiada';
+      return t('Ligação copiada');
     case 'failed':
-      return 'Não consegui partilhar';
+      return t('Não consegui partilhar');
     default:
       return '';
   }

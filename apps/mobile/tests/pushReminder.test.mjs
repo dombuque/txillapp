@@ -2,6 +2,7 @@
 // crescentes depois de cada "Agora não", o limite de um por dia e o que o botão faz por estado e plataforma.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -186,14 +187,14 @@ test('os passos certos para cada browser', () => {
   assert.match(r.installSteps(true).join(' '), /Partilhar.*Adicionar ao ecrã principal/);
   assert.match(r.installSteps(false)[0], /Safari/);
   assert.equal(r.installSteps(false).length, r.installSteps(true).length + 1);
-  assert.match(r.INSTALL_NOTE, /só funcionam com o Txillapp no ecrã principal/);
+  assert.match(r.INSTALL_NOTE(), /só funcionam com o Txillapp no ecrã principal/);
 });
 
 test('os textos da folha', () => {
-  assert.equal(r.REMINDER_TITLE, 'As tuas notificações estão desligadas');
-  assert.equal(r.REMINDER_BUTTON, 'Ligar notificações');
-  assert.equal(r.REMINDER_LATER, 'Agora não');
-  assert.equal(r.SETTINGS_BANNER, 'As notificações estão desligadas neste aparelho');
+  assert.equal(r.REMINDER_TITLE(), 'As tuas notificações estão desligadas');
+  assert.equal(r.REMINDER_BUTTON(), 'Ligar notificações');
+  assert.equal(r.REMINDER_LATER(), 'Agora não');
+  assert.equal(r.SETTINGS_BANNER(), 'As notificações estão desligadas neste aparelho');
   assert.equal(r.reminderText('Ana'), 'Não percas quando Ana responder.');
   assert.equal(r.reminderText('  '), 'Não percas mensagens, chamadas e quem brinda o que publicas.');
   assert.equal(r.reminderText(undefined), 'Não percas mensagens, chamadas e quem brinda o que publicas.');
@@ -210,7 +211,7 @@ test('a folha rola e os botões ficam fora da parte que rola (nunca escondidos e
   assert.match(src, /scroll: \{ flexGrow: 0, flexShrink: 1/);
   // áreas de toque de 44 pt ou mais: os botões são o Button partilhado (lg 52, md 44), nunca o sm.
   assert.match(sheet, /<Button label=\{primary\} onPress=\{\(\) => void press\(\)\} loading=\{busy\} block \/>/);
-  assert.match(sheet, /<Button label=\{REMINDER_LATER\} kind="ghost" onPress=\{\(\) => onDone\(false\)\} block \/>/);
-  assert.match(src, /<Button label=\{REMINDER_BUTTON\} onPress=\{\(\) => void press\(\)\} loading=\{busy\} size="md" block \/>/);
+  assert.match(sheet, /<Button label=\{REMINDER_LATER\(\)\} kind="ghost" onPress=\{\(\) => onDone\(false\)\} block \/>/);
+  assert.match(src, /<Button label=\{REMINDER_BUTTON\(\)\} onPress=\{\(\) => void press\(\)\} loading=\{busy\} size="md" block \/>/);
   assert.doesNotMatch(src, /<Button [^\n]*size="sm"/);
 });

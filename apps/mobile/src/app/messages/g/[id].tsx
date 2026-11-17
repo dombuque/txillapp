@@ -42,12 +42,13 @@ import { useChatHiding } from '@/components/ChatHide';
 import { hideLabel } from '@/lib/chatHidden';
 import { MixarDot } from '@/components/mixar/MixarBits';
 import { useGroupMixar } from '@/components/mixar/useGroupMixar';
+import { t } from '@/lib/i18n';
 
 type Tab = 'chat' | 'plan' | 'album' | 'pot';
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'chat', label: 'Conversa', icon: 'messages' },
-  { id: 'plan', label: 'Plano', icon: 'calendar' },
-  { id: 'album', label: 'Álbum', icon: 'images' },
+  { id: 'chat', get label() { return t('Conversa'); }, icon: 'messages' },
+  { id: 'plan', get label() { return t('Plano'); }, icon: 'calendar' },
+  { id: 'album', get label() { return t('Álbum'); }, icon: 'images' },
   { id: 'pot', label: 'Vibes', icon: 'wallet' },
 ];
 
@@ -121,7 +122,7 @@ export default function GroupThreadScreen() {
       await geladaApi.openRound(id);
       void q.refetch();
     } catch (e) {
-      Alert.alert('Rodada', geladaErrorText(e, 'Não consegui abrir a rodada. Tenta outra vez.'));
+      Alert.alert(t('Rodada'), geladaErrorText(e, t('Não consegui abrir a rodada. Tenta outra vez.')));
     }
   }
   // As mensagens temporárias que expiram com o grupo aberto saem logo (lib/chatTemporary).
@@ -164,7 +165,7 @@ export default function GroupThreadScreen() {
       setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
-      Alert.alert('Não consegui abrir', (e as Error).message);
+      Alert.alert(t('Não consegui abrir'), (e as Error).message);
     }
   }
   /** Mensagens temporárias (só quem administra; o servidor confirma): fica o aviso na conversa. */
@@ -180,7 +181,7 @@ export default function GroupThreadScreen() {
       qc.setQueryData<InfiniteData<GroupThread>>(['chat-group', id], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
       void gruposApi.clear(id)
         .then(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
-        .catch((e) => { setErr((e as Error).message || 'Não consegui limpar a conversa.'); void q.refetch(); });
+        .catch((e) => { setErr((e as Error).message || t('Não consegui limpar a conversa.')); void q.refetch(); });
     });
   }
   function left() {
@@ -190,7 +191,7 @@ export default function GroupThreadScreen() {
 
   const when = dateRange(group?.plan?.startsOn, group?.plan?.endsOn);
   // "8 pessoas · Tofo" (o Plano: destino ou datas; sem Plano, o tipo do grupo).
-  const count = group ? `${group.members.length} ${group.members.length === 1 ? 'pessoa' : 'pessoas'}` : '';
+  const count = group ? t('{count} pessoa', { count: group.members.length, other: '{count} pessoas' }) : '';
   const sub = group ? [count, group.plan?.destination || when || kindInfo(groupKindOf(group)).label].filter(Boolean).join(' · ') : '';
   const tabs = TABS.filter((t) => !(side && t.id === 'plan'));
 
@@ -201,10 +202,10 @@ export default function GroupThreadScreen() {
     <View style={{ flex: 1, minWidth: 0 }}>
       {q.isError && !group && !offlineView ? (
         <View style={{ alignItems: 'center' }}>
-          <Text style={st.empty}>{(q.error as Error).message || 'Não consegui abrir este TxillGroup.'}</Text>
+          <Text style={st.empty}>{(q.error as Error).message || t('Não consegui abrir este TxillGroup.')}</Text>
           {/* Quem não está no grupo vê a página pública (se o grupo estiver no mapa ou for público). */}
           <Pressable onPress={() => router.replace(`/g/${id}` as never)} style={st.toPublic} accessibilityRole="link">
-            <Text style={st.toPublicText}>Ver a página do grupo</Text>
+            <Text style={st.toPublicText}>{t('Ver a página do grupo')}</Text>
           </Pressable>
         </View>
       ) : (
@@ -223,7 +224,7 @@ export default function GroupThreadScreen() {
           fetchNext={() => q.fetchNextPage()}
           fetchingNext={q.isFetchingNextPage}
           seenId={null}
-          emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup."
+          emptyText={t('Ainda não há mensagens. Diz olá à malta do TxillGroup.')}
           meHandle={user?.username}
           onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
           onDelete={(m) => setMenuFor({ m, start: 'delete' })}
@@ -257,7 +258,7 @@ export default function GroupThreadScreen() {
         <ChatHeader
           raised={raised || tab !== 'chat'}
           onOpen={group ? () => setMembers(true) : undefined}
-          openLabel={group ? `Ver os detalhes de ${group.name}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'TxillGroup'}
+          openLabel={group ? t('Ver os detalhes de {name}{value}', { name: group.name, value: ttl ? `. ${ttlBadgeLabel(ttl)}` : '' }) : 'TxillGroup'}
           // Enquanto carrega, o nome e a foto vêm da lista de TxillGroups (o cabeçalho não aparece vazio e depois salta).
           avatar={
             <View>
@@ -269,8 +270,8 @@ export default function GroupThreadScreen() {
           subtitle={group ? <HeaderStatus text={sub} /> : null}
           actions={group ? (
             <>
-              {gmixar.show ? <HeaderButton label={gmixar.dot ? 'Mixar do grupo, com novidades' : 'Mixar do grupo'} onPress={gmixar.run}><View><Icon name="mixar" size={23} color={colors.zinc800} />{gmixar.dot ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
-              <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
+              {gmixar.show ? <HeaderButton label={gmixar.dot ? t('Mixar do grupo, com novidades') : t('Mixar do grupo')} onPress={gmixar.run}><View><Icon name="mixar" size={23} color={colors.zinc800} />{gmixar.dot ? <MixarDot size={8} /> : null}</View></HeaderButton> : null}
+              <HeaderButton label={t('Mais opções')} onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
             </>
           ) : null}
           below={
@@ -294,8 +295,8 @@ export default function GroupThreadScreen() {
           {tab === 'album' ? <AlbumPanel groupId={id} columns={desktop ? 4 : 3} /> : null}
           {tab === 'pot' && group ? <PotPanel groupId={id} me={me} admin={admin} /> : null}
           {side && tab === 'chat' && group ? (
-            <View style={st.sideCol} accessibilityLabel="Plano">
-              <Text style={st.sideTitle}>Plano</Text>
+            <View style={st.sideCol} accessibilityLabel={t('Plano')}>
+              <Text style={st.sideTitle}>{t('Plano')}</Text>
               <PlanPanel groupId={id} me={me} admin={admin} members={people} />
             </View>
           ) : null}
@@ -323,22 +324,22 @@ export default function GroupThreadScreen() {
           <ChatMenuSheet
             onClose={() => setMore(false)}
             items={[
-              { icon: 'users', label: 'Detalhes do grupo', onPress: () => setMembers(true) },
-              ...(gmixar.show ? [{ icon: 'mixar' as const, label: 'Mixar do grupo', onPress: gmixar.run }] : []),
-              { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
+              { icon: 'users', label: t('Detalhes do grupo'), onPress: () => setMembers(true) },
+              ...(gmixar.show ? [{ icon: 'mixar' as const, label: t('Mixar do grupo'), onPress: gmixar.run }] : []),
+              { icon: 'search', label: t('Procurar na conversa'), onPress: () => { setTab('chat'); setSearching(true); } },
               // Todos veem como está; só quem administra muda (a folha diz porquê).
-              { icon: 'clock', label: TTL_TITLE, onPress: () => setTtlOpen(true) },
+              { icon: 'clock', label: TTL_TITLE(), onPress: () => setTtlOpen(true) },
               // Esconder (só para mim; fica em «Conversas ocultas») ou mostrar outra vez. Servidores antigos não mandam `hidden`.
               ...(first?.group.hidden !== undefined
                 ? [{ icon: first.group.hidden ? 'eye' as const : 'eye-off' as const, label: hideLabel(first.group.hidden), onPress: () => (first.group.hidden ? hiding.unhide({ groupId: id }) : hiding.hide({ groupId: id }, group.name)) }]
                 : []),
-              ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: () => { setTab('chat'); clearChat(); } }] : []),
+              ...(items.length ? [{ icon: 'trash' as const, label: t('Limpar conversa'), onPress: () => { setTab('chat'); clearChat(); } }] : []),
             ]}
           />
         )}
         {ttlOpen && group && <TtlSheet ttl={ttl} group canChange={admin} onPick={pickTtl} onClose={() => setTtlOpen(false)} />}
         {searching && (
-          <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
+          <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? t('Tu') : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
         )}
         {polling && <NewPollSheet groupId={id} onClose={() => { setPolling(false); void q.refetch(); }} />}
       </ChatScreen>

@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal';
 import { deskZone } from '@/lib/deskChat';
 import { menuPosition } from '@/lib/deskChatKeys';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 export interface DeskMenuItem {
   id: string;
@@ -67,7 +68,7 @@ export function DeskMenu({ at, items, onClose, header, label }: { at: { x: numbe
         style={StyleSheet.absoluteFill}
         onPress={onClose}
         {...({ onContextMenu: (e: { preventDefault(): void }) => { e.preventDefault(); onClose(); } } as object)}
-        accessibilityLabel="Fechar o menu"
+        accessibilityLabel={t('Fechar o menu')}
         focusable={false}
       />
       <View

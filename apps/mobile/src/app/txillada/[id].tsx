@@ -43,6 +43,7 @@ import { useTxilladaFx } from '@/lib/txilladaFxRoom';
 import { guestUi, viewerGuestAction } from '@/lib/txilladaGuests';
 import { useNow } from '@/lib/txilladaRoom';
 import { closeTxillada, openTxillada, useTxilladaSession, type TxilladaSession } from '@/lib/txilladaSession';
+import { t } from '@/lib/i18n';
 
 /**
  * A Txillada (o live, docs/txillada-contrato.md), em ecrã inteiro: o vídeo de quem transmite ocupa o ecrã de ponta a ponta
@@ -171,7 +172,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     else router.replace('/' as never);
   };
   async function confirmEnd() {
-    if (!(await confirm({ title: 'Terminar a Txillada?', message: 'Quem está a ver sai, e a Txillada não fica gravada.', confirm: 'Terminar', cancel: 'Continuar', danger: true }))) return;
+    if (!(await confirm({ title: t('Terminar a Txillada?'), message: t('Quem está a ver sai, e a Txillada não fica gravada.'), confirm: t('Terminar'), cancel: t('Continuar'), danger: true }))) return;
     const e = await tx.end();
     if (e) say(e);
   }
@@ -194,7 +195,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     const url = shareLink(dto.id, SITE_URL || 'https://txillapp.com');
     const message = shareMessage(dto);
     try {
-      await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: `Txillada de @${dto.host.username}` });
+      await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: t('Txillada de @{username}', { username: dto.host.username }) });
     } catch { /* cancelado */ }
   }
   /** Tocar num @ de um comentário: o perfil (a Txillada continua ligada, no leitor pequeno). */
@@ -214,15 +215,15 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
         setTimeout(() => inputRef.current?.focus(), 60);
         return;
       case 'cheer':
-        if (!tx.cheerComment(c)) say(c.cheered ? 'Já brindaste este comentário' : 'Calma! No máximo 5 brindes por segundo.');
+        if (!tx.cheerComment(c)) say(c.cheered ? t('Já brindaste este comentário') : t('Calma! No máximo 5 brindes por segundo.'));
         else if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
         return;
       case 'pin':
       case 'unpin':
-        void tx.pin(item === 'pin' ? c : null).then((e) => say(e ?? (item === 'pin' ? 'Comentário fixado' : 'Deixou de estar fixado')));
+        void tx.pin(item === 'pin' ? c : null).then((e) => say(e ?? (item === 'pin' ? t('Comentário fixado') : t('Deixou de estar fixado'))));
         return;
       case 'remove':
-        void tx.removeComment(c).then((e) => say(e ?? 'Comentário apagado'));
+        void tx.removeComment(c).then((e) => say(e ?? t('Comentário apagado')));
         return;
       case 'ban':
         void confirmBan(c.author.username);
@@ -233,10 +234,10 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     }
   }
   async function confirmBan(username: string) {
-    if (!(await confirm({ title: `Expulsar @${username}?`, message: 'Sai já da Txillada e não pode voltar a entrar nesta.', confirm: 'Expulsar', danger: true }))) return;
+    if (!(await confirm({ title: t('Expulsar @{username}?', { username }), message: t('Sai já da Txillada e não pode voltar a entrar nesta.'), confirm: t('Expulsar'), danger: true }))) return;
     try {
       await txilladaApi.ban(id, username);
-      say(`@${username} foi expulso`);
+      say(t('@{username} foi expulso', { username }));
       fxs.refreshViewers();
     } catch (e) {
       const err = e as { status?: number; message?: string };
@@ -247,13 +248,13 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
   async function confirmBlock() {
     if (!dto) return;
     const u = dto.host.username;
-    if (!(await confirm({ title: `Bloquear @${u}?`, message: 'Deixa de ver as tuas publicações e mimos e não pode interagir contigo. Sais desta Txillada.', confirm: 'Bloquear', danger: true }))) return;
+    if (!(await confirm({ title: t('Bloquear @{u}?', { u }), message: t('Deixa de ver as tuas publicações e mimos e não pode interagir contigo. Sais desta Txillada.'), confirm: t('Bloquear'), danger: true }))) return;
     try {
       await api.block(u);
       for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
       leave();
     } catch (e) {
-      say((e as Error)?.message || 'Não consegui bloquear agora. Tenta outra vez.');
+      say((e as Error)?.message || t('Não consegui bloquear agora. Tenta outra vez.'));
     }
   }
   /** O anfitrião, na lista «A ver agora»: dizer olá, convidar para transmitir (0165) ou expulsar. */
@@ -261,39 +262,39 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     if (!host) return;
     const act = viewerGuestAction(tx.guests, u.username);
     const guest = act === 'invite'
-      ? [{ text: 'Convidar para transmitir', onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? `Convite enviado a @${u.username}`)) }]
+      ? [{ text: t('Convidar para transmitir'), onPress: () => void tx.hostGuest('invite', u.username).then((e) => say(e ?? t('Convite enviado a @{username}', { username: u.username }))) }]
       : act === 'requested'
-        ? [{ text: 'Aceitar o pedido para entrar', onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? `@${u.username} entrou no ecrã`)) }]
+        ? [{ text: t('Aceitar o pedido para entrar'), onPress: () => void tx.hostGuest('accept', u.username).then((e) => say(e ?? t('@{username} entrou no ecrã', { username: u.username }))) }]
         : [];
-    Alert.alert(`@${u.username}`, act === 'invited' ? `${u.displayName} · convite enviado` : act === 'full' ? `${u.displayName} · já há 3 a transmitir` : u.displayName, [
-      { text: 'Dizer olá', onPress: () => fxs.helloTo(u.username) },
+    Alert.alert(`@${u.username}`, act === 'invited' ? t('{displayName} · convite enviado', { displayName: u.displayName }) : act === 'full' ? t('{displayName} · já há 3 a transmitir', { displayName: u.displayName }) : u.displayName, [
+      { text: t('Dizer olá'), onPress: () => fxs.helloTo(u.username) },
       ...guest,
-      { text: `Expulsar @${u.username}`, style: 'destructive', onPress: () => void confirmBan(u.username) },
-      { text: 'Cancelar', style: 'cancel' },
+      { text: t('Expulsar @{username}', { username: u.username }), style: 'destructive', onPress: () => void confirmBan(u.username) },
+      { text: t('Cancelar'), style: 'cancel' },
     ]);
   }
   /** Quem vê: pedir para entrar, ou desistir do pedido. */
   async function askJoin() {
     if (g.waiting) {
-      if (!(await confirm({ title: 'Desistir do pedido?', message: 'O anfitrião deixa de ver o teu pedido para entrar.', confirm: 'Desistir', cancel: 'Continuar à espera' }))) return;
-      say((await tx.leaveStage()) ?? 'Desististe do pedido');
+      if (!(await confirm({ title: t('Desistir do pedido?'), message: t('O anfitrião deixa de ver o teu pedido para entrar.'), confirm: t('Desistir'), cancel: t('Continuar à espera') }))) return;
+      say((await tx.leaveStage()) ?? t('Desististe do pedido'));
       return;
     }
-    void tx.requestJoin().then((e) => say(e ?? 'Pedido enviado: o anfitrião vai ver que queres entrar'));
+    void tx.requestJoin().then((e) => say(e ?? t('Pedido enviado: o anfitrião vai ver que queres entrar')));
   }
   /** O convidado deixa de transmitir (continua a ver). */
   async function confirmLeaveStage() {
-    if (!(await confirm({ title: 'Sair do ecrã?', message: 'A tua câmara e o microfone desligam-se; continuas a ver a Txillada.', confirm: 'Sair do ecrã', cancel: 'Ficar', danger: true }))) return;
-    say((await tx.leaveStage()) ?? 'Saíste do ecrã: continuas a ver a Txillada');
+    if (!(await confirm({ title: t('Sair do ecrã?'), message: t('A tua câmara e o microfone desligam-se; continuas a ver a Txillada.'), confirm: t('Sair do ecrã'), cancel: t('Ficar'), danger: true }))) return;
+    say((await tx.leaveStage()) ?? t('Saíste do ecrã: continuas a ver a Txillada'));
   }
   /** O convidado desliga a câmara: sai do ecrã logo e fica a ver (sem perguntar, sem sair da Txillada). */
   function guestCamOff() {
-    void tx.leaveStage().then((e) => say(e ?? 'Câmara desligada: continuas a ver a Txillada'));
+    void tx.leaveStage().then((e) => say(e ?? t('Câmara desligada: continuas a ver a Txillada')));
   }
   /** O anfitrião desliga (ou liga) a câmara: a transmissão continua, com o som. */
   function hostCam() {
     const was = tx.cam;
-    void tx.toggleCam().then((e) => say(e ?? (was ? 'Câmara desligada: o som continua' : 'Câmara ligada')));
+    void tx.toggleCam().then((e) => say(e ?? (was ? t('Câmara desligada: o som continua') : t('Câmara ligada'))));
   }
   async function acceptInvite() {
     if (accepting) return;
@@ -310,7 +311,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     setReopening(true);
     const e = await tx.reopen();
     setReopening(false);
-    if (e) Alert.alert('Não deu para reabrir', e);
+    if (e) Alert.alert(t('Não deu para reabrir'), e);
   }
   const onFocus = () => {
     if (blurT.current) clearTimeout(blurT.current);
@@ -329,7 +330,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     return <View style={[st.screen, webFull, st.center]}><ActivityIndicator color="#fff" /></View>;
   }
   if (kind === 'error') {
-    return <View style={[st.screen, webFull]}><EndedView title="Não dá para ver esta Txillada" sub={tx.error ?? 'Esta Txillada não existe ou não a podes ver.'} onBack={leave} /></View>;
+    return <View style={[st.screen, webFull]}><EndedView title={t('Não dá para ver esta Txillada')} sub={tx.error ?? t('Esta Txillada não existe ou não a podes ver.')} onBack={leave} /></View>;
   }
   if (kind === 'ended') {
     const cut = (live.status ?? dto?.status) === 'cut';
@@ -345,7 +346,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     }
     // Uma privada cortada pela moderação: a entrada volta para a carteira (0167).
     if (cut && dtoKind(dto) === 'paid' && dto?.hasTicket && !dto.locked) {
-      return <View style={[st.screen, webFull]}><EndedView sub="A equipa do Txillapp terminou esta Txillada. A tua entrada voltou para a tua carteira." onBack={leave} /></View>;
+      return <View style={[st.screen, webFull]}><EndedView sub={t('A equipa do Txillapp terminou esta Txillada. A tua entrada voltou para a tua carteira.')} onBack={leave} /></View>;
     }
     return <View style={[st.screen, webFull]}><EndedView onBack={leave} /></View>;
   }
@@ -359,7 +360,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
     );
   }
   if (tx.error && tx.conn !== 'connected') {
-    return <View style={[st.screen, webFull]}><EndedView title="Não deu para entrar" sub={tx.error} onBack={leave} /></View>;
+    return <View style={[st.screen, webFull]}><EndedView title={t('Não deu para entrar')} sub={tx.error} onBack={leave} /></View>;
   }
 
   // ── Ao vivo ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -409,7 +410,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           <View style={[StyleSheet.absoluteFill, st.center, { gap: 12, paddingHorizontal: 24 }]} pointerEvents="none">
             <Avatar name={dto.host.displayName} username={dto.host.avatarUrl ? dto.host.username : undefined} size={84} />
             <ActivityIndicator color="#fff" />
-            <Text style={st.waitText}>{tx.conn === 'failed' ? 'A ligação caiu.' : host ? 'A abrir a câmara…' : `A ligar à Txillada de @${dto.host.username}…`}</Text>
+            <Text style={st.waitText}>{tx.conn === 'failed' ? t('A ligação caiu.') : host ? t('A abrir a câmara…') : t('A ligar à Txillada de @{username}…', { username: dto.host.username })}</Text>
           </View>
         ) : null}
         {typing ? <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.2)' }]} pointerEvents="none" /> : null}
@@ -424,7 +425,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           {/* Em cima: o anfitrião, sair (quem vê) ou terminar (o anfitrião); «AO VIVO», o tempo e quem está a ver. */}
           <View style={[st.top, { top: L.padTop, left: L.side, right: L.side }]} pointerEvents="box-none">
             <View style={st.who} pointerEvents="box-none">
-              <Pressable onPress={() => { if (!host) router.push(`/u/${dto.host.username}` as never); }} disabled={host} style={st.author} accessibilityRole={host ? undefined : 'link'} accessibilityLabel={`Txillada de ${dto.host.displayName}`}>
+              <Pressable onPress={() => { if (!host) router.push(`/u/${dto.host.username}` as never); }} disabled={host} style={st.author} accessibilityRole={host ? undefined : 'link'} accessibilityLabel={t('Txillada de {displayName}', { displayName: dto.host.displayName })}>
                 <View style={st.ring}>
                   <Avatar name={dto.host.displayName} username={dto.host.avatarUrl ? dto.host.username : undefined} size={36} />
                 </View>
@@ -434,19 +435,19 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                 </View>
               </Pressable>
               {host ? (
-                <Pressable onPress={() => void confirmEnd()} style={({ pressed }) => [st.end, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Terminar a Txillada">
-                  <Text style={st.endText}>Terminar</Text>
+                <Pressable onPress={() => void confirmEnd()} style={({ pressed }) => [st.end, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={t('Terminar a Txillada')}>
+                  <Text style={st.endText}>{t('Terminar')}</Text>
                 </Pressable>
               ) : (
                 <>
                   {g.canRequest || g.waiting ? (
-                    <Pressable onPress={() => void askJoin()} style={({ pressed }) => [st.join, g.waiting && st.joinWaiting, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={g.waiting ? 'Pedido enviado: desistir' : 'Pedir para entrar'}>
+                    <Pressable onPress={() => void askJoin()} style={({ pressed }) => [st.join, g.waiting && st.joinWaiting, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={g.waiting ? t('Pedido enviado: desistir') : t('Pedir para entrar')}>
                       <Icon name={g.waiting ? 'clock' : 'user-plus'} size={15} color="#fff" strokeWidth={2.2} />
-                      <Text style={st.joinText} numberOfLines={1}>{g.waiting ? 'Pedido enviado' : 'Pedir para entrar'}</Text>
+                      <Text style={st.joinText} numberOfLines={1}>{g.waiting ? t('Pedido enviado') : t('Pedir para entrar')}</Text>
                     </Pressable>
                   ) : null}
-                  <GlassButton icon="more" label="Mais opções" onPress={() => setPanel('more')} />
-                  <GlassButton icon="x" label="Sair da Txillada" onPress={leave} />
+                  <GlassButton icon="more" label={t('Mais opções')} onPress={() => setPanel('more')} />
+                  <GlassButton icon="x" label={t('Sair da Txillada')} onPress={leave} />
                 </>
               )}
             </View>
@@ -458,13 +459,13 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                 <ViewersPill n={live.viewers} />
               )}
               {paid ? (
-                <View style={st.cheerPill} accessibilityLabel={host ? `Txillada privada: ${dto.tickets ?? 0} entradas pagas` : 'Txillada privada'}>
+                <View style={st.cheerPill} accessibilityLabel={host ? t('Txillada privada: {tickets} entradas pagas', { tickets: dto.tickets ?? 0 }) : t('Txillada privada')}>
                   <Icon name="lock" size={13} color="#fff" strokeWidth={2.3} />
                   {host ? <Text style={st.cheerText}>{dto.tickets ?? 0}</Text> : null}
                 </View>
               ) : null}
               {live.cheers > 0 ? (
-                <View style={st.cheerPill} accessibilityLabel={`${live.cheers} brindes`}>
+                <View style={st.cheerPill} accessibilityLabel={t('{cheers} brindes', { cheers: live.cheers })}>
                   <Icon name="cheers" size={15} color={colors.brandWarm} strokeWidth={2} />
                   <Text style={st.cheerText}>{live.cheers}</Text>
                 </View>
@@ -476,11 +477,11 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                 <TopGivers items={live.topGivers} />
               </View>
             ) : null}
-            {tx.conn === 'reconnecting' ? <Text style={st.weak}>A ligação está fraca… a voltar a ligar</Text> : null}
+            {tx.conn === 'reconnecting' ? <Text style={st.weak}>{t('A ligação está fraca… a voltar a ligar')}</Text> : null}
             {(host || g.onStage) && !tx.mic ? (
               <View style={st.muted} pointerEvents="none">
                 <CallIcon name="mic-off" size={15} color="#fff" />
-                <Text style={st.mutedText}>Microfone calado</Text>
+                <Text style={st.mutedText}>{t('Microfone calado')}</Text>
               </View>
             ) : null}
           </View>
@@ -490,15 +491,15 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
 
           {tx.conn === 'failed' ? (
             <View style={st.failed}>
-              <Text style={st.failedText}>A ligação caiu.</Text>
-              <Button label="Tentar outra vez" kind="secondary" size="md" dark onPress={tx.reconnect} />
+              <Text style={st.failedText}>{t('A ligação caiu.')}</Text>
+              <Button label={t('Tentar outra vez')} kind="secondary" size="md" dark onPress={tx.reconnect} />
             </View>
           ) : null}
 
           {tx.audioBlocked && !host ? (
-            <Pressable onPress={() => void tx.startAudio()} style={st.sound} accessibilityRole="button" accessibilityLabel="Ligar o som">
+            <Pressable onPress={() => void tx.startAudio()} style={st.sound} accessibilityRole="button" accessibilityLabel={t('Ligar o som')}>
               <Icon name="volume" size={18} color="#fff" strokeWidth={2.2} />
-              <Text style={st.soundText}>Toca para ouvir</Text>
+              <Text style={st.soundText}>{t('Toca para ouvir')}</Text>
             </Pressable>
           ) : null}
 
@@ -537,15 +538,15 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
               <View style={st.barRow}>
                 {host ? (
                   <>
-                    <GlassButton label={tx.mic ? 'Calar o microfone' : 'Ligar o microfone'} on={!tx.mic} onPress={() => void tx.toggleMic()}>
+                    <GlassButton label={tx.mic ? t('Calar o microfone') : t('Ligar o microfone')} on={!tx.mic} onPress={() => void tx.toggleMic()}>
                       {tx.mic ? <Icon name="mic" size={20} color="#fff" strokeWidth={2.2} /> : <CallIcon name="mic-off" size={20} color="#fff" />}
                     </GlassButton>
                     <GlassButton label={camLabel(tx.cam)} on={!tx.cam} onPress={hostCam}>
                       {tx.cam ? <Icon name="video" size={20} color="#fff" strokeWidth={2.2} /> : <CallIcon name="video-off" size={20} color="#fff" />}
                     </GlassButton>
-                    {tx.cam ? <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void tx.flip()} /> : null}
+                    {tx.cam ? <GlassButton icon="cam-flip" label={t('Virar a câmara')} onPress={() => void tx.flip()} /> : null}
                     <View>
-                      <GlassButton icon="users" label={`Convidados${g.pending ? `: ${g.pending} pedidos para entrar` : ''}`} on={g.pending > 0} onPress={() => setPanel('guests')} />
+                      <GlassButton icon="users" label={t('Convidados{value}', { value: g.pending ? t(': {pending} pedidos para entrar', { pending: g.pending }) : '' })} on={g.pending > 0} onPress={() => setPanel('guests')} />
                       {g.pending ? <View style={st.count} pointerEvents="none"><Text style={st.countText}>{g.pending > 9 ? '9+' : g.pending}</Text></View> : null}
                     </View>
                     <View style={{ flex: 1 }} />
@@ -553,16 +554,16 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                   </>
                 ) : g.onStage ? (
                   <>
-                    <GlassButton label={tx.mic ? 'Calar o microfone' : 'Ligar o microfone'} on={!tx.mic} onPress={() => void tx.toggleMic()}>
+                    <GlassButton label={tx.mic ? t('Calar o microfone') : t('Ligar o microfone')} on={!tx.mic} onPress={() => void tx.toggleMic()}>
                       {tx.mic ? <Icon name="mic" size={20} color="#fff" strokeWidth={2.2} /> : <CallIcon name="mic-off" size={20} color="#fff" />}
                     </GlassButton>
                     {/* Desligar a câmara: sai do ecrã e fica a ver (sem sair da Txillada). */}
-                    <GlassButton label="Desligar a câmara e ficar a ver" onPress={guestCamOff}>
+                    <GlassButton label={t('Desligar a câmara e ficar a ver')} onPress={guestCamOff}>
                       <Icon name="video" size={20} color="#fff" strokeWidth={2.2} />
                     </GlassButton>
-                    <GlassButton icon="cam-flip" label="Virar a câmara" onPress={() => void tx.flip()} />
-                    <Pressable onPress={() => void confirmLeaveStage()} style={({ pressed }) => [st.leaveStage, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel="Sair do ecrã (continuar a ver)">
-                      <Text style={st.leaveStageText}>Sair do ecrã</Text>
+                    <GlassButton icon="cam-flip" label={t('Virar a câmara')} onPress={() => void tx.flip()} />
+                    <Pressable onPress={() => void confirmLeaveStage()} style={({ pressed }) => [st.leaveStage, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={t('Sair do ecrã (continuar a ver)')}>
+                      <Text style={st.leaveStageText}>{t('Sair do ecrã')}</Text>
                     </Pressable>
                     <View style={{ flex: 1 }} />
                   </>
@@ -573,7 +574,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                   </>
                 )}
                 {ui.canShare ? (
-                  <Pressable onPress={() => void share()} hitSlop={4} style={({ pressed }) => [st.barBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Partilhar a Txillada">
+                  <Pressable onPress={() => void share()} hitSlop={4} style={({ pressed }) => [st.barBtn, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel={t('Partilhar a Txillada')}>
                     <Icon name="share" size={22} color="#fff" />
                   </Pressable>
                 ) : null}
@@ -592,27 +593,27 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
                     onFocus={onFocus}
                     onBlur={onBlur}
                     maxLength={COMMENT_MAX}
-                    placeholder={host ? 'Comentar…' : 'Comentar na Txillada…'}
+                    placeholder={host ? t('Comentar…') : t('Comentar na Txillada…')}
                     placeholderTextColor="rgba(255,255,255,0.62)"
                     returnKeyType="send"
                     blurOnSubmit={false}
                     onSubmitEditing={() => { if (!mention.open) void send(); }}
                     style={st.input}
-                    accessibilityLabel="Escrever um comentário"
+                    accessibilityLabel={t('Escrever um comentário')}
                   />
                   {text.trim() ? <SendButton onPress={() => void send()} disabled={sending} /> : null}
                 </View>
               ) : (
                 <View style={[st.pill, { paddingLeft: 16, gap: 8 }]}>
                   <Icon name="comment-off" size={15} color="rgba(255,255,255,0.6)" />
-                  <Text style={st.closed} numberOfLines={1}>Os comentários estão fechados</Text>
+                  <Text style={st.closed} numberOfLines={1}>{t('Os comentários estão fechados')}</Text>
                 </View>
               )}
               {/* Oferecer vibes: sempre à vista, ao lado do comentário, com o nome escrito (não um ícone perdido nas reações). */}
               {ui.canGift && !typing ? (
-                <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.offer, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={`Oferecer vibes a @${dto.host.username}`}>
+                <Pressable onPress={() => setPanel('gift')} hitSlop={4} style={({ pressed }) => [st.offer, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={t('Oferecer vibes a @{username}', { username: dto.host.username })}>
                   <Icon name="gift" size={19} color="#fff" strokeWidth={2.2} />
-                  <Text style={st.offerText}>Oferecer</Text>
+                  <Text style={st.offerText}>{t('Oferecer')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -622,27 +623,27 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
 
       {panel === 'more' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title={`Txillada de @${dto.host.username}`} onClose={() => setPanel(null)} cancel>
-            <ActionRow icon="share" title="Partilhar" onPress={() => { setPanel(null); void share(); }} />
-            {ui.canGift ? <ActionRow icon="gift" title="Oferecer vibes" onPress={() => setPanel('gift')} /> : null}
-            {g.canRequest || g.waiting ? <ActionRow icon={g.waiting ? 'clock' : 'user-plus'} title={g.waiting ? 'Desistir do pedido para entrar' : 'Pedir para entrar (transmitir)'} onPress={() => { setPanel(null); void askJoin(); }} /> : null}
-            {g.onStage ? <ActionRow icon="logout" title="Sair do ecrã" danger onPress={() => { setPanel(null); void confirmLeaveStage(); }} /> : null}
-            <ActionRow icon="user" title="Ver o perfil" onPress={() => { setPanel(null); router.push(`/u/${dto.host.username}` as never); }} />
-            {ui.canReport ? <ActionRow icon="flag" title="Denunciar a Txillada" danger onPress={() => setPanel('report')} /> : null}
-            <ActionRow icon="block" title={`Bloquear @${dto.host.username}`} danger onPress={() => { setPanel(null); void confirmBlock(); }} />
+          <Panel title={t('Txillada de @{username}', { username: dto.host.username })} onClose={() => setPanel(null)} cancel>
+            <ActionRow icon="share" title={t('Partilhar')} onPress={() => { setPanel(null); void share(); }} />
+            {ui.canGift ? <ActionRow icon="gift" title={t('Oferecer vibes')} onPress={() => setPanel('gift')} /> : null}
+            {g.canRequest || g.waiting ? <ActionRow icon={g.waiting ? 'clock' : 'user-plus'} title={g.waiting ? t('Desistir do pedido para entrar') : t('Pedir para entrar (transmitir)')} onPress={() => { setPanel(null); void askJoin(); }} /> : null}
+            {g.onStage ? <ActionRow icon="logout" title={t('Sair do ecrã')} danger onPress={() => { setPanel(null); void confirmLeaveStage(); }} /> : null}
+            <ActionRow icon="user" title={t('Ver o perfil')} onPress={() => { setPanel(null); router.push(`/u/${dto.host.username}` as never); }} />
+            {ui.canReport ? <ActionRow icon="flag" title={t('Denunciar a Txillada')} danger onPress={() => setPanel('report')} /> : null}
+            <ActionRow icon="block" title={t('Bloquear @{username}', { username: dto.host.username })} danger onPress={() => { setPanel(null); void confirmBlock(); }} />
           </Panel>
         </View>
       ) : null}
       {panel === 'viewers' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title={`A ver agora · ${viewersCount}`} onClose={() => setPanel(null)}>
+          <Panel title={t('A ver agora · {viewersCount}', { viewersCount })} onClose={() => setPanel(null)}>
             <ViewersList items={fxs.viewers} onOpen={host ? viewerActions : undefined} />
           </Panel>
         </View>
       ) : null}
       {panel === 'gift' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title="Oferecer vibes" onClose={() => setPanel(null)}>
+          <Panel title={t('Oferecer vibes')} onClose={() => setPanel(null)}>
             <GiftSheet
               host={dto.host.username}
               goal={live.goal}
@@ -655,7 +656,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
       ) : null}
       {panel === 'guests' ? (
         <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none">
-          <Panel title="Convidados" onClose={() => setPanel(null)}>
+          <Panel title={t('Convidados')} onClose={() => setPanel(null)}>
             <GuestsPanel
               s={tx.guests}
               paid={paid}
@@ -668,7 +669,7 @@ function TxilladaView({ id, tx }: { id: string; tx: TxilladaSession }) {
           </Panel>
         </View>
       ) : null}
-      {g.invited && panel === null ? <InviteCard inviter={tx.guests.inviter ?? dto.host} busy={accepting} onAccept={() => void acceptInvite()} onDecline={() => void tx.leaveStage().then((e) => say(e ?? 'Recusaste o convite'))} /> : null}
+      {g.invited && panel === null ? <InviteCard inviter={tx.guests.inviter ?? dto.host} busy={accepting} onAccept={() => void acceptInvite()} onDecline={() => void tx.leaveStage().then((e) => say(e ?? t('Recusaste o convite')))} /> : null}
       {panel === 'report' ? <View style={[StyleSheet.absoluteFill, st.over]} pointerEvents="box-none"><ReportSheet type="txillada" id={dto.id} onClose={() => setPanel(null)} /></View> : null}
       {menuC && menuItems.length ? (
         <CommentMenu

@@ -25,7 +25,7 @@ test('apagar a conta sem sessão: pede o email, manda a ligação e só apaga de
   const confirmCalls = page.match(/emailApi\.confirmDeletion\(/g) ?? [];
   assert.equal(confirmCalls.length, 1);
   assert.match(page, /async function confirm\(\) \{[\s\S]*emailApi\.confirmDeletion\(token\)/);
-  assert.match(page, /DELETION_STEPS\.map/);
+  assert.match(page, /DELETION_STEPS\(\)\.map/);
   const api = read('lib/api.email.ts');
   assert.match(api, /'\/auth\/delete-account\/request'/);
   assert.match(api, /'\/auth\/delete-account\/preview'/);
@@ -35,12 +35,12 @@ test('apagar a conta sem sessão: pede o email, manda a ligação e só apaga de
 test('os passos da página batem certo com o ecrã de Definições → Conta', () => {
   const steps = read('lib/accountDeletion.ts');
   const conta = read('app/settings/conta.tsx');
-  assert.match(conta, /title="Zona perigosa"/);
-  assert.match(conta, /title="Eliminar conta"/);
+  assert.match(conta, /title=\{t\('Zona perigosa'\)\}/);
+  assert.match(conta, /title=\{t\('Eliminar conta'\)\}/);
   assert.match(steps, /«Zona perigosa»/);
   assert.match(steps, /«Eliminar conta»/);
   assert.match(read('components/settings/sheets.tsx'), /Eliminar a minha conta/);
   assert.match(steps, /«Eliminar a minha conta»/);
-  assert.match(read('components/ProfileView.tsx'), /accessibilityLabel="Definições e privacidade"/);
+  assert.match(read('components/ProfileView.tsx'), /accessibilityLabel=\{t\('Definições e privacidade'\)\}/);
   assert.match(read('components/Landing.tsx'), /'\/apagar-conta'/);
 });

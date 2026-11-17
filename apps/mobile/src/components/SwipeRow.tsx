@@ -9,6 +9,7 @@ import { contextMenuOpens } from '@/lib/inboxMenu';
 import { HOLD_MS, holdStill } from '@/lib/messageMenu';
 import { claimSwipe, decideSwipe, innerPager, navSwipeThreshold, releaseSwipe, releaseSwipeSoon } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 export interface SwipeAction {
   label: string;
@@ -393,7 +394,7 @@ export function SwipeRow({ left = [], right = [], onHold, onDeskMenu, active = f
             onBlur={() => setFocus(false)}
             style={(s) => [st.more, !(hover || focus) && st.moreHidden, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]}
             accessibilityRole="button"
-            accessibilityLabel="Mais opções"
+            accessibilityLabel={t('Mais opções')}
             aria-haspopup="menu"
           >
             <Icon name="more" size={18} color={colors.zinc800} strokeWidth={2.4} />
@@ -521,7 +522,7 @@ function NativeSwipeRow({ left, right, onHold, children }: RowProps) {
         {right.length ? <View style={[st.nativePane, { right: 0 }]}><ActionButtons actions={right.map(run)} side="right" progress={showR} /></View> : null}
         <Animated.View style={[{ backgroundColor: '#fff' }, front]}>
           {children}
-          {side ? <Pressable style={StyleSheet.absoluteFill} onPress={() => me.close()} {...rowHold(onHold ? () => { me.close(); onHold(); } : undefined)} accessibilityRole="button" accessibilityLabel="Fechar" /> : null}
+          {side ? <Pressable style={StyleSheet.absoluteFill} onPress={() => me.close()} {...rowHold(onHold ? () => { me.close(); onHold(); } : undefined)} accessibilityRole="button" accessibilityLabel={t('Fechar')} /> : null}
         </Animated.View>
       </View>
     </GestureDetector>

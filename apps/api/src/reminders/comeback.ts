@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+import { t, translateText, type Lang } from '../i18n/i18n';
 
 /**
  * Lembretes de regresso: as regras (etapas, limites e horas) e os textos. Sem base de dados, para se poder testar à parte.
@@ -67,8 +68,6 @@ export interface ComebackMessage {
   url: string;
 }
 
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-
 /** Textos sem nada de concreto: curtos, simpáticos, no tom da app. */
 export const GENERIC: { title: string; body: string }[] = [
   { title: 'A malta anda por aqui', body: 'A malta anda por aqui. Bora ver o que se passa?' },
@@ -80,35 +79,43 @@ export const GENERIC: { title: string; body: string }[] = [
 /**
  * Escolhe o texto. Usa só o que existe mesmo para a pessoa; com várias coisas, roda com a etapa (para os lembretes
  * seguidos não dizerem o mesmo) e o texto também varia com a etapa. Sem nada: um dos textos simpáticos.
- * Nunca leva conteúdo (só números e o primeiro nome de quem a pessoa segue e pode ver).
+ * Nunca leva conteúdo (só números e o primeiro nome de quem a pessoa segue e pode ver). No idioma de quem recebe (`lang`):
+ * o plural e o artigo do nome («A Ana») são coisa de cada língua, por isso o texto monta-se já traduzido.
  */
-export function composeMessage(f: ComebackFacts, stage: number): ComebackMessage {
+export function composeMessage(f: ComebackFacts, stage: number, lang: Lang = 'pt'): ComebackMessage {
   const v = Math.max(0, stage - 1);
   const options: ComebackMessage[] = [];
   if (f.unreadMessages > 0) {
     const n = f.unreadMessages;
-    const bodies = [`Tens ${n} ${plural(n, 'mensagem', 'mensagens')} por ler.`, `Tens ${n} ${plural(n, 'mensagem', 'mensagens')} por ler. Bora responder?`];
-    options.push({ kind: 'messages', title: plural(n, 'Uma mensagem à tua espera', 'Mensagens à tua espera'), body: bodies[v % bodies.length], url: '/messages' });
+    const bodies = [
+      t('Tens {count} mensagem por ler.', { count: n, other: 'Tens {count} mensagens por ler.' }, lang),
+      t('Tens {count} mensagem por ler. Bora responder?', { count: n, other: 'Tens {count} mensagens por ler. Bora responder?' }, lang),
+    ];
+    options.push({ kind: 'messages', title: t('Uma mensagem à tua espera', { count: n, other: 'Mensagens à tua espera' }, lang), body: bodies[v % bodies.length], url: '/messages' });
   }
   if (f.cheers && f.cheers.count > 0) {
     const n = f.cheers.count;
-    const what = f.cheers.target === 'story' ? 'O teu mimo' : f.cheers.target === 'tcheka' ? 'A tua tcheka' : 'A tua publicação';
-    const bodies = [`${what} recebeu ${n} ${plural(n, 'brinde', 'brindes')}.`, `${what} recebeu ${n} ${plural(n, 'brinde', 'brindes')} enquanto estiveste fora. Vem ver!`];
-    options.push({ kind: 'cheers', title: plural(n, 'Brindaram-te', 'A malta brindou-te'), body: bodies[v % bodies.length], url: f.cheers.url });
+    const what = f.cheers.target === 'story' ? t('O teu mimo', {}, lang) : f.cheers.target === 'tcheka' ? t('A tua tcheka', {}, lang) : t('A tua publicação', {}, lang);
+    const bodies = [
+      t('{what} recebeu {count} brinde.', { what, count: n, other: '{what} recebeu {count} brindes.' }, lang),
+      t('{what} recebeu {count} brinde enquanto estiveste fora. Vem ver!', { what, count: n, other: '{what} recebeu {count} brindes enquanto estiveste fora. Vem ver!' }, lang),
+    ];
+    options.push({ kind: 'cheers', title: t('Brindaram-te', { count: n, other: 'A malta brindou-te' }, lang), body: bodies[v % bodies.length], url: f.cheers.url });
   }
   if (f.posters && f.posters.people > 0) {
-    const who = f.posters.article ? `${f.posters.article} ${f.posters.name}` : f.posters.name;
+    // O artigo antes do nome («A Ana») só em português.
+    const who = f.posters.article && lang === 'pt' ? `${f.posters.article} ${f.posters.name}` : f.posters.name;
     const others = f.posters.people - 1;
-    const body = others > 0 ? `${who} e mais ${others} publicaram desde a tua última visita.` : `${who} publicou desde a tua última visita.`;
-    options.push({ kind: 'posts', title: 'Novidades no teu Início', body, url: '/' });
+    const body = others > 0 ? t('{who} e mais {count} publicaram desde a tua última visita.', { who, count: others }, lang) : t('{who} publicou desde a tua última visita.', { who }, lang);
+    options.push({ kind: 'posts', title: t('Novidades no teu Início', {}, lang), body, url: '/' });
   }
   if (f.newStories > 0) {
     const n = f.newStories;
-    options.push({ kind: 'stories', title: plural(n, 'Um mimo novo', 'Mimos novos'), body: `Há ${n} ${plural(n, 'mimo novo', 'mimos novos')} de quem segues.`, url: '/' });
+    options.push({ kind: 'stories', title: t('Um mimo novo', { count: n, other: 'Mimos novos' }, lang), body: t('Há {count} mimo novo de quem segues.', { count: n, other: 'Há {count} mimos novos de quem segues.' }, lang), url: '/' });
   }
   if (options.length) return options[v % options.length];
   const g = GENERIC[v % GENERIC.length];
-  return { kind: 'generic', title: g.title, body: g.body, url: '/' };
+  return { kind: 'generic', title: translateText(g.title, lang), body: translateText(g.body, lang), url: '/' };
 }
 
 /** O primeiro nome que se mostra (nunca vazio: o @ se não houver nome). */

@@ -4,6 +4,7 @@
 // (plugins/withoutUnusedServices.js).
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -276,5 +277,5 @@ test('sem sessão, a app leva ao login (e às páginas públicas) sem ecrãs de 
   // O pedido das notificações (Android 13+) só aparece no passo a passo depois de entrar, explicado.
   const p = src('components/PermissionsOnboarding.tsx');
   assert.match(p, /if \(Platform\.OS === 'web' \|\| !user\) return;/);
-  assert.match(p, /id: 'notif'[^\n]*text: 'Para saberes logo/);
+  assert.match(p, /id: 'notif'[^\n]*text\(\) \{ return t\('Para saberes logo/);
 });

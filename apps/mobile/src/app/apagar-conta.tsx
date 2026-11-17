@@ -9,6 +9,8 @@ import { DELETION_DELETED, DELETION_KEPT, DELETION_STEPS, DELETION_WHEN } from '
 import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 const SUPPORT = 'privacidade@txillapp.com';
 
@@ -20,10 +22,10 @@ const SUPPORT = 'privacidade@txillapp.com';
 export default function DeleteAccountPage() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = 'Apagar a conta · Txillapp';
+    if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = t('Apagar a conta · Txillapp');
   }, []);
   return (
-    <StackPage title="Apagar a conta">
+    <StackPage title={t('Apagar a conta')}>
       <ScrollView contentContainerStyle={st.page} keyboardShouldPersistTaps="handled">
         {typeof token === 'string' && token ? <Confirm token={token} /> : <Explain />}
       </ScrollView>
@@ -38,38 +40,38 @@ function Explain() {
   const [error, setError] = useState('');
   async function submit() {
     if (busy) return;
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Escreve o email da tua conta');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError(t('Escreve o email da tua conta'));
     setBusy(true);
     setError('');
     try {
       const r = await emailApi.requestDeletion(email.trim());
       setSent({ mail: r.mail });
     } catch (x) {
-      setError(x instanceof ApiError ? x.message : 'Não consegui enviar agora. Tenta outra vez.');
+      setError(x instanceof ApiError ? x.message : t('Não consegui enviar agora. Tenta outra vez.'));
     } finally {
       setBusy(false);
     }
   }
   return (
     <>
-      <Text style={st.h1} accessibilityRole="header">Apagar a conta do Txillapp</Text>
-      <Text style={st.p}>Podes apagar a tua conta e os teus dados quando quiseres. Não se desfaz.</Text>
+      <Text style={st.h1} accessibilityRole="header">{t('Apagar a conta do Txillapp')}</Text>
+      <Text style={st.p}>{t('Podes apagar a tua conta e os teus dados quando quiseres. Não se desfaz.')}</Text>
 
-      <Text style={st.h2} accessibilityRole="header">Na app</Text>
-      {DELETION_STEPS.map((s, i) => (
+      <Text style={st.h2} accessibilityRole="header">{t('Na app')}</Text>
+      {DELETION_STEPS().map((s, i) => (
         <View key={s} style={st.step}><Text style={st.num}>{i + 1}</Text><Text style={[st.p, { flex: 1 }]}>{s}</Text></View>
       ))}
-      <Text style={st.note}>No site txillapp.com é igual: entra na tua conta e segue os mesmos passos.</Text>
+      <Text style={st.note}>{t('No site txillapp.com é igual: entra na tua conta e segue os mesmos passos.')}</Text>
 
-      <Text style={st.h2} accessibilityRole="header">Já não tens a app?</Text>
-      <Text style={st.p}>Escreve o email da tua conta. Mandamos para esse email uma ligação para confirmares: só quem abre essa ligação pode apagar a conta. Escrever o email, por si só, não apaga nada.</Text>
+      <Text style={st.h2} accessibilityRole="header">{t('Já não tens a app?')}</Text>
+      <Text style={st.p}>{t('Escreve o email da tua conta. Mandamos para esse email uma ligação para confirmares: só quem abre essa ligação pode apagar a conta. Escrever o email, por si só, não apaga nada.')}</Text>
       {sent ? (
         <View style={st.box} accessibilityLiveRegion="polite">
           <Icon name="mail" size={22} color={colors.brand} />
           <Text style={[st.p, { flex: 1 }]}>
             {sent.mail
-              ? 'Se houver uma conta com este email, vais receber uma mensagem com a ligação daqui a pouco. A ligação vale 1 hora. Vê também a pasta de spam.'
-              : `Neste momento não conseguimos enviar emails. Apaga a conta na app ou em txillapp.com, ou escreve-nos para ${SUPPORT} a partir do email da conta.`}
+              ? t('Se houver uma conta com este email, vais receber uma mensagem com a ligação daqui a pouco. A ligação vale 1 hora. Vê também a pasta de spam.')
+              : t('Neste momento não conseguimos enviar emails. Apaga a conta na app ou em txillapp.com, ou escreve-nos para {support} a partir do email da conta.', { support: SUPPORT })}
           </Text>
         </View>
       ) : (
@@ -77,7 +79,7 @@ function Explain() {
           <TextInput
             value={email}
             onChangeText={(t) => { setEmail(t); setError(''); }}
-            placeholder="O email da tua conta"
+            placeholder={t('O email da tua conta')}
             placeholderTextColor={colors.zinc500}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -85,16 +87,16 @@ function Explain() {
             autoComplete="email"
             returnKeyType="send"
             onSubmitEditing={() => void submit()}
-            accessibilityLabel="O email da tua conta"
+            accessibilityLabel={t('O email da tua conta')}
             style={st.input}
           />
           <Text style={st.err} accessibilityRole="alert">{error}</Text>
-          <Button label="Enviar a ligação" onPress={() => void submit()} loading={busy} style={{ marginTop: 4 }} />
+          <Button label={t('Enviar a ligação')} onPress={() => void submit()} loading={busy} style={{ marginTop: 4 }} />
         </View>
       )}
 
       <What />
-      <Text style={st.note}>Dúvidas, ou já não tens acesso ao email da conta? Escreve para {SUPPORT}.</Text>
+      <Text style={st.note}>{t('Dúvidas, ou já não tens acesso ao email da conta? Escreve para {support}.', { support: SUPPORT })}</Text>
     </>
   );
 }
@@ -103,12 +105,12 @@ function Explain() {
 function What() {
   return (
     <>
-      <Text style={st.h2} accessibilityRole="header">O que é apagado</Text>
-      {DELETION_DELETED.map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
-      <Text style={st.h2} accessibilityRole="header">O que fica, e porquê</Text>
-      {DELETION_KEPT.map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
-      <Text style={st.h2} accessibilityRole="header">Quando</Text>
-      <Text style={st.p}>{DELETION_WHEN}</Text>
+      <Text style={st.h2} accessibilityRole="header">{t('O que é apagado')}</Text>
+      {DELETION_DELETED().map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
+      <Text style={st.h2} accessibilityRole="header">{t('O que fica, e porquê')}</Text>
+      {DELETION_KEPT().map((t) => <Text key={t} style={st.li}>• {t}</Text>)}
+      <Text style={st.h2} accessibilityRole="header">{t('Quando')}</Text>
+      <Text style={st.p}>{DELETION_WHEN()}</Text>
     </>
   );
 }
@@ -123,7 +125,7 @@ function Confirm({ token }: { token: string }) {
     let live = true;
     emailApi.deletionPreview(token)
       .then((r) => { if (live) setWho(r); })
-      .catch((x) => { if (live) setError(x instanceof ApiError ? x.message : 'Não consegui abrir a ligação. Tenta outra vez.'); });
+      .catch((x) => { if (live) setError(x instanceof ApiError ? x.message : t('Não consegui abrir a ligação. Tenta outra vez.')); });
     return () => { live = false; };
   }, [token]);
   async function confirm() {
@@ -134,7 +136,7 @@ function Confirm({ token }: { token: string }) {
       await emailApi.confirmDeletion(token);
       setDone(true);
     } catch (x) {
-      setError(x instanceof ApiError ? x.message : 'Não consegui apagar agora. Tenta outra vez.');
+      setError(x instanceof ApiError ? x.message : t('Não consegui apagar agora. Tenta outra vez.'));
     } finally {
       setBusy(false);
     }
@@ -142,29 +144,29 @@ function Confirm({ token }: { token: string }) {
   if (done) {
     return (
       <View style={{ marginTop: 24, gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="check-circle" size={30} color={colors.green600} /><Text style={st.h1}>Conta apagada</Text></View>
-        <Text style={st.p}>A tua conta do Txillapp e os teus dados foram apagados. Obrigado por teres feito parte da malta.</Text>
-        <Button label="Ir para o início" kind="secondary" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="check-circle" size={30} color={colors.green600} /><Text style={st.h1}>{t('Conta apagada')}</Text></View>
+        <Text style={st.p}>{t('A tua conta do Txillapp e os teus dados foram apagados. Obrigado por teres feito parte da malta.')}</Text>
+        <Button label={t('Ir para o início')} kind="secondary" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
       </View>
     );
   }
   return (
     <>
-      <Text style={st.h1} accessibilityRole="header">Confirmar: apagar a conta</Text>
+      <Text style={st.h1} accessibilityRole="header">{t('Confirmar: apagar a conta')}</Text>
       {!who && !error ? <PageLoader style={{ paddingTop: 24 }} /> : null}
       {who ? (
         <>
-          <Text style={st.p}>Vais apagar a conta <Text style={{ fontWeight: '700' }}>@{who.username}</Text> ({who.displayName}) e os teus dados. Isto não se desfaz.</Text>
+          <Text style={st.p}><T text={t('Vais apagar a conta <b>@{username}</b> ({displayName}) e os teus dados. Isto não se desfaz.', { username: who.username, displayName: who.displayName })} tags={{ b: (s) => <Text style={{ fontWeight: '700' }}>{s}</Text> }} /></Text>
           <What />
           <Text style={st.err} accessibilityRole="alert">{error}</Text>
           {/* Esta página é a própria confirmação (como a caixa): o botão vermelho cheio. */}
-          <Button label="Apagar a minha conta para sempre" kind="dangerSolid" onPress={() => void confirm()} loading={busy} style={{ marginTop: 20 }} />
-          <Button label="Cancelar, não quero apagar" kind="ghost" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
+          <Button label={t('Apagar a minha conta para sempre')} kind="dangerSolid" onPress={() => void confirm()} loading={busy} style={{ marginTop: 20 }} />
+          <Button label={t('Cancelar, não quero apagar')} kind="ghost" onPress={() => router.replace('/')} style={{ marginTop: 8 }} />
         </>
       ) : error ? (
         <>
           <Text style={[st.err, { textAlign: 'left', marginTop: 16 }]} accessibilityRole="alert">{error}</Text>
-          <Button label="Pedir uma ligação nova" kind="secondary" onPress={() => router.replace('/apagar-conta' as never)} style={{ marginTop: 8 }} />
+          <Button label={t('Pedir uma ligação nova')} kind="secondary" onPress={() => router.replace('/apagar-conta' as never)} style={{ marginTop: 8 }} />
         </>
       ) : null}
     </>

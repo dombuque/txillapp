@@ -7,6 +7,7 @@ import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
 import { comebackMail } from '../mail/templates';
+import { recipientLang } from '../i18n/request-lang';
 import { tchekaPost } from '../posts/feed';
 import { PushService } from '../push/push.service';
 import { blockedBetween, canView } from '../social/visibility';
@@ -66,6 +67,8 @@ interface Candidate {
   email_ok: boolean;
   last_active: Date;
   stage: number;
+  /** O idioma escolhido (os e-mails saem nele; null = pt). */
+  language: string | null;
 }
 
 /**
@@ -123,7 +126,7 @@ export class ComebackReminderService implements OnModuleInit {
   private async candidates(now: Date, limit: number, only?: string[]): Promise<Candidate[]> {
     const { rows } = await this.pool.query(
       `WITH u AS (
-         SELECT u.id, u.username, u.display_name, u.email,
+         SELECT u.id, u.username, u.display_name, u.email, u.language,
                 (u.email_verified_at IS NOT NULL AND u.email NOT LIKE '%@invalid.local') AS email_ok,
                 (EXISTS (SELECT 1 FROM social.push_devices d WHERE d.user_id = u.id) OR EXISTS (SELECT 1 FROM social.push_subscriptions s WHERE s.user_id = u.id)) AS push_ok,
                 ${LAST_ACTIVE('u')} AS last_active
@@ -173,14 +176,15 @@ export class ComebackReminderService implements OnModuleInit {
       await this.pool.query('DELETE FROM social.comeback_reminders WHERE id = $1', [id]);
       return 'taken';
     }
-    const msg = composeMessage(await this.facts(c.id, c.username, c.last_active, now), c.stage);
+    const lang = recipientLang(c.language);
+    const msg = composeMessage(await this.facts(c.id, c.username, c.last_active, now), c.stage, lang);
     let channel: 'push' | 'email' | null = null;
     const delivered = await this.push.send(c.id, { title: msg.title, body: msg.body, url: msg.url, tag: 'comeback', category: 'comeback', ttlSeconds: ttlUntilEvening(now) });
     if (delivered > 0) channel = 'push';
     else if (c.email_ok && this.mail.enabled) {
       const ok = await this.mail.send({
         to: c.email,
-        ...comebackMail(this.mail.publicUrl, firstName(c.display_name, c.username), { title: msg.title, body: msg.body, path: msg.url, unsubscribeUrl: this.unsubscribeUrl(c.id) }),
+        ...comebackMail(this.mail.publicUrl, firstName(c.display_name, c.username), { title: msg.title, body: msg.body, path: msg.url, unsubscribeUrl: this.unsubscribeUrl(c.id) }, lang),
       });
       if (ok) channel = 'email';
     }

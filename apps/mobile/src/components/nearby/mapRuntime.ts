@@ -11,6 +11,41 @@ import type * as Leaflet from 'leaflet';
 /** Os mosaicos do OpenStreetMap, servidos (e guardados em cache) pelo servidor do Txillapp: o mesmo em todos os mapas. */
 export const TILE_URL = 'https://txillapp.com/tiles/{z}/{x}/{y}.png';
 
+/**
+ * Os textos do mapa, já no idioma da pessoa (nearby/mapLabels.ts faz-os com o t() e passa-os nas opções; este ficheiro
+ * não importa nada). `{n}`, `{title}` e `{km}` trocam-se aqui. Sem `labels`, ficam os do português.
+ */
+export interface MapLabels {
+  zoomIn: string;
+  zoomOut: string;
+  recenter: string;
+  recenterAria: string;
+  /** «{n} sítios» */
+  places: string;
+  /** «{title} · Patrocinado» */
+  sponsoredTitle: string;
+  sponsored: string;
+  /** «{km} km» */
+  km: string;
+  /** Os meses em maiúsculas para a folha de calendário dos eventos («JAN»…). */
+  months: string[];
+}
+export const PT_MAP_LABELS: MapLabels = {
+  zoomIn: 'Aproximar',
+  zoomOut: 'Afastar',
+  recenter: 'Voltar ao centro',
+  recenterAria: 'Voltar ao centro da procura',
+  places: '{n} sítios',
+  sponsoredTitle: '{title} · Patrocinado',
+  sponsored: 'Patrocinado',
+  km: '{km} km',
+  months: ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'],
+};
+/** Troca `{nome}` pelos valores. */
+function fill(tpl: string, vars: Record<string, string | number>): string {
+  return tpl.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+}
+
 export type MapMarkerKind = 'venue' | 'event' | 'post' | 'group' | 'person';
 export interface MapMarker {
   id: string;
@@ -43,12 +78,13 @@ export interface MapHandle {
   destroy: () => void;
 }
 
-export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id: string) => void, opts: { zoomControl: boolean }): MapHandle {
+export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id: string) => void, opts: { zoomControl: boolean; labels?: MapLabels }): MapHandle {
+  const TX = opts.labels ?? PT_MAP_LABELS;
   const BRAND = '#d6334f';
   const WARM = '#ff9a5b';
   const MAX = 200; // marcadores no máximo (os mais perto vêm primeiro)
   const CELL = 54; // tamanho da grelha de agrupamento, em pixels
-  const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+  const MONTHS = TX.months;
   const PIN = '<path d="M12 21.3s-6.9-6-6.9-11.3a6.9 6.9 0 0 1 13.8 0C18.9 15.3 12 21.3 12 21.3Z"/><path d="M9.5 9.8a2.5 2.5 0 1 0 5.0 0a2.5 2.5 0 1 0 -5.0 0"/>';
   const CAMERA = '<path d="M3.5 9a2.5 2.5 0 0 1 2.5-2.5h1.6l1.4-2.2h5.9l1.4 2.2H18A2.5 2.5 0 0 1 20.5 9v8.5A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8.3 13a3.7 3.7 0 1 0 7.4 0a3.7 3.7 0 1 0 -7.4 0"/>';
   const USERS = '<path d="M5.7 8.2a3.3 3.3 0 1 0 6.6 0a3.3 3.3 0 1 0 -6.6 0"/><path d="M2.8 19.6c.7-3.1 3.2-5 6.2-5s5.5 1.9 6.2 5"/><path d="M16.2 5.3a3.2 3.2 0 0 1 0 5.8"/><path d="M17.8 14.9c2.2.5 3.7 2.2 4.1 4.7"/>';
@@ -147,7 +183,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   el.classList?.add('txnb');
 
   const map = L.map(el, { zoomControl: false, attributionControl: true, zoomSnap: 0.5, minZoom: 4, maxZoom: 19 });
-  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: TX.zoomIn, zoomOutTitle: TX.zoomOut }).addTo(map);
   map.attributionControl.setPrefix(false);
   // Mosaicos do OpenStreetMap servidos pelo próprio Txillapp (com cache), sem chave.
   L.tileLayer(TILE_URL, {
@@ -188,8 +224,8 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     onAdd() {
       const b = L.DomUtil.create('button', 'txc') as HTMLButtonElement;
       b.type = 'button';
-      b.title = 'Voltar ao centro';
-      b.setAttribute('aria-label', 'Voltar ao centro da procura');
+      b.title = TX.recenter;
+      b.setAttribute('aria-label', TX.recenterAria);
       b.innerHTML = svg(LOCATE, 22, BRAND);
       L.DomEvent.disableClickPropagation(b);
       L.DomEvent.on(b, 'click', (e) => {
@@ -298,7 +334,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       size = [44, 44];
       anchor = [22, 22];
     }
-    const extra = (m.boosted ? '<span class="bt">Patrocinado</span>' : '') + (sel ? `<span class="lb">${esc(m.title)}</span>` : '');
+    const extra = (m.boosted ? `<span class="bt">${esc(TX.sponsored)}</span>` : '') + (sel ? `<span class="lb">${esc(m.title)}</span>` : '');
     if (extra) html = html.slice(0, html.lastIndexOf('</div>')) + extra + '</div>';
     return L.divIcon({ className: 'txm' + (sel ? ' sel' : '') + (m.boosted ? ' boost' : ''), html, iconSize: size, iconAnchor: anchor });
   }
@@ -368,7 +404,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       const mk = L.marker(c, {
         icon: L.divIcon({ className: 'txm', html: `<div class="b tx-cluster" style="width:${d}px;height:${d}px">${b.length > 99 ? '99+' : b.length}</div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }),
         keyboard: true,
-        title: `${b.length} sítios`,
+        title: fill(TX.places, { n: b.length }),
         // Por cima do ponto azul: o número de um grupo no sítio onde estou não fica tapado.
         zIndexOffset: 6000,
       });
@@ -381,7 +417,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     });
     for (const m of singles) {
       const sel = m.id === st.selectedId;
-      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.boosted ? `${m.title} · Patrocinado` : m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.boosted ? 800 : m.kind === 'event' ? 200 : 0 });
+      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.boosted ? fill(TX.sponsoredTitle, { title: m.title }) : m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.boosted ? 800 : m.kind === 'event' ? 200 : 0 });
       mk.on('click', () => onPress(m.id));
       mk.on('add', () => hideBroken(mk));
       mk.addTo(layer);
@@ -398,7 +434,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       drawVeil(next.center, next.radiusKm);
       ringLabel.setLatLng([next.center.lat + span(next.center, next.radiusKm).dLat, next.center.lng]);
       const lbl = ringLabel.getElement?.()?.querySelector('span');
-      if (lbl) lbl.textContent = `${next.radiusKm} km`;
+      if (lbl) lbl.textContent = fill(TX.km, { km: next.radiusKm });
       else ringLabel.setIcon?.(L.divIcon({ className: 'txr', html: `<span>${next.radiusKm} km</span>`, iconSize: [0, 0] }));
       me.setLatLng([next.center.lat, next.center.lng]);
       fit();
@@ -457,6 +493,8 @@ export interface PickOptions {
   still?: boolean;
   /** O zoom da primeira vista (15 por omissão). */
   zoom?: number;
+  /** Os textos no idioma da pessoa (só se usam os botões do zoom). */
+  labels?: MapLabels;
 }
 
 /**
@@ -488,7 +526,8 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
     boxZoom: !still,
     keyboard: !still,
   });
-  if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  const TX = opts.labels ?? PT_MAP_LABELS;
+  if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: TX.zoomIn, zoomOutTitle: TX.zoomOut }).addTo(map);
   map.attributionControl.setPrefix(false);
   L.tileLayer(TILE_URL, {
     maxZoom: 19,

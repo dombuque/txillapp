@@ -3,6 +3,7 @@
 // e as ligações nos ecrãs (carril, cabeçalho, fim do dia, rota dos Guardados, denúncia).
 // Correr em apps/mobile:  node --test tests/mixarSocial.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -141,7 +142,7 @@ test('o ecrã do Mixar: carril com a conversa e o marcador, «está a ver contig
   assert.match(c, /<NameWithBadge name=\{c\.author\.displayName\} who=\{c\.author\}/);
   assert.match(c, /<NameWithBadge name=\{partner\.name\} who=\{partner\}/);
   assert.match(c, /<ReportSheet type="mixar_comment"/);
-  assert.match(read('components', 'ReportSheet.tsx'), /mixar_comment: 'este comentário'/);
+  assert.match(read('components', 'ReportSheet.tsx'), /get mixar_comment\(\) \{ return t\('este comentário'\); \}/);
   // O fim do dia tem um sítio para o «Mais 5».
   assert.match(read('components', 'mixar', 'MixarPages.tsx'), /\{children\}/);
 });

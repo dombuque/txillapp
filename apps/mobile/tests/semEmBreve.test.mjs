@@ -121,7 +121,7 @@ test('lojas: sem o componente «Soon», o «ComingSoon» do site nem o showComin
 test('Definições: o grupo do idioma não tem tema nem traduções por vir, e a pesquisa não leva a elas', () => {
   const idx = readFileSync(path.join(MOBILE, 'src', 'lib', 'settingsIndex.ts'), 'utf8');
   assert.doesNotMatch(idx, /id: 'theme'|modo escuro|'traduzir'/);
-  assert.match(idx, /\{ id: 'aparencia', title: 'Idioma',/);
+  assert.match(idx, /\{ id: 'aparencia', get title\(\) \{ return t\('Idiomas'\); \}/);
   const ap = readFileSync(path.join(MOBILE, 'src', 'app', 'settings', 'aparencia.tsx'), 'utf8');
   assert.doesNotMatch(ap, /\blocked\b|Tema/);
 });

@@ -59,5 +59,5 @@ test('o estúdio nativo usa estas medidas: a folha no fim da coluna (não por ci
   assert.doesNotMatch(s, /position: 'absolute', left: 0, right: 0, backgroundColor: '#0b0b11'/);
   const fx = readFileSync(path.join(ROOT, 'src', 'components', 'studio', 'native', 'NativeFxPanel.tsx'), 'utf8');
   assert.doesNotMatch(fx, /clipBar/);
-  assert.match(fx, /label: 'Transição'/);
+  assert.match(fx, /label\(\) \{ return t\('Transição'\)/);
 });

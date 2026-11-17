@@ -3,6 +3,7 @@
 // pega, e os nomes antigos de ícones (present, flip-camera, send) que continuam a funcionar.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -130,7 +131,7 @@ test('Sheet: título 18/800 à esquerda, pega 40×5, «Cancelar» no fim (só no
   assert.match(s, /handle: \{ alignSelf: 'center', width: 40, height: 5,/);
   assert.match(s, /cancel\?: boolean \| string/);
   assert.match(s, /\{cancel && mode === 'bottom' \? \(/);
-  assert.match(s, /<Button label=\{typeof cancel === 'string' \? cancel : 'Cancelar'\} kind="secondary" dark=\{dark\} block onPress=\{close\} \/>/);
+  assert.match(s, /<Button label=\{typeof cancel === 'string' \? cancel : t\('Cancelar'\)\} kind="secondary" dark=\{dark\} block onPress=\{close\} \/>/);
   assert.match(s, /export const useSheetDark = \(\) => useContext\(DarkCtx\);/);
   assert.equal((s.match(/<DarkCtx\.Provider value=\{dark\}>/g) ?? []).length, 3);
 });
@@ -153,8 +154,8 @@ test('estados: EmptyState com botão e escuro (Empty continua), ErrorState com �
   assert.match(e, /export const Empty = EmptyState;/);
   assert.match(e, /box: \{ marginHorizontal: 32, marginTop: 48,/);
   const er = read('components', 'ui', 'ErrorState.tsx');
-  assert.match(er, /retryLabel = 'Tentar outra vez'/);
-  assert.match(er, /`Ups, não consegui carregar \$\{what\}`/);
+  assert.match(er, /retryLabel = t\('Tentar outra vez'\)/);
+  assert.match(er, /t\('Ups, não consegui carregar \{what\}', \{ what \}\)/);
   assert.match(er, /'Verifica a ligação e tenta outra vez\.'/);
   assert.match(er, /kind: 'secondary'/);
 });
@@ -164,7 +165,7 @@ test('componentes de components/ui existem: Chip, SegmentedTabs, SearchField, Se
     assert.ok(existsSync(path.join(ROOT, 'src', 'components', 'ui', `${f}.tsx`)), f);
   }
   assert.match(read('components', 'ui', 'Chip.tsx'), /chip: \{ height: 36, borderRadius: 999,/);
-  assert.match(read('components', 'ui', 'SearchField.tsx'), /accessibilityLabel="Limpar a pesquisa"/);
+  assert.match(read('components', 'ui', 'SearchField.tsx'), /accessibilityLabel=\{t\('Limpar a pesquisa'\)\}/);
   assert.match(read('components', 'ui', 'SearchField.tsx'), /box: \{ height: 44, borderRadius: 999,/);
   assert.match(read('components', 'ui', 'SegmentedTabs.tsx'), /accessibilityRole="tab"/);
   assert.match(read('components', 'ui', 'SendButton.tsx'), /<Icon name="arrow-up" size=\{22\} color="#fff"/);
@@ -189,13 +190,13 @@ test('carregamento: nenhum ficheiro importa a roda do sistema (ActivityIndicator
 
 test('rascunhos e chamadas: apagar deixa «Desfazer»; limpar o histórico pergunta antes', () => {
   const d = read('app', 'drafts.tsx');
-  assert.match(d, /showToast\('Rascunho apagado', \{\n\s+label: 'Desfazer',/);
+  assert.match(d, /showToast\(t\('Rascunho apagado'\), \{\n\s+label: t\('Desfazer'\),/);
   assert.match(d, /void restoreDraft\(d\)/);
   assert.match(read('lib', 'drafts.ts'), /export async function restoreDraft\(d: DraftItem\)/);
   const c = read('app', 'calls.tsx');
-  assert.match(c, /showToast\('Chamada apagada do registo', \{ label: 'Desfazer'/);
+  assert.match(c, /showToast\(t\('Chamada apagada do registo'\), \{ label: t\('Desfazer'\)/);
   assert.match(c, /if \(undone\) return;\n\s+callsApi\.remove\(c\.id\)/);
-  assert.match(c, /await confirm\(\{ title: 'Limpar o histórico\?'[^)]*danger: true \}\)/);
+  assert.match(c, /await confirm\(\{ title: t\('Limpar o histórico\?'\)[\s\S]*?danger: true \}\)/);
   assert.doesNotMatch(c, /Alert\.alert/);
   // O nome no topo do menu da chamada leva o selo; o menu tem «Cancelar».
   assert.match(c, /<Sheet onClose=\{\(\) => setHeld\(null\)\} cancel>/);

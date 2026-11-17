@@ -8,6 +8,7 @@ import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
+import { t } from '@/lib/i18n';
 
 /** "Bora conhecer malta nova?": amigos em comum primeiro; dá para dispensar com o X. */
 export function Suggestions() {
@@ -23,12 +24,12 @@ export function Suggestions() {
   }
 
   return (
-    <View accessibilityLabel="Sugestões de pessoas" style={[st.card, cardShadow]}>
-      <Text style={st.title}>Bora conhecer malta nova?</Text>
+    <View accessibilityLabel={t('Sugestões de pessoas')} style={[st.card, cardShadow]}>
+      <Text style={st.title}>{t('Bora conhecer malta nova?')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }} style={{ marginTop: 16 }}>
         {data.map((p) => (
           <View key={p.username} style={st.item}>
-            <Pressable onPress={() => dismiss(p)} hitSlop={6} style={st.close} accessibilityRole="button" accessibilityLabel={`Não sugerir ${p.displayName}`}>
+            <Pressable onPress={() => dismiss(p)} hitSlop={6} style={st.close} accessibilityRole="button" accessibilityLabel={t('Não sugerir {displayName}', { displayName: p.displayName })}>
               <Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} />
             </Pressable>
             <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={{ width: '100%', alignItems: 'center' }} accessibilityRole="link">

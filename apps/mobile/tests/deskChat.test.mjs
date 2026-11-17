@@ -3,6 +3,7 @@
 // no telemóvel fica tudo como estava (tudo isto só liga com useDeskChat: browser largo E rato).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -145,7 +146,7 @@ test('lista no computador: sem deslizar; ⋯ ao passar o rato, botão direito e 
   const desk = s.slice(s.indexOf('if (desk) {'), s.indexOf("if (Platform.OS === 'web') return <WebSwipeRow"));
   assert.ok(desk.length > 0);
   assert.match(desk, /onContextMenu/);
-  assert.match(desk, /accessibilityLabel="Mais opções"/);
+  assert.match(desk, /accessibilityLabel=\{t\('Mais opções'\)\}/);
   assert.match(desk, /onMouseEnter/);
   assert.match(desk, /st\.deskHover/);
   assert.doesNotMatch(desk, /<Buttons|WebSwipeRow|NativeSwipeRow|touchstart/, 'nada de deslizar no computador');
@@ -172,15 +173,15 @@ test('bolhas no computador: sem segurar nem deslizar com o rato; Responder, Reag
   const b = src('components/ChatBubbles.tsx');
   assert.match(b, /enabled=\{swipe && !desk\}/);
   assert.match(b, /onLongPress=\{real && !desk \? \(\) => onMenu\(m\) : undefined\}/);
-  assert.match(b, /btn\('reply', 'Responder'/);
-  assert.match(b, /btn\('heart', 'Reagir'/);
-  assert.match(b, /btn\('more', 'Mais opções da mensagem'/);
+  assert.match(b, /btn\('reply', t\('Responder'\)/);
+  assert.match(b, /btn\('heart', t\('Reagir'\)/);
+  assert.match(b, /btn\('more', t\('Mais opções da mensagem'\)/);
   assert.match(b, /getSelection/, 'selecionar texto com o rato não conta como clique');
   const r = src('components/ReplySwipe.tsx');
   assert.match(r, /on\.current\.onMenu\(\{ x: e\.clientX, y: e\.clientY \}\)/, 'o botão direito abre no ponteiro');
   const p = src('components/ChatParts.tsx');
   assert.match(p, /if \(at && desk\) \{/);
-  for (const l of ["'Responder'", "'Copiar'", "'Editar'", "'Apagar…'", "'Denunciar mensagem…'"]) assert.ok(p.includes(`label: ${l}`), `falta ${l} no menu de contexto`);
+  for (const l of ["'Responder'", "'Copiar'", "'Editar'", "'Apagar…'", "'Denunciar mensagem…'"]) assert.ok(p.includes(`label: t(${l})`), `falta ${l} no menu de contexto`);
 });
 
 test('caixas de escrever: as teclas do computador nas duas barras e na de editar', () => {

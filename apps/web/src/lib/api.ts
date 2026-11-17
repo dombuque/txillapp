@@ -67,7 +67,7 @@ export const setAccessToken = (t: string | null) => {
   accessToken = t;
 };
 
-import { tr } from './i18n';
+import { langCode, tr } from './i18n';
 
 export class ApiError extends Error {
   constructor(
@@ -552,6 +552,7 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
     headers: {
       'Content-Type': 'application/json',
       'X-Requested-With': 'txillapp',
+      'Accept-Language': langCode,
       ...(isStaffPath(path) ? (staffToken ? { Authorization: `Bearer ${staffToken}` } : {}) : path.startsWith('/staff-auth/') ? {} : accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init.headers,
     },

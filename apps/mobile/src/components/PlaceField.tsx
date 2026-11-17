@@ -18,6 +18,7 @@ import {
   searchQuery, searchStatus, suggestionToValue, type PlaceSuggestion, type PlaceValue,
 } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 export type { PlaceValue } from '@/lib/placeField';
 
@@ -33,7 +34,7 @@ export interface PlaceFieldHandle {
  * e dá para "Ajustar no mapa" (arrastar o pino) ou "Usar a minha localização". Também se pode "Marcar no mapa" sem pesquisar.
  * O mesmo no telemóvel e no site.
  */
-export function PlaceField({ label, value, onChange, onTyped, initialQuery = '', placeholder = 'Procurar o sítio…', mapHint, ref }: {
+export function PlaceField({ label, value, onChange, onTyped, initialQuery = '', placeholder = t('Procurar o sítio…'), mapHint, ref }: {
   label?: string;
   value: PlaceValue | null;
   onChange: (v: PlaceValue | null) => void;
@@ -96,13 +97,13 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
       onChange(keepAddress ? { ...next, address: v.address ?? next.address, city: v.city ?? next.city } : next);
       // O serviço não soube a morada (vem tudo a null): o pino fica e abre-se a morada para escrever à mão.
       if (!keepAddress && reverseEmpty(rev)) {
-        setMsg('Não encontrei a morada deste ponto. O pino fica; escreve a morada à mão.');
+        setMsg(t('Não encontrei a morada deste ponto. O pino fica; escreve a morada à mão.'));
         setEditing(true);
       }
     } catch {
       if (!alive.current || my !== seq.current) return;
       if (!keepAddress) {
-        setMsg('Não consegui saber a morada agora. O pino fica; escreve a morada à mão.');
+        setMsg(t('Não consegui saber a morada agora. O pino fica; escreve a morada à mão.'));
         setEditing(true);
       }
     } finally {
@@ -128,7 +129,7 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
     const v = suggestionToValue(h);
     if (!v) {
       // Servidor antigo (sugestão sem coordenadas): marca-se no mapa, com o nome já posto.
-      openMap(h.name, `Não sei o ponto exato de "${h.name}". Arrasta o mapa até o alfinete ficar lá.`);
+      openMap(h.name, t('Não sei o ponto exato de "{name}". Arrasta o mapa até o alfinete ficar lá.', { name: h.name }));
       return;
     }
     seq.current++;
@@ -156,7 +157,7 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
       const perm = await locationPermission();
       if (!alive.current) return;
       if (perm === 'blocked') {
-        setMsg('A localização está desligada para o Txillapp. Liga-a nas definições do telemóvel ou marca no mapa.');
+        setMsg(t('A localização está desligada para o Txillapp. Liga-a nas definições do telemóvel ou marca no mapa.'));
         return;
       }
       if (perm === 'ask') {
@@ -169,7 +170,7 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
     if (!alive.current) return;
     setLocating(null);
     if (here) placeAt(here);
-    else setMsg('Não consegui saber onde estás. Liga a localização ou marca no mapa.');
+    else setMsg(t('Não consegui saber onde estás. Liga a localização ou marca no mapa.'));
   }
 
   /** Corrigir a morada à mão: ganha a qualquer morada que ainda viesse a caminho. */
@@ -197,28 +198,28 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
 
       {value && !replacing ? (
         <View style={st.card} accessibilityLabel={placeA11y(value)}>
-          <PlaceMiniMap lat={value.lat} lng={value.lng} label={`Mapa com o pino em ${placeTitle(value)}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} />
+          <PlaceMiniMap lat={value.lat} lng={value.lng} label={t('Mapa com o pino em {placeTitle}', { placeTitle: placeTitle(value) })} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} />
           <View style={st.cardBody}>
             <View style={st.pinIcon}><Icon name="map-pin" size={18} color={colors.brand} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={st.title} numberOfLines={2}>{placeTitle(value)}</Text>
               <Text style={st.sub} numberOfLines={2} accessibilityLiveRegion="polite">
-                {reversing ? 'A procurar a morada…' : subtitle || (value.name || value.address ? '' : 'Sem morada: corrige à mão se quiseres.')}
+                {reversing ? t('A procurar a morada…') : subtitle || (value.name || value.address ? '' : t('Sem morada: corrige à mão se quiseres.'))}
               </Text>
             </View>
-            <Pressable onPress={() => { setReplacing(true); setTimeout(() => input.current?.focus(), 50); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Procurar outro sítio">
-              <Text style={st.link}>Mudar</Text>
+            <Pressable onPress={() => { setReplacing(true); setTimeout(() => input.current?.focus(), 50); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Procurar outro sítio')}>
+              <Text style={st.link}>{t('Mudar')}</Text>
             </Pressable>
           </View>
           <View style={st.actions}>
-            <Pill label="Ajustar no mapa" icon="map" kind="soft" small onPress={() => openMap(value.name)} />
-            <Pill label={locating === 'busy' ? 'A procurar…' : 'Usar a minha localização'} icon="locate" kind="soft" small busy={locating === 'busy'} onPress={() => void mine()} />
-            <Pill label={editing ? 'Fechar a morada' : 'Corrigir a morada'} icon="pencil" kind="ghost" small onPress={() => setEditing((e) => !e)} />
+            <Pill label={t('Ajustar no mapa')} icon="map" kind="soft" small onPress={() => openMap(value.name)} />
+            <Pill label={locating === 'busy' ? t('A procurar…') : t('Usar a minha localização')} icon="locate" kind="soft" small busy={locating === 'busy'} onPress={() => void mine()} />
+            <Pill label={editing ? t('Fechar a morada') : t('Corrigir a morada')} icon="pencil" kind="ghost" small onPress={() => setEditing((e) => !e)} />
           </View>
           {editing ? (
             <View style={{ gap: 8, paddingHorizontal: 12, paddingBottom: 12 }}>
-              <Field value={value.address ?? ''} onChangeText={(t) => edit({ address: t || null })} maxLength={ADDRESS_MAX} placeholder="Morada (rua, número, bairro)" accessibilityLabel="Morada" />
-              <Field value={value.city ?? ''} onChangeText={(t) => edit({ city: t || null })} maxLength={CITY_MAX} placeholder="Cidade" accessibilityLabel="Cidade" />
+              <Field value={value.address ?? ''} onChangeText={(t) => edit({ address: t || null })} maxLength={ADDRESS_MAX} placeholder={t('Morada (rua, número, bairro)')} accessibilityLabel={t('Morada')} />
+              <Field value={value.city ?? ''} onChangeText={(t) => edit({ city: t || null })} maxLength={CITY_MAX} placeholder={t('Cidade')} accessibilityLabel={t('Cidade')} />
             </View>
           ) : null}
         </View>
@@ -238,29 +239,29 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
               onSubmitEditing={() => { const t = searchQuery(text); if (t) { deb.cancel(); setDebounced(t); } }}
               placeholder={placeholder}
               placeholderTextColor={colors.zinc500}
-              accessibilityLabel={label ? `${label}: procurar o sítio` : 'Procurar o sítio'}
-              accessibilityHint="Escreve o nome ou a morada e escolhe uma sugestão"
+              accessibilityLabel={label ? t('{label}: procurar o sítio', { label }) : t('Procurar o sítio')}
+              accessibilityHint={t('Escreve o nome ou a morada e escolhe uma sugestão')}
               style={st.search}
             />
             {text ? (
-              <Pressable onPress={() => onText('')} style={st.clear} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+              <Pressable onPress={() => onText('')} style={st.clear} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
             ) : null}
           </View>
 
           <View accessibilityLiveRegion="polite" style={{ gap: 2 }}>
             {status === 'waiting' || status === 'loading' ? (
-              <View style={st.stateRow}><ActivityIndicator /><Text style={st.stateText}>A procurar…</Text></View>
+              <View style={st.stateRow}><ActivityIndicator /><Text style={st.stateText}>{t('A procurar…')}</Text></View>
             ) : null}
             {status === 'error' ? (
               <View style={st.stateRow}>
-                <Text style={[st.stateText, { flex: 1 }]}>Não consegui procurar agora.</Text>
-                <Pressable onPress={() => void found.refetch()} hitSlop={8} accessibilityRole="button"><Text style={st.link}>Tentar outra vez</Text></Pressable>
+                <Text style={[st.stateText, { flex: 1 }]}>{t('Não consegui procurar agora.')}</Text>
+                <Pressable onPress={() => void found.refetch()} hitSlop={8} accessibilityRole="button"><Text style={st.link}>{t('Tentar outra vez')}</Text></Pressable>
               </View>
             ) : null}
             {status === 'empty' ? (
               <View style={st.stateRow}>
-                <Text style={[st.stateText, { flex: 1 }]}>Não encontrei. Marca no mapa.</Text>
-                <Pressable onPress={() => openMap(searchQuery(text))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Marcar no mapa"><Text style={st.link}>Marcar no mapa</Text></Pressable>
+                <Text style={[st.stateText, { flex: 1 }]}>{t('Não encontrei. Marca no mapa.')}</Text>
+                <Pressable onPress={() => openMap(searchQuery(text))} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Marcar no mapa')}><Text style={st.link}>{t('Marcar no mapa')}</Text></Pressable>
               </View>
             ) : null}
             {status === 'results'
@@ -286,9 +287,9 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
           </View>
 
           <View style={st.actionsBare}>
-            <Pill label="Marcar no mapa" icon="map-pin" kind="soft" small onPress={() => openMap(searchQuery(text) || null)} />
-            <Pill label={locating === 'busy' ? 'A procurar…' : 'Usar a minha localização'} icon="locate" kind="soft" small busy={locating === 'busy'} onPress={() => void mine()} />
-            {value && replacing ? <Pill label="Cancelar" kind="ghost" small onPress={() => { setReplacing(false); onText(''); }} /> : null}
+            <Pill label={t('Marcar no mapa')} icon="map-pin" kind="soft" small onPress={() => openMap(searchQuery(text) || null)} />
+            <Pill label={locating === 'busy' ? t('A procurar…') : t('Usar a minha localização')} icon="locate" kind="soft" small busy={locating === 'busy'} onPress={() => void mine()} />
+            {value && replacing ? <Pill label={t('Cancelar')} kind="ghost" small onPress={() => { setReplacing(false); onText(''); }} /> : null}
           </View>
         </View>
       ) : null}
@@ -297,10 +298,10 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
         <View style={st.explain}>
           <Icon name="locate" size={18} color={colors.zinc700} />
           <View style={{ flex: 1, gap: 8 }}>
-            <Text style={st.explainText}>Para pôr o pino onde estás agora, o Txillapp vai pedir a localização do aparelho. Só a usa para marcar este sítio: o ponto passa a ser o do local, que é público se o local estiver no mapa.</Text>
+            <Text style={st.explainText}>{t('Para pôr o pino onde estás agora, o Txillapp vai pedir a localização do aparelho. Só a usa para marcar este sítio: o ponto passa a ser o do local, que é público se o local estiver no mapa.')}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pill label="Continuar" small onPress={() => void mine(true)} />
-              <Pill label="Agora não" kind="ghost" small onPress={() => setLocating(null)} />
+              <Pill label={t('Continuar')} small onPress={() => void mine(true)} />
+              <Pill label={t('Agora não')} kind="ghost" small onPress={() => setLocating(null)} />
             </View>
           </View>
         </View>
@@ -352,12 +353,12 @@ function AdjustSheet({ initial, note, onPick, onClose }: { initial: LatLng | nul
   }
 
   return (
-    <Sheet title="Marcar no mapa" onClose={onClose} full>
+    <Sheet title={t('Marcar no mapa')} onClose={onClose} full>
       {/* Sem ScrollView: o mapa apanha os gestos todos. */}
       <View style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
-        <Text style={st.hintText}>{note ?? 'Arrasta o mapa até o alfinete ficar na porta do sítio.'}</Text>
-        {center ? <MapBox center={center} onMove={setPoint} /> : <View style={[st.bigMap, st.mapWait]}><Text style={st.stateText}>A abrir o mapa…</Text></View>}
-        <Pill label="Usar este sítio" onPress={use} disabled={!point} />
+        <Text style={st.hintText}>{note ?? t('Arrasta o mapa até o alfinete ficar na porta do sítio.')}</Text>
+        {center ? <MapBox center={center} onMove={setPoint} /> : <View style={[st.bigMap, st.mapWait]}><Text style={st.stateText}>{t('A abrir o mapa…')}</Text></View>}
+        <Pill label={t('Usar este sítio')} onPress={use} disabled={!point} />
       </View>
     </Sheet>
   );
@@ -376,7 +377,7 @@ function MapBox({ center, onMove }: { center: LatLng; onMove: (c: LatLng) => voi
       onTouchEnd={free}
       onTouchCancel={free}
       accessible={Platform.OS !== 'web'}
-      accessibilityLabel="Mapa para marcar o sítio. Arrasta o mapa para mover o alfinete."
+      accessibilityLabel={t('Mapa para marcar o sítio. Arrasta o mapa para mover o alfinete.')}
     >
       <PlacePickMap center={c} onMove={onMove} zone={false} zoom={16} style={{ flex: 1 }} />
     </View>

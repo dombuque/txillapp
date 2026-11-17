@@ -2,6 +2,7 @@ import type { VideoPlayer } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { clamp01, clock, seekRatio, seekTime } from '@/lib/reelView';
+import { t } from '@/lib/i18n';
 
 /**
  * A barra de progresso fina de baixo (como no TikTok). Ao segurar nela engrossa, mostra o tempo («0:07 / 0:15») e, ao
@@ -98,7 +99,7 @@ export function SeekBar({ player, bottom, onScrub }: { player: VideoPlayer; bott
         onLayout={(e) => { width.current = e.nativeEvent.layout.width; }}
         style={[st.hit, { bottom: Math.max(0, bottom - 12) }]}
         accessibilityRole="adjustable"
-        accessibilityLabel="Progresso da tcheka (arrasta para avançar ou recuar)"
+        accessibilityLabel={t('Progresso da tcheka (arrasta para avançar ou recuar)')}
       >
         <View pointerEvents="none" style={[st.track, { marginBottom: Math.min(12, bottom), height: scrub ? 6 : 3, borderRadius: scrub ? 3 : 0 }]}>
           <Animated.View style={{ height: '100%', backgroundColor: '#fff', width: fill }} />

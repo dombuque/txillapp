@@ -8,6 +8,7 @@ import { colors } from '@/lib/theme';
 import { Icon, type IconName } from '../Icon';
 import { ActivityIndicator } from '../PontoLoader';
 import { Sheet } from '../Sheet';
+import { t } from '@/lib/i18n';
 
 type Api = typeof mixarControloApi;
 
@@ -25,20 +26,20 @@ export function MixarItemMenu({ item, onLess, onOff, onClose, send }: {
   /** «Mandar» para o chat da outra pessoa (`done`: já foi). */
   send?: { partner: string; done: boolean; onPress: () => void };
 }) {
-  const t = item.topic;
+  const tv = item.topic;
   return (
-    <Sheet title="Neste Mixar" onClose={onClose} variant="menu">
+    <Sheet title={t('Neste Mixar')} onClose={onClose} variant="menu">
       <View style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
         {send ? (
           <MenuRow
             icon={send.done ? 'check' : 'send'}
-            title={send.done ? `Enviado a ${send.partner}` : `Enviar a ${send.partner}`}
-            line={send.done ? 'Já está na vossa conversa.' : 'Vai para a vossa conversa, como qualquer publicação partilhada.'}
+            title={send.done ? t('Enviado a {partner}', { partner: send.partner }) : t('Enviar a {partner}', { partner: send.partner })}
+            line={send.done ? t('Já está na vossa conversa.') : t('Vai para a vossa conversa, como qualquer publicação partilhada.')}
             onPress={() => { onClose(); if (!send.done) send.onPress(); }}
           />
         ) : null}
-        <MenuRow icon="sliders" title="Menos disto" line={`Menos ${t ? `de ${t.label} e ` : ''}de @${item.post.author.username} neste Mixar`} onPress={() => { onClose(); onLess(); }} />
-        {t ? <MenuRow icon="eye-off" title={offActionText(t.label)} line="Sai do vosso feed a dois. Podes voltar a pôr nos temas do Mixar." onPress={() => { onClose(); onOff(t.topic); }} /> : null}
+        <MenuRow icon="sliders" title={t('Menos disto')} line={t('Menos {value}de @{username} neste Mixar', { value: tv ? (t('de {label} e', { label: tv.label }) + ' ') : '', username: item.post.author.username })} onPress={() => { onClose(); onLess(); }} />
+        {tv ? <MenuRow icon="eye-off" title={offActionText(tv.label)} line={t('Sai do vosso feed a dois. Podes voltar a pôr nos temas do Mixar.')} onPress={() => { onClose(); onOff(tv.topic); }} /> : null}
       </View>
     </Sheet>
   );
@@ -78,7 +79,7 @@ export function MixarTopicsSheet({ mixar, partner, api, onClose, onPrivate }: { 
       // O feed de hoje e o cabeçalho (match, temas) mudam logo.
       void qc.invalidateQueries({ queryKey: ['mixar', mixar.id] });
     } catch {
-      setErr('Não consegui mudar agora. Tenta outra vez.');
+      setErr(t('Não consegui mudar agora. Tenta outra vez.'));
     } finally {
       setBusy(null);
     }
@@ -87,21 +88,21 @@ export function MixarTopicsSheet({ mixar, partner, api, onClose, onPrivate }: { 
   const ofMixar = s.rest.filter((r) => r.line);
   const others = s.rest.filter((r) => !r.line);
   return (
-    <Sheet title="Temas do Mixar" onClose={onClose}>
+    <Sheet title={t('Temas do Mixar')} onClose={onClose}>
       <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={st.intro}>Só vale para este Mixar com {partner}. O teu feed normal não muda.</Text>
+        <Text style={st.intro}>{t('Só vale para este Mixar com {partner}. O teu feed normal não muda.', { partner })}</Text>
         {q.isPending ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-        {q.isError ? <Text style={st.empty}>Não consegui abrir os temas. Tenta outra vez daqui a pouco.</Text> : null}
+        {q.isError ? <Text style={st.empty}>{t('Não consegui abrir os temas. Tenta outra vez daqui a pouco.')}</Text> : null}
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
         {q.data ? (
           <>
-            <Block title="Tirados do vosso Mixar" rows={s.off} empty="Nada tirado. Tira um tema e deixa de aparecer aos dois." busy={busy} onPress={change} />
-            {s.less.length ? <Block title="Com menos" rows={s.less} busy={busy} onPress={change} /> : null}
-            {q.data.lessAuthors > 0 ? <Text style={st.note}>Pediste menos de {q.data.lessAuthors === 1 ? '1 pessoa' : `${q.data.lessAuthors} pessoas`} neste Mixar.</Text> : null}
-            <Block title="Neste Mixar" rows={ofMixar} empty="Ainda a descobrir os vossos temas." busy={busy} onPress={change} />
-            {all ? <Block title="Outros temas" rows={others} busy={busy} onPress={change} /> : (
+            <Block title={t('Tirados do vosso Mixar')} rows={s.off} empty={t('Nada tirado. Tira um tema e deixa de aparecer aos dois.')} busy={busy} onPress={change} />
+            {s.less.length ? <Block title={t('Com menos')} rows={s.less} busy={busy} onPress={change} /> : null}
+            {q.data.lessAuthors > 0 ? <Text style={st.note}>{t('Pediste menos de')} {t('{count} pessoa', { count: q.data.lessAuthors, other: '{count} pessoas' })} {t('neste Mixar.')}</Text> : null}
+            <Block title={t('Neste Mixar')} rows={ofMixar} empty={t('Ainda a descobrir os vossos temas.')} busy={busy} onPress={change} />
+            {all ? <Block title={t('Outros temas')} rows={others} busy={busy} onPress={change} /> : (
               <Pressable onPress={() => setAll(true)} style={({ pressed }) => [st.more, pressed && { opacity: 0.6 }]} accessibilityRole="button">
-                <Text style={st.moreText}>Ver todos os temas</Text>
+                <Text style={st.moreText}>{t('Ver todos os temas')}</Text>
                 <Icon name="chevron-right" size={16} color={colors.brand} />
               </Pressable>
             )}
@@ -110,8 +111,8 @@ export function MixarTopicsSheet({ mixar, partner, api, onClose, onPrivate }: { 
         <Pressable onPress={onPrivate} style={({ pressed }) => [st.private, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <View style={st.menuIcon}><Icon name="lock" size={18} color={colors.zinc800} /></View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.menuTitle}>Temas privados</Text>
-            <Text style={st.menuLine}>Temas que nunca aparecem nos teus Mixar nem nos temas em comum.</Text>
+            <Text style={st.menuTitle}>{t('Temas privados')}</Text>
+            <Text style={st.menuLine}>{t('Temas que nunca aparecem nos teus Mixar nem nos temas em comum.')}</Text>
           </View>
           <Icon name="chevron-right" size={18} color="#a1a1aa" />
         </Pressable>

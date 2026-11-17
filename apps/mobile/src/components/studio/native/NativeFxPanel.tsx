@@ -10,10 +10,11 @@ import { Icon, type IconName } from '../../Icon';
 import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from '../FxUi';
 import { NativeFilterStrip } from './NativeFilterStrip';
 import type { FxClip, FxTarget, ReverseState } from '../FxPanel';
+import { t } from '@/lib/i18n';
 
 
 type Sub = 'filtros' | 'ajustes' | 'transicoes' | 'tempo';
-const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transição' }, { id: 'tempo', label: 'Tempo' }];
+const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', get label() { return t('Filtros'); } }, { id: 'ajustes', get label() { return t('Ajustes'); } }, { id: 'transicoes', get label() { return t('Transição'); } }, { id: 'tempo', get label() { return t('Tempo'); } }];
 const ADJ_ICON: Record<AdjustKey, IconName> = { brightness: 'sun', contrast: 'moon', saturation: 'water', temperature: 'flame', hue: 'sparkles', sharpen: 'bolt', vignette: 'eye', grain: 'grid' };
 const TR_GLYPH: Partial<Record<TransitionId, string>> = {
   corte: '✂', fundido: '◐', 'deslizar-esquerda': '←', 'deslizar-direita': '→', 'deslizar-cima': '↑', 'deslizar-baixo': '↓',
@@ -42,7 +43,7 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
   const [adj, setAdj] = useState<AdjustKey>('brightness');
   const cur = clips[sel] ?? clips[0];
   const i = clips[sel] ? sel : 0;
-  if (!cur) return <Text style={ui.note}>Junta fotos ou vídeos para pôr efeitos.</Text>;
+  if (!cur) return <Text style={ui.note}>{t('Junta fotos ou vídeos para pôr efeitos.')}</Text>;
   const fxNow = cur.fx;
   const filt = filterById(fxNow?.filter?.id) ?? filterById('normal')!;
   const amount = fxNow?.filter?.amount ?? 1;
@@ -61,10 +62,10 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 6 }}>
             <Text style={{ flex: 1, color: fxc.muted, fontSize: 14 }} numberOfLines={2}><Text style={{ color: '#fff', fontWeight: '800' }}>{filt.name}</Text> · {filt.mood}</Text>
-            {clips.length > 1 ? <FxAction label="A todos" icon={<Icon name="images" size={14} color="#fff" />} onPress={() => put('all', (f) => ({ ...f, filter: filt.id === 'normal' ? undefined : { id: filt.id, amount } }))} a11y={`Aplicar o filtro ${filt.name} a todos os clipes`} /> : null}
+            {clips.length > 1 ? <FxAction label={t('A todos')} icon={<Icon name="images" size={14} color="#fff" />} onPress={() => put('all', (f) => ({ ...f, filter: filt.id === 'normal' ? undefined : { id: filt.id, amount } }))} a11y={t('Aplicar o filtro {name} a todos os clipes', { name: filt.name })} /> : null}
           </View>
           {filt.id !== 'normal' ? (
-            <FxSlider label="Intensidade" value={Math.round(amount * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => put(i, (f) => ({ ...f, filter: { id: filt.id, amount: v / 100 } }))} />
+            <FxSlider label={t('Intensidade')} value={Math.round(amount * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => put(i, (f) => ({ ...f, filter: { id: filt.id, amount: v / 100 } }))} />
           ) : null}
         </>
       ) : null}
@@ -90,39 +91,39 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
               onChange={(v) => put(i, (f) => ({ ...f, adjust: { ...f.adjust, [a.id]: v / 100 } }))} />
           ))}
           <FxRow wrap>
-            <FxAction label="Repor" icon={<Icon name="undo" size={14} color="#fff" />} onPress={() => put(i, (f) => ({ ...f, adjust: undefined }))} disabled={!fxNow?.adjust} a11y="Repor os ajustes deste clipe" />
-            <FxAction label="Aplicar a todos" icon={<Icon name="images" size={14} color="#fff" />} onPress={() => { const a = fxNow?.adjust; put('all', (f) => ({ ...f, adjust: a ? { ...a } : undefined })); }} a11y="Aplicar estes ajustes a todos os clipes" />
+            <FxAction label={t('Repor')} icon={<Icon name="undo" size={14} color="#fff" />} onPress={() => put(i, (f) => ({ ...f, adjust: undefined }))} disabled={!fxNow?.adjust} a11y={t('Repor os ajustes deste clipe')} />
+            <FxAction label={t('Aplicar a todos')} icon={<Icon name="images" size={14} color="#fff" />} onPress={() => { const a = fxNow?.adjust; put('all', (f) => ({ ...f, adjust: a ? { ...a } : undefined })); }} a11y={t('Aplicar estes ajustes a todos os clipes')} />
           </FxRow>
         </>
       ) : null}
 
       {sub === 'transicoes' ? (
         i === 0 ? (
-          <Text style={[ui.note, { marginTop: 12 }]}>A transição é a entrada de um clipe. Escolhe o clipe 2 ou outro a seguir.</Text>
+          <Text style={[ui.note, { marginTop: 12 }]}>{t('A transição é a entrada de um clipe. Escolhe o clipe 2 ou outro a seguir.')}</Text>
         ) : (
           <>
-            <Text style={[ui.note, { color: fxc.muted }]}>Do clipe {i} para o {i + 1}</Text>
+            <Text style={[ui.note, { color: fxc.muted }]}>{t('Do clipe {i} para o {n}', { i, n: i + 1 })}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6 }}>
-              {TRANSITIONS.filter((t) => !t.id.startsWith('capulana-')).map((t) => {
+              {TRANSITIONS.filter((t) => !t.id.startsWith('capulana-')).map((transitionDef) => {
                 const now = fxNow?.transition ?? DEFAULT_TRANSITION;
-                const on = now.type === t.id;
+                const on = now.type === transitionDef.id;
                 return (
-                  <Pressable key={t.id} onPress={() => { put(i, (f) => ({ ...f, transition: { type: t.id, dur: (f.transition ?? DEFAULT_TRANSITION).dur } })); if (t.id !== 'corte') onPreviewJunction(i); }}
+                  <Pressable key={transitionDef.id} onPress={() => { put(i, (f) => ({ ...f, transition: { type: transitionDef.id, dur: (f.transition ?? DEFAULT_TRANSITION).dur } })); if (transitionDef.id !== 'corte') onPreviewJunction(i); }}
                     style={({ pressed }) => [{ width: 66, height: 66, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object), pressed && { transform: [{ scale: 0.95 }] }]}
-                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Transição ${t.id.startsWith('deslizar') ? `deslizar: ${t.name}` : t.name}`}>
-                    <Text style={{ color: on ? '#fff' : 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: '700' }}>{TR_GLYPH[t.id]}</Text>
-                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{t.name}</Text>
+                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Transição {value}', { value: transitionDef.id.startsWith('deslizar') ? t('deslizar: {name}', { name: transitionDef.name }) : transitionDef.name })}>
+                    <Text style={{ color: on ? '#fff' : 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: '700' }}>{TR_GLYPH[transitionDef.id]}</Text>
+                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{transitionDef.name}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
             {(fxNow?.transition ?? DEFAULT_TRANSITION).type !== 'corte' ? (
-              <FxSlider label="Duração" value={(fxNow?.transition ?? DEFAULT_TRANSITION).dur} min={TRANSITION_MIN_S} max={TRANSITION_MAX_S} step={0.05} format={(v) => `${fmtS(v)} s`}
+              <FxSlider label={t('Duração')} value={(fxNow?.transition ?? DEFAULT_TRANSITION).dur} min={TRANSITION_MIN_S} max={TRANSITION_MAX_S} step={0.05} format={(v) => `${fmtS(v)} s`}
                 onChange={(v) => put(i, (f) => ({ ...f, transition: { type: (f.transition ?? DEFAULT_TRANSITION).type, dur: v } }))} onCommit={() => onPreviewJunction(i)} />
             ) : null}
             <FxRow wrap>
-              <FxAction label="Ver" icon={<Icon name="play" size={13} color="#fff" solid />} onPress={() => onPreviewJunction(i)} a11y="Ver a transição" />
-              <FxAction label="Aplicar a todas" icon={<Icon name="images" size={14} color="#fff" />} onPress={() => { const t = fxNow?.transition ?? DEFAULT_TRANSITION; put('all', (f) => ({ ...f, transition: { ...t } })); }} a11y="Aplicar esta transição a todas as junções" />
+              <FxAction label={t('Ver')} icon={<Icon name="play" size={13} color="#fff" solid />} onPress={() => onPreviewJunction(i)} a11y={t('Ver a transição')} />
+              <FxAction label={t('Aplicar a todas')} icon={<Icon name="images" size={14} color="#fff" />} onPress={() => { const t = fxNow?.transition ?? DEFAULT_TRANSITION; put('all', (f) => ({ ...f, transition: { ...t } })); }} a11y={t('Aplicar esta transição a todas as junções')} />
             </FxRow>
           </>
         )
@@ -130,13 +131,13 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
 
       {sub === 'tempo' ? (
         !cur.video ? (
-          <Text style={[ui.note, { marginTop: 12 }]}>{fxNow?.freeze ? 'Esta foto é um frame congelado: fica parada no ecrã.' : 'As rampas, inverter e congelar são para vídeos. Escolhe um clipe de vídeo.'}</Text>
+          <Text style={[ui.note, { marginTop: 12 }]}>{fxNow?.freeze ? t('Esta foto é um frame congelado: fica parada no ecrã.') : t('As rampas, inverter e congelar são para vídeos. Escolhe um clipe de vídeo.')}</Text>
         ) : (
           <>
-            <FxRow label="Rampa de velocidade">
-              <FxChip on={!fxNow?.ramp} label="Nenhuma" onPress={() => put(i, (f) => ({ ...f, ramp: undefined }), true)} />
+            <FxRow label={t('Rampa de velocidade')}>
+              <FxChip on={!fxNow?.ramp} label={t('Nenhuma')} onPress={() => put(i, (f) => ({ ...f, ramp: undefined }), true)} />
               {RAMPS.map((r) => (
-                <Pressable key={r.id} onPress={() => put(i, (f) => ({ ...f, ramp: r.id as RampId }), true)} style={[{ height: 50, minWidth: 84, borderRadius: 14, paddingHorizontal: 10, justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, fxNow?.ramp === r.id && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: fxNow?.ramp === r.id }} accessibilityLabel={`Rampa ${r.name}: ${r.mood}`}>
+                <Pressable key={r.id} onPress={() => put(i, (f) => ({ ...f, ramp: r.id as RampId }), true)} style={[{ height: 50, minWidth: 84, borderRadius: 14, paddingHorizontal: 10, justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, fxNow?.ramp === r.id && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: fxNow?.ramp === r.id }} accessibilityLabel={t('Rampa {name}: {mood}', { name: r.name, mood: r.mood })}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 16 }}>
                     {Array.from({ length: 14 }, (_, k) => (
                       <View key={k} style={{ width: 3, borderRadius: 2, height: Math.max(3, (rampSpeedAt(r.points, (k + 0.5) / 14) / Math.max(...r.points.map((p) => p[1]))) * 16), backgroundColor: fxNow?.ramp === r.id ? fxc.coralHot : 'rgba(255,255,255,0.55)' }} />
@@ -146,12 +147,12 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
                 </Pressable>
               ))}
             </FxRow>
-            {fxNow?.ramp ? <Text style={ui.note}>{RAMPS.find((r) => r.id === fxNow.ramp)?.mood} · fica com {fmtS(cur.dur)} s</Text> : null}
+            {fxNow?.ramp ? <Text style={ui.note}>{RAMPS.find((r) => r.id === fxNow.ramp)?.mood} {t('· fica com {s} s', { s: fmtS(cur.dur) })}</Text> : null}
             <ReverseRow cur={cur} state={reverseOf(cur.key)} onToggle={() => put(i, (f) => ({ ...f, reverse: f.reverse ? undefined : true }), true)} />
             <FxRow wrap>
-              <FxAction label={freezing ? 'A congelar…' : 'Congelar este frame'} icon={<Icon name="snowflake" size={14} color="#fff" />} onPress={onFreeze} disabled={freezing} tone="coral" a11y="Congelar o frame que está na pré-visualização: junta uma foto desse instante" />
+              <FxAction label={freezing ? t('A congelar…') : t('Congelar este frame')} icon={<Icon name="snowflake" size={14} color="#fff" />} onPress={onFreeze} disabled={freezing} tone="coral" a11y={t('Congelar o frame que está na pré-visualização: junta uma foto desse instante')} />
             </FxRow>
-            <Text style={ui.note}>Congelar divide o clipe no ponto onde está a pré-visualização e põe lá uma foto parada desse frame.</Text>
+            <Text style={ui.note}>{t('Congelar divide o clipe no ponto onde está a pré-visualização e põe lá uma foto parada desse frame.')}</Text>
           </>
         )
       ) : null}
@@ -164,13 +165,13 @@ function ReverseRow({ cur, state, onToggle }: { cur: FxClip; state: ReverseState
   const tooLong = cur.trimLen > REVERSE_MAX_S + 1e-6;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginTop: 10 }}>
-      <FxChip on={on} label={on ? 'Ao contrário' : 'Inverter'} icon={<Icon name="repeat" size={14} color={on ? '#fff' : 'rgba(255,255,255,0.75)'} />} onPress={onToggle} disabled={!on && tooLong} a11y={on ? 'Desligar o vídeo ao contrário' : 'Pôr o vídeo ao contrário'} />
+      <FxChip on={on} label={on ? t('Ao contrário') : t('Inverter')} icon={<Icon name="repeat" size={14} color={on ? '#fff' : 'rgba(255,255,255,0.75)'} />} onPress={onToggle} disabled={!on && tooLong} a11y={on ? t('Desligar o vídeo ao contrário') : t('Pôr o vídeo ao contrário')} />
       <Text style={{ color: fxc.faint, fontSize: 14, flex: 1 }} numberOfLines={2}>
-        {tooLong && !on ? `Para inverter, corta o clipe até ${REVERSE_MAX_S} s.`
-          : !on ? 'O vídeo toca do fim para o início.'
-            : state.status === 'working' ? `A preparar o inverso… ${Math.round(state.progress * 100)}%`
-              : state.status === 'error' ? 'Não consegui inverter este vídeo.'
-                : 'O som original deste clipe fica calado.'}
+        {tooLong && !on ? t('Para inverter, corta o clipe até {reverseMaxS} s.', { reverseMaxS: REVERSE_MAX_S })
+          : !on ? t('O vídeo toca do fim para o início.')
+            : state.status === 'working' ? t('A preparar o inverso… {n}%', { n: Math.round(state.progress * 100) })
+              : state.status === 'error' ? t('Não consegui inverter este vídeo.')
+                : t('O som original deste clipe fica calado.')}
       </Text>
     </View>
   );

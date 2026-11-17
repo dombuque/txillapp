@@ -3,7 +3,9 @@ import { Linking, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { LEAFLET_CSS } from './leafletCss';
 import { LEAFLET_JS, RUNTIME_JS } from './leafletInline';
+import { mapLabels } from './mapLabels';
 import type { NearbyMapProps } from './types';
+import { currentLanguage, t } from '@/lib/i18n';
 
 // O tipo do WebView 14 com P = undefined dá props "never" no TS estrito: fixa-se P = {}.
 const WV = WebView<{}>;
@@ -20,15 +22,15 @@ html,body,#m{margin:0;padding:0;height:100%;width:100%;background:#f2efe9;-webki
 <script>${noClose(RUNTIME_JS)}
 (function(){
   function post(o){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o)); }
-  var h = createNearbyMap(L, document.getElementById('m'), function(id){ post({ type: 'press', id: id }); }, { zoomControl: ${zoomControl ? 'true' : 'false'} });
+  var h = createNearbyMap(L, document.getElementById('m'), function(id){ post({ type: 'press', id: id }); }, { zoomControl: ${zoomControl ? 'true' : 'false'}, labels: ${noClose(JSON.stringify(mapLabels()))} });
   var first = true;
   window.txUpdate = function(s){ try { h.update(s); if (first) { first = false; setTimeout(function(){ h.resize(); }, 60); } } catch (e) { post({ type: 'error', message: String(e) }); } };
   window.addEventListener('resize', function(){ h.resize(); });
   post({ type: 'ready' });
 })();
 </script></body></html>`;
-const PAGES: Partial<Record<'z' | 'n', string>> = {};
-const page = (z: boolean) => (PAGES[z ? 'z' : 'n'] ??= html(z));
+const PAGES: Record<string, string> = {};
+const page = (z: boolean) => (PAGES[`${currentLanguage()}:${z ? 'z' : 'n'}`] ??= html(z));
 
 /** Mapa do "À tua volta" na app: uma WebView com o mesmo mapa do site (sem chaves pagas nem SDK de mapas). */
 export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, showMe = true, coverBottom = 0, style }: NearbyMapProps) {
@@ -54,7 +56,7 @@ export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId
   };
 
   return (
-    <View style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel="Mapa do que há à tua volta">
+    <View style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel={t('Mapa do que há à tua volta')}>
       <WV
         ref={web}
         source={{ html: page(zoomControl) }}

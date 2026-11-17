@@ -42,6 +42,7 @@ import { GeleiraMini } from './GeleiraPostCard';
 import { GeladaCard } from './gelada/GeladaCard';
 import { RoundCard } from './gelada/RoundCard';
 import { MixarCard } from './mixar/MixarCard';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
 export type MenuAt = { x: number; y: number };
@@ -76,10 +77,10 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma', rodada: 'Rodada', mixar: 'Mixar' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', get voice() { return t('Mensagem de voz'); }, get sticker() { return t('Sticker'); }, gif: 'GIF', get post() { return t('Publicação'); }, get location() { return t('Localização'); }, get gift() { return t('Presente'); }, get poll() { return t('Sondagem'); }, gelada: 'Paga-me uma', get rodada() { return t('Rodada'); }, mixar: 'Mixar' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
-export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
-export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? t('Mensagem'));
+export const clock = (iso: string) => new Date(iso).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 export const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString();
 export function dayLabel(iso: string) {
@@ -87,23 +88,23 @@ export function dayLabel(iso: string) {
   const now = new Date();
   const yest = new Date();
   yest.setDate(now.getDate() - 1);
-  if (d.toDateString() === now.toDateString()) return 'Hoje';
-  if (d.toDateString() === yest.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  if (d.toDateString() === now.toDateString()) return t('Hoje');
+  if (d.toDateString() === yest.toDateString()) return t('Ontem');
+  return d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 }
 /** "Visto há 5 min", "Visto hoje às 14:20", "Visto ontem", "Visto a 3 de out". */
 export function seenLabel(iso: string | null) {
   if (!iso) return null;
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'Visto agora mesmo';
-  if (mins < 60) return `Visto há ${mins} min`;
+  if (mins < 1) return t('Visto agora mesmo');
+  if (mins < 60) return t('Visto há {mins} min', { mins });
   const d = new Date(iso);
   const now = new Date();
   const yest = new Date();
   yest.setDate(now.getDate() - 1);
-  if (d.toDateString() === now.toDateString()) return `Visto hoje às ${clock(iso)}`;
-  if (d.toDateString() === yest.toDateString()) return 'Visto ontem';
-  return `Visto a ${d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}`;
+  if (d.toDateString() === now.toDateString()) return t('Visto hoje às {clock}', { clock: clock(iso) });
+  if (d.toDateString() === yest.toDateString()) return t('Visto ontem');
+  return t('Visto a {date}', { date: d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short' }) });
 }
 
 // ----- mapa -----
@@ -179,11 +180,11 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
   const rest = mine ? 'rgba(255,255,255,0.35)' : colors.zinc300;
   return (
     <View style={[st.voice, mine ? { backgroundColor: colors.brand } : OTHER_SURFACE, dim && { opacity: 0.7 }]}>
-      <Pressable {...hold} onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Ouvir mensagem de voz'}>
+      <Pressable {...hold} onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? t('Pausar') : t('Ouvir mensagem de voz')}>
         <Icon name={playing ? 'pause' : 'play'} size={19} solid color={mine ? colors.brand : '#fff'} />
       </Pressable>
       <View style={st.voiceMain}>
-        <Pressable {...hold} onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel="Posição da mensagem de voz">
+        <Pressable {...hold} onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel={t('Posição da mensagem de voz')}>
           {heights.map((h, i) => (
             <View key={i} pointerEvents="none" style={{ width: BAR_W, height: `${Math.round(h * 100)}%`, borderRadius: 999, backgroundColor: (i + 0.5) / bars <= frac ? played : rest }} />
           ))}
@@ -201,7 +202,7 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
               hitSlop={8}
               style={[st.voiceSpeed, { backgroundColor: mine ? 'rgba(255,255,255,0.25)' : colors.zinc200 }]}
               accessibilityRole="button"
-              accessibilityLabel={`Velocidade ${speedLabel(speed)}`}
+              accessibilityLabel={t('Velocidade {speedLabel}', { speedLabel: speedLabel(speed) })}
             >
               <Text style={[st.voiceSpeedText, { color: mine ? '#fff' : colors.zinc700 }]}>{speedLabel(speed)}</Text>
             </Pressable>
@@ -226,7 +227,7 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
     return (
       <View style={[st.shared, tone, radius, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, opacity: 0.8 }]}>
         <Icon name="lock" size={16} color={ink} />
-        <Text style={{ fontSize: 14, color: ink }}>Publicação indisponível</Text>
+        <Text style={{ fontSize: 14, color: ink }}>{t('Publicação indisponível')}</Text>
       </View>
     );
   }
@@ -242,7 +243,7 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
     <Pressable {...hold} onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
         <Icon name={tcheka ? 'film' : shown.geleira ? 'snowflake' : 'image'} size={14} color={ink} />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{tcheka ? 'TCHEKA' : shown.geleira ? 'Geleira' : 'Publicação'} de {shown.author.displayName}</Text>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{tcheka ? 'TCHEKA' : shown.geleira ? 'Geleira' : t('Publicação')} {t('de {displayName}', { displayName: shown.author.displayName })}</Text>
       </View>
       {!thumb && shown.geleira ? (
         <View style={{ marginTop: 8 }}><GeleiraMini geleira={shown.geleira} name={shown.author.displayName} /></View>
@@ -271,11 +272,11 @@ export function MediaFull({ url, video, onClose }: { url: string; video: boolean
   const h = Math.min(win.height * 0.78, 900);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable onPress={onClose} style={st.viewerBack} accessibilityLabel="Fechar">
+      <Pressable onPress={onClose} style={st.viewerBack} accessibilityLabel={t('Fechar')}>
         {/* O cartão não fecha ao toque (para o play e os controlos funcionarem). */}
         <Pressable onPress={() => undefined} style={[st.viewerCard, { width: w, height: h }]}>
           {video ? <ChatVideoPlayer url={url} autoPlay inModal /> : <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />}
-          <Pressable onPress={onClose} style={st.viewerX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={20} color="#fff" /></Pressable>
+          <Pressable onPress={onClose} style={st.viewerX} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={20} color="#fff" /></Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -300,7 +301,7 @@ function LazyChatVideo({ url, inModal }: { url: string; inModal: boolean }) {
   const [on, setOn] = useState(false);
   if (on) return <NativeChatVideo url={url} autoPlay inModal={inModal} />;
   return (
-    <Pressable onPress={() => setOn(true)} style={{ width: '100%', height: '100%', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ver o vídeo">
+    <Pressable onPress={() => setOn(true)} style={{ width: '100%', height: '100%', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={t('Ver o vídeo')}>
       <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="play" size={26} color="#fff" solid />
       </View>
@@ -319,12 +320,12 @@ export function callLabel(body: string, mine: boolean): { text: string; missed: 
   let info: { video?: boolean; status?: string; durationS?: number | null } = {};
   try { info = JSON.parse(body) as typeof info; } catch { /* corpo estranho: mostra o genérico */ }
   const video = !!info.video;
-  const kind = video ? 'Videochamada' : 'Chamada de voz';
+  const kind = video ? t('Videochamada') : t('Chamada de voz');
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   switch (info.status) {
     case 'ended': return { text: `${kind} · ${mmss(Math.max(0, info.durationS ?? 0))}`, missed: false, video };
-    case 'declined': return { text: mine ? `${kind} · não atendeu` : `${kind} · recusada`, missed: false, video };
-    case 'missed': return { text: mine ? `${kind} · sem resposta` : (video ? 'Videochamada perdida' : 'Chamada perdida'), missed: !mine, video };
+    case 'declined': return { text: mine ? t('{kind} · não atendeu', { kind }) : t('{kind} · recusada', { kind }), missed: false, video };
+    case 'missed': return { text: mine ? t('{kind} · sem resposta', { kind }) : (video ? t('Videochamada perdida') : t('Chamada perdida')), missed: !mine, video };
     default: return { text: kind, missed: false, video };
   }
 }
@@ -338,13 +339,13 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
     void import('@/lib/calls').then((c) => c.startCall(peerHandle, video)).catch(() => undefined);
   };
   return (
-    <Pressable {...hold} onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${text}. Toca para ligar de volta`}>
+    <Pressable {...hold} onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('{text}. Toca para ligar de volta', { text })}>
       <View style={[st.callIcon, { backgroundColor: missed ? '#fee2e2' : colors.zinc100 }]}>
         {video ? <Icon name="video" size={18} color={missed ? colors.red600 : colors.zinc800} /> : <CallIcon name={missed ? 'missed' : 'handset'} size={18} color={missed ? colors.red600 : colors.zinc800} />}
       </View>
       <View>
         <Text style={[st.callText, missed && { color: colors.red600 }]}>{text}</Text>
-        <Text style={st.callSub}>Tocar para ligar de volta</Text>
+        <Text style={st.callSub}>{t('Tocar para ligar de volta')}</Text>
       </View>
     </Pressable>
   );
@@ -362,7 +363,7 @@ function ChatPhoto({ url, hold, onOpen, style, children }: { url: string; hold: 
   const size = photoBubbleSize(ratio);
   return (
     <View style={[style, { width: size.width }]}>
-      <Pressable {...hold} onPress={onOpen} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
+      <Pressable {...hold} onPress={onOpen} accessibilityRole="imagebutton" accessibilityLabel={t('Foto enviada')}>
         <View style={{ height: size.height, width: '100%', backgroundColor: colors.zinc200 }}>
           <Image
             source={{ uri: url }}
@@ -394,7 +395,7 @@ function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'
   // Zás: retângulo 4:5 de cantos grandes e contínuos (o squircle esticado a 4:5 ficava em cápsula); mimo: raio 22.
   const shape: ViewStyle = zas ? { overflow: 'hidden', borderRadius: 30, borderCurve: 'continuous' } : { overflow: 'hidden', borderRadius: 22 };
   const bolt = (s: number) => <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={Math.round(s * 0.55)} solid color="#fff" /></View>;
-  const gone = zas ? 'Zás já não disponível' : 'Mimo já não disponível';
+  const gone = zas ? t('Zás já não disponível') : t('Mimo já não disponível');
   const pic = ok ? (
     <View style={[{ width: w, height: h, backgroundColor: colors.zinc200 }, shape]}>
       <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
@@ -429,7 +430,7 @@ function SideAvatar({ who }: { who: Who }) {
   const avatar = <Avatar name={who.name || '?'} username={who.username} size={AVATAR} />;
   if (!who.username) return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{avatar}</View>;
   return (
-    <Pressable onPress={() => router.push(`/u/${who.username}` as never)} hitSlop={8} accessibilityRole="link" accessibilityLabel={`Perfil de ${who.name}`}>
+    <Pressable onPress={() => router.push(`/u/${who.username}` as never)} hitSlop={8} accessibilityRole="link" accessibilityLabel={t('Perfil de {name}', { name: who.name })}>
       {avatar}
     </Pressable>
   );
@@ -458,7 +459,7 @@ function ChatText({ text, mine, style, onLongPress }: { text: string; mine: bool
     <>
       <Text selectable={SELECTABLE} style={style}>
         {segs.map((s, i) => (s.t === 'text' ? s.s : (
-          <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link" accessibilityLabel={s.t === 'phone' ? `Número de telefone ${s.s}` : undefined}>
+          <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link" accessibilityLabel={s.t === 'phone' ? t('Número de telefone {s}', { s: s.s }) : undefined}>
             {s.s}
           </Text>
         )))}
@@ -566,7 +567,7 @@ export function Bubble({
   const cancelWaiting = () => {
     if (!onDelete || recentlyHeld(heldAt.current)) return;
     heldAt.current = Date.now();
-    void confirm({ title: 'Apagar esta mensagem?', message: 'Ainda não foi enviada. Se a apagares, já não vai.', confirm: 'Apagar', danger: true }).then((ok) => { if (ok) onDelete(m); });
+    void confirm({ title: t('Apagar esta mensagem?'), message: t('Ainda não foi enviada. Se a apagares, já não vai.'), confirm: t('Apagar'), danger: true }).then((ok) => { if (ok) onDelete(m); });
   };
   const hold: BubbleHold = real && !desk ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : waiting && onDelete && !desk ? { onLongPress: cancelWaiting, delayLongPress: HOLD_MS } : {};
   const [hover, setHover] = useState(false);
@@ -608,7 +609,7 @@ export function Bubble({
       </View>
     );
   } else if (m.viewOnce) {
-    const label = m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'video' ? 'Vídeo · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir';
+    const label = m.opened ? t('Aberta') : mine ? t('Visualização única · por abrir') : m.kind === 'image' ? t('Foto · toca para abrir') : m.kind === 'video' ? t('Vídeo · toca para abrir') : m.kind === 'voice' ? t('Voz · toca para abrir') : t('Mensagem · toca para abrir');
     const surface = m.opened ? OTHER_SURFACE : { backgroundColor: mine ? colors.brand : colors.zinc900 };
     const fg = m.opened ? colors.zinc500 : '#fff';
     content = (
@@ -623,7 +624,7 @@ export function Bubble({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
           <View style={st.giftIcon}><Icon name="gift" size={24} color="#fff" /></View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{mine ? 'Enviaste um presente' : 'Enviou-te um presente'}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{mine ? t('Enviaste um presente') : t('Enviou-te um presente')}</Text>
             <Text style={{ fontSize: 24, lineHeight: 30, fontWeight: '800', color: '#fff' }}>{formatVibes(m.giftAmount ?? 0)}</Text>
           </View>
         </View>
@@ -636,9 +637,9 @@ export function Bubble({
     // GIF acima de «g» (ou sem classificação) para quem é menor: o servidor não o manda; um cartão discreto no lugar,
     // que não se abre (segurar continua a abrir o menu, pelo Pressable de fora).
     content = (
-      <View style={[st.bubble, st.deleted, radius, dimStyle]} accessible accessibilityLabel={GIF_HIDDEN_TEXT}>
+      <View style={[st.bubble, st.deleted, radius, dimStyle]} accessible accessibilityLabel={GIF_HIDDEN_TEXT()}>
         <Icon name="eye-off" size={15} color={colors.zinc500} />
-        <Text style={st.liveEndedText}>{GIF_HIDDEN_TEXT}</Text>
+        <Text style={st.liveEndedText}>{GIF_HIDDEN_TEXT()}</Text>
       </View>
     );
   } else if (m.kind === 'gif' && validGif(m.gif)) {
@@ -651,7 +652,7 @@ export function Bubble({
     content = (
       <View style={[st.bubble, st.deleted, radius, dimStyle]}>
         <Icon name="map-pin" size={15} color={colors.zinc500} />
-        <Text style={st.liveEndedText}>Partilha em direto terminada</Text>
+        <Text style={st.liveEndedText}>{t('Partilha em direto terminada')}</Text>
       </View>
     );
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
@@ -686,7 +687,7 @@ export function Bubble({
         {/* Vídeo: toca dentro da bolha, com os controlos (play, pausa, som, barra); o botão do canto abre o visor. */}
         <View style={{ height: 288, width: '100%', backgroundColor: '#000' }}>
           <ChatVideoPlayer url={url} />
-          <Pressable {...hold} onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
+          <Pressable {...hold} onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel={t('Ver maior')}><Icon name="expand" size={18} color="#fff" /></Pressable>
         </View>
         {full && <MediaFull url={url} video onClose={() => setFull(false)} />}
       </View>
@@ -701,7 +702,7 @@ export function Bubble({
       <View style={{ maxWidth: '100%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
         {noteReply && (
           <View style={{ marginBottom: 4, maxWidth: '82%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-            <Text style={st.caption}>{mine ? 'Respondeste à nota' : 'Respondeu à tua nota'}</Text>
+            <Text style={st.caption}>{mine ? t('Respondeste à nota') : t('Respondeu à tua nota')}</Text>
             <View style={[{ borderColor: colors.zinc200, alignItems: mine ? 'flex-end' : 'flex-start' }, mine ? { borderRightWidth: 3, paddingRight: 6 } : { borderLeftWidth: 3, paddingLeft: 6 }]}>
               <Text style={st.noteBubble}>{noteReply[1]}</Text>
             </View>
@@ -744,14 +745,14 @@ export function Bubble({
   const deskLove = desk && lovable
     ? { onMouseDown: (e: { nativeEvent: { detail?: number }; preventDefault?: () => void }) => { if (isDoubleClick(e.nativeEvent.detail)) { e.preventDefault?.(); love(); } } }
     : null;
-  const storyLabel = m.kind === 'zas_reply' ? (mine ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás') : m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
+  const storyLabel = m.kind === 'zas_reply' ? (mine ? t('Respondeste ao Zás') : t('Respondeu ao teu Zás')) : m.kind === 'story_reaction' ? (mine ? t('Reagiste ao mimo') : t('Reagiu ao teu mimo')) : mine ? t('Respondeste ao mimo') : t('Respondeu ao teu mimo');
 
   // O avatar: nos grupos quem enviou; nas conversas diretas o outro lado.
   const who: Who | null = mine || !showAvatars ? null
     : group ? (m.sender ? { name: m.sender.displayName, username: m.sender.hasAvatar ? m.sender.username : undefined } : null)
       : { name: peerName ?? peerHandle ?? '', username: peerHasAvatar ? peerHandle : undefined };
   const indent = !mine && showAvatars && (group ? !!m.sender : true);
-  const replyWho = m.replyTo && !m.replyTo.gone ? (m.replyTo.fromMe ? 'Tu' : (m.replyTo.name || peerName || '').split(' ')[0]) : '';
+  const replyWho = m.replyTo && !m.replyTo.gone ? (m.replyTo.fromMe ? t('Tu') : (m.replyTo.name || peerName || '').split(' ')[0]) : '';
   const wide = m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply';
   // Hora por baixo da última bolha de cada grupo (e, nas minhas, os vistos); tocar numa bolha mostra a hora exata (com o dia).
   const timeText = showTime ? timeLabel(m.at) : isLast ? clock(m.at) : null;
@@ -779,11 +780,11 @@ export function Bubble({
           hitSlop={{ top: 12, bottom: 6, left: 8, right: 8 }}
           style={({ pressed }) => [st.quote, pressed && { opacity: 0.6 }]}
           accessibilityRole="button"
-          accessibilityLabel={m.replyTo.gone ? 'Resposta a uma mensagem apagada' : `Resposta a ${replyWho}: ${quoteText(m.replyTo.kind, m.replyTo.body)}. Toca para ir à mensagem`}
+          accessibilityLabel={m.replyTo.gone ? t('Resposta a uma mensagem apagada') : t('Resposta a {replyWho}: {quoteText}. Toca para ir à mensagem', { replyWho, quoteText: quoteText(m.replyTo.kind, m.replyTo.body) })}
         >
           <View style={[st.quoteBar, { backgroundColor: mine ? QUOTE_BAR_MINE : colors.zinc300 }]} />
           {m.replyTo.gone ? (
-            <Text style={[st.quoteText, { fontStyle: 'italic' }]} numberOfLines={1}>Mensagem apagada</Text>
+            <Text style={[st.quoteText, { fontStyle: 'italic' }]} numberOfLines={1}>{t('Mensagem apagada')}</Text>
           ) : (
             <Text style={st.quoteText} numberOfLines={1}>
               <Text style={{ fontWeight: '600', color: colors.zinc700 }}>{replyWho}: </Text>
@@ -794,14 +795,14 @@ export function Bubble({
       )}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={st.caption}>{storyLabel}</Text>}
       {m.kind === 'zas_reply' ? (
-        <QuotedMedia key={m.mediaUrl ?? 'gone'} kind="zas" uri={abs(m.mediaUrl) ?? null} mine={mine} label={mine ? 'Zás a que respondeste' : 'O teu Zás a que respondeu'} />
+        <QuotedMedia key={m.mediaUrl ?? 'gone'} kind="zas" uri={abs(m.mediaUrl) ?? null} mine={mine} label={mine ? t('Zás a que respondeste') : t('O teu Zás a que respondeu')} />
       ) : m.storyUrl ? (
         <QuotedMedia
           key={m.storyUrl}
           kind="mimo"
           uri={sized(m.storyUrl, 320) ?? null}
           mine={mine}
-          label="Ver o mimo"
+          label={t('Ver o mimo')}
           onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(storyHref(o, m.storyUrl) as never); }}
         />
       ) : null}
@@ -818,7 +819,7 @@ export function Bubble({
           {...deskLove}
           onLayout={swipe && mine ? (e) => place({ x: e.nativeEvent.layout.x }) : undefined}
           style={{ maxWidth: wide ? '78%' : '100%' }}
-          accessibilityHint={gone ? 'Mantém para apagar para ti' : lovable ? (desk ? 'Clica para ver a hora, duas vezes para pôr um coração' : 'Toca para ver a hora, duas vezes para pôr um coração, mantém para mais opções') : 'Toca para ver a hora'}
+          accessibilityHint={gone ? t('Mantém para apagar para ti') : lovable ? (desk ? t('Clica para ver a hora, duas vezes para pôr um coração') : t('Toca para ver a hora, duas vezes para pôr um coração, mantém para mais opções')) : t('Toca para ver a hora')}
           // O mesmo que deslizar para a direita e que segurar, para quem usa o leitor de ecrã.
           accessibilityActions={a11y.length ? a11y : undefined}
           onAccessibilityAction={a11y.length ? (e) => {
@@ -834,7 +835,7 @@ export function Bubble({
         {desk && real && !mine ? <BubbleTools show={hover || toolsFocus} onFocus={setToolsFocus} reply={swipe && !gone ? () => onReply?.(m) : undefined} react={gone ? undefined : (at) => onMenu(m, at, 'react')} more={(at) => openMenu(at)} /> : null}
       </View>
       {!!m.reactions?.length && (
-        <Pressable {...hold} onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
+        <Pressable {...hold} onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel={t('Reações')} style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
           {m.reactions.map((r) => (
             <View key={r.reaction} style={[st.react, r.mine && { backgroundColor: 'rgba(214,51,79,0.1)' }]}>
               <ReactionArt body={r.reaction} size={20} />
@@ -846,30 +847,30 @@ export function Bubble({
       {m.kind === 'location' && m.liveUntil && !liveEnded ? (
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.live ? '#10b981' : colors.zinc300 }} />
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>{m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}</Text>
-          {m.live && mine && <Pressable {...hold} onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: colors.dangerSoft, paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.danger }}>Parar</Text></Pressable>}
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>{m.live ? t('Em direto até às {clock}', { clock: clock(m.liveUntil) }) : t('Partilha em direto terminada')}</Text>
+          {m.live && mine && <Pressable {...hold} onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: colors.dangerSoft, paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.danger }}>{t('Parar')}</Text></Pressable>}
         </View>
       ) : null}
       {m.state === 'failed' ? (
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
-          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar outra vez"><Text style={st.failLink}>Tentar outra vez</Text></Pressable>
-          {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Apagar a mensagem que não foi enviada"><Text style={[st.failLink, { color: colors.zinc600 }]}>Apagar</Text></Pressable> : null}
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>{t('Não enviada')}</Text>
+          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel={t('Tentar enviar outra vez')}><Text style={st.failLink}>{t('Tentar outra vez')}</Text></Pressable>
+          {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel={t('Apagar a mensagem que não foi enviada')}><Text style={[st.failLink, { color: colors.zinc600 }]}>{t('Apagar')}</Text></Pressable> : null}
         </View>
       ) : waiting ? (
         // À espera de rede: a hora e o reloginho no lugar dos vistos (como no WhatsApp); vai sozinha quando a rede voltar.
         <View style={st.meta} accessibilityLiveRegion="polite">
-          <Text style={st.time}>{[clock(m.at), isLast ? (m.trying ? 'A enviar…' : 'À espera de rede') : null].filter(Boolean).join(' · ')}</Text>
-          <View accessible accessibilityLabel="À espera para enviar" style={{ paddingRight: 2 }}><Icon name="clock" size={12} strokeWidth={2.2} color={colors.zinc500} /></View>
+          <Text style={st.time}>{[clock(m.at), isLast ? (m.trying ? 'A enviar…' : t('À espera de rede')) : null].filter(Boolean).join(' · ')}</Text>
+          <View accessible accessibilityLabel={t('À espera para enviar')} style={{ paddingRight: 2 }}><Icon name="clock" size={12} strokeWidth={2.2} color={colors.zinc500} /></View>
         </View>
       ) : m.state === 'sending' ? (
-        <Text style={st.time}>A enviar…</Text>
+        <Text style={st.time}>{t('A enviar…')}</Text>
       ) : timeText || edited ? (
         <View style={st.meta} accessibilityLiveRegion="polite">
           <Text style={st.time}>{[timeText, edited ? 'editada' : null].filter(Boolean).join(' · ')}</Text>
           {tick && (isLast || showTime) ? (
-            <Text style={[st.ticks, tick === 'seen' && { color: colors.brand }]} accessibilityLabel={tick === 'seen' ? 'Visto' : 'Entregue'}>{tick === 'seen' ? '✓✓' : '✓'}</Text>
+            <Text style={[st.ticks, tick === 'seen' && { color: colors.brand }]} accessibilityLabel={tick === 'seen' ? t('Visto') : t('Entregue')}>{tick === 'seen' ? '✓✓' : '✓'}</Text>
           ) : null}
         </View>
       ) : null}
@@ -897,9 +898,9 @@ function BubbleTools({ show, onFocus, reply, react, more }: { show: boolean; onF
   );
   return (
     <View style={[st.tools, !show && { opacity: 0 }]}>
-      {reply ? btn('reply', 'Responder', () => reply()) : null}
-      {react ? btn('heart', 'Reagir', (e) => react(anchorOf(e))) : null}
-      {btn('more', 'Mais opções da mensagem', (e) => more(anchorOf(e)))}
+      {reply ? btn('reply', t('Responder'), () => reply()) : null}
+      {react ? btn('heart', t('Reagir'), (e) => react(anchorOf(e))) : null}
+      {btn('more', t('Mais opções da mensagem'), (e) => more(anchorOf(e)))}
     </View>
   );
 }
@@ -923,7 +924,7 @@ export function TypingBubble({ avatar }: { avatar?: { username?: string; name: s
     };
   };
   return (
-    <View style={{ marginTop: GAP_OUT, flexDirection: 'row', alignItems: 'flex-end', gap: AVATAR_GAP }} accessibilityLabel="A escrever">
+    <View style={{ marginTop: GAP_OUT, flexDirection: 'row', alignItems: 'flex-end', gap: AVATAR_GAP }} accessibilityLabel={t('A escrever')}>
       {avatar ? <Avatar name={avatar.name || '?'} username={avatar.username} size={AVATAR} /> : null}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, ...OTHER_SURFACE, paddingHorizontal: 14, paddingVertical: 12 }}>
         {[0, 1, 2].map((d) => <Animated.View key={d} style={[{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.zinc500 }, dot(d)]} />)}

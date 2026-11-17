@@ -2,6 +2,7 @@
 // história, o encaixe no ritmo, as ondas, a semente (a mesma dá o mesmo, outra dá outra versão) e os clipes trancados.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';

@@ -4,7 +4,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import type { Track } from '@/lib/api.music';
 import { SFX, type SfxId, type VoiceFxId } from '@/lib/studio/audioDsp';
 import { auditionSfx, createScrubber, type MixSchedule, type StudioGraph } from '@/lib/studio/audioEngine';
-import { defaultMix, type StartSuggestion, type StudioMix, type Template, type VoiceTake } from '@/lib/studio/audioMix';
+import { defaultMix, startLabel, type StartSuggestion, type StudioMix, type Template, type VoiceTake } from '@/lib/studio/audioMix';
 import { fmtS } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { AudioFx } from './AudioFx';
@@ -12,6 +12,7 @@ import { AudioMixer, type MixChannel } from './AudioMixer';
 import { AudioTemplates } from './AudioTemplates';
 import { AudioVoice, type VoiceCtl } from './AudioVoice';
 import { AudioWave, useMusicAnalysis, type MusicAnalysis } from './AudioWave';
+import { t } from '@/lib/i18n';
 
 const CORAL = colors.brand;
 const mmss = (s: number) => { const v = Math.max(0, Math.floor(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
@@ -82,11 +83,11 @@ export function useStudioAudio(o: { music: Track | null; total: number; load: ()
 
 type Sub = 'trecho' | 'mistura' | 'voz' | 'efeitos' | 'moldes';
 const SUBS: { id: Sub; label: string; icon: IconName }[] = [
-  { id: 'trecho', label: 'Trecho', icon: 'waves' },
-  { id: 'mistura', label: 'Mistura', icon: 'sliders' },
-  { id: 'voz', label: 'Voz-off', icon: 'mic' },
-  { id: 'efeitos', label: 'Efeitos', icon: 'sparkles' },
-  { id: 'moldes', label: 'Moldes', icon: 'grid' },
+  { id: 'trecho', get label() { return t('Trecho'); }, icon: 'waves' },
+  { id: 'mistura', get label() { return t('Mistura'); }, icon: 'sliders' },
+  { id: 'voz', get label() { return t('Voz-off'); }, icon: 'mic' },
+  { id: 'efeitos', get label() { return t('Efeitos'); }, icon: 'sparkles' },
+  { id: 'moldes', get label() { return t('Moldes'); }, icon: 'grid' },
 ];
 let lastSub: Sub | null = null;
 
@@ -150,18 +151,18 @@ export function AudioPanel(p: {
 
   const voice = mix.voice;
   const channels: MixChannel[] = [];
-  if (p.hasVideo) channels.push({ id: 'orig', label: 'Som dos vídeos', icon: 'video', value: p.origVol, onChange: p.setOrigVol, meter: () => graph()?.meters.orig ?? null, note: p.origNote });
+  if (p.hasVideo) channels.push({ id: 'orig', label: t('Som dos vídeos'), icon: 'video', value: p.origVol, onChange: p.setOrigVol, meter: () => graph()?.meters.orig ?? null, note: p.origNote });
   for (const c of p.clipSounds ?? []) {
     channels.push({
       id: `clip:${c.key}`, label: c.label, icon: 'video', value: c.volume, on: c.on, sub: true,
       onChange: (v) => p.onClipSound?.(c.key, { volume: v, ...(v > 0 && !c.on ? { on: true } : {}) }),
       onToggle: () => p.onClipSound?.(c.key, { on: !c.on }),
-      meter: () => null, note: c.hasAudio === false ? 'sem som' : null,
+      meter: () => null, note: c.hasAudio === false ? t('sem som') : null,
     });
   }
-  if (music || p.duet) channels.push({ id: 'music', label: music ? 'Música' : 'Som do dueto', icon: 'music', value: p.musicVol, onChange: p.setMusicVol, meter: () => graph()?.meters.music ?? null, note: music ? music.title : null });
-  if (voice) channels.push({ id: 'voice', label: 'Voz-off', icon: 'mic', value: voice.volume, onChange: (v) => update((m) => (m.voice ? { ...m, voice: { ...m.voice, volume: v } } : m)), meter: () => graph()?.meters.voice ?? null });
-  if (mix.sfx.length) channels.push({ id: 'sfx', label: 'Efeitos sonoros', icon: 'sparkles', value: mix.sfxVolume, onChange: (v) => update((m) => ({ ...m, sfxVolume: v })), meter: () => graph()?.meters.sfx ?? null, note: `${mix.sfx.length}` });
+  if (music || p.duet) channels.push({ id: 'music', label: music ? t('Música') : t('Som do dueto'), icon: 'music', value: p.musicVol, onChange: p.setMusicVol, meter: () => graph()?.meters.music ?? null, note: music ? music.title : null });
+  if (voice) channels.push({ id: 'voice', label: t('Voz-off'), icon: 'mic', value: voice.volume, onChange: (v) => update((m) => (m.voice ? { ...m, voice: { ...m.voice, volume: v } } : m)), meter: () => graph()?.meters.voice ?? null });
+  if (mix.sfx.length) channels.push({ id: 'sfx', label: t('Efeitos sonoros'), icon: 'sparkles', value: mix.sfxVolume, onChange: (v) => update((m) => ({ ...m, sfxVolume: v })), meter: () => graph()?.meters.sfx ?? null, note: `${mix.sfx.length}` });
 
   const addSfx = (id: SfxId) => {
     const at = Math.round(Math.min(Math.max(0, p.total - 0.05), Math.max(0, ctl.nowT())) * 100) / 100;
@@ -177,7 +178,7 @@ export function AudioPanel(p: {
 
   return (
     <View style={st.root}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.subs} accessibilityRole="tablist" accessibilityLabel="Partes do som">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.subs} accessibilityRole="tablist" accessibilityLabel={t('Partes do som')}>
         {SUBS.map((s) => {
           const on = sub === s.id;
           const badge = s.id === 'voz' ? !!voice : s.id === 'efeitos' ? mix.sfx.length > 0 || mix.origFx !== 'normal' || (voice?.fx ?? 'normal') !== 'normal' : false;
@@ -193,9 +194,9 @@ export function AudioPanel(p: {
 
       {sub === 'trecho' ? (
         !music ? (
-          <Text style={st.empty}>{p.duet ? 'No dueto, o som é o do original.' : 'Escolhe uma música para escolher o trecho pela onda.'}</Text>
+          <Text style={st.empty}>{p.duet ? t('No dueto, o som é o do original.') : t('Escolhe uma música para escolher o trecho pela onda.')}</Text>
         ) : !p.analysis ? (
-          <View style={st.loading}><View style={st.loadBar} /><Text style={st.loadText}>A ler a música…</Text></View>
+          <View style={st.loading}><View style={st.loadBar} /><Text style={st.loadText}>{t('A ler a música…')}</Text></View>
         ) : (
           <>
             <AudioWave
@@ -211,15 +212,15 @@ export function AudioPanel(p: {
             />
             <View style={st.row}>
               {p.suggestion ? (
-                <Pressable onPress={() => commitStart(Math.round(p.suggestion!.start * 1000))} disabled={locked} style={[st.chip, Math.abs(mix.musicStartMs - p.suggestion.start * 1000) < 60 && st.chipOn]} accessibilityRole="button" accessibilityLabel={`Usar o trecho sugerido: ${p.suggestion.label} aos ${mmss(p.suggestion.start)}`}>
+                <Pressable onPress={() => commitStart(Math.round(p.suggestion!.start * 1000))} disabled={locked} style={[st.chip, Math.abs(mix.musicStartMs - p.suggestion.start * 1000) < 60 && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Usar o trecho sugerido: {label} aos {mmss}', { label: startLabel(p.suggestion.label), mmss: mmss(p.suggestion.start) })}>
                   <View style={st.star} />
-                  <Text style={st.chipText}>{p.suggestion.label} · {mmss(p.suggestion.start)}</Text>
+                  <Text style={st.chipText}>{startLabel(p.suggestion.label)} · {mmss(p.suggestion.start)}</Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => commitStart(0)} disabled={locked} style={[st.chip, mix.musicStartMs === 0 && st.chipOn]} accessibilityRole="button" accessibilityLabel="Começar no início da música"><Text style={st.chipText}>Do início</Text></Pressable>
-              <Pressable onPress={p.onFit} disabled={locked || !p.canFit} style={[st.chip, st.chipCoral, !p.canFit && { opacity: 0.45 }]} accessibilityRole="button" accessibilityLabel="Ajustar ao ritmo" accessibilityHint={p.fitNote}>
+              <Pressable onPress={() => commitStart(0)} disabled={locked} style={[st.chip, mix.musicStartMs === 0 && st.chipOn]} accessibilityRole="button" accessibilityLabel={t('Começar no início da música')}><Text style={st.chipText}>{t('Do início')}</Text></Pressable>
+              <Pressable onPress={p.onFit} disabled={locked || !p.canFit} style={[st.chip, st.chipCoral, !p.canFit && { opacity: 0.45 }]} accessibilityRole="button" accessibilityLabel={t('Ajustar ao ritmo')} accessibilityHint={p.fitNote}>
                 <Icon name="bolt" size={14} color="#fff" strokeWidth={2.4} />
-                <Text style={st.chipText}>Ajustar ao ritmo</Text>
+                <Text style={st.chipText}>{t('Ajustar ao ritmo')}</Text>
               </Pressable>
             </View>
           </>
@@ -280,8 +281,8 @@ export function AudioMarks({ mix, total }: { mix: StudioMix; total: number }) {
   const v = mix.voice;
   return (
     <>
-      {v ? <View style={[st.voiceBar, { left: pct(v.at), width: pct(Math.min(v.duration, total - v.at)) }]} accessibilityLabel={`Voz-off dos ${fmtS(v.at)} aos ${fmtS(v.at + v.duration)} s`} /> : null}
-      {mix.sfx.map((s) => <View key={s.key} style={[st.sfxMark, { left: pct(s.at) }]} accessibilityLabel={`Efeito ${SFX.find((x) => x.id === s.id)?.name} aos ${fmtS(s.at)} s`} />)}
+      {v ? <View style={[st.voiceBar, { left: pct(v.at), width: pct(Math.min(v.duration, total - v.at)) }]} accessibilityLabel={t('Voz-off dos {s} aos {s2} s', { s: fmtS(v.at), s2: fmtS(v.at + v.duration) })} /> : null}
+      {mix.sfx.map((s) => <View key={s.key} style={[st.sfxMark, { left: pct(s.at) }]} accessibilityLabel={t('Efeito {name} aos {s} s', { name: String(SFX.find((x) => x.id === s.id)?.name), s: fmtS(s.at) })} />)}
     </>
   );
 }

@@ -9,6 +9,8 @@ import { ApiError, api } from '@/lib/api';
 import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
 import { Field, Screen } from './login';
+import { t } from '@/lib/i18n';
+import { T } from '@/components/Trans';
 
 /** Esqueci a senha: pede o e-mail e responde sempre o mesmo, exista a conta ou não (igual ao site). */
 export default function ForgotPassword() {
@@ -22,7 +24,7 @@ export default function ForgotPassword() {
 
   async function submit() {
     if (busy) return;
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Esse e-mail não parece certo');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError(t('Esse e-mail não parece certo'));
     setBusy(true);
     setError('');
     try {
@@ -35,13 +37,13 @@ export default function ForgotPassword() {
       }
       setSent(true);
     } catch (x) {
-      setError(x instanceof ApiError ? securityErrorText(x, 'forgot') : 'Não consegui enviar agora. Tenta outra vez.');
+      setError(x instanceof ApiError ? securityErrorText(x, 'forgot') : t('Não consegui enviar agora. Tenta outra vez.'));
     } finally {
       setBusy(false);
     }
   }
 
-  const footer = <Text style={st.footerText} onPress={() => router.replace('/login?entrar=1' as never)} accessibilityRole="link"><Text style={{ color: colors.brand, fontWeight: '600' }}>Voltar a entrar</Text></Text>;
+  const footer = <Text style={st.footerText} onPress={() => router.replace('/login?entrar=1' as never)} accessibilityRole="link"><Text style={{ color: colors.brand, fontWeight: '600' }}>{t('Voltar a entrar')}</Text></Text>;
   return (
     <>
     <Screen footer={footer}>
@@ -50,20 +52,20 @@ export default function ForgotPassword() {
         <View style={{ marginTop: 40 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Icon name="mail" size={32} color={colors.brand} />
-            <Text style={st.sentTitle}>Vê o teu e-mail</Text>
+            <Text style={st.sentTitle}>{t('Vê o teu e-mail')}</Text>
           </View>
           <Text style={st.sentText}>
-            Se existir uma conta com <Text style={{ fontWeight: '700' }}>{email.trim()}</Text>, enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.
+            <T text={t('Se existir uma conta com <b>{email}</b>, enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.', { email: email.trim() })} tags={{ b: (s) => <Text style={{ fontWeight: '700' }}>{s}</Text> }} />
           </Text>
         </View>
       ) : (
         <>
-          <Text style={st.title}>Esqueceste{'\n'}a senha?</Text>
-          <Text style={st.sub}>Diz-nos o teu e-mail e enviamos um link para escolheres outra.</Text>
+          <Text style={st.title}>{t('Esqueceste\na senha?')}</Text>
+          <Text style={st.sub}>{t('Diz-nos o teu e-mail e enviamos um link para escolheres outra.')}</Text>
           <View style={{ marginTop: 28, gap: 12 }}>
-            <Field icon="mail" value={email} onChangeText={(t) => { setEmail(t); setError(''); }} placeholder="E-mail" autoFocus autoCapitalize="none" keyboardType="email-address" autoComplete="email" returnKeyType="go" onSubmitEditing={() => void submit()} accessibilityLabel="E-mail" />
+            <Field icon="mail" value={email} onChangeText={(t) => { setEmail(t); setError(''); }} placeholder={t('E-mail')} autoFocus autoCapitalize="none" keyboardType="email-address" autoComplete="email" returnKeyType="go" onSubmitEditing={() => void submit()} accessibilityLabel={t('E-mail')} />
             <Text style={st.alertText} accessibilityRole="alert">{error}</Text>
-            <Button label="Enviar link" onPress={() => void submit()} loading={busy} block style={st.cta} />
+            <Button label={t('Enviar link')} onPress={() => void submit()} loading={busy} block style={st.cta} />
           </View>
         </>
       )}

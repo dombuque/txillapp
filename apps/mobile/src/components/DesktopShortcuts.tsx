@@ -6,6 +6,7 @@ import { inMessages, isTypingTarget, overlayOpen, ROUTE_OF, shortcutFor, SHORTCU
 import { emitTabPress, sameTabPress } from '@/lib/tabPress';
 import { colors } from '@/lib/theme';
 import { Sheet } from './Sheet';
+import { t } from '@/lib/i18n';
 
 /** Onde está o campo da pesquisa (ecrã /search): o foco vai para lá depois do atalho. */
 const focusSearch = () => {
@@ -61,7 +62,7 @@ export function DesktopShortcuts() {
 
   if (!help) return null;
   return (
-    <Sheet title="Atalhos do teclado" onClose={() => setHelp(false)}>
+    <Sheet title={t('Atalhos do teclado')} onClose={() => setHelp(false)}>
       <View style={st.list} accessibilityRole="list">
         {SHORTCUTS.map((s) => (
           <View key={s.label} style={st.row} accessibilityRole="text" accessibilityLabel={`${s.keys.join(' ')}: ${s.label}`}>
@@ -73,7 +74,7 @@ export function DesktopShortcuts() {
             </View>
           </View>
         ))}
-        {inMessages(path) ? <Text style={st.note}>Nas Mensagens, Ctrl/Cmd+K procura nas conversas.</Text> : null}
+        {inMessages(path) ? <Text style={st.note}>{t('Nas Mensagens, Ctrl/Cmd+K procura nas conversas.')}</Text> : null}
       </View>
     </Sheet>
   );

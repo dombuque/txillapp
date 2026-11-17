@@ -8,7 +8,10 @@ import { friendlyFetchError } from './netError';
 import { installId } from './installId';
 import { uploadRequest } from './signedMedia';
 import { track, trackOk, trackThrottled } from './analytics';
+import { currentLanguage } from './i18n';
 import type { SponsoredSlot } from './api.boosts';
+import { t } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser {
@@ -425,6 +428,7 @@ export interface StoryComment { id: string; body: string; createdAt: string; min
 export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; /** 0 numa entrada só ao vivo (`?live=1`). */ count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string; /** Txillada (o live) a decorrer: a roda fica coral «AO VIVO» e tocar entra nela. Servidores antigos não mandam. */ live?: { id: string; price?: number } | null }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
+export { GENERIC_ERROR_CODES, UNEXPECTED_TEXT } from '@/lib/apiErrors';
 export class ApiError extends Error {
   /** `extra`: o resto da resposta do servidor (ex.: `assetId` de uma foto recusada, ver lib/photoAppeal). */
   constructor(public status: number, message: string, public code?: string, public extra?: Record<string, unknown>) {
@@ -509,6 +513,8 @@ function deviceHeaders(): Record<string, string> {
 }
 
 const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
+/** Os cabeçalhos de todos os pedidos, com o idioma ativo (a API responde nele: docs/idiomas.md). */
+const headersNow = (): Record<string, string> => ({ ...baseHeaders, 'Accept-Language': currentLanguage() });
 
 /** Cabeçalho da prova de humano (só no login, no registo e no «Esqueci-me da senha», quando há código). */
 const humanHeader = (token?: string): Record<string, string> => (token ? { 'X-Turnstile-Token': token } : {});
@@ -520,7 +526,7 @@ async function call(path: string, init: RequestInit = {}, auth = true): Promise<
     return await fetch(`${SITE_URL}/api/v1${path}`, {
       ...(isWeb ? { credentials: 'include' as const } : {}),
       ...init,
-      headers: { ...baseHeaders, ...(iid ? { 'X-Install-Id': iid } : {}), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
+      headers: { ...headersNow(), ...(iid ? { 'X-Install-Id': iid } : {}), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
     });
   } catch (e) {
     // Sem rede o fetch lança "Failed to fetch" / "Load failed" (em inglês), que ia parar ao ecrã (ex.: no login): passa a português.
@@ -532,7 +538,8 @@ async function parse(res: Response) {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string | string[]; code?: string };
     if (res.status === 403 && body.code === 'email_not_verified') for (const f of needVerifyListeners) f();
-    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado', body.code, body as Record<string, unknown>);
+    const message = Array.isArray(body.message) ? body.message[0] : body.message;
+    throw new ApiError(res.status, message ?? UNEXPECTED_TEXT(), body.code ?? (message ? undefined : 'unexpected'), body as Record<string, unknown>);
   }
   if (res.status === 204) return undefined;
   const text = await res.text();
@@ -549,7 +556,7 @@ export async function migrateWebAccounts(): Promise<void> {
   for (const a of await accounts.list()) {
     if (!a.refreshToken || a.username === cur?.username) continue;
     try {
-      const res = await fetch(`${SITE_URL}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers: { ...baseHeaders, ...(a.id ? { 'X-Account': a.id } : {}), 'X-Refresh-Token': a.refreshToken } });
+      const res = await fetch(`${SITE_URL}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers: { ...headersNow(), ...(a.id ? { 'X-Account': a.id } : {}), 'X-Refresh-Token': a.refreshToken } });
       if (res.ok) {
         const r = (await res.json()) as AuthResult;
         await accounts.patch(a.username, { id: r.user.id, refreshToken: '' });
@@ -561,7 +568,7 @@ export async function migrateWebAccounts(): Promise<void> {
 }
 
 /** Cabeçalhos de um pedido com sessão (para descarregar ficheiros fora do `raw`). */
-export const authHeaders = (): Record<string, string> => ({ ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) });
+export const authHeaders = (): Record<string, string> => ({ ...headersNow(), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) });
 /** Um pedido com sessão que devolve a resposta tal e qual (ficheiros); com a sessão caducada renova uma vez. */
 export async function fetchAuthed(path: string): Promise<Response> {
   let res = await call(path);
@@ -577,7 +584,7 @@ let refreshing: Promise<AuthResult> | null = null;
 export function refreshSession(): Promise<AuthResult> {
   return (refreshing ??= (async () => {
     const headers = await refreshStore.get();
-    if (!headers) throw new ApiError(401, 'Sem sessão');
+    if (!headers) throw new ApiError(401, t('Sem sessão'));
     const res = await call('/auth/refresh', { method: 'POST', headers }, false);
     const r = (await parse(res)) as AuthResult;
     accessToken = r.accessToken;
@@ -649,8 +656,8 @@ export async function waitMediaReady(id: string, first: MediaState, onWait?: () 
     st = (await raw(`/media/${id}/status`)) as MediaState;
   }
   if (st.status === 'ready') return;
-  if (st.status === 'processing') throw new ApiError(504, 'O vídeo ainda está a ser preparado. Tenta outra vez daqui a pouco.');
-  throw new ApiError(422, st.error ?? 'Não consegui preparar este ficheiro. Tenta outro.');
+  if (st.status === 'processing') throw new ApiError(504, t('O vídeo ainda está a ser preparado. Tenta outra vez daqui a pouco.'));
+  throw new ApiError(422, st.error ?? t('Não consegui preparar este ficheiro. Tenta outro.'));
 }
 
 /**
@@ -667,7 +674,7 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
     if (onProgress) x.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total); };
     x.onload = () => {
       if (x.status >= 200 && x.status < 300) return resolve();
-      let msg = 'Não consegui enviar o ficheiro';
+      let msg = t('Não consegui enviar o ficheiro');
       let body: Record<string, unknown> | undefined;
       try {
         body = JSON.parse(x.responseText) as Record<string, unknown>;
@@ -675,8 +682,8 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
       } catch { /* resposta sem JSON */ }
       reject(new ApiError(x.status, msg, typeof body?.code === 'string' ? body.code : undefined, body));
     };
-    x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
-    x.ontimeout = () => reject(new ApiError(0, 'O envio demorou demasiado. Tenta outra vez.'));
+    x.onerror = () => reject(new ApiError(0, t('Sem ligação. Vê a rede e tenta outra vez.')));
+    x.ontimeout = () => reject(new ApiError(0, t('O envio demorou demasiado. Tenta outra vez.')));
     x.send(blob);
   });
 }
@@ -879,7 +886,7 @@ export const api = {
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
   unblock: (username: string): Promise<({ username: string; displayName: string } & Badged)[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   invites: (): Promise<InvitesInfo> => raw('/invites/me'),
-  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
+  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string; language?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   setAvatar: (mediaId: string): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'PUT', body: JSON.stringify({ mediaId }) }),
   clearAvatar: (): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'DELETE' }),
   followRequests: (): Promise<({ username: string; displayName: string; requestedAt: string } & Badged)[]> => raw('/follow-requests'),
@@ -918,7 +925,7 @@ export const api = {
   deleteAccount: (confirmUsername: string, password?: string): Promise<void> => raw('/auth/delete-account', post({ confirmUsername, password })),
   async exportData(): Promise<string> {
     const res = await call('/me/export');
-    if (!res.ok) throw new ApiError(res.status, res.status === 429 ? 'Já descarregaste vários ficheiros. Tenta daqui a pouco.' : 'Não consegui preparar o ficheiro');
+    if (!res.ok) throw new ApiError(res.status, res.status === 429 ? t('Já descarregaste vários ficheiros. Tenta daqui a pouco.') : t('Não consegui preparar o ficheiro'));
     return res.text();
   },
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),

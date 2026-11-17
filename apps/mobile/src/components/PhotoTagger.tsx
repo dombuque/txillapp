@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 const MAX_TAGS = 10;
 
@@ -46,8 +47,8 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
     <Modal visible animationType="fade" onRequestClose={() => (pending ? setPending(null) : onDone(list))} statusBarTranslucent>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 16) }}>
         <View style={styles.top}>
-          <Text style={styles.title}>Identificar pessoas</Text>
-          <Pressable onPress={() => onDone(list)} style={styles.done} accessibilityRole="button"><Text style={styles.doneText}>Feito</Text></Pressable>
+          <Text style={styles.title}>{t('Identificar pessoas')}</Text>
+          <Pressable onPress={() => onDone(list)} style={styles.done} accessibilityRole="button"><Text style={styles.doneText}>{t('Feito')}</Text></Pressable>
         </View>
 
         <View style={{ flex: 1, paddingHorizontal: 8 }} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -55,7 +56,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
             <View style={{ position: 'absolute', left: left + 8, top, width: fit.w, height: fit.h }}>
               <Pressable
                 style={StyleSheet.absoluteFill}
-                accessibilityLabel="Foto a identificar"
+                accessibilityLabel={t('Foto a identificar')}
                 onPress={(e) => {
                   if (list.length >= MAX_TAGS) return;
                   const { locationX, locationY } = e.nativeEvent;
@@ -65,10 +66,10 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
                 <Image source={{ uri: src }} style={StyleSheet.absoluteFill} contentFit="contain" onLoad={(e) => e.source.width && e.source.height && setRatio(e.source.width / e.source.height)} />
               </Pressable>
               {pending ? <View pointerEvents="none" style={[styles.dot, { left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }]} /> : null}
-              {list.map((t, i) => (
-                <View key={`${t.username}-${i}`} style={[styles.tag, { left: `${t.x * 100}%`, top: `${t.y * 100}%` }, t.x < 0.22 ? null : t.x > 0.78 ? { transform: [{ translateX: -120 }, { translateY: 10 }] } : { transform: [{ translateX: -50 }, { translateY: 10 }] }]}>
-                  <NameWithBadge name={t.username} who={t} style={styles.tagText} containerStyle={{ flexShrink: 1 }} />
-                  <Pressable onPress={() => setList(list.filter((_, n) => n !== i))} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Tirar a identificação de ${t.username}`}><Icon name="x" size={14} color="#fff" /></Pressable>
+              {list.map((photoTag, i) => (
+                <View key={`${photoTag.username}-${i}`} style={[styles.tag, { left: `${photoTag.x * 100}%`, top: `${photoTag.y * 100}%` }, photoTag.x < 0.22 ? null : photoTag.x > 0.78 ? { transform: [{ translateX: -120 }, { translateY: 10 }] } : { transform: [{ translateX: -50 }, { translateY: 10 }] }]}>
+                  <NameWithBadge name={photoTag.username} who={photoTag} style={styles.tagText} containerStyle={{ flexShrink: 1 }} />
+                  <Pressable onPress={() => setList(list.filter((_, n) => n !== i))} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('Tirar a identificação de {username}', { username: photoTag.username })}><Icon name="x" size={14} color="#fff" /></Pressable>
                 </View>
               ))}
             </View>
@@ -77,13 +78,13 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
 
         {!pending ? (
           <Text style={[styles.hint, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-            {list.length >= MAX_TAGS ? `Máximo de ${MAX_TAGS} pessoas por foto.` : list.length ? 'Toca noutra pessoa para identificar, ou no botão de remover.' : 'Toca na foto, em cima da pessoa que queres identificar.'}
+            {list.length >= MAX_TAGS ? t('Máximo de {maxTags} pessoas por foto.', { maxTags: MAX_TAGS }) : list.length ? t('Toca noutra pessoa para identificar, ou no botão de remover.') : t('Toca na foto, em cima da pessoa que queres identificar.')}
           </Text>
         ) : (
           <View style={[styles.panel, { paddingBottom: Math.max(insets.bottom, 16), maxHeight: '55%' }]}>
             <View style={styles.searchRow}>
-              <TextInput autoFocus value={q} onChangeText={setQ} placeholder="Quem é? Procura um nome…" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoa" autoCapitalize="none" autoCorrect={false} style={styles.search} />
-              <Pressable onPress={() => setPending(null)} style={{ paddingHorizontal: 12, height: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.zinc600 }}>Cancelar</Text></Pressable>
+              <TextInput autoFocus value={q} onChangeText={setQ} placeholder={t('Quem é? Procura um nome…')} placeholderTextColor={colors.zinc500} accessibilityLabel={t('Procurar pessoa')} autoCapitalize="none" autoCorrect={false} style={styles.search} />
+              <Pressable onPress={() => setPending(null)} style={{ paddingHorizontal: 12, height: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.zinc600 }}>{t('Cancelar')}</Text></Pressable>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {people.map((p) => (
@@ -95,7 +96,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
                   </View>
                 </Pressable>
               ))}
-              {found.isSuccess && people.length === 0 ? <Text style={styles.none}>Ninguém que possas identificar. Só podes identificar quem aceita menções.</Text> : null}
+              {found.isSuccess && people.length === 0 ? <Text style={styles.none}>{t('Ninguém que possas identificar. Só podes identificar quem aceita menções.')}</Text> : null}
             </ScrollView>
           </View>
         )}

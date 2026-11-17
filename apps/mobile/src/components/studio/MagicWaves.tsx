@@ -5,6 +5,7 @@ import { Icon } from '../Icon';
 import { WAVES, waveById, type WaveId } from '@/lib/studio/magic';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { MagicBackdrop, MagicCta, MagicRound, MagicTag, mg } from './MagicUi';
+import { t } from '@/lib/i18n';
 
 /**
  * O primeiro ecrã da «Montagem mágica»: as 6 ondas em cartões (cada uma com o pano e as cores dela), o que a onda escolhida
@@ -24,7 +25,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
   privacy?: string;
 }) {
   const wave = waveById(value);
-  const count = [photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : '', videos ? `${videos} ${videos === 1 ? 'vídeo' : 'vídeos'}` : ''].filter(Boolean).join(' e ');
+  const count = [photos ? t('{count} foto', { count: photos, other: '{count} fotos' }) : '', videos ? t('{count} vídeo', { count: videos, other: '{count} vídeos' }) : ''].filter(Boolean).join(' e ');
   return (
     <View style={st.root}>
       <MagicBackdrop />
@@ -33,16 +34,16 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
           <View style={{ flex: 1 }}>
             <View style={st.titleRow}>
               <Icon name="cam-magic" size={26} color={mg.coralHot} strokeWidth={2.2} />
-              <Text style={st.title} accessibilityRole="header">Montagem mágica</Text>
+              <Text style={st.title} accessibilityRole="header">{t('Montagem mágica')}</Text>
             </View>
-            <Text style={st.sub}>Escolhe a onda. Nós cortamos, pomos por ordem e acertamos tudo no ritmo.</Text>
+            <Text style={st.sub}>{t('Escolhe a onda. Nós cortamos, pomos por ordem e acertamos tudo no ritmo.')}</Text>
           </View>
-          <MagicRound onPress={onClose} a11y="Fechar a montagem mágica"><X size={22} color="#fff" /></MagicRound>
+          <MagicRound onPress={onClose} a11y={t('Fechar a montagem mágica')}><X size={22} color="#fff" /></MagicRound>
         </View>
 
         <View style={st.tags}>
           {count ? <MagicTag label={count} /> : null}
-          <MagicTag hot={!!musicTitle} icon={<Music2 size={16} color="#fff" />} label={musicTitle || 'Sem música: ritmo de 120 BPM'} />
+          <MagicTag hot={!!musicTitle} icon={<Music2 size={16} color="#fff" />} label={musicTitle || t('Sem música: ritmo de 120 BPM')} />
         </View>
 
         <View style={st.grid} accessibilityRole="radiogroup">
@@ -74,16 +75,16 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
         <View style={st.recipe}>
           <Text style={st.recipeTitle}>{wave.name}</Text>
           <Text style={st.recipeText}>{wave.recipe}.</Text>
-          <Text style={st.recipeText}>Abre com «{wave.openers[0]}» (podes mudar depois).</Text>
+          <Text style={st.recipeText}>{t('Abre com «{opener}» (podes mudar depois).', { opener: wave.openers[0] })}</Text>
         </View>
       </ScrollView>
 
       <View style={[st.bar, { paddingBottom: 16 + bottomInset }]}>
         <LinearGradient pointerEvents="none" colors={['rgba(8,8,12,0)', 'rgba(8,8,12,0.96)', mg.bg]} locations={[0, 0.2, 1]} style={StyleSheet.absoluteFill} />
-        <MagicCta label="Montar a tcheka" onPress={onStart} icon={<Icon name="cam-magic" size={22} color="#fff" strokeWidth={2.2} />} testID="montar" a11y={`Montar a tcheka na onda ${wave.name}`} />
+        <MagicCta label={t('Montar a tcheka')} onPress={onStart} icon={<Icon name="cam-magic" size={22} color="#fff" strokeWidth={2.2} />} testID="montar" a11y={t('Montar a tcheka na onda {name}', { name: wave.name })} />
         <View style={st.private}>
           <ShieldCheck size={16} color={mg.muted} />
-          <Text style={st.privateText}>{privacy ?? 'Tudo acontece no teu telemóvel. Nada é enviado.'}</Text>
+          <Text style={st.privateText}>{privacy ?? t('Tudo acontece no teu telemóvel. Nada é enviado.')}</Text>
         </View>
       </View>
     </View>

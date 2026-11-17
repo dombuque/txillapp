@@ -8,6 +8,7 @@ import { existingMixarId } from '@/lib/mixar';
 import { GROUP_MIN, groupCanMixar, groupProposeError, groupShowDot, mixarOfGroup } from '@/lib/mixarGrupo';
 import { useMixarSeen } from '@/lib/mixarSeen';
 import { useMixarList } from './MixarEntry';
+import { t } from '@/lib/i18n';
 
 /**
  * «Mixar do grupo» (0173) no cabeçalho e no menu de um TxillGroup: se o grupo já tem um Mixar (pendente ou ativo), abre-o;
@@ -42,7 +43,7 @@ export function useGroupMixar(groupId: string, members: number | null | undefine
     if (running.current) return;
     if (here) return open(here.id);
     running.current = true;
-    void confirm({ title: 'Mixar do grupo?', message: `Um feed do grupo com os gostos de quem entrar, com uma seleção nova todos os dias. Começa quando ${GROUP_MIN} pessoas aceitarem; quem não aceitar não entra.`, confirm: 'Propor', cancel: 'Agora não' }).then((ok) => {
+    void confirm({ title: t('Mixar do grupo?'), message: t('Um feed do grupo com os gostos de quem entrar, com uma seleção nova todos os dias. Começa quando {groupMin} pessoas aceitarem; quem não aceitar não entra.', { groupMin: GROUP_MIN }), confirm: t('Propor'), cancel: t('Agora não') }).then((ok) => {
       running.current = false;
       if (ok) void propose();
     });

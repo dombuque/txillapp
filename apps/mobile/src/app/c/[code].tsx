@@ -15,6 +15,7 @@ import { INVITE_PHRASES, PHRASE_STICKERS, phraseIndexOf } from '@/lib/inviteCard
 import { stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
 import { formatVibes } from '@/lib/vibes';
+import { t } from '@/lib/i18n';
 
 /**
  * A página do convite (txillapp.com/c/CÓDIGO): o que vê quem abre a ligação. «{Nome} convidou-te para o Txillapp», a foto,
@@ -30,7 +31,7 @@ export default function InviteLanding() {
   const q = useQuery({ queryKey: ['invite-preview', code], queryFn: () => api.invitePreview(code), enabled: code.length >= 4, retry: false, staleTime: 60_000 });
   const p = q.data;
   const i = phraseIndexOf(code);
-  const phrase = p?.phrase ?? INVITE_PHRASES[i];
+  const phrase = p?.phrase ?? INVITE_PHRASES()[i];
   const sticker = stickerById(PHRASE_STICKERS[i]);
   // Sem rede (ou o servidor em baixo) não é "o convite já não está ativo": deixa tentar outra vez.
   const offline = q.isError && !(q.error instanceof ApiError && q.error.status < 500);
@@ -44,7 +45,7 @@ export default function InviteLanding() {
     if (p && user) router.replace(`/u/${p.username}` as never);
   }, [p, user, router]);
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = p ? `${p.displayName} convidou-te para o Txillapp` : 'Convite para o Txillapp';
+    if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = p ? t('{displayName} convidou-te para o Txillapp', { displayName: p.displayName }) : t('Convite para o Txillapp');
   }, [p]);
 
   const join = () => router.push((p ? `/register?convite=${encodeURIComponent(code)}` : '/register') as never);
@@ -56,17 +57,17 @@ export default function InviteLanding() {
         {q.isLoading && <ActivityIndicator style={{ marginTop: 60 }} color="#ffffff" />}
         {!q.isLoading && !p && offline && (
           <View style={st.card}>
-            <Text style={st.title} accessibilityRole="header">Não consegui abrir o convite</Text>
-            <Text style={st.text}>Verifica a internet e tenta outra vez.</Text>
+            <Text style={st.title} accessibilityRole="header">{t('Não consegui abrir o convite')}</Text>
+            <Text style={st.text}>{t('Verifica a internet e tenta outra vez.')}</Text>
             <Pressable onPress={() => void q.refetch()} style={[st.btn, { marginTop: 16, alignSelf: 'stretch', backgroundColor: colors.zinc100 }]} accessibilityRole="button">
-              <Text style={[st.btnText, { color: colors.zinc900 }]}>Tentar outra vez</Text>
+              <Text style={[st.btnText, { color: colors.zinc900 }]}>{t('Tentar outra vez')}</Text>
             </Pressable>
           </View>
         )}
         {!q.isLoading && !p && !offline && (
           <View style={st.card}>
-            <Text style={st.title} accessibilityRole="header">Este convite já não está ativo</Text>
-            <Text style={st.text}>Mas podes entrar na mesma: o Txillapp é a rede da malta.</Text>
+            <Text style={st.title} accessibilityRole="header">{t('Este convite já não está ativo')}</Text>
+            <Text style={st.text}>{t('Mas podes entrar na mesma: o Txillapp é a rede da malta.')}</Text>
           </View>
         )}
         {p && (
@@ -75,33 +76,33 @@ export default function InviteLanding() {
               <View style={st.ring}><Avatar username={p.hasAvatar === false ? undefined : p.username} name={p.displayName} size={112} /></View>
               {sticker && <View style={st.sticker} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><StickerArt def={sticker} size={86} /></View>}
             </View>
-            <Text style={st.title} accessibilityRole="header">{p.displayName}<InlineBadge who={p} fontSize={24} /> convidou-te para o Txillapp</Text>
+            <Text style={st.title} accessibilityRole="header">{p.displayName}<InlineBadge who={p} fontSize={24} /> {t('convidou-te para o Txillapp')}</Text>
             <Text style={st.phrase}>{phrase}</Text>
             {p.items?.length ? (
-              <View style={{ marginTop: 14, alignItems: 'center' }} accessible accessibilityLabel={`Na geleira de ${p.displayName}: ${p.items.join(', ')}`}>
-                <Text style={st.label}>Na geleira de {p.displayName.split(' ')[0]}</Text>
+              <View style={{ marginTop: 14, alignItems: 'center' }} accessible accessibilityLabel={t('Na geleira de {displayName}: {items}', { displayName: p.displayName, items: p.items.join(', ') })}>
+                <Text style={st.label}>{t('Na geleira de {split}', { split: p.displayName.split(' ')[0] })}</Text>
                 <View style={st.chips}>
                   {p.items.map((t) => <Text key={t} style={st.chip}>{t}</Text>)}
                 </View>
               </View>
             ) : null}
-            {p.reward ? <Text style={st.gift}>Entra com o convite e ganhas {formatVibes(p.reward)} logo à entrada.</Text> : null}
-            <Text style={st.code} accessibilityLabel={`Código do convite: ${code.split('').join(' ')}`}>Código {code}</Text>
+            {p.reward ? <Text style={st.gift}>{t('Entra com o convite e ganhas {vibes} logo à entrada.', { vibes: formatVibes(p.reward) })}</Text> : null}
+            <Text style={st.code} accessibilityLabel={t('Código do convite: {split}', { split: code.split('').join(' ') })}>{t('Código {code}', { code })}</Text>
           </View>
         )}
         {!q.isLoading && (
           <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 20, maxWidth: 420, width: '100%' }}>
             {user ? (
-              <Pressable onPress={() => router.replace('/')} style={[st.btn, { backgroundColor: '#ffffff' }]} accessibilityRole="button" accessibilityLabel="Já tens conta: abrir o Txillapp">
-                <Text style={[st.btnText, { color: colors.brand }]}>Já tens conta: abrir o Txillapp</Text>
+              <Pressable onPress={() => router.replace('/')} style={[st.btn, { backgroundColor: '#ffffff' }]} accessibilityRole="button" accessibilityLabel={t('Já tens conta: abrir o Txillapp')}>
+                <Text style={[st.btnText, { color: colors.brand }]}>{t('Já tens conta: abrir o Txillapp')}</Text>
               </Pressable>
             ) : (
               <>
-                <Pressable onPress={join} style={[st.btn, { backgroundColor: '#ffffff' }]} accessibilityRole="button" accessibilityLabel="Criar conta">
-                  <Text style={[st.btnText, { color: colors.brand }]}>Criar conta</Text>
+                <Pressable onPress={join} style={[st.btn, { backgroundColor: '#ffffff' }]} accessibilityRole="button" accessibilityLabel={t('Criar conta')}>
+                  <Text style={[st.btnText, { color: colors.brand }]}>{t('Criar conta')}</Text>
                 </Pressable>
-                <Pressable onPress={() => router.push('/login' as never)} style={[st.btn, { backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)' }]} accessibilityRole="button" accessibilityLabel="Já tenho conta">
-                  <Text style={[st.btnText, { color: '#ffffff' }]}>Já tenho conta</Text>
+                <Pressable onPress={() => router.push('/login' as never)} style={[st.btn, { backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)' }]} accessibilityRole="button" accessibilityLabel={t('Já tenho conta')}>
+                  <Text style={[st.btnText, { color: '#ffffff' }]}>{t('Já tenho conta')}</Text>
                 </Pressable>
               </>
             )}

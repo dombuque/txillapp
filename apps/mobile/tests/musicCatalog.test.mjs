@@ -5,6 +5,7 @@
 // E: o componente (folha escura, linhas com capa e marcador, menu com «Não gosto desta») e o que vai para o servidor.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -100,7 +101,7 @@ test('guardar: muda logo (a nova vai para o topo; tocar outra vez tira); clipes 
   assert.equal(m.usableHere(t('local:1', { source: 'local' }), false), false);
   assert.equal(m.usableHere(t('local:1', { source: 'local' }), true), true);
   assert.equal(m.usableHere(t('ccmixter:1', { source: 'ccmixter' }), false), true);
-  assert.equal(m.LOCAL_ONLY_NOTE, 'Só em mimos e tchekas');
+  assert.equal(m.LOCAL_ONLY_NOTE(), 'Só em mimos e tchekas');
   assert.equal(m.lockedMeta(t('local:1', { source: 'local', artist: 'Mano Txill', usesTotal: 40, durationMs: 185_000 })), 'Mano Txill · Só em mimos e tchekas');
   assert.equal(m.lockedMeta({ id: 'local:2', source: 'local', artist: '', artistUsername: 'mano' }), '@mano · Só em mimos e tchekas');
 });
@@ -219,23 +220,23 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(read('components/Sheet.tsx'), /export const DARK = \{ bg: DARK_UI\.bg/);
   assert.match(read('lib/theme.ts'), /export const dark = \{\r?\n\s+bg: '#1c1c1e',/);
   // A pesquisa em pílula e, logo por baixo, os separadores em pílula (Chip escuro: o escolhido a branco).
-  assert.match(src, /placeholder="Pesquisar…"/);
+  assert.match(src, /placeholder=\{t\('Pesquisar…'\)\}/);
   assert.match(src, /search: \{[^}]*borderRadius: 999/);
   assert.match(src, /const tabs = pickerTabs\(\);/);
   assert.match(src, /<Chip key=\{id\} dark label=\{label\} selected=\{tab === id\} onPress=\{\(\) => setTab\(id\)\} \/>/);
   assert.match(src, /Em alta no Txillapp/);
   // «Para ti»: destaques com o gradiente da capa e pontos; pastilhas pequenas; a lista do estilo sugerido e das guardadas.
-  assert.match(src, /<LinearGradient colors=\{highlightColors\(t\)/);
+  assert.match(src, /<LinearGradient colors=\{highlightColors\(track\d*\)/);
   assert.match(src, /pagingEnabled/);
   assert.match(src, /const chips = forYouChips\(home\.data, allowLocal, suggestion\?\.genre\);/);
   assert.match(src, /const autoStyle = forYouStyle\(suggestion\?\.genre, favs\.data\);/);
   // As linhas (iguais em todos os separadores, a mesma função `row`): capa de 48, título a negrito numa linha com o «E»,
   // «Artista · N tchekas · m:ss», o marcador de guardar (cheio quando guardada) e «Usar» na linha que está a ouvir.
-  assert.match(src, /<Cover t=\{t\} size=\{48\} radius=\{8\} active=\{active\} live=\{live\} \/>/);
-  assert.match(src, /<Text style=\{s\.rowTitle\} numberOfLines=\{1\}>\{t\.title\}<\/Text>/);
+  assert.match(src, /<Cover t=\{track\} size=\{48\} radius=\{8\} active=\{active\} live=\{live\} \/>/);
+  assert.match(src, /<Text style=\{s\.rowTitle\} numberOfLines=\{1\}>\{track\.title\}<\/Text>/);
   assert.match(src, /rowTitle: \{[^}]*fontWeight: '700'/);
-  assert.match(src, /\{isExplicit\(t\) \? \(/);
-  assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
+  assert.match(src, /\{isExplicit\(track\) \? \(/);
+  assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(track\)\}/);
   assert.match(src, /\{live \? <SoundBars /);
   // A pesquisa e os quatro separadores mostram as faixas com a mesma linha (com guardar).
   assert.equal((src.match(/\.map\(row\)/g) || []).length, 3);
@@ -244,30 +245,30 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   // O áudio gravado na hora não tem marcador e não deixa espaço vazio (o «Usar» encosta à direita).
   assert.doesNotMatch(src, /<View style=\{s\.iconBtn\} \/>/);
   // Guardada mas sem licença aqui: «Artista · Só em mimos e tchekas» e o «Usar» desativado (também no menu).
-  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
-  assert.match(src, /<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(t\)\}/);
-  assert.match(src, /label="Usar esta música" hint=\{locked \? LOCAL_ONLY_NOTE : undefined\} disabled=\{locked\}/);
+  assert.match(src, /const meta = locked \? lockedMeta\(track\) : rowMeta\(track\);/);
+  assert.match(src, /<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(track\)\}/);
+  assert.match(src, /label=\{t\('Usar esta música'\)\} hint=\{locked \? LOCAL_ONLY_NOTE\(\) : undefined\} disabled=\{locked\}/);
   assert.match(src, /savedIds\.has\(t\.id\) \? musicApi\.removeFavorite\(t\.id\) : musicApi\.addFavorite\(t\)/);
   // Tocar ouve logo (pausa e retoma na mesma linha), sem `await` antes do som; «Usar» é que escolhe.
-  assert.match(src, /const act = rowTap\(playing, live, t\.id\);/);
+  assert.match(src, /const act = rowTap\(playing, live, track\.id\);/);
   assert.match(src, /if \(act === 'pause'\) \{\n      setPaused\(true\);\n      return pauseTrack\(me\.current\);/);
   assert.match(src, /if \(act === 'resume'\) \{\n      setPaused\(false\);\n      return resumeTrack\(me\.current\);/);
   // As ondas seguem o que a pessoa fez (a carregar já mostra que vai tocar), não o estado do leitor.
   assert.match(src, /const live = playing !== null && !paused;/);
   assert.doesNotMatch(src, /async function toggle/);
   assert.match(src, /function pick\(t: Track\) \{\n[^}]*if \(!usableHere\(t, allowLocal\)\) return;\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
-  assert.match(src, /const meta = locked \? lockedMeta\(t\) : rowMeta\(t\);/);
+  assert.match(src, /const meta = locked \? lockedMeta\(track\) : rowMeta\(track\);/);
   assert.match(src, /<BookmarkIcon on=\{saved\}/);
   assert.match(src, /<SoundBars /);
   assert.match(src, /onMutate: \(t\) => qc\.setQueryData<Track\[\]>\(\['music-favorites'\], \(old\) => toggleSaved\(old, t\)\)/);
   // «Não gosto desta» no menu de manter premido (e no «⋯» e no botão direito do computador), com Desfazer.
-  assert.match(src, /onLongPress=\{\(\) => onMenu\(t, null\)\}/);
+  assert.match(src, /onLongPress=\{\(\) => onMenu\(track\d*, null\)\}/);
   assert.match(src, /onContextMenu: /);
-  assert.match(src, /label="Não gosto desta"/);
+  assert.match(src, /label=\{t\('Não gosto desta'\)\}/);
   assert.match(src, /<Sheet title=\{track\.title\} onClose=\{onClose\} dark variant="menu" anchor=\{anchor\}>/);
   assert.match(src, /musicApi\.dislike\(/);
   assert.match(src, /musicApi\.undislike\(/);
-  assert.match(src, />Desfazer</);
+  assert.match(src, />\{t\('Desfazer'\)\}</);
   assert.match(src, /musicApi\.home/);
   assert.match(src, /musicApi\.search\(/);
   assert.doesNotMatch(src, /GENRES/); // acabaram os géneros fixos na app

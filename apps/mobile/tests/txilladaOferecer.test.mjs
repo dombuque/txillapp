@@ -13,14 +13,14 @@ const screen = read('app', 'txillada', '[id].tsx');
 const money = read('components', 'txillada', 'TxilladaMoney.tsx');
 
 test('o botão «Oferecer» fica ao lado do comentário, com o presente e o nome escrito', () => {
-  assert.match(screen, /ui\.canGift && !typing \? \([\s\S]*?st\.offer[\s\S]*?<Icon name="gift"[\s\S]*?>Oferecer<\/Text>/);
+  assert.match(screen, /ui\.canGift && !typing \? \([\s\S]*?st\.offer[\s\S]*?<Icon name="gift"[\s\S]*?>\{t\('Oferecer'\)\}<\/Text>/);
   assert.doesNotMatch(screen, /<Icon name="present"/);
   assert.doesNotMatch(screen, /st\.giftBtn/);
 });
 
 test('a meta da Angariação tem «Ajudar», que abre a folha', () => {
   assert.match(screen, /<GoalBar [^>]*onGive=\{ui\.canGift \? \(\) => setPanel\('gift'\) : undefined\}/);
-  assert.match(money, /onGive \? \([\s\S]*?>Ajudar<\/Text>/);
+  assert.match(money, /onGive \? \([\s\S]*?>\{t\('Ajudar'\)\}<\/Text>/);
 });
 
 test('na folha, um toque num valor oferece logo e a folha fica aberta para dar mais', () => {

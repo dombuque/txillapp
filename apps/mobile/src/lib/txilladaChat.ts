@@ -6,6 +6,7 @@
 
 // ─── O teclado ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+import { t } from '@/lib/i18n';
 export type KbIn = {
   web: boolean;
   /** A escrever no campo (ou o teclado aberto). */
@@ -67,7 +68,7 @@ export function newSince(ids: readonly string[], lastSeen: string | null): numbe
 /** «1 comentário novo», «3 comentários novos» (nada com 0). */
 export function newLabel(n: number): string {
   if (!(n > 0)) return '';
-  return n === 1 ? '1 comentário novo' : `${n > 99 ? '99+' : n} comentários novos`;
+  return n === 1 ? t('1 comentário novo') : t('{value} comentários novos', { value: n > 99 ? '99+' : n });
 }
 /** O comentário mais antigo que é mesmo um comentário (as linhas das ofertas não vão à API): o `before` de ler para trás. */
 export function oldestId(list: readonly { id: string; gift?: unknown }[]): string | null {
@@ -119,23 +120,23 @@ export function parseMentionEvent(e: unknown, id?: string): MentionEvent | null 
     from: { username: u, verified: x.from?.verified === true, verifiedTier: typeof tier === 'string' ? tier : null },
   };
 }
-export const mentionNotice = (from: string) => `@${from} mencionou-te num comentário`;
+export const mentionNotice = (from: string) => t('@{from} mencionou-te num comentário', { from });
 /** Depois de comentar: quem recebeu o convite para vir ver (não estava a ver). */
 export function invitedNotice(users: readonly string[] | null | undefined): string | null {
   const u = (users ?? []).filter((x) => typeof x === 'string' && x);
   if (!u.length) return null;
-  if (u.length === 1) return `Convidaste @${u[0]} para vir ver a Txillada`;
-  return `Convidaste ${u.length} pessoas para vir ver a Txillada`;
+  if (u.length === 1) return t('Convidaste @{u} para vir ver a Txillada', { u: u[0] });
+  return t('Convidaste {n} pessoas para vir ver a Txillada', { n: u.length });
 }
 
 /** Por baixo do nome, nas sugestões do @ (na Txillada): quem não está a ver é convidado ao mencioná-lo. */
 export function suggestNote(p: { inTxillada?: boolean; invitable?: boolean }): string | null {
   if (p.inTxillada) return null;
-  return p.invitable ? 'Convida-se ao mencionar' : null;
+  return p.invitable ? t('Convida-se ao mencionar') : null;
 }
 
 // ─── A câmara ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** O que diz o quadrado de quem desligou a câmara (o som continua). */
-export const CAM_OFF = 'Câmara desligada';
-export const camLabel = (on: boolean) => (on ? 'Desligar a câmara' : 'Ligar a câmara');
+export const CAM_OFF = () => t('Câmara desligada');
+export const camLabel = (on: boolean) => (on ? t('Desligar a câmara') : t('Ligar a câmara'));

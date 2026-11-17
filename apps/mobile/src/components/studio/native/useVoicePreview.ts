@@ -12,42 +12,43 @@ import { uploadAll, type Signal } from '@/lib/studio/composeRunner';
 import { magicMediaId } from '@/lib/studio/magicUploads';
 import { loadJobRecord, saveJobRecord } from '@/lib/studio/studioStore';
 import { cacheName, failNote, targetId, type FxStatus, type FxTarget } from '@/lib/studio/voicePreview';
+import { t } from '@/lib/i18n';
 
 const statusOf = (e: unknown) => (e instanceof ApiError ? e.status : (e as { status?: number } | null)?.status);
 
 /** Os sons já preparados nesta sessão (o ficheiro local), para não voltar a pedir ao reabrir o painel. */
 const done = new Map<string, string>();
 
-async function mediaFor(draftId: string, t: FxTarget, signal: Signal): Promise<string> {
+async function mediaFor(draftId: string, fxTarget: FxTarget, signal: Signal): Promise<string> {
   // Os vídeos que a Montagem mágica já está a enviar: espera-se por esse envio em vez de mandar outra vez.
-  const magic = t.kind === 'video' ? await magicMediaId(draftId, t.key, 90_000) : null;
+  const magic = fxTarget.kind === 'video' ? await magicMediaId(draftId, fxTarget.key, 90_000) : null;
   if (magic) {
     const st = (await raw(`/media/${magic}/status`)) as MediaState;
     if (st.status !== 'deleted' && st.status !== 'failed' && st.status !== 'rejected') { await waitMediaReady(magic, st); return magic; }
   }
   const rec = (await loadJobRecord(draftId)) ?? emptyRecord(draftId);
-  const up = await uploadAll([{ key: t.key, uri: t.uri, mime: t.mime, kind: t.kind }], rec, {
+  const up = await uploadAll([{ key: fxTarget.key, uri: fxTarget.uri, mime: fxTarget.mime, kind: fxTarget.kind }], rec, {
     signal,
     onState: () => undefined,
     onRecord: (r) => {
-      const s = r.sent[t.key];
+      const s = r.sent[fxTarget.key];
       if (!s) return;
       // Junta só este envio ao registo atual (outro envio pode tê-lo mudado entretanto).
-      void loadJobRecord(draftId).then((cur) => saveJobRecord(withSent(cur ?? emptyRecord(draftId), t.key, s)));
+      void loadJobRecord(draftId).then((cur) => saveJobRecord(withSent(cur ?? emptyRecord(draftId), fxTarget.key, s)));
     },
   });
-  const id = up.ids[t.key];
-  if (!id) throw new ApiError(0, 'sem envio');
+  const id = up.ids[fxTarget.key];
+  if (!id) throw new ApiError(0, t('sem envio'));
   return id;
 }
 
-async function prepare(draftId: string, t: FxTarget, signal: Signal): Promise<string> {
-  const f = new File(Paths.cache, cacheName(t));
+async function prepare(draftId: string, fxTarget2: FxTarget, signal: Signal): Promise<string> {
+  const f = new File(Paths.cache, cacheName(fxTarget2));
   try { if (f.exists && (f.size ?? 0) > 0) return f.uri; } catch { /* sem cache */ }
-  const mediaId = await mediaFor(draftId, t, signal);
-  const r = (await raw('/tchekas/compose/voice-preview', post({ mediaId, effect: t.effect }))) as { url?: string };
+  const mediaId = await mediaFor(draftId, fxTarget2, signal);
+  const r = (await raw('/tchekas/compose/voice-preview', post({ mediaId, effect: fxTarget2.effect }))) as { url?: string };
   const url = abs(r?.url);
-  if (!url) throw new ApiError(500, 'sem url');
+  if (!url) throw new ApiError(500, t('sem url'));
   const out = await File.downloadFileAsync(url, f, { idempotent: true });
   return out.uri;
 }

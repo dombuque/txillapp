@@ -11,10 +11,11 @@ import { RangeSlider } from '../../RangeSlider';
 import { AudioTemplates } from '../AudioTemplates';
 import { NativeVoice, type VoiceCtl } from './NativeVoice';
 import { playSfx } from './usePreviewAudio';
+import { t } from '@/lib/i18n';
 
 const CORAL = '#d6334f';
 type Sub = 'musica' | 'mistura' | 'voz' | 'efeitos' | 'moldes';
-const SUBS: { id: Sub; label: string }[] = [{ id: 'musica', label: 'Música' }, { id: 'mistura', label: 'Mistura' }, { id: 'voz', label: 'Voz-off' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'moldes', label: 'Moldes' }];
+const SUBS: { id: Sub; label: string }[] = [{ id: 'musica', get label() { return t('Música'); } }, { id: 'mistura', get label() { return t('Mistura'); } }, { id: 'voz', get label() { return t('Voz-off'); } }, { id: 'efeitos', get label() { return t('Efeitos'); } }, { id: 'moldes', get label() { return t('Moldes'); } }];
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /** A onda da música inteira com a janela do trecho (do tamanho da tcheka): arrastar a janela muda onde a música começa. */
@@ -39,7 +40,7 @@ function Wave({ analysis, startMs, windowS, onMove, onCommit, disabled }: { anal
   });
   return (
     <GestureDetector gesture={pan}>
-      <View style={st.wave} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)} accessibilityRole="adjustable" accessibilityLabel="Trecho da música" accessibilityValue={{ text: `começa aos ${mmss(startMs / 1000)}` }}>
+      <View style={st.wave} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)} accessibilityRole="adjustable" accessibilityLabel={t('Trecho da música')} accessibilityValue={{ text: t('começa aos {mmss}', { mmss: mmss(startMs / 1000) }) }}>
         <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', alignItems: 'center', gap: 1 }]} pointerEvents="none">
           {bars.map((v, i) => {
             const x = (i / bars.length) * w;
@@ -126,7 +127,7 @@ export function NativeSoundPanel(p: {
     <View style={{ marginTop: 8 }}>
       <Text style={[st.label, { paddingHorizontal: 16 }]}>{label}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rowScroll}>
-        {VOICE_FX.map((f) => <Chip key={f.id} label={value === f.id && f.id !== 'normal' && state?.loading ? 'A preparar o efeito…' : f.name} on={value === f.id} onPress={() => { if (value === f.id) p.onFxRetry?.(); on(f.id); }} disabled={locked} />)}
+        {VOICE_FX.map((f) => <Chip key={f.id} label={value === f.id && f.id !== 'normal' && state?.loading ? t('A preparar o efeito…') : f.name} on={value === f.id} onPress={() => { if (value === f.id) p.onFxRetry?.(); on(f.id); }} disabled={locked} />)}
       </ScrollView>
       {value !== 'normal' && state?.note ? <Text style={[st.note, { marginTop: 4 }]} accessibilityLiveRegion="polite">{state.note}</Text> : null}
     </View>
@@ -147,32 +148,32 @@ export function NativeSoundPanel(p: {
           <View style={st.musicRow}>
             <Music2 size={20} color="#fff" />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.title} numberOfLines={1}>{p.music ? p.music.title : p.duet ? 'Som do dueto' : 'Sem música'}</Text>
-              <Text style={st.sub2} numberOfLines={1}>{p.music ? p.music.artist || 'Toca em ciclo' : p.photosOnly ? 'Só com fotos, escolhe uma música' : 'Fica o som dos vídeos'}</Text>
+              <Text style={st.title} numberOfLines={1}>{p.music ? p.music.title : p.duet ? t('Som do dueto') : t('Sem música')}</Text>
+              <Text style={st.sub2} numberOfLines={1}>{p.music ? p.music.artist || t('Toca em ciclo') : p.photosOnly ? t('Só com fotos, escolhe uma música') : t('Fica o som dos vídeos')}</Text>
             </View>
-            <Chip label={p.music ? 'Trocar' : 'Escolher'} onPress={p.onPickMusic} disabled={locked} />
-            {p.music ? <Pressable onPress={p.onRemoveMusic} disabled={locked} style={st.x} accessibilityRole="button" accessibilityLabel="Tirar a música"><X size={18} color="#fff" /></Pressable> : null}
+            <Chip label={p.music ? t('Trocar') : t('Escolher')} onPress={p.onPickMusic} disabled={locked} />
+            {p.music ? <Pressable onPress={p.onRemoveMusic} disabled={locked} style={st.x} accessibilityRole="button" accessibilityLabel={t('Tirar a música')}><X size={18} color="#fff" /></Pressable> : null}
           </View>
           {p.music && p.music.kind !== 'sound' ? (
             p.analysis ? (
               <>
-                <Text style={[st.note, { marginTop: 8 }]}>Arrasta a janela para escolher o trecho · começa aos {mmss(mix.musicStartMs / 1000)}</Text>
+                <Text style={[st.note, { marginTop: 8 }]}>{t('Arrasta a janela para escolher o trecho · começa aos {mmss}', { mmss: mmss(mix.musicStartMs / 1000) })}</Text>
                 <View style={{ paddingHorizontal: 16 }}>
                   <Wave analysis={p.analysis} startMs={mix.musicStartMs} windowS={Math.max(1, p.total)} onMove={p.onStartMove} onCommit={p.onStartCommit} disabled={locked} />
                 </View>
               </>
-            ) : p.analyzing ? <Text style={[st.note, { marginTop: 8 }]}>A ler a música…</Text> : dur > p.total + 1 ? (
+            ) : p.analyzing ? <Text style={[st.note, { marginTop: 8 }]}>{t('A ler a música…')}</Text> : dur > p.total + 1 ? (
               <>
-                <Text style={[st.note, { marginTop: 8 }]}>Esta música não mostra a onda: escolhe o trecho pelo tempo.</Text>
-                <Slider label="Começa aos" value={Math.round(mix.musicStartMs / 1000)} min={0} max={Math.max(1, Math.floor(dur - p.total))} step={1} format={(v) => mmss(v)} onChange={(v) => p.onStartCommit(v * 1000)} />
+                <Text style={[st.note, { marginTop: 8 }]}>{t('Esta música não mostra a onda: escolhe o trecho pelo tempo.')}</Text>
+                <Slider label={t('Começa aos')} value={Math.round(mix.musicStartMs / 1000)} min={0} max={Math.max(1, Math.floor(dur - p.total))} step={1} format={(v) => mmss(v)} onChange={(v) => p.onStartCommit(v * 1000)} />
               </>
             ) : null
           ) : null}
           {p.music ? (
             <View style={st.rowWrap}>
               {p.suggestion ? <Chip label={`${p.suggestion.label} · ${mmss(p.suggestion.start)}`} on={Math.abs(mix.musicStartMs - p.suggestion.start * 1000) < 60} onPress={() => p.onStartCommit(Math.round(p.suggestion!.start * 1000))} disabled={locked} /> : null}
-              <Chip label="Do início" on={mix.musicStartMs === 0} onPress={() => p.onStartCommit(0)} disabled={locked} />
-              <Chip label="Ajustar ao ritmo" coral onPress={p.onFit} disabled={locked || !p.canFit} />
+              <Chip label={t('Do início')} on={mix.musicStartMs === 0} onPress={() => p.onStartCommit(0)} disabled={locked} />
+              <Chip label={t('Ajustar ao ritmo')} coral onPress={p.onFit} disabled={locked || !p.canFit} />
             </View>
           ) : null}
           {p.music ? <Text style={st.note}>{p.fitNote}</Text> : null}
@@ -181,31 +182,31 @@ export function NativeSoundPanel(p: {
 
       {sub === 'mistura' ? (
         <>
-          {p.hasVideo ? <Slider label="Som dos vídeos" value={Math.round(p.origVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setOrigVol(v / 100)} /> : null}
+          {p.hasVideo ? <Slider label={t('Som dos vídeos')} value={Math.round(p.origVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setOrigVol(v / 100)} /> : null}
           {p.clipSounds.map((c) => (
             <View key={c.key} style={st.clipSound}>
               <View style={st.sliderHead}>
-                <Text style={st.label}>{c.label}{c.hasAudio === false ? ' · sem som' : ''}</Text>
-                <Chip label={c.on ? 'Ligado' : 'Calado'} on={c.on && c.hasAudio !== false} onPress={() => p.onClipSound(c.key, { on: !c.on })} disabled={locked || c.hasAudio === false} />
+                <Text style={st.label}>{c.label}{c.hasAudio === false ? (' ' + t('· sem som')) : ''}</Text>
+                <Chip label={c.on ? t('Ligado') : t('Calado')} on={c.on && c.hasAudio !== false} onPress={() => p.onClipSound(c.key, { on: !c.on })} disabled={locked || c.hasAudio === false} />
               </View>
-              {c.on && c.hasAudio !== false ? <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.onClipSound(c.key, { volume: v / 100 })} /> : null}
+              {c.on && c.hasAudio !== false ? <RangeSlider label={t('Volume: {label}', { label: c.label })} value={Math.round(c.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.onClipSound(c.key, { volume: v / 100 })} /> : null}
             </View>
           ))}
-          {p.music || p.duet ? <Slider label={p.duet && !p.music ? 'Som do original' : 'Música'} value={Math.round(p.musicVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMusicVol(v / 100)} /> : null}
+          {p.music || p.duet ? <Slider label={p.duet && !p.music ? t('Som do original') : t('Música')} value={Math.round(p.musicVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMusicVol(v / 100)} /> : null}
           {p.music ? (
             <>
-              <Slider label="Fade de entrada" value={mix.fadeIn} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => p.setMix((m) => ({ ...m, fadeIn: v }), 'fade-in')} />
-              <Slider label="Fade de saída" value={mix.fadeOut} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => p.setMix((m) => ({ ...m, fadeOut: v }), 'fade-out')} />
+              <Slider label={t('Fade de entrada')} value={mix.fadeIn} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => p.setMix((m) => ({ ...m, fadeIn: v }), 'fade-in')} />
+              <Slider label={t('Fade de saída')} value={mix.fadeOut} min={0} max={MAX_FADE_S} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => p.setMix((m) => ({ ...m, fadeOut: v }), 'fade-out')} />
             </>
           ) : null}
           {p.music && voice ? (
             <View style={st.rowWrap}>
-              <Chip label={mix.ducking ? 'Baixar a música quando falas: sim' : 'Baixar a música quando falas: não'} on={mix.ducking} onPress={() => p.setMix((m) => ({ ...m, ducking: !m.ducking }))} disabled={locked} />
+              <Chip label={mix.ducking ? t('Baixar a música quando falas: sim') : t('Baixar a música quando falas: não')} on={mix.ducking} onPress={() => p.setMix((m) => ({ ...m, ducking: !m.ducking }))} disabled={locked} />
             </View>
           ) : null}
-          {mix.sfx.length ? <Slider label="Efeitos sonoros" value={Math.round(mix.sfxVolume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMix((m) => ({ ...m, sfxVolume: v / 100 }), 'sfx-vol')} /> : null}
-          {voice ? <Slider label="Voz-off" value={Math.round(voice.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, volume: v / 100 } } : m), 'voice-vol')} /> : null}
-          {!p.hasVideo && !p.music && !voice ? <Text style={st.note}>Ainda não há som: escolhe uma música, grava uma voz-off ou junta um vídeo com som.</Text> : null}
+          {mix.sfx.length ? <Slider label={t('Efeitos sonoros')} value={Math.round(mix.sfxVolume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMix((m) => ({ ...m, sfxVolume: v / 100 }), 'sfx-vol')} /> : null}
+          {voice ? <Slider label={t('Voz-off')} value={Math.round(voice.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, volume: v / 100 } } : m), 'voice-vol')} /> : null}
+          {!p.hasVideo && !p.music && !voice ? <Text style={st.note}>{t('Ainda não há som: escolhe uma música, grava uma voz-off ou junta um vídeo com som.')}</Text> : null}
         </>
       ) : null}
 
@@ -215,16 +216,16 @@ export function NativeSoundPanel(p: {
 
       {sub === 'efeitos' ? (
         <>
-          {voice ? fxRow('Efeito na voz-off', voice.fx, (id) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, fx: id } } : m)), p.fxState?.voice) : null}
-          {p.hasVideo ? fxRow('Efeito no som original', mix.origFx, (id) => p.setMix((m) => ({ ...m, origFx: id })), p.fxState?.orig) : null}
-          {voice || p.hasVideo ? <Text style={st.note}>O efeito prepara-se no servidor e ouve-se aqui ao tocar (a primeira vez demora uns segundos).</Text> : null}
+          {voice ? fxRow(t('Efeito na voz-off'), voice.fx, (id) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, fx: id } } : m)), p.fxState?.voice) : null}
+          {p.hasVideo ? fxRow(t('Efeito no som original'), mix.origFx, (id) => p.setMix((m) => ({ ...m, origFx: id })), p.fxState?.orig) : null}
+          {voice || p.hasVideo ? <Text style={st.note}>{t('O efeito prepara-se no servidor e ouve-se aqui ao tocar (a primeira vez demora uns segundos).')}</Text> : null}
           <View style={[st.sliderHead, { paddingHorizontal: 16, marginTop: 10 }]}>
-            <Text style={st.label}>Efeitos sonoros</Text>
-            <Text style={st.note2}>Toca para pôr aos {fmtS(Math.min(p.total, Math.max(0, p.playT)))} s</Text>
+            <Text style={st.label}>{t('Efeitos sonoros')}</Text>
+            <Text style={st.note2}>{t('Toca para pôr aos {s} s', { s: fmtS(Math.min(p.total, Math.max(0, p.playT))) })}</Text>
           </View>
           <View style={st.grid}>
             {SFX.map((s) => (
-              <Pressable key={s.id} onPress={() => addSfx(s.id)} disabled={locked || mix.sfx.length >= MAX_SFX} style={({ pressed }) => [st.pad, pressed && st.padOn]} accessibilityRole="button" accessibilityLabel={`Pôr o efeito ${s.name} aqui`}>
+              <Pressable key={s.id} onPress={() => addSfx(s.id)} disabled={locked || mix.sfx.length >= MAX_SFX} style={({ pressed }) => [st.pad, pressed && st.padOn]} accessibilityRole="button" accessibilityLabel={t('Pôr o efeito {name} aqui', { name: s.name })}>
                 <Text style={st.padText}>{s.name}</Text>
               </Pressable>
             ))}
@@ -234,7 +235,7 @@ export function NativeSoundPanel(p: {
               {[...mix.sfx].sort((a, b) => a.at - b.at).map((s) => (
                 <View key={s.key} style={st.cue}>
                   <Text style={st.chipText}>{SFX.find((x) => x.id === s.id)?.name} · {fmtS(s.at)} s</Text>
-                  <Pressable onPress={() => p.setMix((m) => ({ ...m, sfx: m.sfx.filter((x) => x.key !== s.key) }))} disabled={locked} hitSlop={10} accessibilityRole="button" accessibilityLabel="Tirar este efeito"><X size={16} color="#fff" /></Pressable>
+                  <Pressable onPress={() => p.setMix((m) => ({ ...m, sfx: m.sfx.filter((x) => x.key !== s.key) }))} disabled={locked} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Tirar este efeito')}><X size={16} color="#fff" /></Pressable>
                 </View>
               ))}
             </ScrollView>

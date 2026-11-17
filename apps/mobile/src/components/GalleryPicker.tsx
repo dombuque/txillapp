@@ -10,6 +10,7 @@ import { askButtonLabel } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import type { Shot } from './TxCamera';
+import { t } from '@/lib/i18n';
 
 const MAX_VIDEO_MS = 60_500;
 const PAGE = 60;
@@ -66,11 +67,11 @@ function SystemGallery({ multi = false, max = 10, onPick, onClose }: GalleryProp
         });
         if (r.canceled || !r.assets?.length) return onClose();
         const { shots, tooLong } = shotsFromPicker(r.assets);
-        if (tooLong) Alert.alert('Vídeo longo demais', 'Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.');
+        if (tooLong) Alert.alert(t('Vídeo longo demais'), t('Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.'));
         if (!shots.length) return onClose();
         onPick(shots);
       } catch (e) {
-        Alert.alert('Não consegui abrir a galeria', (e as Error).message || 'Tenta outra vez.');
+        Alert.alert(t('Não consegui abrir a galeria'), (e as Error).message || t('Tenta outra vez.'));
         onClose();
       }
     })();
@@ -133,7 +134,7 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
       setMore(page.hasNextPage);
     } catch (e) {
       setMore(false);
-      setLoadErr((e as Error).message || 'Não consegui ler a galeria');
+      setLoadErr((e as Error).message || t('Não consegui ler a galeria'));
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -200,12 +201,12 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
   if (perm && !perm.granted) {
     return (
       <View style={[StyleSheet.absoluteFill, st.root, st.center, { paddingHorizontal: 32 }]}>
-        <Pressable onPress={onClose} style={[st.iconBtn, { position: 'absolute', top: insets.top + 8, left: 8 }]} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={26} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onClose} style={[st.iconBtn, { position: 'absolute', top: insets.top + 8, left: 8 }]} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={26} color="#fff" strokeWidth={2.2} /></Pressable>
         <Icon name="images" size={52} color="rgba(255,255,255,0.8)" />
-        <Text style={st.pTitle}>As tuas fotos e vídeos</Text>
-        <Text style={st.pSub}>{perm.canAskAgain ? 'Dá acesso à galeria para escolheres fotos e vídeos aqui mesmo.' : 'O acesso à galeria está bloqueado. Ativa-o nas definições do telemóvel.'}</Text>
+        <Text style={st.pTitle}>{t('As tuas fotos e vídeos')}</Text>
+        <Text style={st.pSub}>{perm.canAskAgain ? t('Dá acesso à galeria para escolheres fotos e vídeos aqui mesmo.') : t('O acesso à galeria está bloqueado. Ativa-o nas definições do telemóvel.')}</Text>
         <Pressable onPress={() => void (perm.canAskAgain ? askPerm() : Linking.openSettings())} style={st.cta} accessibilityRole="button">
-          <Text style={st.ctaText}>{perm.canAskAgain ? askButtonLabel(Platform.OS, 'Permitir a galeria') : 'Abrir as definições'}</Text>
+          <Text style={st.ctaText}>{perm.canAskAgain ? askButtonLabel(Platform.OS, t('Permitir a galeria')) : t('Abrir as definições')}</Text>
         </Pressable>
       </View>
     );
@@ -214,11 +215,11 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
   return (
     <View style={[StyleSheet.absoluteFill, st.root]}>
       <View style={[st.head, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={onClose} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={26} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={onClose} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={26} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title} numberOfLines={1}>{title}</Text>
         {preview ? (
           <Pressable onPress={() => void done()} disabled={busy || (!current && !picked.length)} style={st.headNext} accessibilityRole="button">
-            <Text style={[st.headNextText, (!current && !picked.length) && { opacity: 0.4 }]}>Seguinte</Text>
+            <Text style={[st.headNextText, (!current && !picked.length) && { opacity: 0.4 }]}>{t('Seguinte')}</Text>
           </Pressable>
         ) : <View style={{ width: 44 }} />}
       </View>
@@ -231,14 +232,14 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
       ) : null}
 
       <View style={st.row}>
-        <Pressable onPress={() => void openAlbums()} style={st.albumBtn} accessibilityRole="button" accessibilityLabel="Escolher o álbum">
-          <Text style={st.albumText} numberOfLines={1}>{album?.title ?? 'Recentes'}</Text>
+        <Pressable onPress={() => void openAlbums()} style={st.albumBtn} accessibilityRole="button" accessibilityLabel={t('Escolher o álbum')}>
+          <Text style={st.albumText} numberOfLines={1}>{album?.title ?? t('Recentes')}</Text>
           <View style={{ transform: [{ rotate: '90deg' }] }}><Icon name="chevron-right" size={18} color="#fff" /></View>
         </Pressable>
         {multi ? (
           <Pressable onPress={() => { setSelecting((v) => !v); setPicked([]); }} style={[st.selectBtn, selecting && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: selecting }}>
             <Icon name="images" size={18} color={selecting ? colors.zinc900 : '#fff'} />
-            <Text style={[st.selectText, selecting && { color: colors.zinc900 }]}>Selecionar</Text>
+            <Text style={[st.selectText, selecting && { color: colors.zinc900 }]}>{t('Selecionar')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -256,7 +257,7 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
         renderItem={({ item }) => {
           if (item === 'camera') {
             return (
-              <Pressable onPress={onCamera} style={[st.cam, { width: cell, height: cellH }]} accessibilityRole="button" accessibilityLabel="Abrir a câmara">
+              <Pressable onPress={onCamera} style={[st.cam, { width: cell, height: cellH }]} accessibilityRole="button" accessibilityLabel={t('Abrir a câmara')}>
                 <Icon name="camera" size={34} color="#fff" />
               </Pressable>
             );
@@ -265,10 +266,10 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
           const long = video && item.duration * 1000 > MAX_VIDEO_MS;
           const n = picked.findIndex((x) => x.id === item.id);
           return (
-            <Pressable onPress={() => void choose(item)} disabled={busy} style={{ width: cell, height: cellH, backgroundColor: '#1c1c1e' }} accessibilityRole="button" accessibilityLabel={video ? `Vídeo de ${mmss(item.duration)}` : 'Foto'}>
+            <Pressable onPress={() => void choose(item)} disabled={busy} style={{ width: cell, height: cellH, backgroundColor: '#1c1c1e' }} accessibilityRole="button" accessibilityLabel={video ? t('Vídeo de {mmss}', { mmss: mmss(item.duration) }) : t('Foto')}>
               <Image source={{ uri: item.uri }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={item.id} transition={80} />
               {preview && current?.id === item.id ? <View pointerEvents="none" style={st.current} /> : null}
-              {long ? <View style={st.long}><Text style={st.longText}>Mais de 60 s</Text></View> : null}
+              {long ? <View style={st.long}><Text style={st.longText}>{t('Mais de 60 s')}</Text></View> : null}
               {video ? <Text style={st.dur}>{mmss(item.duration)}</Text> : null}
               {selecting ? (
                 <View style={[st.check, n >= 0 && { backgroundColor: colors.brand, borderColor: colors.brand }]}>
@@ -282,14 +283,14 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
         ListEmptyComponent={loading || !perm ? <ActivityIndicator color="#fff" style={{ margin: 24 }} /> : loadErr ? (
           <View style={{ alignItems: 'center', marginTop: 32, paddingHorizontal: 32 }}>
             <Text style={st.empty}>{loadErr}</Text>
-            <Pressable onPress={() => void load(true)} style={[st.selectBtn, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.selectText}>Tentar outra vez</Text></Pressable>
+            <Pressable onPress={() => void load(true)} style={[st.selectBtn, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.selectText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
-        ) : <Text style={st.empty}>{perm.accessPrivileges === 'limited' ? 'Só vês as fotos que deixaste. Para veres todas, dá acesso a tudo nas definições do telemóvel.' : 'Ainda não há fotos nem vídeos aqui.'}</Text>}
+        ) : <Text style={st.empty}>{perm.accessPrivileges === 'limited' ? t('Só vês as fotos que deixaste. Para veres todas, dá acesso a tudo nas definições do telemóvel.') : t('Ainda não há fotos nem vídeos aqui.')}</Text>}
       />
 
       {!preview && selecting && picked.length > 0 ? (
         <Pressable onPress={() => void done()} disabled={busy} style={[st.next, { bottom: Math.max(insets.bottom, 12) + 20 }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>Seguinte ({picked.length})</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>{t('Seguinte ({n})', { n: picked.length })}</Text>}
         </Pressable>
       ) : null}
       {busy && !selecting ? <View style={[StyleSheet.absoluteFill, st.center, { backgroundColor: 'rgba(0,0,0,0.4)' }]}><ActivityIndicator color="#fff" size="large" /></View> : null}
@@ -307,12 +308,12 @@ function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClos
       {albumsOpen ? (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.96)', paddingTop: insets.top + 6 }]}>
           <View style={st.head}>
-            <Pressable onPress={() => setAlbumsOpen(false)} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={24} color="#fff" /></Pressable>
-            <Text style={st.title}>Álbuns</Text>
+            <Pressable onPress={() => setAlbumsOpen(false)} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Voltar')}><Icon name="back" size={24} color="#fff" /></Pressable>
+            <Text style={st.title}>{t('Álbuns')}</Text>
             <View style={{ width: 44 }} />
           </View>
           <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-            <Pressable onPress={() => { setAlbum(null); setAlbumsOpen(false); }} style={st.albumRow}><Text style={st.albumRowText}>Recentes</Text></Pressable>
+            <Pressable onPress={() => { setAlbum(null); setAlbumsOpen(false); }} style={st.albumRow}><Text style={st.albumRowText}>{t('Recentes')}</Text></Pressable>
             {albums === null ? <ActivityIndicator color="#fff" style={{ margin: 24 }} /> : albums.map((a) => (
               <Pressable key={a.id} onPress={() => { setAlbum(a); setAlbumsOpen(false); }} style={st.albumRow}>
                 <Text style={st.albumRowText} numberOfLines={1}>{a.title}</Text>

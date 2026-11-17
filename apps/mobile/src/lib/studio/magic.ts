@@ -17,6 +17,7 @@
 import type { CapulanaSpec, PaletteId, PatternId } from './capulana';
 import type { AnimIn, ClipFx, FontId, RampId, TextOverlay, TransitionId } from './effects';
 import type { ProjectClip } from './project';
+import { t } from '@/lib/i18n';
 
 export const MAGIC_VERSION = 1;
 /** O tamanho a que os frames são reduzidos para se analisarem. */
@@ -669,51 +670,51 @@ export interface Wave {
 
 export const WAVES: Wave[] = [
   {
-    id: 'marginal', name: 'Marginal ao pôr do sol', mood: 'Dourado, lento e com brisa', recipe: 'Planos longos a fundir, luz quente, câmara lenta no melhor momento',
+    id: 'marginal', get name() { return t('Marginal ao pôr do sol'); }, get mood() { return t('Dourado, lento e com brisa'); }, get recipe() { return t('Planos longos a fundir, luz quente, câmara lenta no melhor momento'); },
     colors: ['#ff9d4d', '#7a1f3d'], pano: { pattern: 'sol', palette: 'marginal' },
     filter: { id: 'costa-do-sol', amount: 0.8 }, transitions: ['fundido', 'fundido', 'brilho'], strong: ['brilho', 'zoom'], transDur: 0.7, panoTransition: 'capulana-vento',
     photoBeats: 4, photoBeatsStrong: 2, openBeats: 4, closeBeats: 6, videoS: 3.6, ramp: 'heroi', rampMax: 1, zoom: 0.12,
-    openers: ['Fim de tarde na Marginal', 'Pôr do sol em Maputo', 'Hora dourada'], font: 'elegante', textColor: '#ffffff', textAnim: 'aparecer', neon: false,
+    get openers() { return [t('Fim de tarde na Marginal'), t('Pôr do sol em Maputo'), t('Hora dourada')]; }, font: 'elegante', textColor: '#ffffff', textAnim: 'aparecer', neon: false,
     sfx: { open: 'vinil', ramp: 'whoosh' }, start: 'subida', fadeIn: 1.2, fadeOut: 2.5,
   },
   {
-    id: 'noite', name: 'Noite de Maputo', mood: 'Néon, cortes secos e graves', recipe: 'Um corte por batida nas partes fortes, glitch e flash, paragem em bala',
+    id: 'noite', get name() { return t('Noite de Maputo'); }, get mood() { return t('Néon, cortes secos e graves'); }, get recipe() { return t('Um corte por batida nas partes fortes, glitch e flash, paragem em bala'); },
     colors: ['#3b2b8f', '#0b0718'], pano: { pattern: 'losangos', palette: 'neon' },
     filter: { id: 'noite-de-maputo', amount: 0.85 }, transitions: ['corte', 'glitch', 'zoom'], strong: ['flash', 'glitch'], transDur: 0.3, panoTransition: 'capulana-rasgar',
     photoBeats: 2, photoBeatsStrong: 1, openBeats: 4, closeBeats: 4, videoS: 2.2, ramp: 'bala', rampMax: 2, zoom: 0.16,
-    openers: ['Maputo não dorme', 'A noite é nossa', 'Sexta em Maputo'], font: 'futuro', textColor: '#2ec5ff', textAnim: 'brilho', neon: true,
+    get openers() { return [t('Maputo não dorme'), t('A noite é nossa'), t('Sexta em Maputo')]; }, font: 'futuro', textColor: '#2ec5ff', textAnim: 'brilho', neon: true,
     sfx: { open: 'riser', cut: 'boom', ramp: 'whoosh' }, start: 'forte', fadeIn: 0, fadeOut: 1,
   },
   {
-    id: 'tofo', name: 'Praia do Tofo', mood: 'Azul, sal e mar aberto', recipe: 'A deslizar como as ondas, cores de mergulho, câmara lenta no salto',
+    id: 'tofo', get name() { return t('Praia do Tofo'); }, get mood() { return t('Azul, sal e mar aberto'); }, get recipe() { return t('A deslizar como as ondas, cores de mergulho, câmara lenta no salto'); },
     colors: ['#2ec5ff', '#0b4a6f'], pano: { pattern: 'escamas', palette: 'indico' },
     filter: { id: 'tofo', amount: 0.7 }, transitions: ['deslizar-esquerda', 'fundido', 'deslizar-cima'], strong: ['desfoque', 'zoom'], transDur: 0.5, panoTransition: 'capulana-deslizar',
     photoBeats: 4, photoBeatsStrong: 2, openBeats: 4, closeBeats: 4, videoS: 3, ramp: 'heroi', rampMax: 1, zoom: 0.1,
-    openers: ['Tofo, sal e sol', 'Dias de praia', 'Inhambane, terra de boa gente'], font: 'praia', textColor: '#ffffff', textAnim: 'ondulacao', neon: false,
+    get openers() { return [t('Tofo, sal e sol'), t('Dias de praia'), t('Inhambane, terra de boa gente')]; }, font: 'praia', textColor: '#ffffff', textAnim: 'ondulacao', neon: false,
     sfx: { open: 'whoosh', ramp: 'whoosh' }, start: 'forte', fadeIn: 0.6, fadeOut: 1.5,
   },
   {
-    id: 'casamento', name: 'Casamento', mood: 'Claro, elegante e emocionado', recipe: 'Fundidos longos, luz cremosa, tudo devagar e as palmas no fim',
+    id: 'casamento', get name() { return t('Casamento'); }, get mood() { return t('Claro, elegante e emocionado'); }, get recipe() { return t('Fundidos longos, luz cremosa, tudo devagar e as palmas no fim'); },
     colors: ['#f3dcc4', '#9a6b5c'], pano: { pattern: 'flores', palette: 'coral' },
     filter: { id: 'xima', amount: 0.65 }, transitions: ['fundido', 'fundido', 'desfoque'], strong: ['brilho', 'fundido'], transDur: 0.9, panoTransition: 'capulana-desenrolar',
     photoBeats: 4, photoBeatsStrong: 4, openBeats: 6, closeBeats: 8, videoS: 4, ramp: 'heroi', rampMax: 1, zoom: 0.08,
-    openers: ['O nosso dia', 'Para sempre', 'Lobolo e festa'], font: 'elegante', textColor: '#ffffff', textAnim: 'aparecer', neon: false,
+    get openers() { return [t('O nosso dia'), t('Para sempre'), t('Lobolo e festa')]; }, font: 'elegante', textColor: '#ffffff', textAnim: 'aparecer', neon: false,
     sfx: { open: 'ding', end: 'palmas' }, start: 'subida', fadeIn: 1.5, fadeOut: 3,
   },
   {
-    id: 'malta', name: 'Txiling com a malta', mood: 'Descontraído, rápido e a rir', recipe: 'Dois tempos por plano, zoom e deslizes, a montanha-russa da velocidade',
+    id: 'malta', get name() { return t('Txiling com a malta'); }, get mood() { return t('Descontraído, rápido e a rir'); }, get recipe() { return t('Dois tempos por plano, zoom e deslizes, a montanha-russa da velocidade'); },
     colors: ['#ff5c6c', '#7a1027'], pano: { pattern: 'ziguezague', palette: 'coral' },
     filter: { id: 'txillapp', amount: 0.7 }, transitions: ['zoom', 'deslizar-esquerda', 'corte', 'deslizar-direita'], strong: ['flash', 'zoom'], transDur: 0.35, panoTransition: 'capulana-losango',
     photoBeats: 2, photoBeatsStrong: 2, openBeats: 4, closeBeats: 4, videoS: 2.6, ramp: 'montaria', rampMax: 1, zoom: 0.14,
-    openers: ['Txiling com a malta', 'Só boa onda', 'A malta toda'], font: 'marcador', textColor: '#ffd60a', textAnim: 'pop', neon: false,
+    get openers() { return [t('Txiling com a malta'), t('Só boa onda'), t('A malta toda')]; }, font: 'marcador', textColor: '#ffd60a', textAnim: 'pop', neon: false,
     sfx: { open: 'pop', cut: 'pop', end: 'palmas' }, start: 'forte', fadeIn: 0, fadeOut: 1,
   },
   {
-    id: 'marrabenta', name: 'Marrabenta', mood: 'Festa, cor e pé no chão', recipe: 'O passo da dança: um tempo, dois tempos, cortes secos e tambor',
+    id: 'marrabenta', get name() { return t('Marrabenta'); }, get mood() { return t('Festa, cor e pé no chão'); }, get recipe() { return t('O passo da dança: um tempo, dois tempos, cortes secos e tambor'); },
     colors: ['#f0b400', '#b3261e'], pano: { pattern: 'faixas', palette: 'machamba' },
     filter: { id: 'marrabenta', amount: 0.9 }, transitions: ['corte', 'deslizar-direita', 'corte', 'deslizar-esquerda'], strong: ['flash', 'girar'], transDur: 0.3, panoTransition: 'capulana-deslizar',
     photoBeats: 2, photoBeatsStrong: 1, openBeats: 2, closeBeats: 4, videoS: 2.4, ramp: 'flash', rampMax: 1, zoom: 0.14,
-    openers: ['É marrabenta!', 'Dança, Moçambique', 'Baila até de manhã'], font: 'retro', textColor: '#ffd60a', textAnim: 'pop', neon: false,
+    get openers() { return [t('É marrabenta!'), t('Dança, Moçambique'), t('Baila até de manhã')]; }, font: 'retro', textColor: '#ffd60a', textAnim: 'pop', neon: false,
     sfx: { open: 'tambor', cut: 'tambor', end: 'palmas' }, start: 'forte', fadeIn: 0, fadeOut: 1,
   },
 ];
@@ -722,14 +723,14 @@ export const waveById = (id: string | null | undefined): Wave => WAVE_BY_ID.get(
 
 /** As fases do ecrã «a montar» (pela ordem em que acontecem). */
 export const MAGIC_PHASES = [
-  { id: 'ver', label: 'A ver os teus vídeos…', done: 'Melhores momentos escolhidos' },
-  { id: 'fotos', label: 'A enquadrar as fotos…', done: 'Fotos enquadradas' },
-  { id: 'ritmo', label: 'A apanhar o ritmo…', done: 'Ritmo apanhado' },
-  { id: 'historia', label: 'A contar a história…', done: 'História em ordem' },
-  { id: 'onda', label: 'A dar-lhe a onda…', done: 'Onda aplicada' },
+  { id: 'ver', get label() { return t('A ver os teus vídeos…'); }, get done() { return t('Melhores momentos escolhidos'); } },
+  { id: 'fotos', get label() { return t('A enquadrar as fotos…'); }, get done() { return t('Fotos enquadradas'); } },
+  { id: 'ritmo', get label() { return t('A apanhar o ritmo…'); }, get done() { return t('Ritmo apanhado'); } },
+  { id: 'historia', get label() { return t('A contar a história…'); }, get done() { return t('História em ordem'); } },
+  { id: 'onda', get label() { return t('A dar-lhe a onda…'); }, get done() { return t('Onda aplicada'); } },
 ] as const;
 /** A fase do som dos vídeos (na app a energia vem do servidor; no site faz parte de «A ver os teus vídeos…»). */
-export const MAGIC_SOUND_PHASE = { id: 'som', label: 'A ouvir o som…', done: 'Som dos vídeos ouvido' } as const;
+export const MAGIC_SOUND_PHASE = { id: 'som', get label() { return t('A ouvir o som…'); }, get done() { return t('Som dos vídeos ouvido'); } } as const;
 export type MagicPhase = (typeof MAGIC_PHASES)[number]['id'] | typeof MAGIC_SOUND_PHASE.id;
 export interface MagicPhaseInfo { id: MagicPhase; label: string; done: string }
 /** As fases que se mostram, pela ordem: com `sound`, a do som entra a seguir às fotos (os envios têm mais tempo). */
@@ -968,22 +969,22 @@ export function buildMontage(input: MagicInput): MagicResult {
   const durations: number[] = [], starts: number[] = [];
   const story: MagicResult['story'] = [];
   const sfx: MagicResult['sfx'] = [];
-  let t = 0, cutSfx = 0, sincePano = 2;
+  let tv = 0, cutSfx = 0, sincePano = 2;
   slots.forEach((slot, i) => {
     const it = by.get(slot.key) as MagicItem;
     const so = src.get(slot.key) as MagicSource;
     // Um vídeo mais curto do que uma batida (ou um clipe trancado) tira os cortes da grelha: a foto seguinte acaba na batida.
     let out = slot.out;
     if (!it.video && !locked.has(slot.key)) {
-      out = Math.round((t + slot.out) / unit) * unit - t;
+      out = Math.round((tv + slot.out) / unit) * unit - tv;
       while (out < MAGIC_MIN_PHOTO_S - 1e-6) out += unit;
       while (out > MAGIC_MAX_PHOTO_S + 1e-6 && out - unit >= MAGIC_MIN_PHOTO_S) out -= unit;
     }
     const s = { ...slot, out };
     // As fotos arredondam-se ao milésimo pelas pontas (não pela duração): somadas, acabam onde a montagem diz.
-    const shown = r3(r3(t + out) - r3(t));
+    const shown = r3(r3(tv + out) - r3(tv));
     const first = i === 0, last = i === slots.length - 1 && slots.length > 1;
-    const strong = energy.length > 0 && energyAt(energy, t, t + Math.min(s.out, unit * 2)) >= strongAt;
+    const strong = energy.length > 0 && energyAt(energy, tv, tv + Math.min(s.out, unit * 2)) >= strongAt;
     const lk = locked.get(s.key);
     let clip: MagicClip;
     if (lk) {
@@ -1007,7 +1008,7 @@ export function buildMontage(input: MagicInput): MagicResult {
         } else sincePano++;
         if (type !== 'corte' && dur >= 0.15) fx.transition = tp ? { type, dur, pano: tp } : { type, dur };
         else fx.transition = { type: 'corte', dur: 0.15 };
-        if (strong && wave.sfx.cut && cutSfx < 4 && !last) { sfx.push({ id: wave.sfx.cut, at: r3(Math.max(0, t - 0.03)) }); cutSfx++; }
+        if (strong && wave.sfx.cut && cutSfx < 4 && !last) { sfx.push({ id: wave.sfx.cut, at: r3(Math.max(0, tv - 0.03)) }); cutSfx++; }
       }
       if (it.video) {
         const speed = so.speed && so.speed > 0 ? so.speed : 1;
@@ -1024,7 +1025,7 @@ export function buildMontage(input: MagicInput): MagicResult {
           if (s.ramp) frac = rampIntegral(RAMP_POINTS[s.ramp], RAMP_MOMENT[s.ramp] ?? 0.5) / avg;
           else {
             let bestB = 0, bestE = -1;
-            for (let b = 0; b < s.beats; b++) { const e = energyAt(energy, t + b * unit, t + (b + 1) * unit); if (e > bestE + 1e-9) { bestE = e; bestB = b; } }
+            for (let b = 0; b < s.beats; b++) { const e = energyAt(energy, tv + b * unit, tv + (b + 1) * unit); if (e > bestE + 1e-9) { bestE = e; bestB = b; } }
             frac = energy.length ? (bestB * unit) / s.out : 0.35;
           }
           const wantStart = m.peak - frac * len;
@@ -1033,7 +1034,7 @@ export function buildMontage(input: MagicInput): MagicResult {
         const fr = framingFor(it.focus, it.aspect, { zoom: 0, frames: false });
         if (input.videoFocus && it.focus && Math.abs(it.aspect - FRAME_ASPECT) > 0.05) fx.focus = { x: fr.x, y: fr.y, from: 1, to: 1 };
         clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: true, mime: so.mime, durationMs: so.durationMs ?? Math.round(it.duration * 1000), seconds: 3, beats: s.beats, speed, length: it.duration, trim: { start: r3(start), end: r3(start + len) }, ...(it.hasAudio != null ? { hasAudio: it.hasAudio } : {}), fx };
-        if (s.ramp && wave.sfx.ramp) sfx.push({ id: wave.sfx.ramp, at: r3(t + s.out * (RAMP_MOMENT[s.ramp] ?? 0.5) * 0.7) });
+        if (s.ramp && wave.sfx.ramp) sfx.push({ id: wave.sfx.ramp, at: r3(tv + s.out * (RAMP_MOMENT[s.ramp] ?? 0.5) * 0.7) });
       } else {
         const fr = framingFor(it.focus, it.aspect, { zoom: wave.zoom, out: rnd() < 0.3, frames: !!input.capulana });
         fx.focus = { x: fr.x, y: fr.y, from: fr.from, to: fr.to, ...(fr.keep ? { keep: fr.keep } : {}) };
@@ -1043,13 +1044,13 @@ export function buildMontage(input: MagicInput): MagicResult {
     }
     clips.push(clip);
     durations.push(it.video || lk ? r3(s.out) : shown);
-    starts.push(r3(t));
+    starts.push(r3(tv));
     const role: StoryRole = first ? 'abertura' : last ? 'fecho' : strong ? 'forte' : 'meio';
-    const why = lk ? 'Trancado: ficou como estava' : first ? 'Abre com o plano mais forte' : last ? 'Fecha num plano calmo' : s.ramp ? 'Câmara no momento mais vivo' : strong ? 'Na parte forte da música' : it.video ? 'O melhor momento do vídeo' : 'Cor e luz a condizer';
+    const why = lk ? t('Trancado: ficou como estava') : first ? t('Abre com o plano mais forte') : last ? t('Fecha num plano calmo') : s.ramp ? t('Câmara no momento mais vivo') : strong ? t('Na parte forte da música') : it.video ? t('O melhor momento do vídeo') : t('Cor e luz a condizer');
     story.push({ key: s.key, role, why });
-    t += s.out;
+    tv += s.out;
   });
-  const total = r3(t);
+  const total = r3(tv);
 
   if (wave.sfx.open && total > 1) sfx.unshift({ id: wave.sfx.open, at: 0 });
   if (wave.sfx.end && total > 4) sfx.push({ id: wave.sfx.end, at: r3(Math.max(0, total - 1.2)) });

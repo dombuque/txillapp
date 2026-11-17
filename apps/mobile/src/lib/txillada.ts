@@ -14,6 +14,8 @@
 import type { GuestPending, GuestState, TxilladaGuest } from '@/lib/txilladaGuests';
 import { fmtVibesNumber, formatVibes } from '@/lib/vibes';
 import { REMINDER_LIVE_TEXT, fromReminder } from '@/lib/txilladaSchedule';
+import { t } from '@/lib/i18n';
+import { UNEXPECTED_TEXT } from '@/lib/apiErrors';
 
 /**
  * Quem pode ver (0167): 'everyone' (Pública), 'friends' (Para amigos: quem segues e te segue), 'close' (Para amigos com «Só
@@ -111,16 +113,16 @@ export const KEEP_COMMENTS = 1000;
 export const POLL_MS = 8000;
 
 export const AUDIENCES: { id: TxilladaAudience; label: string; hint: string }[] = [
-  { id: 'everyone', label: 'Todos', hint: 'Quem pode ver o teu perfil' },
-  { id: 'followers', label: 'Seguidores', hint: 'Só quem te segue' },
-  { id: 'close', label: 'Amigos próximos', hint: 'A tua lista dos mimos' },
+  { id: 'everyone', get label() { return t('Todos'); }, get hint() { return t('Quem pode ver o teu perfil'); } },
+  { id: 'followers', get label() { return t('Seguidores'); }, get hint() { return t('Só quem te segue'); } },
+  { id: 'close', get label() { return t('Amigos próximos'); }, get hint() { return t('A tua lista dos mimos'); } },
 ];
 
 /** Os três tipos ao preparar (0167): Pública, Para amigos (com «Só amigos próximos») e Privada (paga). */
 export const KINDS: { id: TxilladaKind; label: string; hint: string; icon: 'globe' | 'users' | 'lock' }[] = [
-  { id: 'public', label: 'Pública', hint: 'Quem pode ver o teu perfil', icon: 'globe' },
-  { id: 'friends', label: 'Para amigos', hint: 'Quem segues e te segue de volta', icon: 'users' },
-  { id: 'paid', label: 'Privada', hint: 'Quem quiser entrar paga uma vez a entrada em vibes', icon: 'lock' },
+  { id: 'public', get label() { return t('Pública'); }, get hint() { return t('Quem pode ver o teu perfil'); }, icon: 'globe' },
+  { id: 'friends', get label() { return t('Para amigos'); }, get hint() { return t('Quem segues e te segue de volta'); }, icon: 'users' },
+  { id: 'paid', get label() { return t('Privada'); }, get hint() { return t('Quem quiser entrar paga uma vez a entrada em vibes'); }, icon: 'lock' },
 ];
 /** A entrada de uma Txillada privada, a meta e o motivo da Angariação, e as ofertas (os mesmos limites do servidor). */
 export const PRICE_MIN = 5;
@@ -139,7 +141,7 @@ export function prepAudience(kind: TxilladaKind, closeOnly: boolean): TxilladaAu
 }
 /** O texto por baixo dos tipos (o de «Para amigos» muda com «Só amigos próximos»). */
 export function kindHint(kind: TxilladaKind, closeOnly: boolean): string {
-  if (kind === 'friends' && closeOnly) return 'Só a tua lista de amigos próximos (a mesma dos mimos)';
+  if (kind === 'friends' && closeOnly) return t('Só a tua lista de amigos próximos (a mesma dos mimos)');
   return KINDS.find((k) => k.id === kind)?.hint ?? '';
 }
 /** O tipo de uma Txillada (servidores antigos não mandam `kind`: sai do público). */
@@ -156,20 +158,20 @@ export function parseAmount(s: string): number | null {
   return Number(t);
 }
 export function priceError(n: number | null): string | null {
-  if (n == null) return `Escreve o preço da entrada (de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} vibes).`;
-  if (n < PRICE_MIN || n > PRICE_MAX) return `A entrada vai de ${PRICE_MIN} a ${fmtTxills(PRICE_MAX)} vibes.`;
+  if (n == null) return t('Escreve o preço da entrada (de {priceMin} a {txills} vibes).', { priceMin: PRICE_MIN, txills: fmtTxills(PRICE_MAX) });
+  if (n < PRICE_MIN || n > PRICE_MAX) return t('A entrada vai de {priceMin} a {txills} vibes.', { priceMin: PRICE_MIN, txills: fmtTxills(PRICE_MAX) });
   return null;
 }
 export function goalError(n: number | null): string | null {
-  if (n == null) return `Escreve a meta da angariação (de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} vibes).`;
-  if (n < GOAL_MIN || n > GOAL_MAX) return `A meta vai de ${GOAL_MIN} a ${fmtTxills(GOAL_MAX)} vibes.`;
+  if (n == null) return t('Escreve a meta da angariação (de {goalMin} a {txills} vibes).', { goalMin: GOAL_MIN, txills: fmtTxills(GOAL_MAX) });
+  if (n < GOAL_MIN || n > GOAL_MAX) return t('A meta vai de {goalMin} a {txills} vibes.', { goalMin: GOAL_MIN, txills: fmtTxills(GOAL_MAX) });
   return null;
 }
 /** Uma oferta: de 1 a 5000 e, se se sabe o saldo, não mais do que ele. */
 export function giftError(n: number | null, balance?: number | null): string | null {
-  if (n == null || n < 1) return 'Escolhe quantas vibes queres oferecer.';
-  if (n > GIFT_MAX) return `Podes oferecer até ${fmtTxills(GIFT_MAX)} vibes de cada vez.`;
-  if (typeof balance === 'number' && n > balance) return `Não tens vibes suficientes (tens ${fmtTxills(balance)}).`;
+  if (n == null || n < 1) return t('Escolhe quantas vibes queres oferecer.');
+  if (n > GIFT_MAX) return t('Podes oferecer até {txills} vibes de cada vez.', { txills: fmtTxills(GIFT_MAX) });
+  if (typeof balance === 'number' && n > balance) return t('Não tens vibes suficientes (tens {txills}).', { txills: fmtTxills(balance) });
   return null;
 }
 /** «50», «1000», «12 500» (como em pt: o espaço só a partir de 5 algarismos). O nome antigo de `fmtVibesNumber` (lib/vibes). */
@@ -180,7 +182,7 @@ export const txillsLabel = (n: number): string => formatVibes(n);
 export function goalProgress(raised: number, goal: number | null | undefined): { pct: number; label: string; done: boolean } | null {
   if (goal == null || !(goal > 0)) return null;
   const r = Math.max(0, Math.round(raised || 0));
-  return { pct: Math.min(1, r / goal), label: `${fmtTxills(r)} de ${txillsLabel(goal)}`, done: r >= goal };
+  return { pct: Math.min(1, r / goal), label: t('{txills} de {txillsLabel}', { txills: fmtTxills(r), txillsLabel: txillsLabel(goal) }), done: r >= goal };
 }
 /** A chave de idempotência de uma oferta (a mesma ao repetir o pedido; nova a cada oferta). */
 export function giftKey(now = Date.now(), rnd = Math.random): string {
@@ -224,8 +226,8 @@ export function cleanTitle(s: string): string {
 }
 export function titleError(s: string): string | null {
   // O título é opcional (vazio pode); só não passa das TITLE_MAX letras.
-  const t = s.replace(/\s+/g, ' ').trim();
-  if (t.length > TITLE_MAX) return `O título vai até ${TITLE_MAX} letras.`;
+  const txt = s.replace(/\s+/g, ' ').trim();
+  if (txt.length > TITLE_MAX) return t('O título vai até {titleMax} letras.', { titleMax: TITLE_MAX });
   return null;
 }
 
@@ -550,7 +552,7 @@ export function viewersLabel(n: number): string {
   const v = Math.max(0, Math.round(n));
   if (v < 1000) return `${v} a ver`;
   const k = Math.round(v / 100) / 10;
-  return `${String(k).replace('.', ',')} mil a ver`;
+  return t('{k} mil a ver', { k: String(k).replace('.', ',') });
 }
 
 /** O resumo do anfitrião no fim (a Txillada não fica gravada). */
@@ -570,22 +572,22 @@ export function shareLink(id: string, base = 'https://txillapp.com'): string {
   return `${(base || 'https://txillapp.com').replace(/\/$/, '')}/txillada/${encodeURIComponent(id)}`;
 }
 export function shareMessage(dto: Pick<TxilladaDto, 'title' | 'host'>): string {
-  return `@${dto.host.username} está ao vivo no Txillapp: ${dto.title}`;
+  return t('@{username} está ao vivo no Txillapp: {title}', { username: dto.host.username, title: dto.title });
 }
 
 /** Os erros da API em palavras para a pessoa (a mensagem do servidor, quando a há, vale mais). */
 export function errorText(status: number | undefined, message?: string | null): string {
-  const m = message && message !== 'Erro inesperado' ? message : '';
+  const m = message && message !== UNEXPECTED_TEXT() ? message : '';
   switch (status) {
-    case 402: return m || 'Esta Txillada é privada: paga a entrada para entrar.';
-    case 403: return m || 'Não podes ver esta Txillada.';
-    case 404: return 'Esta Txillada não existe ou não a podes ver.';
-    case 409: return m || 'Já tens uma Txillada a decorrer.';
-    case 410: return m || 'A Txillada já acabou.';
-    case 422: return m || 'Não deu. Verifica o que escreveste e tenta outra vez.';
-    case 429: return m || 'Calma! Espera um bocadinho antes de comentar outra vez.';
-    case 503: return m || 'A Txillada ainda não está disponível.';
-    default: return m || 'Não consegui ligar à Txillada. Verifica a internet e tenta outra vez.';
+    case 402: return m || t('Esta Txillada é privada: paga a entrada para entrar.');
+    case 403: return m || t('Não podes ver esta Txillada.');
+    case 404: return t('Esta Txillada não existe ou não a podes ver.');
+    case 409: return m || t('Já tens uma Txillada a decorrer.');
+    case 410: return m || t('A Txillada já acabou.');
+    case 422: return m || t('Não deu. Verifica o que escreveste e tenta outra vez.');
+    case 429: return m || t('Calma! Espera um bocadinho antes de comentar outra vez.');
+    case 503: return m || t('A Txillada ainda não está disponível.');
+    default: return m || t('Não consegui ligar à Txillada. Verifica a internet e tenta outra vez.');
   }
 }
 
@@ -619,12 +621,12 @@ export function withStories<T extends { count: number }>(users: readonly T[]): T
 
 /** A notificação `txillada_live`: «abriu uma Txillada: <título>» (o @ vem antes, como nas outras). */
 export function noticeText(data: { title?: unknown; reopened?: unknown; fromReminder?: unknown } | null | undefined): string {
-  const t = typeof data?.title === 'string' ? data.title.trim() : '';
+  const txt = typeof data?.title === 'string' ? data.title.trim() : '';
   // Reaberta (a Angariação, 0174): «reabriu a Txillada: <título>».
-  if (data?.reopened === true) return t ? `reabriu a Txillada: ${t}` : 'reabriu a Txillada';
+  if (data?.reopened === true) return txt ? t('reabriu a Txillada: {t}', { t: txt }) : t('reabriu a Txillada');
   // Vinda de um lembrete da Txillada agendada (0176): «começou a Txillada que pediste para lembrar».
-  if (fromReminder(data)) return REMINDER_LIVE_TEXT;
-  return t ? `abriu uma Txillada: ${t}` : 'abriu uma Txillada';
+  if (fromReminder(data)) return REMINDER_LIVE_TEXT();
+  return txt ? t('abriu uma Txillada: {t}', { t: txt }) : t('abriu uma Txillada');
 }
 export function noticeTarget(data: { txilladaId?: unknown; id?: unknown } | null | undefined): string | null {
   const id = typeof data?.txilladaId === 'string' && data.txilladaId ? data.txilladaId : typeof data?.id === 'string' && data.id ? data.id : null;
@@ -636,7 +638,7 @@ export function noticeTarget(data: { txilladaId?: unknown; id?: unknown } | null
  */
 export function noticeSub(tx: { status?: unknown } | null | undefined): string | undefined {
   if (!tx || typeof tx !== 'object') return undefined;
-  return tx.status === 'live' ? undefined : 'Já acabou';
+  return tx.status === 'live' ? undefined : t('Já acabou');
 }
 /** A notificação `txillada_invite` (0168): «convidou-te para transmitir na Txillada: <título>» (o @ e o selo vêm antes). */
 /**
@@ -646,16 +648,16 @@ export function noticeSub(tx: { status?: unknown } | null | undefined): string |
 export function inviteNoticeText(data: { title?: unknown; mention?: unknown; host?: { username?: unknown } | null } | null | undefined, actor?: string | null): string {
   if (data?.mention === true) {
     const h = typeof data.host?.username === 'string' ? data.host.username : '';
-    return h && h.toLowerCase() !== (actor ?? '').toLowerCase() ? `mencionou-te na Txillada de @${h}: vem ver` : 'mencionou-te na Txillada: vem ver';
+    return h && h.toLowerCase() !== (actor ?? '').toLowerCase() ? t('mencionou-te na Txillada de @{h}: vem ver', { h }) : t('mencionou-te na Txillada: vem ver');
   }
-  const t = typeof data?.title === 'string' ? data.title.trim() : '';
-  return t ? `convidou-te para transmitir na Txillada: ${t}` : 'convidou-te para transmitir na Txillada';
+  const txt = typeof data?.title === 'string' ? data.title.trim() : '';
+  return txt ? t('convidou-te para transmitir na Txillada: {t}', { t: txt }) : t('convidou-te para transmitir na Txillada');
 }
 /** Por baixo: a decorrer, «Entra e aceita o convite» (a menção: «Toca para ver»); acabada, «Já acabou»; sem o estado (servidor antigo), nada. */
 export function inviteNoticeSub(tx: { status?: unknown } | null | undefined, data?: { mention?: unknown } | null): string | undefined {
   if (!tx || typeof tx !== 'object') return undefined;
-  if (tx.status !== 'live') return 'Já acabou';
-  return data?.mention === true ? 'Toca para ver' : 'Entra e aceita o convite';
+  if (tx.status !== 'live') return t('Já acabou');
+  return data?.mention === true ? t('Toca para ver') : t('Entra e aceita o convite');
 }
 
 // ─── Os balões a flutuar ───────────────────────────────────────────────────────────────────────────────────────────────

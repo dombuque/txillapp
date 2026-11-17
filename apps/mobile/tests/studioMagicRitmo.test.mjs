@@ -7,6 +7,7 @@
 // - e o pedido ao servidor (POST /tchekas/compose) tem de passar nos limites dele (fotos de 0,3 a 10 s, zoom de 1 a 1,5…).
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

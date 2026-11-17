@@ -1,5 +1,5 @@
 import type { Gender } from '../lib/api';
-import { tr } from '../lib/i18n';
+import { tr, tk } from '../lib/i18n';
 
 export const GENDERS: { value: Gender; label: string }[] = [
   { value: 'female', label: tr('Feminino') },
@@ -7,7 +7,7 @@ export const GENDERS: { value: Gender; label: string }[] = [
 ];
 
 /** Contas antigas podem ter outro valor guardado: continua a mostrar-se, mas já não se oferece a quem escolhe. */
-const LEGACY: Partial<Record<Gender, string>> = { other: 'Outro', unspecified: 'Prefiro não dizer' };
+const LEGACY: Partial<Record<Gender, string>> = { other: tk('Outro'), unspecified: tk('Prefiro não dizer') };
 
 export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? (LEGACY[g] ? tr(LEGACY[g]!) : '');
 

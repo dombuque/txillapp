@@ -12,8 +12,9 @@ import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { formatVibes, vibesWord } from '@/lib/vibes';
+import { intlLocale, t } from '@/lib/i18n';
 
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(intlLocale());
 
 export const venuePaymentsKey = (slug: string) => ['venue-payments', slug] as const;
 
@@ -41,7 +42,7 @@ export function VenueTxills({ v }: { v: Venue }) {
     try {
       const nv = await locaisApi.updateVenue(v.slug, { acceptsTxills: on });
       qc.setQueryData(['venue', v.slug], nv);
-      setMsg(on ? 'Pronto: o local já aceita vibes.' : 'Os pagamentos em vibes ficaram desligados.');
+      setMsg(on ? t('Pronto: o local já aceita vibes.') : t('Os pagamentos em vibes ficaram desligados.'));
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -51,24 +52,24 @@ export function VenueTxills({ v }: { v: Venue }) {
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
       <View style={st.balance}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>Saldo do local</Text>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>{t('Saldo do local')}</Text>
         <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -1, color: '#fff' }}>{fmt(balance)} <Text style={{ fontSize: 20, fontWeight: '700' }}>{vibesWord(balance)}</Text></Text>
-        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>As vibes recebidas ficam no saldo do local e não se trocam por dinheiro.</Text>
+        <Text style={{ marginTop: 4, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.9)' }}>{t('As vibes recebidas ficam no saldo do local e não se trocam por dinheiro.')}</Text>
       </View>
 
       <View style={st.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.title}>Aceitar pagamentos em vibes</Text>
-            <Text style={st.hint}>{v.acceptsTxills ? 'A página mostra "Aceita vibes" e o botão Pagar com vibes.' : 'Liga para a malta poder pagar aqui com vibes.'}</Text>
+            <Text style={st.title}>{t('Aceitar pagamentos em vibes')}</Text>
+            <Text style={st.hint}>{v.acceptsTxills ? t('A página mostra "Aceita vibes" e o botão Pagar com vibes.') : t('Liga para a malta poder pagar aqui com vibes.')}</Text>
           </View>
           {v.canEdit ? (
-            <Switch value={v.acceptsTxills} disabled={busy} onValueChange={(on) => void toggle(on)} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Aceitar pagamentos em vibes" />
+            <Switch value={v.acceptsTxills} disabled={busy} onValueChange={(on) => void toggle(on)} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Aceitar pagamentos em vibes')} />
           ) : (
-            <Text style={{ fontSize: 14, fontWeight: '700', color: v.acceptsTxills ? colors.green700 : colors.zinc500 }}>{v.acceptsTxills ? 'Ligado' : 'Desligado'}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: v.acceptsTxills ? colors.green700 : colors.zinc500 }}>{v.acceptsTxills ? t('Ligado') : t('Desligado')}</Text>
           )}
         </View>
-        {!v.canEdit ? <Text style={[st.hint, { marginTop: 8 }]}>Só o dono e os administradores ligam ou desligam os pagamentos.</Text> : null}
+        {!v.canEdit ? <Text style={[st.hint, { marginTop: 8 }]}>{t('Só o dono e os administradores ligam ou desligam os pagamentos.')}</Text> : null}
         {msg ? <Text accessibilityRole="alert" style={{ marginTop: 8, fontSize: 14, color: colors.zinc700 }}>{msg}</Text> : null}
       </View>
 
@@ -76,23 +77,23 @@ export function VenueTxills({ v }: { v: Venue }) {
 
       <View style={st.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={st.title}>Pagamentos recebidos</Text>
-          <Pressable onPress={() => void pays.refetch()} disabled={pays.isRefetching} hitSlop={8} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Atualizar">
+          <Text style={st.title}>{t('Pagamentos recebidos')}</Text>
+          <Pressable onPress={() => void pays.refetch()} disabled={pays.isRefetching} hitSlop={8} style={st.iconBtn} accessibilityRole="button" accessibilityLabel={t('Atualizar')}>
             {pays.isRefetching && !pays.isFetchingNextPage ? <ActivityIndicator size="small" color={colors.brand} /> : <Icon name="repeat" size={18} color={colors.zinc800} />}
           </Pressable>
         </View>
         {pays.isLoading ? <ActivityIndicator style={{ margin: 20 }} color={colors.brand} /> : null}
         {pays.isError ? (
           <View style={{ paddingVertical: 12 }}>
-            <Text style={st.hint}>{(pays.error as Error).message || 'Não consegui carregar os pagamentos.'}</Text>
-            <Pressable onPress={() => void pays.refetch()} style={[st.ghost, { marginTop: 8 }]}><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+            <Text style={st.hint}>{(pays.error as Error).message || t('Não consegui carregar os pagamentos.')}</Text>
+            <Pressable onPress={() => void pays.refetch()} style={[st.ghost, { marginTop: 8 }]}><Text style={st.ghostText}>{t('Tentar outra vez')}</Text></Pressable>
           </View>
         ) : null}
-        {pays.isSuccess && items.length === 0 ? <Text style={[st.hint, { paddingVertical: 12 }]}>Ainda ninguém pagou com vibes. Põe o QR de receber no balcão.</Text> : null}
+        {pays.isSuccess && items.length === 0 ? <Text style={[st.hint, { paddingVertical: 12 }]}>{t('Ainda ninguém pagou com vibes. Põe o QR de receber no balcão.')}</Text> : null}
         {items.map((p, i) => <PaymentRow key={`${p.at}-${i}`} p={p} first={i === 0} />)}
         {pays.hasNextPage ? (
           <Pressable onPress={() => void pays.fetchNextPage()} disabled={pays.isFetchingNextPage} style={[st.ghost, { marginTop: 8 }]} accessibilityRole="button">
-            <Text style={st.ghostText}>{pays.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}</Text>
+            <Text style={st.ghostText}>{pays.isFetchingNextPage ? t('A carregar…') : t('Ver mais')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -115,7 +116,7 @@ function PaymentRow({ p, first }: { p: VenuePayment; first: boolean }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         {person
           ? <NameWithBadge name={`Recebido de @${person.username}`} who={person} style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} />
-          : <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{`Do cofre de ${group!.name}`}</Text>}
+          : <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{t('Do cofre de {name}', { name: group!.name })}</Text>}
         <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>{person ? `${person.displayName} · ` : ''}{timeAgo(p.at)}</Text>
         {p.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{p.note}</Text> : null}
       </View>
@@ -132,37 +133,37 @@ function ReceiveQr({ v }: { v: Venue }) {
 
   async function save() {
     if (Platform.OS === 'web') {
-      downloadQrSvg(url, `txillapp-${v.slug}-pagar${n >= 1 ? `-${n}` : ''}.svg`);
+      downloadQrSvg(url, t('txillapp-{slug}-pagar{value}.svg', { slug: v.slug, value: n >= 1 ? `-${n}` : '' }));
       return;
     }
     try {
-      await Share.share(linkShare(`Paga com vibes no Txillapp: ${v.name}${n >= 1 ? ` (${formatVibes(n)})` : ''}`, url));
+      await Share.share(linkShare(t('Paga com vibes no Txillapp: {name}{value}', { name: v.name, value: n >= 1 ? ` (${formatVibes(n)})` : '' }), url));
     } catch {
       /* cancelado */
     }
   }
 
   return (
-    <View style={st.card} accessibilityLabel="QR para receber vibes">
-      <Text style={st.title}>QR para receber</Text>
-      <Text style={st.hint}>Quem o ler abre logo o pagamento ao teu local. Deixa o valor em branco para a pessoa escolher, ou fixa um valor (por exemplo, para uma conta).</Text>
+    <View style={st.card} accessibilityLabel={t('QR para receber vibes')}>
+      <Text style={st.title}>{t('QR para receber')}</Text>
+      <Text style={st.hint}>{t('Quem o ler abre logo o pagamento ao teu local. Deixa o valor em branco para a pessoa escolher, ou fixa um valor (por exemplo, para uma conta).')}</Text>
       <TextInput
         value={valor}
         onChangeText={(t) => setValor(t.replace(/\D/g, '').replace(/^0+/, '').slice(0, 7))}
         keyboardType="number-pad"
-        placeholder="Valor fixo em vibes (opcional)"
+        placeholder={t('Valor fixo em vibes (opcional)')}
         placeholderTextColor={colors.zinc500}
         style={st.input}
-        accessibilityLabel="Valor fixo em vibes"
+        accessibilityLabel={t('Valor fixo em vibes')}
       />
       <View style={{ marginTop: 12, alignSelf: 'center', width: '100%', maxWidth: 240, aspectRatio: 1 }}>
         <QrSvg text={url} size={240} />
       </View>
-      <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{n >= 1 ? `Pagar ${formatVibes(n)}` : 'Pagar com vibes'}</Text>
+      <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{n >= 1 ? t('Pagar {vibes}', { vibes: formatVibes(n) }) : t('Pagar com vibes')}</Text>
       <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }} numberOfLines={1} selectable>{url.replace(/^https?:\/\//, '')}</Text>
       <Pressable onPress={() => void save()} style={[st.dark, { marginTop: 12 }]} accessibilityRole="button">
         <Icon name="download" size={18} color="#fff" />
-        <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{Platform.OS === 'web' ? 'Guardar para imprimir' : 'Partilhar para imprimir'}</Text>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{Platform.OS === 'web' ? t('Guardar para imprimir') : t('Partilhar para imprimir')}</Text>
       </Pressable>
     </View>
   );

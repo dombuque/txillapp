@@ -8,9 +8,9 @@ import PostCard from '../components/PostCard';
 import StackPage from '../components/StackPage';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { api, type Venue } from '../lib/api';
-import { tr } from '../lib/i18n';
+import { tr, tk } from '../lib/i18n';
 
-export const KIND_LABEL: Record<string, string> = { bar: 'Bar', restaurante: 'Restaurante', discoteca: 'Discoteca', cafe: 'Café', hotel: 'Hotel', evento: 'Evento', outro: 'Outro' };
+export const KIND_LABEL: Record<string, string> = { bar: tk('Bar'), restaurante: tk('Restaurante'), discoteca: tk('Discoteca'), cafe: tk('Café'), hotel: tk('Hotel'), evento: tk('Evento'), outro: tk('Outro') };
 
 /** Cartão do QR do local (para o dono imprimir): quem o lê, no local, faz check-in. */
 function OwnerQr({ venue }: { venue: Venue }) {
@@ -126,7 +126,7 @@ export default function VenuePage() {
                   <span className="truncate">{v.name}</span>
                   {v.verified && <VerifiedBadge size={18} tier="verified" />}
                 </h2>
-                <p className="text-sm text-zinc-600">{tr(KIND_LABEL[v.kind] ?? 'Outro')}{v.city ? ` · ${v.city}` : ''}</p>
+                <p className="text-sm text-zinc-600">{tr(KIND_LABEL[v.kind] ?? tk('Outro'))}{v.city ? ` · ${v.city}` : ''}</p>
               </div>
             </div>
             {v.about && <p className="mt-3 text-[15px] text-zinc-800">{v.about}</p>}

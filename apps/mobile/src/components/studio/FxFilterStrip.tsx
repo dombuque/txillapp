@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { FILTERS, resolveFx, type ClipFx } from '@/lib/studio/effects';
 import { coverCrop, FxGL } from '@/lib/studio/renderGL';
 import { fxc } from './FxUi';
+import { t } from '@/lib/i18n';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 /** Tamanho das miniaturas (CSS) e no canvas (com a densidade do ecrã). */
@@ -50,11 +51,11 @@ export function FxFilterStrip({ fx, grab, playing, onPick, refreshKey }: { fx: C
   }, [playing, refreshKey, fx?.adjust]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 9, paddingVertical: 4 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 9, paddingVertical: 4 }} accessibilityRole="tablist" accessibilityLabel={t('Filtros')}>
       {FILTERS.map((f) => {
         const on = f.id === current;
         return (
-          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 4, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Filtro ${f.name}: ${f.mood}`}>
+          <Pressable key={f.id} onPress={() => onPick(f.id)} style={({ pressed }) => [{ width: TW + 4, alignItems: 'center', gap: 4 }, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t('Filtro {name}: {mood}', { name: f.name, mood: f.mood })}>
             <View style={[{ width: TW, height: TH, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.12)', backgroundColor: f.swatch }, on && ({ boxShadow: fxc.glow } as object)]}>
               {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { if (el) canvases.current.set(f.id, el); else canvases.current.delete(f.id); }, width: TW * 2, height: TH * 2, style: { width: '100%', height: '100%', display: 'block' }, 'aria-hidden': true })}
               {on ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: fxc.coralHot }} /> : null}

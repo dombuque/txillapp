@@ -4,6 +4,7 @@
  * "Android · app Txillapp 1.25", "Windows · Chrome"). Nunca há IP.
  */
 
+import { t } from '@/lib/i18n';
 export interface Aparelho {
   id: string;
   device: string;
@@ -38,13 +39,13 @@ export function dataCurta(iso: string, now = Date.now()): string {
 export function haQuanto(iso: string, now = Date.now()): string {
   const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'agora';
-  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+  if (s < 3600) return t('há {n} min', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('há {n} h', { n: Math.floor(s / 3600) });
   const d = Math.floor(s / 86400);
-  return d === 1 ? 'há 1 dia' : `há ${d} dias`;
+  return t('há {count} dia', { count: d, other: 'há {count} dias' });
 }
 
 /** A linha por baixo do nome: "Entrou a 12 nov. · ativo há 5 min" (este aparelho: "Entrou a 12 nov. · em uso agora"). */
 export function detalheAparelho(a: Aparelho, now = Date.now()): string {
-  return `Entrou a ${dataCurta(a.firstSeen, now)} · ${a.current ? 'em uso agora' : `ativo ${haQuanto(a.lastUsed, now)}`}`;
+  return `Entrou a ${dataCurta(a.firstSeen, now)} · ${a.current ? t('em uso agora') : `ativo ${haQuanto(a.lastUsed, now)}`}`;
 }

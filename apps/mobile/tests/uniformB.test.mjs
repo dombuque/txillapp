@@ -6,6 +6,7 @@
 // - segurar numa publicação do feed ou num quadrado do perfil abre o mesmo menu do «⋯».
 // Correr em apps/mobile:  node --test tests/uniformB.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -21,9 +22,9 @@ test('oferecer vibes: ícone gift e verbo «Oferecer» nas publicações, tcheka
     assert.doesNotMatch(s, /icon="present"|icon: 'present'|name="present"/, f.join('/'));
     assert.doesNotMatch(s, /'Presentear|"Presentear|>Presentear|`Presentear/, f.join('/'));
   }
-  assert.match(card, /<BarBtn hot={hot} label="Oferecer" a11y="Oferecer vibes" icon="gift"/);
-  assert.match(card, /icon: 'gift' as const, label: post\.gifts === 1 \? 'presente' : 'presentes'/);
-  assert.match(read('components', 'PostSheets.tsx'), /<Sheet title=\{`Oferecer vibes a \$\{name\}`\}/);
+  assert.match(card, /<BarBtn hot={hot} label=\{t\('Oferecer'\)\} a11y=\{t\('Oferecer vibes'\)\} icon="gift"/);
+  assert.match(card, /icon: 'gift' as const, label: post\.gifts === 1 \? t\('presente'\) : t\('presentes'\)/);
+  assert.match(read('components', 'PostSheets.tsx'), /<Sheet title=\{t\('Oferecer vibes a \{name\}', \{ name \}\)\}/);
   assert.match(read('components', 'reel', 'HoldMenu.tsx'), /'Oferecer vibes'\)/);
 });
 
@@ -46,7 +47,7 @@ test('selo de verificado: folha de partilha, citações, duetos e «Visto por» 
   assert.match(read('components', 'QuoteThread.tsx'), /<NameWithBadge name=\{`a citar \$\{quoted\.author\.displayName\}`\} who=\{quoted\.author\}/);
   assert.match(read('app', 'remixes', '[id].tsx'), /<NameWithBadge name=\{`@\$\{item\.author\.username\}`\} who=\{item\.author\}/);
   assert.match(read('components', 'mixar', 'MixarBits.tsx'), /<NameWithBadge name=\{line\} who=\{text \? null : partner\}/);
-  assert.match(read('components', 'CommentsSheet.tsx'), /<InlineBadge who=\{post\.author\} fontSize=\{14\} \/> desativou os comentários/);
+  assert.match(read('components', 'CommentsSheet.tsx'), /<InlineBadge who=\{post\.author\} fontSize=\{14\} \/> \{t\('desativou os comentários/);
 });
 
 test('teclado: a moldura do mimo e o editor de texto ficam do tamanho de antes; sem KeyboardAvoidingView', async () => {

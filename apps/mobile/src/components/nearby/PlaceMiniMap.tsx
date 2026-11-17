@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Platform, View, type StyleProp, type ViewStyle } from 'react-native';
 import { PlacePickMap } from './PlacePickMap';
+import { t } from '@/lib/i18n';
 
 /**
  * O mapa pequeno só de ver, com o alfinete no sítio (o sítio de um local, o que se escolheu no campo "Onde fica?").
@@ -14,7 +15,7 @@ export function PlaceMiniMap({ lat, lng, height = 160, label, style }: { lat: nu
       style={[{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: '#f2efe9' }, style]}
       accessible={Platform.OS !== 'web'}
       accessibilityRole="image"
-      accessibilityLabel={label ?? 'Mapa com o sítio marcado'}
+      accessibilityLabel={label ?? t('Mapa com o sítio marcado')}
     >
       <PlacePickMap center={center} readOnly zone={false} zoom={16} style={{ flex: 1 }} />
     </View>

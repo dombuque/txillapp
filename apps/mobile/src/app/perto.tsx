@@ -17,6 +17,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { AccessBadge, JoinButton, usePublicGroup } from '@/components/groups/GroupJoin';
 import { GroupCover } from '@/components/groups/GroupParts';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
+import { mapLabels } from '@/components/nearby/mapLabels';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
 import { ApiError, api, type Badged } from '@/lib/api';
 import { boostsApi } from '@/lib/api.boosts';
@@ -30,8 +31,8 @@ import { kvGet, kvSet } from '@/lib/kv';
 import { EMPTY_EXTRA_LABEL, emptyExtras, emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type EmptyExtra, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
 import { RADIUS, RADIUS_MARKS, RADIUS_STEPS } from '@/lib/radius';
 import { cardShadow, colors } from '@/lib/theme';
-import { timeAgo } from '@/lib/time';
 import { RangeSlider } from '@/components/RangeSlider';
+import { intlLocale, t } from '@/lib/i18n';
 
 /** Cidades para quem não quer dar a localização (coordenadas do centro, já arredondadas). */
 const CITIES: { name: string; lat: number; lng: number }[] = [
@@ -51,23 +52,23 @@ const PLACE_KEY = 'txill.perto.place';
 const RADIUS_SETTLE_MS = 300;
 type Filter = NearbyFilter;
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'Tudo' },
-  { key: 'venues', label: 'Locais' },
-  { key: 'events', label: 'Eventos' },
-  { key: 'people', label: 'A malta' },
+  { key: 'all', get label() { return t('Tudo'); } },
+  { key: 'venues', get label() { return t('Locais'); } },
+  { key: 'events', get label() { return t('Eventos'); } },
+  { key: 'people', get label() { return t('A malta'); } },
   // Publicações (fotos e vídeos) das últimas 48 h perto daqui. Chamava-se "Agora" e confundia-se com o "Agora" dos eventos.
-  { key: 'posts', label: 'Publicações' },
+  { key: 'posts', get label() { return t('Publicações'); } },
   { key: 'groups', label: 'TxillGroups' },
 ];
 const WHENS: { key: NearbyWhen; label: string }[] = [
-  { key: 'now', label: 'A decorrer' },
-  { key: 'today', label: 'Hoje' },
-  { key: 'week', label: 'Esta semana' },
+  { key: 'now', get label() { return t('A decorrer'); } },
+  { key: 'today', get label() { return t('Hoje'); } },
+  { key: 'week', get label() { return t('Esta semana'); } },
 ];
 const VIS: { key: NearbyVisibility; label: string; sub: string }[] = [
-  { key: 'off', label: 'Ninguém', sub: 'Ficas invisível. Vês na mesma o que há à volta.' },
-  { key: 'mutual', label: 'Amigos mútuos', sub: 'Só quem segues e te segue de volta.' },
-  { key: 'following', label: 'Quem eu sigo', sub: 'As pessoas que tu segues.' },
+  { key: 'off', get label() { return t('Ninguém'); }, get sub() { return t('Ficas invisível. Vês na mesma o que há à volta.'); } },
+  { key: 'mutual', get label() { return t('Amigos mútuos'); }, get sub() { return t('Só quem segues e te segue de volta.'); } },
+  { key: 'following', get label() { return t('Quem eu sigo'); }, get sub() { return t('As pessoas que tu segues.'); } },
 ];
 
 /** `lat`/`lng` arredondados (o que vai ao servidor); `at` é a posição exata do GPS, só para centrar o mapa neste ecrã. */
@@ -98,8 +99,8 @@ async function currentPosition(): Promise<Location.LocationObject | null> {
 
 /** Avisa porque não deu para usar a localização (com "Abrir definições" quando é isso que resolve). */
 function alertProblem(p: LocateProblem) {
-  const t = locateProblemText(p, Platform.OS === 'web');
-  Alert.alert(t.title, t.text, t.settings ? [{ text: 'Agora não', style: 'cancel' }, { text: 'Abrir definições', onPress: () => void Linking.openSettings() }] : undefined);
+  const tv = locateProblemText(p, Platform.OS === 'web');
+  Alert.alert(tv.title, tv.text, tv.settings ? [{ text: t('Agora não'), style: 'cancel' }, { text: t('Abrir definições'), onPress: () => void Linking.openSettings() }] : undefined);
 }
 
 interface Item {
@@ -127,13 +128,16 @@ interface Item {
 
 /** "há 20 min": o servidor pode mandar uma data, minutos ou o texto já feito. */
 function agoText(ago: string | number): string {
-  if (typeof ago === 'number') return ago < 1 ? 'agora mesmo' : ago < 60 ? `há ${Math.round(ago)} min` : `há ${Math.round(ago / 60)} h`;
+  if (typeof ago === 'number') return ago < 1 ? t('agora mesmo') : ago < 60 ? t('há {ago} min', { ago: Math.round(ago) }) : t('há {n} h', { n: Math.round(ago / 60) });
   if (/^\d{4}-\d\d-\d\d/.test(ago)) {
-    const t = timeAgo(ago);
-    return t === 'Agora' ? 'agora mesmo' : t.replace(/^Há (\d+)(min|h|d)$/, (_m, n: string, u: string) => `há ${n} ${u}`);
+    const s = (Date.now() - new Date(ago).getTime()) / 1000;
+    if (s < 60) return t('agora mesmo');
+    if (s < 3600) return t('há {ago} min', { ago: Math.floor(s / 60) });
+    if (s < 86400) return t('há {n} h', { n: Math.floor(s / 3600) });
+    return t('há {n} d', { n: Math.floor(s / 86400) });
   }
-  if (/^agora/i.test(ago)) return 'agora mesmo';
-  return /^há /i.test(ago) ? ago : `há ${ago}`;
+  if (/^agora/i.test(ago)) return t('agora mesmo');
+  return /^há /i.test(ago) ? ago : t('há {ago}', { ago });
 }
 
 function toItems(d: NearbyResult | undefined): Item[] {
@@ -142,27 +146,27 @@ function toItems(d: NearbyResult | undefined): Item[] {
   for (const v of d.venues ?? [])
     out.push({
       key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null, category: v.kind,
-      sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita vibes' : null].filter(Boolean).join(' · '),
+      sub: [KIND_LABEL[v.kind] ?? t('Local'), v.checkinsToday ? t('{count} check-in hoje', { count: v.checkinsToday, other: '{count} check-ins hoje' }) : null, v.acceptsTxills ? t('aceita vibes') : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
     out.push({
       key: `e:${e.id}`, kind: 'event', title: e.title, image: sized(e.coverUrl, 160) ?? null, distanceKm: e.distanceKm, lat: e.venue.lat, lng: e.venue.lng, date: e.startsAt, to: `/evento/${e.id}`, boost: e.boosted ?? null,
-      sub: [eventWhen(e.startsAt, e.endsAt), e.venue.name, e.interested ? `${e.interested} com interesse` : null].filter(Boolean).join(' · '),
+      sub: [eventWhen(e.startsAt, e.endsAt), e.venue.name, e.interested ? t('{interested} com interesse', { interested: e.interested }) : null].filter(Boolean).join(' · '),
     });
   for (const p of d.posts ?? [])
     out.push({
       key: `p:${p.id}`, kind: 'post', title: p.locationLabel || p.author.displayName, who: p.locationLabel ? undefined : p.author, image: sized(p.thumbUrl, 160) ?? null, distanceKm: p.distanceKm, lat: p.lat, lng: p.lng, to: `/p/${p.code}`,
-      sub: [`@${p.author.username}`, p.kind === 'video' ? 'vídeo' : 'foto', agoText(p.createdAt)].join(' · '),
+      sub: [`@${p.author.username}`, p.kind === 'video' ? t('vídeo') : 'foto', agoText(p.createdAt)].join(' · '),
     });
   for (const g of d.groups ?? [])
     out.push({
       key: `g:${g.id}`, kind: 'group', title: g.name, image: sized(g.avatarUrl ?? g.coverUrl, 160) ?? null, distanceKm: g.distanceKm, lat: g.lat, lng: g.lng, group: g,
-      sub: ['TxillGroup', `${g.members} ${g.members === 1 ? 'membro' : 'membros'}`, g.destination].filter(Boolean).join(' · '),
+      sub: ['TxillGroup', t('{count} membro', { count: g.members, other: '{count} membros' }), g.destination].filter(Boolean).join(' · '),
     });
   for (const u of d.people ?? [])
     out.push({
       key: `u:${u.username}`, kind: 'person', title: u.displayName, who: u, username: u.username, image: u.hasAvatar ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(u.username)}` : null,
-      distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, ago: agoText(u.ago), sub: `Por perto ${agoText(u.ago)}`,
+      distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, ago: agoText(u.ago), sub: t('Por perto {agoText}', { agoText: agoText(u.ago) }),
     });
   out.sort((a, b) => a.distanceKm - b.distanceKm);
   // Os destaques do Bombar vão à frente (entre eles, pela distância).
@@ -213,7 +217,7 @@ export default function Perto() {
       const lng = round2(pos.coords.longitude);
       const at = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       fixAt.current = Date.now();
-      setPlace((prev) => (prev?.gps && prev.at && prev.lat === lat && prev.lng === lng ? prev : { lat, lng, label: 'Perto de mim', gps: true, at }));
+      setPlace((prev) => (prev?.gps && prev.at && prev.lat === lat && prev.lng === lng ? prev : { lat, lng, label: t('Perto de mim'), gps: true, at }));
       if (!quiet) setAsk(null);
       void kvSet(PLACE_KEY, 'gps');
       return null;
@@ -317,7 +321,7 @@ export default function Perto() {
       setVisSheet(false);
       void qc.invalidateQueries({ queryKey: ['nearby'] });
     },
-    onError: (e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.'),
+    onError: (e) => Alert.alert(t('Não deu'), e instanceof ApiError && e.message ? e.message : t('Não consegui mudar isto agora. Tenta outra vez.')),
   });
   // Menores de 18 não podem aparecer: o servidor diz canEnable = false e escondemos o cartão e o botão.
   const canEnable = vis.data?.canEnable !== false;
@@ -353,13 +357,13 @@ export default function Perto() {
       if (Date.now() - fixAt.current < 4.5 * 60_000) return;
       void locate(false, true).then((p) => {
         if (p !== 'denied' && p !== 'blocked') return;
-        setPlace((prev) => (prev?.gps ? { ...prev, label: 'Último sítio', gps: false } : prev));
+        setPlace((prev) => (prev?.gps ? { ...prev, label: t('Último sítio'), gps: false } : prev));
         void nearbyApi.clearPresence().catch(() => undefined);
       });
     };
     refresh();
-    const t = setInterval(refresh, 5 * 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(refresh, 5 * 60_000);
+    return () => clearInterval(timer);
   }, [gps, focused, active, locate]);
 
   // ----- Abrir um item -----
@@ -386,13 +390,13 @@ export default function Perto() {
         disabled={setVis.isPending}
         style={({ pressed }) => [st.eye, visible && st.eyeOn, pressed && { opacity: 0.75 }]}
         accessibilityRole="button"
-        accessibilityLabel={visible ? 'Estás visível para a malta' : 'Estás invisível para a malta'}
-        accessibilityHint={visible ? 'Toca para ficares invisível já' : 'Toca para escolher quem te vê'}
+        accessibilityLabel={visible ? t('Estás visível para a malta') : t('Estás invisível para a malta')}
+        accessibilityHint={visible ? t('Toca para ficares invisível já') : t('Toca para escolher quem te vê')}
         hitSlop={6}
       >
         <View style={[st.eyeDot, { backgroundColor: visible ? colors.green600 : colors.zinc300 }]} />
         <Icon name={visible ? 'eye' : 'eye-off'} size={17} color={visible ? colors.green700 : colors.zinc700} />
-        <Text style={[st.eyeText, visible && { color: colors.green700 }]}>{visible ? 'Visível' : 'Invisível'}</Text>
+        <Text style={[st.eyeText, visible && { color: colors.green700 }]}>{visible ? t('Visível') : t('Invisível')}</Text>
       </Pressable>
     );
 
@@ -405,13 +409,13 @@ export default function Perto() {
       style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.rose50 }]}
       hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"
-      accessibilityLabel={`Zona: ${place.label}, até ${liveRadius} km. Mudar o sítio ou a distância`}
+      accessibilityLabel={t('Zona: {label}, até {liveRadius} km. Mudar o sítio ou a distância', { label: place.label, liveRadius })}
     >
       <Icon name={place.gps ? 'locate' : 'map-pin'} size={16} color={colors.brand} />
-      <Text style={st.zoneText} numberOfLines={1}>{locating ? 'A ver onde estás…' : place.label}</Text>
+      <Text style={st.zoneText} numberOfLines={1}>{locating ? t('A ver onde estás…') : place.label}</Text>
       {locating ? null : (
         <View style={st.zoneKm}>
-          <Text style={st.zoneKmText}>{liveRadius} km</Text>
+          <Text style={st.zoneKmText}>{t('{liveRadius} km', { liveRadius })}</Text>
         </View>
       )}
       <View style={st.zoneCaret}><Icon name="chevron-right" size={14} strokeWidth={2.4} color={colors.zinc500} /></View>
@@ -426,7 +430,7 @@ export default function Perto() {
       <FadeRow contentContainerStyle={st.chipRow} focus={chipFocus}>
         {zonePill}
         <View style={st.chipSep} />
-        <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Mostrar" onLayout={(e) => { chipGroupX.current = e.nativeEvent.layout.x; }}>
+        <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel={t('Mostrar')} onLayout={(e) => { chipGroupX.current = e.nativeEvent.layout.x; }}>
           {FILTERS.map((f) => (
             <Chip
               key={f.key}
@@ -450,7 +454,7 @@ export default function Perto() {
       {filter === 'events' ? (
         <FadeRow contentContainerStyle={st.chipRow}>
           <Icon name="calendar" size={15} color={colors.zinc500} />
-          <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Quando">
+          <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel={t('Quando')}>
             {WHENS.map((w) => (
               <Chip key={w.key} label={w.label} on={when === w.key} onPress={() => setWhen(w.key)} small soft />
             ))}
@@ -483,9 +487,9 @@ export default function Perto() {
     <EmptyState
       art={<View style={[st.errIcon, !desktop && { width: 56, height: 56, borderRadius: 28 }]}><Icon name="alert" size={desktop ? 28 : 24} color={colors.brand} /></View>}
       compact={!desktop}
-      title="Não consegui ver o que há à volta"
+      title={t('Não consegui ver o que há à volta')}
       sub={loadErrorText(q.error instanceof ApiError ? q.error.status : null)}
-      primary={{ label: 'Tentar outra vez', onPress: () => void q.refetch() }}
+      primary={{ label: t('Tentar outra vez'), onPress: () => void q.refetch() }}
     />
   ) : (
     <EmptyState
@@ -515,27 +519,27 @@ export default function Perto() {
     return (
       <PertoPage line>
         {ask === 'checking' || ask === 'locating' ? (
-          <View style={st.center}><ActivityIndicator /><Text style={st.emptySub}>{ask === 'locating' ? 'A ver onde estás…' : ''}</Text></View>
+          <View style={st.center}><ActivityIndicator /><Text style={st.emptySub}>{ask === 'locating' ? t('A ver onde estás…') : ''}</Text></View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 24, gap: 18, maxWidth: 520, width: '100%', alignSelf: 'center' }}>
             {ask === 'explain' ? (
               <View style={st.explain}>
                 <View style={st.explainIcon}><Icon name="locate" size={30} color={colors.brand} /></View>
-                <Text style={st.explainTitle}>Vê o que há à tua volta</Text>
+                <Text style={st.explainTitle}>{t('Vê o que há à tua volta')}</Text>
                 <Text style={st.explainText}>
-                  Locais, eventos, a malta e o que se está a publicar perto de ti. Para isso o Txillapp precisa de saber onde estás: usamos só para esta procura, arredondada ao bairro, e não guardamos o teu percurso.
+                  {t('Locais, eventos, a malta e o que se está a publicar perto de ti. Para isso o Txillapp precisa de saber onde estás: usamos só para esta procura, arredondada ao bairro, e não guardamos o teu percurso.')}
                 </Text>
                 {problem ? <ProblemNote problem={problem} /> : null}
-                <Pressable onPress={() => void goMine()} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>{problem ? 'Tentar outra vez' : 'Usar a minha localização'}</Text></Pressable>
-                <Pressable onPress={() => setAsk('cities')} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Prefiro escolher a cidade</Text></Pressable>
+                <Pressable onPress={() => void goMine()} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>{problem ? t('Tentar outra vez') : t('Usar a minha localização')}</Text></Pressable>
+                <Pressable onPress={() => setAsk('cities')} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>{t('Prefiro escolher a cidade')}</Text></Pressable>
               </View>
             ) : (
               <>
-                <Text style={st.explainTitle}>Escolhe a cidade</Text>
-                <Text style={st.explainText}>Sem localização também dá. Mostramos o que há à volta do centro da cidade.</Text>
+                <Text style={st.explainTitle}>{t('Escolhe a cidade')}</Text>
+                <Text style={st.explainText}>{t('Sem localização também dá. Mostramos o que há à volta do centro da cidade.')}</Text>
                 {problem ? <ProblemNote problem={problem} /> : null}
                 <CityGrid onPick={pickCity} />
-                <Pressable onPress={() => void goMine()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Usar a minha localização</Text></Pressable>
+                <Pressable onPress={() => void goMine()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>{t('Usar a minha localização')}</Text></Pressable>
               </>
             )}
           </ScrollView>
@@ -558,11 +562,11 @@ export default function Perto() {
   const sheets = (
     <>
       {placeSheet ? (
-        <Sheet title="Onde procurar" onClose={() => setPlaceSheet(false)}>
+        <Sheet title={t('Onde procurar')} onClose={() => setPlaceSheet(false)}>
           <View style={{ paddingHorizontal: 16, paddingBottom: 20, gap: 12 }}>
             <View style={st.distHead}>
-              <Text style={st.sheetLabel}>Distância</Text>
-              <Text style={st.distValue} accessibilityElementsHidden importantForAccessibility="no">até {liveRadius} km</Text>
+              <Text style={st.sheetLabel}>{t('Distância')}</Text>
+              <Text style={st.distValue} accessibilityElementsHidden importantForAccessibility="no">{t('até {liveRadius} km', { liveRadius })}</Text>
             </View>
             {/* Barra de 1 a 50 km (de 1 em 1): o círculo do mapa segue o dedo e o pedido sai ao largar (ou ao parar). */}
             <RangeSlider
@@ -573,13 +577,13 @@ export default function Perto() {
               marks={RADIUS_MARKS}
               onChange={setLiveRadius}
               onCommit={setRadius}
-              label="Distância"
+              label={t('Distância')}
               format={(v) => `até ${v} km`}
             />
-            <Text style={[st.sheetLabel, { marginTop: 6 }]}>Sítio</Text>
+            <Text style={[st.sheetLabel, { marginTop: 6 }]}>{t('Sítio')}</Text>
             <Pressable onPress={() => void goMine()} style={st.mineRow} accessibilityRole="button" accessibilityState={{ selected: place.gps }}>
               <Icon name="locate" size={20} color={colors.brand} />
-              <Text style={[st.mineText, { flex: 1 }]}>{place.gps ? 'Perto de mim (a tua localização)' : 'Usar a minha localização'}</Text>
+              <Text style={[st.mineText, { flex: 1 }]}>{place.gps ? t('Perto de mim (a tua localização)') : t('Usar a minha localização')}</Text>
               {place.gps ? <Icon name="check" size={18} strokeWidth={2.4} color={colors.brand} /> : null}
             </Pressable>
             <CityGrid onPick={pickCity} current={place.gps ? undefined : place.label} />
@@ -587,7 +591,7 @@ export default function Perto() {
         </Sheet>
       ) : null}
       {visSheet ? (
-        <Sheet title="Aparecer em À tua volta" onClose={() => setVisSheet(false)}>
+        <Sheet title={t('Aparecer em À tua volta')} onClose={() => setVisSheet(false)}>
           <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
             <VisibilityOptions
               value={visibility ?? 'off'}
@@ -612,8 +616,8 @@ export default function Perto() {
       <View style={{ flex: 1, backgroundColor: colors.white }}>
         <View style={st.deskHead}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.deskTitle} accessibilityRole="header">À tua volta</Text>
-            <Text style={st.deskSub} numberOfLines={1}>Locais, eventos, a malta e o que se publica perto de ti</Text>
+            <Text style={st.deskTitle} accessibilityRole="header">{t('À tua volta')}</Text>
+            <Text style={st.deskSub} numberOfLines={1}>{t('Locais, eventos, a malta e o que se publica perto de ti')}</Text>
           </View>
           {eyeButton}
         </View>
@@ -665,7 +669,7 @@ function PertoPage({ right, line = false, children }: { right?: React.ReactNode;
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <View style={[st.head, line && st.headLine]}>
         <BackButton onPress={back} />
-        <Text style={st.headTitle} numberOfLines={1} accessibilityRole="header">À tua volta</Text>
+        <Text style={st.headTitle} numberOfLines={1} accessibilityRole="header">{t('À tua volta')}</Text>
         {right}
       </View>
       <FillView>{children}</FillView>
@@ -706,7 +710,8 @@ function CityGrid({ onPick, current }: { onPick: (c: (typeof CITIES)[number]) =>
 const KIND_ICON: Record<MapMarkerKind, IconName> = { venue: 'map-pin', event: 'calendar', post: 'image', group: 'users', person: 'user' };
 /** O ícone de cada tipo de local: o mesmo do pino no mapa (mapRuntime VENUE_ICON). */
 const VENUE_ICON: Record<string, IconName> = { bar: 'martini', restaurante: 'utensils', cafe: 'coffee', discoteca: 'music', hotel: 'key', evento: 'calendar' };
-const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+/** Os meses em maiúsculas da folha de calendário (os mesmos do pino no mapa: nearby/mapLabels), no idioma da pessoa. */
+const MONTHS = () => mapLabels().months;
 const EXTRA_ICON: Record<EmptyExtra, IconName> = { place: 'map-pin', invite: 'user-plus', venue: 'store', all: 'compass' };
 const GROUP_PURPLE = '#7c3aed';
 
@@ -714,7 +719,7 @@ const GROUP_PURPLE = '#7c3aed';
  * Ação do leitor de ecrã em cada linha: "Abrir" abre logo, sem passar pelo mapa. O toque normal (activate) não se declara
  * aqui, para continuar a ser o onPress de sempre (mostrar no mapa e, outra vez, abrir).
  */
-const OPEN_ACTIONS: AccessibilityActionInfo[] = [{ name: 'open', label: 'Abrir' }];
+const OPEN_ACTIONS: AccessibilityActionInfo[] = [{ name: 'open', get label() { return t('Abrir'); } }];
 
 /** A imagem da linha: a foto com o anel da marca (pessoas), o logótipo ou o ícone do tipo (locais), a folha do calendário (eventos)… */
 function Thumb({ item }: { item: Item }) {
@@ -733,13 +738,13 @@ function Thumb({ item }: { item: Item }) {
       return (
         <View style={st.thumb}>
           <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          {ok ? <View style={st.dateChip}><Text style={st.dateChipText}>{`${d!.getDate()} ${MONTHS[d!.getMonth()]}`}</Text></View> : null}
+          {ok ? <View style={st.dateChip}><Text style={st.dateChipText}>{`${d!.getDate()} ${MONTHS()[d!.getMonth()]}`}</Text></View> : null}
         </View>
       );
     }
     return (
       <View style={st.cal}>
-        <View style={st.calTop}><Text style={st.calMonth}>{ok ? MONTHS[d!.getMonth()] : ''}</Text></View>
+        <View style={st.calTop}><Text style={st.calMonth}>{ok ? MONTHS()[d!.getMonth()] : ''}</Text></View>
         <View style={st.calBody}>{ok ? <Text style={st.calDay}>{d!.getDate()}</Text> : <Icon name="calendar" size={20} color={colors.brand} />}</View>
       </View>
     );
@@ -764,7 +769,7 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
       accessibilityRole="button"
       accessibilityLabel={`${item.boost ? `${item.boost.label.replace(' · ', ', ')}. ` : ''}${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
       // O primeiro toque mostra no mapa, o segundo abre. Com o leitor de ecrã há também a ação "Abrir", que abre logo.
-      accessibilityHint={selected ? 'Toca para abrir' : 'Toca para mostrar no mapa e outra vez para abrir. Ou usa a ação Abrir'}
+      accessibilityHint={selected ? t('Toca para abrir') : t('Toca para mostrar no mapa e outra vez para abrir. Ou usa a ação Abrir')}
       accessibilityState={{ selected }}
       accessibilityActions={OPEN_ACTIONS}
       onAccessibilityAction={(e) => {
@@ -785,7 +790,7 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
       <View style={[st.kmPill, selected && { borderColor: '#f6c9d1' }]}>
         <Text style={st.kmText} numberOfLines={1}>{km}</Text>
       </View>
-      <Pressable onPress={onOpen} hitSlop={{ top: 4, bottom: 4, left: 7, right: 7 }} style={({ pressed }) => [st.rowOpen, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="link" accessibilityLabel={`Abrir ${item.title}`}>
+      <Pressable onPress={onOpen} hitSlop={{ top: 4, bottom: 4, left: 7, right: 7 }} style={({ pressed }) => [st.rowOpen, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="link" accessibilityLabel={t('Abrir {title}', { title: item.title })}>
         <Icon name="chevron-right" size={18} strokeWidth={2.2} color={selected ? colors.brand : colors.zinc500} />
       </Pressable>
     </Pressable>
@@ -914,7 +919,7 @@ function SkeletonList() {
   }, [a]);
   const W = ['64%', '48%', '72%', '42%'] as const;
   return (
-    <Animated.View style={{ opacity: a, paddingTop: 2 }} accessibilityRole="progressbar" accessibilityLabel="A procurar o que há à tua volta">
+    <Animated.View style={{ opacity: a, paddingTop: 2 }} accessibilityRole="progressbar" accessibilityLabel={t('A procurar o que há à tua volta')}>
       {W.map((w, i) => (
         <View key={i} style={st.skRow}>
           <View style={[st.skThumb, i % 2 === 1 && { borderRadius: 27 }]} />
@@ -966,7 +971,7 @@ function DeskList({ items, selected, header, empty, render, refreshing, onRefres
 const KIND_COUNT: Record<MapMarkerKind, [string, string]> = {
   venue: ['local', 'locais'],
   event: ['evento', 'eventos'],
-  post: ['publicação', 'publicações'],
+  get post() { return [t('publicação'), t('publicações')] as [string, string]; },
   group: ['TxillGroup', 'TxillGroups'],
   person: ['pessoa', 'pessoas'],
 };
@@ -983,10 +988,10 @@ function ListHead({ items, loading, updating, failed }: { items: Item[]; loading
   const kinds = KIND_ORDER.filter((k) => by.has(k));
   const parts = kinds.map((k) => `${by.get(k)} ${KIND_COUNT[k][by.get(k) === 1 ? 0 : 1]}`);
   const busy = loading || (updating && !n);
-  const sub = busy ? 'A procurar…' : updating ? 'A atualizar…' : n ? 'Mais perto primeiro' : failed ? 'Sem resposta do servidor' : 'Nada por perto com estes filtros';
+  const sub = busy ? 'A procurar…' : updating ? 'A atualizar…' : n ? t('Mais perto primeiro') : failed ? t('Sem resposta do servidor') : t('Nada por perto com estes filtros');
   return (
-    <View style={st.listHead} accessibilityRole="header" accessibilityLabel={n ? `${n} à tua volta. ${parts.join(', ')}. ${sub}` : `À tua volta. ${sub}`}>
-      <Text style={st.listHeadTitle} numberOfLines={1}>{n ? `${n} à tua volta` : 'À tua volta'}</Text>
+    <View style={st.listHead} accessibilityRole="header" accessibilityLabel={n ? t('{n} à tua volta. {parts}. {sub}', { n, parts: parts.join(', '), sub }) : t('À tua volta. {sub}', { sub })}>
+      <Text style={st.listHeadTitle} numberOfLines={1}>{n ? t('{n} à tua volta', { n }) : t('À tua volta')}</Text>
       <View style={st.listHeadRow}>
         {n && !busy && kinds.length > 1
           ? kinds.map((k) => (
@@ -1128,7 +1133,7 @@ function PhoneBody({ items, selected, head, header, empty, render, refreshing, o
       {h > 0 ? (
         <Animated.View style={[st.sheet, { height: h - 24, transform: [{ translateY: ty }] }]}>
           <View onLayout={onHeadLayout}>
-            <View {...pan.panHandlers} style={st.grab} accessibilityRole="adjustable" accessibilityLabel="Puxar a lista para cima ou para baixo">
+            <View {...pan.panHandlers} style={st.grab} accessibilityRole="adjustable" accessibilityLabel={t('Puxar a lista para cima ou para baixo')}>
               <View style={st.grabBar} />
               {head}
             </View>
@@ -1155,16 +1160,16 @@ function PhoneBody({ items, selected, head, header, empty, render, refreshing, o
 
 /** Porque não deu para usar a localização, com "Abrir definições" quando é isso que resolve (só na app). */
 function ProblemNote({ problem }: { problem: LocateProblem }) {
-  const t = locateProblemText(problem, Platform.OS === 'web');
+  const tv2 = locateProblemText(problem, Platform.OS === 'web');
   return (
     <View style={st.problem} accessibilityRole="alert">
       <Icon name="alert" size={20} color={colors.amber600} />
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={st.optTitle}>{t.title}</Text>
-        <Text style={st.cardText}>{t.text}</Text>
-        {t.settings ? (
+        <Text style={st.optTitle}>{tv2.title}</Text>
+        <Text style={st.cardText}>{tv2.text}</Text>
+        {tv2.settings ? (
           <Pressable onPress={() => void Linking.openSettings()} hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 2 }}>
-            <Text style={[st.mineText, { fontSize: 14 }]}>Abrir definições</Text>
+            <Text style={[st.mineText, { fontSize: 14 }]}>{t('Abrir definições')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -1178,15 +1183,15 @@ function VisibilityOptions({ value, onPick, busy, gps, onUseGps }: { value: Near
       <View style={st.privacy}>
         <Icon name="shield" size={20} color={colors.zinc700} />
         <Text style={[st.cardText, { flex: 1 }]}>
-          Quem escolheres vê que estás por perto, só com a zona aproximada (o bairro, nunca o sítio exato). Só atualiza com este ecrã aberto e some sozinho passadas 3 h.
+          {t('Quem escolheres vê que estás por perto, só com a zona aproximada (o bairro, nunca o sítio exato). Só atualiza com este ecrã aberto e some sozinho passadas 3 h.')}
         </Text>
       </View>
       {!gps ? (
         <View style={{ gap: 8 }}>
-          <Text style={[st.cardText, { color: colors.amber600 }]}>Para apareceres tens de usar a localização do telemóvel (com uma cidade escolhida não apareces).</Text>
+          <Text style={[st.cardText, { color: colors.amber600 }]}>{t('Para apareceres tens de usar a localização do telemóvel (com uma cidade escolhida não apareces).')}</Text>
           <Pressable onPress={onUseGps} style={st.mineRow} accessibilityRole="button">
             <Icon name="locate" size={20} color={colors.brand} />
-            <Text style={[st.mineText, { flex: 1 }]}>Usar a minha localização</Text>
+            <Text style={[st.mineText, { flex: 1 }]}>{t('Usar a minha localização')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -1215,33 +1220,33 @@ function VisibilityCard({ onOpen, onLater }: { onOpen: () => void; onLater: () =
     <View style={st.vis}>
       <View style={st.visHead}>
         <View style={st.visIcon}><Icon name="eye-off" size={18} color={colors.zinc700} /></View>
-        <Text style={st.visTitle} numberOfLines={1}>Estás invisível</Text>
-        <Pressable onPress={onLater} hitSlop={4} style={({ pressed }) => [st.visX, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel="Agora não">
+        <Text style={st.visTitle} numberOfLines={1}>{t('Estás invisível')}</Text>
+        <Pressable onPress={onLater} hitSlop={4} style={({ pressed }) => [st.visX, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={t('Agora não')}>
           <Icon name="x" size={18} color={colors.zinc500} />
         </Pressable>
       </View>
-      <Text style={st.visText}>A malta não te vê no mapa. Tu vês tudo na mesma.</Text>
+      <Text style={st.visText}>{t('A malta não te vê no mapa. Tu vês tudo na mesma.')}</Text>
       <View style={st.visFoot}>
         <Pressable
           onPress={onOpen}
           style={({ pressed }) => [st.visBtn, pressed && { opacity: 0.85 }]}
           accessibilityRole="button"
-          accessibilityLabel="Aparecer à malta. Escolher quem te vê"
-          accessibilityHint="Mostramos só a zona aproximada, nunca o sítio exato"
+          accessibilityLabel={t('Aparecer à malta. Escolher quem te vê')}
+          accessibilityHint={t('Mostramos só a zona aproximada, nunca o sítio exato')}
         >
           <Icon name="eye" size={16} color={colors.white} />
-          <Text style={st.visBtnText}>Aparecer à malta</Text>
+          <Text style={st.visBtnText}>{t('Aparecer à malta')}</Text>
         </Pressable>
         <View style={st.visSafe} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Icon name="shield" size={14} color={colors.zinc500} />
-          <Text style={st.visSafeText} numberOfLines={2}>Só o bairro, nunca o sítio exato</Text>
+          <Text style={st.visSafeText} numberOfLines={2}>{t('Só o bairro, nunca o sítio exato')}</Text>
         </View>
       </View>
     </View>
   );
 }
 
-const GROUP_KIND: Record<string, string> = { viagem: 'Viagem', festa: 'Festa', fim_de_semana: 'Fim de semana', outro: 'TxillGroup' };
+const GROUP_KIND: Record<string, string> = { get viagem() { return t('Viagem'); }, get festa() { return t('Festa'); }, get fim_de_semana() { return t('Fim de semana'); }, outro: 'TxillGroup' };
 
 /** TxillGroup de que não sou membro: capa, foto, selo, informação e o botão para entrar (público) ou pedir (privado no mapa). */
 function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void }) {
@@ -1255,35 +1260,35 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
   return (
     <Sheet title={group.name} onClose={onClose}>
       <View style={{ paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}>
-        {group.coverUrl ? <Image source={{ uri: sized(group.coverUrl, 800) }} style={{ width: '100%', aspectRatio: 2, borderRadius: 16, backgroundColor: colors.zinc100 }} contentFit="cover" accessibilityLabel={`Capa de ${group.name}`} /> : null}
+        {group.coverUrl ? <Image source={{ uri: sized(group.coverUrl, 800) }} style={{ width: '100%', aspectRatio: 2, borderRadius: 16, backgroundColor: colors.zinc100 }} contentFit="cover" accessibilityLabel={t('Capa de {name}', { name: group.name })} /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <GroupCover url={group.avatarUrl ?? p?.avatarUrl ?? group.coverUrl} kind={(p?.groupKind ?? group.kind) as GroupKind} size={52} radius={26} />
           <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
             <AccessBadge visibility={p?.visibility ?? group.visibility} />
             <Text style={st.cardText}>
-              {[GROUP_KIND[group.kind] ?? 'TxillGroup', `${members} ${members === 1 ? 'membro' : 'membros'}`, group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
+              {[GROUP_KIND[group.kind] ?? 'TxillGroup', t('{count} membro', { count: members, other: '{count} membros' }), group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
           </View>
         </View>
         {group.placeLabel || p?.placeLabel ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityLabel={`Aparece em ${group.placeLabel || p?.placeLabel}`}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityLabel={t('Aparece em {placeLabel}', { placeLabel: String(group.placeLabel || p?.placeLabel) })}>
             <Icon name="map-pin" size={16} color={colors.brand} />
             <Text style={[st.cardText, { flex: 1, fontWeight: '700', color: colors.zinc800 }]} numberOfLines={1}>{group.placeLabel || p?.placeLabel}</Text>
           </View>
         ) : null}
         {p?.description ? <Text style={st.cardText} numberOfLines={4}>{p.description}</Text> : null}
         {gone ? (
-          <Text style={st.emptySub}>Este grupo é privado ou já não existe.</Text>
+          <Text style={st.emptySub}>{t('Este grupo é privado ou já não existe.')}</Text>
         ) : pub.isError ? (
-          <Pressable onPress={() => void pub.refetch()} accessibilityRole="button"><Text style={st.emptySub}>Não consegui ver se podes entrar. Toca para tentar outra vez.</Text></Pressable>
+          <Pressable onPress={() => void pub.refetch()} accessibilityRole="button"><Text style={st.emptySub}>{t('Não consegui ver se podes entrar. Toca para tentar outra vez.')}</Text></Pressable>
         ) : (
           <JoinButton groupId={group.id} mode={joinModeOf(p ?? group)} me={p?.me} onOpen={() => go(`/messages/g/${group.id}`)} />
         )}
         {!gone && (
-          <Pressable onPress={() => go(`/g/${group.id}`)} style={st.secondary} accessibilityRole="link" accessibilityLabel={`Ver a página de ${group.name}`}>
-            <Text style={st.secondaryText}>Ver a página do grupo</Text>
+          <Pressable onPress={() => go(`/g/${group.id}`)} style={st.secondary} accessibilityRole="link" accessibilityLabel={t('Ver a página de {name}', { name: group.name })}>
+            <Text style={st.secondaryText}>{t('Ver a página do grupo')}</Text>
           </Pressable>
         )}
       </View>

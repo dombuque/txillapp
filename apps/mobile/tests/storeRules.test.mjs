@@ -2,11 +2,12 @@
 // nas versões das lojas (play, appstore) não se compra nada digital por fora da loja, e todo o conteúdo se denuncia.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STORE_TOPUP_READY, helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } from '../src/lib/storeRules.ts';
+const { STORE_TOPUP_READY, helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } = await import('../src/lib/storeRules.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(path.join(ROOT, 'src', ...p), 'utf8').replace(/\r\n/g, '\n');
@@ -73,7 +74,7 @@ test('a Ajuda nas lojas não manda recarregar nem bombar; no site fica igual', (
   const help = read('app', 'help.tsx');
   assert.match(help, /helpFaqFor\(purchases, FAQ\)/);
   assert.match(help, /Também podes recarregar em Definições[^.]*\./);
-  assert.match(help, /q: 'Como bombo o meu local\?'/);
+  assert.match(help, /q\(\) \{ return t\('Como bombo o meu local\?'\)/);
 });
 
 test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, sem linha nas Definições nem «carrega a carteira»', () => {
@@ -84,7 +85,7 @@ test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, 
   const home = read('components', 'settings', 'SettingsHome.tsx');
   assert.match(home, /hiddenSettingsFor\(purchases\)/);
   assert.match(home, /paymentsSubtitleFor\(purchases, g\.subtitle\)/);
-  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens vibes suficientes\. Carrega a carteira primeiro\.' : 'Não tens vibes suficientes\.'/);
+  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? t\('Não tens vibes suficientes\. Carrega a carteira primeiro\.'\) : t\('Não tens vibes suficientes\.'\)/);
   // O Bombar nas lojas: sem campanha nova paga com Txills (só ver e parar as que existem). Pela loja, só com as compras
   // pela loja ligadas (IAP_READY e o catálogo do servidor), num componente à parte: ver tests/iap.test.mjs.
   const boost = read('components', 'boost', 'VenueBoost.tsx');

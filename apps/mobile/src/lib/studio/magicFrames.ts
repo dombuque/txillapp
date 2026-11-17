@@ -12,6 +12,7 @@
  * Só importa tipos (o node corre este ficheiro direto).
  */
 import type { SoundEnergy } from './magic';
+import { t } from '@/lib/i18n';
 
 /** Colunas da grelha escondida. */
 export const GRID_COLS = 8;
@@ -109,7 +110,7 @@ export function parseSoundReply(body: unknown): SoundReply | null {
 
 /** O texto da fase do som quando acaba: `heard` respostas do servidor e quantas com som. */
 export function soundDoneLabel(heard: number, withSound: number): string | null {
-  if (heard === 0) return 'Sem som a tempo: fica a imagem';
-  if (withSound === 0) return 'Os vídeos não têm som';
+  if (heard === 0) return t('Sem som a tempo: fica a imagem');
+  if (withSound === 0) return t('Os vídeos não têm som');
   return null;
 }

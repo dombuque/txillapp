@@ -7,6 +7,7 @@ import {
   FLOAT_MAX, FLOAT_STEP_MS, LIVE_FLOAT_TTL_MS, floatAdd, floatBusy, floatInit, floatLift, floatRemove, floatSkip, floatStep, floatView,
   type FloatState, type TxilladaComment,
 } from '@/lib/txillada';
+import { t } from '@/lib/i18n';
 
 /**
  * Os comentários da Txillada a flutuar (o estilo dos balões dos mimos, components/StoryFloatComments): à esquerda, em
@@ -75,7 +76,7 @@ export function LiveFloatComments({ comments, bottom, width, height, onOpen, onC
             cheers={c.cheers ?? 0}
             gift={!!c.gift}
             onMention={onMention && !c.gift ? onMention : undefined}
-            label={onOpen && !c.gift ? 'Toca para responder, brindar ou denunciar' : ''}
+            label={onOpen && !c.gift ? t('Toca para responder, brindar ou denunciar') : ''}
             onHeight={(h) => setHeights((old) => (old[e.id] === h ? old : { ...old, [e.id]: h }))}
           />
         );

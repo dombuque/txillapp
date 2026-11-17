@@ -5,6 +5,7 @@ import { NATIVE_RETRY_DELAYS, configurePending, forgetPendingUser, setPendingUse
 import { chatMediaUri, dropChatMedia } from './chatMediaStore';
 import { loadOutbox, saveOutbox } from './chatOutboxStore';
 import type { ChatGif } from './gifs';
+import { t } from '@/lib/i18n';
 
 /**
  * A fila das mensagens a caminho (lib/chatPending) ligada à app: o pedido ao servidor (conversa a dois ou TxillGroup, com
@@ -16,7 +17,7 @@ import type { ChatGif } from './gifs';
 const web = Platform.OS === 'web';
 
 /** O ficheiro já não está neste aparelho: não dá para enviar (fica «Não enviada», com «Apagar»). */
-const gone = () => Object.assign(new Error('O ficheiro desta mensagem já não está neste aparelho.'), { status: 410 });
+const gone = () => Object.assign(new Error(t('O ficheiro desta mensagem já não está neste aparelho.')), { status: 410 });
 
 /** Envia um pedido da fila (ou um envio direto de voz e fotos, já com o `mediaId`, no mesmo formato). */
 export async function sendChatRequest(r: PendingRequest, ctx: { uploaded: (mediaId: string) => void } = { uploaded: () => undefined }): Promise<SentReply> {
@@ -41,7 +42,7 @@ export async function sendChatRequest(r: PendingRequest, ctx: { uploaded: (media
   };
   if (r.conv.startsWith('u:')) return api.chatSend(r.conv.slice(2), body);
   if (r.conv.startsWith('g:')) return gruposApi.send(r.conv.slice(2), body);
-  throw Object.assign(new Error('Conversa desconhecida'), { status: 400 });
+  throw Object.assign(new Error(t('Conversa desconhecida')), { status: 400 });
 }
 
 /** No browser, `navigator.onLine === false` é de certeza sem rede (true pode enganar: aí tenta-se e vê-se). */

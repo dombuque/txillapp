@@ -2,6 +2,7 @@
 // «♪ Título · Artista», o que vai para o servidor e os avisos da equipa.
 // Correr em apps/mobile:  node --experimental-strip-types --test tests/*.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -105,7 +106,7 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   assert.match(picker, /onlyAllowed\(withoutDisliked\(q\.data, disliked\), allowLocal\)/);
   // As faixas dos artistas guardam-se (só a referência, no servidor) e aparecem nas «Guardadas» em todo o lado, mas fora dos
   // mimos e das tchekas o «Usar» fica desativado, com a nota «Só em mimos e tchekas».
-  assert.match(picker, /\{canSave\(t\) \? \(/);
+  assert.match(picker, /\{canSave\(track\) \? \(/);
   assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip';/);
   assert.match(picker, /const saved = withoutDisliked\(favs\.data, disliked\);/);
   assert.match(picker, /locked=\{!usableHere\(t, allowLocal\)\}/);
@@ -114,7 +115,7 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
 
 test('ecrãs: Sou artista nas Definições e na pesquisa, o perfil com a etiqueta «Artista» (sem o selo de verificado)', () => {
   assert.match(read('app', 'settings', 'conta.tsx'), /anchor="artist"[^\n]*to="\/artista"/);
-  assert.match(read('lib', 'settingsIndex.ts'), /id: 'artist', group: 'conta', title: 'Sou artista'/);
+  assert.match(read('lib', 'settingsIndex.ts'), /id: 'artist', group: 'conta', get title\(\) \{ return t\('Sou artista'\); \}/);
   const pv = read('components', 'ProfileView.tsx');
   assert.match(pv, /\{p\.artist \? <ArtistTag \/> : null\}/);
   assert.doesNotMatch(read('components', 'ArtistUi.tsx'), /VerifiedBadge/);

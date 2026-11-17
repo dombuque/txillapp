@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
 import { api, type FeedSettings } from '@/lib/api';
 import { colors } from '@/lib/theme';
+import { t } from '@/lib/i18n';
 
 type T = { id: string; label: string };
 
@@ -108,12 +109,12 @@ export default function ReelPrefs() {
   }
 
   const headline = top.length
-    ? `Ultimamente tens andado a ver ${top.length > 1 ? `${top.slice(0, -1).join(', ')} e ${top[top.length - 1]}` : top[0]}.`
-    : 'Ainda estou a conhecer-te. Brinda, comenta e guarda o que gostas para eu aprender.';
-  const filled = (t: T, onX: () => void) => (
-    <View key={t.id} style={[st.chip, { backgroundColor: colors.zinc100 }]}>
-      <Text style={st.chipText}>{t.label}</Text>
-      <Pressable onPress={onX} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar ${t.label}`} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
+    ? t('Ultimamente tens andado a ver {value}.', { value: top.length > 1 ? `${top.slice(0, -1).join(', ')} e ${top[top.length - 1]}` : top[0] })
+    : t('Ainda estou a conhecer-te. Brinda, comenta e guarda o que gostas para eu aprender.');
+  const filled = (tv: T, onX: () => void) => (
+    <View key={tv.id} style={[st.chip, { backgroundColor: colors.zinc100 }]}>
+      <Text style={st.chipText}>{tv.label}</Text>
+      <Pressable onPress={onX} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar {label}', { label: tv.label })} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
     </View>
   );
   const outline = (key: string, text: string, onPress: () => void) => (
@@ -126,7 +127,7 @@ export default function ReelPrefs() {
     const list = all.filter((t) => !used.has(t.id));
     return (
       <View style={st.all}>
-        {list.length === 0 ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.zinc500, paddingVertical: 8 }}>Já escolheste todos os temas.</Text> : (
+        {list.length === 0 ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.zinc500, paddingVertical: 8 }}>{t('Já escolheste todos os temas.')}</Text> : (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {list.map((t) => <Pressable key={t.id} onPress={() => onPick(t.id)} style={st.small} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc800 }}>{t.label}</Text></Pressable>)}
           </View>
@@ -136,57 +137,57 @@ export default function ReelPrefs() {
   };
 
   return (
-    <StackPage title="O teu algoritmo">
+    <StackPage title={t('O teu algoritmo')}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48 }}>
         <Text style={st.headline}>{headline}</Text>
 
 
-        <Text style={[st.h3, { marginTop: 36 }]}>Constrói o teu algoritmo</Text>
-        <Text style={st.sub}>Escolhe como o Explorar e as Tchekas te mostram as coisas</Text>
-        {opt('De onde vem o que vês', 'following', [['less', 'Descobrir mais'], ['balanced', 'Equilibrado'], ['more', 'Mais de quem sigo']])}
-        {opt('Ordem', 'freshness', [['recent', 'Mais recentes'], ['balanced', 'Equilibrado'], ['popular', 'Mais populares']])}
-        {opt('Tipo de conteúdo', 'media', [['all', 'Tudo'], ['photos', 'Fotos'], ['videos', 'Vídeos']])}
-        {opt('Variedade de contas', 'variety', [['low', 'Poucas contas'], ['normal', 'Normal'], ['high', 'Muitas contas']])}
+        <Text style={[st.h3, { marginTop: 36 }]}>{t('Constrói o teu algoritmo')}</Text>
+        <Text style={st.sub}>{t('Escolhe como o Explorar e as Tchekas te mostram as coisas')}</Text>
+        {opt(t('De onde vem o que vês'), 'following', [['less', t('Descobrir mais')], ['balanced', t('Equilibrado')], ['more', t('Mais de quem sigo')]])}
+        {opt(t('Ordem'), 'freshness', [['recent', t('Mais recentes')], ['balanced', t('Equilibrado')], ['popular', t('Mais populares')]])}
+        {opt(t('Tipo de conteúdo'), 'media', [['all', t('Tudo')], ['photos', t('Fotos')], ['videos', t('Vídeos')]])}
+        {opt(t('Variedade de contas'), 'variety', [['low', t('Poucas contas')], ['normal', 'Normal'], ['high', t('Muitas contas')]])}
         <View style={st.switches}>
-          {sw('Esconder o que já vi', 'Não repete publicações que já te apareceram.', 'hideSeen')}
-          {sw('Modo tranquilo', 'Menos festa e bebidas, para dias mais calmos.', 'calm')}
+          {sw(t('Esconder o que já vi'), t('Não repete publicações que já te apareceram.'), 'hideSeen')}
+          {sw(t('Modo tranquilo'), t('Menos festa e bebidas, para dias mais calmos.'), 'calm')}
         </View>
 
-        <Text style={[st.h3, { marginTop: 36 }]}>Pessoas</Text>
-        <Text style={st.sub}>Quem queres ver mais ou menos no Explorar e nas Tchekas</Text>
+        <Text style={[st.h3, { marginTop: 36 }]}>{t('Pessoas')}</Text>
+        <Text style={st.sub}>{t('Quem queres ver mais ou menos no Explorar e nas Tchekas')}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput value={who} onChangeText={setWho} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={[st.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
-          <Pressable onPress={() => void addPerson(1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.brand }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mais</Text></Pressable>
-          <Pressable onPress={() => void addPerson(-1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.zinc100 }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: colors.zinc900, fontWeight: '700', fontSize: 14 }}>Menos</Text></Pressable>
+          <TextInput value={who} onChangeText={setWho} placeholder={t('@utilizador')} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={[st.input, { flex: 1 }]} accessibilityLabel={t('Utilizador')} />
+          <Pressable onPress={() => void addPerson(1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.brand }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('Mais')}</Text></Pressable>
+          <Pressable onPress={() => void addPerson(-1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.zinc100 }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: colors.zinc900, fontWeight: '700', fontSize: 14 }}>{t('Menos')}</Text></Pressable>
         </View>
         {personErr ? <Text style={{ marginTop: 6, fontSize: 14, color: colors.red600 }}>{personErr}</Text> : null}
         <View style={[st.wrap, { marginTop: 12 }]}>
           {(people.data ?? []).map((p) => (
             <View key={p.username} style={[st.chip, { backgroundColor: p.pref > 0 ? colors.rose50 : colors.zinc100 }]}>
-              <Text style={st.chipText}>{p.pref > 0 ? 'Mais' : 'Menos'} · @{p.username}</Text>
-              <Pressable onPress={() => void removePerson(p.username)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar @${p.username}`} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
+              <Text style={st.chipText}>{p.pref > 0 ? t('Mais') : t('Menos')} · @{p.username}</Text>
+              <Pressable onPress={() => void removePerson(p.username)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Tirar @{username}', { username: p.username })} style={{ marginRight: -4 }}><Icon name="x" size={18} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
             </View>
           ))}
         </View>
 
-        <Text style={[st.h3, { marginTop: 36 }]}>O que queres ver mais</Text>
-        <Text style={st.sub}>Com base na tua atividade e nas tuas escolhas</Text>
+        <Text style={[st.h3, { marginTop: 36 }]}>{t('O que queres ver mais')}</Text>
+        <Text style={st.sub}>{t('Com base na tua atividade e nas tuas escolhas')}</Text>
         <View style={st.wrap}>
           {more.map((t) => filled(t, () => void set(t.id, t.learned ? -1 : 0)))}
           {suggestions.map((t) => outline(t.id, t.label, () => void set(t.id, 1)))}
-          {outline('add-more', 'Adicionar', () => setPicking(picking === 'more' ? null : 'more'))}
+          {outline('add-more', t('Adicionar'), () => setPicking(picking === 'more' ? null : 'more'))}
         </View>
         {picking === 'more' && allTopics((id) => { void set(id, 1); setPicking(null); })}
 
-        <Text style={[st.h3, { marginTop: 36, marginBottom: 12 }]}>O que queres ver menos</Text>
+        <Text style={[st.h3, { marginTop: 36, marginBottom: 12 }]}>{t('O que queres ver menos')}</Text>
         <View style={st.wrap}>
           {less.map((t) => filled(t, () => void set(t.id, 0)))}
-          {outline('add-less', 'Adicionar', () => setPicking(picking === 'less' ? null : 'less'))}
+          {outline('add-less', t('Adicionar'), () => setPicking(picking === 'less' ? null : 'less'))}
         </View>
         {picking === 'less' && allTopics((id) => { void set(id, -1); setPicking(null); })}
 
-        <Pressable onPress={() => void reset()} disabled={busy} style={[st.reset, busy && { opacity: 0.6 }]} accessibilityRole="button"><Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc800 }}>Repor o algoritmo</Text></Pressable>
-        <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Apaga as tuas escolhas e o «Interessado / Não interessado» que deste.</Text>
+        <Pressable onPress={() => void reset()} disabled={busy} style={[st.reset, busy && { opacity: 0.6 }]} accessibilityRole="button"><Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc800 }}>{t('Repor o algoritmo')}</Text></Pressable>
+        <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>{t('Apaga as tuas escolhas e o «Interessado / Não interessado» que deste.')}</Text>
       </ScrollView>
     </StackPage>
   );

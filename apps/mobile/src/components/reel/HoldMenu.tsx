@@ -4,6 +4,7 @@ import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { Icon } from '@/components/Icon';
 import { DARK, Sheet } from '@/components/Sheet';
 import { holdMenu, SPEEDS, speedLabel, type HoldItem } from '@/lib/reelView';
+import { t } from '@/lib/i18n';
 
 /**
  * O menu de segurar o dedo numa tcheka (como no TikTok): em cima três atalhos grandes (Não me interessa, Denunciar,
@@ -37,29 +38,29 @@ export function HoldMenu({ mine, saved, canGift, speed, captions, captionsOn, on
     </Pressable>
   );
   return (
-    <Sheet onClose={onClose} dark variant="dialog" title="Opções">
-      <View style={st.wrap} accessibilityLabel="Opções da tcheka">
+    <Sheet onClose={onClose} dark variant="dialog" title={t('Opções')}>
+      <View style={st.wrap} accessibilityLabel={t('Opções da tcheka')}>
         <View style={st.tiles}>
-          {items.includes('not-interested') && tile('not-interested', <Icon name="eye-off" size={24} color="#fff" />, 'Não me interessa')}
-          {items.includes('report') && tile('report', <Icon name="flag" size={24} color="#fff" />, 'Denunciar')}
-          {tile('save', <BookmarkIcon on={saved} size={24} color="#fff" />, saved ? 'Guardado' : 'Guardar', saved)}
+          {items.includes('not-interested') && tile('not-interested', <Icon name="eye-off" size={24} color="#fff" />, t('Não me interessa'))}
+          {items.includes('report') && tile('report', <Icon name="flag" size={24} color="#fff" />, t('Denunciar'))}
+          {tile('save', <BookmarkIcon on={saved} size={24} color="#fff" />, saved ? t('Guardado') : t('Guardar'), saved)}
         </View>
 
-        <Text style={st.label}>Velocidade</Text>
+        <Text style={st.label}>{t('Velocidade')}</Text>
         <View style={st.speeds} accessibilityRole="radiogroup">
           {SPEEDS.map((r) => {
             const on = Math.abs(r - speed) < 0.01;
             return (
-              <Pressable key={r} onPress={() => onSpeed(r)} style={[st.speed, on && st.speedOn]} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`Velocidade ${speedLabel(r)}`}>
+              <Pressable key={r} onPress={() => onSpeed(r)} style={[st.speed, on && st.speedOn]} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={t('Velocidade {speedLabel}', { speedLabel: speedLabel(r) })}>
                 <Text style={[st.speedText, on && { color: '#000' }]}>{speedLabel(r)}</Text>
               </Pressable>
             );
           })}
         </View>
 
-        {items.includes('captions') && row('captions', <Icon name="file-text" size={22} color="#fff" />, 'Legendas', <Text style={st.rowRight}>{captionsOn ? 'Ligadas' : 'Desligadas'}</Text>)}
-        {items.includes('gift') && row('gift', <Icon name="gift" size={22} color="#fff" />, 'Oferecer vibes')}
-        {row('more', <Icon name="more" size={22} color="#fff" />, 'Mais opções')}
+        {items.includes('captions') && row('captions', <Icon name="file-text" size={22} color="#fff" />, t('Legendas'), <Text style={st.rowRight}>{captionsOn ? t('Ligadas') : t('Desligadas')}</Text>)}
+        {items.includes('gift') && row('gift', <Icon name="gift" size={22} color="#fff" />, t('Oferecer vibes'))}
+        {row('more', <Icon name="more" size={22} color="#fff" />, t('Mais opções'))}
       </View>
     </Sheet>
   );

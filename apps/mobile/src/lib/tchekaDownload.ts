@@ -9,6 +9,7 @@
  * API responde 403 com a mensagem, que se mostra).
  */
 
+import { t } from '@/lib/i18n';
 export interface DownloadablePost {
   id: string;
   code?: string | null;
@@ -35,16 +36,16 @@ export const downloadPath = (p: DownloadablePost) => `/posts/${encodeURIComponen
 export const downloadName = (p: DownloadablePost) => `txillapp-tcheka-${String(p.code || p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12)}.mp4`;
 
 /** A mensagem da API (403) quando quem publicou não deixa guardar; serve também se a resposta não se puder ler. */
-export const DOWNLOAD_BLOCKED = 'Quem publicou não deixa guardar as suas tchekas.';
+export const DOWNLOAD_BLOCKED = () => t('Quem publicou não deixa guardar as suas tchekas.');
 
 /** A frase a mostrar quando a API recusa a cópia: a mensagem dela (JSON do Nest), ou uma de reserva. */
 export function refusalMessage(status: number, body: unknown): string {
   const m = body && typeof body === 'object' ? (body as { message?: unknown }).message : undefined;
   const text = Array.isArray(m) ? m[0] : m;
   if (typeof text === 'string' && text.trim()) return text;
-  if (status === 403) return DOWNLOAD_BLOCKED;
-  if (status === 404) return 'Esta tcheka já não está disponível.';
-  return 'Não consegui preparar o vídeo. Tenta outra vez.';
+  if (status === 403) return DOWNLOAD_BLOCKED();
+  if (status === 404) return t('Esta tcheka já não está disponível.');
+  return t('Não consegui preparar o vídeo. Tenta outra vez.');
 }
 
 /**
@@ -62,14 +63,14 @@ export interface DownloadSettings { allow: boolean; effective: boolean; private:
 
 /** A linha «Deixar guardar as minhas tchekas» nas Definições, como «Deixar usar o meu som» (lib/sounds, reuseSetting). */
 export function downloadSetting(s: DownloadSettings | null | undefined): { on: boolean; disabled: boolean; description: string } {
-  if (!s) return { on: false, disabled: true, description: 'Outras pessoas podem guardar as tuas tchekas e partilhá-las fora do Txillapp.' };
-  if (s.private) return { on: false, disabled: true, description: 'A tua conta é privada: ninguém além de ti guarda as tuas tchekas, nem quem te segue, nem os duetos feitos com elas.' };
-  if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar guardar as suas tchekas. Tu podes sempre guardar as tuas.' };
+  if (!s) return { on: false, disabled: true, description: t('Outras pessoas podem guardar as tuas tchekas e partilhá-las fora do Txillapp.') };
+  if (s.private) return { on: false, disabled: true, description: t('A tua conta é privada: ninguém além de ti guarda as tuas tchekas, nem quem te segue, nem os duetos feitos com elas.') };
+  if (s.minor) return { on: false, disabled: true, description: t('Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar guardar as suas tchekas. Tu podes sempre guardar as tuas.') };
   return {
     on: s.allow,
     disabled: false,
     description: s.allow
-      ? 'Quem vê as tuas tchekas pode guardá-las e partilhá-las fora do Txillapp, com a assinatura do Txillapp e o teu @ no fim. Vale também para os duetos feitos com elas. Se desligares, as cópias no Txillapp apagam-se logo.'
-      : 'Desligado: só tu podes guardar as tuas tchekas, e ninguém guarda os duetos feitos com elas. As que alguém já guardou no telemóvel ficam com essa pessoa.',
+      ? t('Quem vê as tuas tchekas pode guardá-las e partilhá-las fora do Txillapp, com a assinatura do Txillapp e o teu @ no fim. Vale também para os duetos feitos com elas. Se desligares, as cópias no Txillapp apagam-se logo.')
+      : t('Desligado: só tu podes guardar as tuas tchekas, e ninguém guarda os duetos feitos com elas. As que alguém já guardou no telemóvel ficam com essa pessoa.'),
   };
 }

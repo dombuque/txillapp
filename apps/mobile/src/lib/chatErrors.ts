@@ -7,6 +7,7 @@
  */
 
 /** Tapa a conversa com "Não consegui abrir esta conversa"? Só sem nada carregado. */
+import { t } from '@/lib/i18n';
 export const blockingError = (isError: boolean, hasData: boolean): boolean => isError && !hasData;
 
 /**
@@ -32,7 +33,7 @@ export function inboxFailed(view: 'chats' | 'groups' | 'requests', searching: bo
 
 /** O texto por baixo de "Não consegui abrir esta conversa" (404: a conta já não existe; o resto: a rede). */
 export function threadErrorText(status?: number): string {
-  if (status === 404) return 'Esta conta não existe ou já não está disponível.';
-  if (status === 403) return 'Não podes abrir esta conversa.';
-  return 'Verifica a internet e tenta outra vez.';
+  if (status === 404) return t('Esta conta não existe ou já não está disponível.');
+  if (status === 403) return t('Não podes abrir esta conversa.');
+  return t('Verifica a internet e tenta outra vez.');
 }

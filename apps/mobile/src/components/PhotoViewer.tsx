@@ -19,6 +19,7 @@ import { RichText } from './RichText';
 import { clampRectPan, finePointer, rectZoomAt, type RectZoom } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
 import { wheelFactor } from '@/lib/zoomMath';
+import { t } from '@/lib/i18n';
 
 export interface ViewerPhoto { url: string; width?: number | null; height?: number | null; tags?: PhotoTag[] }
 
@@ -112,19 +113,19 @@ function Photo({ photo, w, h, index, total, onTag, active = false }: { photo: Vi
           style={StyleSheet.absoluteFill}
           contentFit="contain"
           onLoad={(e) => !nat && e.source?.width && e.source?.height && setNat({ w: e.source.width, h: e.source.height })}
-          accessibilityLabel={`Foto ${index + 1} de ${total}`}
+          accessibilityLabel={t('Foto {n} de {total}', { n: index + 1, total })}
           accessibilityIgnoresInvertColors
         />
-        {tags.map((t, i) => {
-          const x = t.x as number;
-          const y = t.y as number;
+        {tags.map((photoTag, i) => {
+          const x = photoTag.x as number;
+          const y = photoTag.y as number;
           const left = x * bw;
           // Perto das margens a etiqueta alinha para dentro, para não sair do ecrã.
           const align = x < 0.22 ? { left, alignItems: 'flex-start' as const } : x > 0.78 ? { right: bw - left, alignItems: 'flex-end' as const } : { left: left - 110, alignItems: 'center' as const };
           return (
-            <View key={`${t.username}-${i}`} pointerEvents="box-none" style={[styles.tagBox, { top: y * bh + 10 }, align]}>
-              <Pressable onPress={() => onTag(t.username)} style={styles.tag} accessibilityRole="link" accessibilityLabel={`Perfil de ${t.displayName ?? t.username}`}>
-                <NameWithBadge name={t.displayName ?? t.username} who={t} style={styles.tagText} />
+            <View key={`${photoTag.username}-${i}`} pointerEvents="box-none" style={[styles.tagBox, { top: y * bh + 10 }, align]}>
+              <Pressable onPress={() => onTag(photoTag.username)} style={styles.tag} accessibilityRole="link" accessibilityLabel={t('Perfil de {displayName}', { displayName: photoTag.displayName ?? photoTag.username })}>
+                <NameWithBadge name={photoTag.displayName ?? photoTag.username} who={photoTag} style={styles.tagText} />
               </Pressable>
             </View>
           );
@@ -182,9 +183,9 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={[styles.root, { backgroundColor: bg }]} accessibilityViewIsModal accessibilityLabel={`Fotos de ${author.displayName}`}>
+      <Animated.View style={[styles.root, { backgroundColor: bg }]} accessibilityViewIsModal accessibilityLabel={t('Fotos de {displayName}', { displayName: author.displayName })}>
         <View style={[styles.top, { paddingTop: Math.max(insets.top, 8) }]}>
-          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar" {...(mouse ? ({ dataSet: { tip: 'Fechar (Esc)' } } as object) : null)}>
+          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel={t('Fechar')} {...(mouse ? ({ dataSet: { tip: t('Fechar (Esc)') } } as object) : null)}>
             <Icon name="x" size={24} color="#fff" strokeWidth={2.4} />
           </Pressable>
           {n > 1 ? (
@@ -215,12 +216,12 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
         {mouse && n > 1 ? (
           <>
             {i > 0 ? (
-              <Pressable onPress={() => go(i - 1)} style={(st) => [styles.side, { left: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel="Foto anterior" {...({ dataSet: { tip: 'Foto anterior (←)' } } as object)}>
+              <Pressable onPress={() => go(i - 1)} style={(st) => [styles.side, { left: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel={t('Foto anterior')} {...({ dataSet: { tip: t('Foto anterior (←)') } } as object)}>
                 <Icon name="chevron-left" size={26} color="#fff" strokeWidth={2.4} />
               </Pressable>
             ) : null}
             {i < n - 1 ? (
-              <Pressable onPress={() => go(i + 1)} style={(st) => [styles.side, { right: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel="Foto seguinte" {...({ dataSet: { tip: 'Foto seguinte (→)' } } as object)}>
+              <Pressable onPress={() => go(i + 1)} style={(st) => [styles.side, { right: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel={t('Foto seguinte')} {...({ dataSet: { tip: t('Foto seguinte (→)') } } as object)}>
                 <Icon name="chevron-right" size={26} color="#fff" strokeWidth={2.4} />
               </Pressable>
             ) : null}

@@ -3,6 +3,7 @@
 // e as entradas nos ecrãs (menu do item, cabeçalho, Descoberta, Definições › Privacidade).
 // Correr em apps/mobile:  node --test tests/mixarControlo.test.mjs
 import { test } from 'node:test';
+import './fixtures/alias.mjs'; // o alias @/ (os módulos usam t() de @/lib/i18n)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -80,7 +81,7 @@ test('os textos novos: sem travessões nem emojis', () => {
 test('as entradas: menu do item e resumo no Mixar, links na Descoberta e nas Definições', () => {
   const screen = read('app', 'mixar', '[id].tsx');
   assert.match(screen, /setItemMenu\(it\)/);
-  assert.match(screen, /accessibilityLabel="Resumo da semana"/);
+  assert.match(screen, /accessibilityLabel=\{t\('Resumo da semana'\)\}/);
   assert.match(screen, /withWeekPage\(/);
   assert.match(screen, /router\.push\('\/settings\/mixar-temas'/);
   assert.match(read('components', 'mixar', 'MixarPages.tsx'), /Afinar os temas do Mixar/);

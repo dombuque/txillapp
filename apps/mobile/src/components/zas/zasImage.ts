@@ -4,6 +4,7 @@ import { Alert, Platform, Share } from 'react-native';
 import { authHeaders, fetchAuthed } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { saveToGallery } from '@/lib/saveToGallery';
+import { t } from '@/lib/i18n';
 
 /**
  * Guardar e partilhar os MEUS Zás (só aparecem no visor dos meus e no menu de «Os meus Zás») e o meu resumo semanal dos
@@ -16,12 +17,12 @@ import { saveToGallery } from '@/lib/saveToGallery';
 type Z = { id: string; url?: string; caption?: string; /** O resumo da semana (não um Zás). */ recap?: boolean; /** Resumo: o dia do nome do ficheiro (AAAA-MM-DD). */ day?: string };
 const downloadPath = (it: Z) => (it.recap ? `/instants/recaps/${it.id}/download` : `/instants/${it.id}/download`);
 const fileName = (it: Z) => (it.recap ? `txillapp-resumo-zas-${it.day ?? it.id.slice(0, 8)}.jpg` : `txillapp-zas-${it.id.slice(0, 8)}.jpg`);
-const what = (it: Z) => (it.recap ? 'o resumo' : 'o Zás');
+const what = (it: Z) => (it.recap ? 'o resumo' : t('o Zás'));
 
 /** Na web: o JPEG assinado como ficheiro (com a sessão, como os outros pedidos da app). */
 async function signedFile(it: Z): Promise<File> {
   const res = await fetchAuthed(downloadPath(it));
-  if (!res.ok) throw new Error(`Não consegui preparar ${what(it)}`);
+  if (!res.ok) throw new Error(t('Não consegui preparar {what}', { what: what(it) }));
   const blob = await res.blob();
   return new File([blob], fileName(it), { type: blob.type || 'image/jpeg' });
 }
@@ -46,7 +47,7 @@ export async function saveZas(it: Z, mode: 'gallery' | 'file' = 'gallery'): Prom
   if (Platform.OS !== 'web') {
     try {
       const r = await saveToGallery(downloadPath(it), fileName(it));
-      if (r === 'denied') Alert.alert('Sem acesso à galeria', `Dá acesso às fotos nas definições do telemóvel para guardar ${what(it)}.`);
+      if (r === 'denied') Alert.alert(t('Sem acesso à galeria'), t('Dá acesso às fotos nas definições do telemóvel para guardar {what}.', { what: what(it) }));
       return r;
     } catch {
       return 'failed';
@@ -84,7 +85,7 @@ export async function shareZas(it: Z) {
   if (Platform.OS !== 'web') {
     try {
       const uri = await signedCacheFile(it);
-      if (Platform.OS === 'android' && (await Sharing.isAvailableAsync().catch(() => false))) await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: it.recap ? 'Partilhar o resumo' : 'Partilhar Zás' });
+      if (Platform.OS === 'android' && (await Sharing.isAvailableAsync().catch(() => false))) await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: it.recap ? t('Partilhar o resumo') : t('Partilhar Zás') });
       else await Share.share({ url: uri, message: it.caption || undefined });
     } catch {
       /* cancelado ou sem rede: nada a fazer */
@@ -103,6 +104,6 @@ export async function shareZas(it: Z) {
 
 /** O resumo semanal dos Zás (o ecrã do resumo): o mesmo guardar/partilhar, com o ficheiro do servidor. */
 type R = { id: string; weekEnd: string; label: string };
-const recapFile = (r: R): Z => ({ id: r.id, recap: true, day: r.weekEnd, caption: `O meu resumo dos Zás · ${r.label}` });
+const recapFile = (r: R): Z => ({ id: r.id, recap: true, day: r.weekEnd, caption: t('O meu resumo dos Zás · {label}', { label: r.label }) });
 export const saveRecap = (r: R, mode: 'gallery' | 'file' = 'gallery') => saveZas(recapFile(r), mode);
 export const shareRecap = (r: R) => shareZas(recapFile(r));
