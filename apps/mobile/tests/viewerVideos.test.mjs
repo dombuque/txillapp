@@ -57,30 +57,36 @@ test('carrossel misto: tocar no vídeo abre o visor nesse vídeo; com o visor ab
 test('PhotoViewer: o vídeo usa o leitor do feed (CarouselVideo) em modo visor, só o item à vista toca', () => {
   const pv = read('components', 'PhotoViewer.tsx');
   assert.match(pv, /import \{ CarouselVideo \} from '\.\/CarouselVideo';/);
-  assert.match(pv, /isViewerVideo\(item\)\s*\/\/[^\n]*\n\s*\? <CarouselVideo url=\{item\.url\} poster=\{item\.posterUrl\} durationMs=\{item\.durationMs\} width=\{width\} height=\{pagerH\} active=\{index === i\} inView mute=\{muteVideo\} viewer \/>/);
+  assert.match(pv, /isViewerVideo\(item\)\s*\/\/[^\n]*\n\s*\? <ViewerVideo item=\{item\} w=\{page\.w\} h=\{page\.h\} active=\{index === i\} mute=\{muteVideo\} soundBottom=\{footH \+ 10\} \/>/);
+  const vv = pv.slice(pv.indexOf('function ViewerVideo'), pv.indexOf('export function PhotoViewer'));
+  assert.match(vv, /<CarouselVideo\s+url=\{item\.url\} poster=\{item\.posterUrl\} durationMs=\{item\.durationMs\} width=\{w\} height=\{h\} active=\{active\} inView mute=\{mute\} viewer\s+fit=\{fit\}/);
   // Zoom (roda do rato, duplo clique) só nas fotos: o vídeo não passa pelo Photo.
   assert.match(pv, /: <Photo photo=\{item\}/);
   assert.match(pv, /const start = viewerStart\(asked, photos\.length\);/);
   assert.doesNotMatch(pv, /useVideoPlayer|createElement\('video'/, 'sem um segundo leitor de vídeo no visor');
 });
 
-test('CarouselVideo em modo visor: contain, toque pausa/retoma, som num botão, capa enquanto carrega', () => {
+test('CarouselVideo em modo visor: fit do visor (cover/contain), toque pausa/retoma, som num botão, capa enquanto carrega', () => {
   const s = read('components', 'CarouselVideo.tsx');
   const web = s.slice(s.indexOf('function WebVideo'), s.indexOf('function NativeVideo('));
-  assert.match(web, /objectFit: viewer \? 'contain' : 'cover'/);
+  assert.match(web, /objectFit: viewer \? fit : 'cover'/);
+  assert.match(web, /contentFit=\{viewer \? fit : 'cover'\}/, 'a capa enche como o vídeo (sem saltos quando arranca)');
+  assert.match(web, /onLoadedMetadata:[\s\S]*?onSize\?\.\(v\.videoWidth, v\.videoHeight\)/);
   assert.match(web, /if \(v\.paused\) start\(\);\s*else v\.pause\(\);/);
   assert.match(web, /\{video\}\s*\{coverImg\}/);
-  assert.match(web, /\{!mute \? <SoundButton muted=\{muted\} onPress=\{toggle\} viewer \/> : null\}/);
+  assert.match(web, /\{!mute \? <SoundButton muted=\{muted\} onPress=\{toggle\} viewer bottom=\{soundBottom\} \/> : null\}/);
   assert.match(web, /loop: true/);
   const live = s.slice(s.indexOf('function NativeVideoLive'));
-  assert.match(live, /const fit = viewer \? 'contain' : 'cover';/);
+  assert.match(live, /const fit = viewer \? viewerFit : 'cover';/);
+  assert.match(live, /addListener\('sourceLoad'/, 'sem width\/height na publicação, o tamanho vem do vídeo quando carrega');
+  assert.match(live, /\{!mute \? <SoundButton muted=\{muted\} onPress=\{toggle\} viewer bottom=\{soundBottom\} \/> : null\}/);
   assert.match(live, /if \(player\.playing\) player\.pause\(\);\s*else player\.play\(\);/);
   assert.match(live, /\{cover && !started \? <Image/);
   assert.match(live, /p\.loop = true;/);
   // O som respeita o estado lembrado da app (o mesmo `soundOn` do feed).
   assert.match(live, /soundOn = !player\.muted;/);
   const idle = s.slice(s.indexOf('function NativeVideoIdle'), s.indexOf('function NativeVideoLive'));
-  assert.match(idle, /contentFit=\{viewer \? 'contain' : 'cover'\}/);
+  assert.match(idle, /contentFit=\{viewer \? fit : 'cover'\}/);
 });
 
 test('repost com comentário: uma original com fotos e vídeos abre o visor (a tcheka sozinha abre a publicação)', () => {

@@ -1,12 +1,14 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, FlatList, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Badged } from '@/lib/api';
 import { sized } from '@/lib/config';
 import { isViewerVideo, viewerStart, type ViewerPhoto } from '@/lib/viewerMedia';
+import { CAPTION_LINES, captionTooLong, mediaSize, viewerPage, viewerVideoFit, type Size } from '@/lib/viewerFit';
 import { CarouselVideo } from './CarouselVideo';
 import { colors } from '@/lib/theme';
 import { CheersPour } from './CheersPour';
@@ -137,9 +139,27 @@ function Photo({ photo, w, h, index, total, onTag, active = false }: { photo: Vi
 }
 
 /**
+ * Um vídeo no visor ocupa o ecrã inteiro (lib/viewerFit): em pé num telemóvel enche de cima a baixo (`cover`); deitado,
+ * quadrado ou no computador fica inteiro, centrado no ecrã todo (`contain`). Sem width/height na publicação, decide
+ * pelo tamanho do vídeo quando carrega.
+ */
+function ViewerVideo({ item, w, h, active, mute, soundBottom }: { item: ViewerPhoto; w: number; h: number; active: boolean; mute: boolean; soundBottom: number }) {
+  const [nat, setNat] = useState<Size | null>(null);
+  const fit = viewerVideoFit(mediaSize(item, nat), { w, h });
+  return (
+    <CarouselVideo
+      url={item.url} poster={item.posterUrl} durationMs={item.durationMs} width={w} height={h} active={active} inView mute={mute} viewer
+      fit={fit} soundBottom={soundBottom} onSize={(vw, vh) => setNat((o) => (o && o.w === vw && o.h === vh ? o : { w: vw, h: vh }))}
+    />
+  );
+}
+
+/**
  * Foto em ecrã completo, como no X: fundo preto, deslizar entre as fotos, fechar com o X ou arrastando para baixo;
- * por baixo o autor, o texto e a barra de ações (`footer`). Os vídeos da publicação vêm pela ordem dela, entre as fotos
+ * em baixo o autor, o texto e a barra de ações (`footer`). Os vídeos da publicação vêm pela ordem dela, entre as fotos
  * (lib/viewerMedia): o que está à vista toca sozinho em ciclo (com o leitor do feed, um só de cada vez), o toque pausa.
+ * Como nas tchekas: as páginas (fotos e vídeos) ocupam o ecrã inteiro e o cabeçalho e a legenda flutuam por cima, com um
+ * degradê escuro (sem saltos de tamanho ao passar de foto para vídeo). A legenda mostra até 3 linhas, com «mais».
  */
 export function PhotoViewer({ photos, start: asked = 0, author, body, footer, burst = 0, music, muteVideo = false, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; /** A música da publicação: enquanto toca (com som), as ondas atravessam a foto. */ music?: Track | null; /** Os vídeos ficam sem som (a publicação tem música à parte ou o som foi tirado: `musicPlayback`). */ muteVideo?: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
@@ -147,8 +167,11 @@ export function PhotoViewer({ photos, start: asked = 0, author, body, footer, bu
   const { width, height } = useWindowDimensions();
   const start = viewerStart(asked, photos.length);
   const [i, setI] = useState(start);
-  const [pagerH, setPagerH] = useState(Math.round(height * 0.6));
+  const [pagerH, setPagerH] = useState(Math.round(height));
   const [footH, setFootH] = useState(96);
+  const [captionOpen, setCaptionOpen] = useState(false);
+  const page = viewerPage({ w: width, h: pagerH });
+  const longCaption = captionTooLong(body, width);
   const list = useRef<FlatList<ViewerPhoto>>(null);
   const drag = useRef(new Animated.Value(0)).current;
   const n = photos.length;
@@ -187,19 +210,8 @@ export function PhotoViewer({ photos, start: asked = 0, author, body, footer, bu
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.root, { backgroundColor: bg }]} accessibilityViewIsModal accessibilityLabel={t('Fotos de {displayName}', { displayName: author.displayName })}>
-        <View style={[styles.top, { paddingTop: Math.max(insets.top, 8) }]}>
-          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel={t('Fechar')} {...(mouse ? ({ dataSet: { tip: t('Fechar (Esc)') } } as object) : null)}>
-            <Icon name="x" size={24} color="#fff" strokeWidth={2.4} />
-          </Pressable>
-          {n > 1 ? (
-            <View style={styles.count}>
-              <Text style={styles.countText}>{i + 1}/{n}</Text>
-            </View>
-          ) : null}
-          <View style={{ width: 44 }} />
-        </View>
-
-        <Animated.View style={{ flex: 1, transform: [{ translateY: drag }] }} onLayout={(e) => setPagerH(e.nativeEvent.layout.height)} {...(mouse ? {} : pan.panHandlers)}>
+        {/* O pager ocupa o ecrã inteiro (por baixo do cabeçalho e da legenda, que flutuam por cima). */}
+        <Animated.View style={[styles.pager, { transform: [{ translateY: drag }] }]} onLayout={(e) => setPagerH(Math.round(e.nativeEvent.layout.height))} {...(mouse ? {} : pan.panHandlers)}>
           <FlatList
             ref={list}
             data={photos}
@@ -211,15 +223,34 @@ export function PhotoViewer({ photos, start: asked = 0, author, body, footer, bu
             initialScrollIndex={start}
             onScroll={(e) => { const k = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)); if (k >= 0 && k < n) setI(k); }}
             scrollEventThrottle={32}
+            style={styles.list}
             renderItem={({ item, index }) => isViewerVideo(item)
-              // Vídeo: inteiro (sem cortes, sem zoom), só o que está à vista tem leitor e toca.
-              ? <CarouselVideo url={item.url} poster={item.posterUrl} durationMs={item.durationMs} width={width} height={pagerH} active={index === i} inView mute={muteVideo} viewer />
-              : <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} active={index === i} />}
-            extraData={`${i}|${pagerH}`}
+              // Vídeo: ocupa o ecrã (em pé enche, deitado fica inteiro), sem zoom; só o que está à vista tem leitor e toca.
+              ? <ViewerVideo item={item} w={page.w} h={page.h} active={index === i} mute={muteVideo} soundBottom={footH + 10} />
+              : <Photo photo={item} w={page.w} h={page.h} index={index} total={n} onTag={openTag} active={index === i} />}
+            extraData={`${i}|${page.h}|${footH}`}
           />
           {/* Ondas da música só por cima das fotos (num vídeo já há movimento que chegue, como no feed). */}
           {music && !isViewerVideo(photos[i]) ? <ViewerWaves music={music} /> : null}
         </Animated.View>
+        {/* Legenda aberta: o resto escurece e um toque fora fecha-a. */}
+        {captionOpen ? <Pressable style={[StyleSheet.absoluteFill, styles.dim]} onPress={() => setCaptionOpen(false)} accessibilityLabel={t('Fechar a legenda')} /> : null}
+
+        <View style={[styles.top, { paddingTop: Math.max(insets.top, 8) }]} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <LinearGradient colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0)']} style={StyleSheet.absoluteFill} />
+          </View>
+          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel={t('Fechar')} {...(mouse ? ({ dataSet: { tip: t('Fechar (Esc)') } } as object) : null)}>
+            <Icon name="x" size={24} color="#fff" strokeWidth={2.4} />
+          </Pressable>
+          {n > 1 ? (
+            <View style={styles.count}>
+              <Text style={styles.countText}>{i + 1}/{n}</Text>
+            </View>
+          ) : null}
+          <View style={{ width: 44 }} />
+        </View>
+
         {/* Com a fila de ações à direita, a seta «seguinte» fica à esquerda dela (não por cima do brindar). */}
         {mouse && n > 1 ? (
           <>
@@ -238,14 +269,33 @@ export function PhotoViewer({ photos, start: asked = 0, author, body, footer, bu
 
         <CheersPour n={burst} size={Math.min(240, width * 0.6)} />
         {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
-        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 56 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
+        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 24 }]} pointerEvents="box-none" onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
+          {/* O degradê sobe um pouco acima do autor, para o texto se ler por cima de qualquer foto ou vídeo. */}
+          <View style={styles.footShade} pointerEvents="none">
+            <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.75)']} style={StyleSheet.absoluteFill} />
+          </View>
           <NameWithBadge name={author.displayName} who={author} style={styles.who} gap={4}>
             <Text style={[styles.who, styles.handle, { flexShrink: 1 }]} numberOfLines={1}>@{author.username}</Text>
           </NameWithBadge>
           {body ? (
-            <Text numberOfLines={5} style={styles.body}>
-              <RichText text={body} style={{ color: '#f4f4f5', fontSize: 14 }} />
-            </Text>
+            captionOpen ? (
+              <ScrollView style={{ marginTop: 4, maxHeight: Math.round(page.h * 0.4) }} showsVerticalScrollIndicator={false}>
+                <Pressable onPress={() => setCaptionOpen(false)} accessibilityRole="button" accessibilityLabel={t('Encolher a legenda')}>
+                  <Text style={styles.body}>
+                    <RichText text={body} style={styles.bodyText} />
+                  </Text>
+                  <Text style={styles.more}>{t('menos')}</Text>
+                </Pressable>
+              </ScrollView>
+            ) : (
+              // No máximo 3 linhas (com «mais»): a legenda longa não tapa o vídeo.
+              <Pressable onPress={() => setCaptionOpen(true)} disabled={!longCaption} style={{ marginTop: 4 }} accessibilityRole={longCaption ? 'button' : undefined} accessibilityLabel={longCaption ? t('Ver a legenda toda') : undefined}>
+                <Text numberOfLines={CAPTION_LINES} style={styles.body}>
+                  <RichText text={body} style={styles.bodyText} />
+                </Text>
+                {longCaption ? <Text style={styles.more}>{t('mais')}</Text> : null}
+              </Pressable>
+            )
           ) : null}
         </View>
       </Animated.View>
@@ -262,18 +312,25 @@ function ViewerWaves({ music }: { music: Track }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 4 },
+  // As páginas ocupam o ecrã todo; o cabeçalho e a legenda flutuam por cima.
+  pager: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  list: { flex: 1 },
+  dim: { backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 3 },
+  top: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 28 },
   side: { position: 'absolute', top: '45%', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', zIndex: 6 },
   sideHover: { backgroundColor: 'rgba(255,255,255,0.3)' },
   close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   count: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4 },
   countText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  // Autor e descrição: bem acima do fundo (como na Tcheka), com espaço para a fila de ações à direita.
-  foot: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingRight: 84, paddingTop: 14, minHeight: 64 },
+  // Autor e descrição a flutuar por cima da foto ou do vídeo (como na Tcheka), com espaço para a fila de ações à direita.
+  foot: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, paddingHorizontal: 16, paddingRight: 84, paddingTop: 14, minHeight: 64 },
+  footShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: -56 },
   rail: { position: 'absolute', right: 10, zIndex: 5 },
   who: { color: '#fff', fontSize: 15, fontWeight: '700' },
   handle: { color: colors.zinc300, fontWeight: '400' },
-  body: { marginTop: 4, color: '#f4f4f5', fontSize: 15, lineHeight: 21 },
+  body: { color: '#f4f4f5', fontSize: 15, lineHeight: 21 },
+  bodyText: { color: '#f4f4f5', fontSize: 14 },
+  more: { marginTop: 2, color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700' },
   tagBox: { position: 'absolute', width: 220 },
   tag: { maxWidth: 220, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 10, paddingVertical: 4 },
   tagText: { color: '#fff', fontSize: 14, fontWeight: '600' },
