@@ -7,6 +7,8 @@ import { dropPending, listKey, mergePending, pendingOf, prunePending, retryPendi
 import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
 import { systemIcon, systemText } from '@/lib/screenshotNotice';
 import { colors } from '@/lib/theme';
+import { useDeskColumn } from '@/lib/deskChat';
+import { CHAT_COLUMN_MAX } from '@/lib/deskMessages';
 import { Bubble, TypingBubble, type MenuAt, type MenuMode, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
 import { SystemNotice } from './ChatTemporary';
@@ -52,6 +54,8 @@ export function ChatList({
   onDelete?: (m: Msg) => void;
 }) {
   const list = useRef<FlatList<Msg>>(null);
+  // Computador: as mensagens numa coluna legível ao centro do painel (lib/deskMessages); no telemóvel null.
+  const column = useDeskColumn(CHAT_COLUMN_MAX, 12);
   // As que estou a enviar (aparecem logo, antes da resposta do servidor) juntam-se às do servidor.
   const pending = useSyncExternalStore(subscribePending, () => (pendingKey ? pendingOf(pendingKey) : NONE), () => NONE);
   const items = useMemo(() => mergePending(serverItems, pending) as Msg[], [serverItems, pending]);
@@ -143,7 +147,7 @@ export function ChatList({
           // A bolha enviada daqui mantém a chave de quando estava a caminho (não remonta quando o servidor a traz).
           keyExtractor={(m) => listKey(m.id)}
           // Invertida: 'flex-start' é o fundo do ecrã; poucas mensagens ficam junto à barra de escrever, como nas boas apps de mensagens.
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10, paddingTop: 8, flexGrow: 1, justifyContent: 'flex-start' }}
+          contentContainerStyle={[{ paddingHorizontal: 12, paddingBottom: 10, paddingTop: 8, flexGrow: 1, justifyContent: 'flex-start' }, column]}
           onScroll={onScroll}
           onLayout={(e) => updateRaised({ h: e.nativeEvent.layout.height })}
           onContentSizeChange={(_, c) => updateRaised({ c })}

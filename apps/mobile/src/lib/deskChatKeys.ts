@@ -51,15 +51,31 @@ export function editBarKey(e: KeyLike): EditKey {
  * O Esc da caixa de procurar é dela (sai da pesquisa).
  */
 export type InboxShortcut = 'search' | 'prev' | 'next' | 'help' | null;
-export function inboxShortcut(e: KeyLike, ctx: { typing: boolean }): InboxShortcut {
+/** `listFocused`: o foco está numa linha da lista das conversas; aí ↑ / ↓ (sem Alt) também mudam de conversa. */
+export function inboxShortcut(e: KeyLike, ctx: { typing: boolean; listFocused?: boolean }): InboxShortcut {
   if (composing(e)) return null;
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') return 'search';
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     if (e.key === 'ArrowUp') return 'prev';
     if (e.key === 'ArrowDown') return 'next';
   }
+  if (ctx.listFocused && !ctx.typing && !anyMod(e)) {
+    if (e.key === 'ArrowUp') return 'prev';
+    if (e.key === 'ArrowDown') return 'next';
+  }
   if (e.key === '?' && !ctx.typing && !e.ctrlKey && !e.metaKey && !e.altKey) return 'help';
   return null;
+}
+
+/**
+ * Esc fecha a conversa aberta (o painel volta a «As tuas mensagens»), como no WhatsApp Web. Só quando mais ninguém
+ * ficou com ele: uma folha ou um menu aberto (`modal`), a caixa de escrever que cancelou uma resposta ou uma edição
+ * (`handled`), a pesquisa que limpou. A escrever com texto na caixa também não fecha (não se perde o que se escreveu).
+ */
+export function escClosesChat(e: KeyLike, ctx: { open: boolean; handled: boolean; modal: boolean; typingText: boolean }): boolean {
+  if (composing(e) || anyMod(e)) return false;
+  if (e.key !== 'Escape' && e.key !== 'Esc') return false;
+  return ctx.open && !ctx.handled && !ctx.modal && !ctx.typingText;
 }
 
 /**
@@ -96,10 +112,12 @@ export function shortcutHelp(mac: boolean): { keys: string[]; label: string }[] 
     { keys: [mod, 'K'], label: t('Procurar conversas') },
     { keys: [t('Alt'), '↑'], label: t('Conversa anterior') },
     { keys: [t('Alt'), '↓'], label: t('Conversa seguinte') },
+    { keys: ['↑', '↓'], label: t('Mudar de conversa (com a lista em foco)') },
+    { keys: ['Esc'], label: t('Fechar a conversa aberta') },
     { keys: ['Enter'], label: t('Enviar a mensagem') },
     { keys: [t('Shift'), 'Enter'], label: t('Mudar de linha') },
     { keys: ['↑'], label: t('Editar a tua última mensagem (com a caixa vazia)') },
-    { keys: ['Esc'], label: t('Fechar, cancelar a resposta ou a edição, sair da pesquisa') },
+    { keys: ['Esc'], label: t('Cancelar a resposta ou a edição, sair da pesquisa') },
     { keys: ['?'], label: t('Mostrar estes atalhos') },
   ];
 }

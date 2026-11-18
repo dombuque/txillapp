@@ -34,6 +34,7 @@ import {
   noteSentText, noteTone, type NoteAudience, type NoteColor, type NoteTone,
 } from '@/lib/noteLook';
 import { notesRow } from '@/lib/notesRow';
+import { notesArrows, notesFit, notesPage } from '@/lib/deskMessages';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { showToast } from '@/lib/toast';
@@ -122,11 +123,32 @@ export function NotesStrip() {
   const names = row.map((e) => (e.kind === 'note' ? e.note : e.person)).filter((p) => p.hasAvatar).map((p) => p.username);
   const presence = useQuery({ queryKey: ['notes-online', names.join(',')], queryFn: () => notesApi.online(names), enabled: names.length > 0, refetchInterval: 30_000, staleTime: 15_000 });
   const online = new Set((presence.data?.online ?? []).map((x) => x.toLowerCase()));
+  // Computador: com o rato não se desliza para o lado. As notas que cabem inteiras na largura (o espaço entre elas
+  // ajusta-se, nenhuma fica cortada na ponta) e as setas ‹ › passam uma página de cada vez (lib/deskMessages).
+  const desktop = useDesktop();
+  const scroller = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const [box, setBox] = useState({ w: 0, cw: 0, x: 0 });
+  const fit = desktop && box.w ? notesFit(box.w, NOTE_ITEM_W, 16, 12) : null;
+  const step = fit ? fit.n * (NOTE_ITEM_W + fit.gap) : 0;
+  const arrows = desktop ? notesArrows(box.x, box.cw, box.w) : { left: false, right: false };
+  const page = (dir: 1 | -1) => scroller.current?.scrollTo({ x: notesPage(box.x, dir, step, box.cw - box.w), animated: true });
   if (!user) return null;
 
   return (
     <>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripIn} accessibilityLabel={t('Notas')}>
+      <View>
+      <ScrollView
+        ref={scroller}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.strip}
+        contentContainerStyle={[styles.stripIn, fit && { gap: fit.gap }]}
+        accessibilityLabel={t('Notas')}
+        onLayout={desktop ? (e) => { const w = e.nativeEvent.layout.width; setBox((b) => (b.w === w ? b : { ...b, w })); } : undefined}
+        onContentSizeChange={desktop ? (cw) => setBox((b) => (b.cw === cw ? b : { ...b, cw })) : undefined}
+        onScroll={desktop ? (e) => { const x = e.nativeEvent.contentOffset.x; setBox((b) => (Math.abs(b.x - x) < 1 ? b : { ...b, x })); } : undefined}
+        scrollEventThrottle={desktop ? 32 : undefined}
+      >
         <Pressable onPress={() => { if (!mine) primeKeyboard(); setEditing(true); }} accessibilityRole="button" accessibilityLabel={mine ? t('A tua nota') : t('Deixar uma nota')} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
           <View style={styles.bubbleSlot}>{!mine || hasBubble(mine) ? <Bubble text={mine ? mine.body : t('Deixa uma nota')} dim={!mine} track={trackLine(mine)} cheers={mine?.cheers ?? 0} color={mine?.color} place={mine?.place?.name} /> : null}</View>
           <View>
@@ -160,9 +182,29 @@ export function NotesStrip() {
           );
         })}
       </ScrollView>
+      {arrows.left ? <NotesArrow dir={-1} onPress={() => page(-1)} /> : null}
+      {arrows.right ? <NotesArrow dir={1} onPress={() => page(1)} /> : null}
+      </View>
       {editing && <NoteEditor current={mine} onClose={() => setEditing(false)} />}
       {viewing && <NoteView note={viewing} online={viewing.hasAvatar && online.has(viewing.username.toLowerCase())} onClose={() => setViewing(null)} />}
     </>
+  );
+}
+
+/** A largura de cada nota na fila. */
+const NOTE_ITEM_W = 84;
+
+/** Computador: a seta ‹ ou › por cima da ponta da fila das notas (ao meio das fotos). */
+function NotesArrow({ dir, onPress }: { dir: 1 | -1; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={(s) => [styles.arrow, dir < 0 ? { left: -12 } : { right: -12 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc50 }, s.pressed && { transform: [{ scale: 0.94 }] }]}
+      accessibilityRole="button"
+      accessibilityLabel={dir < 0 ? t('Notas anteriores') : t('Ver mais notas')}
+    >
+      <Icon name={dir < 0 ? 'chevron-left' : 'chevron-right'} size={18} strokeWidth={2.4} color={colors.zinc800} />
+    </Pressable>
   );
 }
 
@@ -688,7 +730,9 @@ const styles = StyleSheet.create({
   onlineBig: { right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, borderWidth: 3 },
   label: { marginTop: 4, width: '100%', textAlign: 'center', fontSize: 12, color: colors.zinc600 },
   /** Na linha com o selo (o selo fica a seguir ao nome, os dois centrados). */
-  labelName: { marginTop: 0, width: undefined },
+  labelName: { marginTop: 0, width: 'auto' },
+  // A seta da fila das notas no computador: ao meio das fotos (12 de cima + 54 do balão + metade dos 64 da foto - 16).
+  arrow: { position: 'absolute', top: 82, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 8px rgba(24,24,27,0.16)' } as object,
   hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500, maxWidth: 320 },
   err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.danger },
   count: { marginTop: 6, textAlign: 'center', fontSize: 12, color: colors.zinc500 },

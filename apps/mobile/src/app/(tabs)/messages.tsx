@@ -19,7 +19,9 @@ import { DeskMenu } from '@/components/DeskMenu';
 import { Sheet } from '@/components/Sheet';
 import { confirmClear, TtlSheet } from '@/components/ChatTemporary';
 import { deskZone, isMac, typingNow, useDeskChat, useDeskChatChrome } from '@/lib/deskChat';
-import { inboxShortcut, neighbourChat, openChatPath, shortcutHelp } from '@/lib/deskChatKeys';
+import { escClosesChat, inboxShortcut, neighbourChat, openChatPath, shortcutHelp } from '@/lib/deskChatKeys';
+import { useDesktop } from '@/lib/desktop';
+import { IconButton } from '@/components/ui/IconButton';
 import { clearPending } from '@/lib/chatPending';
 import { Icon } from '@/components/Icon';
 import { gifPreviewText } from '@/lib/gifs';
@@ -383,6 +385,10 @@ export default function Messages() {
   // Computador (rato e teclado, lib/deskChat): atalhos, foco visível e tooltips. No telemóvel nada disto corre.
   const desk = useDeskChat();
   useDeskChatChrome(desk);
+  // Computador (duas colunas, components/messages/DeskMessages): o cabeçalho, a pesquisa, as notas e os separadores ficam
+  // fixos em cima e só as conversas rolam. No telemóvel rola tudo junto, como sempre.
+  const cols = useDesktop();
+  const listBoxRef = useRef<React.ComponentRef<typeof View>>(null);
   const pathname = usePathname();
   const openPath = desk ? openChatPath(pathname) : null;
   const [help, setHelp] = useState(false);
@@ -397,7 +403,10 @@ export default function Messages() {
       const el = rootRef.current as unknown as HTMLElement | null;
       if (!el || !el.isConnected || el.offsetParent === null) return;
       if (document.querySelector('[aria-modal="true"]')) return; // com uma folha ou um menu aberto, as teclas são deles
-      const a = inboxShortcut(e, { typing: typingNow() });
+      // O foco numa linha da lista: aí ↑ / ↓ (sem Alt) também mudam de conversa.
+      const box = listBoxRef.current as unknown as HTMLElement | null;
+      const listFocused = !!box && !!document.activeElement && box.contains(document.activeElement);
+      const a = inboxShortcut(e, { typing: typingNow(), listFocused });
       if (!a) return;
       e.preventDefault();
       e.stopPropagation();
@@ -408,51 +417,83 @@ export default function Messages() {
       if (!to) return;
       if (keys.current.openPath) router.replace(to as never);
       else router.push(to as never);
+      // A conversa nova fica à vista na lista.
+      const i = paths.indexOf(to);
+      if (i >= 0) { try { listRef.current?.scrollToIndex({ index: i, viewPosition: 0.5, animated: true }); } catch { /* fora da lista desenhada */ } }
+    };
+    // Esc fecha a conversa aberta (o painel volta a «As tuas mensagens»), depois de a caixa de escrever, a pesquisa ou
+    // uma folha terem tido a vez (em bolha, não em captura: se alguém já o usou, vem marcado; lib/deskChatKeys).
+    const onEsc = (e: KeyboardEvent) => {
+      const el = rootRef.current as unknown as HTMLElement | null;
+      if (!el || !el.isConnected || el.offsetParent === null) return;
+      const f = document.activeElement as HTMLInputElement | null;
+      const typingText = typingNow() && !!f && typeof f.value === 'string' && f.value.trim() !== '';
+      const modal = !!document.querySelector('[aria-modal="true"]');
+      if (!escClosesChat(e, { open: !!keys.current.openPath, handled: e.defaultPrevented, modal, typingText })) return;
+      e.preventDefault();
+      router.navigate('/messages' as never);
     };
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onEsc);
+    return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('keydown', onEsc); };
   }, [desk, router]);
-  const header = (
-    <View>
-      <View style={styles.top}>
-        <Text style={styles.handle} numberOfLines={1}>{user?.username ?? t('Mensagens')}</Text>
-        <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel={t('Chamadas')}><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
-        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel={t('Nova conversa ou TxillGroup')}><Icon name="compose" size={24} /></Pressable>
-        {/* "⋯": «Conversas ocultas» (e, no computador, os atalhos do teclado). */}
-        <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções das mensagens')}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
-        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel={t('Atalhos do teclado (?)')}><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
-      </View>
-      <SearchField
-          ref={searchRef}
-          value={text}
-          onChangeText={setText}
-          placeholder={desk ? t('Procurar ({value}K)', { value: isMac() ? '⌘' : t('Ctrl+') }) : t('Procurar pessoas e TxillGroups')}
-          style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}
-          accessibilityLabel={t('Procurar conversas')}
-          onFocus={() => setFocus(true)}
-          onBlur={() => setFocus(false)}
-          // Computador: Esc sai da pesquisa (limpa e larga a caixa).
-          onKeyPress={desk ? (e) => { if ((e.nativeEvent as { key?: string }).key === 'Escape') { e.preventDefault(); setText(''); searchRef.current?.blur(); } } : undefined}
-          right={<SearchFieldButton onPress={() => router.push('/supertxill' as never)} label={t('Abrir o SuperTxill')}><Bolt size={20} /></SearchFieldButton>}
-      />
-      {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
-      {/* Mixar: uma linha discreta por cima dos separadores, só quando algum Mixar tem novidades (a bolinha azul); sem novidades, nada. */}
-      {!term && view !== 'requests' ? <MixarEntry /> : null}
-      <View style={styles.tabs} accessibilityRole="tablist">
-        {searching ? (
-          <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>
-            <Text style={[styles.tab, small && { fontSize: 15 }, styles.tabOn]} accessibilityRole="header">{t('Resultados')}</Text>
-            <Text style={styles.searchHint} numberOfLines={1}>{t('conversas e TxillGroups')}</Text>
-          </View>
-        ) : (
-          <View onLayout={slider.box('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
-            <InboxTabButton label={t('Conversas')} n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} onLayout={slider.layout('chats', 'main')} />
-            <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} onLayout={slider.layout('groups', 'main')} />
-          </View>
-        )}
-        <InboxTabButton label={t('Pedidos')} n={counts.requests} what={t('à espera')} on={view === 'requests'} onPress={() => setView('requests')} small={small} onLayout={slider.layout('requests')} />
-        {slider.bar}
-      </View>
+  // O cabeçalho em peças: no telemóvel vão todas dentro da lista (rolam juntas, como sempre); no computador o @, as
+  // ações, a pesquisa, as notas e os separadores ficam fixos em cima e só as conversas rolam (`fixed`).
+  const topBar = cols ? (
+    // Computador: o @ à esquerda e as ações à direita (chamadas, nova conversa e o "⋯" com as conversas ocultas e os atalhos).
+    <View style={styles.deskTop}>
+      <Text style={styles.deskHandle} numberOfLines={1} accessibilityRole="header">{user?.username ?? t('Mensagens')}</Text>
+      <IconButton label={t('Chamadas')} onPress={() => router.push('/calls' as never)}><CallIcon name="handset" size={21} color={colors.zinc900} /></IconButton>
+      <IconButton icon="compose" iconSize={23} label={t('Nova conversa ou TxillGroup')} onPress={() => router.push('/messages/new' as never)} />
+      <IconButton icon="more" strokeWidth={2.4} color={colors.zinc800} label={t('Mais opções das mensagens')} onPress={() => setMoreOpen(true)} />
+    </View>
+  ) : (
+    <View style={styles.top}>
+      <Text style={styles.handle} numberOfLines={1}>{user?.username ?? t('Mensagens')}</Text>
+      <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel={t('Chamadas')}><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
+      <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel={t('Nova conversa ou TxillGroup')}><Icon name="compose" size={24} /></Pressable>
+      {/* "⋯": «Conversas ocultas» (e, no computador, os atalhos do teclado). */}
+      <Pressable onPress={() => setMoreOpen(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel={t('Mais opções das mensagens')}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></Pressable>
+      {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 48 }]} accessibilityRole="button" accessibilityLabel={t('Atalhos do teclado (?)')}><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
+    </View>
+  );
+  const search = (
+    <SearchField
+        ref={searchRef}
+        value={text}
+        onChangeText={setText}
+        placeholder={desk ? t('Procurar ({value}K)', { value: isMac() ? '⌘' : t('Ctrl+') }) : t('Procurar pessoas e TxillGroups')}
+        style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}
+        accessibilityLabel={t('Procurar conversas')}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        // Computador: Esc sai da pesquisa (limpa e larga a caixa).
+        onKeyPress={desk ? (e) => { if ((e.nativeEvent as { key?: string }).key === 'Escape') { e.preventDefault(); setText(''); searchRef.current?.blur(); } } : undefined}
+        right={<SearchFieldButton onPress={() => router.push('/supertxill' as never)} label={t('Abrir o SuperTxill')}><Bolt size={20} /></SearchFieldButton>}
+    />
+  );
+  const notes = !term && view !== 'requests' ? <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View> : null;
+  // Mixar: uma linha discreta por cima dos separadores, só quando algum Mixar tem novidades (a bolinha azul); sem novidades, nada.
+  const mixarLine = !term && view !== 'requests' ? <MixarEntry /> : null;
+  const tabsBar = (
+    <View style={styles.tabs} accessibilityRole="tablist">
+      {searching ? (
+        <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>
+          <Text style={[styles.tab, small && { fontSize: 15 }, styles.tabOn]} accessibilityRole="header">{t('Resultados')}</Text>
+          <Text style={styles.searchHint} numberOfLines={1}>{t('conversas e TxillGroups')}</Text>
+        </View>
+      ) : (
+        <View onLayout={slider.box('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
+          <InboxTabButton label={t('Conversas')} n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} onLayout={slider.layout('chats', 'main')} />
+          <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} onLayout={slider.layout('groups', 'main')} />
+        </View>
+      )}
+      <InboxTabButton label={t('Pedidos')} n={counts.requests} what={t('à espera')} on={view === 'requests'} onPress={() => setView('requests')} small={small} onLayout={slider.layout('requests')} />
+      {slider.bar}
+    </View>
+  );
+  const below = (
+    <>
       {view === 'requests' && <Text style={styles.note}>{t('Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.')}</Text>}
       {view === 'groups' && !searching && rows.length > 0 && (
         <Pressable onPress={newGroup} style={({ pressed }) => [styles.row, styles.newGroup, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={t('Novo TxillGroup')}>
@@ -464,13 +505,16 @@ export default function Messages() {
           <Icon name="chevron-right" size={18} color={colors.zinc500} />
         </Pressable>
       )}
-    </View>
+    </>
   );
+  const header = cols ? <View>{below}</View> : <View>{topBar}{search}{notes}{mixarLine}{tabsBar}{below}</View>;
+  const fixed = cols ? <View style={styles.deskFixed}>{topBar}{search}{notes}{mixarLine}{tabsBar}</View> : null;
 
   return (
     <View ref={rootRef} {...deskZone(desk)} style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+      {fixed}
       <GestureDetector gesture={pagerPan}>
-      <View style={{ flex: 1 }} collapsable={false} onTouchStartCapture={() => { notesTouch.current = false; }}>
+      <View ref={listBoxRef} style={{ flex: 1 }} collapsable={false} onTouchStartCapture={() => { notesTouch.current = false; }}>
       <PullView pull={pull}>
       <FlatList
         ref={listRef}
@@ -642,6 +686,9 @@ const styles = StyleSheet.create({
   keys: { width: 128, flexDirection: 'row', gap: 6 },
   kbd: { minWidth: 28, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.zinc300, backgroundColor: colors.zinc100, fontSize: 13, fontWeight: '700', color: colors.zinc800, textAlign: 'center' },
   keyLabel: { flex: 1, fontSize: 14, color: colors.zinc800 },
+  deskFixed: { paddingHorizontal: 16, paddingBottom: 2, backgroundColor: colors.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.zinc100 },
+  deskTop: { height: 60, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4, marginRight: -6 },
+  deskHandle: { flex: 1, minWidth: 0, fontSize: 22, fontWeight: '800', letterSpacing: -0.3, color: colors.zinc900 },
   top: { height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   zas: { position: 'absolute', left: 0, top: 2, height: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 12, borderRadius: 999 },
   zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },
