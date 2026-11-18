@@ -213,7 +213,8 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
                 ) : null}
               </>
             )}
-            <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>{t('Publicar')}</Text></Pressable>
+            {/* «Publicar» só com texto escrito; sem texto ficam os autocolantes, o GIF e a reação (não cabem os dois a 390 px). */}
+            {text.trim() ? <Pressable onPress={() => void send()} disabled={busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: busy ? 0.4 : 1 }}>{t('Publicar')}</Text></Pressable> : null}
           </View>
         ) : (
           <Text style={st.closed}>{t('Este mimo não aceita comentários.')}</Text>
@@ -407,7 +408,7 @@ const st = StyleSheet.create({
   pickOn: { backgroundColor: 'rgba(214,51,79,0.18)', borderColor: colors.brand },
   gifBtn: { minWidth: 40, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: D.sub, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   gifBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, color: D.text },
-  commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: D.raised, paddingHorizontal: 16, fontSize: 15, color: D.text, outlineStyle: 'none' as never },
+  commentInput: { flex: 1, minWidth: 0, height: 44, borderRadius: 22, backgroundColor: D.raised, paddingHorizontal: 16, fontSize: 15, color: D.text, outlineStyle: 'none' as never },
   closed: { marginTop: 8, borderRadius: 12, backgroundColor: D.raised, paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: D.sub },
   bubble: { marginTop: 2, alignSelf: 'flex-start', borderRadius: 16, borderTopLeftRadius: 6, backgroundColor: D.raised, paddingHorizontal: 14, paddingVertical: 8, fontSize: 16, color: D.text, overflow: 'hidden' },
   sec: { marginBottom: 4, fontSize: 14, fontWeight: '600', color: colors.zinc500 },

@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { usePathname, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MessagesScreen from '@/app/(tabs)/messages';
 import { api } from '@/lib/api';
 import { feedApi } from '@/lib/api.feed';
 import { useAuth } from '@/lib/auth';
@@ -18,6 +17,7 @@ import { Icon, type IconName } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Wordmark } from './Wordmark';
 import { DesktopShortcuts } from './DesktopShortcuts';
+import { DeskMessagesHome, DeskMessagesList } from './messages/DeskMessages';
 import { t } from '@/lib/i18n';
 
 const badge = (n: number) => (n > 9 ? '9+' : String(n));
@@ -47,9 +47,9 @@ export function DesktopShell({ children }: { children: ReactNode }) {
       <DesktopShortcuts />
       <View style={studio ? st.hidden : st.sideWrap}><Sidebar labels={labels} path={path} /></View>
       <View style={[st.area, !full && !studio && st.areaPad]}>
-        {msgs ? <View style={st.msgList}><MessagesScreen /></View> : null}
+        {msgs ? <DeskMessagesList /> : null}
         <View style={main} nativeID="tx-main">
-          {msgsHome ? <MessagesEmpty /> : null}
+          {msgsHome ? <DeskMessagesHome /> : null}
           <View style={[{ flex: 1 }, msgsHome && { display: 'none' }]}>{children}</View>
         </View>
         {home && rightRail ? <RightRail /> : null}
@@ -177,19 +177,6 @@ function RightRail() {
   );
 }
 
-/** Mensagens no computador sem conversa aberta. */
-function MessagesEmpty() {
-  const router = useRouter();
-  return (
-    <View style={st.empty}>
-      <View style={st.emptyIcon}><Icon name="messages" size={40} color={colors.zinc900} /></View>
-      <Text style={st.emptyTitle}>{t('As tuas mensagens')}</Text>
-      <Text style={st.emptySub}>{t('Escolhe uma conversa à esquerda ou começa uma nova com a malta.')}</Text>
-      <Pressable onPress={() => router.push('/messages/new' as never)} style={st.emptyBtn} accessibilityRole="button"><Text style={st.emptyBtnText}>{t('Nova mensagem')}</Text></Pressable>
-    </View>
-  );
-}
-
 const st = StyleSheet.create({
   shell: { flex: 1, flexDirection: 'row', backgroundColor: colors.white },
   side: { borderRightWidth: 1, borderRightColor: colors.zinc100, paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.white },
@@ -207,7 +194,6 @@ const st = StyleSheet.create({
   mainFull: { flex: 1, minWidth: 0 },
   sideWrap: { flexDirection: 'row' },
   hidden: { display: 'none' },
-  msgList: { width: 380, borderRightWidth: 1, borderRightColor: colors.zinc100 },
   rail: { width: 320, flexGrow: 0, flexShrink: 0 },
   rowHover: { backgroundColor: colors.zinc50, borderRadius: 12 },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
@@ -224,10 +210,4 @@ const st = StyleSheet.create({
   foot: { marginTop: 28, flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 4, paddingHorizontal: 4 },
   footLink: { fontSize: 12, color: colors.zinc500 },
   copy: { marginTop: 12, fontSize: 12, color: colors.zinc500, paddingHorizontal: 4 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
-  emptyIcon: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: colors.zinc900, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: colors.zinc900 },
-  emptySub: { fontSize: 15, color: colors.zinc600, textAlign: 'center', maxWidth: 320 },
-  emptyBtn: { marginTop: 12, height: 40, paddingHorizontal: 18, borderRadius: 12, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });
