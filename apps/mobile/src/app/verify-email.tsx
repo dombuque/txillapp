@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
-import { Screen } from './login';
+import { AUTH_WIDE, Screen } from './login';
 import { t } from '@/lib/i18n';
 
 /** Abre-se a partir do link do email: confirma a conta. Pode ser noutro aparelho, por isso não exige sessão. */
@@ -17,7 +17,7 @@ export default function VerifyEmail() {
   const router = useRouter();
   const [state, setState] = useState<'working' | 'ok' | 'bad'>('working');
   const [message, setMessage] = useState('');
-  const wide = useWindowDimensions().width >= 1024;
+  const wide = useWindowDimensions().width >= AUTH_WIDE;
 
   useEffect(() => {
     let alive = true;

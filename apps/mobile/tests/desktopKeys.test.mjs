@@ -202,3 +202,12 @@ test('telemóvel: as formas novas só com useDesktop / rato; a folha de baixo e 
   assert.match(read('app/_layout.tsx'), /const shell = desktop && !!user && !outside;/);
   assert.match(read('components/DesktopShell.tsx'), /<DesktopShortcuts \/>/);
 });
+
+test('campos de escrever no computador: sem o anel forçado por cima do foco do próprio campo (dois rebordos ao entrar)', () => {
+  assert.doesNotMatch(pol.POLISH_CSS, /input:focus-visible/);
+  assert.doesNotMatch(pol.POLISH_CSS, /textarea:focus-visible/);
+  const login = read('app/login.tsx');
+  assert.match(login, /export const AUTH_WIDE = 900;/);
+  assert.match(login, /if \(width >= AUTH_WIDE\) \{/);
+  assert.match(login, /outlineStyle: 'none'/);
+});

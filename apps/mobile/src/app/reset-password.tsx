@@ -7,7 +7,7 @@ import { Wordmark } from '@/components/Wordmark';
 import { ApiError } from '@/lib/api';
 import { emailApi } from '@/lib/api.email';
 import { colors } from '@/lib/theme';
-import { Field, Screen } from './login';
+import { AUTH_WIDE, Field, Screen } from './login';
 import { t } from '@/lib/i18n';
 
 /** Abre-se a partir do link do email: escolhe a senha nova. */
@@ -22,7 +22,7 @@ export default function ResetPassword() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const second = useRef<React.ComponentRef<typeof TextInput>>(null);
   // No computador o logótipo já está no painel da esquerda (como em entrar e em esqueci a senha).
-  const wide = useWindowDimensions().width >= 1024;
+  const wide = useWindowDimensions().width >= AUTH_WIDE;
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   async function submit() {

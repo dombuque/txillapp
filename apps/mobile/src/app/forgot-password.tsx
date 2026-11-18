@@ -8,14 +8,14 @@ import { Wordmark } from '@/components/Wordmark';
 import { ApiError, api } from '@/lib/api';
 import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
-import { Field, Screen } from './login';
+import { AUTH_WIDE, Field, Screen } from './login';
 import { t } from '@/lib/i18n';
 import { T } from '@/components/Trans';
 
 /** Esqueci a senha: pede o e-mail e responde sempre o mesmo, exista a conta ou não (igual ao site). */
 export default function ForgotPassword() {
   const router = useRouter();
-  const wide = useWindowDimensions().width >= 1024;
+  const wide = useWindowDimensions().width >= AUTH_WIDE;
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);

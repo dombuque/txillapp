@@ -64,6 +64,9 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
   );
 }
 
+/** A partir desta largura, entrar e criar conta mostram o painel da marca ao lado (um portátil a 150% fica com ~910 px). */
+export const AUTH_WIDE = 900;
+
 /** Painel de marca, só em ecrãs largos (a versão web de entrar e criar conta), como no site. */
 function BrandPanel() {
   const router = useRouter();
@@ -100,7 +103,7 @@ function BrandPanel() {
 export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  if (width >= 1024) {
+  if (width >= AUTH_WIDE) {
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.white }}>
         <BrandPanel />
@@ -139,7 +142,7 @@ export default function Login() {
   const human = useHumanCheck();
   // Ligação de convite (/login?convite=CODIGO): quem chega assim é novo, vai direto para criar conta.
   const { convite, entrar } = useLocalSearchParams<{ convite?: string; entrar?: string }>();
-  const wide = useWindowDimensions().width >= 1024;
+  const wide = useWindowDimensions().width >= AUTH_WIDE;
   useEffect(() => {
     const code = String(convite ?? '').trim().toUpperCase().slice(0, 20);
     if (code) router.replace({ pathname: '/register', params: { convite: code } } as never);

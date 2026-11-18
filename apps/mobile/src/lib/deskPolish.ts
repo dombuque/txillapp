@@ -9,9 +9,10 @@
 export const POLISH_CSS = `[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="switch"],[role="checkbox"],[role="radio"],a[href]{cursor:pointer}
 [aria-disabled="true"]{cursor:default}
 [role="button"]:focus-visible,[role="link"]:focus-visible,[role="tab"]:focus-visible,[role="menuitem"]:focus-visible,[role="switch"]:focus-visible,a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid #d6334f!important;outline-offset:2px}
-input:focus-visible,textarea:focus-visible{outline:2px solid rgba(214,51,79,.45)!important;outline-offset:1px}
-[data-pill] input:focus-visible,[data-pill] textarea:focus-visible{outline:none!important}
 [data-pill]:focus-within{box-shadow:0 0 0 2px rgba(214,51,79,.45)}`;
+// Os campos de escrever (input, textarea) NÃO levam anel daqui: cada campo da app já mostra o foco à sua maneira (o anel
+// coral do Field de entrar, a pílula da pesquisa, o cursor) e põe `outlineStyle: 'none'`. Um anel com !important por cima
+// dava dois rebordos (o retângulo dentro da pílula no ecrã de entrar). Nos campos sem estilo próprio fica o anel do browser.
 // `data-pill` (dataSet={{ pill: '1' }}): um campo dentro de uma pílula (a resposta à nota): o anel do foco fica à volta da
 // pílula inteira, não do campo lá dentro.
 
