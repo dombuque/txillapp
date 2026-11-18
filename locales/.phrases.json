@@ -887,6 +887,7 @@
   "Arrasta o mapa até o alfinete ficar na porta do local.": {"parts":["app"]},
   "Arrasta o mapa até o alfinete ficar na porta do sítio.": {"parts":["app"]},
   "Arrasta o mapa até o alfinete ficar no sítio do grupo.": {"parts":["app"]},
+  "Arrasta para baixo para fechar": {"parts":["app"]},
   "Arrasta para ler os comentários anteriores": {"parts":["app"]},
   "Arrasta para mudar de canto": {"parts":["app"]},
   "Arrasta para mudar de sítio; com dois dedos, roda e muda o tamanho": {"parts":["app"]},

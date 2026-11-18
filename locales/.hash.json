@@ -2454,6 +2454,7 @@
     "Zás enviado!": "a00cd47b9e2bdc38",
     "Publicado!": "56a016ad9cf25444",
     "Não consegui publicar": "db8c7ec703796b1d",
+    "Sem ligação ao servidor. A tentar outra vez…": "9a779844ba76fbbc",
     "A publicar o mimo…": "03865827a3b40579",
     "A enviar o Zás…": "b2f88e0c659a70c7",
     "A publicar…": "a7789e2921a94797",
@@ -5731,6 +5732,6 @@
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
     "Movimento inválido": "e238bfd1ca2dfe89",
-    "Sem ligação ao servidor. A tentar outra vez…": "9a779844ba76fbbc"
+    "Arrasta para baixo para fechar": "fa9f87c64b7692f3"
   }
 }

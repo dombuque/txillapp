@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Easing, Linking, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -262,22 +262,41 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
   );
 }
 
+/** Fecha o visor ao largar: arrastado mais de 120 px para baixo ou atirado depressa para baixo. */
+export const shouldCloseDrag = (dy: number, vy: number): boolean => dy > 120 || (dy > 40 && vy > 0.8);
+
 /**
  * Visor de foto ou vídeo da conversa: um cartão centrado sobre o chat escurecido (com margens, não a tela toda).
- * Tocar fora fecha; o X também. O vídeo tem os controlos do próprio telemóvel/browser.
+ * Tocar fora fecha; o X também; arrastar para baixo também (o cartão segue o dedo e o fundo aclara). O vídeo tem os
+ * controlos do próprio telemóvel/browser.
  */
 export function MediaFull({ url, video, onClose }: { url: string; video: boolean; onClose: () => void }) {
   const win = useWindowDimensions();
   const w = Math.min(win.width - 32, 720);
   const h = Math.min(win.height * 0.78, 900);
+  const dy = useRef(new Animated.Value(0)).current;
+  const pan = useRef(PanResponder.create({
+    // Só o gesto para baixo (mais vertical do que horizontal): os toques no play e nos controlos continuam a funcionar.
+    onMoveShouldSetPanResponderCapture: (_e, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+    onPanResponderMove: (_e, g) => dy.setValue(Math.max(0, g.dy)),
+    onPanResponderRelease: (_e, g) => {
+      if (shouldCloseDrag(g.dy, g.vy)) Animated.timing(dy, { toValue: win.height, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(onClose);
+      else Animated.spring(dy, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 6 }).start();
+    },
+    onPanResponderTerminate: () => Animated.spring(dy, { toValue: 0, useNativeDriver: Platform.OS !== 'web' }).start(),
+  })).current;
+  const fade = dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.35], extrapolate: 'clamp' });
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable onPress={onClose} style={st.viewerBack} accessibilityLabel={t('Fechar')}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.82)', opacity: fade }]} pointerEvents="none" />
+      <Pressable onPress={onClose} style={[st.viewerBack, { backgroundColor: 'transparent' }]} accessibilityLabel={t('Fechar')} accessibilityHint={t('Arrasta para baixo para fechar')}>
         {/* O cartão não fecha ao toque (para o play e os controlos funcionarem). */}
+        <Animated.View {...pan.panHandlers} style={{ transform: [{ translateY: dy }] }}>
         <Pressable onPress={() => undefined} style={[st.viewerCard, { width: w, height: h }]}>
           {video ? <ChatVideoPlayer url={url} autoPlay inModal /> : <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />}
           <Pressable onPress={onClose} style={st.viewerX} accessibilityRole="button" accessibilityLabel={t('Fechar')}><Icon name="x" size={20} color="#fff" /></Pressable>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
