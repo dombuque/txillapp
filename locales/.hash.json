@@ -2666,6 +2666,7 @@
     "(novo)": "99be86bf618eca51",
     "Segue pessoas para ver os mimos delas": "7e2ae49cfcdf24c9",
     "Abrir os comentários": "ead421c823cff8b6",
+    "Autocolante": "1ea358af3c7bbe49",
     "Comentário de {username}: {text}{value}{value2}": "a885da5f3044831b",
     "Rir": "6fb7d28cd7c31aff",
     "Uau": "e066ec7c399c418e",
@@ -5730,6 +5731,6 @@
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
     "Movimento inválido": "e238bfd1ca2dfe89",
-    "Autocolante": "1ea358af3c7bbe49"
+    "Sem ligação ao servidor. A tentar outra vez…": "9a779844ba76fbbc"
   }
 }

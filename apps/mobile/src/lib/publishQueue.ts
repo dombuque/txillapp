@@ -8,6 +8,7 @@ import { uploadRequest } from './signedMedia';
 import { appealOutcome, type AppealState, type AppealStatus, type HeldDraft, rejectedPhotoId } from './photoAppeal';
 import { musicPayload } from './api.music';
 import { t } from '@/lib/i18n';
+import { AUTO_RETRY_MS, isTransient } from './apiErrors';
 
 /**
  * Publicar em segundo plano (como no Instagram): o cartão fecha logo e o envio continua aqui, com uma faixa no Início a
@@ -36,6 +37,8 @@ export interface PublishTask {
   /** 0–1 do envio dos ficheiros. */
   progress: number;
   error: string | null;
+  /** A tentar outra vez sozinho depois de uma falha passageira (a faixa diz «Sem ligação. A tentar outra vez…»). */
+  retrying?: boolean;
   job: PublishJob;
   /** Ficheiros já enviados (por posição): ao tentar outra vez não se enviam de novo. */
   sent: (string | undefined)[];
@@ -74,10 +77,26 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
   return { assetId: up.assetId, state };
 }
 
-async function run(id: string, qc: QueryClient) {
+/**
+ * Falha passageira (sem rede, o servidor a reiniciar): em vez de «Erro inesperado», a faixa diz que vai tentar outra vez
+ * e tenta sozinha (AUTO_RETRY_MS), retomando do que já subiu. Devolve true se ficou agendada uma nova tentativa.
+ */
+const autoTries = new Map<string, number>();
+function scheduleRetry(id: string, qc: QueryClient, e: unknown): boolean {
+  if (!isTransient(e)) return false;
+  const n = autoTries.get(id) ?? 0;
+  if (n >= AUTO_RETRY_MS.length) return false;
+  autoTries.set(id, n + 1);
+  patch(id, { status: 'uploading', error: null, retrying: true });
+  setTimeout(() => { if (tasks.some((x) => x.id === id)) void run(id, qc, true); }, AUTO_RETRY_MS[n]);
+  return true;
+}
+
+async function run(id: string, qc: QueryClient, auto = false) {
   const tv = tasks.find((x) => x.id === id);
   if (!tv) return;
-  patch(id, { status: 'uploading', stage: 'upload', error: null });
+  if (!auto) autoTries.delete(id);
+  patch(id, { status: 'uploading', stage: 'upload', error: null, retrying: false });
   if (tv.runner) {
     try {
       await tv.runner((p) => patch(id, { progress: p }), (stage) => patch(id, { stage }));
@@ -85,6 +104,7 @@ async function run(id: string, qc: QueryClient) {
       setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 2500);
     } catch (e) {
       const rid = rejectedPhotoId(e);
+      if (!rid && scheduleRetry(id, qc, e)) return;
       patch(id, { status: 'error', error: (e as Error).message || t('Não consegui enviar'), appeal: rid ? { assetId: rid, state: 'available' } : undefined });
     }
     return;
@@ -147,6 +167,7 @@ async function run(id: string, qc: QueryClient) {
     const rid = rejectedPhotoId(e);
     const prev = tasks.find((x) => x.id === id)?.appeal;
     const appeal = rid ? (prev?.assetId === rid ? prev : { assetId: rid, state: 'available' as const }) : undefined;
+    if (!rid) { patch(id, { sent: [...sent] }); if (scheduleRetry(id, qc, e)) return; }
     patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || t('Não consegui publicar'), appeal });
   }
 }

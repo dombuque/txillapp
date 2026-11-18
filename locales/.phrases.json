@@ -5290,6 +5290,7 @@
   "Sem lembretes": {"parts":["app"]},
   "Sem licença para o microfone. Ativa-a nas definições do telemóvel.": {"parts":["app"]},
   "Sem ligação": {"parts":["app"]},
+  "Sem ligação ao servidor. A tentar outra vez…": {"parts":["app"]},
   "Sem ligação ao servidor. Tenta outra vez.": {"parts":["app"]},
   "Sem ligação à internet. A compra ficou guardada e confirmamos quando voltares a ter rede.": {"parts":["app"]},
   "Sem ligação à internet. Verifica a rede e tenta outra vez.": {"parts":["app"]},
