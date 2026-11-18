@@ -18,7 +18,11 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
-import { Sticker } from './StickerPanel';
+import { Sticker, StickerPanel } from './StickerPanel';
+import { GifHiddenCard, GifView, TxillappReaction, useGifsConfig } from './GifPanel';
+import { stickerOf } from './CommentsSheet';
+import { TXILLAPP_GIF, gifPayload, validGif } from '@/lib/gifs';
+import type { ChatGif } from '@/lib/gifs';
 import { SearchField } from './ui/SearchField';
 import { SegmentedTabs } from './ui/SegmentedTabs';
 import { SendButton } from './ui/SendButton';
@@ -165,12 +169,16 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
   const mention = useMentionSuggest({ text, setText, inputRef, context: 'story', id: story.id });
   const refresh = () => { void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ['stories', story.author.username] }); };
 
-  async function send() {
-    const body = text.trim();
-    if (!body || busy) return;
+  /** Painel de autocolantes/GIFs aberto por baixo do campo (como nos comentários das publicações). */
+  const [stickers, setStickers] = useState<null | 'stickers' | 'gif'>(null);
+  const gifs = useGifsConfig();
+  /** `explicit`: um autocolante ([sticker:id]). `gif`: um GIF, com o texto que estiver escrito (ou sem texto). */
+  async function send(explicit?: string, gif?: ChatGif) {
+    const body = (explicit ?? text).trim();
+    if ((!body && !gif) || busy) return;
     setBusy(true);
     setErr('');
-    try { await api.commentStory(story.id, body); setText(''); refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+    try { await api.commentStory(story.id, body, gif); if (explicit === undefined) setText(''); setStickers(null); refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
   async function del(id: string) {
     if (!(await confirm({ title: t('Apagar o comentário?'), message: t('O comentário desaparece e não dá para o recuperar.'), confirm: t('Apagar'), danger: true }))) return;
@@ -187,10 +195,24 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
           {list.data?.map((c) => <StoryCommentRow key={c.id} c={c} onReport={() => setReporting(c.id)} onDelete={() => void del(c.id)} />)}
         </ScrollView>
         {canComment ? <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginTop: 8, marginBottom: 0 }} /> : null}
+        {canComment && stickers ? <View style={{ maxHeight: gifs.enabled ? 320 : 280, marginTop: 8 }}><StickerPanel key={stickers} start={stickers} onPick={(id) => void send(`[sticker:${id}]`)} onGif={(g) => void send('', gifPayload(g))} /></View> : null}
         {canComment ? (
           <View style={st.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={32} />
             <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder={t('Adiciona um comentário…')} placeholderTextColor={D.sub} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel={t('Comentário')} />
+            {text.trim() ? null : (
+              <>
+                <TxillappReaction onDark width={40} disabled={busy} label={t('Comentar com o GIF Txillapp')} onPress={() => void send('', gifPayload(TXILLAPP_GIF))} />
+                <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('Stickers')} accessibilityState={{ expanded: stickers === 'stickers' }} style={[st.pickBtn, stickers === 'stickers' && st.pickOn]}>
+                  <Icon name="sticker" size={22} color={stickers === 'stickers' ? colors.brand : D.text} />
+                </Pressable>
+                {gifs.enabled ? (
+                  <Pressable onPress={() => setStickers((v) => (v === 'gif' ? null : 'gif'))} hitSlop={6} accessibilityRole="button" accessibilityLabel="GIF" accessibilityHint={t('Escolher um GIF para o comentário')} accessibilityState={{ expanded: stickers === 'gif' }} style={[st.gifBtn, stickers === 'gif' && st.pickOn]}>
+                    <Text style={[st.gifBtnText, stickers === 'gif' && { color: colors.brand }]}>GIF</Text>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
             <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>{t('Publicar')}</Text></Pressable>
           </View>
         ) : (
@@ -247,7 +269,8 @@ function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport:
       <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
-        <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: D.text }} />
+        {stickerOf(c.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(c.body)!} size={88} /></View> : c.body ? <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: D.text }} /> : null}
+        {c.gifHidden ? <View style={{ marginTop: 6 }}><GifHiddenCard /></View> : validGif(c.gif) ? <View style={{ marginTop: 6 }}><GifView gif={c.gif} onDark /></View> : null}
         {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>}
       </View>
       {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Denunciar o comentário de {username}', { username: c.author.username })} style={{ padding: 6 }}><Icon name="flag" size={17} color={D.sub} /></Pressable>}
@@ -380,6 +403,10 @@ const st = StyleSheet.create({
   whoAgo: { flexShrink: 0, fontSize: 14, color: D.sub },
   cheers: { marginTop: 4, fontSize: 13, fontWeight: '600', color: D.sub },
   compose: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: D.line, paddingTop: 12 },
+  pickBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  pickOn: { backgroundColor: 'rgba(214,51,79,0.18)', borderColor: colors.brand },
+  gifBtn: { minWidth: 40, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: D.sub, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  gifBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, color: D.text },
   commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: D.raised, paddingHorizontal: 16, fontSize: 15, color: D.text, outlineStyle: 'none' as never },
   closed: { marginTop: 8, borderRadius: 12, backgroundColor: D.raised, paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: D.sub },
   bubble: { marginTop: 2, alignSelf: 'flex-start', borderRadius: 16, borderTopLeftRadius: 6, backgroundColor: D.raised, paddingHorizontal: 14, paddingVertical: 8, fontSize: 16, color: D.text, overflow: 'hidden' },

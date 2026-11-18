@@ -131,6 +131,26 @@ describe('GIF do Txillapp em mensagens, comentários e notas (integração)', ()
     expect(giphyCalls).toEqual([]);
   });
 
+  it('comentário de um mimo (0181): GIF sem texto, o menor vê o do Txillapp; GIF inválido dá 400; texto continua a funcionar', async () => {
+    const owner = await signup('tgs');
+    const minor = await signup('tgk', '2010-02-02');
+    await follow(minor, owner);
+    const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const up = await api().post('/api/v1/media/uploads').set(auth(owner)).send({ mime: 'image/png', size: PNG.length }).expect(201);
+    await api().put(up.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
+    const story = (await api().post('/api/v1/stories').set(auth(owner)).send({ mediaId: up.body.assetId, caption: 'mimo com GIF' }).expect(201)).body.id as string;
+    await api().post(`/api/v1/stories/${story}/comments`).set(auth(owner)).send({ gif: brand() }).expect(201);
+    await api().post(`/api/v1/stories/${story}/comments`).set(auth(owner)).send({ body: 'só texto' }).expect(201);
+    await api().post(`/api/v1/stories/${story}/comments`).set(auth(owner)).send({ gif: brand({ id: 'nada' }) }).expect(400);
+    await api().post(`/api/v1/stories/${story}/comments`).set(auth(owner)).send({}).expect(400);
+    const items = (await api().get(`/api/v1/stories/${story}/comments`).set(auth(minor)).expect(200)).body as { body: string; gif: Record<string, unknown> | null; gifHidden?: boolean }[];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ body: '', gif: { id: 'logo', source: 'txillapp', rating: 'g' } });
+    expect(items[0].gifHidden).toBeFalsy();
+    expect(items[1]).toMatchObject({ body: 'só texto', gif: null });
+    expect(giphyCalls).toEqual([]);
+  });
+
   it('nota: o GIF do Txillapp fica com «g» e o menor vê-o; id inválido dá 400', async () => {
     const author = await signup('tgt');
     const minor = await signup('tgv', '2011-01-01');

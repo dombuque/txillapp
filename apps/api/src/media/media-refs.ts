@@ -82,6 +82,7 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'content.posts.geleira': 'retrato da geleira partilhada (nomes, slugs e notas dos gostos; os desenhos vêm do catálogo, sem ficheiros)',
   'social.messages.gif': 'GIF do GIPHY ou do Txillapp (endereço externo)',
   'social.notes.gif': 'GIF do GIPHY ou do Txillapp da nota (endereço externo)',
+  'content.story_comments.gif': 'GIF do GIPHY ou do Txillapp de um comentário de mimo (endereço externo)',
   'social.notes.place': 'nome do sítio da nota (só texto)',
   'social.messages.system': 'avisos de sistema na conversa',
   'content.comments.gif': 'GIF do GIPHY ou do Txillapp (endereço externo)',

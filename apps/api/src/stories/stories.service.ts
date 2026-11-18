@@ -3,6 +3,8 @@ import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { MediaService } from '../media/media.service';
+import { gifForMinor, readGif, type GifInput } from '../gifs/gif';
+import { GifsService } from '../gifs/gifs.service';
 import { signImage, signVideo, type SealTier } from '../media/signature';
 import { layerTexts, stickersOf, stickersSvg, type StoryLayer } from './stickers';
 import { PG_POOL } from '../db/db.module';
@@ -47,6 +49,7 @@ export class StoriesService {
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
     private readonly media: MediaService,
+    private readonly gifs: GifsService,
   ) {}
 
   async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null, stickers: StoryLayer[] = []) {
@@ -244,10 +247,11 @@ export class StoriesService {
   async comments(viewerId: string, storyId: string) {
     await this.visibleStory(viewerId, storyId);
     const { rows } = await this.pool.query(
-      `SELECT c.id, c.body, c.created_at, a.username, a.display_name, a.verified, a.verified_tier, (a.avatar_media_id IS NOT NULL) AS has_avatar,
+      `SELECT c.id, c.body, c.gif, c.created_at, a.username, a.display_name, a.verified, a.verified_tier, (a.avatar_media_id IS NOT NULL) AS has_avatar,
               (c.author_id = $1) AS mine, (st.author_id = $1 OR c.author_id = $1) AS can_delete,
               (SELECT count(*) FROM content.story_comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
-              EXISTS (SELECT 1 FROM content.story_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered
+              EXISTS (SELECT 1 FROM content.story_comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered,
+              EXISTS (SELECT 1 FROM identity.users ad WHERE ad.id = $1 AND ad.birth_date IS NOT NULL AND ad.birth_date <= (current_date - interval '18 years')) AS viewer_adult
          FROM content.story_comments c
          JOIN content.stories st ON st.id = c.story_id
          JOIN identity.users a ON a.id = c.author_id
@@ -256,16 +260,23 @@ export class StoriesService {
         ORDER BY c.id ASC LIMIT 200`,
       [viewerId, storyId],
     );
-    return rows.map((r) => ({
+    return rows.map((r) => {
+      // GIF acima de «g» (ou sem classificação) não chega a menores nem a quem não tem data de nascimento (como nos comentários das publicações).
+      const gif = readGif(r.gif);
+      const hidden = !!gif && r.viewer_adult !== true && !gifForMinor(gif.rating);
+      return {
       id: r.id as string,
       body: r.body as string,
+      gif: hidden ? null : gif,
+      ...(hidden ? { gifHidden: true as const } : {}),
       createdAt: r.created_at as string,
       mine: r.mine as boolean,
       canDelete: r.can_delete as boolean,
       cheers: r.cheers as number,
       cheered: r.cheered as boolean,
       author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, ...badge(r.verified, r.verified_tier) },
-    }));
+      };
+    });
   }
 
   /**
@@ -302,16 +313,21 @@ export class StoriesService {
   }
 
   /** Comentar num story: segue a mesma definição de respostas do autor (todos, quem ele segue, ninguém). */
-  async comment(userId: string, storyId: string, body: string) {
+  async comment(userId: string, storyId: string, body: string, gifIn?: GifInput) {
     this.filter.assertClean(body);
+    let gif = gifIn;
+    if (gif?.title && this.filter.check(gif.title)) gif = { ...gif, title: undefined };
     const s = await this.visibleStory(userId, storyId);
     if (s.author_id !== userId && (s.comments_off || s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer))) {
       throw new ForbiddenException('Este story não aceita comentários');
     }
+    // A classificação do GIF é a que o GIPHY dá (ou a fonte própria «txillapp»), confirmada aqui.
+    if (gif) gif = await this.gifs.confirm(userId, gif);
     const id = uuidv7();
-    await this.pool.query('INSERT INTO content.story_comments (id, story_id, author_id, body) VALUES ($1, $2, $3, $4)', [id, storyId, userId, body]);
-    await this.notifications.notify({ userId: s.author_id, actorId: userId, kind: 'story_reply', data: { storyId, replyKind: 'comment', snippet: body.slice(0, 80) } });
-    void this.notifications.notifyMentions(userId, body, { storyId, snippet: body.slice(0, 80) }, [s.author_id]);
+    await this.pool.query('INSERT INTO content.story_comments (id, story_id, author_id, body, gif) VALUES ($1, $2, $3, $4, $5::jsonb)', [id, storyId, userId, body, gif ? JSON.stringify(gif) : null]);
+    const snippet = body ? body.slice(0, 80) : 'GIF';
+    await this.notifications.notify({ userId: s.author_id, actorId: userId, kind: 'story_reply', data: { storyId, replyKind: 'comment', snippet } });
+    if (body) void this.notifications.notifyMentions(userId, body, { storyId, snippet }, [s.author_id]);
     return { id };
   }
 

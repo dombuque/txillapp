@@ -2,6 +2,7 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { gifSchema } from '../gifs/gif';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { musicSchema } from '../music/music.service';
@@ -13,6 +14,10 @@ export const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.st
 
 const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), stickers: stickersSchema.default([]), music: musicSchema.nullable().optional() });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
+/** Comentário público num mimo: texto, um GIF/autocolante (como nos comentários das publicações) ou os dois. */
+const commentSchema = z
+  .object({ body: z.string().trim().max(500).default(''), gif: gifSchema.optional() })
+  .refine((b) => b.body.length > 0 || !!b.gif, { message: 'Escreve alguma coisa', path: ['body'] });
 const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off']) });
 
 @Controller('stories')
@@ -126,8 +131,8 @@ export class StoriesController {
   @NeedsVerifiedEmail()
   @Post(':id/comments')
   @HttpCode(201)
-  comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
-    return this.stories.comment(req.userId!, id, b.body);
+  comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(commentSchema)) b: z.infer<typeof commentSchema>) {
+    return this.stories.comment(req.userId!, id, b.body, b.gif);
   }
 
   /** Brindar um comentário do mimo; outra vez tira (como nos comentários das publicações). */

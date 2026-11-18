@@ -83,6 +83,9 @@ function writeSaved(lang: Lang) {
 function systemLanguages(): string[] {
   try {
     if (isWeb) return [...(navigator.languages ?? []), navigator.language].filter(Boolean);
+    // A exportação estática do site corre no Node (sem document): o Node 22 tem um `navigator` em en-US e as páginas
+    // saíam em inglês enquanto o browser as mostrava em português (erro React #418 de hidratação). Lá fica a origem (pt).
+    if (typeof process !== 'undefined' && !!(process as { versions?: { node?: string } }).versions?.node) return [];
     if (!hasRequire) return [];
     const loc = require('expo-localization') as { getLocales(): { languageTag: string; languageCode: string | null }[] };
     return loc.getLocales().map((l) => l.languageTag || l.languageCode || '').filter(Boolean);
