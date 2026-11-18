@@ -64,8 +64,8 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
   );
 }
 
-/** A partir desta largura, entrar e criar conta mostram o painel da marca ao lado (um portátil a 150% fica com ~910 px). */
-export const AUTH_WIDE = 900;
+/** A partir desta largura, entrar e criar conta mostram o painel da marca ao lado (abaixo disto a app fica numa coluna de telemóvel e o painel não cabe). */
+export const AUTH_WIDE = 1024;
 
 /** Painel de marca, só em ecrãs largos (a versão web de entrar e criar conta), como no site. */
 function BrandPanel() {

@@ -207,7 +207,7 @@ test('campos de escrever no computador: sem o anel forçado por cima do foco do 
   assert.doesNotMatch(pol.POLISH_CSS, /input:focus-visible/);
   assert.doesNotMatch(pol.POLISH_CSS, /textarea:focus-visible/);
   const login = read('app/login.tsx');
-  assert.match(login, /export const AUTH_WIDE = 900;/);
+  assert.match(login, /export const AUTH_WIDE = 1024;/);
   assert.match(login, /if \(width >= AUTH_WIDE\) \{/);
   assert.match(login, /outlineStyle: 'none'/);
 });
