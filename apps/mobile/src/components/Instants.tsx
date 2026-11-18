@@ -609,6 +609,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
  * (7 dias, com a marca «Só tu · N dias»). Em cima, o cartão do resumo da semana quando há um (abre o ecrã do resumo por
  * cima) ou, sem resumo, «O teu resumo chega ao domingo à noite». Tocar abre o Zás; manter premido abre o menu.
  */
+/** Os Zás do mais recente para o mais antigo (pela hora em que foram feitos). */
+export const newestFirst = <T extends { at: string }>(l: readonly T[]): T[] => [...l].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+
 function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: { username: string; displayName?: string; hasAvatar?: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -626,7 +629,8 @@ function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: 
   const [menu, setMenu] = useState<InstantItem | null>(null);
   /** Computador: onde abre o menu do Zás (junto ao rato, no botão direito). */
   const [menuAt, setMenuAt] = useState<Rect | null>(null);
-  const load = useCallback(() => instantsApi.archive(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
+  // Os mais recentes primeiro, na grelha e no visor (a API manda-os do mais antigo para o mais novo).
+  const load = useCallback(() => instantsApi.archive(username).then((l) => setItems(newestFirst(l))).catch((e) => setErr((e as Error).message)), [username]);
   useEffect(() => {
     void load();
   }, [load]);
