@@ -860,15 +860,25 @@ export default function Compose() {
           ) : null}
 
           {assets.length > 0 && !(assets.length === 1 && video) ? (
-            <View style={styles.grid2} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width - 40); if (w > 0 && w !== gridW) setGridW(w); }}>
+            // Várias fotos e vídeos: um carrossel a deslizar para o lado (como fica a publicação), com o próximo a espreitar;
+            // uma só foto fica inteira na largura.
+            <View onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width - 40); if (w > 0 && w !== gridW) setGridW(w); }}>
+            <ScrollView
+              horizontal={assets.length > 1}
+              scrollEnabled={assets.length > 1}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={assets.length > 1 && gridW ? Math.round(gridW * 0.8) + 8 : undefined}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={assets.length > 1 ? styles.carousel : styles.grid2}
+            >
               {assets.map((a, i) => {
                 const n = assets.length;
-                const span = n === 1 || (i === 0 && n % 2 === 1);
                 const photoIndex = photos.indexOf(a);
-                const ratio = span ? (n === 1 ? 4 / 3 : 16 / 10) : 1;
-                // Tamanho em píxeis (largura medida da grelha); antes de medir, um primeiro palpite que já não fica com altura 0.
-                const tw = gridW ? (span ? gridW : Math.floor(gridW * 0.49)) : 0;
-                const size = tw ? { width: tw, height: Math.round(tw / ratio) } : { width: span ? ('100%' as const) : ('49%' as const), aspectRatio: ratio };
+                const ratio = n === 1 ? 4 / 3 : 4 / 5;
+                // Tamanho em píxeis (largura medida); antes de medir, um primeiro palpite que já não fica com altura 0.
+                const tw = gridW ? (n === 1 ? gridW : Math.round(gridW * 0.8)) : 0;
+                const size = tw ? { width: tw, height: Math.round(tw / ratio) } : { width: n === 1 ? ('100%' as const) : 280, aspectRatio: ratio };
                 return (
                   <View key={a.uri} style={[styles.thumb, size]}>
                     {a.video ? (
@@ -890,9 +900,11 @@ export default function Compose() {
                     )}
                     {i === 0 && n > 1 ? <View style={styles.cover}><Text style={styles.coverText}>{t('Capa')}</Text></View> : null}
                     <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? t('Tirar o vídeo {n}', { n: i + 1 }) : t('Tirar a foto {n}', { n: i + 1 })}><Icon name="x" size={18} color="#fff" /></Pressable>
+                    {n > 1 ? <View style={styles.pos} pointerEvents="none"><Text style={styles.coverText}>{i + 1}/{n}</Text></View> : null}
                   </View>
                 );
               })}
+            </ScrollView>
             </View>
           ) : null}
           {preparing > 0 ? (
@@ -1010,6 +1022,8 @@ const styles = StyleSheet.create({
   left: { textAlign: 'right', fontSize: 12, color: colors.zinc500 },
   video: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
   grid2: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 },
+  carousel: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 },
+  pos: { position: 'absolute', right: 8, bottom: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 3 },
   thumb: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.zinc200 },
   preparing: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, backgroundColor: colors.zinc100 },
   preparingText: { fontSize: 14, fontWeight: '600', color: colors.zinc600 },
