@@ -19,3 +19,11 @@ test('mimo: a lista mostra o autocolante, o GIF ou «GIF escondido»', () => {
   assert.match(src, /stickerOf\(c\.body\) \? <View style=\{\{ marginTop: 2 \}\}><Sticker id=\{stickerOf\(c\.body\)!\} size=\{88\} \/><\/View>/);
   assert.match(src, /c\.gifHidden \? <View style=\{\{ marginTop: 6 \}\}><GifHiddenCard \/><\/View> : validGif\(c\.gif\) \? <View style=\{\{ marginTop: 6 \}\}><GifView gif=\{c\.gif\} onDark \/><\/View>/);
 });
+
+test('os comentários a flutuar mostram o autocolante e o GIF (nunca o código [sticker:…])', () => {
+  const f = readFileSync(new URL('../src/components/StoryFloatComments.tsx', import.meta.url), 'utf8');
+  assert.match(f, /const sticker = stickerOf\(c\.body\);/);
+  assert.match(f, /<Sticker id=\{sticker\} size=\{64\} \/>/);
+  assert.match(f, /<GifView gif=\{gif\} maxW=\{132\} maxH=\{96\} onDark \/>/);
+  assert.match(f, /gif\?: ChatGif \| null; gifHidden\?: boolean/);
+});

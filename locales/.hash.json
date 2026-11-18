@@ -1506,8 +1506,6 @@
     "Sugestões para ti": "fbfe4022d69595ca",
     "Ver mais": "d2c8ad5d8f5ad8f4",
     "© {fullYear} Txillapp": "f07c65be551ada03",
-    "As tuas mensagens": "927e514f22f2723e",
-    "Nova mensagem": "0da9724417127279",
     "Nas Mensagens, Ctrl/Cmd+K procura nas conversas.": "b6e0d36faecc1443",
     "Enviámos um link novo para o teu e-mail. Vê também o spam.": "30209688f7bfc4d3",
     "Não consegui reenviar agora. Tenta daqui a pouco.": "dd6eefa5886de8a4",
@@ -2067,6 +2065,8 @@
     "Mencionar {displayName}": "b190fb3131459216",
     "Ctrl": "dd6a02a553da4cb2",
     "Alt": "e30eff925100b7c3",
+    "As tuas mensagens": "927e514f22f2723e",
+    "Nova mensagem": "0da9724417127279",
     "Pré-visualização do mimo": "5d718849ce6332fd",
     "Pinça com dois dedos para aumentar ou diminuir, arrasta para mover e toca duas vezes para alternar entre a foto inteira e preencher o ecrã": "bd31abd84528d345",
     "Reações do Mixar (só quem está no Mixar do grupo vê)": "810addbcdee9a29b",
@@ -5729,6 +5729,7 @@
     "O destinatário ainda não abriu a carteira": "67b8485633eb7cbb",
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
-    "Movimento inválido": "e238bfd1ca2dfe89"
+    "Movimento inválido": "e238bfd1ca2dfe89",
+    "Autocolante": "1ea358af3c7bbe49"
   }
 }

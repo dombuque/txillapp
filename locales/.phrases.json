@@ -988,6 +988,7 @@
   "Até {perDay} convites premiados por dia e {maxPaid} no total. Depois disso o convite continua a funcionar, mas sem vibes.": {"parts":["app"]},
   "Audiomack": {"parts":["app"]},
   "Aumentar": {"parts":["app"]},
+  "Autocolante": {"parts":["app"]},
   "Automático: {fitLabel} (as imagens deitadas ficam inteiras).": {"parts":["app"]},
   "Autor desconhecido": {"parts":["app","web"]},
   "Avisa a moderação. A pessoa não sabe.": {"parts":["app","web"]},

@@ -201,7 +201,7 @@ test('as @menções: o contexto txillada nas sugestões, os balões tocáveis e 
   const ms = read('components/MentionSuggest.tsx');
   assert.match(ms, /enabled: debounced !== null,/);
   assert.match(read('lib/mentions.ts'), /case 'anfitriao': return t\('Anfitrião'\);/);
-  assert.match(read('components/StoryFloatComments.tsx'), /\{onMention \? <MentionText text=\{text\} onMention=\{onMention\} \/> : text\}/);
+  assert.match(read('components/StoryFloatComments.tsx'), /\{text \? \(onMention \? <MentionText text=\{text\} onMention=\{onMention\} \/> : text\) : null\}/);
   // O toque num @ não abre também o menu do comentário.
   assert.match(read('components/txillada/MentionText.tsx'), /stopPropagation\?\.\(\);\n\s+onMention\(p\.u\);/);
   assert.equal(t.inviteNoticeText({ mention: true, host: { username: 'zeca' } }, 'ana'), 'mencionou-te na Txillada de @zeca: vem ver');

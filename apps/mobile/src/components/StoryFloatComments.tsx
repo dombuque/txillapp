@@ -9,6 +9,10 @@ import { CheersPour } from '@/components/CheersPour';
 import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { MentionText } from '@/components/txillada/MentionText';
+import { stickerOf } from '@/components/CommentsSheet';
+import { GifView } from '@/components/GifPanel';
+import { Sticker } from '@/components/StickerPanel';
+import type { ChatGif } from '@/lib/gifs';
 import { api, type Badged, type StoryComment } from '@/lib/api';
 import { useReduceMotion } from '@/lib/reduceMotion';
 import { FLOAT_GAP, type FloatColumn } from '@/lib/storyFrame';
@@ -48,7 +52,8 @@ export function StoryFloatComments({ storyId, comments, col, active, hidden, onO
       () => setCheer(c.id, before, false),
     ).catch(() => undefined);
   }
-  const pool = floatPool(comments);
+  // Um GIF escondido (conta de menor, classificação acima de g) e sem texto não tem nada para mostrar a flutuar.
+  const pool = floatPool(comments.filter((x) => !(x.gifHidden && !x.body.trim())));
   const [tick, setTick] = useState(-1);
   const [heights, setHeights] = useState<Record<number, number>>({});
   const done = floatDone(tick, pool.length, col.max);
@@ -88,7 +93,7 @@ export function StoryFloatComments({ storyId, comments, col, active, hidden, onO
 }
 
 /** O que um balão precisa de um comentário (o dos mimos e o da Txillada). */
-export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean } & Badged; body: string };
+export type FloatComment = { author: { username: string; displayName: string; hasAvatar: boolean } & Badged; body: string; gif?: ChatGif | null; gifHidden?: boolean };
 
 /**
  * Dois toques dentro disto contam como um duplo toque (o toque simples espera este tempo antes de abrir: os comentários
@@ -153,7 +158,11 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
   }
   const pillText = commentCheersLabel(cheers);
   const name = floatName(c.author.username);
-  const text = floatText(c.body);
+  // Autocolante (`[sticker:id]`) e GIF aparecem no balão como na lista dos comentários, nunca o código.
+  const sticker = stickerOf(c.body);
+  const gif = c.gif ?? null;
+  const text = sticker ? '' : floatText(c.body);
+  const said = sticker ? t('Autocolante') : gif ? 'GIF' : text;
   return (
     <Animated.View style={[st.bubbleWrap, anim]} pointerEvents={leaving ? 'none' : 'box-none'} onLayout={(ev) => onHeight(Math.round(ev.nativeEvent.layout.height))}>
       <Pressable
@@ -162,7 +171,7 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
         delayLongPress={400}
         style={st.row}
         accessibilityRole="button"
-        accessibilityLabel={t('Comentário de {username}: {text}{value}{value2}', { username: c.author.username, text, value: cheers ? t('. {count} brinde', { count: cheers, other: '. {count} brindes' }) : '', value2: label ? `. ${label}` : '' })}
+        accessibilityLabel={t('Comentário de {username}: {text}{value}{value2}', { username: c.author.username, text: said, value: cheers ? t('. {count} brinde', { count: cheers, other: '. {count} brindes' }) : '', value2: label ? `. ${label}` : '' })}
         accessibilityHint={onDoubleTap ? t('Dois toques para brindar') : undefined}
         accessibilityActions={onDoubleTap ? [{ name: 'cheer', label: t('Brindar') }] : undefined}
         onAccessibilityAction={onDoubleTap ? (e) => { if (e.nativeEvent.actionName === 'cheer') onDoubleTap(); } : undefined}
@@ -175,9 +184,11 @@ export function FloatBubble({ c, y, age, leaving, reduce, onPress, onLongPress, 
             <Text style={st.name}>{name}</Text>
             {/* Contas verificadas com o selo em todo o lado, também nos balões. */}
             {c.author.verified ? <InlineBadge who={c.author} fontSize={14} /> : null}
-            {'  '}
-            {onMention ? <MentionText text={text} onMention={onMention} /> : text}
+            {text ? '  ' : null}
+            {text ? (onMention ? <MentionText text={text} onMention={onMention} /> : text) : null}
           </Text>
+          {sticker ? <View style={st.media}><Sticker id={sticker} size={64} /></View> : null}
+          {!sticker && gif ? <View style={st.media}><GifView gif={gif} maxW={132} maxH={96} onDark /></View> : null}
         </View>
         {/* O rabinho do balão, no canto de baixo à esquerda, virado para a foto de quem comentou. */}
         <Svg width={7} height={11} viewBox="0 0 7 11" style={st.tail} pointerEvents="none">
@@ -204,6 +215,7 @@ const st = StyleSheet.create({
   glass: { flexShrink: 1, minWidth: 0, borderRadius: 16, borderBottomLeftRadius: 4, backgroundColor: GLASS, paddingHorizontal: 11, paddingVertical: 7 },
   // A roda tem 31 px (26 + 1 de folga + 1,5 de anel de cada lado) e o espaço 7: o rabinho encosta ao vidro (meio px por baixo dele).
   tail: { position: 'absolute', left: 31.5, bottom: 0 },
+  media: { marginTop: 4, marginBottom: 1 },
   name: { fontWeight: '800', color: '#fff', letterSpacing: -0.1 },
   giftGlass: { backgroundColor: GIFT_GLASS, borderWidth: 1, borderColor: 'rgba(255,154,91,0.75)' },
   giftText: { color: '#fff', fontWeight: '700' },
