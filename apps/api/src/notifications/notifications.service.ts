@@ -241,9 +241,10 @@ export class NotificationsService {
    * A conta ganhou um selo (pedido aceite ou dado pela equipa): o aviso na lista dela (com o tier, que a app usa para a
    * celebração animada), um push só para ela («Ganhaste o selo!», abre o perfil) e o aviso a quem a segue.
    */
-  async badgeAwarded(userId: string, tier: string): Promise<void> {
+  async badgeAwarded(userId: string, tier: string, reason?: string | null): Promise<void> {
     try {
-      await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'verified', $3)`, [uuidv7(), userId, { tier }]);
+      // `self`: o aviso é para a própria conta (a lista mostra «Ganhaste o selo», do Txillapp, com o motivo por baixo).
+      await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'verified', $3)`, [uuidv7(), userId, { self: true, tier, ...(reason ? { reason } : {}) }]);
       if (this.push.enabled) {
         void this.push.send(userId, {
           title: 'Txillapp',
@@ -260,6 +261,21 @@ export class NotificationsService {
   }
 
   /**
+   * A equipa tirou o selo: a pessoa recebe o aviso na lista com o motivo e um push que não o diz (o ecrã de bloqueio é
+   * público) e leva à lista. Quem a segue não é avisado.
+   */
+  async badgeRemoved(userId: string, reason: string): Promise<void> {
+    try {
+      await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'verified', $3)`, [uuidv7(), userId, { self: true, removed: true, reason }]);
+      if (this.push.enabled) {
+        void this.push.send(userId, { title: 'Txillapp', body: 'Retirámos o selo da tua conta. Toca para ver o motivo.', url: '/notifications', tag: 'badge-removed' }).catch(() => undefined);
+      }
+    } catch (e) {
+      this.log.warn(`falha a avisar que tirámos o selo de ${userId}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
    * O selo novo ainda por celebrar na app (a animação «Ganhaste o selo!»): o último aviso 'verified' da própria conta, dos
    * últimos 30 dias, que a app ainda não marcou como visto, e só se a conta ainda tem selo.
    */
@@ -269,6 +285,7 @@ export class NotificationsService {
          FROM social.notifications n JOIN identity.users u ON u.id = n.user_id
         WHERE n.user_id = $1 AND n.actor_id = $1 AND n.kind = 'verified' AND u.verified
           AND n.created_at > now() - interval '30 days' AND NOT coalesce((n.data->>'celebrated')::boolean, false)
+          AND NOT coalesce((n.data->>'removed')::boolean, false)
         ORDER BY n.id DESC LIMIT 1`,
       [userId],
     );

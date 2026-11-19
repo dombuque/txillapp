@@ -15,3 +15,12 @@ test('a celebração pergunta ao servidor, mostra uma vez e marca como vista', (
   assert.match(read('app/_layout.tsx'), /<BadgeCelebration \/>/);
   assert.match(read('lib/api.ts'), /badgeNews: \(\): Promise<\{ news: \{ id: string; tier: string \} \| null \}> => raw\('\/verification\/news'\)/);
 });
+
+test('os avisos do selo da própria conta: do Txillapp, com o motivo; tirar o selo não celebra', () => {
+  const n = read('app/notifications.tsx');
+  assert.match(n, /if \(n\.data\.removed\) return \{ text: t\('A equipa do Txillapp retirou o selo da tua conta\.'\)/);
+  assert.match(n, /t\('Motivo: \{note\}', \{ note: n\.data\.reason \}\)/);
+  assert.match(n, /const badgeNotice = n\.kind === 'verified' && !!n\.data\.self;/);
+  const c = read('components/BadgeCelebration.tsx');
+  assert.match(c, /quem te encontra sabe que és tu de verdade/);
+});

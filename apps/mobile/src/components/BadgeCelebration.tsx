@@ -84,7 +84,10 @@ export function BadgeCelebration() {
           </View>
           <Animated.View style={[{ alignItems: 'center' }, textStyle]}>
             <Text style={st.title} accessibilityRole="header">{official ? t('És a conta oficial!') : t('Ganhaste o selo!')}</Text>
-            <Text style={st.text}>{t('O selo aparece ao lado do teu nome em todo o Txillapp: no perfil, nas publicações, nos comentários, nas mensagens e na Txillada.')}</Text>
+            <Text style={st.text}>{official
+              ? t('Esta é a conta oficial do Txillapp. O selo diz a toda a gente que o que publicas aqui vem mesmo de nós.')
+              : t('A tua conta foi confirmada pela equipa do Txillapp: quem te encontra sabe que és tu de verdade. O selo dá confiança a quem te segue e torna mais difícil alguém fazer-se passar por ti.')}</Text>
+            <Text style={st.small}>{t('Aparece ao lado do teu nome no perfil, nas publicações, nos comentários, nas mensagens e na Txillada.')}</Text>
           </Animated.View>
           <View style={{ alignSelf: 'stretch', gap: 8, marginTop: 20 }}>
             <Button label={t('Ver o meu perfil')} kind="gradient" onPress={() => done(true)} block />
@@ -103,4 +106,5 @@ const st = StyleSheet.create({
   glow: { position: 'absolute', width: 120, height: 120, borderRadius: 60 },
   title: { fontSize: 26, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   text: { marginTop: 8, fontSize: 16, lineHeight: 22, color: colors.zinc700, textAlign: 'center' },
+  small: { marginTop: 10, fontSize: 13, lineHeight: 18, color: colors.zinc500, textAlign: 'center' },
 });

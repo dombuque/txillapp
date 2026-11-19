@@ -111,7 +111,9 @@ export class BackofficeService {
     }
     this.indexer.userChanged(id);
     // Ganhou um selo (ou passou a outro): a pessoa é avisada (push e a celebração na app) e quem a segue também.
-    if (tier) void this.notifications.badgeAwarded(id, tier);
+    // Tirou o selo: a pessoa recebe o aviso com o motivo (e o push que leva a ele).
+    if (tier) void this.notifications.badgeAwarded(id, tier, reason);
+    else void this.notifications.badgeRemoved(id, reason);
     return { verified: tier !== null, verifiedTier: tier };
   }
 

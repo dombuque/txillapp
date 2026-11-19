@@ -78,7 +78,14 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'repost': return { text: many ? t('repostaram a tua publicação') : t('repostou a tua publicação') };
     case 'tag': return { text: many ? t('identificaram-te numa foto') : t('identificou-te numa foto') };
     case 'mention': return { text: many ? t('mencionaram-te') : t('mencionou-te'), sub: quote };
-    case 'verified': return { text: many ? t('agora têm o selo de conta verificada') : t('agora tem o selo de conta verificada') };
+    case 'verified':
+      // Para a própria conta (a equipa deu ou tirou o selo): do Txillapp, com o motivo por baixo.
+      if (n.data.self) {
+        const why = typeof n.data.reason === 'string' && n.data.reason ? t('Motivo: {note}', { note: n.data.reason }) : undefined;
+        if (n.data.removed) return { text: t('A equipa do Txillapp retirou o selo da tua conta.'), sub: why ?? t('Se achas que foi um engano, escreve para suporte@txillapp.com.') };
+        return { text: n.data.tier === 'official' ? t('A tua conta é agora a conta oficial do Txillapp.') : t('A tua conta ganhou o selo de verificada.'), sub: why };
+      }
+      return { text: many ? t('agora têm o selo de conta verificada') : t('agora tem o selo de conta verificada') };
     case 'venue_invite': return { text: <>{t('convidou-te para gerir')} <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? t('um local')}</Text> {t('como')} {n.data.role === 'admin' ? t('administrador') : t('editor')}</> };
     // Para os gestores: alguém pagou ao local com Txills.
     // Pago com o cofre de um TxillGroup: diz de que grupo veio.
@@ -153,8 +160,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'gift': return post ? `/p/${post}` : n.kind === 'gift' ? '/wallet' : `/u/${n.actor.username}`;
     case 'story_reply': return n.data.replyKind === 'comment' ? '/profile' : `/messages/${n.actor.username}`;
     case 'follow': return me ? `/u/${me}/connections?tab=followers` : `/u/${n.actor.username}`; // `me` só vem quando a linha junta várias pessoas
+    case 'verified': return n.data.self ? '/profile' : `/u/${n.actor.username}`;
     case 'follow_request':
-    case 'verified':
     case 'request_accepted': return `/u/${n.actor.username}`;
     case 'venue_invite': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
     case 'venue_payment': return n.data.venueSlug ? `/v/${n.data.venueSlug}/gerir?s=txills` : null;
@@ -289,6 +296,8 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const hostNotice = isHostNotice(n.kind);
   // Retirada pela moderação: «A Txillada de @x foi retirada», sem o nome à frente (a cara do anfitrião fica à esquerda).
   const removedNotice = isRemovedNotice(n.kind, n.data);
+  // O selo dado ou tirado pela equipa: sem o meu nome à frente (a frase já diz «A tua conta…»).
+  const badgeNotice = n.kind === 'verified' && !!n.data.self;
   // Txillada: o ícone dela à direita, na cor da marca enquanto está ao vivo (cinzento quando já acabou).
   const txKind = n.kind === 'txillada_live' || n.kind === 'txillada_invite';
   const txLive = txKind && (!n.txillada || n.txillada.status === 'live');
@@ -329,7 +338,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          {zasRecap || hostNotice || removedNotice ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
+          {zasRecap || hostNotice || removedNotice || badgeNotice ? null : <><Names actors={people.actors} total={people.total} /> </>}{text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt).replace(' ', '\u00a0')}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (

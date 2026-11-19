@@ -336,6 +336,6 @@ test('o cartão: «Denunciar» abre o ReportSheet só a quem não é anfitrião,
   assert.ok(sheet.includes("get txillada_schedule() { return t('esta Txillada agendada'); }"));
   const notif = read('app/notifications.tsx');
   assert.match(notif, /scheduleNoticeText\(n\.kind, n\.data, Date\.now\(\), n\.actor\.username\)/);
-  assert.match(notif, /zasRecap \|\| hostNotice \|\| removedNotice \? null/);
+  assert.match(notif, /zasRecap \|\| hostNotice \|\| removedNotice \|\| badgeNotice \? null/);
   assert.match(read('lib/moderationNotice.ts'), /case 'txillada_schedule': return t\('a tua Txillada agendada'\);/);
 });

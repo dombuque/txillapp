@@ -117,7 +117,7 @@ export default function BackofficeUser() {
       {dialog === 'badge' && (
         <ReasonDialog
           title={`O selo de @${u.username}`}
-          help={`Agora: ${tierShort(u.badge)}. O vermelho é do Txillapp (mérito, pedido aceite ou conta oficial); o azul é só para a verificação paga.`}
+          help={`Agora: ${tierShort(u.badge)}. O vermelho é do Txillapp (mérito, pedido aceite ou conta oficial); o azul é só para a verificação paga. A pessoa recebe um aviso com o motivo que escreveres, por isso escreve-o para ela ler.`}
           confirm={tier ? 'Guardar o selo' : 'Tirar o selo'}
           danger={!tier}
           ready={tier !== u.badge}

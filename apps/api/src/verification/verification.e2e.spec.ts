@@ -146,5 +146,15 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     await api().post(`/api/v1/admin/users/${vd.id}/badge`).set(sauth()).send({ tier: 'verified', reason: 'Mérito na comunidade' }).expect((r) => expect([200, 201]).toContain(r.status));
     await new Promise((r) => setTimeout(r, 200));
     expect(await news(vd)).toMatchObject({ tier: 'verified' });
+    const selfNotes = async () => (await pool.query(`SELECT data FROM social.notifications WHERE user_id = $1 AND actor_id = $1 AND kind = 'verified' ORDER BY id`, [vd.id])).rows.map((r) => r.data);
+    expect((await selfNotes()).at(-1)).toMatchObject({ self: true, tier: 'verified', reason: 'Mérito na comunidade' });
+    // Tirar o selo: justificado, e a pessoa recebe o aviso com o motivo (sem celebração).
+    await api().post(`/api/v1/admin/users/${vd.id}/badge`).set(sauth()).send({ tier: null, reason: '' }).expect(400);
+    await api().post(`/api/v1/admin/users/${vd.id}/badge`).set(sauth()).send({ tier: null, reason: 'Fez-se passar por outra pessoa' }).expect((r) => expect([200, 201]).toContain(r.status));
+    await new Promise((r) => setTimeout(r, 200));
+    expect((await selfNotes()).at(-1)).toMatchObject({ self: true, removed: true, reason: 'Fez-se passar por outra pessoa' });
+    expect(await news(vd)).toBeNull();
+    const list = (await api().get('/api/v1/notifications').set(auth(vd)).expect(200)).body.items as { kind: string; data: { removed?: boolean; reason?: string } }[];
+    expect(list.find((x) => x.kind === 'verified' && x.data.removed)?.data.reason).toBe('Fez-se passar por outra pessoa');
   }, 120_000);
 });
