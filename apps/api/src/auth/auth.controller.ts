@@ -320,6 +320,15 @@ export class AuthController {
     return this.auth.changeUnverifiedEmail(req.userId!, b.email);
   }
 
+  /** O código de 6 dígitos do e-mail, escrito na app (com sessão). */
+  @Post('email/verify-code')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 12, ttl: 900_000 } })
+  verifyEmailCode(@Req() req: Request & { userId?: string }, @Body(new ZodPipe(z.object({ code: z.string().trim().min(6).max(12) }))) b: { code: string }) {
+    return this.auth.verifyEmailCode(req.userId!, b.code);
+  }
+
   /** O link do e-mail leva aqui. Público: quem abre o link pode estar noutro aparelho. */
   @Post('email/verify')
   @HttpCode(200)

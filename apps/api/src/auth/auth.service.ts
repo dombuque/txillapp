@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as argon2 from 'argon2';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
@@ -52,6 +52,9 @@ const sessionUser = (r: UserRow): SessionUser => {
 
 /** Um pedido sem contexto (scripts, chamadas internas): sem impressões nem prova de humano. */
 const NO_CTX: ReqContext = { ip: null, net: null, device: null, deviceLabel: 'Aparelho desconhecido', client: 'other', humanRequired: false };
+
+/** Enganos permitidos no mesmo código de confirmação. */
+export const VERIFY_CODE_TRIES = 5;
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -917,7 +920,43 @@ export class AuthService implements OnModuleInit {
     const u = rows[0];
     if (!u || u.email_verified_at) return false;
     const token = await this.issueEmailToken(userId, 'verify', 48 * 3600_000);
-    return this.mail.send({ to: u.email, ...verifyEmailMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token, recipientLang(u.language, true)) });
+    const code = await this.issueVerifyCode(userId);
+    return this.mail.send({ to: u.email, ...verifyEmailMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token, recipientLang(u.language, true), code) });
+  }
+
+  /**
+   * O código de 6 dígitos do e-mail de confirmação, para escrever na app sem sair dela (vale 48 h, como o link; o novo
+   * anula o anterior). Guarda-se o hash de `id:código` (dois códigos iguais nunca chocam no UNIQUE).
+   */
+  private async issueVerifyCode(userId: string): Promise<string> {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const id = uuidv7();
+    await this.pool.query("UPDATE identity.email_tokens SET used_at = now() WHERE user_id = $1 AND kind = 'verify_code' AND used_at IS NULL", [userId]);
+    await this.pool.query(
+      "INSERT INTO identity.email_tokens (id, user_id, kind, token_hash, expires_at) VALUES ($1, $2, 'verify_code', $3, now() + interval '48 hours')",
+      [id, userId, sha256(`${id}:${code}`)],
+    );
+    return code;
+  }
+
+  /** Confirma a conta com o código escrito na app. Ao fim de VERIFY_CODE_TRIES enganos no mesmo código, pede-se um novo. */
+  async verifyEmailCode(userId: string, raw: string) {
+    const code = raw.replace(/\D/g, '');
+    const u = (await this.pool.query('SELECT email_verified_at FROM identity.users WHERE id = $1', [userId])).rows[0];
+    if (u?.email_verified_at) return { ok: true };
+    const row = (await this.pool.query(
+      `SELECT id, attempts, token_hash FROM identity.email_tokens
+        WHERE user_id = $1 AND kind = 'verify_code' AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1`,
+      [userId],
+    )).rows[0];
+    if (!row || row.attempts >= VERIFY_CODE_TRIES) throw new BadRequestException('Este código já não vale. Pede um novo.');
+    if (code.length !== 6 || sha256(`${row.id}:${code}`) !== row.token_hash) {
+      await this.pool.query('UPDATE identity.email_tokens SET attempts = attempts + 1 WHERE id = $1', [row.id]);
+      throw new BadRequestException(row.attempts + 1 >= VERIFY_CODE_TRIES ? 'Este código já não vale. Pede um novo.' : 'O código não está certo. Vê outra vez o e-mail.');
+    }
+    await this.pool.query("UPDATE identity.email_tokens SET used_at = now() WHERE user_id = $1 AND kind IN ('verify', 'verify_code') AND used_at IS NULL", [userId]);
+    await this.pool.query('UPDATE identity.users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1', [userId]);
+    return { ok: true };
   }
 
   async emailStatus(userId: string) {

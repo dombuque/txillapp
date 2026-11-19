@@ -1,10 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
+import { feedApi, type Suggestion } from '@/lib/api.feed';
+import { useAuth } from '@/lib/auth';
+import { Avatar } from './Avatar';
+import { FollowButton } from './FollowButton';
+import { NameWithBadge } from './NameWithBadge';
 import { useOverlay } from '@/lib/overlays';
 import { colors, typo } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
@@ -24,17 +29,60 @@ const STEPS: Step[] = [
   { icon: 'snowflake', get title() { return t('Enche a tua geleira'); }, get text() { return t('Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.'); } },
 ];
 
-/** Visita guiada para quem acabou de registar: cartão passo a passo sobre o Início. Só aparece uma vez (o servidor guarda). */
+/** Quantas pessoas se pede para seguir no primeiro passo (quem segue 3 ou mais no 1.º dia volta muito mais). */
+export const FOLLOW_GOAL = 3;
+
+/**
+ * O primeiro passo das boas-vindas: «Segue a malta». Sem ninguém para seguir, o Início fica vazio e a pessoa não volta.
+ * A lista fica fixa enquanto o passo está aberto (seguir não a faz saltar); a contagem vem do perfil.
+ */
+function FollowStep({ following }: { following: number }) {
+  const sugg = useQuery({ queryKey: ['welcome-suggestions'], queryFn: feedApi.suggestions, staleTime: Infinity });
+  const people: Suggestion[] = (sugg.data ?? []).slice(0, 8);
+  const done = Math.min(following, FOLLOW_GOAL);
+  return (
+    <View>
+      <Text style={st.text}>{done >= FOLLOW_GOAL ? t('Boa! O teu Início já tem vida.') : t('Segue pelo menos {n} pessoas para o teu Início ganhar vida.', { n: FOLLOW_GOAL })}</Text>
+      <View style={st.goal} accessibilityLabel={t('{done} de {n} pessoas seguidas', { done, n: FOLLOW_GOAL })}>
+        {Array.from({ length: FOLLOW_GOAL }, (_, n) => <View key={n} style={[st.goalBar, n < done && st.goalOn]} />)}
+      </View>
+      <ScrollView style={{ maxHeight: 300, marginTop: 8 }} showsVerticalScrollIndicator={false}>
+        {people.map((p) => (
+          <View key={p.username} style={st.person}>
+            <Avatar name={p.displayName} username={p.username} size={40} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <NameWithBadge name={p.displayName} who={p} style={st.pName} gap={4} containerStyle={{ maxWidth: '100%' }} />
+              <Text style={st.pReason} numberOfLines={1}>{p.reason}</Text>
+            </View>
+            <FollowButton username={p.username} following={false} requested={p.requested} isPrivate={p.isPrivate} style={{ minWidth: 96 }} />
+          </View>
+        ))}
+        {sugg.isSuccess && people.length === 0 ? <Text style={st.pReason}>{t('Ainda não há sugestões. Procura pessoas na Pesquisar.')}</Text> : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Visita guiada para quem acabou de registar: primeiro «Segue a malta» (com sugestões), depois o cartão passo a passo sobre
+ * o Início. Só aparece uma vez (o servidor guarda).
+ */
 export function WelcomeTour() {
   const qc = useQueryClient();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const privacy = useQuery({ queryKey: ['privacy'], queryFn: api.privacy, staleTime: 60_000 });
-  const [i, setI] = useState(0);
+  const { user } = useAuth();
+  const me = useQuery({ queryKey: ['profile', user?.username], queryFn: () => api.profile(user!.username), enabled: !!user, staleTime: 5_000 });
+  const [i, setI] = useState(-1);
   const p = privacy.data;
-  useOverlay(!!p && p.welcomed === false);
-  if (!p || p.welcomed !== false) return null;
-  const step = STEPS[i];
+  // Primeiro confirma-se a conta (o painel do código abre logo a seguir ao registo); as boas-vindas vêm depois.
+  const email = useQuery({ queryKey: ['email-status'], queryFn: api.emailStatus, staleTime: 30_000 });
+  const ready = !!email.data && (email.data.verified || !email.data.required);
+  useOverlay(!!p && p.welcomed === false && ready);
+  if (!p || p.welcomed !== false || !ready) return null;
+  const follow = i === -1;
+  const step = follow ? { icon: 'users' as IconName, title: t('Segue a malta') } : STEPS[i];
   const last = i === STEPS.length - 1;
 
   function finish(openGeleira: boolean) {
@@ -51,10 +99,10 @@ export function WelcomeTour() {
             <View style={st.iconWrap}><Icon name={step.icon} size={22} color={colors.brand} /></View>
             <Text style={st.title}>{step.title}</Text>
           </View>
-          <Text style={st.text}>{step.text}</Text>
+          {follow ? <FollowStep following={me.data?.counts.following ?? 0} /> : <Text style={st.text}>{(step as Step).text}</Text>}
           <View style={st.foot}>
-            <View style={st.dots} accessibilityLabel={t('Passo {n} de {n2}', { n: i + 1, n2: STEPS.length })}>
-              {STEPS.map((_, n) => <View key={n} style={[st.dot, n === i && st.dotOn]} />)}
+            <View style={st.dots} accessibilityLabel={t('Passo {n} de {n2}', { n: i + 2, n2: STEPS.length + 1 })}>
+              {[-1, ...STEPS.map((_, n) => n)].map((n) => <View key={n} style={[st.dot, n === i && st.dotOn]} />)}
             </View>
             <View style={st.actions}>
               {!last && <Button label={t('Saltar')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />}
@@ -87,4 +135,10 @@ const st = StyleSheet.create({
   dotOn: { width: 20, backgroundColor: colors.brand },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ghost: { paddingHorizontal: 12 },
+  goal: { flexDirection: 'row', gap: 6, marginTop: 12 },
+  goalBar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.zinc200 },
+  goalOn: { backgroundColor: colors.brand },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  pName: { fontSize: 15, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
+  pReason: { fontSize: 13, color: colors.zinc500 },
 });

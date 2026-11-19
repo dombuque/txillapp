@@ -22,11 +22,36 @@ import { SEARCH_RETENTION_DAYS } from './search-stats.service';
  * analytics.user_days (0122), atualizada de 30 em 30 minutos.
  */
 export const K = 20;
+/** Mínimo de contas numa semana para o funil de ativação mostrar as taxas (são taxas da operação: confirmar, seguir, publicar). */
+export const K_ACTIVATION = 5;
 /** Mínimo de pessoas diferentes para um item de conteúdo (hashtag, sítio, música, GIF) entrar num ranking. */
 export const MIN_PEOPLE = 3;
 export const ANALYSIS_DAYS = [7, 30, 90, 180] as const;
 export type AnalysisDays = (typeof ANALYSIS_DAYS)[number];
-export const PAGES = ['cohorts', 'engagement', 'content', 'geo', 'venues', 'geleira', 'search', 'health'] as const;
+export const PAGES = ['cohorts', 'engagement', 'content', 'geo', 'venues', 'geleira', 'search', 'health', 'features'] as const;
+
+/**
+ * As funcionalidades medidas na página «Funcionalidades»: de onde vem cada ação (tabela, quem a fez, quando, e um filtro).
+ * Só tabelas com a pessoa que fez a ação; nada de conteúdo, só contagens.
+ */
+export const FEATURES: { id: string; label: string; table: string; who: string; at: string; where?: string }[] = [
+  { id: 'posts', label: 'Publicações', table: 'content.posts', who: 'author_id', at: 'created_at', where: "x.kind = 'post' AND x.removed_at IS NULL" },
+  { id: 'stories', label: 'Mimos', table: 'content.stories', who: 'author_id', at: 'created_at' },
+  { id: 'zas', label: 'Zás', table: 'social.instants', who: 'author_id', at: 'created_at' },
+  { id: 'notes', label: 'Notas', table: 'social.notes', who: 'user_id', at: 'created_at' },
+  { id: 'chat', label: 'Mensagens a dois', table: 'social.messages', who: 'sender_id', at: 'created_at', where: "x.kind <> 'system' AND x.conversation_id IS NOT NULL" },
+  { id: 'groups', label: 'TxillGroups (mensagens)', table: 'social.messages', who: 'sender_id', at: 'created_at', where: "x.kind <> 'system' AND x.group_id IS NOT NULL" },
+  { id: 'calls', label: 'Chamadas', table: 'social.calls', who: 'caller_id', at: 'created_at' },
+  { id: 'txillada_host', label: 'Txillada (a transmitir)', table: 'content.txilladas', who: 'host_id', at: 'started_at' },
+  { id: 'txillada_chat', label: 'Txillada (a comentar)', table: 'content.txillada_comments', who: 'author_id', at: 'created_at' },
+  { id: 'mixar', label: 'Mixar (escolhas)', table: 'social.mixar_picks', who: 'user_id', at: 'created_at' },
+  { id: 'comments', label: 'Comentários', table: 'content.comments', who: 'author_id', at: 'created_at' },
+  { id: 'cheers', label: 'Brindes', table: 'content.cheers', who: 'user_id', at: 'created_at' },
+  { id: 'gifts', label: 'Presentes (vibes)', table: 'content.gifts', who: 'sender_id', at: 'created_at' },
+  { id: 'geleira', label: 'Geleira (gostos)', table: 'taste.user_items', who: 'user_id', at: 'created_at' },
+  { id: 'checkins', label: 'Check-ins', table: 'content.checkins', who: 'user_id', at: 'created_at' },
+  { id: 'ai', label: 'SuperTxill (IA)', table: 'social.ai_messages', who: 'user_id', at: 'created_at', where: "x.role = 'user'" },
+];
 export type AnalysisPage = (typeof PAGES)[number];
 
 const CACHE_MS = 10 * 60_000;
@@ -235,7 +260,43 @@ export class AnalysesService implements OnModuleInit {
       return { ...a, yes, no, liftW1: yes.w1 != null && no.w1 != null ? Math.round((yes.w1 - no.w1) * 10) / 10 : null, liftD1: yes.d1 != null && no.d1 != null ? Math.round((yes.d1 - no.d1) * 10) / 10 : null };
     });
 
+    // Funil de ativação por semana de registo: confirmou o e-mail (e em 24 h), seguiu 3+ e publicou na 1.ª semana, voltou
+    // entre o 1.º e o 7.º dia. Mínimo próprio (K_ACTIVATION): são taxas da operação, não do comportamento de alguém.
+    const actRows = await this.q(
+      `WITH c AS (SELECT u.id, u.created_at, u.email_verified_at, ${dayOf('u.created_at')} AS d0 FROM identity.users u WHERE ${ELIG('u')} AND u.created_at >= ${START})
+       SELECT to_char(date_trunc('week', c.d0)::date, 'YYYY-MM-DD') AS week, count(*)::int AS size,
+              count(*) FILTER (WHERE c.email_verified_at IS NOT NULL)::int AS confirmed,
+              count(*) FILTER (WHERE c.email_verified_at <= c.created_at + interval '24 hours')::int AS confirmed24h,
+              count(*) FILTER (WHERE (SELECT count(*) FROM social.follows fo WHERE fo.follower_id = c.id AND fo.created_at < c.created_at + interval '7 days') >= 3)::int AS followed3,
+              count(*) FILTER (WHERE EXISTS (SELECT 1 FROM content.posts p WHERE p.author_id = c.id AND p.created_at < c.created_at + interval '7 days'))::int AS posted,
+              count(*) FILTER (WHERE c.d0 + 7 < ${TODAY})::int AS b7,
+              count(*) FILTER (WHERE c.d0 + 7 < ${TODAY} AND EXISTS (SELECT 1 FROM analytics.user_days ud WHERE ud.user_id = c.id AND ud.day BETWEEN c.d0 + 1 AND c.d0 + 7))::int AS back7
+         FROM c GROUP BY 1 ORDER BY 1`,
+      f,
+    );
+    const rate = (a: unknown, b: number) => (b === 0 ? null : b >= K_ACTIVATION ? pct(n(a), b) : ('small' as const));
+    const pendingRow = (await this.pool.query(
+      `SELECT count(*)::int AS now, count(*) FILTER (WHERE last_seen_at > now() - interval '7 days')::int AS active7
+         FROM identity.users WHERE status = 'active' AND email_verified_at IS NULL`,
+    )).rows[0];
+    const activation = {
+      pending: { now: n(pendingRow?.now), active7: n(pendingRow?.active7) },
+      weeks: actRows.map((r) => {
+        const size = n(r.size);
+        return {
+          week: r.week as string,
+          size: size >= K_ACTIVATION ? size : null,
+          confirmed: rate(r.confirmed, size),
+          confirmed24h: rate(r.confirmed24h, size),
+          followed3: rate(r.followed3, size),
+          posted: rate(r.posted, size),
+          back7: rate(r.back7, n(r.b7)),
+        };
+      }),
+    };
+
     return {
+      activation,
       cohorts,
       curve,
       headline: { d1: point(1).pct, d7: point(7).pct, d30: point(30).pct, d1Base: point(1).base, d7Base: point(7).base, d30Base: point(30).base, stickiness: avgStick },
@@ -244,6 +305,58 @@ export class AnalysesService implements OnModuleInit {
       platforms,
       aha,
     };
+  }
+
+  /* ═════════════ 9. Funcionalidades ═════════════ */
+  /**
+   * Quem usa o quê: por funcionalidade, quantas pessoas a usaram no período (e no anterior, do mesmo tamanho), quantas
+   * ações, e a % das pessoas ativas; e as pessoas por dia de cada uma. Mínimo K_ACTIVATION pessoas para mostrar números.
+   */
+  async features(f: Filters) {
+    const union = FEATURES.map((x) => `SELECT '${x.id}'::text AS fid, x.${x.who} AS uid, x.${x.at} AS at FROM ${x.table} x WHERE x.${x.at} >= ${PREV_START}${x.where ? ` AND ${x.where}` : ''}`).join('\n UNION ALL ');
+    const rows = await this.q(
+      `WITH ev AS (${union}),
+            e AS (SELECT ev.fid, ev.uid, ev.at FROM ev JOIN identity.users u ON u.id = ev.uid AND ${ELIG('u')})
+       SELECT fid,
+              count(DISTINCT uid) FILTER (WHERE at >= ${START})::int AS people,
+              count(*) FILTER (WHERE at >= ${START})::int AS actions,
+              count(DISTINCT uid) FILTER (WHERE at < ${START})::int AS prev_people
+         FROM e GROUP BY fid`,
+      f,
+    );
+    const daily = await this.q(
+      `WITH ev AS (${union})
+       SELECT ev.fid, to_char(${dayOf('ev.at')}, 'YYYY-MM-DD') AS day, count(DISTINCT ev.uid)::int AS n
+         FROM ev JOIN identity.users u ON u.id = ev.uid AND ${ELIG('u')}
+        WHERE ev.at >= ${START} GROUP BY 1, 2 ORDER BY 2`,
+      f,
+    );
+    const active = n((await this.q(
+      `SELECT count(DISTINCT ud.user_id)::int AS n FROM analytics.user_days ud JOIN identity.users u ON u.id = ud.user_id AND ${ELIG('u')} WHERE ud.day >= ${FIRST_DAY}`,
+      f,
+    ))[0]?.n);
+    const byId = new Map(rows.map((r) => [r.fid as string, r]));
+    const show = (v: number) => (v >= K_ACTIVATION ? v : null);
+    const features = FEATURES.map((x) => {
+      const r = byId.get(x.id) ?? {};
+      const people = n((r as Record<string, unknown>).people);
+      const prev = n((r as Record<string, unknown>).prev_people);
+      return {
+        id: x.id,
+        label: x.label,
+        people: show(people),
+        actions: people >= K_ACTIVATION ? n((r as Record<string, unknown>).actions) : null,
+        perPerson: people >= K_ACTIVATION ? Math.round((n((r as Record<string, unknown>).actions) / people) * 10) / 10 : null,
+        reach: people >= K_ACTIVATION && active > 0 ? pct(people, active) : null,
+        prevPeople: show(prev),
+        change: people >= K_ACTIVATION && prev >= K_ACTIVATION ? Math.round(((people - prev) / prev) * 1000) / 10 : null,
+      };
+    }).sort((a, b) => (b.people ?? -1) - (a.people ?? -1));
+    // Pessoas por dia das 6 funcionalidades mais usadas (para o gráfico).
+    const top = features.filter((x) => x.people != null).slice(0, 6).map((x) => x.id);
+    const days = [...new Set(daily.map((d) => d.day as string))].sort();
+    const series = days.map((day) => Object.fromEntries([['day', day], ...top.map((id) => [id, n(daily.find((d) => d.day === day && d.fid === id)?.n)])]));
+    return { active: show(active), features, top: top.map((id) => ({ key: id, label: FEATURES.find((x) => x.id === id)!.label })), series };
   }
 
   /* ═════════════ 2. Envolvimento ═════════════ */

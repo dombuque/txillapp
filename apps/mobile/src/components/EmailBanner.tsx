@@ -11,10 +11,10 @@ export function EmailBanner() {
   const resend = useMutation({ mutationFn: api.resendVerification });
   if (!status.data?.required || status.data.verified) return null;
   const msg = resend.isSuccess && resend.data.sent
-    ? t('Enviámos um link novo para o teu e-mail. Vê também o spam.')
+    ? t('Enviámos um código novo para o teu e-mail. Vê também o spam.')
     : resend.isError
       ? t('Não consegui reenviar agora. Tenta daqui a pouco.')
-      : t('Ativa a tua conta para publicar, comentar e conversar: confirma o e-mail que te mandámos.');
+      : t('Ativa a tua conta para publicar, comentar e conversar: escreve o código de 6 dígitos que te mandámos por e-mail.');
   return (
     <Pressable onPress={openActivate} style={st.wrap} accessibilityRole="button" accessibilityLabel={t('Ativar a conta')}>
       <Icon name="mail" size={20} color="#b45309" />

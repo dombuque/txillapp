@@ -524,7 +524,7 @@ export class SocialService {
           AND NOT ${blockedBetween('u.id', '$1')}
           AND NOT EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
           AND NOT EXISTS (SELECT 1 FROM social.suggestion_dismissals d WHERE d.user_id = $1 AND d.dismissed_id = u.id)
-        ORDER BY mutual DESC, follows_me DESC, followers DESC, u.id DESC
+        ORDER BY mutual DESC, follows_me DESC, coalesce(u.last_seen_at > now() - interval '14 days', false) DESC, followers DESC, u.id DESC
         LIMIT $2`,
       [viewerId, limit],
     );

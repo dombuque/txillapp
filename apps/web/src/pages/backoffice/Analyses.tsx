@@ -6,6 +6,7 @@ import AnEngagement from './ui/an-engagement';
 import AnGeleira from './ui/an-geleira';
 import AnGeo from './ui/an-geo';
 import AnHealth from './ui/an-health';
+import AnFeatures from './ui/an-features';
 import AnSearch from './ui/an-search';
 import AnVenues from './ui/an-venues';
 
@@ -26,6 +27,7 @@ export default function BoAnalyses() {
       <Route path="geleira" element={<AnGeleira />} />
       <Route path="pesquisa" element={<AnSearch />} />
       <Route path="saude" element={<AnHealth />} />
+      <Route path="funcionalidades" element={<AnFeatures />} />
       <Route path="*" element={<Navigate to="coortes" replace />} />
     </Routes>
     </div>

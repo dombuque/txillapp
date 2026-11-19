@@ -8,7 +8,7 @@ import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
-import { ApiError, api, inviteStore, type Badged } from '@/lib/api';
+import { ApiError, api, inviteStore, openActivate, type Badged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { needsHumanCheck, registerStepFor, securityErrorText } from '@/lib/humanCheck';
@@ -162,6 +162,8 @@ export default function Register() {
         await signUp(body, await human.getToken());
       }
       void inviteStore.clear();
+      // Logo a seguir a criar a conta, o código de 6 dígitos que foi para o e-mail (sem sair da app; o link também vale).
+      setTimeout(openActivate, 600);
       // Daqui para a frente é o _layout (Gate) que leva ao Início (ou à página que se pediu antes de entrar): um só
       // `replace`, sem dois saltos seguidos. O botão fica em "a criar" até a página mudar (sem segundo registo com dois toques).
     } catch (x) {

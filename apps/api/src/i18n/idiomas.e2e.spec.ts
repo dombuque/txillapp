@@ -167,7 +167,8 @@ describe('Idiomas na API: erros no idioma do pedido, language na conta, pushes e
     const mail = app.get(MailService);
     const a = await signup('idg', { 'Accept-Language': 'en' });
     const first = mail.outbox.find((m) => m.to === `${a.username}@example.com`);
-    expect(first?.subject).toBe('Confirm your e-mail');
+    // O assunto leva o código de 6 dígitos (vê-se na notificação), no idioma da conta.
+    expect(first?.subject).toMatch(/^[0-9]{6} is your Txillapp code$/);
     expect(first?.html).toContain('<html lang="en">');
     expect(first?.text).toContain('Hi, idg!');
   });

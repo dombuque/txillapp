@@ -6,6 +6,10 @@ import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
 import { PushService } from '../push/push.service';
+import { sendingHours } from './comeback';
+
+/** Quem segue menos do que isto, um dia depois de confirmar a conta, recebe um aviso «Segue a malta» (uma vez). */
+export const FOLLOW_NUDGE_BELOW = 3;
 
 /** Dias depois de criar a conta em que se lembra (1.º, 2.º e 3.º lembrete). Depois disso não se insiste mais. */
 export const REMIND_AFTER_DAYS = [1, 3, 7] as const;
@@ -28,7 +32,35 @@ export class VerifyReminderService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.scheduler.every('reminders.verify', 3_600_000, () => this.run());
+    this.scheduler.every('reminders.verify', 3_600_000, () => this.run().then(() => this.nudgeFollow()));
+  }
+
+  /**
+   * «Segue a malta»: entre 20 h e 3 dias depois de criar a conta, já confirmada, a seguir menos de FOLLOW_NUDGE_BELOW
+   * pessoas: um aviso no telemóvel (uma vez por conta), só entre as 9h e as 20h de Maputo. Sem ninguém para seguir, o
+   * Início fica vazio e a pessoa não volta.
+   */
+  async nudgeFollow(limit = 200, now = new Date()): Promise<number> {
+    if (!sendingHours(now)) return 0;
+    const { rows } = await this.pool.query(
+      `SELECT u.id FROM identity.users u
+        WHERE u.status = 'active' AND u.email_verified_at IS NOT NULL AND u.follow_nudged_at IS NULL
+          AND u.created_at < now() - interval '20 hours' AND u.created_at > now() - interval '3 days'
+          AND (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id) < $1
+        ORDER BY u.created_at LIMIT $2`,
+      [FOLLOW_NUDGE_BELOW, limit],
+    );
+    for (const r of rows) {
+      const id = r.id as string;
+      await this.pool.query('UPDATE identity.users SET follow_nudged_at = now() WHERE id = $1', [id]);
+      void this.push.send(id, {
+        title: 'Segue a malta',
+        body: 'O teu Início ganha vida quando segues pessoas. Vê quem já está no Txillapp.',
+        url: '/',
+        tag: 'follow-nudge',
+      });
+    }
+    return rows.length;
   }
 
   async run(limit = 200): Promise<number> {
@@ -52,7 +84,7 @@ export class VerifyReminderService implements OnModuleInit {
       if (ok) sent++;
       void this.push.send(id, {
         title: 'Ativa a tua conta',
-        body: 'Falta só confirmares o e-mail para publicar, comentar e conversar. Enviámos-te um link novo.',
+        body: 'Falta só confirmares o e-mail para publicar, comentar e conversar. Enviámos-te um código novo.',
         url: '/',
         tag: 'verify-email',
       });

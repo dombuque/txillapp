@@ -54,7 +54,9 @@ describe('e-mail: confirmar conta e recuperar senha (integração)', () => {
   it('conta nova recebe o e-mail de confirmação e só publica depois de o confirmar', async () => {
     const u = await signup('conf');
     const m = await mailTo(u.email);
-    expect(m.subject).toBe('Confirma o teu e-mail');
+    // O código de 6 dígitos vai no assunto (vê-se na notificação) e no corpo, além do link.
+    expect(m.subject).toMatch(/^[0-9]{6} é o teu código do Txillapp$/);
+    expect(m.text).toContain(`Escreve este código na app: ${m.subject.slice(0, 6)}`);
     expect(m.text).toContain('https://txillapp.com/verify-email?token=');
     expect(m.html).toContain('icon-192.png');
 
@@ -157,5 +159,47 @@ describe('e-mail: confirmar conta e recuperar senha (integração)', () => {
     expect((await api().get('/api/v1/auth/email/status').set(u.auth).expect(200)).body).toEqual({ required: true, verified: true });
     // Depois de ativada, já não se muda por aqui.
     await api().post('/api/v1/auth/email/change').set(u.auth).send({ email: `outro${run}@example.com` }).expect(400);
+  });
+
+  it('confirmar com o código de 6 dígitos na app (0182): errado conta, 5 enganos anulam, o novo vale', async () => {
+    const u = await signup('codigo');
+    const code = (await mailTo(u.email)).subject.slice(0, 6);
+    const wrong = code === '000000' ? '111111' : '000000';
+    await api().post('/api/v1/auth/email/verify-code').send({ code }).expect(401);
+    const bad = await api().post('/api/v1/auth/email/verify-code').set(u.auth).send({ code: wrong }).expect(400);
+    expect(bad.body.message).toBe('O código não está certo. Vê outra vez o e-mail.');
+    expect((await api().post('/api/v1/auth/email/verify-code').set(u.auth).send({ code: `${code.slice(0, 3)} ${code.slice(3)}` }).expect(200)).body).toEqual({ ok: true });
+    expect((await api().get('/api/v1/auth/email/status').set(u.auth).expect(200)).body).toEqual({ required: true, verified: true });
+    // O link do mesmo e-mail deixa de valer (já está ativada).
+    await api().post('/api/v1/posts').set(u.auth).send({ body: 'Já confirmei' }).expect(201);
+
+    const v = await signup('codigo5');
+    const first = (await mailTo(v.email)).subject.slice(0, 6);
+    const other = first === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 4; i++) await api().post('/api/v1/auth/email/verify-code').set(v.auth).send({ code: other }).expect(400);
+    const last = await api().post('/api/v1/auth/email/verify-code').set(v.auth).send({ code: other }).expect(400);
+    expect(last.body.message).toBe('Este código já não vale. Pede um novo.');
+    // Gasto: nem o certo vale; pede-se um novo (reenviar), que vale.
+    await api().post('/api/v1/auth/email/verify-code').set(v.auth).send({ code: first }).expect(400);
+    await api().post('/api/v1/auth/email/resend').set(v.auth).expect(200);
+    const fresh = (await mailTo(v.email, 2)).subject.slice(0, 6);
+    await api().post('/api/v1/auth/email/verify-code').set(v.auth).send({ code: fresh }).expect(200);
+  });
+
+  it('«Segue a malta»: um aviso, uma vez, no dia a seguir, a quem confirmou e segue menos de 3; só de dia em Maputo', async () => {
+    const rem = app.get(VerifyReminderService);
+    const u = await signup('segue');
+    await pool.query(`UPDATE identity.users SET created_at = now() - interval '1 day', email_verified_at = now() WHERE id = $1`, [u.id]);
+    const night = new Date(Date.UTC(2026, 10, 19, 21, 0)); // 23h em Maputo
+    const day = new Date(Date.UTC(2026, 10, 19, 8, 0)); // 10h em Maputo
+    expect(await rem.nudgeFollow(200, night)).toBe(0);
+    expect(await rem.nudgeFollow(200, day)).toBeGreaterThanOrEqual(1);
+    const at = async () => (await pool.query('SELECT follow_nudged_at FROM identity.users WHERE id = $1', [u.id])).rows[0].follow_nudged_at;
+    expect(await at()).toBeTruthy();
+    // Uma vez só.
+    await pool.query("UPDATE identity.users SET follow_nudged_at = NULL WHERE id <> $1 AND follow_nudged_at IS NULL", [u.id]);
+    const before = await at();
+    await rem.nudgeFollow(200, day);
+    expect((await at()).getTime()).toBe(before.getTime());
   });
 });

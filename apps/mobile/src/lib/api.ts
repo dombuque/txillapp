@@ -909,6 +909,8 @@ export const api = {
   /** Corrigir o e-mail (só enquanto a conta não está ativada); manda o link para o novo. */
   changeEmail: (email: string): Promise<{ sent: boolean; email: string }> => raw('/auth/email/change', post({ email })),
   resendVerification: (): Promise<{ sent: boolean }> => raw('/auth/email/resend', { method: 'POST' }),
+  /** O código de 6 dígitos do e-mail, escrito na app (0182). */
+  verifyEmailCode: (code: string): Promise<{ ok: true }> => raw('/auth/email/verify-code', post({ code })),
   /** "A escrever…" nos comentários de uma publicação. */
   typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),
   typers: async (postId: string): Promise<string[]> => ((await raw(`/presence/typing?postId=${postId}`)) as { names: string[] }).names,

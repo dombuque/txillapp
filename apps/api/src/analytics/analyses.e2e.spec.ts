@@ -272,4 +272,18 @@ describe('Análises do backoffice (integração)', () => {
     expect(push.enabledPct).toBe(0);
     expect(h.push.find((x: { platform: string }) => x.platform === 'ios').enabledPct).toBeNull(); // 4 pessoas
   });
+
+  it('funcionalidades e funil de ativação: agregados, e o que tem menos de 5 pessoas fica escondido', async () => {
+    const r = (await get('features').expect(200)).body;
+    expect(r.active).toBe(28);
+    const posts = r.features.find((x: { id: string }) => x.id === 'posts');
+    expect(posts.people).toBeNull(); // 1 pessoa publicou: escondido
+    expect(posts.actions).toBeNull();
+    expect(r.features.map((x: { id: string }) => x.id)).toEqual(expect.arrayContaining(['stories', 'zas', 'notes', 'chat', 'calls', 'txillada_host', 'mixar', 'gifts', 'ai']));
+    const c = (await get('cohorts').expect(200)).body;
+    expect(c.activation.pending.now).toEqual(expect.any(Number));
+    const big = c.activation.weeks.find((w: { size: number | null }) => w.size === 25);
+    expect(big).toBeTruthy();
+    expect(c.activation.weeks.find((w: { size: number | null }) => w.size === null).confirmed).toBe('small');
+  });
 });

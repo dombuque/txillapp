@@ -22,6 +22,8 @@ interface LayoutOpts {
   outro: string;
   /** Ligação no rodapé (ex.: "Deixar de receber estes lembretes"). */
   footer?: { label: string; url: string };
+  /** Código para escrever na app (6 dígitos), em grande antes do botão; e no assunto, para se ver na notificação. */
+  code?: { label: string; value: string; subject: string };
 }
 
 function layout(publicUrl: string, o: LayoutOpts, lang: Lang): Mail {
@@ -31,20 +33,23 @@ function layout(publicUrl: string, o: LayoutOpts, lang: Lang): Mail {
 <tr><td><img src="${esc(publicUrl)}/icon-192.png" width="56" height="56" alt="Txillapp" style="border-radius:14px;display:block"></td></tr>
 <tr><td style="padding-top:20px;font-size:22px;font-weight:800">${esc(o.title)}</td></tr>
 <tr><td style="padding-top:12px;font-size:16px;line-height:1.5;color:#3f3f46">${esc(o.intro)}</td></tr>
-<tr><td style="padding-top:24px"><a href="${esc(o.url)}" style="display:inline-block;background:#d6334f;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:14px 28px;border-radius:999px">${esc(o.button)}</a></td></tr>
+${o.code ? `<tr><td style="padding-top:20px;font-size:14px;color:#3f3f46">${esc(o.code.label)}</td></tr>
+<tr><td style="padding-top:8px"><div style="display:inline-block;background:#fdf2f4;border-radius:16px;padding:14px 22px;font-size:34px;font-weight:800;letter-spacing:8px;color:#18181b;font-family:ui-monospace,Menlo,Consolas,monospace">${esc(o.code.value)}</div></td></tr>
+` : ''}<tr><td style="padding-top:24px"><a href="${esc(o.url)}" style="display:inline-block;background:#d6334f;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:14px 28px;border-radius:999px">${esc(o.button)}</a></td></tr>
 <tr><td style="padding-top:24px;font-size:13px;line-height:1.5;color:#71717a">${esc(t('Se o botão não abrir, copia este endereço para o navegador:', {}, lang))}<br><a href="${esc(o.url)}" style="color:#d6334f;word-break:break-all">${esc(o.url)}</a></td></tr>
 <tr><td style="padding-top:20px;font-size:13px;line-height:1.5;color:#71717a">${esc(o.outro)}</td></tr>
 </table>
 <p style="font-size:12px;color:#71717a;margin:16px 0 0">Txillapp · <a href="${esc(publicUrl)}" style="color:#71717a">txillapp.com</a></p>
 ${o.footer ? `<p style="font-size:12px;color:#71717a;margin:8px 0 0"><a href="${esc(o.footer.url)}" style="color:#71717a">${esc(o.footer.label)}</a></p>\n` : ''}</td></tr></table></body></html>`;
-  const text = `${o.title}\n\n${o.intro}\n\n${o.button}: ${o.url}\n\n${o.outro}\n\nTxillapp · ${publicUrl}${o.footer ? `\n\n${o.footer.label}: ${o.footer.url}` : ''}`;
-  return { subject: o.title, text, html };
+  const text = `${o.title}\n\n${o.intro}\n\n${o.code ? `${o.code.label} ${o.code.value}\n\n` : ''}${o.button}: ${o.url}\n\n${o.outro}\n\nTxillapp · ${publicUrl}${o.footer ? `\n\n${o.footer.label}: ${o.footer.url}` : ''}`;
+  return { subject: o.code ? o.code.subject : o.title, text, html };
 }
 
-export function verifyEmailMail(publicUrl: string, name: string, token: string, lang: Lang = 'pt'): Mail {
+export function verifyEmailMail(publicUrl: string, name: string, token: string, lang: Lang = 'pt', code?: string): Mail {
   return layout(publicUrl, {
     title: t('Confirma o teu e-mail', {}, lang),
     intro: t('Olá, {name}! Falta só confirmar que este e-mail é teu para poderes publicar, comentar e conversar no Txillapp.', { name }, lang),
+    ...(code ? { code: { label: t('Escreve este código na app:', {}, lang), value: code, subject: t('{code} é o teu código do Txillapp', { code }, lang) } } : {}),
     button: t('Confirmar e-mail', {}, lang),
     url: `${publicUrl}/verify-email?token=${encodeURIComponent(token)}`,
     outro: t('O link vale 48 horas. Se não criaste uma conta no Txillapp, ignora esta mensagem.', {}, lang),

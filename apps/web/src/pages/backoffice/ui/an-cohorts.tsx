@@ -10,6 +10,11 @@ interface Cohorts {
   all: Cell;
   platforms: ({ platform: string } & Cell)[];
   aha: { id: string; label: string; yes: Cell; no: Cell; liftW1: number | null; liftD1: number | null }[];
+  /** Funil de ativação por semana de registo (% de cada coorte; 'small' = coorte pequena, null = ainda cedo). */
+  activation?: {
+    pending: { now: number; active7: number };
+    weeks: { week: string; size: number | null; confirmed: number | 'small' | null; confirmed24h: number | 'small' | null; followed3: number | 'small' | null; posted: number | 'small' | null; back7: number | 'small' | null }[];
+  };
 }
 
 /** Coortes semanais, curvas D1/D7/D30, DAU/MAU e "quem volta" (o momento aha). */
@@ -38,6 +43,21 @@ export default function AnCohorts() {
             <AnTile label="Voltam no dia 30 (D30)" value={<Num v={r.headline.d30} pct />} hint={<>de <Num v={r.headline.d30Base} /> contas novas</>} />
             <AnTile label="Stickiness média (DAU/MAU)" value={fmtPct(r.headline.stickiness)} hint="média dos dias do período" />
           </AnGrid>
+
+          {r.activation ? (
+            <AnCard title="Funil de ativação" hint="De quem se registou em cada semana: % que confirmou o e-mail (e em 24 h), seguiu 3 ou mais e publicou na 1.ª semana, e voltou entre o 1.º e o 7.º dia">
+              <p className="mb-3 text-sm text-zinc-600">
+                Agora: <b><Num v={r.activation.pending.now} /></b> contas por confirmar, das quais <b><Num v={r.activation.pending.active7} /></b> abriram a app nos últimos 7 dias.
+              </p>
+              {r.activation.weeks.length === 0 ? <p className="text-sm text-zinc-500">Sem registos no período.</p> : (
+                <AnTable
+                  head={['Semana de', 'Pessoas', 'Confirmaram', 'Em 24 h', 'Seguiram 3+', 'Publicaram', 'Voltaram (sem. 1)']}
+                  align={['l', 'r', 'r', 'r', 'r', 'r', 'r']}
+                  rows={r.activation.weeks.map((w) => [fmtDay(w.week), <Num key="n" v={w.size} />, <PctCell key="a" v={w.confirmed} />, <PctCell key="b" v={w.confirmed24h} />, <PctCell key="c" v={w.followed3} />, <PctCell key="d" v={w.posted} />, <PctCell key="e" v={w.back7} />])}
+                />
+              )}
+            </AnCard>
+          ) : null}
 
           <AnCard title="Coortes semanais de registo" hint="% de cada coorte com atividade na semana N depois do registo">
             {r.cohorts.length === 0 ? <p className="text-sm text-zinc-500">Sem registos no período.</p> : (

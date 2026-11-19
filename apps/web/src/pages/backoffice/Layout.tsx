@@ -37,6 +37,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Análises', items: [
     { to: '/backoffice/analises/coortes', label: 'Coortes e retenção', icon: 'repeat', perm: 'insights.view' },
     { to: '/backoffice/analises/envolvimento', label: 'Envolvimento', icon: 'flame', perm: 'insights.view' },
+    { to: '/backoffice/analises/funcionalidades', label: 'Funcionalidades', icon: 'grid', perm: 'insights.view' },
     { to: '/backoffice/analises/conteudo', label: 'Conteúdo e tendências', icon: 'sparkles', perm: 'insights.view' },
     { to: '/backoffice/analises/geografia', label: 'Geografia', icon: 'globe', perm: 'insights.view' },
     { to: '/backoffice/analises/locais', label: 'Locais', icon: 'store', perm: 'insights.view' },
