@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
@@ -5,6 +6,8 @@ import { HEADER_AVATAR_BOTTOM, HEADER_AVATAR_LEFT, HEADER_AVATAR_SIZE } from '@/
 import { Icon } from '@/components/Icon';
 import { peerBioLabel, peerBioLines, peerNoteLabel, peerNoteLines, type PeerBubble } from '@/lib/chatPeerNote';
 import { NOTE_WHITE, noteTone } from '@/lib/noteLook';
+import { gifShown, validGif } from '@/lib/gifs';
+import { useReduceMotion } from '@/lib/reduceMotion';
 import { colors } from '@/lib/theme';
 
 // Onde ficam as bolinhas e o balão, a contar do fundo do cabeçalho (y = 0) e da esquerda do ecrã. A foto acaba
@@ -67,7 +70,13 @@ export function PeerNoteBubble({ bubble, name, online, open, reduceMotion, onPre
   }));
 
   const isBio = bubble.kind === 'bio';
-  const { text, track } = isBio ? { text: bubble.text, track: '' } : peerNoteLines(bubble.note);
+  const lines = isBio ? { text: bubble.text, track: '' } : peerNoteLines(bubble.note);
+  // Nota com GIF: o próprio GIF em pequeno no balão (não a palavra «GIF»); com texto, o GIF vai por cima dele.
+  const reduce = useReduceMotion();
+  const gif = !isBio && bubble.note.gif && validGif(bubble.note.gif) ? bubble.note.gif : null;
+  const shownGif = gif ? gifShown(gif) : null;
+  const text = gif && bubble.kind !== 'bio' && !bubble.note.body.trim() ? '' : lines.text;
+  const track = lines.track;
   const label = isBio ? peerBioLabel(name, bubble.text) : peerNoteLabel(name, bubble.note);
   // A cor da bolha que a pessoa escolheu para a nota (lib/noteLook); a bio fica sempre na branca.
   const tone = noteTone(isBio ? null : bubble.note.color);
@@ -89,9 +98,15 @@ export function PeerNoteBubble({ bubble, name, online, open, reduceMotion, onPre
           aria-hidden={hidden}
           style={({ pressed }) => [st.bubble, tinted && { backgroundColor: tone.bg }, pressed && (tinted ? { opacity: 0.85 } : { backgroundColor: colors.zinc100 })]}
         >
+          {gif && shownGif ? (
+            <View style={st.line}>
+              {online && !text ? <View style={st.online} /> : null}
+              <Image source={{ uri: reduce && shownGif.still ? shownGif.still : shownGif.url }} autoplay={!reduce} style={{ height: 64, width: Math.round(Math.min(120, (64 * gif.w) / Math.max(1, gif.h))), borderRadius: 10 }} contentFit="contain" accessibilityIgnoresInvertColors />
+            </View>
+          ) : null}
           {!!text && (
             <View style={st.line}>
-              {online ? <View style={st.online} /> : null}
+              {online && !gif ? <View style={st.online} /> : null}
               {isBio ? <Icon name="user" size={14} strokeWidth={2} color={colors.zinc500} /> : null}
               <Text style={[isBio ? st.bio : st.text, tinted && { color: tone.text }]} numberOfLines={isBio ? peerBioLines(width) : 2} ellipsizeMode="tail">{text}</Text>
             </View>

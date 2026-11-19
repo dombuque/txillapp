@@ -716,7 +716,7 @@ export function Bubble({
   } else {
     // Resposta a uma nota: o servidor manda «Em resposta à tua nota “…”: texto», ou só a linha quando a resposta foi um GIF
     // (a reação Txillapp vem na mensagem seguinte). Se a nota era um GIF, ele vem em `m.gif` e aparece na citação.
-    const noteReply = m.kind === 'text' ? /^Em resposta à tua nota “([sS]*?)”(?:: ([sS]*))?$/.exec(m.body) : null;
+    const noteReply = m.kind === 'text' ? /^Em resposta à tua nota “([\s\S]*?)”(?:: ([\s\S]*))?$/.exec(m.body) : null;
     const shown = noteReply ? (noteReply[2] ?? '') : m.body;
     const noteGif = noteReply && m.gif && validGif(m.gif) ? m.gif : null;
     content = (
