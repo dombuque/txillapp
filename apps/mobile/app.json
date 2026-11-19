@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.59.4",
+    "version": "1.59.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -65,7 +65,7 @@
     },
     "android": {
       "package": "com.txillapp.app",
-      "versionCode": 111,
+      "versionCode": 112,
       "adaptiveIcon": {
         "backgroundColor": "#D5334E",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -84,7 +84,8 @@
         "BLUETOOTH_CONNECT",
         "ACCESS_NETWORK_STATE",
         "CHANGE_NETWORK_STATE",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "READ_CONTACTS"
       ],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
@@ -97,13 +98,13 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.USE_FULL_SCREEN_INTENT",
         "android.permission.QUERY_ALL_PACKAGES",
-        "android.permission.READ_CONTACTS",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.USE_EXACT_ALARM",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.FOREGROUND_SERVICE_PHONE_CALL"
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+        "android.permission.WRITE_CONTACTS"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -200,7 +201,13 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "O Txillapp lê os emails dos teus contactos, só no telemóvel, para te mostrar quem já está no Txillapp. Os contactos nunca saem do telemóvel."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

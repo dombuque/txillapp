@@ -24,7 +24,7 @@ chumbado. Falta o que só o dono pode fazer: conta, chave de upload, declaraçõ
 
 Também ficaram bloqueadas, por precaução, permissões que nenhum módulo pede hoje mas que um módulo novo poderia trazer
 sem darmos por isso: `REQUEST_INSTALL_PACKAGES`, `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT`,
-`QUERY_ALL_PACKAGES`, `READ_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `READ_MEDIA_AUDIO`,
+`QUERY_ALL_PACKAGES`, `WRITE_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `READ_MEDIA_AUDIO`,
 `ACCESS_MEDIA_LOCATION`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `FOREGROUND_SERVICE_LOCATION` e
 `FOREGROUND_SERVICE_PHONE_CALL`.
 
@@ -45,6 +45,7 @@ chamadas. Confirma-se outra vez no .aab com `bundletool dump manifest --bundle a
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_CAMERA` | `plugins/withCallService.js` | o `CallService`: a chamada continua com a app fora do ecrã | **sim**: «Serviços em primeiro plano» (texto e vídeo mais abaixo) |
 | `BLUETOOTH_CONNECT` | app | **só para o som das chamadas** passar para auscultadores/carro Bluetooth (o WebRTC pede-a no Android 12+). Não procura aparelhos: sem `BLUETOOTH_SCAN` e sem localização ligada a Bluetooth. | não |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | app | «Perto», sugerir sítios, partilhar a localização numa conversa. **Só em primeiro plano** (`requestForegroundPermissionsAsync`, `watchPositionAsync`). Sem `ACCESS_BACKGROUND_LOCATION`. | não (Data safety: localização precisa e aproximada) |
+| `READ_CONTACTS` | app, expo-contacts | **só** «Amigos nos contactos» (Definições e o passo «Segue a malta» das boas-vindas). Antes do pedido do sistema, a app explica o uso (aviso em destaque). Lê só os emails, cifra-os no telemóvel (SHA-256) e envia os resumos para comparar; não guarda nem os resumos nem os contactos. `WRITE_CONTACTS` fica bloqueada. | não (Data safety: Contactos, recolhidos, não partilhados, não guardados, opcional) |
 | `POST_NOTIFICATIONS` | app, expo-notifications | notificações (Android 13+). O pedido aparece **em contexto**: no passo a passo depois de entrar na conta, com a explicação «Para saberes logo quando a malta te escreve…», e pode ficar para depois. Nunca aparece no arranque sem sessão. | não |
 | `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `com.google.android.c2dm.permission.RECEIVE`, `com.txillapp.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | app, expo-notifications, Firebase, AndroidX | notificações e toque de chamada | não |
 | `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion=32`) | modelo, expo-media-library | **só até ao Android 12**: guardar na galeria. No Android 13+ não existem e guardar não precisa de licença. | não (fora da política de fotos, que é para `READ_MEDIA_*`) |
@@ -54,7 +55,7 @@ chamadas. Confirma-se outra vez no .aab com `bundletool dump manifest --bundle a
 
 **Não estão no manifesto, e convém que continuem fora:** `REQUEST_INSTALL_PACKAGES`, `READ_MEDIA_IMAGES`,
 `READ_MEDIA_VIDEO`, `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT`, `SYSTEM_ALERT_WINDOW`,
-`QUERY_ALL_PACKAGES`, `READ_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM` e qualquer `FOREGROUND_SERVICE_*` além de `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` e `FOREGROUND_SERVICE_CAMERA`.
+`QUERY_ALL_PACKAGES`, `WRITE_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM` e qualquer `FOREGROUND_SERVICE_*` além de `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` e `FOREGROUND_SERVICE_CAMERA`.
 
 ### Fotos e vídeos sem `READ_MEDIA_*`
 

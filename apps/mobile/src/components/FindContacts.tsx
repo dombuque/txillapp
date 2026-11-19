@@ -7,7 +7,7 @@ import { Icon } from '@/components/Icon';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Sheet } from '@/components/Sheet';
 import { pushApi, type ContactMatch } from '@/lib/api.settings';
-import { canPickContacts, chooseContactsFile, emailsFromFile, hashAll, pickContactEmails } from '@/lib/contacts';
+import { canPickContacts, chooseContactsFile, emailsFromFile, hashAll, nativeContacts, pickContactEmails } from '@/lib/contacts';
 import { colors } from '@/lib/theme';
 import { t } from '@/lib/i18n';
 
@@ -53,7 +53,9 @@ export function FindContacts({ onClose }: { onClose: () => void }) {
                   <Icon name="users" size={20} color="#fff" />
                   <Text style={st.primaryText}>{busy ? t('A procurar…') : t('Permitir acesso aos contactos')}</Text>
                 </Pressable>
-                <Text style={st.small}>{t('O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).')}</Text>
+                <Text style={st.small}>{nativeContacts
+                  ? t('O telemóvel vai pedir a tua permissão. Só lemos os emails dos contactos, aqui no telemóvel, e nunca os guardamos.')
+                  : t('O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).')}</Text>
               </>
             ) : (
               <View style={st.box}>

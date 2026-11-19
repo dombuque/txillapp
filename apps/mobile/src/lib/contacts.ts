@@ -1,20 +1,40 @@
 /**
- * Encontrar amigos nos contactos (só na web). Os contactos nunca saem do aparelho: só se envia o resumo (SHA-256) dos emails.
- * Porta de apps/web/src/lib/contacts.ts: Android (Chrome) tem o seletor do sistema; iPhone e computador importam um ficheiro (.vcf ou .csv).
+ * Encontrar amigos nos contactos. Os contactos nunca saem do aparelho: só se envia o resumo (SHA-256) dos emails.
+ * Na app (Android e iPhone): a permissão normal do sistema e os emails dos contactos (expo-contacts). Na web: o Android
+ * (Chrome) tem o seletor do sistema; iPhone e computador importam um ficheiro (.vcf ou .csv).
  */
+import { Platform } from 'react-native';
 import { t } from '@/lib/i18n';
+
+/** Na app instalada (não na web): lê os contactos com a permissão do sistema. */
+export const nativeContacts = Platform.OS === 'android' || Platform.OS === 'ios';
+/** Máximo de emails enviados de uma vez (o servidor também limita). */
+export const MAX_CONTACT_EMAILS = 2000;
 interface ContactsManager { select(props: string[], opts?: { multiple?: boolean }): Promise<{ email?: string[] }[]> }
 const manager = (): ContactsManager | null => {
   const c = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { contacts?: ContactsManager }).contacts;
   return c && typeof c.select === 'function' ? c : null;
 };
-export const canPickContacts = () => manager() !== null;
+export const canPickContacts = () => nativeContacts || manager() !== null;
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 export function emailsFromText(text: string): string[] {
   return [...new Set((text.match(EMAIL) ?? []).map((e) => e.trim().toLowerCase()))].slice(0, 2000);
 }
 export async function pickContactEmails(): Promise<string[]> {
+  if (nativeContacts) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Contacts = require('expo-contacts') as typeof import('expo-contacts');
+    const perm = await Contacts.requestPermissionsAsync();
+    if (perm.status !== 'granted') {
+      const e = new Error(t('Sem a permissão não conseguimos ver os teus contactos. Podes dá-la nas definições do telemóvel.'));
+      e.name = perm.canAskAgain === false ? 'Denied' : 'NotAllowedError';
+      throw e;
+    }
+    const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Emails] });
+    const all = data.flatMap((c) => (c.emails ?? []).map((x) => (x.email ?? '').trim().toLowerCase())).filter((x) => x.includes('@'));
+    return [...new Set(all)].slice(0, MAX_CONTACT_EMAILS);
+  }
   const m = manager();
   if (!m) throw new Error(t('Este telemóvel não deixa escolher contactos pela app'));
   const picked = await m.select(['email'], { multiple: true });
@@ -25,6 +45,12 @@ export async function emailsFromFile(file: File): Promise<string[]> {
   return emailsFromText(await file.text());
 }
 export async function hashEmail(email: string): Promise<string> {
+  if (nativeContacts) {
+    // Na app não há crypto.subtle: o mesmo SHA-256 em hexadecimal pelo expo-crypto.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Crypto = require('expo-crypto') as typeof import('expo-crypto');
+    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, email.trim().toLowerCase(), { encoding: Crypto.CryptoEncoding.HEX });
+  }
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }

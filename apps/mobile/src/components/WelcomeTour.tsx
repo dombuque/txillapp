@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
@@ -10,6 +10,8 @@ import { useAuth } from '@/lib/auth';
 import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
 import { NameWithBadge } from './NameWithBadge';
+import { FindContacts } from './FindContacts';
+import { canPickContacts } from '@/lib/contacts';
 import { useOverlay } from '@/lib/overlays';
 import { colors, typo } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
@@ -38,6 +40,7 @@ export const FOLLOW_GOAL = 3;
  */
 function FollowStep({ following }: { following: number }) {
   const sugg = useQuery({ queryKey: ['welcome-suggestions'], queryFn: feedApi.suggestions, staleTime: Infinity });
+  const [contacts, setContacts] = useState(false);
   const people: Suggestion[] = (sugg.data ?? []).slice(0, 8);
   const done = Math.min(following, FOLLOW_GOAL);
   return (
@@ -59,6 +62,13 @@ function FollowStep({ following }: { following: number }) {
         ))}
         {sugg.isSuccess && people.length === 0 ? <Text style={st.pReason}>{t('Ainda não há sugestões. Procura pessoas na Pesquisar.')}</Text> : null}
       </ScrollView>
+      {canPickContacts() ? (
+        <Pressable onPress={() => setContacts(true)} style={st.contacts} accessibilityRole="button">
+          <Icon name="users" size={18} color={colors.brand} />
+          <Text style={st.contactsText}>{t('Procurar amigos nos meus contactos')}</Text>
+        </Pressable>
+      ) : null}
+      {contacts ? <FindContacts onClose={() => setContacts(false)} /> : null}
     </View>
   );
 }
@@ -141,4 +151,6 @@ const st = StyleSheet.create({
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   pName: { fontSize: 15, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
   pReason: { fontSize: 13, color: colors.zinc500 },
+  contacts: { marginTop: 8, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.rose50 },
+  contactsText: { fontSize: 15, fontWeight: '700', color: colors.brand },
 });

@@ -72,7 +72,8 @@ const MUST_BLOCK = [
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.USE_FULL_SCREEN_INTENT',
   'android.permission.QUERY_ALL_PACKAGES',
-  'android.permission.READ_CONTACTS',
+  // Ler os contactos é pedido (Amigos nos contactos, 2026-11-19); escrever neles nunca.
+  'android.permission.WRITE_CONTACTS',
   'android.permission.SCHEDULE_EXACT_ALARM',
   'android.permission.USE_EXACT_ALARM',
   'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
@@ -91,7 +92,9 @@ test('o app.json bloqueia as permissões que o Play não deixa ou que a app não
 test('a localização é só em primeiro plano e as permissões pedidas são as que a app usa', () => {
   const asked = android.permissions;
   assert.ok(asked.includes('ACCESS_FINE_LOCATION') && asked.includes('ACCESS_COARSE_LOCATION'));
-  assert.ok(!asked.some((p) => /BACKGROUND_LOCATION|INSTALL_PACKAGES|READ_MEDIA|FULL_SCREEN|SYSTEM_ALERT|CONTACTS|EXACT_ALARM|QUERY_ALL/.test(p)));
+  assert.ok(!asked.some((p) => /BACKGROUND_LOCATION|INSTALL_PACKAGES|READ_MEDIA|FULL_SCREEN|SYSTEM_ALERT|WRITE_CONTACTS|EXACT_ALARM|QUERY_ALL/.test(p)));
+  // READ_CONTACTS: só para «Amigos nos contactos», com o aviso antes da permissão (FindContacts) e só os emails cifrados.
+  assert.ok(asked.includes('READ_CONTACTS'));
   // BLUETOOTH_CONNECT: só para o som das chamadas ir para auscultadores Bluetooth (justificado em docs/lojas/google-play.md).
   assert.ok(asked.includes('BLUETOOTH_CONNECT'));
 });
