@@ -320,16 +320,12 @@ export default function Search() {
           <>
             {/* Separadores numa linha que desliza (nunca partem em duas linhas); o número vai numa bolinha ao lado do nome. */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs} accessibilityRole="tablist">
-              {([['people', t('Pessoas'), q.data ? people.length : null], ['venues', t('Locais'), q.data ? foundVenues.length : null], ['tags', '#Tags', q.data ? tags.length : null], ['posts', t('Publicações'), q.data ? posts.length : null], ['mentions', t('Menções'), mq.data ? mentions.length : null]] as const).map(([k, label, n]) => {
+              {/* Só os nomes, sem contagens (como nas outras redes): «Pessoas», «Locais»… */}
+              {([['people', t('Pessoas')], ['venues', t('Locais')], ['tags', '#Tags'], ['posts', t('Publicações')], ['mentions', t('Menções')]] as const).map(([k, label]) => {
                 const on = tab === k;
                 return (
-                  <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={n == null ? label : `${label}, ${n}`} style={[chipBase, { backgroundColor: on ? colors.zinc900 : colors.zinc100 }]}>
+                  <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} style={[chipBase, { backgroundColor: on ? colors.zinc900 : colors.zinc100 }]}>
                     <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '700', color: on ? '#fff' : colors.zinc800 }}>{label}</Text>
-                    {n != null && (
-                      <View style={[styles.tabCount, { backgroundColor: on ? 'rgba(255,255,255,0.18)' : n > 0 ? colors.white : 'transparent' }]}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : n > 0 ? colors.zinc700 : colors.zinc500 }}>{n > 99 ? '99+' : n}</Text>
-                      </View>
-                    )}
                   </Pressable>
                 );
               })}
@@ -424,7 +420,6 @@ const styles = StyleSheet.create({
   recentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabsScroll: { flexGrow: 0, marginBottom: 8 },
   tabs: { paddingHorizontal: 16, gap: 8 },
-  tabCount: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   pName: { fontSize: 16, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   pHandle: { fontSize: 14, color: colors.zinc600 },
