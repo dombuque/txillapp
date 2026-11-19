@@ -99,10 +99,10 @@ describe('cada país é a sua rede (integração)', () => {
     expect(await tagPage(u.mz2)).toContain(p.id);
     expect(await tagPage(u.mz2)).not.toContain(q.id);
 
-    // Pessoas: a pessoa de outro país não aparece na pesquisa nem nas sugestões.
+    // Pessoas: procurar pelo nome encontra quem está noutro país (decisão do dono, 2026-11-19); as sugestões não o mostram.
     const people = async (x: U, name: string) => ((await api().get(`/api/v1/search?q=${name}`).set(as(x)).expect(200)).body.people as { username: string }[]).map((i) => i.username);
     expect(await people(u.mz2, u.mz1.username)).toContain(u.mz1.username);
-    expect(await people(u.mz2, u.za.username)).not.toContain(u.za.username);
+    expect(await people(u.mz2, u.za.username)).toContain(u.za.username);
     const sug = ((await api().get('/api/v1/suggestions/people').set(as(u.mz2)).expect(200)).body as { username: string }[]).map((i) => i.username);
     expect(sug).not.toContain(u.za.username);
   });

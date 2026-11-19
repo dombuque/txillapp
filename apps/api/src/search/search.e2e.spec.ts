@@ -114,4 +114,12 @@ describe('hashtags, em alta e pesquisa melhor (integração)', () => {
     expect(onlyTags.tags.map((t: { tag: string }) => t.tag)).toContain(tagA);
     expect((await get(sb, 'search/suggest?q=Marg')).people.length).toBeLessThanOrEqual(5);
   });
+
+  it('pessoas: o nome sem acentos encontra quem os tem («Minesio Chauque» acha «Minésio Chaúque»)', async () => {
+    const acc = await signup('acc', `Minésio Chaúque ${run}`);
+    const people = async (q: string) => ((await get(u.sb, `search?q=${encodeURIComponent(q)}`)).people as { username: string }[]).map((x) => x.username);
+    expect(await people(`Minesio Chauque ${run}`)).toContain(acc.username);
+    expect(await people('chauque')).toContain(acc.username);
+    expect(await people('Chaúque')).toContain(acc.username);
+  });
 });

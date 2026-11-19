@@ -258,10 +258,12 @@ export class NotesService implements OnModuleInit {
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     const label = visible.body || (visible.music as { title?: string } | null)?.title || (visible.gif ? 'GIF' : '') || visible.place?.name || '♪';
     const said = text.trim();
-    if (!gif) return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${label}”: ${said}` });
+    // A nota era um GIF: vai com a linha, para a conversa mostrar o GIF a que se respondeu (a nota sai ao fim de 24 h).
+    const noteGif = visible.gif ?? null;
+    if (!gif) return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${label}”: ${said}`, noteGif });
     // O GIF valida-se (e confirma-se) antes de mandar a linha, para não ficar a linha sozinha se o GIF for recusado.
     await this.chat.validateOutgoing(me, { kind: 'gif', body: '', gif });
-    await this.chat.send(me, visible.username, { kind: 'text', body: said ? `Em resposta à tua nota “${label}”: ${said}` : `Em resposta à tua nota “${label}”` });
+    await this.chat.send(me, visible.username, { kind: 'text', body: said ? `Em resposta à tua nota “${label}”: ${said}` : `Em resposta à tua nota “${label}”`, noteGif });
     return this.chat.send(me, visible.username, { kind: 'gif', body: '', gif });
   }
 

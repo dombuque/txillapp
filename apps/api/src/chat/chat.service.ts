@@ -136,6 +136,11 @@ export interface Outgoing {
   mediaId?: string;
   /** GIF do GIPHY (kind 'gif'): já validado pelo gifSchema (url https de media*.giphy.com, id e medidas). */
   gif?: GifInput;
+  /**
+   * Só do servidor (as respostas às notas, NotesService.reply): o GIF da nota a que se responde, guardado na linha de texto
+   * «Em resposta à tua nota “GIF”» para a conversa o mostrar na citação. Nunca vem da app (o gifSchema não o deixa passar).
+   */
+  noteGif?: GifInput | null;
   /** Resposta a um Zás (kind 'zas_reply'): qual. A foto do Zás fica na mensagem. */
   instantId?: string;
   durationMs?: number;
@@ -634,8 +639,9 @@ export class ChatService {
       : {};
     // GIFs a menores (e a quem não tem data de nascimento): um GIF acima de 'g', ou sem classificação, não lhes chega; vai
     // `gif: null` e `gifHidden: true`, e a app mostra «GIF escondido» no lugar dele.
-    const adult = live.some((m) => m.kind === 'gif') ? await this.viewerAdult(me) : true;
-    const hideGif = (m: Record<string, any>) => (!adult && m.kind === 'gif' && !gifForMinor((m.gif as { rating?: unknown } | null)?.rating) ? { gif: null, gifHidden: true } : {});
+    const withGif = (m: Record<string, any>) => m.kind === 'gif' || (m.kind === 'text' && !!m.gif);
+    const adult = live.some(withGif) ? await this.viewerAdult(me) : true;
+    const hideGif = (m: Record<string, any>) => (!adult && withGif(m) && !gifForMinor((m.gif as { rating?: unknown } | null)?.rating) ? { gif: null, gifHidden: true } : {});
     return Promise.all(
       page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : { ...(await this.item(me, m, reactions, quoted)), ...cards(m), ...hideGif(m) }),
     );
@@ -688,7 +694,8 @@ export class ChatService {
       /** Presente enviado na conversa: quanto (a nota vai no texto). */
       giftAmount: (m.gift_amount as number | null) ?? null,
       /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title?, rating? } (sem rating = desconhecida: a app esconde-o a menores); null nas outras. */
-      gif: m.kind === 'gif' ? readGif(m.gif) : null,
+      // Nas linhas de texto, o GIF da nota a que se respondeu (só nas respostas às notas).
+      gif: m.kind === 'gif' || m.kind === 'text' ? readGif(m.gif) : null,
       /** Localização em direto ainda a decorrer. */
       live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
       liveUntil: (m.live_until as string | null) ?? null,
@@ -858,7 +865,7 @@ export class ChatService {
     const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
     const spot = this.placeFields(msg);
-    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : undefined, clientId: msg.clientId });
+    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : msg.kind === 'text' && msg.noteGif ? msg.noteGif : undefined, clientId: msg.clientId });
   }
 
   /**

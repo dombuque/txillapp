@@ -493,9 +493,9 @@ function ChatText({ text, mine, style, onLongPress }: { text: string; mine: bool
  * cantos da bolha. Sem Pressable próprio: tocar e segurar são os da bolha (menu da mensagem, hora, brindar).
  * "Reduzir movimento": mostra a primeira imagem, parada.
  */
-function GifBubble({ gif, radius, dim }: { gif: ChatGif; radius: object; dim: object | null }) {
+function GifBubble({ gif, radius, dim, max }: { gif: ChatGif; radius: object; dim: object | null; max?: number }) {
   const reduce = useReducedMotion();
-  const size = gifSize(gif.w, gif.h);
+  const size = max ? gifSize(gif.w, gif.h, max, max) : gifSize(gif.w, gif.h);
   // O GIF do Txillapp (fundo transparente): sem o fundo da bolha, o logótipo inteiro (nunca cortado), como um autocolante.
   const brand = gif.source === 'txillapp';
   const shown = gifShown(gif);
@@ -714,20 +714,22 @@ export function Bubble({
   } else if (m.kind === 'story_reaction') {
     content = <View style={dimStyle}><ReactionArt body={m.body} size={64} /></View>;
   } else {
-    // Resposta a uma nota: o servidor manda «Em resposta à tua nota “…”: texto».
-    const noteReply = m.kind === 'text' ? /^Em resposta à tua nota “([\s\S]*?)”: ([\s\S]*)$/.exec(m.body) : null;
-    const shown = noteReply ? noteReply[2] : m.body;
+    // Resposta a uma nota: o servidor manda «Em resposta à tua nota “…”: texto», ou só a linha quando a resposta foi um GIF
+    // (a reação Txillapp vem na mensagem seguinte). Se a nota era um GIF, ele vem em `m.gif` e aparece na citação.
+    const noteReply = m.kind === 'text' ? /^Em resposta à tua nota “([sS]*?)”(?:: ([sS]*))?$/.exec(m.body) : null;
+    const shown = noteReply ? (noteReply[2] ?? '') : m.body;
+    const noteGif = noteReply && m.gif && validGif(m.gif) ? m.gif : null;
     content = (
       <View style={{ maxWidth: '100%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
         {noteReply && (
           <View style={{ marginBottom: 4, maxWidth: '82%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
             <Text style={st.caption}>{mine ? t('Respondeste à nota') : t('Respondeu à tua nota')}</Text>
             <View style={[{ borderColor: colors.zinc200, alignItems: mine ? 'flex-end' : 'flex-start' }, mine ? { borderRightWidth: 3, paddingRight: 6 } : { borderLeftWidth: 3, paddingLeft: 6 }]}>
-              <Text style={st.noteBubble}>{noteReply[1]}</Text>
+              {noteGif ? <GifBubble gif={noteGif} radius={{ borderRadius: 12 }} dim={null} max={120} /> : m.gifHidden ? <Text style={st.noteBubble}>{GIF_HIDDEN_TEXT()}</Text> : <Text style={st.noteBubble}>{noteReply[1]}</Text>}
             </View>
           </View>
         )}
-        <View style={[st.bubble, tone, radius, dimStyle]}><ChatText text={shown} mine={mine} style={[st.text, { color: ink }]} onLongPress={hold.onLongPress} /></View>
+        {shown ? <View style={[st.bubble, tone, radius, dimStyle]}><ChatText text={shown} mine={mine} style={[st.text, { color: ink }]} onLongPress={hold.onLongPress} /></View> : null}
       </View>
     );
   }

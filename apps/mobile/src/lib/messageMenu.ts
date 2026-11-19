@@ -64,7 +64,7 @@ export function canDeleteForAll(m: MenuMsg, now = Date.now(), limitMs: number | 
 }
 
 /** Resposta a uma nota: o servidor escreve o texto com a nota à frente (não se edita, para não estragar a citação). */
-const NOTE_REPLY = /^Em resposta à tua nota “[\s\S]*?”: ([\s\S]*)$/;
+const NOTE_REPLY = /^Em resposta à tua nota “[\s\S]*?”(?:: ([\s\S]*))?$/;
 
 /** "Editar": a minha, de texto (não de visualização única nem resposta a uma nota), nos primeiros EDIT_WINDOW_MS. */
 export function canEdit(m: MenuMsg, now = Date.now(), windowMs = EDIT_WINDOW_MS): boolean {

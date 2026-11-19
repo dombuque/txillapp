@@ -115,8 +115,14 @@ describe('Notas: cor, local, GIF e amigos próximos (integração)', () => {
 
     await api().post(`/api/v1/notes/${g.username}/reply`).set(auth(r)).send({ text: 'boa!' }).expect(201);
     expect(await lastFrom(g, r)).toBe('Em resposta à tua nota “GIF”: boa!');
+    // A linha leva o GIF da nota, para a conversa o mostrar na citação (a nota sai ao fim de 24 h).
+    const line = ((await api().get(`/api/v1/chat/with/${r.username}`).set(auth(g)).expect(200)).body.items as { body: string; fromMe: boolean; gif: { id: string } | null }[]).find((x) => !x.fromMe)!;
+    expect(line.gif).toMatchObject({ id: GIF_SAVED.id });
+    // A resposta a uma nota de local não leva GIF.
     await api().post(`/api/v1/notes/${h.username}/reply`).set(auth(r)).send({ text: 'vou lá' }).expect(201);
     expect(await lastFrom(h, r)).toBe('Em resposta à tua nota “Marginal”: vou lá');
+    const placeLine = ((await api().get(`/api/v1/chat/with/${r.username}`).set(auth(h)).expect(200)).body.items as { fromMe: boolean; gif: unknown }[]).find((x) => !x.fromMe)!;
+    expect(placeLine.gif).toBeNull();
   });
 
   it('close_friends: o amigo próximo vê, brinda e responde; o seguidor que não é amigo próximo não', async () => {

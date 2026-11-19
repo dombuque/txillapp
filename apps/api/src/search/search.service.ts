@@ -4,7 +4,7 @@ import { PG_POOL } from '../db/db.module';
 import { PostsService } from '../posts/posts.service';
 import { SearchIndexer } from './search-index';
 import { isValidTag, normalizeTag } from '../common/hashtags';
-import { blockedBetween, canView, inMyNetwork } from '../social/visibility';
+import { blockedBetween, canView, inMyNetwork, sameCountry } from '../social/visibility';
 import { VenuesService } from '../venues/venues.service';
 import { shownPost } from '../posts/hidden';
 
@@ -26,7 +26,9 @@ export class SearchService {
   ) {}
 
   /**
-   * Pesquisa de pessoas (por @ ou nome) e de publicações (texto ou local). Respeita bloqueios, contas eliminadas
+   * Pesquisa de pessoas (por @ ou nome) e de publicações (texto ou local). Pessoas: qualquer conta ativa, de qualquer país
+   * (quem procura um nome tem de o encontrar, também os moçambicanos lá fora), com ou sem acentos («Minesio» acha
+   * «Minésio»); as do meu país vêm primeiro. As sugestões e as publicações continuam na rede do país. Respeita bloqueios, contas eliminadas
    * e perfis privados: só aparecem publicações que o espectador já podia ver.
    */
   async search(viewerId: string, raw: string) {
@@ -64,11 +66,14 @@ export class SearchService {
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_you,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers
          FROM identity.users u
-        WHERE u.status = 'active' AND u.id <> $1 AND NOT ${blockedBetween('u.id', '$1')} AND ${inMyNetwork('u.id', 'u.country')}
-          AND (u.username ILIKE $2 ESCAPE '\\' OR u.display_name ILIKE $2 ESCAPE '\\'
-               OR (length($4) >= 4 AND (similarity(lower(u.username), lower($4)) > 0.55 OR similarity(lower(u.display_name), lower($4)) > 0.45)))
-        ORDER BY (lower(u.username) = lower($4)) DESC, (u.username ILIKE $3 ESCAPE '\\') DESC, following DESC,
-                 greatest(similarity(lower(u.username), lower($4)), similarity(lower(u.display_name), lower($4))) DESC, followers DESC, u.username ASC
+        WHERE u.status = 'active' AND u.id <> $1 AND NOT ${blockedBetween('u.id', '$1')}
+          AND (content.f_unaccent(u.username) ILIKE content.f_unaccent($2) ESCAPE '\\' OR content.f_unaccent(u.display_name) ILIKE content.f_unaccent($2) ESCAPE '\\'
+               OR (length($4) >= 4 AND (similarity(lower(content.f_unaccent(u.username)), lower(content.f_unaccent($4))) > 0.55
+                                     OR similarity(lower(content.f_unaccent(u.display_name)), lower(content.f_unaccent($4))) > 0.45)))
+        ORDER BY (lower(u.username) = lower($4)) DESC, (content.f_unaccent(u.username) ILIKE content.f_unaccent($3) ESCAPE '\\') DESC, following DESC,
+                 ${sameCountry('u.country')} DESC,
+                 greatest(similarity(lower(content.f_unaccent(u.username)), lower(content.f_unaccent($4))), similarity(lower(content.f_unaccent(u.display_name)), lower(content.f_unaccent($4)))) DESC,
+                 followers DESC, u.username ASC
         LIMIT 15`,
       [viewerId, contains, prefix, term],
     );
@@ -99,7 +104,7 @@ export class SearchService {
               EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id) AS requested,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_you
          FROM identity.users u
-        WHERE u.id = ANY($2::uuid[]) AND u.status = 'active' AND u.id <> $1 AND NOT ${blockedBetween('u.id', '$1')} AND ${inMyNetwork('u.id', 'u.country')}
+        WHERE u.id = ANY($2::uuid[]) AND u.status = 'active' AND u.id <> $1 AND NOT ${blockedBetween('u.id', '$1')}
         ORDER BY array_position($2::uuid[], u.id)`,
       [viewerId, ids],
     );
