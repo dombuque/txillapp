@@ -937,6 +937,9 @@ export const api = {
     return res.text();
   },
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
+  /** Selo novo por celebrar (a animação «Ganhaste o selo!»); null se não há. */
+  badgeNews: (): Promise<{ news: { id: string; tier: string } | null }> => raw('/verification/news'),
+  badgeNewsSeen: (id: string): Promise<void> => raw(`/verification/news/${id}/seen`, { method: 'POST' }),
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: DocType; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   nearbyPlaces: (lat: number, lng: number): Promise<{ area: string | null; city: string | null }> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),

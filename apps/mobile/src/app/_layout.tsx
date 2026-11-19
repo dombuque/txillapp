@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ActivateSheet } from '@/components/ActivateSheet';
+import { BadgeCelebration } from '@/components/BadgeCelebration';
 import { AlertHost } from '@/components/AlertHost';
 import { ToastHost } from '@/components/ToastHost';
 import { Button } from '@/components/ui/Button';
@@ -252,6 +253,7 @@ export default function RootLayout() {
             <StatusBar style="dark" />
             <Gate />
             <ActivateSheet />
+            <BadgeCelebration />
             <AlertHost />
             <ToastHost />
           </AuthProvider>

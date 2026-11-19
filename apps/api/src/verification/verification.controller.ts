@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -33,6 +33,18 @@ export class VerificationController {
   @Get('verification/me')
   me(@Req() req: AuthedReq) {
     return this.verification.status(req.userId!);
+  }
+
+  /** Ganhei um selo e a app ainda não mostrou a celebração? ({ id, tier } ou null). */
+  @Get('verification/news')
+  async news(@Req() req: AuthedReq) {
+    return { news: await this.verification.badgeNews(req.userId!) };
+  }
+
+  @Post('verification/news/:id/seen')
+  @HttpCode(204)
+  async newsSeen(@Req() req: AuthedReq, @Param('id', new ParseUUIDPipe()) id: string) {
+    await this.verification.badgeNewsSeen(req.userId!, id);
   }
 
   @Post('verification/request')

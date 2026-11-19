@@ -4,6 +4,7 @@ import { tierOf, type VerifiedTier } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
+import { NotificationsService } from '../notifications/notifications.service';
 import { EVIDENCE_COLUMNS, NOTE_PREVIEW, messageProof } from '../moderation/moderation.service';
 
 /** Backoffice: ver e agir sobre contas, queixas decididas e o registo de auditoria. Só para contas de moderação. */
@@ -12,6 +13,7 @@ export class BackofficeService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly indexer: SearchIndexer,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Resumo do dia: o que precisa de atenção. */
@@ -108,6 +110,8 @@ export class BackofficeService {
       client.release();
     }
     this.indexer.userChanged(id);
+    // Ganhou um selo (ou passou a outro): a pessoa é avisada (push e a celebração na app) e quem a segue também.
+    if (tier) void this.notifications.badgeAwarded(id, tier);
     return { verified: tier !== null, verifiedTier: tier };
   }
 

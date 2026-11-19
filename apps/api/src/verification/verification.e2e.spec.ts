@@ -133,5 +133,18 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     const follower = (await pool.query(`SELECT follower_id FROM social.follows WHERE followee_id = $1 LIMIT 1`, [vb.id])).rows[0].follower_id as string;
     const n = (await pool.query(`SELECT 1 FROM social.notifications WHERE user_id = $1 AND kind = 'verified' AND actor_id = $2`, [follower, vb.id])).rowCount;
     expect(n).toBe(1);
+
+    // A celebração na app: o selo novo aparece uma vez («Ganhaste o selo!»); depois de vista, já não.
+    const news = async (x: U) => (await api().get('/api/v1/verification/news').set(auth(x)).expect(200)).body.news as { id: string; tier: string } | null;
+    const first = await news(vb);
+    expect(first).toMatchObject({ tier: 'official' });
+    await api().post(`/api/v1/verification/news/${first!.id}/seen`).set(auth(vb)).expect(204);
+    expect(await news(vb)).toBeNull();
+    // Quem segue não tem nada para celebrar.
+    expect(await news(vd)).toBeNull();
+    // Selo dado à mão no backoffice: a pessoa também é avisada e celebra.
+    await api().post(`/api/v1/admin/users/${vd.id}/badge`).set(sauth()).send({ tier: 'verified', reason: 'Mérito na comunidade' }).expect((r) => expect([200, 201]).toContain(r.status));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await news(vd)).toMatchObject({ tier: 'verified' });
   }, 120_000);
 });

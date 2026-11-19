@@ -1307,6 +1307,7 @@
     "Atualizar": "7ed81fa447b9ac06",
     "O Android pede para confirmar a instalação: toca em Instalar.": "b1ad909a5d0e78db",
     "Artista": "745d1fb24aedb895",
+    "És a conta oficial!": "5e97be3e241437d4",
     "{title}: último dia {last}": "0c9c03aadaa2de5d",
     "Ver tabela": "adc71c30dfa4bbc2",
     "Ok, deixas de ver os destaques de {name}.": "296b35625fabc5bc",
@@ -5582,6 +5583,7 @@
     "Há sempre alguma coisa a acontecer por cá. Bora ver?": "bc588030037a6523",
     "Passa por cá": "2c66fa00fab8e066",
     "O teu Início está à tua espera. Dá um saltinho!": "870e83b3e771b2c7",
+    "O teu Início ganha vida quando segues pessoas. Vê quem já está no Txillapp.": "6dab64253b261ea2",
     "Isto tem ódio ou insultos a um grupo de pessoas. Aqui não": "34d5f91ff337bc7f",
     "Isto parece uma ameaça. Aqui não se ameaça ninguém": "58dcb42d81ca1213",
     "Hashtag inválida": "79bf041f1c4e09f1",
@@ -5732,7 +5734,6 @@
     "O destinatário ainda não abriu a carteira": "67b8485633eb7cbb",
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
-    "Movimento inválido": "e238bfd1ca2dfe89",
-    "O teu Início ganha vida quando segues pessoas. Vê quem já está no Txillapp.": "6dab64253b261ea2"
+    "Movimento inválido": "e238bfd1ca2dfe89"
   }
 }

@@ -237,6 +237,53 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * A conta ganhou um selo (pedido aceite ou dado pela equipa): o aviso na lista dela (com o tier, que a app usa para a
+   * celebração animada), um push só para ela («Ganhaste o selo!», abre o perfil) e o aviso a quem a segue.
+   */
+  async badgeAwarded(userId: string, tier: string): Promise<void> {
+    try {
+      await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'verified', $3)`, [uuidv7(), userId, { tier }]);
+      if (this.push.enabled) {
+        void this.push.send(userId, {
+          title: 'Txillapp',
+          body: tier === 'official' ? 'A tua conta é agora a conta oficial, com o selo. Toca para ver.' : 'Ganhaste o selo de verificado! Toca para ver.',
+          url: '/profile',
+          tag: 'badge-awarded',
+        }).catch(() => undefined);
+      }
+      const { rows } = await this.pool.query('SELECT follower_id FROM social.follows WHERE followee_id = $1 ORDER BY created_at DESC LIMIT 500', [userId]);
+      for (const r of rows) await this.notify({ userId: r.follower_id as string, actorId: userId, kind: 'verified' });
+    } catch (e) {
+      this.log.warn(`falha a anunciar o selo de ${userId}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * O selo novo ainda por celebrar na app (a animação «Ganhaste o selo!»): o último aviso 'verified' da própria conta, dos
+   * últimos 30 dias, que a app ainda não marcou como visto, e só se a conta ainda tem selo.
+   */
+  async badgeNews(userId: string): Promise<{ id: string; tier: string } | null> {
+    const { rows } = await this.pool.query(
+      `SELECT n.id, coalesce(n.data->>'tier', u.verified_tier, 'verified') AS tier
+         FROM social.notifications n JOIN identity.users u ON u.id = n.user_id
+        WHERE n.user_id = $1 AND n.actor_id = $1 AND n.kind = 'verified' AND u.verified
+          AND n.created_at > now() - interval '30 days' AND NOT coalesce((n.data->>'celebrated')::boolean, false)
+        ORDER BY n.id DESC LIMIT 1`,
+      [userId],
+    );
+    return rows[0] ? { id: rows[0].id as string, tier: rows[0].tier as string } : null;
+  }
+
+  /** A celebração já foi vista: não volta a aparecer (e o aviso fica lido). */
+  async badgeNewsSeen(userId: string, id: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE social.notifications SET data = data || '{"celebrated": true}'::jsonb, read_at = coalesce(read_at, now())
+        WHERE id = $1 AND user_id = $2 AND actor_id = $2 AND kind = 'verified'`,
+      [id, userId],
+    );
+  }
+
   /** Também no telemóvel. O título é quem fez a ação (o iPhone já diz que é do Txillapp) e o texto é genérico: nunca leva o conteúdo (o ecrã de bloqueio é público). */
   private async pushFor(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }) {
     if (!this.push.enabled) return;

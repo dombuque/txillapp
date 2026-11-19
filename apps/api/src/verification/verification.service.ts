@@ -181,8 +181,16 @@ export class VerificationService {
 
   /** O anúncio: a própria pessoa vê o aviso e quem a segue é avisado de que a conta foi verificada. */
   private async announce(userId: string) {
-    await this.pool.query(`INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $2, 'verified', '{}')`, [uuidv7(), userId]);
-    const { rows } = await this.pool.query(`SELECT follower_id FROM social.follows WHERE followee_id = $1 ORDER BY created_at DESC LIMIT 500`, [userId]);
-    for (const r of rows) await this.notifications.notify({ userId: r.follower_id as string, actorId: userId, kind: 'verified' });
+    const tier = (await this.pool.query('SELECT verified_tier FROM identity.users WHERE id = $1', [userId])).rows[0]?.verified_tier as string | undefined;
+    await this.notifications.badgeAwarded(userId, tier ?? 'verified');
+  }
+
+  /** O selo novo por celebrar na app (null se não há). */
+  badgeNews(userId: string) {
+    return this.notifications.badgeNews(userId);
+  }
+
+  badgeNewsSeen(userId: string, id: string) {
+    return this.notifications.badgeNewsSeen(userId, id);
   }
 }
