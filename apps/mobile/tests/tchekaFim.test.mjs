@@ -42,7 +42,7 @@ test('PostCard: o vídeo e o selo seguem musicPlayback (o selo com a música gra
   assert.match(card, /play=\{musicPlayback\(post\)\.apart\}/);
   assert.doesNotMatch(card, /mute=\{\(!!post\.music && !post\.remixOf\)/);
   const badge = read('components', 'PostMusic.tsx');
-  assert.match(badge, /export function MusicBadge\(\{ track, visible, waves = false, play = true, soundTo = null \}/);
+  assert.match(badge, /function MusicBadgeAudio\(\{ track, visible, waves = false, play = true, soundTo = null \}/);
   assert.match(badge, /if \(!play\) return <MusicCredit/);
   // O crédito não chama o leitor de música (nada de useAutoTrack nele).
   const credit = badge.slice(badge.indexOf('function MusicCredit'), badge.indexOf('function MusicBadgePlaying'));

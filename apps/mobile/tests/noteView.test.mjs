@@ -74,7 +74,7 @@ test('NoteView: cabeçalho «Nome · há X» com o selo, foto com online e bolha
 });
 
 test('NoteView: a música toca sozinha com o leitor de sempre (useAutoTrack)', () => {
-  const t = body('NoteTrackLine');
+  const t = body('NoteTrackLineAudio');
   assert.match(t, /useAutoTrack\(track, \{ autoplay, playNow: autoplay \}\)/);
   assert.match(t, /TrackCredits/);
 });

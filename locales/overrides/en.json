@@ -1684,5 +1684,10 @@
   "Poupar megas está ligado: o vídeo só descarrega quando tocas": "Data Saver is on: the video only downloads when you tap",
   "Poupar megas ligado": "Data Saver on",
   "Poupar megas ligado nos dados móveis": "Data Saver on for mobile data",
-  "vídeos a tocar sozinhos": "autoplay videos"
+  "vídeos a tocar sozinhos": "autoplay videos",
+  "A música toca no leitor do {provider} e conta para o artista lá.": "The song plays in the {provider} player and counts for the artist there.",
+  "A ver a música…": "Loading the song…",
+  "Cola a ligação de uma música do Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music": "Paste a song link from Spotify, YouTube, Audiomack, Boomplay, Deezer or Apple Music",
+  "Música por ligação só em publicações sem vídeo, mimos e notas": "Song links only work in posts without video, mimos and notes",
+  "Também podes colar a ligação de uma música do Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music.": "You can also paste a song link from Spotify, YouTube, Audiomack, Boomplay, Deezer or Apple Music."
 }

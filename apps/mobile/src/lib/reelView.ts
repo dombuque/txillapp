@@ -24,7 +24,7 @@ export interface ReelMusic {
   title: string;
   artist?: string | null;
   cover?: string | null;
-  kind?: 'clip' | 'music' | 'sound';
+  kind?: 'clip' | 'music' | 'sound' | 'link';
   /** Fonte da faixa (`local`: artistas de Moçambique) e, num som original guardado na música, o id do som. */
   source?: string | null;
   soundId?: string | null;

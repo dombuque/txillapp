@@ -8,7 +8,12 @@ import { trackOk } from '@/lib/analytics';
  * Os campos base são os de sempre (iguais ao tipo do site); os opcionais vêm do catálogo novo (`PickerTrack` no servidor).
  */
 export interface Track {
-  kind?: 'clip' | 'music' | 'sound';
+  kind?: 'clip' | 'music' | 'sound' | 'link';
+  /** Música por ligação (kind 'link'): a plataforma, o tipo, a ligação limpa e o leitor oficial embutido. */
+  provider?: string;
+  linkKind?: string;
+  link?: string;
+  embedUrl?: string;
   mediaId?: string;
   id: string;
   title: string;
@@ -53,12 +58,16 @@ export interface MusicHome { styles: MusicStyle[]; trending: Track[]; local: Tra
 export const musicPayload = (t: Track | null | undefined) => {
   if (!t) return undefined;
   if (t.kind === 'clip') return { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title };
+  // Por ligação: só a ligação (o servidor vai buscar o título, o artista e a capa à plataforma).
+  if (t.kind === 'link') return { kind: 'link' as const, url: t.link ?? t.landing ?? '' };
   if (t.source === 'local') return { source: 'local' as const, id: t.id };
   const { id, title, artist, url, landing, license, licenseUrl, durationMs, cover, source, artistUsername } = t;
   return { id, title, artist, url, landing, license, licenseUrl, durationMs, cover, ...(source ? { source } : {}), ...(artistUsername ? { artistUsername } : {}) };
 };
 
 export const musicApi = {
+  /** A pré-visualização de uma música por ligação (Spotify, YouTube, Audiomack, Boomplay, Deezer, Apple Music). */
+  link: (url: string): Promise<Track> => raw('/music/link', post({ url })),
   /** Pesquisa no catálogo curado (e nos artistas de Moçambique), por título, artista ou estilo. */
   search: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
   /** O início do seletor. */

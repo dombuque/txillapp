@@ -1,4 +1,6 @@
 import { Image } from 'expo-image';
+import { MusicLinkCard } from './MusicLink';
+import { isLinkMusic } from '@/lib/musicLink';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -204,7 +206,12 @@ function PlayRing({ me, track, live, paused, size, fg, onPress }: { me: symbol; 
  * a etiqueta «Artista») e, à direita, tocar/pausar com o anel do tempo do trecho. Um toque no cartão liga ou desliga o som
  * da app (como antes); manter premido mostra os créditos. Com `soundTo` (a página do som), a ligação «Usar este som».
  */
-export function MusicCard({ track, visible, soundTo }: { track: Track; /** O post está à vista: a música toca. */ visible: boolean; /** `/som/[id]`, quando a publicação tem `sound`. */ soundTo?: string | null }) {
+/** Música de uma publicação de texto: a do catálogo toca aqui; a por ligação (Spotify…) mostra o cartão com o leitor oficial. */
+export function MusicCard(p: { track: Track; visible: boolean; soundTo?: string | null }) {
+  return isLinkMusic(p.track) ? <View style={{ marginTop: 8 }}><MusicLinkCard track={p.track} /></View> : <MusicCardAudio {...p} />;
+}
+
+function MusicCardAudio({ track, visible, soundTo }: { track: Track; /** O post está à vista: a música toca. */ visible: boolean; /** `/som/[id]`, quando a publicação tem `sound`. */ soundTo?: string | null }) {
   const [paused, setPaused] = useState(false);
   const { me, play } = useAutoTrack(track, { autoplay: true, visible, paused });
   const live = useTrackLive(me);
@@ -302,7 +309,12 @@ export function MusicCard({ track, visible, soundTo }: { track: Track; /** O pos
  * Com `play` a falso (a música já vai gravada no vídeo, `musicBaked`), o selo é só o crédito: não toca a música outra vez,
  * não tem o botão do som (o do vídeo é que manda) e o toque abre a página do som (`soundTo`), se houver.
  */
-export function MusicBadge({ track, visible, waves = false, play = true, soundTo = null }: { track: Track; visible: boolean; waves?: boolean; play?: boolean; soundTo?: string | null }) {
+/** O crachá da música por cima das fotos: a por ligação é a pílula que abre o leitor oficial. */
+export function MusicBadge(p: { track: Track; visible: boolean; waves?: boolean; play?: boolean; soundTo?: string | null }) {
+  return isLinkMusic(p.track) ? <MusicLinkCard track={p.track} pill dark /> : <MusicBadgeAudio {...p} />;
+}
+
+function MusicBadgeAudio({ track, visible, waves = false, play = true, soundTo = null }: { track: Track; visible: boolean; waves?: boolean; play?: boolean; soundTo?: string | null }) {
   if (!play) return <MusicCredit track={track} visible={visible} soundTo={soundTo} />;
   return <MusicBadgePlaying track={track} visible={visible} waves={waves} />;
 }

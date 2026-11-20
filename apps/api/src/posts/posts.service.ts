@@ -163,7 +163,7 @@ export class PostsService implements OnModuleInit {
     // Partilhar a geleira (0143): uma publicação só com o retrato da geleira e uma legenda opcional (e, se quiser, o sítio).
     if (geleiraShare && (mediaIds.length || remixIn || venueId || soundId || musicIn)) throw new BadRequestException('A geleira partilha-se sozinha: sem fotos, vídeos, música nem página');
     const geleira = geleiraShare ? await buildSnapshot(this.pool, userId) : null;
-    this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
+    this.filter.assertClean(body, locationLabel, (musicIn && 'title' in musicIn ? musicIn.title : undefined), 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     // Dueto ou resposta com tcheka: valida antes de tudo (o original, o comentário e quem deixa). Um remix não se publica como um local.
     let remix: CheckedRemix | null = null;
     if (remixIn) {

@@ -7,6 +7,7 @@ import { MusicCatalogService, storedTrack } from './catalog/catalog.service';
 import { hostOk, httpsOnly } from './catalog/curation';
 import { MUSIC_SOURCES, OPEN_LICENSES, type PickerTrack } from './catalog/track';
 import { LicensedMusicService, licensedRefSchema } from './licensed-music.service';
+import { linkMusicSchema, metaUrl, parseMusicLink, readMeta, storedLink, type StoredLinkMusic } from './music-link';
 
 /** Licenças que deixam pôr a faixa num mimo ou num tcheka partilhado (ver catalog/track.ts): nada de NC, ND nem SA. */
 const LICENSES = new Set<string>(OPEN_LICENSES);
@@ -72,7 +73,7 @@ export const localTrackSchema = z.object({
  * O que uma nota ou um post pode levar: um clipe próprio, uma faixa licenciada (só a referência; ver docs/musica-licenciada.md),
  * uma faixa de um artista moçambicano (só o id) ou uma faixa do catálogo curado.
  */
-export const musicSchema = z.union([clipSchema, licensedRefSchema, localTrackSchema, trackSchema]);
+export const musicSchema = z.union([linkMusicSchema, clipSchema, licensedRefSchema, localTrackSchema, trackSchema]);
 export type MusicInput = z.infer<typeof musicSchema>;
 
 /**
@@ -110,6 +111,14 @@ export class MusicService {
    */
   async prepare(userId: string, music: MusicInput | null | undefined, where: 'post' | 'story' | 'note' = 'note', mediaIds: string[] = []): Promise<Record<string, unknown> | null> {
     if (!music) return null;
+    // Música por ligação (Spotify, YouTube…): o cartão com o leitor oficial. Numa publicação com vídeo não (aí a música
+    // mistura-se no vídeo, e isso precisa de licença).
+    if ('kind' in music && music.kind === 'link') {
+      if (where === 'post' && mediaIds.length && (await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = ANY($1::uuid[]) AND mime LIKE 'video/%' LIMIT 1`, [mediaIds])).rowCount) {
+        throw new BadRequestException('Música por ligação só em publicações sem vídeo, mimos e notas');
+      }
+      return { ...(await this.linkMusic(music.url)) };
+    }
     // Licenciada: passa pelo fornecedor (países do contrato, contagens); desligado, recusa.
     if ('kind' in music && music.kind === 'licensed') return this.licensed.prepare(userId, music);
     if (('source' in music && music.source === 'local') || (!('kind' in music) && LOCAL.test(music.id))) {
@@ -125,6 +134,33 @@ export class MusicService {
     const r = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'audio/%'`, [music.mediaId, userId]);
     if (!r.rowCount) throw new BadRequestException('Áudio inválido ou ainda não carregado');
     return { kind: 'clip', mediaId: music.mediaId, durationMs: music.durationMs, title: music.title };
+  }
+
+  private readonly linkCache = new Map<string, { at: number; value: StoredLinkMusic }>();
+
+  /**
+   * A ligação de uma música (Spotify, YouTube, Audiomack, Boomplay, Deezer, Apple Music): a forma limpa e o título, o artista
+   * e a capa vindos da própria plataforma (5 s no máximo; sem resposta fica «Música no Spotify»). Guardado 6 h em memória.
+   */
+  async linkMusic(raw: string): Promise<StoredLinkMusic> {
+    const p = parseMusicLink(raw);
+    if (!p) throw new BadRequestException('Cola a ligação de uma música do Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music');
+    const hit = this.linkCache.get(p.url);
+    if (hit && Date.now() - hit.at < 6 * 3_600_000) return hit.value;
+    let meta = {};
+    const at = metaUrl(p);
+    if (at && process.env.NODE_ENV !== 'test') {
+      try {
+        const r = await fetch(at, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Txillapp/1.0 (+https://txillapp.com)' } });
+        if (r.ok) meta = readMeta(p, await r.json());
+      } catch {
+        /* sem metadados: o cartão diz «Música no …» */
+      }
+    }
+    const value = storedLink(p, meta);
+    if (this.linkCache.size > 2000) this.linkCache.clear();
+    this.linkCache.set(p.url, { at: Date.now(), value });
+    return value;
   }
 
   /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */

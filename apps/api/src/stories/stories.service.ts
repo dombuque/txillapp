@@ -53,7 +53,7 @@ export class StoriesService {
   ) {}
 
   async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null, stickers: StoryLayer[] = []) {
-    this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined, ...layerTexts(stickers));
+    this.filter.assertClean(caption, (musicIn && 'title' in musicIn ? musicIn.title : undefined), musicIn && 'artist' in musicIn ? musicIn.artist : undefined, ...layerTexts(stickers));
     const music = await this.musicSvc.prepare(userId, musicIn, 'story');
     const ok = await this.pool.query(
       `SELECT 1 FROM content.media_assets a
@@ -397,7 +397,7 @@ export class StoriesService {
    */
   /** Partilhar uma publicação no mimo, agora também com música (a mesma escolha do mimo normal). */
   async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all', stickers: StoryLayer[] = [], musicIn: MusicInput | null = null) {
-    this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined, ...layerTexts(stickers));
+    this.filter.assertClean(caption, (musicIn && 'title' in musicIn ? musicIn.title : undefined), musicIn && 'artist' in musicIn ? musicIn.artist : undefined, ...layerTexts(stickers));
     const { rows } = await this.pool.query(
       `SELECT (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets m ON m.id = pm.media_id
                 WHERE pm.post_id = p.id AND m.status = 'ready' ORDER BY pm.position LIMIT 1) AS media_id

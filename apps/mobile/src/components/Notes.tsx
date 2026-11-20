@@ -1,4 +1,6 @@
 import * as Haptics from 'expo-haptics';
+import { MusicLinkCard } from '@/components/MusicLink';
+import { isLinkMusic } from '@/lib/musicLink';
 import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -232,7 +234,12 @@ function Playing({ color }: { color: string }) {
  * A música da nota numa linha («Título · Artista»), dentro da bolha. Toca sozinha ao abrir (o mesmo leitor do cartão
  * da música, useAutoTrack); o botão redondo silencia ou volta a ligar o som da app, e o nome mostra os créditos.
  */
-function NoteTrackLine({ track, tone, autoplay = true }: { track: Track; tone: NoteTone; autoplay?: boolean }) {
+/** A música da nota: a do catálogo toca; a por ligação é a pílula que abre o leitor oficial. */
+function NoteTrackLine(p: { track: Track; tone: NoteTone; autoplay?: boolean }) {
+  return isLinkMusic(p.track) ? <MusicLinkCard track={p.track} pill /> : <NoteTrackLineAudio {...p} />;
+}
+
+function NoteTrackLineAudio({ track, tone, autoplay = true }: { track: Track; tone: NoteTone; autoplay?: boolean }) {
   const { on, me } = useAutoTrack(track, { autoplay, playNow: autoplay });
   const live = useTrackLive(me);
   const [muted, toggleMute] = useMusicMuted();
@@ -669,7 +676,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           )}
         </View>
       </EditorFrame>
-      {panel === 'music' && <MusicPicker hint={body} onPick={(t) => { setMusic(t); back(); }} onClose={back} />}
+      {panel === 'music' && <MusicPicker hint={body} allowLink onPick={(t) => { setMusic(t); back(); }} onClose={back} />}
       {panel === 'place' && (
         <PlaceSheet
           value={place?.name ?? ''}

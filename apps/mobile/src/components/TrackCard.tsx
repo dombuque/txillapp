@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { MusicLinkCard } from './MusicLink';
+import { isLinkMusic } from '@/lib/musicLink';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { licenseLabel } from '@/lib/musicCatalog';
@@ -61,7 +63,11 @@ export function useAutoTrack(track: Track, { autoplay = false, visible = false, 
  * licença. `playNow` toca logo ao aparecer (nota de música aberta pela pessoa). Sem `autoplay`, é só informativo (ex.: ao
  * compor). Nas publicações, a música aparece no MusicCard ou no MusicBadge (components/PostMusic).
  */
-export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
+export function TrackCard(p: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
+  return isLinkMusic(p.track) ? <MusicLinkCard track={p.track} /> : <TrackCardAudio {...p} />;
+}
+
+function TrackCardAudio({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
   const { on, me } = useAutoTrack(track, { autoplay, visible, playNow });
   const live = useTrackLive(me);
   const [muted, toggleMute] = useMusicMuted();

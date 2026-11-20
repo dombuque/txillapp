@@ -205,7 +205,7 @@ export class NotesService implements OnModuleInit {
    */
   async set(me: string, body: string, musicIn: MusicInput | null = null, extras: NoteExtras = {}) {
     const placeIn = extras.place ?? null;
-    this.filter.assertClean(body, placeIn?.name, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
+    this.filter.assertClean(body, placeIn?.name, (musicIn && 'title' in musicIn ? musicIn.title : undefined), 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(me, musicIn);
     const place: NotePlace | null = placeIn ? { name: placeIn.name.trim().slice(0, 80) } : null;
     const gif = extras.gif ? await this.gifs.confirm(me, extras.gif) : null;

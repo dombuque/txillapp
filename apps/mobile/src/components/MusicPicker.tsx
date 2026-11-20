@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MusicLinkCard } from './MusicLink';
+import { looksLikeMusicLink } from '@/lib/musicLink';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Image } from 'expo-image';
@@ -182,15 +184,15 @@ const noCover = (t: Track) => {
  * autor segue com a faixa. As faixas dos artistas de Moçambique só aparecem com `allowLocal` (mimos, TchekaStudio e
  * publicação com um só vídeo).
  */
-export function MusicPicker({ onPick, onClose, hint, allowLocal = false }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o estilo. */ hint?: string; /** Mostra os «Artistas de Moçambique» (só mimos e tchekas, como diz a licença). */ allowLocal?: boolean }) {
+export function MusicPicker({ onPick, onClose, hint, allowLocal = false, allowLink = false }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o estilo. */ hint?: string; /** Mostra os «Artistas de Moçambique» (só mimos e tchekas, como diz a licença). */ allowLocal?: boolean; /** Deixa colar a ligação de uma música (Spotify, YouTube…): notas, mimos e publicações sem vídeo. */ allowLink?: boolean }) {
   return (
     <Sheet onClose={onClose} full plain dark variant="panel">
-      <PickerBody onPick={onPick} hint={hint} allowLocal={allowLocal} />
+      <PickerBody onPick={onPick} hint={hint} allowLocal={allowLocal} allowLink={allowLink} />
     </Sheet>
   );
 }
 
-function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; hint?: string; allowLocal: boolean }) {
+function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track) => void; hint?: string; allowLocal: boolean; allowLink: boolean }) {
   const suggestion = useMemo(() => suggestMusic(hint), [hint]);
   const me = useRef(Symbol('picker'));
   const sheetScroll = useSheetScroll();
@@ -261,7 +263,10 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
     const t = setTimeout(() => setQuery(typed.length >= 2 ? typed : ''), typed.length >= 2 ? 500 : 0);
     return () => clearTimeout(t);
   }, [term]);
-  const searching = query.length >= 2;
+  // Colou a ligação de uma música (Spotify, YouTube…): em vez de pesquisar, mostra-a com «Usar».
+  const pastedLink = allowLink && looksLikeMusicLink(term) ? term.trim() : '';
+  const linked = useQuery({ queryKey: ['music-link', pastedLink], queryFn: () => musicApi.link(pastedLink), enabled: !!pastedLink, staleTime: 60 * 60_000, retry: false });
+  const searching = query.length >= 2 && !pastedLink;
 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
@@ -372,6 +377,21 @@ function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; 
           </View>
         ) : null}
         {!!err && <Text style={s.err}>{err}</Text>}
+        {pastedLink ? (
+          <View style={{ gap: 10, paddingVertical: 8 }}>
+            {linked.isPending ? <Text style={s.err}>{t('A ver a música…')}</Text> : null}
+            {linked.isError ? <Text style={s.err}>{(linked.error as Error).message}</Text> : null}
+            {linked.data ? (
+              <>
+                <MusicLinkCard track={linked.data} />
+                <Pressable onPress={() => onPick(linked.data!)} style={s.useLink} accessibilityRole="button">
+                  <Text style={s.useLinkText}>{t('Usar esta música')}</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+        {allowLink && !term ? <Text style={s.linkHint}>{t('Também podes colar a ligação de uma música do Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music.')}</Text> : null}
 
         {searching ? (
           <View style={{ marginTop: 6 }}>{list(found, t('Nada com esse nome'))}</View>
@@ -649,6 +669,9 @@ function MenuItem({ icon, label, hint, disabled = false, onPress }: { icon: Reac
 }
 
 const s = StyleSheet.create({
+  useLink: { height: 46, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  useLinkText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  linkHint: { fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.6)', paddingHorizontal: 4, paddingBottom: 8 },
   body: { flex: 1, minHeight: 0 },
   deskTitle: { paddingLeft: 20, paddingRight: 64, marginTop: 4, marginBottom: 12, fontSize: 18, lineHeight: 28, fontWeight: '700', color: C.text },
   search: { marginHorizontal: 16, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: C.raised, paddingHorizontal: 16 },

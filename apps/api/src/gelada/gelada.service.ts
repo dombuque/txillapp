@@ -194,7 +194,7 @@ export class GeladaService {
     if (!names.length) throw new BadRequestException('Escolhe pelo menos um amigo');
     if (names.length > DAY_MAX) throw new BadRequestException(`No máximo ${DAY_MAX} amigos de cada vez`);
     const caption = (b.caption ?? '').trim().slice(0, 300);
-    if (b.channel === 'post') this.filter.assertClean(caption, b.music?.title, b.music && 'artist' in b.music ? (b.music as { artist?: string }).artist : undefined);
+    if (b.channel === 'post') this.filter.assertClean(caption, b.music && 'title' in b.music ? b.music.title : undefined, b.music && 'artist' in b.music ? (b.music as { artist?: string }).artist : undefined);
     if (b.music && b.channel !== 'post') throw new BadRequestException('O hit só vai no pedido publicado');
     const iAmAdult = await this.adult(me);
     const picked = await this.drinkOf(me, b.itemId, iAmAdult);

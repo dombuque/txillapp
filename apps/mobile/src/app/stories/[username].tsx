@@ -1,4 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MusicLinkCard } from '@/components/MusicLink';
+import { isLinkMusic } from '@/lib/musicLink';
+import type { Track } from '@/lib/api.music';
 import { useAudioPlayer, useAudioPlayerStatus, type AudioPlayer } from 'expo-audio';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -104,7 +107,12 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
  * A música do mimo: toca enquanto está à vista (pára se pausares ou se a app sair do ecrã) e tem botão para silenciar (o
  * som da app, o mesmo das publicações). Diz ao visor se está a tocar com som (`onLive`), para as ondas no meio da foto.
  */
-function StoryMusic({ track, paused, onLive }: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
+/** A música do mimo: a do catálogo toca por baixo; a por ligação (Spotify…) é a pílula que abre o leitor oficial. */
+function StoryMusic(p: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
+  return isLinkMusic(p.track) ? <MusicLinkCard track={p.track as Track} pill dark /> : <StoryMusicAudio {...p} />;
+}
+
+function StoryMusicAudio({ track, paused, onLive }: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
   const player = useAudioPlayer(abs(track.url) ?? '');
   const status = useAudioPlayerStatus(player);
   const [muted, toggleMute] = useMusicMuted();

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -6,6 +6,7 @@ import { ZodPipe } from '../common/zod.pipe';
 import { MusicCatalogService } from './catalog/catalog.service';
 import { isStyle } from './catalog/track';
 import { favoriteSchema, MusicService, type FavoriteInput } from './music.service';
+import { z } from 'zod';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -22,6 +23,14 @@ export class MusicController {
   constructor(private readonly music: MusicService, private readonly catalog: MusicCatalogService) {}
 
   /** O seletor ao abrir: estilos com faixas, «Em alta no Txillapp», «Artistas de Moçambique» (se houver), se há «Sons», as que usei. */
+  /** A pré-visualização de uma música por ligação (Spotify, YouTube…), antes de a pôr numa nota, mimo ou publicação. */
+  @Post('link')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  link(@Body(new ZodPipe(z.object({ url: z.string().trim().min(8).max(500) }))) b: { url: string }) {
+    return this.music.linkMusic(b.url);
+  }
+
   @Get('home')
   home(@Req() req: AuthedReq) {
     return this.catalog.home(req.userId!);
