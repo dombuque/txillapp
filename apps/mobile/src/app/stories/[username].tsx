@@ -28,6 +28,7 @@ import { useVisibleViewport, webWindowH } from '@/components/zas/useVisibleViewp
 import { barBottom, heldSize, keyboardCover, webKeyboardBox, type Size } from '@/lib/keyboardFrame';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
+import { isSaving } from '@/lib/dataSaverRules';
 import { servedWidth } from '@/lib/photoSize';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { firstToWatch, markSeen, nextOwnSeen, seenUpTo } from '@/lib/ownStorySeen';
@@ -248,11 +249,11 @@ export default function StoryViewer() {
     if (nu) {
       void qc.prefetchQuery({ queryKey: ['stories', nu.username], queryFn: () => api.storiesOf(nu.username), staleTime: 30_000 }).then(() => {
         const first = qc.getQueryData<Story[]>(['stories', nu.username])?.find((x) => !x.seen) ?? qc.getQueryData<Story[]>(['stories', nu.username])?.[0];
-        if (first && first.mediaKind !== 'video') { const u = sized(first.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
+        if (first && first.mediaKind !== 'video' && !isSaving()) { const u = sized(first.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
       }).catch(() => undefined);
     }
     const nx = stories[i + 1];
-    if (nx && nx.mediaKind !== 'video') { const u = sized(nx.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
+    if (nx && nx.mediaKind !== 'video' && !isSaving()) { const u = sized(nx.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
   }, [at, i, stories.length, order.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = () => {
     if (i + 1 < stories.length) return setI(i + 1);

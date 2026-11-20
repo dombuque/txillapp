@@ -133,6 +133,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'installApp', group: 'notificacoes', get title() { return t('Instalar a app'); }, get keywords() { return [t('ecrã principal'), 'pwa', t('adicionar ao ecrã'), 'instalar']; } },
   ...Object.entries(NOTIFY_LABELS).map(([cat, [title]]): SettingsEntry => ({ id: notifyEntryId(cat), group: 'notificacoes', title, keywords: [t('notificações'), 'avisos', ...(NOTIFY_KEYWORDS[cat] ?? [])] })),
   // Conteúdo e o teu algoritmo
+  { id: 'dataSaver', group: 'conteudo', get title() { return t('Poupar megas'); }, get keywords() { return ['megas', 'dados', t('dados móveis'), t('poupar dados'), 'data saver', 'internet', 'mb', t('gastar menos'), t('qualidade'), t('vídeos a tocar sozinhos'), 'autoplay']; } },
   { id: 'algorithm', group: 'conteudo', get title() { return t('O teu algoritmo'); }, to: '/reels/filtros', get keywords() { return ['feed', 'tchekas', 'reels', 'interesses', t('tópicos'), t('ver mais'), t('ver menos'), 'filtros', 'explorar', t('recomendações')]; } },
   { id: 'saved', group: 'conteudo', get title() { return t('Guardados'); }, to: '/saved', get keywords() { return [t('favoritos'), t('guardar'), t('marcadores'), t('coleções')]; } },
   { id: 'geleira', group: 'conteudo', get title() { return t('A minha geleira'); }, to: '/geleira', get keywords() { return [t('bebidas'), 'gostos', t('frigorífico')]; } },

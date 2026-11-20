@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Platform } from 'react-native';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { FindContacts } from '@/components/FindContacts';
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
+import { ChoiceSheet } from '@/components/settings/ChoiceSheet';
+import { setDataSaverMode, useDataSaverMode } from '@/lib/dataSaver';
+import type { DataSaverMode } from '@/lib/dataSaverRules';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { usePrivacy } from '@/components/settings/usePrivacy';
 import { ApiError } from '@/lib/api';
@@ -18,6 +20,8 @@ import { t } from '@/lib/i18n';
 /** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, os reposts das tuas publicações, as tchekas (duetos, o teu som e guardá-las), as estatísticas, o teu local e os convites. */
 export default function ContentSettings() {
   const [contacts, setContacts] = useState(false);
+  const saverMode = useDataSaverMode();
+  const [saverOpen, setSaverOpen] = useState(false);
   const qc = useQueryClient();
   const { p, save } = usePrivacy();
   // Numa conta privada ninguém faz remix (o dueto é público e levava as tuas tchekas para fora dos seguidores).
@@ -74,8 +78,24 @@ export default function ContentSettings() {
       showToast(e instanceof ApiError && e.message ? e.message : t('Não consegui mudar isto agora. Tenta outra vez.'));
     }
   }
+  const saverOptions: { value: DataSaverMode; title: string; text: string }[] = [
+    { value: 'off', title: t('Desligado'), text: t('Fotos na melhor qualidade e os vídeos do feed a tocar sozinhos.') },
+    { value: 'mobile', title: t('Só nos dados móveis'), text: t('No Wi-Fi fica tudo igual; nos dados móveis a app poupa.') },
+    { value: 'always', title: t('Sempre'), text: t('Poupa também no Wi-Fi.') },
+  ];
+  const saverLabel = saverOptions.find((o) => o.value === saverMode)?.title ?? '';
   return (
     <SettingsPage title={t('Conteúdo e o teu algoritmo')}>
+      <SettingsSection title={t('Dados e megas')}>
+        <SettingRow
+          anchor="dataSaver"
+          icon="bolt"
+          title={t('Poupar megas')}
+          value={saverLabel}
+          description={t('Fotos mais leves, vídeos do feed só quando tocas e nada descarregado antes do tempo. Gasta bem menos dados.')}
+          onPress={() => setSaverOpen(true)}
+        />
+      </SettingsSection>
       <SettingsSection title={t('O que vês')}>
         <SettingRow anchor="algorithm" icon="sliders" title={t('O teu algoritmo')} description={t('Ver mais ou menos de cada tema nas Tchekas')} to="/reels/filtros" />
         <SettingRow anchor="saved" icon={<BookmarkIcon on={false} size={22} />} title={t('Guardados')} to="/saved" />
@@ -121,9 +141,19 @@ export default function ContentSettings() {
       </SettingsSection>
       <SettingsSection title={t('Amigos')}>
         <SettingRow anchor="invites" icon="user-plus" title={t('Convida a tua malta')} to="/invites" />
-        {Platform.OS === 'web' ? <SettingRow anchor="contacts" icon="users" title={t('Encontrar amigos nos contactos')} onPress={() => setContacts(true)} /> : null}
+        <SettingRow anchor="contacts" icon="users" title={t('Encontrar amigos nos contactos')} onPress={() => setContacts(true)} />
       </SettingsSection>
       {contacts && <FindContacts onClose={() => setContacts(false)} />}
+      {saverOpen ? (
+        <ChoiceSheet
+          title={t('Poupar megas')}
+          intro={t('Os megas são caros. Com isto ligado, as fotos vêm mais leves, os vídeos do feed só descarregam quando lhes tocas e a app não descarrega o mimo nem a tcheka seguinte antes do tempo.')}
+          options={saverOptions}
+          value={saverMode}
+          onPick={(v) => { void setDataSaverMode(v); setSaverOpen(false); showToast(v === 'off' ? t('Poupar megas desligado') : t('Poupar megas ligado')); }}
+          onClose={() => setSaverOpen(false)}
+        />
+      ) : null}
     </SettingsPage>
   );
 }

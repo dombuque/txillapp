@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { abs } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
 import { feedVideoLive, limitBuffer } from '@/lib/videoMemory';
+import { useSaving } from '@/lib/dataSaver';
 import type { Fit } from '@/lib/viewerFit';
 import { Icon } from './Icon';
 import { t } from '@/lib/i18n';
@@ -37,11 +38,38 @@ export function CarouselVideo({ url, poster, durationMs, width, height, active, 
 }) {
   const src = abs(url) ?? '';
   const cover = abs(poster);
+  // «Poupar megas»: no feed o vídeo não arranca sozinho; a capa com ▶ e o vídeo só depois de um toque (no visor em ecrã
+  // inteiro a pessoa já escolheu ver: toca como sempre). A tcheka no feed (passive) abre-se pelo toque de fora.
+  const saving = useSaving();
+  const [tapped, setTapped] = useState<string | null>(null);
+  if (saving && !viewer && tapped !== src) {
+    return <SaverPoster cover={cover} durationMs={durationMs} width={width} height={height} onPlay={passive ? undefined : () => setTapped(src)} />;
+  }
   const p = { src, cover, durationMs, width, height, active, inView, mute, passive, viewer, fit, soundBottom, onSize, onDouble };
   return Platform.OS === 'web' ? <WebVideo {...p} /> : <NativeVideo {...p} />;
 }
 
 interface Props { src: string; cover?: string; durationMs?: number | null; width: number; height: number; active: boolean; inView: boolean; mute: boolean; passive: boolean; viewer: boolean; fit: Fit; soundBottom?: number; onSize?: (w: number, h: number) => void; onDouble?: () => void }
+
+/** «Poupar megas»: a capa (leve) com ▶ e a duração; nada do vídeo se descarrega até ao toque. */
+function SaverPoster({ cover, durationMs, width, height, onPlay }: { cover?: string; durationMs?: number | null; width: number; height: number; onPlay?: () => void }) {
+  const body = (
+    <>
+      {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" pointerEvents="none" {...listImageProps(Platform.OS, 0)} /> : null}
+      <View style={st.saverPlay} pointerEvents="none"><Icon name="play" size={26} color="#fff" solid /></View>
+      <View style={st.saverTag} pointerEvents="none">
+        <Icon name="bolt" size={12} color="#fff" />
+        <Text style={st.saverText}>{durationMs ? `${t('Poupar megas')} · ${secs(durationMs)}` : t('Poupar megas')}</Text>
+      </View>
+    </>
+  );
+  if (!onPlay) return <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="none">{body}</View>;
+  return (
+    <Pressable onPress={onPlay} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={t('Ver o vídeo')} accessibilityHint={t('Poupar megas está ligado: o vídeo só descarrega quando tocas')}>
+      {body}
+    </Pressable>
+  );
+}
 
 /** Dois toques seguidos (< 280 ms) contam como duplo. */
 function useDouble(onDouble?: () => void) {
@@ -360,6 +388,9 @@ function NativePreview({ uri }: { uri: string }) {
 }
 
 const st = StyleSheet.create({
+  saverPlay: { position: 'absolute', alignSelf: 'center', top: '50%', marginTop: -30, width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  saverTag: { position: 'absolute', left: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4 },
+  saverText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   soundBtnViewer: { position: 'absolute', left: 14, bottom: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   soundBtn: { position: 'absolute', right: 10, bottom: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   sound: { position: 'absolute', right: 10, bottom: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },

@@ -1671,5 +1671,18 @@
   "O telemóvel vai pedir a tua permissão. Só lemos os emails dos contactos, aqui no telemóvel, e nunca os guardamos.": "Your phone will ask for permission. We only read your contacts' emails, here on your phone, and never store them.",
   "Sem a permissão não conseguimos ver os teus contactos. Podes dá-la nas definições do telemóvel.": "Without permission we can't see your contacts. You can allow it in your phone's settings.",
   "Recusaste o acesso aos contactos. Se mudares de ideias, podes permiti-lo nas definições do telemóvel.": "You declined access to your contacts. If you change your mind, you can allow it in your phone's settings.",
-  "Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no telemóvel: só comparamos os emails cifrados.": "See which of your contacts are already on Txillapp. Your contacts stay on your phone: we only compare encrypted emails."
+  "Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no telemóvel: só comparamos os emails cifrados.": "See which of your contacts are already on Txillapp. Your contacts stay on your phone: we only compare encrypted emails.",
+  "Dados e megas": "Data usage",
+  "Fotos mais leves, vídeos do feed só quando tocas e nada descarregado antes do tempo. Gasta bem menos dados.": "Lighter photos, feed videos only when you tap, and nothing downloaded ahead of time. Uses much less data.",
+  "Fotos na melhor qualidade e os vídeos do feed a tocar sozinhos.": "Photos in the best quality and feed videos playing on their own.",
+  "Liga o Poupar megas: fotos mais leves e os vídeos só descarregam quando lhes tocas. No Wi-Fi fica tudo igual.": "Turn on Data Saver: lighter photos, and videos only download when you tap them. On Wi-Fi nothing changes.",
+  "No Wi-Fi fica tudo igual; nos dados móveis a app poupa.": "On Wi-Fi nothing changes; on mobile data the app saves.",
+  "Os megas são caros. Com isto ligado, as fotos vêm mais leves, os vídeos do feed só descarregam quando lhes tocas e a app não descarrega o mimo nem a tcheka seguinte antes do tempo.": "Data is expensive. With this on, photos are lighter, feed videos only download when you tap them, and the app doesn't download the next mimo or tcheka ahead of time.",
+  "Poupa também no Wi-Fi.": "Saves on Wi-Fi too.",
+  "Poupar megas": "Data Saver",
+  "Poupar megas desligado": "Data Saver off",
+  "Poupar megas está ligado: o vídeo só descarrega quando tocas": "Data Saver is on: the video only downloads when you tap",
+  "Poupar megas ligado": "Data Saver on",
+  "Poupar megas ligado nos dados móveis": "Data Saver on for mobile data",
+  "vídeos a tocar sozinhos": "autoplay videos"
 }

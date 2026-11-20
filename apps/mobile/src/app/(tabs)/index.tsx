@@ -22,6 +22,7 @@ import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { EmailBanner } from '@/components/EmailBanner';
 import { ContactsNudge } from '@/components/ContactsNudge';
+import { DataSaverHint } from '@/components/DataSaverHint';
 import { PublishBanner } from '@/components/PublishBanner';
 import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
@@ -218,6 +219,8 @@ function Feed() {
           <View style={{ paddingTop: 4 }}>
             <PublishBanner />
             <EmailBanner />
+            {/* «Poupar megas»: o aviso único a quem está nos dados móveis com o modo desligado. */}
+            <DataSaverHint />
             <ProfileNudge />
             <StoriesTray />
             {/* «Em breve» (0176): as Txilladas agendadas de quem sigo, numa fila à parte (a dos mimos fica igual). */}

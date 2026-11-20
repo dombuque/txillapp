@@ -10,6 +10,10 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ActivateSheet } from '@/components/ActivateSheet';
 import { BadgeCelebration } from '@/components/BadgeCelebration';
+import { startDataSaver } from '@/lib/dataSaver';
+
+// «Poupar megas»: o modo guardado e a rede (dados móveis ou Wi-Fi) logo no arranque, antes das primeiras fotos.
+startDataSaver();
 import { AlertHost } from '@/components/AlertHost';
 import { ToastHost } from '@/components/ToastHost';
 import { Button } from '@/components/ui/Button';

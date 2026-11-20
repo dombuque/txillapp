@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useSaving } from '@/lib/dataSaver';
 import { limitBuffer, reelMounted } from '@/lib/videoMemory';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
@@ -337,7 +338,9 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   const mine = post.author.id === me;
   const sound = reelSound(post);
 
-  const player = useVideoPlayer(abs(m.url) ?? '', (p) => {
+  // «Poupar megas»: as tchekas vizinhas (montadas pela lista) não descarregam o vídeo; só a que está em cena.
+  const saving = useSaving();
+  const player = useVideoPlayer(saving && !active ? null : abs(m.url) ?? '', (p) => {
     limitBuffer(p, 'reel');
     p.loop = !onMore;
     p.muted = true;
