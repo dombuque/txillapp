@@ -21,6 +21,7 @@ import { UpcomingRow } from '@/components/txillada/ScheduleCards';
 import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { EmailBanner } from '@/components/EmailBanner';
+import { ContactsNudge } from '@/components/ContactsNudge';
 import { PublishBanner } from '@/components/PublishBanner';
 import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
@@ -221,6 +222,8 @@ function Feed() {
             <StoriesTray />
             {/* «Em breve» (0176): as Txilladas agendadas de quem sigo, numa fila à parte (a dos mimos fica igual). */}
             <UpcomingRow />
+            {/* Só na app instalada: o convite para procurar amigos nos contactos, de tempos a tempos (lib/contactsNudge). */}
+            <ContactsNudge />
           </View>
         }
         ListEmptyComponent={
