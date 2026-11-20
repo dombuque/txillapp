@@ -101,6 +101,29 @@ export async function cropToRatio(uri: string, ratio: number): Promise<string> {
  * telemóvel: mimos). O recorte do sistema (seletor do Android + Google Fotos) devolve a foto à resolução original.
  * Se já for pequena, ou se algo falhar, devolve-se a própria foto.
  */
+/** Os formatos de foto que o servidor aceita; os outros (HEIC, AVIF, tipo vazio…) passam a JPEG antes de subir. */
+export const UPLOAD_PHOTO_MIMES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/**
+ * JPEG da foto inteira (já com a orientação EXIF), reduzida aos mesmos limites do shrinkPhoto. Para as fotos num formato
+ * que o servidor não aceita (o HEIC de alguns Android e iPhone, ou o tipo vazio da galeria). null se não deu para abrir.
+ */
+export async function toJpeg(uri: string, maxShort = 1440, maxLong = 2560): Promise<string | null> {
+  let img: SkImage | null = null;
+  try {
+    img = await open(uri);
+    if (!img) return null;
+    const w = img.width(), h = img.height();
+    if (!w || !h) return null;
+    const k = Math.min(1, maxLong / Math.max(w, h), maxShort / Math.min(w, h));
+    return render(img, 0, 0, w, h, Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)), 'jpeg');
+  } catch {
+    return null;
+  } finally {
+    free(img);
+  }
+}
+
 export async function shrinkPhoto(uri: string, maxShort = 1440, maxLong = 2560): Promise<string> {
   let img: SkImage | null = null;
   try {

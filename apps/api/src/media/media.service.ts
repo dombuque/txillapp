@@ -34,6 +34,11 @@ export const REJECTED_KEEP_DAYS = 7;
 /** Pedidos de revisão por pessoa e por dia. */
 export const APPEALS_PER_DAY = 10;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+/** «image/jpg», «image/pjpeg» e maiúsculas: o JPEG de sempre. */
+export const normalizeImageMime = (mime: string): string => {
+  const m = String(mime ?? '').toLowerCase().trim();
+  return m === 'image/jpg' || m === 'image/pjpeg' ? 'image/jpeg' : m;
+};
 
 /**
  * Tira os metadados de uma foto (GPS, aparelho, data) antes de ficar guardada: nada do EXIF chega a quem a vê.
@@ -419,6 +424,8 @@ export class MediaService implements OnModuleInit {
   }
 
   async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' | 'music' = 'public', signed = false) {
+    // Alguns Android mandam o JPEG como «image/jpg» ou «image/pjpeg» (ou em maiúsculas): é o mesmo formato.
+    mime = normalizeImageMime(mime);
     if (purpose === 'music') return this.requestMusicUpload(userId, normalizeMusicMime(mime), size);
     const audio = AUDIO.has(mime);
     const video = VIDEO.has(mime);

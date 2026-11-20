@@ -1,7 +1,14 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { ApiError, putBlob, raw, readLocalBlob, releaseBlob, waitMediaReady, type MediaState } from './api';
-import { POST_MAX_SIDE, shrinkPhoto } from './cropToRatio';
+import { POST_MAX_SIDE, UPLOAD_PHOTO_MIMES, shrinkPhoto, toJpeg } from './cropToRatio';
+
+/** O tipo da foto como o servidor o conhece: «image/jpg» e «image/pjpeg» são JPEG. */
+export const normalizePhotoMime = (mime: string | null | undefined, video = false): string => {
+  const m = (mime ?? '').toLowerCase().trim();
+  if (video) return m || 'video/mp4';
+  return m === 'image/jpg' || m === 'image/pjpeg' ? 'image/jpeg' : m;
+};
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
 import { uploadRequest } from './signedMedia';
@@ -62,8 +69,13 @@ export function usePublishTasks(): PublishTask[] {
 /** Envia um ficheiro com progresso (XHR: o fetch não diz quanto já foi). Devolve o id e a resposta do /complete. */
 async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => void): Promise<{ assetId: string; state: MediaState }> {
   // Última defesa: uma foto que chegue aqui à resolução original (12–50 MP) é reduzida antes de subir.
-  const src = a.video ? a.uri : await shrinkPhoto(a.uri, POST_MAX_SIDE, POST_MAX_SIDE);
-  const mime = src === a.uri ? a.mime : 'image/jpeg';
+  let src = a.video ? a.uri : await shrinkPhoto(a.uri, POST_MAX_SIDE, POST_MAX_SIDE);
+  let mime = src === a.uri ? normalizePhotoMime(a.mime, a.video) : 'image/jpeg';
+  // Foto num formato que o servidor não aceita (HEIC, AVIF, tipo vazio da galeria): passa a JPEG aqui mesmo.
+  if (!a.video && !UPLOAD_PHOTO_MIMES.has(mime)) {
+    const jpg = await toJpeg(a.uri, POST_MAX_SIDE, POST_MAX_SIDE);
+    if (jpg) { src = jpg; mime = 'image/jpeg'; }
+  }
   const blob = await readLocalBlob(src);
   let up: { assetId: string; uploadUrl: string };
   try {
