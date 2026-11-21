@@ -18,7 +18,7 @@ test('reconhece as ligações das plataformas enquanto se cola', () => {
 test('envia só a ligação; o cartão aparece onde a música aparece; o seletor só deixa colar em notas, mimos e publicações sem vídeo', () => {
   assert.match(read('lib/api.music.ts'), /if \(t\.kind === 'link'\) return \{ kind: 'link' as const, url: t\.link \?\? t\.landing \?\? '' \};/);
   assert.match(read('components/PostMusic.tsx'), /isLinkMusic\(p\.track\) \? <MusicLinkCard track=\{p\.track\} pill dark \/> : <MusicBadgeAudio/);
-  assert.match(read('app/stories/[username].tsx'), /isLinkMusic\(p\.track\) \? <MusicLinkCard/);
+  assert.match(read('app/stories/[username].tsx'), /isLinkMusic\(tr\) \? <MusicLinkCard track=\{tr\} pill dark \/>/);
   assert.match(read('components/Notes.tsx'), /<MusicPicker hint=\{body\} allowLink/);
   assert.match(read('app/(tabs)/new.tsx'), /allowLink=\{!assets\.some\(\(a\) => a\.video\)\}/);
   assert.match(read('components/MusicPicker.tsx'), /const pastedLink = allowLink && looksLikeMusicLink\(term\) \? term\.trim\(\) : '';/);
