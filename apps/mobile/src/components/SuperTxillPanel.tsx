@@ -16,7 +16,6 @@ import { aiApi } from '@/lib/api.ai';
 import { liveState } from '@/lib/superTxillLive';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
-import { FeatureIntro } from './FeatureIntro';
 import { t } from '@/lib/i18n';
 
 /** O símbolo do SuperTxill: o balão com cara e o brilho no canto (ícone `supertxill`), diferente do raio do Zás. */
@@ -56,7 +55,6 @@ export function SuperTxillScreen({ onClose, initialTab = 'conversa' }: { onClose
 
   return (
     <>
-      <FeatureIntro id="supertxill" />
       <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576 }}>
           <View style={[s.header, { paddingTop: Math.max(12, insets.top) }]}>

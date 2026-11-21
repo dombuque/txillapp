@@ -369,7 +369,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const zasSettings = useZasSettings(intro);
 
   useEffect(() => {
-    void remember(INTRO_KEY).then((v) => setIntro(v !== '1'));
     void remember(AUDIENCE_KEY).then((v) => setAudience(v === 'close' ? 'close' : 'friends'));
     void remember(FONT_KEY).then((v) => setCaptionFont(normTextFont(v)));
   }, []);
@@ -552,34 +551,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         {/* Iluminação de ecrã (câmara da frente com o flash ligado): o ecrã todo branco enquanto se tira a foto. */}
         {screenLight && !isWeb ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 50, elevation: 50, backgroundColor: '#fff' }]} /> : null}
 
-        {intro && (
-          <View style={st.introWrap}>
-            <View style={st.intro} accessibilityViewIsModal>
-              <View style={{ alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="bolt" size={28} solid color="#fff" />
-              </View>
-              <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 24, fontWeight: '800', letterSpacing: -0.4, color: colors.zinc900 }}>Zás!</Text>
-              <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>{t('Tirou, mandou, já foi.')}</Text>
-              <View style={{ marginTop: 16, gap: 12 }}>
-                {([
-                  ['camera', t('Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.')],
-                  ['send', t('O botão tira e envia logo.')],
-                  ['eye', t('Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.')],
-                  ['clock', introDuration(zasSettings.data?.keepForRecap)],
-                  ['users', t('Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.')],
-                ] as const).map(([ic, text]) => (
-                  <View key={ic} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' }}><Icon name={ic} size={18} /></View>
-                    <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc900 }}>{text}</Text>
-                  </View>
-                ))}
-              </View>
-              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen('intro:zas'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{t('Percebi')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
       </GestureHandlerRootView>
       {setupClose && (
         <CloseFriendsSheet

@@ -20,16 +20,8 @@ import { t } from '@/lib/i18n';
 
 interface Step { icon: IconName; title: string; text: string }
 
-const STEPS: Step[] = [
-  { icon: 'sparkles', get title() { return t('Bem-vindo ao Txillapp'); }, get text() { return t('Dois minutos e já sabes onde está tudo. Podes saltar quando quiseres.'); } },
-  { icon: 'home', get title() { return t('Início'); }, get text() { return t('O feed da malta e dos sítios onde andam. Toca outra vez no ícone para voltar ao topo e atualizar.'); } },
-  { icon: 'search', get title() { return t('Pesquisar'); }, get text() { return t('No canto de cima: procura pessoas, hashtags e sítios a bater perto de ti.'); } },
-  { icon: 'plus', get title() { return t('Publicar'); }, get text() { return t('Foto, vídeo ou só texto, com sítio e malta identificada. A tua vibe, tu mandas.'); } },
-  { icon: 'messages', get title() { return t('Mensagens'); }, get text() { return t('Conversas, TxillGroups e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.'); } },
-  { icon: 'film', title: 'Tchekas', get text() { return t('Vídeos curtos a tocar sem parar. Brinda, comenta e oferece vibes sem sair do vídeo.'); } },
-  { icon: 'user', get title() { return t('O teu perfil'); }, get text() { return t('Aqui moram as tuas publicações, as definições e a tua geleira.'); } },
-  { icon: 'snowflake', get title() { return t('Enche a tua geleira'); }, get text() { return t('Diz-nos as tuas ambientes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.'); } },
-];
+/** Sem cartões a explicar a app (o desenho explica-se): as boas-vindas são só «Segue a malta». */
+const STEPS: Step[] = [];
 
 /** Quantas pessoas se pede para seguir no primeiro passo (quem segue 3 ou mais no 1.º dia volta muito mais). */
 export const FOLLOW_GOAL = 3;
@@ -111,19 +103,15 @@ export function WelcomeTour() {
           </View>
           {follow ? <FollowStep following={me.data?.counts.following ?? 0} /> : <Text style={st.text}>{(step as Step).text}</Text>}
           <View style={st.foot}>
-            <View style={st.dots} accessibilityLabel={t('Passo {n} de {n2}', { n: i + 2, n2: STEPS.length + 1 })}>
-              {[-1, ...STEPS.map((_, n) => n)].map((n) => <View key={n} style={[st.dot, n === i && st.dotOn]} />)}
-            </View>
+            {STEPS.length ? (
+              <View style={st.dots} accessibilityLabel={t('Passo {n} de {n2}', { n: i + 2, n2: STEPS.length + 1 })}>
+                {[-1, ...STEPS.map((_, n) => n)].map((n) => <View key={n} style={[st.dot, n === i && st.dotOn]} />)}
+              </View>
+            ) : <View />}
             <View style={st.actions}>
-              {!last && <Button label={t('Saltar')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />}
-              {last ? (
-                <>
-                  <Button label={t('Depois')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />
-                  <Button label={t('Encher agora')} size="md" onPress={() => finish(true)} />
-                </>
-              ) : (
-                <Button label={t('Seguinte')} size="md" onPress={() => setI(i + 1)} />
-              )}
+              {/* Só «Segue a malta»: saltar ou concluir (sem cartões a explicar a app). */}
+              <Button label={t('Saltar')} kind="ghost" size="md" onPress={() => finish(false)} style={st.ghost} />
+              {last ? <Button label={t('Concluir')} size="md" onPress={() => finish(false)} /> : <Button label={t('Seguinte')} size="md" onPress={() => setI(i + 1)} />}
             </View>
           </View>
         </View>

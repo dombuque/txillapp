@@ -4,7 +4,6 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutCha
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { colors } from '@/lib/theme';
-import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
 import {
@@ -1536,7 +1535,6 @@ export function TxCamera({
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-      <FeatureIntro id="camera" />
       {dom(
         'div',
         {

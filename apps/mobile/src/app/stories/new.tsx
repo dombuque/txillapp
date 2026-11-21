@@ -24,7 +24,6 @@ import { musicApi, musicPayload, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { confirm } from '@/lib/confirm';
 import { colors } from '@/lib/theme';
-import { FeatureIntro } from '@/components/FeatureIntro';
 import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
 import { MAX_STICKERS, newPlaced, type MimoLayer } from '@/lib/stickers';
 import { TextLayerEditor } from '@/components/TextLayers';
@@ -247,7 +246,6 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }} behavior="padding" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
-      <FeatureIntro id="mimo" />
       {/* À volta da moldura (ecrãs mais altos ou mais largos do que 9:16): a foto desfocada e escurecida.
           overflow hidden: o fundo desfocado está ampliado (1,3) e passava 15% para fora do ecrã; no iPhone a página toda
           encolhia para caber (o editor a 87%, com uma faixa cinzenta à direita e em baixo). */}
