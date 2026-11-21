@@ -202,3 +202,13 @@ test('rascunhos e chamadas: apagar deixa «Desfazer»; limpar o histórico pergu
   assert.match(c, /<Sheet onClose=\{\(\) => setHeld\(null\)\} cancel>/);
   assert.match(c, /<NameWithBadge name=\{held\.peer\.displayName\} who=\{held\.peer\}/);
 });
+
+test('AlertHost: dois botões curtos lado a lado; textos compridos um por cima do outro, a ação em cima', async () => {
+  const a = await import(new URL('../src/lib/alertLayout.ts', import.meta.url).href);
+  assert.equal(a.alertInRow(['Cancelar', 'Apagar']), true);
+  assert.equal(a.alertInRow(['Continuar a editar', 'Descartar']), false);
+  assert.equal(a.alertInRow(['Sim']), false);
+  assert.equal(a.alertInRow(['A', 'B', 'C']), false);
+  const host = read('components', 'AlertHost.tsx');
+  assert.match(host, /\[\.\.\.r\.buttons\.filter\(\(b\) => b\.style !== 'cancel'\), \.\.\.r\.buttons\.filter\(\(b\) => b\.style === 'cancel'\)\]/);
+});

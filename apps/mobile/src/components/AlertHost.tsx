@@ -4,6 +4,7 @@ import { closeAlert, useAlertRequest } from '@/lib/alertHost';
 import { useOverlay } from '@/lib/overlays';
 import { colors, typo } from '@/lib/theme';
 import { Button } from './ui/Button';
+import { alertInRow } from '@/lib/alertLayout';
 
 /**
  * Caixa de confirmação (apagar, sair, bloquear…): título, texto e botões; o cancelar fecha sem fazer nada.
@@ -14,7 +15,10 @@ export function AlertHost() {
   useOverlay(!!r);
   if (!r) return null;
   const cancel = r.buttons.find((b) => b.style === 'cancel');
-  const row = r.buttons.length === 2;
+  // Lado a lado só com dois botões de texto curto («Cancelar» e «Apagar»); com textos compridos («Continuar a editar»)
+  // ficam um por cima do outro, a toda a largura: a ação em cima, o cancelar em baixo (como no iPhone e no Instagram).
+  const row = alertInRow(r.buttons.map((b) => b.text ?? 'OK'));
+  const buttons = row ? r.buttons : [...r.buttons.filter((b) => b.style !== 'cancel'), ...r.buttons.filter((b) => b.style === 'cancel')];
   return (
     <Modal transparent animationType="fade" onRequestClose={() => closeAlert(cancel)} statusBarTranslucent>
       <Pressable style={st.back} onPress={() => closeAlert(cancel)} accessibilityRole="none">
@@ -22,7 +26,7 @@ export function AlertHost() {
           <Text style={st.title} accessibilityRole="header">{r.title}</Text>
           {r.message ? <Text style={st.msg}>{r.message}</Text> : null}
           <View style={[st.btns, row && { flexDirection: 'row' }]}>
-            {r.buttons.map((b, i) => (
+            {buttons.map((b, i) => (
               <Button
                 key={i}
                 label={b.text ?? 'OK'}
