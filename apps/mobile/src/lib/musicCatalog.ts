@@ -9,6 +9,8 @@ import { t } from '@/lib/i18n';
 export interface TrackLike {
   id: string;
   kind?: string;
+  /** Música por ligação: a plataforma (spotify, youtube…). */
+  provider?: string;
   source?: string;
   uses?: number;
   usesTotal?: number;
@@ -198,7 +200,12 @@ export function rowMeta(t: TrackLike): string {
 }
 
 /** Quem fez a faixa, como aparece na linha. */
-const rowWho = (track: TrackLike) => track.artist || (track.artistUsername ? `@${track.artistUsername}` : '') || (track.kind === 'sound' ? t('Som') : t('Autor desconhecido'));
+const rowWho = (track: TrackLike) => {
+  // Música por ligação: o artista (se a plataforma o deu) e a plataforma («Mr Bow · YouTube», «Spotify»).
+  if (track.kind === 'link') return [track.artist, PROVIDER_LABELS[track.provider ?? ''] ?? ''].filter(Boolean).join(' · ');
+  return track.artist || (track.artistUsername ? `@${track.artistUsername}` : '') || (track.kind === 'sound' ? t('Som') : t('Autor desconhecido'));
+};
+const PROVIDER_LABELS: Record<string, string> = { spotify: 'Spotify', youtube: 'YouTube', audiomack: 'Audiomack', boomplay: 'Boomplay', deezer: 'Deezer', apple: 'Apple Music' };
 
 /** A linha cinzenta de uma faixa que não se pode usar aqui: «Artista · Só em mimos e tchekas». */
 export const lockedMeta = (t: TrackLike): string => `${rowWho(t)} · ${LOCAL_ONLY_NOTE()}`;

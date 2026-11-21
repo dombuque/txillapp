@@ -40,3 +40,20 @@ test('mimo com música do Spotify: o leitor compacto oficial toca sozinho e pár
   assert.match(p, /window\.tx && window\.tx\.pause\(\)/);
   assert.match(read('app/stories/[username].tsx'), /tr\.provider === 'spotify' && tr\.link && tr\.embedUrl\) return <SpotifyAutoPlayer/);
 });
+
+test('as usadas recentemente (neste aparelho) e as guardadas; os seguidores guardam e copiam', async () => {
+  const r = await import(new URL('../src/lib/musicLinkRecentRules.ts', import.meta.url).href);
+  const a = { id: 'link:spotify:a', kind: 'link' }; const b = { id: 'link:youtube:b', kind: 'link' };
+  assert.deepEqual(r.pushRecentLink([a], b).map((x) => x.id), ['link:youtube:b', 'link:spotify:a']);
+  assert.deepEqual(r.pushRecentLink([a, b], b).map((x) => x.id), ['link:youtube:b', 'link:spotify:a']);
+  assert.equal(r.pushRecentLink(Array.from({ length: 20 }, (_, i) => ({ id: `link:x:${i}`, kind: 'link' })), a).length, r.RECENT_LINKS_MAX);
+  assert.deepEqual(r.readRecentLinks('lixo'), []);
+  assert.deepEqual(r.readRecentLinks(JSON.stringify([{ id: 'x', kind: 'music' }, a])), [a]);
+  const p = read('components/MusicPicker.tsx');
+  assert.match(p, /if \(isLinkMusic\(t\)\) void rememberLink\(t\);/);
+  assert.match(p, /\{t\('Usadas recentemente'\)\}/);
+  assert.match(p, /if \(isLinkMusic\(track\)\) return pick\(track\);/);
+  const l = read('components/MusicLink.tsx');
+  assert.match(l, /saved \? musicApi\.removeFavorite\(track\.id\) : musicApi\.addFavorite\(track\)/);
+  assert.match(l, /Clipboard\.setStringAsync\(track\.link \?\? track\.landing \?\? ''\)/);
+});

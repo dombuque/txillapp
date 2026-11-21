@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { MusicLinkCard } from './MusicLink';
-import { looksLikeMusicLink } from '@/lib/musicLink';
+import { isLinkMusic, looksLikeMusicLink } from '@/lib/musicLink';
+import { recentLinks, rememberLink } from '@/lib/musicLinkRecent';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Image } from 'expo-image';
@@ -268,6 +269,8 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
   const pastedLink = allowLink && looksLikeMusicLink(term) ? term.trim() : '';
   const linked = useQuery({ queryKey: ['music-link', pastedLink], queryFn: () => musicApi.link(pastedLink), enabled: !!pastedLink, staleTime: 60 * 60_000, retry: false });
   const searching = query.length >= 2 && !pastedLink;
+  const [recents, setRecents] = useState<Track[]>([]);
+  useEffect(() => { if (allowLink) void recentLinks().then(setRecents); }, [allowLink]);
   async function pasteLink() {
     try {
       const text = (await Clipboard.getStringAsync()).trim();
@@ -289,6 +292,7 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
    * no iPhone (PWA) o toque é o que deixa o som sair, e um `await` antes perdia-o.
    */
   function toggle(track: Track) {
+    if (isLinkMusic(track)) return pick(track);
     const act = rowTap(playing, live, track.id);
     if (act === 'pause') {
       setPaused(true);
@@ -310,11 +314,16 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
   function pick(t: Track) {
     // As dos artistas de Moçambique aparecem nas «Guardadas» em todo o lado, mas só se usam em mimos e tchekas.
     if (!usableHere(t, allowLocal)) return;
+    if (isLinkMusic(t) && !allowLink) return;
     stopTrack(me.current);
+    // A música por ligação fica nas «Usadas recentemente» (não é preciso copiar a ligação outra vez).
+    if (isLinkMusic(t)) void rememberLink(t);
     onPick(t);
   }
 
-  const clean = (list: Track[] | null | undefined) => onlyAllowed(withoutDisliked(list, disliked), allowLocal);
+  // As músicas por ligação só onde se podem pôr (notas, mimos e publicações sem vídeo; nunca nas tchekas).
+  const linkOk = (list: Track[]) => (allowLink ? list : list.filter((x) => !isLinkMusic(x)));
+  const clean = (list: Track[] | null | undefined) => linkOk(onlyAllowed(withoutDisliked(list, disliked), allowLocal));
   const row = (t: Track) => (
     <TrackRow
       key={t.id}
@@ -342,7 +351,7 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
   const chips = forYouChips(home.data, allowLocal, suggestion?.genre);
   const tops = clean(highlights(home.data, allowLocal));
   // «Guardadas» mostra todas (as locais também); onde a licença não deixa, a linha diz «Só em mimos e tchekas» e não se usa.
-  const saved = withoutDisliked(favs.data, disliked);
+  const saved = linkOk(withoutDisliked(favs.data, disliked));
   const forYou = forYouList({ styleTracks: filter === null ? clean(styleList.data) : [], trending: clean(home.data?.trending), recent: clean(home.data?.recent), saved, skip: tops });
   const suggestedLabel = suggestion ? home.data?.styles.find((st) => st.id === suggestion.genre)?.label : undefined;
   // A pastilha que estava escolhida deixou de existir (ex.: sem artistas locais): volta ao «Para ti» todo.
@@ -399,9 +408,14 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
             {linked.data ? (
               <>
                 <MusicLinkCard track={linked.data} />
-                <Pressable onPress={() => onPick(linked.data!)} style={s.useLink} accessibilityRole="button">
-                  <Text style={s.useLinkText}>{t('Usar esta música')}</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable onPress={() => toggleSave.mutate(linked.data!)} style={s.saveLink} accessibilityRole="button" accessibilityState={{ selected: savedIds.has(linked.data.id) }} accessibilityLabel={savedIds.has(linked.data.id) ? t('Tirar das guardadas') : t('Guardar')}>
+                    <BookmarkIcon on={savedIds.has(linked.data.id)} size={22} color="#fff" />
+                  </Pressable>
+                  <Pressable onPress={() => pick(linked.data!)} style={[s.useLink, { flex: 1 }]} accessibilityRole="button">
+                    <Text style={s.useLinkText}>{t('Usar esta música')}</Text>
+                  </Pressable>
+                </View>
               </>
             ) : null}
           </View>
@@ -412,6 +426,12 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
           <View style={{ marginTop: 6 }}>{list(found, t('Nada com esse nome'))}</View>
         ) : tab === 'forYou' ? (
           <>
+            {allowLink && recents.length && filter === null ? (
+              <View style={{ marginBottom: 8 }}>
+                <Text style={s.recentTitle}>{t('Usadas recentemente')}</Text>
+                {recents.map(row)}
+              </View>
+            ) : null}
             {filter === null && !home.isLoading ? <Highlights items={tops} playing={playing} live={live} onPlay={toggle} onUse={pick} /> : null}
             {chips.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
@@ -684,6 +704,8 @@ function MenuItem({ icon, label, hint, disabled = false, onPress }: { icon: Reac
 }
 
 const s = StyleSheet.create({
+  recentTitle: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.6)', paddingHorizontal: 4, paddingVertical: 8 },
+  saveLink: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   useLink: { height: 46, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   useLinkText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   paste: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 10, paddingVertical: 5 },

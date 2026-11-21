@@ -108,7 +108,7 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   // mimos e das tchekas o «Usar» fica desativado, com a nota «Só em mimos e tchekas».
   assert.match(picker, /\{canSave\(track\) \? \(/);
   assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip';/);
-  assert.match(picker, /const saved = withoutDisliked\(favs\.data, disliked\);/);
+  assert.match(picker, /const saved = linkOk\(withoutDisliked\(favs\.data, disliked\)\);/);
   assert.match(picker, /locked=\{!usableHere\(t, allowLocal\)\}/);
   assert.match(picker, /if \(!usableHere\(t, allowLocal\)\) return;/);
 });

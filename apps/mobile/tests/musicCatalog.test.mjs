@@ -238,8 +238,8 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   assert.match(src, /\{isExplicit\(track\) \? \(/);
   assert.match(src, /\{active \|\| \(desktop && hot\) \? \(\s*<Pressable disabled=\{locked\} onPress=\{\(\) => onUse\(track\)\}/);
   assert.match(src, /\{live \? <SoundBars /);
-  // A pesquisa e os quatro separadores mostram as faixas com a mesma linha (com guardar).
-  assert.equal((src.match(/\.map\(row\)/g) || []).length, 3);
+  // A pesquisa, os separadores e as «Usadas recentemente» (músicas por ligação) mostram as faixas com a mesma linha (com guardar).
+  assert.equal((src.match(/\.map\(row\)/g) || []).length, 4);
   assert.match(src, /items\.length \? items\.map\(row\)/);
   assert.match(src, /onSave=\{\(x\) => toggleSave\.mutate\(x\)\}/);
   // O áudio gravado na hora não tem marcador e não deixa espaço vazio (o «Usar» encosta à direita).
@@ -256,7 +256,7 @@ test('o seletor: folha escura com pesquisa, separadores, destaques, linhas com c
   // As ondas seguem o que a pessoa fez (a carregar já mostra que vai tocar), não o estado do leitor.
   assert.match(src, /const live = playing !== null && !paused;/);
   assert.doesNotMatch(src, /async function toggle/);
-  assert.match(src, /function pick\(t: Track\) \{\n[^}]*if \(!usableHere\(t, allowLocal\)\) return;\n    stopTrack\(me\.current\);\n    onPick\(t\);/);
+  assert.match(src, /function pick\(t: Track\) \{\n[^}]*if \(!usableHere\(t, allowLocal\)\) return;\n    if \(isLinkMusic\(t\) && !allowLink\) return;\n    stopTrack\(me\.current\);[\s\S]{0,200}?onPick\(t\);/);
   assert.match(src, /const meta = locked \? lockedMeta\(track\) : rowMeta\(track\);/);
   assert.match(src, /<BookmarkIcon on=\{saved\}/);
   assert.match(src, /<SoundBars /);

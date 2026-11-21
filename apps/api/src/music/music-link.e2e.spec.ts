@@ -57,4 +57,14 @@ describe('música por ligação: notas e publicações (integração)', () => {
     // Uma ligação inválida não entra.
     await api().post('/api/v1/posts').set(auth(a)).send({ body: 'x', music: { kind: 'link', url: 'https://evil.example/x' } }).expect(400);
   });
+
+  it('guardar nas Guardadas uma música por ligação (e tirar)', async () => {
+    const a = await signup('mld');
+    await api().put('/api/v1/music/favorites').set(auth(a)).send({ kind: 'link', url: SPOTIFY }).expect(200);
+    const favs = (await api().get('/api/v1/music/favorites').set(auth(a)).expect(200)).body as { id: string; kind?: string; link?: string }[];
+    const fav = favs.find((x) => x.kind === 'link');
+    expect(fav).toMatchObject({ id: 'link:spotify:4uLU6hMCjMI75M1A2tKUQC', link: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC' });
+    await api().delete(`/api/v1/music/favorites/${encodeURIComponent(fav!.id)}`).set(auth(a)).expect(200);
+    expect(((await api().get('/api/v1/music/favorites').set(auth(a)).expect(200)).body as { kind?: string }[]).some((x) => x.kind === 'link')).toBe(false);
+  });
 });

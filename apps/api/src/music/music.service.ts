@@ -80,7 +80,7 @@ export type MusicInput = z.infer<typeof musicSchema>;
  * O que se guarda nas favoritas: só a referência de uma faixa de um artista de Moçambique (guardar é um marcador; a licença vale
  * no uso, que só deixa mimos e tchekas) ou uma faixa do catálogo aberto, validada como nas publicações. Clipes próprios não.
  */
-export const favoriteSchema = z.union([localTrackSchema, trackSchema]);
+export const favoriteSchema = z.union([linkMusicSchema, localTrackSchema, trackSchema]);
 export type FavoriteInput = z.infer<typeof favoriteSchema>;
 
 /**
@@ -198,6 +198,12 @@ export class MusicService {
   async addFavorite(userId: string, input: FavoriteInput): Promise<{ favorite: true }> {
     const n = (await this.pool.query('SELECT count(*)::int AS n FROM content.music_favorites WHERE user_id = $1', [userId])).rows[0].n as number;
     if (n >= 200) throw new BadRequestException('Já tens 200 favoritas. Tira algumas para juntar mais');
+    // Música por ligação (Spotify, YouTube…): guarda-se a versão limpa, com o título e a capa que a plataforma deu.
+    if ('kind' in input) {
+      const link = await this.linkMusic(input.url);
+      await this.pool.query('INSERT INTO content.music_favorites (user_id, track_id, track) VALUES ($1, $2, $3) ON CONFLICT (user_id, track_id) DO UPDATE SET track = EXCLUDED.track', [userId, link.id, JSON.stringify(link)]);
+      return { favorite: true };
+    }
     const local = ('source' in input && input.source === 'local') || LOCAL.test(input.id);
     if (local) {
       const id = LOCAL.test(input.id) ? input.id : `local:${input.id}`;

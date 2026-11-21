@@ -1,10 +1,14 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { createElement, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/ui/Button';
-import type { Track } from '@/lib/api.music';
+import { musicApi, type Track } from '@/lib/api.music';
+import { showToast } from '@/lib/toast';
+import { BookmarkIcon } from './BookmarkIcon';
 import { linkPlayerHeight, providerName } from '@/lib/musicLink';
 import { colors } from '@/lib/theme';
 import { t } from '@/lib/i18n';
@@ -18,6 +22,15 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
   const w = Math.min(width - 32, 560);
   const h = linkPlayerHeight(track.provider, track.linkKind, w);
   const name = providerName(track.provider);
+  // Guardar nas «Guardadas» do seletor (para pôr nas minhas notas, mimos e publicações sem copiar a ligação).
+  const qc = useQueryClient();
+  const favs = useQuery({ queryKey: ['music-favorites'], queryFn: musicApi.favorites, staleTime: 60_000, retry: false });
+  const saved = !!favs.data?.some((x) => x.id === track.id);
+  const save = useMutation({
+    mutationFn: async (): Promise<unknown> => (saved ? musicApi.removeFavorite(track.id) : musicApi.addFavorite(track)),
+    onSuccess: () => { showToast(saved ? t('Tirada das guardadas') : t('Guardada na tua música')); void qc.invalidateQueries({ queryKey: ['music-favorites'] }); },
+    onError: (e: Error) => showToast(e.message),
+  });
   let player: React.ReactNode = null;
   if (track.embedUrl) {
     if (Platform.OS === 'web') {
@@ -32,6 +45,10 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
     <Sheet title={track.title} onClose={onClose}>
       <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 12, alignItems: 'center' }}>
         <View style={{ width: w, height: h, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.zinc100 }}>{player}</View>
+        <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch' }}>
+          <Button label={saved ? t('Guardada') : t('Guardar')} icon={<BookmarkIcon on={saved} size={18} color={colors.zinc900} />} kind="secondary" onPress={() => save.mutate()} style={{ flex: 1 }} />
+          <Button label={t('Copiar ligação')} icon="link" kind="secondary" onPress={() => void Clipboard.setStringAsync(track.link ?? track.landing ?? '').then(() => showToast(t('Ligação copiada')))} style={{ flex: 1 }} />
+        </View>
         <Button label={t('Abrir no {provider}', { provider: name })} kind="secondary" onPress={() => void Linking.openURL(track.link ?? track.landing ?? '').catch(() => undefined)} block />
         <Text style={st.legal}>{t('A música toca no leitor do {provider} e conta para o artista lá.', { provider: name })}</Text>
       </View>
