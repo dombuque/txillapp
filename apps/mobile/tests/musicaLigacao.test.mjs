@@ -30,3 +30,13 @@ test('o seletor: botão «Colar» no campo (sem frase a explicar); só aceita li
   assert.match(p, /if \(looksLikeMusicLink\(text\)\) \{ setErr\(''\); setTerm\(text\); \}/);
   assert.doesNotMatch(p, /Também podes colar a ligação/);
 });
+
+test('mimo com música do Spotify: o leitor compacto oficial toca sozinho e pára com o mimo', () => {
+  assert.equal(m.spotifyUri('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC'), 'spotify:track:4uLU6hMCjMI75M1A2tKUQC');
+  assert.equal(m.spotifyUri('https://evil.example/track/x'), null);
+  const p = read('components/SpotifyAutoPlayer.tsx');
+  assert.match(p, /c\.addListener\('ready',function\(\)\{c\.play\(\);\}\);/);
+  assert.match(p, /mediaPlaybackRequiresUserAction=\{false\}/);
+  assert.match(p, /window\.tx && window\.tx\.pause\(\)/);
+  assert.match(read('app/stories/[username].tsx'), /tr\.provider === 'spotify' && tr\.link && tr\.embedUrl\) return <SpotifyAutoPlayer/);
+});

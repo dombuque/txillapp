@@ -29,3 +29,9 @@ export function linkPlayerHeight(provider: string | null | undefined, linkKind: 
     default: return 200;
   }
 }
+
+/** O endereço «spotify:track:ID» (ou album/playlist) de uma ligação limpa do Spotify, para a API do leitor; null se não for. */
+export function spotifyUri(link: string | null | undefined): string | null {
+  const m = /^https:\/\/open\.spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]{1,64})$/.exec(link ?? '');
+  return m ? `spotify:${m[1]}:${m[2]}` : null;
+}

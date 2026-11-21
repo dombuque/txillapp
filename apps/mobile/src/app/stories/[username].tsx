@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MusicLinkCard } from '@/components/MusicLink';
+import { SpotifyAutoPlayer } from '@/components/SpotifyAutoPlayer';
 import { isLinkMusic } from '@/lib/musicLink';
 import type { Track } from '@/lib/api.music';
 import { useAudioPlayer, useAudioPlayerStatus, type AudioPlayer } from 'expo-audio';
@@ -109,7 +110,11 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
  */
 /** A música do mimo: a do catálogo toca por baixo; a por ligação (Spotify…) é a pílula que abre o leitor oficial. */
 function StoryMusic(p: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
-  return isLinkMusic(p.track) ? <MusicLinkCard track={p.track as Track} pill dark /> : <StoryMusicAudio {...p} />;
+  const winW = useWindowDimensions().width;
+  const tr = p.track as Track;
+  // Spotify: o leitor compacto oficial a tocar sozinho (pára com o mimo). As outras plataformas: a pílula (toque para ouvir).
+  if (isLinkMusic(tr) && tr.provider === 'spotify' && tr.link && tr.embedUrl) return <SpotifyAutoPlayer link={tr.link} embedUrl={tr.embedUrl} paused={p.paused} width={Math.min(winW - 48, 360)} />;
+  return isLinkMusic(tr) ? <MusicLinkCard track={tr} pill dark /> : <StoryMusicAudio {...p} />;
 }
 
 function StoryMusicAudio({ track, paused, onLive }: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
