@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment: &api-env
-      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD no .env}@postgres:5432/txillapp
       NODE_ENV: production
       ADMIN_URL: https://admin.txillapp.com
       # A senha vai à parte (sem codificar caracteres no URL); vale mais do que um REDIS_URL antigo no .env.
@@ -128,6 +128,17 @@ services:
       - --denied-peer-ip=172.16.0.0-172.31.255.255
       - --denied-peer-ip=192.168.0.0-192.168.255.255
       - --denied-peer-ip=127.0.0.0-127.255.255.255
+      # Também os endereços que nunca são de outra pessoa na internet (nada de chegar à máquina, à rede interna ou ao serviço de metadados).
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=192.0.0.0-192.0.0.255
+      - --denied-peer-ip=198.18.0.0-198.19.255.255
+      - --denied-peer-ip=240.0.0.0-255.255.255.255
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
       - --total-quota=60
       - --user-quota=4
       - --max-bps=1500000
@@ -140,7 +151,7 @@ services:
     command: ['node', 'dist/db/migrate.js']
     restart: 'no'
     environment:
-      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD no .env}@postgres:5432/txillapp
     depends_on:
       postgres: { condition: service_healthy }
     networks: [backend]
@@ -150,7 +161,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: txill
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD no .env}
       POSTGRES_DB: txillapp
     # Afinado para ~11 GB de RAM partilhada com a API; ajusta se o servidor for diferente.
     # Ligações: 3 api × 20 + worker 10 + migrate 1 + backup 1 + exportador 2 + psql 3 + 3 reservadas ≈ 81 de 100.
@@ -171,7 +182,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD}', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?falta REDIS_PASSWORD no .env}', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
     volumes: ['redisdata:/data']
     healthcheck:
       test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
@@ -189,7 +200,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD no .env}@postgres:5432/txillapp
     volumes:
       - uploads:/data/uploads:ro
     depends_on:
@@ -215,7 +226,7 @@ services:
     restart: unless-stopped
     environment:
       GF_SERVER_ROOT_URL: https://monitor.txillapp.com
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?falta GRAFANA_PASSWORD no .env}
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
     volumes:
@@ -272,7 +283,7 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: 'true'
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?falta ELASTIC_PASSWORD no .env}
       ES_JAVA_OPTS: -Xms1g -Xmx1g
     volumes: ['esdata:/usr/share/elasticsearch/data']
     networks: [backend]

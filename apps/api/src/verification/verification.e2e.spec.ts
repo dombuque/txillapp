@@ -121,6 +121,7 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(vc)).send({ action: 'approve' }).expect(401);
     await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(sauth()).send({ action: 'approve', tier: 'official' }).expect(204);
     await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(sauth()).send({ action: 'approve' }).expect(404); // já decidido
+    await api().post('/api/v1/admin/verifications/nao-e-um-id/decide').set(sauth()).send({ action: 'approve' }).expect(400); // id que não é uuid: 400, não 500
 
     s = await me(vb);
     expect(s).toMatchObject({ verified: true, tier: 'official' });

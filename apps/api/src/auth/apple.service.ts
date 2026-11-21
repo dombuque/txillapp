@@ -38,7 +38,9 @@ export class AppleService {
     try {
       const { payload } = await jwtVerify(identityToken, this.jwks, { issuer: 'https://appleid.apple.com', audience: this.clientIds, algorithms: ['RS256'] });
       if (!payload.sub) throw new Error('sem sub');
-      // Se a app mandou um nonce, o token traz o SHA-256 dele (ou o próprio nonce).
+      // Se a app mandou um nonce, o token traz o SHA-256 dele (ou o próprio nonce). Um token pedido com nonce só vale com o
+      // nonce: sem esta regra, quem apanhasse o token podia reutilizá-lo noutro pedido só por não mandar o nonce.
+      if (payload.nonce !== undefined && !nonce) throw new Error('falta o nonce');
       if (nonce) {
         const hashed = createHash('sha256').update(nonce).digest('hex');
         if (payload.nonce !== nonce && payload.nonce !== hashed) throw new Error('nonce não bate');

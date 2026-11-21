@@ -50,11 +50,11 @@ export class ShareController {
 
     if (/^[A-Za-z0-9-]{6,36}$/.test(code)) {
       const { rows } = await this.pool.query(
-        `SELECT p.body, p.kind, p.geleira, u.display_name, u.is_private,
+        `SELECT p.body, p.kind, p.geleira, COALESCE(pv.name, u.display_name) AS display_name, u.is_private,
                 (SELECT json_build_object('id', a.id, 'video', a.mime LIKE 'video/%')
                    FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id
                   WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS media
-           FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+           FROM content.posts p JOIN identity.users u ON u.id = p.author_id LEFT JOIN content.venues pv ON pv.id = p.venue_id
           WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND p.kind IN ('post', 'repost')`,
         [code],
       );
@@ -118,12 +118,13 @@ export class PublicPostController {
       (
         await this.pool.query(
           `SELECT p.id, p.short_code, p.body, p.kind, p.repost_of, p.geleira, p.location_label, p.created_at, u.username, u.display_name, u.verified, u.verified_tier,
+                  pv.name AS venue_name, pv.verified AS venue_verified,
                   (u.avatar_media_id IS NOT NULL) AS has_avatar,
                   (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::int AS cheers,
                   (SELECT count(*) FROM content.comments cm WHERE cm.post_id = p.id)::int AS comments,
                   (SELECT coalesce(json_agg(json_build_object('id', a.id, 'video', a.mime LIKE 'video/%', 'width', a.width, 'height', a.height) ORDER BY pm.position), '[]'::json)
                      FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id WHERE pm.post_id = p.id) AS media
-             FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+             FROM content.posts p JOIN identity.users u ON u.id = p.author_id LEFT JOIN content.venues pv ON pv.id = p.venue_id
             WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND p.hidden_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.kind IN ('post', 'repost', 'gift')`,
           [key],
         )
@@ -153,9 +154,12 @@ export class PublicPostController {
     return {
       code: r.short_code as string,
       kind: media[0]?.kind === 'video' ? 'reel' : 'post',
-      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
+      // Publicado como um local: mostra-se a página, nunca o gestor que publicou (como no PostsService.toDto).
+      author: r.venue_name
+        ? { username: '', displayName: r.venue_name as string, hasAvatar: false, verified: !!r.venue_verified, verifiedTier: null }
+        : { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
       body: (r.body as string) ?? '',
-      locationLabel: (r.location_label as string | null) ?? null,
+      locationLabel: (r.location_label as string | null) ?? ((r.venue_name as string | null) || null),
       createdAt: r.created_at as string,
       repostedBy,
       media,

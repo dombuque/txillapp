@@ -1,3 +1,4 @@
+import { httpHref } from '../../lib/safeUrl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../../components/Icon';
@@ -167,8 +168,8 @@ export function MusicCatalogPanel() {
                     <td className={td}><Preview item={i} playing={playing === i.id} onToggle={() => toggle(i.id)} /></td>
                     <td className={`${td} max-w-[260px]`}>{credit(i)}</td>
                     <td className={`${td} whitespace-nowrap text-xs`}>
-                      <span className="block text-zinc-700">{i.landing ? <a href={i.landing} target="_blank" rel="noopener noreferrer" className="underline">{sourceLabel(i.source)}</a> : sourceLabel(i.source)}</span>
-                      <span className="text-zinc-500">{i.licenseUrl ? <a href={i.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{licenseLabel(i.license)}</a> : licenseLabel(i.license)}</span>
+                      <span className="block text-zinc-700">{httpHref(i.landing) ? <a href={httpHref(i.landing)!} target="_blank" rel="noopener noreferrer" className="underline">{sourceLabel(i.source)}</a> : sourceLabel(i.source)}</span>
+                      <span className="text-zinc-500">{httpHref(i.licenseUrl) ? <a href={httpHref(i.licenseUrl)!} target="_blank" rel="noopener noreferrer" className="underline">{licenseLabel(i.license)}</a> : licenseLabel(i.license)}</span>
                     </td>
                     <td className={td}><span className="flex flex-wrap gap-1">{i.styles.map((s) => <Badge key={s}>{styleLabel(s)}</Badge>)}</span></td>
                     <td className={`${td} tabular-nums`}>{mmss(i.duration)}</td>

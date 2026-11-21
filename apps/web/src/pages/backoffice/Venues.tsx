@@ -1,3 +1,4 @@
+import { httpHref } from '../../lib/safeUrl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, type BoVenue } from '../../lib/api';
@@ -75,7 +76,7 @@ export default function BackofficeVenues() {
                     <td className={td}>@{v.owner}</td>
                     <td className={`${td} text-xs`}>
                       {v.phone ? <span className="block">{v.phone}</span> : null}
-                      {v.website ? <a href={v.website} target="_blank" rel="noreferrer" className="block underline">{v.website.replace(/^https?:\/\//, '')}</a> : null}
+                      {httpHref(v.website) ? <a href={httpHref(v.website)!} target="_blank" rel="noreferrer" className="block underline">{v.website!.replace(/^https?:\/\//, '')}</a> : v.website ? <span className="block">{v.website}</span> : null}
                       {!v.phone && !v.website ? <span className="text-zinc-400">nenhum</span> : null}
                     </td>
                     <td className={td}>{when(v.createdAt)}</td>

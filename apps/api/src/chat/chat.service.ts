@@ -16,6 +16,7 @@ import { mixarCards, mixarCardText } from '../mixar/mixar-cards';
 import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from './screenshot';
 import { pushFor } from './hidden-push';
+import { presenceVisible } from './presence.controller';
 import { msg } from '../i18n/i18n';
 
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada' | 'mixar';
@@ -443,7 +444,9 @@ export class ChatService {
   /** Online / visto há…: só se as duas pessoas mostram a presença (quem esconde a sua também não vê a dos outros). */
   private async presenceOf(me: string, otherId: string) {
     const { rows } = await this.pool.query(
-      'SELECT o.show_presence AS o_show, o.last_seen_at, m.show_presence AS m_show FROM identity.users o, identity.users m WHERE o.id = $2 AND m.id = $1',
+      // Numa conta privada que não sigo (e sem conversa entre nós), nem online nem «visto há…» (presenceVisible).
+      `SELECT o.show_presence AS o_show, o.last_seen_at, m.show_presence AS m_show FROM identity.users o, identity.users m
+        WHERE o.id = $2 AND m.id = $1 AND ${presenceVisible('o', '$1')}`,
       [me, otherId],
     );
     const r = rows[0];

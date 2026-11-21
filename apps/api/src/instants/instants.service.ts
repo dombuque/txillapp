@@ -14,9 +14,13 @@ import { RATE_STORE, type RateStore } from '../security/rate-store';
 import { screenshotAllowed } from '../chat/screenshot';
 
 
-/** Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue mutuamente. Nunca com bloqueios. */
+/**
+ * Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue
+ * mutuamente. Nunca com bloqueios, e nunca os de uma conta suspensa ou desativada.
+ */
 export const instantVisible = (i = 'i', v = '$1') =>
-  `(${i}.author_id = ${v} OR (NOT ${blockedBetween(`${i}.author_id`, v)} AND (
+  `(${i}.author_id = ${v} OR (NOT ${blockedBetween(`${i}.author_id`, v)}
+    AND EXISTS (SELECT 1 FROM identity.users iau WHERE iau.id = ${i}.author_id AND iau.status = 'active') AND (
       EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${i}.author_id AND cf.friend_id = ${v})
       OR (${i}.audience = 'friends'
           AND EXISTS (SELECT 1 FROM social.follows f1 WHERE f1.follower_id = ${v} AND f1.followee_id = ${i}.author_id)

@@ -950,9 +950,15 @@ export class AuthService implements OnModuleInit {
       [userId],
     )).rows[0];
     if (!row || row.attempts >= VERIFY_CODE_TRIES) throw new BadRequestException('Este código já não vale. Pede um novo.');
+    // A tentativa conta ANTES de comparar, numa só escrita condicional: vários pedidos ao mesmo tempo não passam do limite
+    // (lendo primeiro e somando depois, N pedidos em paralelo viam todos o mesmo número e tentavam N códigos).
+    const tryNo = (await this.pool.query(
+      'UPDATE identity.email_tokens SET attempts = attempts + 1 WHERE id = $1 AND attempts < $2 AND used_at IS NULL RETURNING attempts',
+      [row.id, VERIFY_CODE_TRIES],
+    )).rows[0]?.attempts as number | undefined;
+    if (tryNo === undefined) throw new BadRequestException('Este código já não vale. Pede um novo.');
     if (code.length !== 6 || sha256(`${row.id}:${code}`) !== row.token_hash) {
-      await this.pool.query('UPDATE identity.email_tokens SET attempts = attempts + 1 WHERE id = $1', [row.id]);
-      throw new BadRequestException(row.attempts + 1 >= VERIFY_CODE_TRIES ? 'Este código já não vale. Pede um novo.' : 'O código não está certo. Vê outra vez o e-mail.');
+      throw new BadRequestException(tryNo >= VERIFY_CODE_TRIES ? 'Este código já não vale. Pede um novo.' : 'O código não está certo. Vê outra vez o e-mail.');
     }
     await this.pool.query("UPDATE identity.email_tokens SET used_at = now() WHERE user_id = $1 AND kind IN ('verify', 'verify_code') AND used_at IS NULL", [userId]);
     await this.pool.query('UPDATE identity.users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1', [userId]);

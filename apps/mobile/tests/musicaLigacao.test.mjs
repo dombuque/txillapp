@@ -63,3 +63,14 @@ test('o leitor embutido carrega logo (sem loading=lazy, que no Safari deixava a 
   assert.doesNotMatch(l, /loading: 'lazy'/);
   assert.match(l, /track\.cover \? <Image source=\{\{ uri: track\.cover \}\} style=\{StyleSheet\.absoluteFill\}/);
 });
+
+test('o leitor embutido só abre as plataformas aceites e «Abrir no…» só abre http(s)', () => {
+  for (const u of ['https://open.spotify.com/embed/track/abc', 'https://www.youtube-nocookie.com/embed/x?playsinline=1', 'https://audiomack.com/embed/a/song/b', 'https://www.boomplay.com/embed/1/MUSIC', 'https://widget.deezer.com/widget/auto/track/1', 'https://embed.music.apple.com/pt/album/x/1']) assert.equal(m.embedAllowed(u), true, u);
+  for (const u of ['http://open.spotify.com/embed/track/abc', 'https://evil.example/embed', 'https://open.spotify.com.evil.example/x', 'javascript:alert(1)', '', null]) assert.equal(m.embedAllowed(u), false, String(u));
+  assert.equal(m.httpLink('https://open.spotify.com/track/abc'), 'https://open.spotify.com/track/abc');
+  for (const u of ['javascript:alert(1)', 'intent://x#Intent;end', 'data:text/html,x', '', null]) assert.equal(m.httpLink(u), null, String(u));
+  const l = read('components/MusicLink.tsx');
+  assert.match(l, /if \(track\.embedUrl && embedAllowed\(track\.embedUrl\)\)/);
+  assert.match(l, /Linking\.openURL\(external\)/);
+  assert.match(read('components/ProfileView.tsx'), /const u = httpLink\(p\.website\); if \(u\) void Linking\.openURL\(u\)/);
+});

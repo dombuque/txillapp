@@ -207,6 +207,7 @@ export class NearbyService implements OnModuleInit {
       `SELECT * FROM (
          SELECT x.*, row_number() OVER (PARTITION BY x.author_id ORDER BY x.created_at DESC) AS nth FROM (
            SELECT p.id, p.short_code, p.location_label, ${postGeo('lat')} AS location_lat, ${postGeo('lng')} AS location_lng, p.created_at, p.author_id, u.username, u.display_name, u.verified, u.verified_tier,
+                  pv.name AS venue_name, pv.verified AS venue_verified,
                   ${distKm(postGeo('lat'), postGeo('lng'))} AS d,
                   fm.media_id AS first_media, (fm.mime LIKE 'video/%') AS is_video
              FROM content.posts p
@@ -235,7 +236,10 @@ export class NearbyService implements OnModuleInit {
       lng: Number(r.location_lng),
       distanceKm: km1(r.d),
       createdAt: new Date(r.created_at as string).toISOString(),
-      author: { username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier) },
+      // Publicado como um local: mostra-se a página, nunca o gestor que publicou (como no PostsService.toDto).
+      author: r.venue_name
+        ? { username: '', displayName: r.venue_name as string, ...badge(r.venue_verified, null) }
+        : { username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier) },
     }));
   }
 

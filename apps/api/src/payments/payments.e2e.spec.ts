@@ -84,6 +84,10 @@ describe('recarregar vibes: pacotes, pedidos, idempotência, crédito e avisos a
     await api().post(`/api/v1/payments/orders/${o.id}/cancel`).set(auth(pya)).expect(404);
     await api().post(`/api/v1/payments/orders/${o.id}/cancel`).set(auth(pyb)).expect(204);
     await api().post(`/api/v1/payments/orders/${o.id}/cancel`).set(auth(pyb)).expect(404); // já não está à espera
+    // Um id que não é um uuid é um pedido errado (400), não um erro do servidor (500).
+    await api().get('/api/v1/payments/orders/nao-e-um-id').set(auth(pyb)).expect(400);
+    await api().post('/api/v1/payments/orders/nao-e-um-id/cancel').set(auth(pyb)).expect(400);
+    await api().post('/api/v1/payments/orders/nao-e-um-id/sandbox-pay').set(auth(pyb)).expect(400);
 
     for (let i = 0; i < 3; i++) await order(pyb, { packageId: 'pequeno', provider: 'sandbox' }, `chave-pyb-1${i}00`).expect(201);
     await order(pyb, { packageId: 'pequeno', provider: 'sandbox' }, 'chave-pyb-2000').expect(409);

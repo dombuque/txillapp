@@ -20,9 +20,14 @@ import { liveOf, txilladaBanned, txilladaVisible } from '../txillada/txillada-vi
 export const audienceOk = (a = 's', v = '$1') =>
   `(${a}.audience = 'all' OR ${a}.author_id = ${v} OR EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${a}.author_id AND cf.friend_id = ${v}))`;
 
-/** Um story partilhado só existe enquanto a publicação original existir (e não estiver oculta pelo autor, 0169) e o ficheiro estiver disponível. */
-const sharedOk = (s = 's') =>
-  `(${s}.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.shared_post_id AND sp.removed_at IS NULL AND sp.hidden_at IS NULL))
+/**
+ * Um story partilhado só existe enquanto a publicação original existir (e não estiver oculta pelo autor, 0169) e o ficheiro
+ * estiver disponível; e só para quem ainda pode ver a original (`v`): se o autor dela passou a privado, ou há um bloqueio
+ * entre ele e quem vê, a partilha deixa de lhe aparecer (como a publicação).
+ */
+const sharedOk = (s = 's', v = '$1') =>
+  `(${s}.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp JOIN identity.users spu ON spu.id = sp.author_id
+      WHERE sp.id = ${s}.shared_post_id AND sp.removed_at IS NULL AND sp.hidden_at IS NULL AND ${canView('spu', v)}))
    AND EXISTS (SELECT 1 FROM content.media_assets sma WHERE sma.id = ${s}.media_id AND sma.status = 'ready')`;
 
 /**
@@ -91,6 +96,8 @@ export class StoriesService {
            FROM content.stories s
           WHERE s.expires_at > now()
             AND (s.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.author_id))
+            -- Contas suspensas ou desativadas não aparecem na fila (o byUser já o diz, pelo canView).
+            AND EXISTS (SELECT 1 FROM identity.users au WHERE au.id = s.author_id AND au.status = 'active')
             AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} AND ${notReportedBy('story', 's.id')}
        ),
        lv AS (

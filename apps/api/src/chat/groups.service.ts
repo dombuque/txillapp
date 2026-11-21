@@ -9,7 +9,7 @@ import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 import { badge, type Badge } from '../common/badge';
 import { ChatService, Outgoing, expiresFor, isClientIdClash, notExpired, notHiddenFor, systemText, type MessageKind, type SystemInfo, type Ttl } from './chat.service';
-import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
+import { GroupAccess, NO_MAP_PLACE, memberBlocked, venueOnMap } from '../groups/group-access';
 import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
 import { PotService } from '../groups/pot.service';
@@ -148,6 +148,13 @@ export class GroupsService {
     const invitees = await this.resolveInvitees(me, usernames);
     if (invitees.length < 2) throw new BadRequestException('Um grupo precisa de pelo menos 2 pessoas além de ti');
     if (invitees.length + 1 > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
+    // Duas pessoas com um bloqueio entre elas não ficam no mesmo grupo (as regras de addMembers e de entrar de fora).
+    const clash = await this.pool.query(
+      `SELECT u.username FROM social.blocks bk JOIN identity.users u ON u.id = bk.blocked_id
+        WHERE bk.blocker_id = ANY($1::uuid[]) AND bk.blocked_id = ANY($1::uuid[]) LIMIT 1`,
+      [invitees],
+    );
+    if (clash.rows[0]) throw new ForbiddenException(`Não podes adicionar @${clash.rows[0].username as string}`);
     const id = uuidv7();
     const client = await this.pool.connect();
     try {
@@ -456,6 +463,13 @@ export class GroupsService {
     await this.locked(groupId, async (c) => {
       const count = (await c.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
       if (count + ids.length > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
+      // Como ao entrar de fora (public-groups): quem tem um bloqueio com algum membro (ou com quem criou o grupo) não entra.
+      // Senão um amigo de quem foi bloqueado punha os dois na mesma conversa.
+      const clash = await c.query(
+        `SELECT u.username FROM identity.users u WHERE u.id = ANY($2::uuid[]) AND ${memberBlocked('$1::uuid', 'u.id')} LIMIT 1`,
+        [groupId, ids],
+      );
+      if (clash.rows[0]) throw new ForbiddenException(`Não podes adicionar @${clash.rows[0].username as string}`);
       for (const u of ids) await this.insertMember(groupId, u, c);
     });
     await this.notifyMembers(groupId, me);

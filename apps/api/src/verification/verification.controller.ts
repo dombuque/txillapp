@@ -71,7 +71,7 @@ export class VerificationController {
   @UseGuards(StaffGuard)
   @Needs('verification.decide')
   @HttpCode(204)
-  decide(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(decideSchema)) b: z.infer<typeof decideSchema>) {
+  decide(@Req() req: AuthedReq, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(decideSchema)) b: z.infer<typeof decideSchema>) {
     return this.verification.decide(req.userId!, id, b.action, b.reason, b.tier);
   }
 }

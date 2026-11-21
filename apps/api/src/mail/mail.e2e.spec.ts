@@ -7,6 +7,7 @@ import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { MailService } from './mail.service';
 import { VerifyReminderService } from '../reminders/verify-reminder.service';
+import { AuthService } from '../auth/auth.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -184,6 +185,23 @@ describe('e-mail: confirmar conta e recuperar senha (integração)', () => {
     await api().post('/api/v1/auth/email/resend').set(v.auth).expect(200);
     const fresh = (await mailTo(v.email, 2)).subject.slice(0, 6);
     await api().post('/api/v1/auth/email/verify-code').set(v.auth).send({ code: fresh }).expect(200);
+  });
+
+  it('código de 6 dígitos: pedidos ao mesmo tempo não passam dos 5 enganos (a tentativa conta antes de comparar)', async () => {
+    const auth = app.get(AuthService);
+    // Registo direto no serviço (sem gastar o limite de registos por minuto dos outros testes).
+    const username = `codigopar${run}`.slice(0, 28);
+    const email = `${username}@example.com`;
+    const w = (await auth.register({ email, username, displayName: 'Pessoa Par', password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true })).user;
+    const right = (await mailTo(email)).subject.slice(0, 6);
+    // 12 códigos errados diferentes, todos ao mesmo tempo (como um ataque de força bruta em paralelo).
+    const wrongs = Array.from({ length: 12 }, (_, i) => String((Number(right) + 1 + i) % 1_000_000).padStart(6, '0'));
+    const results = await Promise.allSettled(wrongs.map((c) => auth.verifyEmailCode(w.id, c)));
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    const row = (await pool.query(`SELECT attempts FROM identity.email_tokens WHERE user_id = $1 AND kind = 'verify_code' ORDER BY created_at DESC LIMIT 1`, [w.id])).rows[0];
+    // Só 5 foram comparados; os outros foram recusados sem olhar para o código.
+    expect(row.attempts).toBe(5);
+    await expect(auth.verifyEmailCode(w.id, right)).rejects.toThrow('Este código já não vale. Pede um novo.');
   });
 
   it('«Segue a malta»: um aviso, uma vez, no dia a seguir, a quem confirmou e segue menos de 3; só de dia em Maputo', async () => {

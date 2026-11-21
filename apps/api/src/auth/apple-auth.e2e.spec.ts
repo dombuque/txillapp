@@ -91,6 +91,8 @@ describe('Iniciar sessão com a Apple (integração)', () => {
     const nonce = `nonce-${run}`;
     await api().post('/api/v1/auth/apple').send({ identityToken: await sign({ sub, nonce: createHash('sha256').update(nonce).digest('hex') }), nonce }).expect(200);
     await api().post('/api/v1/auth/apple').send({ identityToken: await sign({ sub, nonce: 'outro' }), nonce }).expect(401);
+    // Um token pedido com nonce não se reutiliza sem ele (quem o apanhasse bastava não mandar o nonce).
+    await api().post('/api/v1/auth/apple').send({ identityToken: await sign({ sub, nonce: createHash('sha256').update(nonce).digest('hex') }) }).expect(401);
 
     // Já existe uma conta com este email: não se liga sozinha.
     const name = `ex${run}`.slice(0, 20);

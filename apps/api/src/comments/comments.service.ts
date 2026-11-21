@@ -11,6 +11,8 @@ import { remixAllowed } from '../posts/remix';
 import { shownPost, shownPostTo } from '../posts/hidden';
 
 const UUID = /^[0-9a-f-]{36}$/;
+/** Os comentários que `viewer` vê: de contas ativas e sem bloqueio entre ele e quem escreveu (como nos comentários dos mimos). */
+const commentAuthorShown = (u: string, viewer: string) => `${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)}`;
 
 const SELECT = `
   SELECT c.id, c.post_id, c.parent_id, c.body, c.gif, c.created_at, c.edited_at,
@@ -46,6 +48,7 @@ export class CommentsService {
     this.assertCursor(cursor);
     const { rows } = await this.pool.query(
       `${SELECT} WHERE c.post_id = $2 AND c.parent_id IS NULL AND ($3::uuid IS NULL OR c.id < $3) AND ${notReportedBy('comment', 'c.id')}
+          AND ${commentAuthorShown('u', '$1')}
         ORDER BY c.id DESC LIMIT $4`,
       [userId, postId, cursor ?? null, limit + 1],
     );
@@ -57,7 +60,8 @@ export class CommentsService {
     this.assertCursor(cursor);
     await this.assertComment(userId, commentId, true);
     const { rows } = await this.pool.query(
-      `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) AND ${notReportedBy('comment', 'c.id')} ORDER BY c.id ASC LIMIT $4`,
+      `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) AND ${notReportedBy('comment', 'c.id')} AND ${commentAuthorShown('u', '$1')}
+        ORDER BY c.id ASC LIMIT $4`,
       [userId, commentId, cursor ?? null, limit + 1],
     );
     return this.page(rows, limit);
@@ -72,7 +76,12 @@ export class CommentsService {
     let threadParent: string | null = null;
     let parentAuthorId: string | null = null;
     if (parentId) {
-      const p = await this.pool.query('SELECT id, post_id, parent_id, author_id FROM content.comments WHERE id = $1', [parentId]);
+      // Só se responde a um comentário que se vê: de uma conta ativa e sem bloqueio entre as duas pessoas (como na lista).
+      const p = await this.pool.query(
+        `SELECT c.id, c.post_id, c.parent_id, c.author_id FROM content.comments c JOIN identity.users u ON u.id = c.author_id
+          WHERE c.id = $1 AND ${commentAuthorShown('u', '$2')}`,
+        [parentId, userId],
+      );
       if (!p.rows[0] || p.rows[0].post_id !== postId) throw new BadRequestException('Comentário a que respondes não existe');
       // Resposta a uma resposta: fica no mesmo fio, sob o comentário de topo.
       threadParent = p.rows[0].parent_id ?? p.rows[0].id;

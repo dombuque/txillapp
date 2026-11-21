@@ -52,7 +52,7 @@ services:
       - --listening-port=3478
       - --fingerprint
       - --use-auth-secret
-      - --static-auth-secret=${TURN_SECRET}
+      - --static-auth-secret=${TURN_SECRET:?falta TURN_SECRET no .env}
       - --realm=txillapp.com
       - --min-port=49160
       - --max-port=49200
@@ -64,6 +64,17 @@ services:
       - --denied-peer-ip=172.16.0.0-172.31.255.255
       - --denied-peer-ip=192.168.0.0-192.168.255.255
       - --denied-peer-ip=127.0.0.0-127.255.255.255
+      # Também os endereços que nunca são de outra pessoa na internet (nada de chegar à máquina, à rede interna ou ao serviço de metadados).
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=192.0.0.0-192.0.0.255
+      - --denied-peer-ip=198.18.0.0-198.19.255.255
+      - --denied-peer-ip=240.0.0.0-255.255.255.255
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
       - --total-quota=200
       - --user-quota=6
       - --max-bps=2500000

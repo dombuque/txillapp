@@ -6,11 +6,20 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { PG_POOL } from '../db/db.module';
-import { blockedBetween } from '../social/visibility';
+import { blockedBetween, canView } from '../social/visibility';
+import { shownPost } from '../posts/hidden';
 import { RealtimeBus } from '../realtime/realtime-bus';
 import { ChatEvents } from './chat.events';
 
 type AuthedReq = Request & { userId?: string };
+
+/**
+ * A presença (online / visto há…) de `u` à vista de `viewer`: como o resto do perfil (conta ativa, sem bloqueio; numa conta
+ * privada só quem a segue) ou, numa conversa que já existe entre os dois, também aí. A regra de mostrar a presença vem à parte.
+ */
+export const presenceVisible = (u: string, viewer = '$1') =>
+  `(${canView(u, viewer)} OR (${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND EXISTS (
+     SELECT 1 FROM social.conversations pc WHERE pc.user_a = LEAST(${viewer}::uuid, ${u}.id) AND pc.user_b = GREATEST(${viewer}::uuid, ${u}.id))))`;
 
 /** Quanto tempo uma pessoa "está a escrever" depois do último sinal. */
 const TYPING_MS = 6_000;
@@ -38,7 +47,7 @@ export class PresenceService {
     if (!usernames.length || !(await this.iShow(me))) return [];
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username FROM identity.users u
-        WHERE lower(u.username) = ANY($2) AND u.status = 'active' AND u.show_presence AND u.id <> $1 AND NOT ${blockedBetween('u.id', '$1')}`,
+        WHERE lower(u.username) = ANY($2) AND u.status = 'active' AND u.show_presence AND u.id <> $1 AND ${presenceVisible('u', '$1')}`,
       [me, usernames.map((x) => x.toLowerCase())],
     );
     const on = await this.events.onlineAmong(rows.map((r) => r.id as string));
@@ -49,14 +58,24 @@ export class PresenceService {
   async ping(me: string, postId: string) {
     if (!/^[0-9a-f-]{36}$/.test(postId)) throw new BadRequestException('Publicação inválida');
     if (!(await this.iShow(me))) return;
+    // Só numa publicação que eu vejo (nada de chaves para ids inventados nem para publicações de contas privadas).
+    if (!(await this.seesPost(me, postId))) return;
     await this.bus.touch(typingKey(postId), me, TYPING_MS);
+  }
+
+  private async seesPost(me: string, postId: string) {
+    const r = await this.pool.query(
+      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${shownPost('p')} AND ${canView('u', '$1')}`,
+      [me, postId],
+    );
+    return !!r.rowCount;
   }
 
   /** Nomes de quem está a escrever agora neste post (sem mim, sem quem esconde a presença). */
   async typers(me: string, postId: string) {
     if (!(await this.iShow(me))) return [];
     const ids = (await this.bus.recent(typingKey(postId), TYPING_MS)).filter((id) => id !== me);
-    if (!ids.length) return [];
+    if (!ids.length || !(await this.seesPost(me, postId))) return [];
     const { rows } = await this.pool.query(
       `SELECT u.display_name FROM identity.users u WHERE u.id = ANY($2::uuid[]) AND u.status = 'active' AND u.show_presence AND NOT ${blockedBetween('u.id', '$1')}`,
       [me, ids],

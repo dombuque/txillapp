@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: txill
       POSTGRES_PASSWORD: txill_dev
       POSTGRES_DB: txillapp
-    ports: ['5433:5432']
+    ports: ['127.0.0.1:5433:5432'] # só neste computador (a senha é de desenvolvimento)
     volumes: ['pgdata:/var/lib/postgresql/data']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U txill -d txillapp']
@@ -16,7 +16,7 @@ services:
       retries: 10
   redis:
     image: redis:7-alpine
-    ports: ['6379:6379']
+    ports: ['127.0.0.1:6379:6379'] # sem senha: só neste computador
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -29,7 +29,7 @@ services:
     environment:
       MINIO_ROOT_USER: txill
       MINIO_ROOT_PASSWORD: txill_dev_secret
-    ports: ['9000:9000', '9001:9001']
+    ports: ['127.0.0.1:9000:9000', '127.0.0.1:9001:9001']
     volumes: ['miniodata:/data']
   elasticsearch:
     profiles: ['search'] # opcional: docker compose --profile search up elasticsearch  (depois SEARCH_BACKEND=elasticsearch)

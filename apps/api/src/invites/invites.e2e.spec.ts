@@ -256,6 +256,10 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
       expect(html).toContain(`<meta property="og:image" content="https://txillapp.com/api/v1/invites/card/${code}.png?v=3">`);
       expect(html).toContain(`<meta property="og:url" content="https://txillapp.com/c/${code}">`);
       expect(html).not.toContain(a.email);
+      // Um Host inventado não entra nas ligações (a página fica em cache pública): fica o nosso domínio.
+      const forged = (await api().get(`/api/v1/invites/share/${code}`).set('Host', 'atacante.example').expect(200)).text;
+      expect(forged).not.toContain('atacante.example');
+      expect(forged).toContain(`<meta property="og:url" content="https://txillapp.com/c/${code}">`);
       const png = await api().get(`/api/v1/invites/card/${code}.png`).buffer(true).parse((res, cb) => {
         const parts: Buffer[] = [];
         res.on('data', (c: Buffer) => parts.push(c));

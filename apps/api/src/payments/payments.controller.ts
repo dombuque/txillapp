@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -43,14 +43,14 @@ export class PaymentsController {
   @Get('orders/:id')
   @UseGuards(JwtAuthGuard)
   @SkipThrottle()
-  get(@Req() req: AuthedReq, @Param('id') id: string) {
+  get(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.payments.get(req.userId!, id);
   }
 
   @Post('orders/:id/cancel')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
-  cancel(@Req() req: AuthedReq, @Param('id') id: string) {
+  cancel(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.payments.cancel(req.userId!, id);
   }
 
@@ -58,7 +58,7 @@ export class PaymentsController {
   @Post('orders/:id/sandbox-pay')
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  sandboxPay(@Req() req: AuthedReq, @Param('id') id: string) {
+  sandboxPay(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.payments.sandboxPay(req.userId!, id);
   }
 

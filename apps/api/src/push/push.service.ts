@@ -35,6 +35,33 @@ export interface PushPayload extends FcmPush {
   webData?: Record<string, string>;
 }
 
+/**
+ * Os serviços de Web Push dos browsers (Chrome/Edge/Opera via FCM, Firefox, Safari, Windows). O endpoint vem do browser, mas
+ * quem o regista pode mandar qualquer URL: sem esta lista o servidor fazia pedidos HTTPS para onde lhe dissessem (SSRF,
+ * incluindo a rede interna). `push.example.com`: domínio reservado (RFC 2606), usado nos testes; nunca aponta para nada.
+ */
+const PUSH_HOSTS = [
+  /^fcm\.googleapis\.com$/,
+  /^android\.googleapis\.com$/,
+  /^updates\.push\.services\.mozilla\.com$/,
+  /^[a-z0-9-]+\.push\.services\.mozilla\.com$/,
+  /^web\.push\.apple\.com$/,
+  /^[a-z0-9-]+\.push\.apple\.com$/,
+  /^[a-z0-9-]+\.notify\.windows\.com$/,
+  /^push\.example\.com$/,
+];
+/** O endpoint de uma subscrição Web Push é de um serviço de push conhecido (https, porta normal)? */
+export function pushEndpointOk(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' && (u.port === '' || u.port === '443') && !u.username && !u.password && PUSH_HOSTS.some((h) => h.test(u.hostname.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+/** Até quantos browsers por conta (cada push a uma conta é um pedido por subscrição). */
+export const MAX_WEB_SUBSCRIPTIONS = 20;
+
 /** O que vai para o browser (Web Push): os dados extra (ex.: kind, callId, from, video) ficam ao nível de cima, ao lado do título e do texto. */
 export function webPushBody(p: PushPayload): string {
   return JSON.stringify({ ...(p.data ?? {}), ...(p.webData ?? {}), title: p.title, body: p.body, url: p.url, tag: p.tag });
@@ -112,6 +139,12 @@ export class PushService implements OnModuleDestroy {
        ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
       [uuidv7(), userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth],
     );
+    // No máximo MAX_WEB_SUBSCRIPTIONS por conta: saem as mais antigas (browsers que já não se usam).
+    await this.pool.query(
+      `DELETE FROM social.push_subscriptions WHERE user_id = $1 AND id NOT IN (
+         SELECT id FROM social.push_subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT ${MAX_WEB_SUBSCRIPTIONS})`,
+      [userId],
+    );
   }
 
   async unsubscribe(userId: string, endpoint: string) {
@@ -171,7 +204,9 @@ export class PushService implements OnModuleDestroy {
       await Promise.all(
         rows.map(async (r) => {
           try {
-            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, webPushBody(payload), { TTL: payload.ttlSeconds ?? 86_400, urgency: 'high' });
+            // Subscrições antigas, de antes da lista de serviços: nunca se lhes manda nada.
+            if (!pushEndpointOk(r.endpoint as string)) return;
+            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, webPushBody(payload), { TTL: payload.ttlSeconds ?? 86_400, urgency: 'high', timeout: 10_000 });
             delivered++;
           } catch (e) {
             const status = (e as { statusCode?: number }).statusCode;

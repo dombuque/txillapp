@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -27,6 +27,9 @@ export interface TransferResult {
 /** Tipos de movimento do ledger (iguais ao CHECK de ledger.transactions). */
 export type LedgerType = 'welcome_bonus' | 'transfer' | 'gift' | 'topup' | 'invite' | 'group_contribution' | 'venue_payment' | 'group_refund' | 'boost' | 'boost_refund'
   | 'txillada_ticket' | 'txillada_gift' | 'txillada_refund';
+
+/** Os tipos cuja chave de idempotência vem do cliente (cabeçalho Idempotency-Key): guardam-se como «tipo:chave». */
+const CLIENT_KEY_TYPES = new Set<string>(['transfer', 'gift']);
 
 /** Os movimentos com outra pessoa do outro lado (o histórico mostra quem). */
 const PERSON_TYPES = ['transfer', 'gift', 'txillada_ticket', 'txillada_gift', 'txillada_refund'];
@@ -194,17 +197,19 @@ export class WalletService {
     }
     if (p.fromUserId === p.toUserId) throw new UnprocessableEntityException('Não pode enviar para si próprio');
 
+    // As chaves das transferências e dos presentes vêm do cliente: ficam no espaço do tipo («transfer:…», «gift:…»), para
+    // nunca coincidirem com as chaves internas (txillada_ticket:…, txillada_refund:…, topup:…, boost:…, invite:…). Sem isto,
+    // uma transferência de 1 vib com a chave «txillada_ticket:<id>» fazia a entrada paga passar por «repetida» sem pagar.
+    const key = CLIENT_KEY_TYPES.has(p.type) ? `${p.type}:${p.idempotencyKey}` : p.idempotencyKey;
     const own = !client;
     const c = client ?? (await this.pool.connect());
     try {
       if (own) await c.query('BEGIN');
 
-      const dup = await c.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [
-        p.actorId, p.idempotencyKey,
-      ]);
-      if (dup.rows[0]) {
+      const dupId = await this.replayOf(c, p.actorId, p.type, key, CLIENT_KEY_TYPES.has(p.type) ? p.idempotencyKey : undefined);
+      if (dupId) {
         if (own) await c.query('COMMIT');
-        return { transactionId: dup.rows[0].id, replayed: true };
+        return { transactionId: dupId, replayed: true };
       }
 
       // Só uma conta ativa paga ou oferece: o token de acesso dura uns minutos depois de apagar ou suspender a conta, e
@@ -223,7 +228,7 @@ export class WalletService {
       await c.query('SELECT 1 FROM ledger.accounts WHERE id = ANY($1) ORDER BY id FOR UPDATE', [[from.id, to.id]]);
 
       const txId = await this.post(c, {
-        type: p.type, actorId: p.actorId, key: p.idempotencyKey,
+        type: p.type, actorId: p.actorId, key,
         legs: [[from.id, -p.amount], [to.id, p.amount]], metadata: p.metadata ?? {},
       });
       if (own) await c.query('COMMIT');
@@ -234,10 +239,8 @@ export class WalletService {
       if (code === '23514') throw new UnprocessableEntityException('Saldo insuficiente');
       if (code === '23505' && own) {
         // Corrida entre dois pedidos com a mesma chave: devolve o resultado do vencedor.
-        const r = await this.pool.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [
-          p.actorId, p.idempotencyKey,
-        ]);
-        if (r.rows[0]) return { transactionId: r.rows[0].id, replayed: true };
+        const won = await this.replayOf(this.pool, p.actorId, p.type, key);
+        if (won) return { transactionId: won, replayed: true };
       }
       if (e instanceof HttpException) throw e;
       throw e;
@@ -257,10 +260,10 @@ export class WalletService {
     const c = client ?? (await this.pool.connect());
     try {
       if (own) await c.query('BEGIN');
-      const dup = await c.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [userId, key]);
-      if (dup.rows[0]) {
+      const dupId = await this.replayOf(c, userId, type, key);
+      if (dupId) {
         if (own) await c.query('COMMIT');
-        return { transactionId: dup.rows[0].id, replayed: true };
+        return { transactionId: dupId, replayed: true };
       }
       await c.query('SELECT 1 FROM ledger.accounts WHERE id = $1 FOR UPDATE', [accountId]);
       const txId = await this.post(c, { type, actorId: userId, key, legs: [[ISSUANCE_ACCOUNT, -amount], [accountId, amount]], metadata });
@@ -291,10 +294,10 @@ export class WalletService {
     const c = await this.pool.connect();
     try {
       await c.query('BEGIN');
-      const dup = await c.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [p.actorId, p.idempotencyKey]);
-      if (dup.rows[0]) {
+      const dupId = await this.replayOf(c, p.actorId, p.type, p.idempotencyKey);
+      if (dupId) {
         await c.query('COMMIT');
-        return { transactionId: dup.rows[0].id, replayed: true };
+        return { transactionId: dupId, replayed: true };
       }
       for (const id of p.lock) await c.query('SELECT 1 FROM ledger.accounts WHERE id = $1 FOR UPDATE', [id]);
       const legs = typeof p.legs === 'function' ? await p.legs(c) : p.legs;
@@ -308,13 +311,31 @@ export class WalletService {
       if (code === '23514') throw new UnprocessableEntityException(p.insufficient ?? 'Saldo insuficiente');
       if (code === '23505') {
         // Corrida entre dois pedidos com a mesma chave: devolve o resultado do vencedor.
-        const r = await this.pool.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [p.actorId, p.idempotencyKey]);
-        if (r.rows[0]) return { transactionId: r.rows[0].id, replayed: true };
+        const won = await this.replayOf(this.pool, p.actorId, p.type, p.idempotencyKey);
+        if (won) return { transactionId: won, replayed: true };
       }
       throw e;
     } finally {
       c.release();
     }
+  }
+
+  /**
+   * O movimento já feito com esta chave por quem age (repetição de um pedido), ou null. A repetição só vale para o mesmo
+   * tipo de movimento: a mesma chave noutro tipo é recusada (409), em vez de dar a operação por feita sem ter pago.
+   * `legacy`: a chave como era guardada antes do espaço por tipo (as transferências e os presentes antigos), que só conta
+   * se for do mesmo tipo.
+   */
+  async replayOf(c: Pool | PoolClient, actorId: string, type: string, key: string, legacy?: string): Promise<string | null> {
+    const keys = legacy && legacy !== key ? [key, legacy] : [key];
+    const rows = (await c.query('SELECT id, type, idempotency_key FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = ANY($2::text[])', [actorId, keys])).rows;
+    const exact = rows.find((r) => r.idempotency_key === key);
+    if (exact) {
+      if (exact.type !== type) throw new ConflictException({ code: 'idempotency_key_reused', message: 'Esta chave de idempotência já foi usada noutro movimento.' });
+      return exact.id as string;
+    }
+    const old = rows.find((r) => r.idempotency_key === legacy && r.type === type);
+    return (old?.id as string | undefined) ?? null;
   }
 
   /**

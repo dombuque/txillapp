@@ -1,5 +1,6 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { gifSchema } from '../gifs/gif';
@@ -108,6 +109,7 @@ export class StoriesController {
 
   @NeedsVerifiedEmail()
   @Post(':id/replies')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @HttpCode(201)
   reply(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
     return this.stories.reply(req.userId!, id, b.body);
@@ -130,6 +132,7 @@ export class StoriesController {
 
   @NeedsVerifiedEmail()
   @Post(':id/comments')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @HttpCode(201)
   comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(commentSchema)) b: z.infer<typeof commentSchema>) {
     return this.stories.comment(req.userId!, id, b.body, b.gif);

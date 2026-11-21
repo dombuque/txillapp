@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { RiskCheck } from '../security/risk.guard';
 import { gifSchema } from '../gifs/gif';
 import { musicSchema } from '../music/music.service';
 import { REPORT_REASONS } from '../moderation/moderation.service';
@@ -75,6 +76,8 @@ export class NotesController {
 
   @NeedsVerifiedEmail()
   @Post(':username/reply')
+  // Responder a uma nota é escrever uma mensagem: as mesmas regras das contas novas em revisão que POST /chat/with/:username.
+  @RiskCheck('dm')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   reply(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
     return this.notes.reply(req.userId!, username, b.text, b.gif);

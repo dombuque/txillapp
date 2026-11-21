@@ -4,11 +4,11 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
-import { PushService } from './push.service';
+import { PushService, pushEndpointOk } from './push.service';
 
 type AuthedReq = Request & { userId?: string };
 const subSchema = z.object({
-  endpoint: z.string().url().max(1000),
+  endpoint: z.string().url().max(1000).refine(pushEndpointOk, 'Serviço de notificações desconhecido'),
   keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(10).max(100) }),
 });
 const deviceSchema = z.object({ token: z.string().min(20).max(400), platform: z.enum(['android', 'ios']) });
@@ -26,6 +26,7 @@ export class PushController {
 
   @Post('subscribe')
   @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   subscribe(@Req() req: AuthedReq, @Body(new ZodPipe(subSchema)) b: z.infer<typeof subSchema>) {
     if (!this.push.enabled) throw new ServiceUnavailableException('Notificações push não estão ativas neste servidor');
     return this.push.subscribe(req.userId!, b);

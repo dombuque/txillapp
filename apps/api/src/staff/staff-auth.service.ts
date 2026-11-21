@@ -172,13 +172,21 @@ export class StaffAuthService {
       await argon2.verify(await this.dummyHash, password).catch(() => false);
       throw bad();
     }
-    if (a.locked_until && new Date(a.locked_until as string) > new Date()) throw new HttpException('Demasiadas tentativas. Tenta daqui a 15 minutos.', HttpStatus.TOO_MANY_REQUESTS);
+    const locked = () => new HttpException('Demasiadas tentativas. Tenta daqui a 15 minutos.', HttpStatus.TOO_MANY_REQUESTS);
+    if (a.locked_until && new Date(a.locked_until as string) > new Date()) throw locked();
+    // A tentativa conta ANTES de verificar, numa só escrita condicional na base de dados: tentativas em paralelo (de vários
+    // IP) contam todas e, chegado o limite, as que vierem a seguir já encontram a conta bloqueada. O login certo repõe tudo.
+    const slot = (await this.pool.query(
+      `UPDATE identity.staff_accounts SET failed_logins = failed_logins + 1,
+              locked_until = CASE WHEN failed_logins + 1 >= $2::int THEN now() + ($3 || ' minutes')::interval ELSE locked_until END
+        WHERE id = $1 AND (locked_until IS NULL OR locked_until <= now()) RETURNING failed_logins`,
+      [a.id, MAX_FAILS, String(LOCK_MINUTES)],
+    )).rows[0] as { failed_logins: number } | undefined;
+    if (!slot) throw locked();
     const okPass = await argon2.verify(a.password_hash as string, password).catch(() => false);
     const okCode = okPass && verifyTotp(unseal(a.totp_secret as string, this.appSecret), code);
     if (!okPass || !okCode) {
-      const fails = (a.failed_logins as number) + 1;
-      await this.pool.query('UPDATE identity.staff_accounts SET failed_logins = $2::int, locked_until = CASE WHEN $2::int >= $3::int THEN now() + ($4 || \' minutes\')::interval ELSE locked_until END WHERE id = $1', [a.id, fails, MAX_FAILS, String(LOCK_MINUTES)]);
-      await this.audit(a.user_id as string, 'staff.login_failed', `staff:${a.id as string}`, { fails });
+      await this.audit(a.user_id as string, 'staff.login_failed', `staff:${a.id as string}`, { fails: slot.failed_logins });
       throw bad();
     }
     await this.pool.query('UPDATE identity.staff_accounts SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1', [a.id]);

@@ -1,3 +1,4 @@
+import { httpHref } from '../../../lib/safeUrl';
 import { AnBars, SERIES } from './an-charts';
 import { when } from '../bo';
 import { AnCard, AnEmpty, AnGrid, AnPage, AnTable, Delta, fmt, useAnalysis } from './an-kit';
@@ -76,7 +77,7 @@ export default function AnContent() {
             <AnCard title="GIFs mais usados" hint="Nas conversas e nos comentários">
               {r.gifs.length === 0 ? <AnEmpty>Nada ainda.</AnEmpty> : (
                 <AnBars rows={r.gifs.map((g) => ({
-                  label: g.url ? <a href={g.url} target="_blank" rel="noreferrer noopener" className="underline decoration-zinc-300 hover:decoration-zinc-700">{g.title}</a> : g.title,
+                  label: httpHref(g.url) ? <a href={httpHref(g.url)!} target="_blank" rel="noreferrer noopener" className="underline decoration-zinc-300 hover:decoration-zinc-700">{g.title}</a> : g.title,
                   value: g.uses,
                   hint: `${g.inChat} em conversas · ${g.inComments} em comentários · ${g.people} pessoas`,
                 }))} />

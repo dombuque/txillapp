@@ -321,6 +321,20 @@ export class SocialService {
           WHERE user_a = LEAST($1::uuid, $2::uuid) AND user_b = GREATEST($1::uuid, $2::uuid) AND status IN ('pending', 'active')`,
         [userId, t.id],
       );
+      // Localização em direto na conversa entre os dois (de qualquer lado): acaba já e a última posição apaga-se, como no «Parar».
+      await client.query(
+        `UPDATE social.messages m SET live_until = now(), lat = NULL, lng = NULL, place_name = NULL, place_address = NULL
+           FROM social.conversations c
+          WHERE c.id = m.conversation_id AND ((c.user_a = $1 AND c.user_b = $2) OR (c.user_a = $2 AND c.user_b = $1))
+            AND m.kind = 'location' AND m.live_until IS NOT NULL AND m.live_until > now()`,
+        [userId, t.id],
+      );
+      // Uma chamada entre os dois a tocar ou a decorrer acaba (deixa de se poder atender e de passar sinais).
+      await client.query(
+        `UPDATE social.calls SET status = CASE WHEN status = 'ringing' THEN 'cancelled' ELSE 'ended' END, ended_at = now()
+          WHERE ((caller_id = $1 AND callee_id = $2) OR (caller_id = $2 AND callee_id = $1)) AND status IN ('ringing', 'active')`,
+        [userId, t.id],
+      );
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);

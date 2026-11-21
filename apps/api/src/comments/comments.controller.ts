@@ -1,5 +1,6 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -32,6 +33,8 @@ export class CommentsController {
 
   @NeedsVerifiedEmail()
   @Post('posts/:postId/comments')
+  // Cada comentário avisa alguém (lista e telemóvel): no máximo 30 por minuto, como as mensagens.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   create(@Req() req: AuthedReq, @Param('postId', ParseUUIDPipe) postId: string, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
     return this.comments.create(req.userId!, postId, b.body, b.parentId, b.gif);
   }

@@ -163,10 +163,13 @@ export class BoostsService {
     let replayed = false;
     try {
       await c.query('BEGIN');
-      const dup = (await c.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [userId, idem])).rows[0];
-      if (dup) {
+      // A mesma chave noutro tipo de movimento é recusada (409) em vez de dar a campanha por paga.
+      const dupId = await this.wallet.replayOf(c, userId, 'boost', idem);
+      const dupCampaign = dupId ? ((await c.query('SELECT id FROM content.boost_campaigns WHERE charge_tx_id = $1', [dupId])).rows[0]?.id as string | undefined) : undefined;
+      if (dupId && !dupCampaign) throw new ConflictException('Esta chave de idempotência já foi usada noutro movimento.');
+      if (dupCampaign) {
         replayed = true;
-        id = (await c.query('SELECT id FROM content.boost_campaigns WHERE charge_tx_id = $1', [dup.id])).rows[0]?.id as string;
+        id = dupCampaign;
         await c.query('COMMIT');
       } else {
         await c.query('SELECT 1 FROM ledger.accounts WHERE id = $1 FOR UPDATE', [account]);
@@ -193,8 +196,8 @@ export class BoostsService {
       if (code === '23514') throw new UnprocessableEntityException(`O local não tem vibes suficientes: este pacote custa ${vibes(price)}.`);
       if (code === '23505') {
         // Dois pedidos com a mesma chave ao mesmo tempo: devolve a campanha do vencedor.
-        const tx = (await this.pool.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [userId, idem])).rows[0];
-        const won = tx ? (await this.pool.query('SELECT id FROM content.boost_campaigns WHERE charge_tx_id = $1', [tx.id])).rows[0] : null;
+        const txId = await this.wallet.replayOf(this.pool, userId, 'boost', idem);
+        const won = txId ? (await this.pool.query('SELECT id FROM content.boost_campaigns WHERE charge_tx_id = $1', [txId])).rows[0] : null;
         if (!won) throw e;
         id = won.id as string;
         replayed = true;

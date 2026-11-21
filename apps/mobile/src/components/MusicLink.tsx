@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { musicApi, type Track } from '@/lib/api.music';
 import { showToast } from '@/lib/toast';
 import { BookmarkIcon } from './BookmarkIcon';
-import { linkPlayerHeight, providerName } from '@/lib/musicLink';
+import { embedAllowed, httpLink, linkPlayerHeight, providerName } from '@/lib/musicLink';
 import { colors } from '@/lib/theme';
 import { t } from '@/lib/i18n';
 
@@ -32,7 +32,8 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
     onError: (e: Error) => showToast(e.message),
   });
   let player: React.ReactNode = null;
-  if (track.embedUrl) {
+  const external = httpLink(track.link ?? track.landing);
+  if (track.embedUrl && embedAllowed(track.embedUrl)) {
     if (Platform.OS === 'web') {
       player = createElement('iframe', { src: track.embedUrl, width: '100%', height: h, style: { border: 0, borderRadius: 12 }, allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture', title: track.title, referrerPolicy: 'strict-origin-when-cross-origin' });
     } else {
@@ -53,7 +54,7 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
           <Button label={saved ? t('Guardada') : t('Guardar')} icon={<BookmarkIcon on={saved} size={18} color={colors.zinc900} />} kind="secondary" onPress={() => save.mutate()} style={{ flex: 1 }} />
           <Button label={t('Copiar ligação')} icon="link" kind="secondary" onPress={() => void Clipboard.setStringAsync(track.link ?? track.landing ?? '').then(() => showToast(t('Ligação copiada')))} style={{ flex: 1 }} />
         </View>
-        <Button label={t('Abrir no {provider}', { provider: name })} kind="secondary" onPress={() => void Linking.openURL(track.link ?? track.landing ?? '').catch(() => undefined)} block />
+        {external ? <Button label={t('Abrir no {provider}', { provider: name })} kind="secondary" onPress={() => void Linking.openURL(external).catch(() => undefined)} block /> : null}
         <Text style={st.legal}>{t('A música toca no leitor do {provider} e conta para o artista lá.', { provider: name })}</Text>
       </View>
     </Sheet>

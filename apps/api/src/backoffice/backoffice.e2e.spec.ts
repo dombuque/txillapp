@@ -6,6 +6,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { staffLogin } from '../staff/staff-test';
+import { StaffAuthService } from '../staff/staff-auth.service';
 import { totp } from '../staff/totp';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -178,5 +179,18 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
     const st = await staffLogin(app, 'bloq');
     for (let i = 0; i < 5; i++) await api().post('/api/v1/staff-auth/login').send({ email: st.email, password: 'senha-errada-qualquer', code: '000000' }).expect(401);
     await api().post('/api/v1/staff-auth/login').send({ email: st.email, password: st.password, code: totp(st.secret) }).expect(429);
+  });
+
+  it('tentativas em paralelo também contam: no máximo 5 senhas são verificadas antes do bloqueio', async () => {
+    const svc = app.get(StaffAuthService);
+    const st = await staffLogin(app, 'paralelo');
+    // 12 senhas erradas ao mesmo tempo (direto no serviço, sem o limite por IP): só 5 chegam a ser verificadas.
+    const r = await Promise.allSettled(Array.from({ length: 12 }, (_, i) => svc.login(st.email, `senha-errada-${i}`, '000000')));
+    const status = r.map((x) => (x.status === 'rejected' ? (x.reason as { getStatus(): number }).getStatus() : 200));
+    expect(status.filter((s) => s === 401).length).toBe(5);
+    expect(status.filter((s) => s === 429).length).toBe(7);
+    expect((await pool.query('SELECT failed_logins FROM identity.staff_accounts WHERE id = $1', [st.accountId])).rows[0].failed_logins).toBe(5);
+    const right = await svc.login(st.email, st.password, totp(st.secret)).then(() => 200, (e: { getStatus(): number }) => e.getStatus());
+    expect(right).toBe(429);
   });
 });

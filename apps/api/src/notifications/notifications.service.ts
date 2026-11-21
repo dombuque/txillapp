@@ -195,6 +195,11 @@ export class NotificationsService {
   async notify(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }): Promise<void> {
     if (n.userId === n.actorId) return;
     try {
+      // Com um bloqueio entre as duas pessoas não há aviso (nem na lista nem no telemóvel), tirando os que aparecem mesmo assim.
+      if (!SHOWN_DESPITE_BLOCK.includes(n.kind)) {
+        const b = await this.pool.query(`SELECT ${blockedBetween('$1::uuid', '$2::uuid')} AS blocked`, [n.userId, n.actorId]);
+        if (b.rows[0]?.blocked) return;
+      }
       // Categoria desligada: nem na lista nem no telemóvel (os pedidos de seguir e de entrar num grupo ficam sempre na lista, porque têm botões).
       const cat = CATEGORY_OF[n.kind];
       if (cat && n.kind !== 'follow_request' && n.kind !== 'group_join_request' && (await this.push.off(n.userId)).includes(cat)) return;

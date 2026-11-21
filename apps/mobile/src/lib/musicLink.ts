@@ -35,3 +35,21 @@ export function spotifyUri(link: string | null | undefined): string | null {
   const m = /^https:\/\/open\.spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]{1,64})$/.exec(link ?? '');
   return m ? `spotify:${m[1]}:${m[2]}` : null;
 }
+
+/** Os leitores oficiais que se podem embutir (a mesma lista do frame-src do nginx e do music-link.ts da API). */
+const EMBED_HOSTS = ['open.spotify.com', 'www.youtube-nocookie.com', 'audiomack.com', 'www.boomplay.com', 'widget.deezer.com', 'embed.music.apple.com'];
+
+/** O leitor só abre se o endereço for https de uma das plataformas; outro qualquer não entra na WebView nem no iframe. */
+export function embedAllowed(url: string | null | undefined): boolean {
+  try {
+    const u = new URL(url ?? '');
+    return u.protocol === 'https:' && EMBED_HOSTS.includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** Para abrir fora da app: só http(s) (nunca intent:, javascript: nem esquemas de outras apps). */
+export function httpLink(url: string | null | undefined): string | null {
+  return url && /^https?:\/\/[^\s]+$/i.test(url) ? url : null;
+}

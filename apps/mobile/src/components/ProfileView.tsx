@@ -19,6 +19,7 @@ import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { sized } from '@/lib/config';
+import { httpLink } from '@/lib/musicLink';
 import { nextProfileTab, profileTabEdges, visibleProfileTabs } from '@/lib/profileTabs';
 import type { InnerPager } from '@/lib/swipeClaim';
 import { cardShadow, colors } from '@/lib/theme';
@@ -367,7 +368,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             <View style={styles.meta}>
               {p.city ? <View style={styles.metaItem}><Icon name="map-pin" size={14} color={colors.zinc600} /><Text style={styles.metaText}>{p.city}</Text></View> : null}
               {p.website ? (
-                <Pressable onPress={() => void Linking.openURL(p.website!)} style={styles.metaItem}>
+                <Pressable onPress={() => { const u = httpLink(p.website); if (u) void Linking.openURL(u).catch(() => undefined); }} style={styles.metaItem} accessibilityRole="link">
                   <Icon name="link" size={14} color={colors.brand} />
                   <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]} numberOfLines={1}>{p.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</Text>
                 </Pressable>

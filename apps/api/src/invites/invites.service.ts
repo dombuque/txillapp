@@ -201,8 +201,25 @@ export class InvitesService implements OnModuleInit {
    * A página que os robôs das redes (WhatsApp, Facebook, Telegram…) leem quando alguém partilha /c/CÓDIGO: o título
    * «{Nome} convidou-te para o Txillapp» e o cartão como imagem. Código desconhecido: o cartão genérico (sem dizer que não existe).
    */
+  /**
+   * O Host do pedido só serve se for um dos nossos (txillapp.com e os seus subdomínios, ou as origens configuradas). Esta
+   * página fica em cache pública (Cloudflare, WhatsApp): um Host inventado punha ligações para fora no og:url e no og:image.
+   */
+  private shareHost(host: string | undefined): string {
+    const h = String(host ?? '').trim().toLowerCase();
+    if (/^([a-z0-9-]+\.)*txillapp\.com$/.test(h)) return h;
+    const known = [...this.config.WEB_ORIGIN.split(','), this.config.PUBLIC_URL].map((o) => {
+      try {
+        return new URL(o.trim()).host.toLowerCase();
+      } catch {
+        return '';
+      }
+    });
+    return h && known.includes(h) ? h : 'txillapp.com';
+  }
+
   async sharePage(raw: string, host: string | undefined) {
-    const origin = `https://${host ?? 'txillapp.com'}`;
+    const origin = `https://${this.shareHost(host)}`;
     const o = await this.ownerOf(raw);
     const code = o?.code ?? cleanCode(raw);
     const url = `${origin}/c/${code}`;

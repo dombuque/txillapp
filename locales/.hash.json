@@ -5719,6 +5719,8 @@
     "O destinatário ainda não abriu a carteira": "67b8485633eb7cbb",
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
-    "Movimento inválido": "e238bfd1ca2dfe89"
+    "Movimento inválido": "e238bfd1ca2dfe89",
+    "Esta chave de idempotência já foi usada noutro movimento.": "065e78c94b9fecce",
+    "Serviço de notificações desconhecido": "4038a7f0052da267"
   }
 }

@@ -169,6 +169,34 @@ describe('Txillada: dinheiro (entradas e ofertas sob corrida)', () => {
     await gift(ana, id, 5, `depois-corte-${run}`).expect(409);
   });
 
+  it('uma chave «txillada_refund:<entrada>» plantada antes noutro tipo de movimento não faz saltar a devolução (409, fica por devolver)', async () => {
+    const { host, ana, eva } = u;
+    const id = (await open(host, { audience: 'paid', price: 30 }).expect(201)).body.txillada.id as string;
+    const a0 = await balance(ana);
+    const e0 = await balance(eva);
+    await pay(ana, id).expect(200);
+    await pay(eva, id).expect(200);
+    const tickets = (await pool.query('SELECT id, user_id FROM content.txillada_tickets WHERE txillada_id = $1', [id])).rows as { id: string; user_id: string }[];
+    const anaTicket = tickets.find((t) => t.user_id === ana.id)!;
+    // Uma linha antiga (de antes das chaves com prefixo): o anfitrião tinha feito uma transferência com a chave da devolução.
+    await pool.query(
+      `INSERT INTO ledger.transactions (id, type, actor_id, idempotency_key) VALUES (gen_random_uuid(), 'transfer', $1, $2)`,
+      [host.id, `txillada_refund:${anaTicket.id}`],
+    );
+    const refundsBefore = await ledger('txillada_refund', host);
+    await pool.query(`UPDATE content.txilladas SET status = 'cut', ended_at = now() WHERE id = $1`, [id]);
+    // A da Eva volta; a da Ana não se marca como devolvida (não houve devolução) e não trava a outra.
+    expect(await svc.refundTickets(id)).toBe(1);
+    expect(await balance(eva)).toBe(e0);
+    expect(await balance(ana)).toBe(a0 - 30);
+    expect(await ledger('txillada_refund', host)).toBe(refundsBefore + 1);
+    const left = (await pool.query('SELECT user_id FROM content.txillada_tickets WHERE txillada_id = $1 AND refunded_at IS NULL', [id])).rows;
+    expect(left).toEqual([{ user_id: ana.id }]);
+    // Outra volta (a varredura) também não a dá como devolvida.
+    expect(await svc.refundTickets(id)).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS n FROM content.txillada_tickets WHERE txillada_id = $1 AND refunded_at IS NULL', [id])).rows[0].n).toBe(1);
+  });
+
   it('pagar ao mesmo tempo que a moderação corta: ou não cobra, ou cobra e devolve; nunca perde dinheiro', async () => {
     const { host, rui } = u;
     const staff = await staffLogin(app, `txdin${run}`.slice(0, 20), ['moderacao']);

@@ -1026,7 +1026,14 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
   async refundTickets(id: string) {
     const { rows } = await this.pool.query('SELECT id FROM content.txillada_tickets WHERE txillada_id = $1 AND refunded_at IS NULL ORDER BY id', [id]);
     let n = 0;
-    for (const k of rows) if (await this.refundTicket(k.id as string)) n++;
+    for (const k of rows) {
+      // Uma entrada que não se consegue devolver (ex.: a chave já usada noutro movimento, 409) não trava as outras.
+      try {
+        if (await this.refundTicket(k.id as string)) n++;
+      } catch (e) {
+        this.log.warn(`não consegui devolver a entrada ${k.id as string} da Txillada ${id}: ${(e as Error).message}`);
+      }
+    }
     return n;
   }
 
@@ -1044,7 +1051,10 @@ export class TxilladaService implements OnModuleInit, TxilladaHooks {
       }
       const price = Number(k.price);
       const key = `txillada_refund:${k.id}`;
-      let txId = (await client.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [k.host_id, key])).rows[0]?.id as string | undefined;
+      // A devolução já feita (a mesma chave, do tipo 'txillada_refund'). Uma linha com esta chave mas de outro tipo (plantada por
+      // um cliente com uma chave escolhida por ele, antes das chaves com prefixo) dá 409 e a entrada fica por devolver (e
+      // à vista da varredura): nunca se marca como devolvida sem a devolução.
+      let txId = (await this.wallet.replayOf(client, k.host_id as string, 'txillada_refund', key)) ?? undefined;
       if (!txId) {
         // As duas carteiras trancadas por ordem de id (como nas transferências: sem deadlocks).
         const accs = (await client.query('SELECT id, user_id, balance FROM ledger.accounts WHERE user_id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [[k.host_id, k.user_id]])).rows;
