@@ -57,3 +57,9 @@ test('as usadas recentemente (neste aparelho) e as guardadas; os seguidores guar
   assert.match(l, /saved \? musicApi\.removeFavorite\(track\.id\) : musicApi\.addFavorite\(track\)/);
   assert.match(l, /Clipboard\.setStringAsync\(track\.link \?\? track\.landing \?\? ''\)/);
 });
+
+test('o leitor embutido carrega logo (sem loading=lazy, que no Safari deixava a caixa vazia dentro da folha) e tem a capa por trás', () => {
+  const l = read('components/MusicLink.tsx');
+  assert.doesNotMatch(l, /loading: 'lazy'/);
+  assert.match(l, /track\.cover \? <Image source=\{\{ uri: track\.cover \}\} style=\{StyleSheet\.absoluteFill\}/);
+});

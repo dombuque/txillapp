@@ -34,7 +34,7 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
   let player: React.ReactNode = null;
   if (track.embedUrl) {
     if (Platform.OS === 'web') {
-      player = createElement('iframe', { src: track.embedUrl, width: '100%', height: h, style: { border: 0, borderRadius: 12 }, allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture', loading: 'lazy', title: track.title });
+      player = createElement('iframe', { src: track.embedUrl, width: '100%', height: h, style: { border: 0, borderRadius: 12 }, allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture', title: track.title, referrerPolicy: 'strict-origin-when-cross-origin' });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { WebView } = require('react-native-webview') as typeof import('react-native-webview');
@@ -44,7 +44,11 @@ export function LinkPlayer({ track, onClose }: { track: Track; onClose: () => vo
   return (
     <Sheet title={track.title} onClose={onClose}>
       <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 12, alignItems: 'center' }}>
-        <View style={{ width: w, height: h, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.zinc100 }}>{player}</View>
+        {/* A capa por trás enquanto o leitor carrega (nunca uma caixa vazia). */}
+        <View style={{ width: w, height: h, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000' }}>
+          {track.cover ? <Image source={{ uri: track.cover }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+          <View style={StyleSheet.absoluteFill}>{player}</View>
+        </View>
         <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch' }}>
           <Button label={saved ? t('Guardada') : t('Guardar')} icon={<BookmarkIcon on={saved} size={18} color={colors.zinc900} />} kind="secondary" onPress={() => save.mutate()} style={{ flex: 1 }} />
           <Button label={t('Copiar ligação')} icon="link" kind="secondary" onPress={() => void Clipboard.setStringAsync(track.link ?? track.landing ?? '').then(() => showToast(t('Ligação copiada')))} style={{ flex: 1 }} />

@@ -1,6 +1,6 @@
 {
   "name": "@txillapp/mobile",
-  "version": "1.59.13",
+  "version": "1.59.14",
   "main": "expo-router/entry",
   "dependencies": {
     "@livekit/react-native": "3.1.0",
