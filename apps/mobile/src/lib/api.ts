@@ -747,6 +747,9 @@ export function threadQuery(cursor: string | undefined, read: boolean): string {
   return p.length ? `?${p.join('&')}` : '';
 }
 
+/** Uma pessoa numa lista de brindes (comentários das publicações e dos mimos). */
+export type CheerPerson = { username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string } & Badged;
+
 export const api = {
   /** `turnstileToken`: a prova de humano, quando o servidor a pediu (403 human_check) depois de várias falhas. */
   async login(identifier: string, password: string, turnstileToken?: string): Promise<AuthResult> {
@@ -831,6 +834,8 @@ export const api = {
   storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
   commentStory: (id: string, body: string, gif?: import('./gifs').ChatGif): Promise<{ id: string }> => trackOk(raw(`/stories/${id}/comments`, post(gif ? { body, gif } : { body })), 'comment', { target: 'story' }),
   /** Brindar um comentário do mimo (outra vez tira). */
+  /** Quem brindou um comentário de um mimo. */
+  storyCommentCheers: (commentId: string): Promise<CheerPerson[]> => raw(`/stories/comments/${commentId}/cheers`),
   cheerStoryComment: (commentId: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/stories/comments/${commentId}/cheer`, post({})), 'cheer', (r) => r?.cheered && { target: 'story_comment' }),
   deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
   closeFriends: (): Promise<({ username: string; displayName: string; hasAvatar: boolean } & Badged)[]> => raw('/stories/close-friends'),
@@ -961,6 +966,8 @@ export const api = {
   addComment: (postId: string, body: string, parentId?: string, gif?: import('./gifs').ChatGif): Promise<Comment> => trackOk(raw(`/posts/${postId}/comments`, post({ body, parentId, ...(gif ? { gif } : null) })), 'comment', { target: 'post', reply: !!parentId, gif: !!gif }),
   editComment: (id: string, body: string): Promise<Comment> => raw(`/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
   cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/comments/${id}/cheers`, post({})), 'cheer', (r) => r?.cheered && { target: 'comment' }),
+  /** Quem brindou um comentário de uma publicação. */
+  commentCheers: (id: string): Promise<CheerPerson[]> => raw(`/comments/${id}/cheers`),
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
   report: (type: ReportType, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),

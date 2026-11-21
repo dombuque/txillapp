@@ -50,6 +50,12 @@ export class CommentsController {
     return this.comments.toggleCheer(req.userId!, id);
   }
 
+  /** Quem brindou o comentário. */
+  @Get('comments/:id/cheers')
+  cheers(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.comments.cheers(req.userId!, id);
+  }
+
   /** Um comentário (o autocolante do «Responder com tcheka»): com o autor, a publicação e se dá para responder com tcheka. */
   @Get('comments/:id')
   one(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {

@@ -117,6 +117,27 @@ export class CommentsService {
     return { cheered: !del.rowCount, cheers: c.rows[0].n };
   }
 
+  /**
+   * Quem brindou um comentário: os mais recentes primeiro, só as contas que quem pede pode ver. O comentário tem de estar à
+   * vista de quem pede (publicação visível, autor ativo e sem bloqueio, como na lista).
+   */
+  async cheers(userId: string, commentId: string) {
+    await this.assertComment(userId, commentId, true);
+    const shown = await this.pool.query(
+      `SELECT 1 FROM content.comments c JOIN identity.users u ON u.id = c.author_id WHERE c.id = $2 AND ${commentAuthorShown('u', '$1')}`,
+      [userId, commentId],
+    );
+    if (!shown.rowCount) throw new NotFoundException('Comentário não encontrado');
+    const { rows } = await this.pool.query(
+      `SELECT a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar, a.verified, a.verified_tier, x.created_at AS at
+         FROM content.comment_cheers x JOIN identity.users a ON a.id = x.user_id
+        WHERE x.comment_id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')}
+        ORDER BY x.created_at DESC LIMIT 100`,
+      [userId, commentId],
+    );
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: r.verified, verifiedTier: (r.verified_tier as string | null) ?? null, at: r.at }));
+  }
+
   /** Só o autor edita o seu comentário. O texto passa pelo mesmo filtro de quando se escreve. */
   async update(userId: string, commentId: string, body: string) {
     this.filter.assertClean(body);

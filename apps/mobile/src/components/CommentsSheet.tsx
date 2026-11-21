@@ -16,6 +16,7 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { CommentCheersSheet } from './PeopleSheet';
 import { ActionRow } from './ui/ActionRow';
 import { Button } from './ui/Button';
 import { ErrorState } from './ui/ErrorState';
@@ -53,6 +54,7 @@ interface RowProps {
 function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highlighted }: RowProps) {
   const router = useRouter();
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
+  const [cheersOpen, setCheersOpen] = useState(false);
   const [text, setText] = useState({ body: c.body, editedAt: c.editedAt ?? null });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -188,7 +190,11 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
           </View>
         )}
         <View style={styles.links}>
-          {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>}
+          {cheer.cheers > 0 && (
+            <Pressable onPress={() => setCheersOpen(true)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('Ver quem brindou')}>
+              <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>
+            </Pressable>
+          )}
           <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>{t('Responder')}</Text></Pressable>
           {/* Remix: responder com uma tcheka (o comentário vai num autocolante por cima do vídeo). */}
           {c.canRemix ? <Pressable onPress={() => router.push(replyHref(c.id) as never)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>{t('Responder com tcheka')}</Text></Pressable> : null}
@@ -210,7 +216,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         <Animated.View style={popStyle}><Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : colors.zinc400} /></Animated.View>
       </Pressable>
       <CheersPour n={burst} size={120} />
-      {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
+      {cheersOpen && <CommentCheersSheet commentId={c.id} onClose={() => setCheersOpen(false)} />}
+      {reporting &&<ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
         <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null} cancel>
           <View style={[styles.menu, desktop && menuAt ? { paddingHorizontal: 6 } : null]}>

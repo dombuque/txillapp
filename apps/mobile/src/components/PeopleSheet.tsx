@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
+import { api, type CheerPerson } from '@/lib/api';
 import { feedApi, type PeopleKind } from '@/lib/api.feed';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -15,13 +16,27 @@ const EMPTY: Record<PeopleKind, string> = { get reposts() { return t('Ainda ning
 
 /** Lista de quem interagiu com uma publicação. O servidor só responde se o dono o permitir. */
 export function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: PeopleKind; onClose: () => void }) {
-  const router = useRouter();
   const q = useQuery({ queryKey: ['post-people', postId, kind], queryFn: () => feedApi.postPeople(postId, kind), retry: false });
+  return <PeopleList title={TITLE[kind]} empty={EMPTY[kind]} q={q} onClose={onClose} />;
+}
+
+/** Quem brindou um comentário (`story`: um comentário de um mimo; senão, de uma publicação). */
+export function CommentCheersSheet({ commentId, story = false, onClose }: { commentId: string; story?: boolean; onClose: () => void }) {
+  const q = useQuery({
+    queryKey: ['comment-cheers', story ? 'story' : 'post', commentId],
+    queryFn: () => (story ? api.storyCommentCheers(commentId) : api.commentCheers(commentId)),
+    retry: false,
+  });
+  return <PeopleList title={t('Quem brindou')} empty={t('Ainda ninguém brindou.')} q={q} onClose={onClose} />;
+}
+
+function PeopleList({ title, empty, q, onClose }: { title: string; empty: string; q: UseQueryResult<CheerPerson[]>; onClose: () => void }) {
+  const router = useRouter();
   return (
-    <Sheet title={TITLE[kind]} onClose={onClose}>
+    <Sheet title={title} onClose={onClose}>
       {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 24 }} />}
       {q.isError && <Text style={st.msg} accessibilityRole="alert">{t('Esta lista não está disponível')}</Text>}
-      {q.isSuccess && q.data.length === 0 && <Text style={st.msg}>{EMPTY[kind]}</Text>}
+      {q.isSuccess && q.data.length === 0 && <Text style={st.msg}>{empty}</Text>}
       <ScrollView style={{ maxHeight: 420 }}>
         {q.data?.map((p) => (
           <Pressable

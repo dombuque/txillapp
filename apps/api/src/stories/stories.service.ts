@@ -292,16 +292,7 @@ export class StoriesService {
    * quem escreveu o comentário com o aviso juntado dos brindes (NotificationsService.notifyCheer, categoria «Reações»).
    */
   async toggleCommentCheer(userId: string, commentId: string) {
-    const c = (
-      await this.pool.query(
-        `SELECT c.story_id, c.author_id FROM content.story_comments c
-           JOIN content.stories st ON st.id = c.story_id JOIN identity.users a ON a.id = c.author_id
-          WHERE c.id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')} AND ${notReportedBy('story_comment', 'c.id')}
-            AND (a.id = $1 OR st.author_id = $1 OR ${canView('a')})`,
-        [userId, commentId],
-      )
-    ).rows[0];
-    if (!c) throw new NotFoundException('Comentário não encontrado');
+    const c = await this.visibleComment(userId, commentId);
     const s = await this.visibleStory(userId, c.story_id as string);
     const del = await this.pool.query('DELETE FROM content.story_comment_cheers WHERE comment_id = $1 AND user_id = $2', [commentId, userId]);
     if (!del.rowCount) {
@@ -317,6 +308,35 @@ export class StoriesService {
     }
     const n = await this.pool.query('SELECT count(*)::int AS n FROM content.story_comment_cheers WHERE comment_id = $1', [commentId]);
     return { cheered: !del.rowCount, cheers: n.rows[0].n as number };
+  }
+
+  /** O comentário de um mimo que `userId` vê (as mesmas regras da lista); senão 404. */
+  private async visibleComment(userId: string, commentId: string) {
+    const c = (
+      await this.pool.query(
+        `SELECT c.story_id, c.author_id FROM content.story_comments c
+           JOIN content.stories st ON st.id = c.story_id JOIN identity.users a ON a.id = c.author_id
+          WHERE c.id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')} AND ${notReportedBy('story_comment', 'c.id')}
+            AND (a.id = $1 OR st.author_id = $1 OR ${canView('a')})`,
+        [userId, commentId],
+      )
+    ).rows[0];
+    if (!c) throw new NotFoundException('Comentário não encontrado');
+    return c as { story_id: string; author_id: string };
+  }
+
+  /** Quem brindou um comentário de um mimo: os mais recentes primeiro, só as contas que quem pede vê (sem bloqueios). */
+  async commentCheers(userId: string, commentId: string) {
+    const c = await this.visibleComment(userId, commentId);
+    await this.visibleStory(userId, c.story_id);
+    const { rows } = await this.pool.query(
+      `SELECT a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar, a.verified, a.verified_tier, x.created_at AS at
+         FROM content.story_comment_cheers x JOIN identity.users a ON a.id = x.user_id
+        WHERE x.comment_id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')}
+        ORDER BY x.created_at DESC LIMIT 100`,
+      [userId, commentId],
+    );
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: r.verified, verifiedTier: (r.verified_tier as string | null) ?? null, at: r.at }));
   }
 
   /** Comentar num story: segue a mesma definição de respostas do autor (todos, quem ele segue, ninguém). */

@@ -18,6 +18,7 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { CommentCheersSheet } from './PeopleSheet';
 import { Sticker, StickerPanel } from './StickerPanel';
 import { GifHiddenCard, GifView, TxillappReaction, useGifsConfig } from './GifPanel';
 import { stickerOf } from './CommentsSheet';
@@ -234,6 +235,7 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
  */
 function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport: () => void; onDelete: () => void }) {
   const [cheer, setCheer] = useState({ cheered: !!c.cheered, cheers: c.cheers ?? 0 });
+  const [cheersOpen, setCheersOpen] = useState(false);
   useEffect(() => { setCheer({ cheered: !!c.cheered, cheers: c.cheers ?? 0 }); }, [c.cheered, c.cheers]);
   const [burst, setBurst] = useState(0);
   const pop = useSharedValue(1);
@@ -272,7 +274,11 @@ function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport:
         <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
         {stickerOf(c.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(c.body)!} size={88} /></View> : c.body ? <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: D.text }} /> : null}
         {c.gifHidden ? <View style={{ marginTop: 6 }}><GifHiddenCard /></View> : validGif(c.gif) ? <View style={{ marginTop: 6 }}><GifView gif={c.gif} onDark /></View> : null}
-        {cheer.cheers > 0 && <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>}
+        {cheer.cheers > 0 && (
+          <Pressable onPress={() => setCheersOpen(true)} hitSlop={8} style={{ alignSelf: 'flex-start' }} accessibilityRole="button" accessibilityLabel={t('Ver quem brindou')}>
+            <Text style={st.cheers}>{cheer.cheers} {cheer.cheers === 1 ? t('brinde') : t('brindes')}</Text>
+          </Pressable>
+        )}
       </View>
       {!c.mine && <Pressable onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Denunciar o comentário de {username}', { username: c.author.username })} style={{ padding: 6 }}><Icon name="flag" size={17} color={D.sub} /></Pressable>}
       {c.canDelete && <Pressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Apagar comentário')} style={{ padding: 6 }}><Icon name="trash" size={18} color={D.sub} /></Pressable>}
@@ -280,6 +286,7 @@ function StoryCommentRow({ c, onReport, onDelete }: { c: StoryComment; onReport:
         <Reanimated.View style={popStyle}><Icon name="cheers" size={19} color={cheer.cheered ? colors.brandWarm : D.sub} /></Reanimated.View>
       </Pressable>
       <CheersPour n={burst} size={96} />
+      {cheersOpen && <CommentCheersSheet commentId={c.id} story onClose={() => setCheersOpen(false)} />}
     </Pressable>
   );
 }

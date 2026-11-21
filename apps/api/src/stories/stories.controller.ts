@@ -145,6 +145,12 @@ export class StoriesController {
     return this.stories.toggleCommentCheer(req.userId!, commentId);
   }
 
+  /** Quem brindou um comentário do mimo. */
+  @Get('comments/:commentId/cheers')
+  commentCheers(@Req() req: AuthedReq, @Param('commentId', ParseUUIDPipe) commentId: string) {
+    return this.stories.commentCheers(req.userId!, commentId);
+  }
+
   @Delete('comments/:commentId')
   @HttpCode(204)
   deleteComment(@Req() req: AuthedReq, @Param('commentId', ParseUUIDPipe) commentId: string) {

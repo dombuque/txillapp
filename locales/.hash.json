@@ -5148,6 +5148,7 @@
     "O pagamento em meticais ainda não está disponível. Por agora paga-se com as vibes do local.": "7b949dce55b7cfe5",
     "Pacote inválido": "3e87b5b7a2597348",
     "O raio vai de {min} a {max} km": "bfac9fbffac43dd4",
+    "Esta chave de idempotência já foi usada noutro movimento.": "065e78c94b9fecce",
     "O local não tem vibes suficientes: este pacote custa {vibes}.": "f08f577f574152be",
     "Data de início inválida": "a7c9bfc24641bd3c",
     "O início não pode ser no passado": "2dec6eac66d5bb68",
@@ -5559,6 +5560,7 @@
     "Este presente já foi publicado": "2bf5ac74c9d92126",
     "Uma resposta leva o comentário; um dueto não": "3302821620495e05",
     "Quem escreveu este comentário não deixa responder com tchekas": "3644fecc68a26fde",
+    "Serviço de notificações desconhecido": "4038a7f0052da267",
     "Notificações push não estão ativas neste servidor": "ebafdf32ba927ba2",
     "Notificações ligadas": "0d4e0134525d8778",
     "Funciona! Agora chegam a este telemóvel.": "ad8bc7b59b48ebba",
@@ -5719,8 +5721,6 @@
     "O destinatário ainda não abriu a carteira": "67b8485633eb7cbb",
     "Saldo insuficiente": "4bd426a67e0dab19",
     "Montante inválido": "80cb6709a78f9de1",
-    "Movimento inválido": "e238bfd1ca2dfe89",
-    "Esta chave de idempotência já foi usada noutro movimento.": "065e78c94b9fecce",
-    "Serviço de notificações desconhecido": "4038a7f0052da267"
+    "Movimento inválido": "e238bfd1ca2dfe89"
   }
 }
