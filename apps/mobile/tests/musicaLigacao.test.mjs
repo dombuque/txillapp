@@ -23,3 +23,10 @@ test('envia só a ligação; o cartão aparece onde a música aparece; o seletor
   assert.match(read('app/(tabs)/new.tsx'), /allowLink=\{!assets\.some\(\(a\) => a\.video\)\}/);
   assert.match(read('components/MusicPicker.tsx'), /const pastedLink = allowLink && looksLikeMusicLink\(term\) \? term\.trim\(\) : '';/);
 });
+
+test('o seletor: botão «Colar» no campo (sem frase a explicar); só aceita ligações de música', () => {
+  const p = read('components/MusicPicker.tsx');
+  assert.match(p, /const text = \(await Clipboard\.getStringAsync\(\)\)\.trim\(\);/);
+  assert.match(p, /if \(looksLikeMusicLink\(text\)\) \{ setErr\(''\); setTerm\(text\); \}/);
+  assert.doesNotMatch(p, /Também podes colar a ligação/);
+});

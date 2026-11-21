@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { MusicLinkCard } from './MusicLink';
 import { looksLikeMusicLink } from '@/lib/musicLink';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
@@ -267,6 +268,14 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
   const pastedLink = allowLink && looksLikeMusicLink(term) ? term.trim() : '';
   const linked = useQuery({ queryKey: ['music-link', pastedLink], queryFn: () => musicApi.link(pastedLink), enabled: !!pastedLink, staleTime: 60 * 60_000, retry: false });
   const searching = query.length >= 2 && !pastedLink;
+  async function pasteLink() {
+    try {
+      const text = (await Clipboard.getStringAsync()).trim();
+      if (looksLikeMusicLink(text)) { setErr(''); setTerm(text); } else setErr(t('Copia a ligação de uma música no Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music.'));
+    } catch {
+      setErr(t('Não consegui ler o que copiaste.'));
+    }
+  }
 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
@@ -351,6 +360,12 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
           <Pressable onPress={() => setTerm('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Limpar a pesquisa')}>
             <Icon name="x" size={16} color={C.sub} />
           </Pressable>
+        ) : allowLink ? (
+          // A ligação de uma música (Spotify, YouTube…) copiada noutra app: um toque e entra no campo.
+          <Pressable onPress={() => void pasteLink()} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('Colar a ligação de uma música')} style={s.paste}>
+            <Icon name="link" size={14} color="#fff" />
+            <Text style={s.pasteText}>{t('Colar')}</Text>
+          </Pressable>
         ) : null}
       </View>
       {!searching ? (
@@ -391,7 +406,7 @@ function PickerBody({ onPick, hint, allowLocal, allowLink }: { onPick: (t: Track
             ) : null}
           </View>
         ) : null}
-        {allowLink && !term ? <Text style={s.linkHint}>{t('Também podes colar a ligação de uma música do Spotify, YouTube, Audiomack, Boomplay, Deezer ou Apple Music.')}</Text> : null}
+
 
         {searching ? (
           <View style={{ marginTop: 6 }}>{list(found, t('Nada com esse nome'))}</View>
@@ -671,7 +686,8 @@ function MenuItem({ icon, label, hint, disabled = false, onPress }: { icon: Reac
 const s = StyleSheet.create({
   useLink: { height: 46, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   useLinkText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  linkHint: { fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.6)', paddingHorizontal: 4, paddingBottom: 8 },
+  paste: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 10, paddingVertical: 5 },
+  pasteText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   body: { flex: 1, minHeight: 0 },
   deskTitle: { paddingLeft: 20, paddingRight: 64, marginTop: 4, marginBottom: 12, fontSize: 18, lineHeight: 28, fontWeight: '700', color: C.text },
   search: { marginHorizontal: 16, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: C.raised, paddingHorizontal: 16 },
